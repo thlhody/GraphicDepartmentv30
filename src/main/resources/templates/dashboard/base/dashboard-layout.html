@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${dashboard.pageTitle}">Dashboard</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <div th:replace="~{dashboard/base/header-section :: header}"></div>
+        <div th:if="${dashboardMetrics}" th:replace="~{dashboard/base/metrics-section :: metrics}"></div>
+        <div class="mb-4"></div>
+        <div th:replace="~{dashboard/base/card-grid :: cards}"></div>
+    </div>
+</div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        function updateClock() {
+            const clockElement = document.querySelector('.current-time');
+            const now = new Date();
+            clockElement.textContent = now.toLocaleTimeString();
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+    </script>
+</th:block>
+</body>
+</html>

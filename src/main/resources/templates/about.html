@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="English">
+<head>
+    <title>About - CT3</title>
+    <style>
+        /* Remove any top margin/padding conflicts */
+        .container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+
+        .logo-container {
+            max-width: 300px;
+            margin: 0 auto;
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .logo-container img {
+            width: 100%;
+            height: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .logo-container:hover img {
+            transform: scale(1.05);
+        }
+
+        .typewriter {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: fadeIn 1s ease-out;
+            margin-bottom: 2rem;
+        }
+
+        .version-info {
+            animation: fadeIn 1.5s ease-out;
+            padding: 1rem;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 1rem;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .copyright-info {
+            color: #6c757d;
+            animation: fadeIn 2s ease-out;
+            font-size: 0.9rem;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .logo-container {
+                max-width: 200px;
+            }
+
+            .typewriter {
+                font-size: 1.8rem;
+            }
+
+            .version-info {
+                padding: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-5">
+        <div class="hero-section">
+            <div class="text-center">
+                <div class="logo-container mb-4">
+                    <img th:src="@{/images/ct3text.png}" alt="CT3 Logo" />
+                </div>
+
+                <h1 class="display-5 fw-bold mb-4 typewriter">
+                    Creative Time And Task Tracker
+                </h1>
+
+                <div class="version-info">
+                    <h2 class="h4 mb-0">Version 5.0</h2>
+                </div>
+
+                <div class="copyright-info">
+                    © 2024 thlhody
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

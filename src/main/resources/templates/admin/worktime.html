@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Work Time Management</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid py-4">
+        <!-- Header Section -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="h2 mb-0">Work Time Management</h1>
+                <div class="badge bg-primary rounded-pill px-3 py-2">
+                    <i class="bi bi-shield-check me-1"></i>
+                    <span>Admin Panel</span>
+                </div>
+            </div>
+            <a th:href="@{/admin}" class="btn btn-outline-primary">
+                <i class="bi bi-grid"></i> Dashboard
+            </a>
+        </div>
+
+        <!-- Alert System -->
+        <div class="mb-4">
+            <div th:replace="~{admin/fragments/alerts :: alerts}"></div>
+        </div>
+
+        <!-- Management Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear me-2"></i>Period Management & Holidays
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <!-- Period Selection -->
+                    <div class="col-md-6">
+                        <h6 class="d-flex align-items-center mb-3">
+                            <i class="bi bi-calendar3 me-2"></i>View Period
+                        </h6>
+                        <form th:action="@{/admin/worktime}" method="get"
+                              class="d-flex flex-wrap gap-3">
+                            <div class="form-group">
+                                <select name="year" class="form-select"
+                                        style="width: 120px">
+                                    <option th:each="yr : ${#numbers.sequence(2020, 2030)}"
+                                            th:value="${yr}"
+                                            th:text="${yr}"
+                                            th:selected="${yr == currentYear}">
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <select name="month" class="form-select"
+                                        style="width: 140px">
+                                    <option th:each="monthEntry : ${T(java.time.Month).values()}"
+                                            th:value="${monthEntry.getValue()}"
+                                            th:text="${monthEntry.name()}"
+                                            th:selected="${monthEntry.getValue() == currentMonth}">
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search me-1"></i>View Period
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Holiday Management -->
+                    <div class="col-md-6">
+                        <h6 class="d-flex align-items-center mb-3">
+                            <i class="bi bi-calendar-event me-2"></i>Add National Holiday
+                        </h6>
+                        <form th:action="@{/admin/worktime/holiday/add}" method="post"
+                              class="d-flex flex-wrap gap-3">
+                            <div class="form-group">
+                                <select name="day" class="form-select" required
+                                        style="width: 120px">
+                                    <option value="">Select Day</option>
+                                    <option th:each="day : ${#numbers.sequence(1, daysInMonth)}"
+                                            th:value="${day}"
+                                            th:text="${day}">
+                                    </option>
+                                </select>
+                            </div>
+                            <input type="hidden" name="year" th:value="${currentYear}">
+                            <input type="hidden" name="month" th:value="${currentMonth}">
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Holiday
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Time Records Card -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
+                        <h5 class="card-title mb-0">Employee Records</h5>
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-calendar3 me-1"></i>
+                            [[${T(java.time.Month).of(currentMonth)}]] [[${currentYear}]]
+                        </span>
+                    </div>
+                    <a th:href="@{/admin/worktime/export(year=${currentYear},month=${currentMonth})}"
+                       class="btn btn-success btn-sm">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Export to Excel
+                    </a>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                <!-- Work Time Table -->
+                <div th:replace="~{admin/fragments/worktime-table :: table}"></div>
+            </div>
+
+            <!-- Legend -->
+            <div th:replace="~{admin/fragments/worktime-legend :: legend}"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-select {
+        background-color: #fff;
+        border-color: #dee2e6;
+    }
+    .form-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    .badge {
+        font-weight: 500;
+    }
+    .breadcrumb {
+        margin-bottom: 0;
+    }
+    .legend-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+</style>
+</body>
+</html>

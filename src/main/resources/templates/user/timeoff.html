@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Request Time Off</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Header Section -->
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="h2 mb-0">Request Time Off</h1>
+                <div class="badge bg-primary rounded-pill px-3 py-2" th:text="${user.name}"></div>
+            </div>
+            <nav class="d-flex align-items-center gap-2">
+                <a class="btn btn-outline-primary" th:href="@{/user}">
+                    <i class="bi bi-grid"></i> Dashboard
+                </a>
+            </nav>
+        </header>
+
+        <!-- Alert System -->
+        <div th:replace="~{user/fragments/alerts :: alerts}"></div>
+
+        <div class="row g-4">
+            <!-- Summary Card -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-transparent">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-calendar3 me-2"></i>Leave Balance
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Available Days -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-primary bg-opacity-10 rounded mb-2">
+                                <span>Available Days</span>
+                                <span class="badge bg-primary rounded-pill" th:text="${summary.availablePaidDays}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-success bg-opacity-10 rounded">
+                                <span>Remaining Days</span>
+                                <span class="badge bg-success rounded-pill" th:text="${summary.remainingPaidDays}"></span>
+                            </div>
+                        </div>
+
+                        <!-- Used Days -->
+                        <h6 class="d-flex align-items-center mb-3">
+                            <i class="bi bi-calendar-check me-2"></i>Used Leave
+                        </h6>
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted">National Holidays</span>
+                                <span class="badge bg-secondary rounded-pill" th:text="${summary.snDays}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted">Vacation (CO)</span>
+                                <span class="badge bg-info rounded-pill" th:text="${summary.coDays}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">Medical (CM)</span>
+                                <span class="badge bg-danger rounded-pill" th:text="${summary.cmDays}"></span>
+                            </div>
+                        </div>
+
+                        <!-- Request Summary -->
+                        <h6 class="d-flex align-items-center mb-3">
+                            <i class="bi bi-clock-history me-2"></i>Request Status
+                        </h6>
+                        <div class="d-flex justify-content-between align-items-center p-3 bg-warning bg-opacity-10 rounded mb-2">
+                            <span>Requested</span>
+                            <span class="badge bg-warning rounded-pill" th:text="${summary.totalRequestedDays}"></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center p-3 bg-success bg-opacity-10 rounded">
+                            <span>Approved</span>
+                            <span class="badge bg-success rounded-pill" th:text="${summary.totalApprovedDays}"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Request Form -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-transparent">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-calendar-plus me-2"></i>New Request
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form th:action="@{/user/timeoff}" method="post" class="needs-validation" novalidate>
+                            <!-- Date Selection -->
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">Start Date</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light">
+                                            <i class="bi bi-calendar-event"></i>
+                                        </span>
+                                        <label for="startDate"></label><input type="date"
+                                                                              class="form-control"
+                                                                              id="startDate"
+                                                                              name="startDate"
+                                                                              th:min="${minDate}"
+                                                                              th:max="${maxDate}"
+                                                                              required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">End Date</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light">
+                                            <i class="bi bi-calendar-event"></i>
+                                        </span>
+                                        <label for="endDate"></label><input type="date"
+                                                                            class="form-control"
+                                                                            id="endDate"
+                                                                            name="endDate"
+                                                                            th:min="${minDate}"
+                                                                            th:max="${maxDate}"
+                                                                            required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Leave Type -->
+                            <div class="mb-4">
+                                <label class="form-label text-muted">Leave Type</label>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="timeOffType"
+                                               id="typeCO" value="CO" required>
+                                        <label class="form-check-label" for="typeCO">
+                                            <i class="bi bi-sun me-2"></i>Vacation (CO)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="timeOffType"
+                                               id="typeCM" value="CM" required>
+                                        <label class="form-check-label" for="typeCM">
+                                            <i class="bi bi-hospital me-2"></i>Medical (CM)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info bg-info bg-opacity-10 border-0" role="alert">
+                                <div class="d-flex">
+                                    <i class="bi bi-info-circle fs-5 me-2"></i>
+                                    <div>
+                                        <p class="mb-0">Important Notes:</p>
+                                        <ul class="mb-0 small">
+                                            <li>Weekends are automatically excluded from the calculation</li>
+                                            <li>National holidays are not counted as leave days</li>
+                                            <li>The actual number of leave days may differ from the date range</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid mt-4">
+                                <button type="submit" class="btn btn-primary py-2">
+                                    <i class="bi bi-send me-2"></i>Submit Request
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .badge {
+        font-weight: 500;
+    }
+    .form-check-input:checked {
+        background-color: var(--bs-primary);
+        border-color: var(--bs-primary);
+    }
+    .input-group-text {
+        border: 1px solid #dee2e6;
+    }
+    .alert-info {
+        color: var(--bs-primary);
+    }
+</style>
+
+<!-- Scripts -->
+<th:block layout:fragment="scripts">
+    <script>
+        // Form validation
+        (function () {
+            'use strict'
+            const forms = document.querySelectorAll('.needs-validation');
+
+            Array.from(forms).forEach(form => {
+                form.addEventListener('submit', event => {
+                    if (!form.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+
+            // Date validation
+            const startDate = document.getElementById('startDate');
+            const endDate = document.getElementById('endDate');
+
+            startDate.addEventListener('change', function() {
+                endDate.min = this.value;
+            });
+
+            endDate.addEventListener('change', function() {
+                startDate.max = this.value;
+            });
+        })();
+
+        // Auto-dismiss alerts after 3 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 3000);
+    </script>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Work Session Management</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <meta http-equiv="refresh" content="60">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Status Messages -->
+        <div th:if="${param.action}" class="alert alert-dismissible fade show mb-4"
+             th:classappend="${
+                param.action[0] == 'start' ? 'alert-success' :
+                param.action[0] == 'end' ? 'alert-info' :
+                param.action[0] == 'pause' ? 'alert-warning' :
+                param.action[0] == 'resume' ? 'alert-success' : ''}"
+             role="alert">
+            <span th:text="${
+                param.action[0] == 'start' ? 'Work session started' :
+                param.action[0] == 'end' ? 'Work session ended' :
+                param.action[0] == 'pause' ? 'Session paused' :
+                param.action[0] == 'resume' ? 'Session resumed' : ''}">
+            </span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+        <!-- Header Section -->
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="h2 mb-0">Work Session Management</h1>
+                <div th:with="statusClass=${
+                    sessionStatus == 'Online' ? 'bg-success' :
+                    sessionStatus == 'Offline' ? 'bg-secondary' :
+                    'bg-warning'}"
+                     th:classappend="${statusClass}"
+                     class="badge rounded-pill px-3 py-2 text-white">
+                    <span th:text="${sessionStatus}">Offline</span>
+                </div>
+            </div>
+            <nav class="d-flex align-items-center gap-2">
+                <a class="btn btn-outline-primary" th:href="@{/user}">
+                    <i class="bi bi-grid"></i> Dashboard
+                </a>
+            </nav>
+        </header>
+
+        <!-- Action Controls -->
+        <div class="d-flex gap-3 mb-4">
+            <!-- Start Button -->
+            <form th:action="@{/user/session/start}" method="post">
+                <button type="submit"
+                        class="btn btn-success"
+                        th:disabled="${sessionStatus != 'Offline'}">
+                    <i class="bi bi-play-circle"></i> Start Work
+                </button>
+            </form>
+
+            <!-- Pause/Resume Button -->
+            <form th:action="@{/user/session/temp-stop}" method="post">
+                <button type="submit"
+                        class="btn"
+                        th:classappend="${sessionStatus == 'Temporary Stop' ? 'btn-info' : 'btn-warning'}"
+                        th:disabled="${sessionStatus == 'Offline'}">
+                    <i class="bi" th:classappend="${sessionStatus == 'Temporary Stop' ? 'bi-play-circle' : 'bi-pause-circle'}"></i>
+                    <span th:text="${sessionStatus == 'Temporary Stop' ? 'Resume' : 'Pause'}">Pause</span>
+                </button>
+            </form>
+
+            <!-- End Button -->
+            <form th:action="@{/user/session/end}" method="post">
+                <button type="submit"
+                        class="btn btn-danger"
+                        th:disabled="${sessionStatus == 'Offline'}">
+                    <i class="bi bi-stop-circle"></i> End Work
+                </button>
+            </form>
+
+            <!-- Refresh Button -->
+            <a th:href="@{/user/session}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </a>
+        </div>
+
+        <!-- Session Information Card -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- Current Time Display -->
+                <div class="mb-4 p-3 bg-light rounded">
+                    <h6 class="text-muted mb-1">Current Time</h6>
+                    <div class="h4 mb-0" th:text="${currentDateTime}">--:--</div>
+                </div>
+
+                <!-- Session Stats Grid -->
+                <div class="row g-4">
+                    <!-- Start Time -->
+                    <div class="col-md-4">
+                        <div class="border-start border-4 border-primary ps-3">
+                            <h6 class="text-muted mb-1">Started At</h6>
+                            <div class="h5 mb-0" th:text="${dayStartTime}">--:--</div>
+                        </div>
+                    </div>
+
+                    <!-- Raw Work Time -->
+                    <div class="col-md-4">
+                        <div class="border-start border-4 border-success ps-3">
+                            <h6 class="text-muted mb-1">Total Work (Raw)</h6>
+                            <div class="h5 mb-0" th:text="${totalWorkRaw}">00:00</div>
+                        </div>
+                    </div>
+
+                    <!-- Actual Work Time -->
+                    <div class="col-md-4">
+                        <div class="border-start border-4 border-info ps-3">
+                            <h6 class="text-muted mb-1">Actual Work Time</h6>
+                            <div class="h5 mb-0" th:text="${actualWorkTime}">00:00</div>
+                        </div>
+                    </div>
+
+                    <!-- Break Information -->
+                    <div class="col-md-4">
+                        <div class="border-start border-4 border-warning ps-3">
+                            <h6 class="text-muted mb-1">Breaks</h6>
+                            <div class="h5 mb-0">
+                                <span th:text="${temporaryStopCount}">0</span>
+                                <small class="text-muted">stops</small>
+                                (<span th:text="${totalTemporaryStopTime}">00:00</span>)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Overtime -->
+                    <div class="col-md-4">
+                        <div class="border-start border-4 border-danger ps-3">
+                            <h6 class="text-muted mb-1">Overtime</h6>
+                            <div class="h5 mb-0" th:text="${overtime}">00:00</div>
+                        </div>
+                    </div>
+
+                    <!-- Lunch Break -->
+                    <div class="col-md-4">
+                        <div class="border-start border-4 border-secondary ps-3">
+                            <h6 class="text-muted mb-1">Lunch Break</h6>
+                            <div class="h5 mb-0" th:text="${lunchBreakStatus}">Not deducted</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+        // Clean URL after showing status message
+        if (window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // Auto-dismiss alerts after 3 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(alert => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                });
+            }, 3000);
+        });
+    </script>
+</th:block>
+</body>
+</html>

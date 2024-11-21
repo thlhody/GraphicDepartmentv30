@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Work Time Records</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Header Section -->
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="h2 mb-0">Work Time Records</h1>
+                <div class="badge bg-primary rounded-pill px-3 py-2">
+                    <i class="bi bi-person me-1"></i>
+                    <span th:text="${user.name}"></span>
+                </div>
+            </div>
+            <nav class="d-flex align-items-center gap-2">
+                <a th:href="${dashboardUrl}" class="btn btn-outline-primary">
+                    <i class="bi bi-grid"></i> Dashboard
+                </a>
+            </nav>
+        </header>
+
+        <div class="row g-4">
+            <!-- Summary Card -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-transparent">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-calendar3 me-2"></i>Month Summary
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Work Days Section -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
+                                <span>Work Days</span>
+                                <span class="badge bg-primary rounded-pill" th:text="${summary.totalWorkDays}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
+                                <span>Days Worked</span>
+                                <span class="badge bg-success rounded-pill" th:text="${summary.totalWorkedDaysWithTimeOff}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                <span>Remaining</span>
+                                <span class="badge bg-warning rounded-pill" th:text="${summary.remainingWorkDays}"></span>
+                            </div>
+                        </div>
+
+                        <!-- Time Off Section -->
+                        <h6 class="d-flex align-items-center mb-3">
+                            <i class="bi bi-calendar-check me-2"></i>Time Off
+                        </h6>
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted">National Holidays</span>
+                                <span class="badge bg-secondary rounded-pill" th:text="${summary.snDays}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted">Available Paid Days</span>
+                                <span class="badge bg-success rounded-pill" th:text="${summary.availablePaidDays}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted">Vacation (CO)</span>
+                                <span class="badge bg-info rounded-pill" th:text="${summary.coDays}"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">Medical (CM)</span>
+                                <span class="badge bg-danger rounded-pill" th:text="${summary.cmDays}"></span>
+                            </div>
+                        </div>
+
+                        <!-- Hours Summary Section -->
+                        <h6 class="d-flex align-items-center mb-3">
+                            <i class="bi bi-clock me-2"></i>Hours Summary
+                        </h6>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
+                                <span>Regular Hours</span>
+                                <strong th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary.totalRegularMinutes)}"></strong>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
+                                <span>Overtime</span>
+                                <strong class="text-success"
+                                        th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary.totalOvertimeMinutes)}"></strong>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-primary bg-opacity-10 rounded">
+                                <span class="text-primary">Total Hours</span>
+                                <strong class="text-primary"
+                                        th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary.totalMinutes)}"></strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work Time Records -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-transparent">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-table me-2"></i>Daily Records
+                            </h5>
+                            <form th:action="@{/user/worktime}" method="get"
+                                  class="d-flex gap-2 align-items-center">
+                                <select name="year" class="form-select form-select-sm"
+                                        style="width: 100px" onchange="this.form.submit()">
+                                    <option th:each="yr : ${#numbers.sequence(2020, 2030)}"
+                                            th:value="${yr}"
+                                            th:text="${yr}"
+                                            th:selected="${yr == currentYear}">
+                                    </option>
+                                </select>
+                                <select name="month" class="form-select form-select-sm"
+                                        style="width: 130px" onchange="this.form.submit()">
+                                    <option value="1" th:selected="${currentMonth == 1}">January</option>
+                                    <option value="2" th:selected="${currentMonth == 2}">February</option>
+                                    <option value="3" th:selected="${currentMonth == 3}">March</option>
+                                    <option value="4" th:selected="${currentMonth == 4}">April</option>
+                                    <option value="5" th:selected="${currentMonth == 5}">May</option>
+                                    <option value="6" th:selected="${currentMonth == 6}">June</option>
+                                    <option value="7" th:selected="${currentMonth == 7}">July</option>
+                                    <option value="8" th:selected="${currentMonth == 8}">August</option>
+                                    <option value="9" th:selected="${currentMonth == 9}">September</option>
+                                    <option value="10" th:selected="${currentMonth == 10}">October</option>
+                                    <option value="11" th:selected="${currentMonth == 11}">November</option>
+                                    <option value="12" th:selected="${currentMonth == 12}">December</option>
+                                </select>
+                                <a class="btn btn-sm btn-outline-primary ms-2" th:href="@{/user/worktime}">
+                                    <i class="bi bi-calendar3"></i> Current
+                                </a>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0">Date</th>
+                                    <th class="border-0">Start</th>
+                                    <th class="border-0">End</th>
+                                    <th class="border-0">Breaks</th>
+                                    <th class="border-0">Time Off</th>
+                                    <th class="border-0">Hours</th>
+                                    <th class="border-0">OT</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="record : ${worktimeData}">
+                                    <td th:text="${#temporals.format(record.workDate, 'dd/MM/yyyy')}"></td>
+                                    <td>
+                                        <span th:if="${record.dayStartTime}"
+                                              th:text="${#temporals.format(record.dayStartTime, 'HH:mm')}"
+                                              class="text-success">
+                                        </span>
+                                        <span th:unless="${record.dayStartTime}">-</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${record.dayEndTime}"
+                                              th:text="${#temporals.format(record.dayEndTime, 'HH:mm')}"
+                                              class="text-danger">
+                                        </span>
+                                        <span th:unless="${record.dayEndTime}">-</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${record.temporaryStopCount > 0}"
+                                              class="badge bg-warning rounded-pill"
+                                              th:text="${record.temporaryStopCount + ' (' + record.totalTemporaryStopMinutes + 'm)'}">
+                                        </span>
+                                        <span th:unless="${record.temporaryStopCount > 0}">-</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${record.timeOffType}"
+                                              th:class="${'badge rounded-pill ' +
+                                                (record.timeOffType == 'CO' ? 'bg-info' :
+                                                 record.timeOffType == 'CM' ? 'bg-danger' : 'bg-secondary')}"
+                                              th:text="${record.timeOffType}">
+                                        </span>
+                                        <span th:unless="${record.timeOffType}">-</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${record.totalWorkedMinutes}"
+                                              th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(record.totalWorkedMinutes)}"
+                                              class="fw-medium">
+                                        </span>
+                                        <span th:unless="${record.totalWorkedMinutes}">-</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${record.totalOvertimeMinutes > 0}"
+                                              class="badge bg-success rounded-pill"
+                                              th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(record.totalOvertimeMinutes)}">
+                                        </span>
+                                        <span th:unless="${record.totalOvertimeMinutes > 0}">-</span>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table > :not(caption) > * > * {
+        padding: 1rem 0.75rem;
+    }
+    .badge {
+        font-weight: 500;
+    }
+    .form-select {
+        background-color: #fff;
+        border-color: #dee2e6;
+    }
+    .form-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+</style>
+</body>
+</html>
