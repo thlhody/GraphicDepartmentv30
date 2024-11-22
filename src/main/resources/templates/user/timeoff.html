@@ -5,16 +5,79 @@
       lang="en">
 <head>
     <title>Request Time Off</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
+
+<!-- Custom styles for time-off page -->
+<th:block layout:fragment="styles">
+    <style>
+        /* Badge styles */
+        .badge {
+            font-weight: 500;
+        }
+
+        /* Form control styles */
+        .form-check-input:checked {
+            background-color: var(--bs-primary);
+            border-color: var(--bs-primary);
+        }
+
+        .input-group-text {
+            border: 1px solid #dee2e6;
+            background-color: var(--bs-light);
+        }
+
+        /* Alert styles */
+        .alert-info {
+            color: var(--bs-primary);
+        }
+
+        /* Card styles */
+        .card-icon {
+            font-size: 1.1rem;
+            color: var(--bs-primary);
+        }
+
+        /* Preview styles */
+        .request-preview {
+            display: none;
+            transition: all 0.3s ease;
+        }
+
+        .request-preview.show {
+            display: block;
+        }
+
+        /* Form section spacing */
+        .form-section {
+            margin-bottom: 1.5rem;
+        }
+
+        /* Summary section spacing */
+        .summary-section {
+            margin-bottom: 2rem;
+        }
+
+        /* Button improvements */
+        .btn-submit {
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+        }
+
+        .btn-submit i {
+            margin-right: 0.5rem;
+        }
+    </style>
+</th:block>
+
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
         <!-- Header Section -->
         <header class="d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
-                <h1 class="h2 mb-0">Request Time Off</h1>
+                <h1 class="h2 mb-0">
+                    <i class="bi bi-calendar3-range me-2"></i>Request Time Off
+                </h1>
                 <div class="badge bg-primary rounded-pill px-3 py-2" th:text="${user.name}"></div>
             </div>
             <nav class="d-flex align-items-center gap-2">
@@ -37,8 +100,8 @@
                         </h5>
                     </div>
                     <div class="card-body">
-                        <!-- Available Days -->
-                        <div class="mb-4">
+                        <!-- Balance Section -->
+                        <div class="summary-section">
                             <div class="d-flex justify-content-between align-items-center p-3 bg-primary bg-opacity-10 rounded mb-2">
                                 <span>Available Days</span>
                                 <span class="badge bg-primary rounded-pill" th:text="${summary.availablePaidDays}"></span>
@@ -49,11 +112,11 @@
                             </div>
                         </div>
 
-                        <!-- Used Days -->
+                        <!-- Used Leave Section -->
                         <h6 class="d-flex align-items-center mb-3">
                             <i class="bi bi-calendar-check me-2"></i>Used Leave
                         </h6>
-                        <div class="mb-4">
+                        <div class="summary-section">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="text-muted">National Holidays</span>
                                 <span class="badge bg-secondary rounded-pill" th:text="${summary.snDays}"></span>
@@ -68,7 +131,7 @@
                             </div>
                         </div>
 
-                        <!-- Request Summary -->
+                        <!-- Request Status -->
                         <h6 class="d-flex align-items-center mb-3">
                             <i class="bi bi-clock-history me-2"></i>Request Status
                         </h6>
@@ -94,42 +157,66 @@
                     </div>
                     <div class="card-body">
                         <form th:action="@{/user/timeoff}" method="post" class="needs-validation" novalidate>
+                            <!-- Single Day Toggle -->
+                            <div class="form-check form-section">
+                                <input class="form-check-input" type="checkbox" id="singleDayRequest" name="isSingleDayRequest">
+                                <label class="form-check-label" for="singleDayRequest">
+                                    <i class="bi bi-calendar-event me-2"></i>Single Day Request
+                                </label>
+                            </div>
+
                             <!-- Date Selection -->
                             <div class="row g-4 mb-4">
                                 <div class="col-md-6">
-                                    <label class="form-label text-muted">Start Date</label>
+                                    <label for="startDate" class="form-label">Start Date</label>
                                     <div class="input-group">
-                                        <span class="input-group-text bg-light">
-                                            <i class="bi bi-calendar-event"></i>
+                                        <span class="input-group-text">
+                                            <i class="bi bi-calendar"></i>
                                         </span>
-                                        <label for="startDate"></label><input type="date"
-                                                                              class="form-control"
-                                                                              id="startDate"
-                                                                              name="startDate"
-                                                                              th:min="${minDate}"
-                                                                              th:max="${maxDate}"
-                                                                              required>
+                                        <input type="date"
+                                               id="startDate"
+                                               class="form-control"
+                                               name="startDate"
+                                               required
+                                               th:min="${minDate}"
+                                               th:max="${maxDate}"
+                                               th:value="${today}">
+                                        <div class="invalid-feedback">Please select a start date.</div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label text-muted">End Date</label>
+                                <div class="col-md-6" id="endDateContainer">
+                                    <label for="endDate" class="form-label">End Date</label>
                                     <div class="input-group">
-                                        <span class="input-group-text bg-light">
-                                            <i class="bi bi-calendar-event"></i>
+                                        <span class="input-group-text">
+                                            <i class="bi bi-calendar"></i>
                                         </span>
-                                        <label for="endDate"></label><input type="date"
-                                                                            class="form-control"
-                                                                            id="endDate"
-                                                                            name="endDate"
-                                                                            th:min="${minDate}"
-                                                                            th:max="${maxDate}"
-                                                                            required>
+                                        <input type="date"
+                                               id="endDate"
+                                               class="form-control"
+                                               name="endDate"
+                                               required
+                                               th:min="${minDate}"
+                                               th:max="${maxDate}"
+                                               th:value="${today}">
+                                        <div class="invalid-feedback">Please select an end date.</div>
                                     </div>
                                 </div>
                             </div>
 
+<!--                            &lt;!&ndash; Request Preview &ndash;&gt;-->
+<!--                            <div id="requestPreview" class="alert alert-info bg-info bg-opacity-10 border-0 form-section request-preview">-->
+<!--                                <div class="d-flex align-items-start">-->
+<!--                                    <i class="bi bi-info-circle-fill me-2 mt-1"></i>-->
+<!--                                    <div>-->
+<!--                                        <strong>Request Preview:</strong>-->
+<!--                                        <span id="previewText"></span>-->
+<!--                                        <div id="workdaysInfo" class="small mt-1"></div>-->
+<!--                                    </div>-->
+<!--                                </div>-->
+<!--                            </div>-->
+
                             <!-- Leave Type -->
-                            <div class="mb-4">
+                            <div class="form-section">
                                 <label class="form-label text-muted">Leave Type</label>
                                 <div class="d-flex gap-4">
                                     <div class="form-check">
@@ -137,6 +224,7 @@
                                                id="typeCO" value="CO" required>
                                         <label class="form-check-label" for="typeCO">
                                             <i class="bi bi-sun me-2"></i>Vacation (CO)
+                                            <small class="text-muted ms-2">(Deducts from balance)</small>
                                         </label>
                                     </div>
                                     <div class="form-check">
@@ -149,7 +237,8 @@
                                 </div>
                             </div>
 
-                            <div class="alert alert-info bg-info bg-opacity-10 border-0" role="alert">
+                            <!-- Important Notes -->
+                            <div class="alert alert-info bg-info bg-opacity-10 border-0 form-section">
                                 <div class="d-flex">
                                     <i class="bi bi-info-circle fs-5 me-2"></i>
                                     <div>
@@ -158,14 +247,16 @@
                                             <li>Weekends are automatically excluded from the calculation</li>
                                             <li>National holidays are not counted as leave days</li>
                                             <li>The actual number of leave days may differ from the date range</li>
+                                            <li>For single day requests, both start and end dates will be set to the same day</li>
                                         </ul>
                                     </div>
                                 </div>
                             </div>
 
+                            <!-- Submit Button -->
                             <div class="d-grid mt-4">
-                                <button type="submit" class="btn btn-primary py-2">
-                                    <i class="bi bi-send me-2"></i>Submit Request
+                                <button type="submit" class="btn btn-primary btn-submit">
+                                    <i class="bi bi-send"></i>Submit Request
                                 </button>
                             </div>
                         </form>
@@ -176,56 +267,74 @@
     </div>
 </div>
 
-<style>
-    .badge {
-        font-weight: 500;
-    }
-    .form-check-input:checked {
-        background-color: var(--bs-primary);
-        border-color: var(--bs-primary);
-    }
-    .input-group-text {
-        border: 1px solid #dee2e6;
-    }
-    .alert-info {
-        color: var(--bs-primary);
-    }
-</style>
-
 <!-- Scripts -->
 <th:block layout:fragment="scripts">
-    <script>
-        // Form validation
-        (function () {
-            'use strict'
-            const forms = document.querySelectorAll('.needs-validation');
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            const startDateInput = form.querySelector('input[name="startDate"]');
+            const endDateInput = form.querySelector('input[name="endDate"]');
+            const singleDayCheckbox = document.getElementById('singleDayRequest');
+            const endDateContainer = document.getElementById('endDateContainer');
+            const requestPreview = document.getElementById('requestPreview');
+            const previewText = document.getElementById('previewText');
 
-            Array.from(forms).forEach(form => {
-                form.addEventListener('submit', event => {
-                    if (!form.checkValidity()) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    }
-                    form.classList.add('was-validated');
-                }, false);
+            function formatDate(date) {
+                return new Date(date).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            }
+
+            function updatePreview() {
+                const startDate = startDateInput.value;
+                const endDate = singleDayCheckbox.checked ? startDate : endDateInput.value;
+
+                if (!startDate) return;
+
+                if (singleDayCheckbox.checked || startDate === endDate) {
+                    previewText.textContent = `Single day request for ${formatDate(startDate)}`;
+                } else {
+                    previewText.textContent = `Date range request from ${formatDate(startDate)} to ${formatDate(endDate)}`;
+                }
+
+                requestPreview.classList.add('show');
+            }
+
+            singleDayCheckbox.addEventListener('change', function() {
+                endDateContainer.style.display = this.checked ? 'none' : 'block';
+                if (this.checked) {
+                    endDateInput.value = startDateInput.value;
+                }
+                updatePreview();
             });
 
-            // Date validation
-            const startDate = document.getElementById('startDate');
-            const endDate = document.getElementById('endDate');
-
-            startDate.addEventListener('change', function() {
-                endDate.min = this.value;
+            startDateInput.addEventListener('change', function() {
+                if (singleDayCheckbox.checked) {
+                    endDateInput.value = this.value;
+                }
+                updatePreview();
             });
 
-            endDate.addEventListener('change', function() {
-                startDate.max = this.value;
-            });
-        })();
+            endDateInput.addEventListener('change', updatePreview);
 
-        // Auto-dismiss alerts after 3 seconds
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            });
+
+            if (startDateInput.value) {
+                updatePreview();
+            }
+        });
+
+        // Auto-dismiss alerts
         setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert');
+            const alerts = document.querySelectorAll('.alert:not(.request-preview)');
             alerts.forEach(alert => {
                 const bsAlert = new bootstrap.Alert(alert);
                 bsAlert.close();

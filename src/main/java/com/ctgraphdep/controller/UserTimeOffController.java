@@ -12,11 +12,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
@@ -42,7 +38,6 @@ public class UserTimeOffController extends BaseController {
         this.timeOffService = timeOffService;
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Time Off Controller");
     }
 
     @GetMapping
@@ -61,86 +56,114 @@ public class UserTimeOffController extends BaseController {
     @PostMapping
     public String processTimeOffRequest(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
-            @RequestParam String timeOffType,
-            BindingResult bindingResult,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
+            @RequestParam(required = false) String timeOffType,
+            @RequestParam(defaultValue = "false") boolean isSingleDayRequest,
             RedirectAttributes redirectAttributes) {
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Received time off request - User: %s, Start: %s, End: %s, Type: %s",
-                        userDetails.getUsername(), startDate, endDate, timeOffType));
+        // Validate required fields
+        if (startDate == null || (endDate == null && !isSingleDayRequest)) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Please select date(s) for your time off request");
+            return "redirect:/user/timeoff?error=date_required";
+        }
+
+        if (timeOffType == null || timeOffType.trim().isEmpty()) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Please select a time off type");
+            return "redirect:/user/timeoff?error=type_required";
+        }
+
+        // Handle single day request
+        if (isSingleDayRequest) {
+            endDate = startDate;
+        }
+
+        // Validate date range for multi-day requests
+        if (!isSingleDayRequest && endDate.isBefore(startDate)) {
+            redirectAttributes.addFlashAttribute("errorMessage", "End date must be after start date");
+            return "redirect:/user/timeoff?error=invalid_range";
+        }
+
+        // Validate future dates
+        LocalDate today = LocalDate.now();
+        if (startDate.isBefore(today)) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Cannot request time off for past dates");
+            return "redirect:/user/timeoff?error=past_date";
+        }
 
         try {
             User user = getUser(userDetails);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Processing time off request for user: %s (ID: %d)",
-                            user.getUsername(), user.getUserId()));
+            // Calculate workdays between dates
+            int daysNeeded = CalculateWorkHoursUtil.calculateWorkDays(startDate, endDate, userWorkTimeService);
 
-            // Check for validation errors
-            if (bindingResult.hasErrors()) {
-                redirectAttributes.addFlashAttribute("errorMessage", "Please check the form and try again.");
-                return "redirect:/user/timeoff";
-            }
-
-            // Check if this is a CO request and if user has enough days
+            // Validate paid leave availability if CO type
             if ("CO".equals(timeOffType)) {
-                int daysNeeded = CalculateWorkHoursUtil.calculateWorkDays(
-                        startDate, endDate, userWorkTimeService);
-                int availableDays = holidayService.getRemainingHolidayDays(
-                        user.getUsername(), user.getUserId());
-
-                LoggerUtil.info(this.getClass(),
-                        String.format("Checking CO availability - Needed: %d, Available: %d",
-                                daysNeeded, availableDays));
-
+                int availableDays = holidayService.getRemainingHolidayDays(user.getUsername(), user.getUserId());
                 if (availableDays < daysNeeded) {
-                    String message = String.format(
-                            "Insufficient paid holiday days. Needed: %d, Available: %d",
-                            daysNeeded, availableDays);
-                    LoggerUtil.warn(this.getClass(), message);
-                    redirectAttributes.addFlashAttribute("errorMessage", message);
-                    return "redirect:/user/timeoff";
+                    redirectAttributes.addFlashAttribute("errorMessage",
+                            String.format("Insufficient paid holiday days. Needed: %d, Available: %d",
+                                    daysNeeded, availableDays));
+                    return "redirect:/user/timeoff?error=insufficient_days";
                 }
             }
 
             timeOffService.processTimeOffRequest(user, startDate, endDate, timeOffType);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully processed time off request for %s",
-                            user.getUsername()));
+            String successMessage = createSuccessMessage(timeOffType, startDate, endDate, daysNeeded);
+            redirectAttributes.addFlashAttribute("successMessage", successMessage);
 
-            redirectAttributes.addFlashAttribute("successMessage", "Time off request processed successfully.");
+            return "redirect:/user/timeoff";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error processing time off request: %s", e.getMessage()), e);
-            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error processing time off request: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("errorMessage", "Failed to process time off request");
+            return "redirect:/user/timeoff?error=submit_failed";
         }
+    }
 
-        return "redirect:/user/timeoff";
+    private String createSuccessMessage(String timeOffType, LocalDate startDate, LocalDate endDate, int daysCount) {
+        String dateInfo = startDate.equals(endDate) ?
+                startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) :
+                String.format("%s to %s",
+                        startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                        endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+
+        String typeLabel = "CO".equals(timeOffType) ? "vacation" : "medical leave";
+
+        return String.format("Successfully requested %s for %s (%d working day%s)",
+                typeLabel, dateInfo, daysCount, daysCount > 1 ? "s" : "");
     }
 
     private void prepareTimeOffPageModel(Model model, User user) {
         LocalDate twoMonthsAgo = LocalDate.now().minusMonths(2).withDayOfMonth(1);
+        LocalDate maxDate = LocalDate.now().plusMonths(6);
 
-        // Get user's holiday data
         int availablePaidDays = holidayService.getRemainingHolidayDays(user.getUsername(), user.getUserId());
-
-        // Get yearly worktime data
         List<WorkTimeTable> yearWorktime = userWorkTimeService.loadMonthWorktime(
                 user.getUsername(), Year.now().getValue(), YearMonth.now().getMonthValue());
 
-        // Calculate summary
         TimeOffSummary summary = calculateTimeOffSummary(yearWorktime, availablePaidDays);
 
-        // Prepare model attributes
+        // Get the user's current time off request
+        List<WorkTimeTable> currentRequest = timeOffService.getUpcomingTimeOff(user);
+
+        // Calculate the remaining days based on the current request
+        int remainingDays = availablePaidDays;
+        for (WorkTimeTable entry : currentRequest) {
+            if ("CO".equals(entry.getTimeOffType())) {
+                remainingDays -= 1;
+            }
+        }
+
+        summary.setRemainingPaidDays(remainingDays);
+
         model.addAttribute("user", user);
         model.addAttribute("summary", summary);
-        model.addAttribute("maxDate", LocalDate.now().plusMonths(6));
+        model.addAttribute("maxDate", maxDate);
         model.addAttribute("minDate", twoMonthsAgo.format(DateTimeFormatter.ISO_DATE));
+        model.addAttribute("today", LocalDate.now().format(DateTimeFormatter.ISO_DATE));
+        model.addAttribute("upcomingTimeOff", currentRequest);
     }
-
     private TimeOffSummary calculateTimeOffSummary(List<WorkTimeTable> worktime, int availablePaidDays) {
         int snDays = 0, coDays = 0, cmDays = 0;
 
@@ -159,9 +182,9 @@ public class UserTimeOffController extends BaseController {
                 .coDays(coDays)
                 .cmDays(cmDays)
                 .availablePaidDays(availablePaidDays)
-                .totalRequestedDays(snDays + coDays + cmDays)
-                .totalApprovedDays(snDays + coDays + cmDays)
-                .remainingPaidDays(availablePaidDays)
+                .totalRequestedDays(coDays + cmDays)
+                .totalApprovedDays(coDays + cmDays)
+                .remainingPaidDays(availablePaidDays - coDays)
                 .build();
     }
 }

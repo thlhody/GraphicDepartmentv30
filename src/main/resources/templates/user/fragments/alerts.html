@@ -1,50 +1,45 @@
-<div th:fragment="alerts" xmlns:th="http://www.thymeleaf.org">
-    <div class="alerts-container">
-        <!-- Success Alert -->
-        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center" th:if="${successMessage != null}" role="alert">
-            <div class="d-flex w-100">
-                <div class="alert-icon me-3">
-                    <i class="bi bi-check-circle-fill"></i>
-                </div>
-                <div class="alert-content flex-grow-1">
-                    <div class="alert-heading h6 mb-0">Success</div>
-                    <div class="alert-text" th:text="${successMessage}"></div>
-                </div>
+<!-- Create the file at src/main/resources/templates/fragments/alerts.html -->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+<div th:fragment="alerts">
+    <!-- Success Alert -->
+    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center mb-4"
+         th:if="${successMessage}" role="alert">
+        <div class="d-flex w-100">
+            <div class="alert-icon me-3">
+                <i class="bi bi-check-circle-fill"></i>
             </div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div class="alert-content flex-grow-1">
+                <h6 class="alert-heading h6 mb-0">Success</h6>
+                <div class="alert-text" th:text="${successMessage}"></div>
+            </div>
         </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
 
-        <!-- Error Alert -->
-        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center" th:if="${errorMessage != null}" role="alert">
-            <div class="d-flex w-100">
-                <div class="alert-icon me-3">
-                    <i class="bi bi-exclamation-circle-fill"></i>
-                </div>
-                <div class="alert-content flex-grow-1">
-                    <div class="alert-heading h6 mb-0">Error</div>
-                    <div class="alert-text" th:text="${errorMessage}"></div>
+    <!-- Parameter Errors -->
+    <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center mb-4"
+         th:if="${param.error}" role="alert">
+        <div class="d-flex w-100">
+            <div class="alert-icon me-3">
+                <i class="bi bi-exclamation-circle-fill"></i>
+            </div>
+            <div class="alert-content flex-grow-1">
+                <h6 class="alert-heading h6 mb-0">Warning</h6>
+                <div class="alert-text" th:switch="${param.error[0]}">
+                    <div class="d-flex align-items-center" th:case="'date_required'">Please select both start and end dates.</div>
+                    <div class="d-flex align-items-center" th:case="'type_required'">Please select a time off type.</div>
+                    <div class="d-flex align-items-center" th:case="'invalid_range'">End date must be after start date.</div>
+                    <div class="d-flex align-items-center" th:case="'past_date'">Cannot request time off for past dates.</div>
+                    <div class="d-flex align-items-center" th:case="'insufficient_days'">Insufficient paid holiday days available.</div>
+                    <div class="d-flex align-items-center" th:case="'submit_failed'">Failed to submit the request. Please try again.</div>
+                    <div class="d-flex align-items-center" th:case="*">An unexpected error occurred. Please try again.</div>
                 </div>
             </div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-
-        <!-- Validation Warning Alert -->
-        <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center" th:if="${param.error != null}" role="alert">
-            <div class="d-flex w-100">
-                <div class="alert-icon me-3">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                </div>
-                <div class="alert-content flex-grow-1">
-                    <div class="alert-heading h6 mb-0">Validation Warning</div>
-                    <div class="alert-text" th:switch="${param.error[0]}">
-                        <span class="d-flex align-items-center" th:case="'date_required'">Please select a date before submitting the request.</span>
-                        <span class="d-flex align-items-center" th:case="'invalid_range'">The end date must be after the start date.</span>
-                        <span class="d-flex align-items-center" th:case="'submit_failed'">Failed to submit the request. Please try again.</span>
-                        <span class="d-flex align-items-center" th:case="*">An unexpected error occurred. Please try again.</span>
-                    </div>
-                </div>
-            </div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
 </div>
+</body>
+</html>

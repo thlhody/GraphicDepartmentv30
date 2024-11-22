@@ -1,14 +1,13 @@
 package com.ctgraphdep.model;
 
-import lombok.Data;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import lombok.*;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Setter
+@Getter
 public class TimeOffSummary {
     private int snDays;
     private int coDays;
@@ -19,4 +18,5 @@ public class TimeOffSummary {
     private int totalRequestedDays;
     private int totalApprovedDays;
     private int remainingPaidDays;
+
 }

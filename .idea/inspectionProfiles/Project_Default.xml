@@ -4,7 +4,7 @@
     <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="34">
+          <list size="35">
             <item index="0" class="java.lang.String" itemvalue="sec:authentication" />
             <item index="1" class="java.lang.String" itemvalue="th:text" />
             <item index="2" class="java.lang.String" itemvalue="layout:decorate" />
@@ -39,6 +39,7 @@
             <item index="31" class="java.lang.String" itemvalue="layout:title-pattern" />
             <item index="32" class="java.lang.String" itemvalue="th:checked" />
             <item index="33" class="java.lang.String" itemvalue="th:target" />
+            <item index="34" class="java.lang.String" itemvalue="className" />
           </list>
         </value>
       </option>
@@ -47,7 +48,7 @@
     <inspection_tool class="HtmlUnknownTag" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="8">
+          <list size="13">
             <item index="0" class="java.lang.String" itemvalue="nobr" />
             <item index="1" class="java.lang.String" itemvalue="noembed" />
             <item index="2" class="java.lang.String" itemvalue="comment" />
@@ -56,6 +57,11 @@
             <item index="5" class="java.lang.String" itemvalue="script" />
             <item index="6" class="java.lang.String" itemvalue="th:block" />
             <item index="7" class="java.lang.String" itemvalue="style" />
+            <item index="8" class="java.lang.String" itemvalue="Info" />
+            <item index="9" class="java.lang.String" itemvalue="Alert" />
+            <item index="10" class="java.lang.String" itemvalue="AlertTriangle" />
+            <item index="11" class="java.lang.String" itemvalue="AlertTitle" />
+            <item index="12" class="java.lang.String" itemvalue="AlertDescription" />
           </list>
         </value>
       </option>
