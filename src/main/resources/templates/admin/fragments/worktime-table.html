@@ -59,23 +59,27 @@
                         <!-- Day Entry Cells with Weekend Check -->
                         <td th:each="day : ${#numbers.sequence(1, daysInMonth)}"
                             th:with="date=${T(java.time.LocalDate).of(currentYear, currentMonth, day)},
-                                         isWeekend=${date.dayOfWeek.value >= 6},
-                                         entry=${userEntriesMap.get(user.userId)?.get(date)}"
+                                     isWeekend=${date.dayOfWeek.value >= 6},
+                                     entry=${userEntriesMap.get(user.userId)?.get(date)}"
                             th:class="${'worktime-cell ' + (isWeekend ? 'weekend-cell ' : '') +
-                                         (entry != null ?
-                                         ((entry.adminSync == 'ADMIN_EDITED' ? 'admin-edit ' : '') +
-                                         (entry.adminSync == 'USER_INPUT' ? 'user-input ' : '') +
-                                         (entry.adminSync == 'USER_DONE' ? 'user-synced ' : '') +
-                                         (entry.timeOffType == 'SN' ? 'holiday ' : '') +
-                                         (entry.timeOffType == 'CO' ? 'vacation ' : '') +
-                                         (entry.timeOffType == 'CM' ? 'medical ' : '')) : '')}">
+                                     (entry != null ?
+                                     ((entry.adminSync == 'ADMIN_EDITED' ? 'admin-edit ' : '') +
+                                     (entry.adminSync == 'USER_INPUT' ? 'user-input ' : '') +
+                                     (entry.adminSync == 'USER_DONE' ? 'user-synced ' : '') +
+                                     (entry.adminSync == 'ADMIN_BLANK' ? 'blank-entry ' : '') +
+                                     (entry.adminSync == 'USER_IN_PROCESS' ? 'in-process ' : '') +
+                                     (entry.timeOffType == 'SN' ? 'holiday ' : '') +
+                                     (entry.timeOffType == 'CO' ? 'vacation ' : '') +
+                                     (entry.timeOffType == 'CM' ? 'medical ' : '')) : '')}">
                             <input type="text"
                                    class="worktime-input"
                                    th:name="|entries[${user.userId}].days[${day}]|"
-                                   th:value="${entry != null && entry.timeOffType == 'BLANK' ? '' :
-                                                entry?.timeOffType != null ? entry.timeOffType :
-                                                entry?.totalWorkedMinutes != null && entry.totalWorkedMinutes > 0 ?
-                                                T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalWorkedMinutes) : ''}"
+                                   th:value="${entry != null ?
+                                             (entry.adminSync == 'ADMIN_BLANK' ? '' :
+                                              entry.adminSync == 'USER_IN_PROCESS' ? '' :  <!-- Don't show value for in-process -->
+                                             (entry.timeOffType != null ? entry.timeOffType :
+                                             (entry.totalWorkedMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalWorkedMinutes) : '')))
+                                             : ''}"
                                    pattern="^([1-9]|1\d|2[0-4]|SN|CO|CM)?$"
                                    title="Enter hours (1-24) or SN/CO/CM"
                                    maxlength="2">
@@ -162,6 +166,23 @@
             width: 60px;
             max-width: 60px;
             padding: 4px !important;
+        }
+
+        .in-process {
+            background-color: #e9ecef !important; /* Light gray background */
+        }
+
+        .in-process .worktime-input {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+        }
+
+        .blank-entry {
+            background-color: #ffffff !important;  /* or any color you prefer */
+        }
+
+        .blank-entry .worktime-input {
+            background-color: #ffffff;
         }
 
         .action-col {

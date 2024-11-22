@@ -43,13 +43,18 @@ public class WorkTimeManagementService {
         try {
             validateUpdateRequest(userId, date, value);
 
+            // Create appropriate entry based on value
             WorkTimeTable entry;
             if (value == null || value.trim().isEmpty()) {
+                // Create a blank entry with ADMIN_BLANK status
                 entry = createBlankEntry(userId, date);
+                entry.setAdminSync(SyncStatus.ADMIN_BLANK);  // Explicitly set status
             } else if (value.matches("^(SN|CO|CM)$")) {
                 entry = createTimeOffEntry(userId, date, value);
+                entry.setAdminSync(SyncStatus.ADMIN_EDITED);  // Set ADMIN_EDITED for new value
             } else if (value.matches("^([1-9]|1\\d|2[0-4])$")) {
                 entry = createWorkHoursEntry(userId, date, Integer.parseInt(value));
+                entry.setAdminSync(SyncStatus.ADMIN_EDITED);  // Set ADMIN_EDITED for new value
             } else {
                 LoggerUtil.info(WorkTimeManagementService.class, "Invalid value format: " + value);
                 throw new IllegalArgumentException("Invalid value format: " + value);
@@ -77,35 +82,24 @@ public class WorkTimeManagementService {
                 true
         );
 
-        // Check if there's an existing entry
-        Optional<WorkTimeTable> existingEntry = entries.stream()
-                .filter(e -> e.getUserId().equals(newEntry.getUserId()) &&
-                        e.getWorkDate().equals(newEntry.getWorkDate()))
-                .findFirst();
+        // Always remove existing entry first
+        entries.removeIf(e -> e.getUserId().equals(newEntry.getUserId()) &&
+                e.getWorkDate().equals(newEntry.getWorkDate()));
 
-        if (existingEntry.isPresent()) {
-            WorkTimeTable existing = existingEntry.get();
-
-            // If existing entry is ADMIN_BLANK and new entry has a value
-            if (SyncStatus.ADMIN_BLANK.equals(existing.getAdminSync()) &&
-                    (newEntry.getTimeOffType() != null || newEntry.getTotalWorkedMinutes() > 0)) {
-                // Remove the ADMIN_BLANK entry
-                entries.removeIf(e -> e.getUserId().equals(newEntry.getUserId()) &&
-                        e.getWorkDate().equals(newEntry.getWorkDate()));
-
-                // Add the new entry with ADMIN_EDITED status
-                newEntry.setAdminSync(SyncStatus.ADMIN_EDITED);
-                entries.add(newEntry);
-            } else {
-                // Normal update behavior
-                entries.removeIf(e -> e.getUserId().equals(newEntry.getUserId()) &&
-                        e.getWorkDate().equals(newEntry.getWorkDate()));
-                entries.add(newEntry);
-            }
-        } else {
-            // New entry
-            entries.add(newEntry);
+        // Add the new entry
+        if (SyncStatus.ADMIN_BLANK.equals(newEntry.getAdminSync())) {
+            // For ADMIN_BLANK, ensure all values are cleared
+            newEntry.setTimeOffType(null);
+            newEntry.setTotalWorkedMinutes(0);
+            newEntry.setTotalOvertimeMinutes(0);
+            newEntry.setDayStartTime(null);
+            newEntry.setDayEndTime(null);
+            newEntry.setTemporaryStopCount(0);
+            newEntry.setTotalTemporaryStopMinutes(0);
+            newEntry.setLunchBreakDeducted(false);
         }
+
+        entries.add(newEntry);
 
         // Sort entries
         entries.sort(Comparator
@@ -118,7 +112,8 @@ public class WorkTimeManagementService {
                 entries
         );
 
-        LoggerUtil.info(this.getClass(), "Saved entries to general worktime with status handling");
+        LoggerUtil.info(this.getClass(), String.format("Saved entry with status %s to general worktime",
+                newEntry.getAdminSync()));
     }
     /**
      * Add national holiday for all users
@@ -217,7 +212,13 @@ public class WorkTimeManagementService {
         entry.setWorkDate(date);
         entry.setTimeOffType(null);
         entry.setAdminSync(SyncStatus.ADMIN_BLANK);
-        resetEntryValues(entry);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setDayStartTime(null);
+        entry.setDayEndTime(null);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setLunchBreakDeducted(false);
         return entry;
     }
 

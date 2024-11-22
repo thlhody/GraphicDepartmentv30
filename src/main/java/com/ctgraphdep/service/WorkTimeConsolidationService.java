@@ -116,27 +116,47 @@ public class WorkTimeConsolidationService {
                         || SyncStatus.ADMIN_BLANK.equals(entry.getAdminSync()))
                 .toList();
 
-        // Get dates with admin actions (both edits and blanks)
-        Set<LocalDate> adminDates = adminEntries.stream()
+        // Get dates with admin actions (excluding ADMIN_BLANK)
+        Set<LocalDate> adminEditDates = adminEntries.stream()
+                .filter(entry -> SyncStatus.ADMIN_EDITED.equals(entry.getAdminSync()))
                 .map(WorkTimeTable::getWorkDate)
                 .collect(Collectors.toSet());
 
-        // Process user entries for dates that don't have admin actions
+        // Get dates with ADMIN_BLANK status
+        Set<LocalDate> adminBlankDates = adminEntries.stream()
+                .filter(entry -> SyncStatus.ADMIN_BLANK.equals(entry.getAdminSync()))
+                .map(WorkTimeTable::getWorkDate)
+                .collect(Collectors.toSet());
+
+        // Process user entries:
+        // 1. Exclude dates with admin edits
+        // 2. Exclude dates that are marked as ADMIN_BLANK
         List<WorkTimeTable> processedUserEntries = userEntries.stream()
-                .filter(entry -> !adminDates.contains(entry.getWorkDate()))
+                .filter(entry -> !adminEditDates.contains(entry.getWorkDate()))
+                .filter(entry -> !adminBlankDates.contains(entry.getWorkDate()))
+                .filter(entry -> !SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync()))  // Skip in-process entries
                 .peek(entry -> entry.setAdminSync(SyncStatus.USER_DONE))
                 .toList();
 
-        // Add only admin edited entries (not blank ones) to final result
-        List<WorkTimeTable> result = adminEntries.stream()
-                .filter(entry -> SyncStatus.ADMIN_EDITED.equals(entry.getAdminSync()))
-                .collect(Collectors.toList());
+        // Combine entries:
+        // 1. Keep all admin entries (both EDITED and BLANK)
+        // 2. Add processed user entries
+        List<WorkTimeTable> result = new ArrayList<>(adminEntries);
         result.addAll(processedUserEntries);
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Processed %d entries for user %s (Admin: %d, User: %d)",
-                        result.size(), user.getUsername(),
-                        adminEntries.size(), processedUserEntries.size()));
+        // Sort final result
+        result.sort(Comparator
+                .comparing(WorkTimeTable::getWorkDate)
+                .thenComparing(WorkTimeTable::getUserId));
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Processed entries for user %s - Admin entries: %d (Edited: %d, Blank: %d), User entries: %d",
+                user.getUsername(),
+                adminEntries.size(),
+                adminEditDates.size(),
+                adminBlankDates.size(),
+                processedUserEntries.size()
+        ));
 
         return result;
     }
@@ -184,10 +204,23 @@ public class WorkTimeConsolidationService {
     public List<WorkTimeTable> getViewableEntries(int year, int month) {
         List<WorkTimeTable> allEntries = loadGeneralWorktime(year, month);
 
+        // Modified to include ADMIN_BLANK entries
         return allEntries.stream()
                 .filter(entry ->
                         SyncStatus.ADMIN_EDITED.equals(entry.getAdminSync()) ||
-                                SyncStatus.USER_DONE.equals(entry.getAdminSync()))
+                                SyncStatus.USER_DONE.equals(entry.getAdminSync()) ||
+                                SyncStatus.ADMIN_BLANK.equals(entry.getAdminSync()))
+                .map(entry -> {
+                    // If entry is ADMIN_BLANK, return a cleared entry
+                    if (SyncStatus.ADMIN_BLANK.equals(entry.getAdminSync())) {
+                        WorkTimeTable blankEntry = new WorkTimeTable();
+                        blankEntry.setUserId(entry.getUserId());
+                        blankEntry.setWorkDate(entry.getWorkDate());
+                        blankEntry.setAdminSync(SyncStatus.ADMIN_BLANK);
+                        return blankEntry;
+                    }
+                    return entry;
+                })
                 .collect(Collectors.toList());
     }
 }

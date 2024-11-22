@@ -90,15 +90,22 @@ public class UserWorkTimeService {
     private List<WorkTimeTable> mergeEntries(List<WorkTimeTable> userEntries, List<WorkTimeTable> adminEntries) {
         Map<LocalDate, WorkTimeTable> mergedMap = new HashMap<>();
 
-        // Add user entries first
-        userEntries.forEach(entry -> mergedMap.put(entry.getWorkDate(), entry));
+        // Add user entries first, including USER_IN_PROCESS entries
+        userEntries.forEach(entry -> {
+            if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+                // For in-process entries, add them with special handling
+                mergedMap.put(entry.getWorkDate(), entry);
+            } else {
+                mergedMap.put(entry.getWorkDate(), entry);
+            }
+        });
 
         // Process admin entries (both edits and blanks)
         adminEntries.forEach(adminEntry -> {
             if (adminEntry.getAdminSync() == SyncStatus.ADMIN_BLANK) {
                 // Remove entry if admin marked it as blank
                 mergedMap.remove(adminEntry.getWorkDate());
-            } else {
+            } else if (adminEntry.getAdminSync() == SyncStatus.ADMIN_EDITED) {
                 // For ADMIN_EDITED entries, overlay them with USER_DONE status
                 adminEntry.setAdminSync(SyncStatus.USER_DONE);
                 mergedMap.put(adminEntry.getWorkDate(), adminEntry);

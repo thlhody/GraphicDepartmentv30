@@ -220,7 +220,7 @@ public class UserSessionService {
         entry.setTemporaryStopCount(0);
         entry.setTotalTemporaryStopMinutes(0);
         entry.setLunchBreakDeducted(false);
-        entry.setAdminSync(SyncStatus.USER_INPUT);
+        entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
 
         userWorkTimeService.saveWorkTimeEntry(username, entry, today.getYear(), today.getMonthValue());
     }
@@ -308,7 +308,7 @@ public class UserSessionService {
     private void updateWorktimeEntry(String username, WorkUsersSessionsStates session) {
         LocalDateTime now = LocalDateTime.now();
         WorkTimeTable entry = createWorkTimeEntryFromSession(session, now);
-
+        entry.setAdminSync(SyncStatus.USER_INPUT);  // Now set to USER_INPUT when completed
         LocalDate workDate = session.getDayStartTime().toLocalDate();
         userWorkTimeService.saveWorkTimeEntry(
                 username,

@@ -99,6 +99,11 @@ public class UserWorkTimeDisplayService {
         List<WorkTimeCalculationResult> processedWorktime = new ArrayList<>();
 
         for (WorkTimeTable day : worktimeData) {
+            // Skip processing for in-process entries
+            if (SyncStatus.USER_IN_PROCESS.equals(day.getAdminSync())) {
+                continue;
+            }
+
             if (day.getTotalWorkedMinutes() != null) {
                 try {
                     WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
@@ -184,6 +189,11 @@ public class UserWorkTimeDisplayService {
         WorkTimeCounts counts = new WorkTimeCounts();
 
         for (WorkTimeTable entry : worktimeData) {
+            // Skip in-process entries
+            if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+                continue;
+            }
+
             if (entry.getTimeOffType() != null) {
                 switch (entry.getTimeOffType()) {
                     case "SN" -> counts.snDays++;

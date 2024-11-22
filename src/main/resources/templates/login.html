@@ -25,6 +25,40 @@
             box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
         }
 
+        /* Add hero section styles from index */
+        .hero-section {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .welcome-text {
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: fadeInDown 1s ease-out;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .main-image {
+            max-width: 200px; /* Reduced from 300px */
+            width: 100%;
+            height: auto;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: fadeIn 1.5s ease-out;
+            margin-bottom: 2rem;
+        }
+
+        .main-image:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
+        }
+
         .status-card {
             border: none;
             border-radius: 0.75rem;
@@ -155,8 +189,11 @@
     </style>
 </head>
 <body>
+<!-- src/main/resources/templates/login.html -->
+<!-- ... (keep the same head and styles) ... -->
+
 <div layout:fragment="content">
-    <!-- Sync Overlay -->
+    <!-- Sync Overlay remains the same -->
     <div id="syncOverlay" class="sync-overlay">
         <div class="sync-message">
             <div class="spinner-border text-primary" role="status">
@@ -168,8 +205,23 @@
 
     <div class="login-container">
         <div class="container py-5">
-            <div class="row justify-content-center">
-                <div class="col-12 col-md-6 col-lg-4">
+            <div class="row justify-content-center align-items-center">
+                <!-- Left side - Image Section -->
+                <div class="col-lg-6 text-center d-none d-lg-block">
+                    <div class="hero-section p-4">
+                        <h1 class="welcome-text">Welcome to CT3</h1>
+                        <p class="lead text-muted mb-4">
+                            Making it easy to track your time and tasks!
+                        </p>
+                        <img th:src="@{/images/ct3front.png}"
+                             alt="CT3 Front"
+                             class="main-image"
+                             loading="lazy">
+                    </div>
+                </div>
+
+                <!-- Right side - Login Form -->
+                <div class="col-12 col-lg-5">
                     <!-- System Status Card -->
                     <div class="card mb-3 status-card" th:if="${mode != null}"
                          th:classappend="${mode == 'ONLINE' ? 'online' : (offlineModeAvailable ? 'offline-available' : 'offline-unavailable')}">
