@@ -6,8 +6,6 @@
       lang="en">
 <head>
     <title>User Management</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
 <div layout:fragment="content">
@@ -18,13 +16,11 @@
             <span th:text="${successMessage}"></span>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-
         <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
             <i class="bi bi-exclamation-circle me-2"></i>
             <span th:text="${errorMessage}"></span>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-
         <!-- Header Section -->
         <header class="d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
@@ -40,7 +36,6 @@
                 </a>
             </nav>
         </header>
-
         <div class="row g-4">
             <!-- User Form Card -->
             <div class="col-lg-4">
@@ -58,70 +53,66 @@
 
                             <!-- Name -->
                             <div class="mb-3">
-                                <label class="form-label text-muted">Name</label>
+                                <label for="name" class="form-label text-muted">Name</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-person"></i>
                                     </span>
-                                    <input type="text" class="form-control" th:field="*{name}" required>
+                                    <input type="text" id="name" class="form-control" th:field="*{name}" required>
                                 </div>
                             </div>
-
                             <!-- Username -->
                             <div class="mb-3">
-                                <label class="form-label text-muted">Username</label>
+                                <label for="username" class="form-label text-muted">Username</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-at"></i>
                                     </span>
-                                    <input type="text" class="form-control" th:field="*{username}" required>
+                                    <input type="text" id="username" class="form-control" th:field="*{username}" required>
                                 </div>
                             </div>
-
                             <!-- Password -->
                             <div class="mb-3">
-                                <label class="form-label text-muted">Password</label>
+                                <label for="password" class="form-label text-muted">Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-lock"></i>
                                     </span>
-                                    <input type="password" class="form-control" th:field="*{password}"
-                                           th:required="${isNewUser}">
+                                    <input type="password" id="password" class="form-control" th:field="*{password}" required>
                                 </div>
-                                <small class="text-muted" th:unless="${isNewUser}">
+                                <small class="text-muted" th:if="${!isNewUser}">
                                     Leave blank to keep current password
                                 </small>
                             </div>
-
                             <!-- Employee ID -->
                             <div class="mb-3">
-                                <label class="form-label text-muted">Employee ID</label>
+                                <label for="employeeId" class="form-label text-muted">Employee ID</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-person-badge"></i>
                                     </span>
-                                    <input type="text" class="form-control" th:field="*{employeeId}" required>
+                                    <input type="text" id="employeeId" class="form-control" th:field="*{employeeId}" required>
                                 </div>
                             </div>
-
                             <!-- Schedule -->
                             <div class="mb-3">
-                                <label class="form-label text-muted">Daily Schedule (Hours)</label>
+                                <label for="schedule" class="form-label text-muted">Daily Schedule (Hours)</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-clock"></i>
                                     </span>
-                                    <input type="number" class="form-control" th:field="*{schedule}"
+                                    <input type="number" id="schedule" class="form-control" th:field="*{schedule}"
                                            min="1" max="12" required>
                                 </div>
                             </div>
+                            <!-- User role -->
                             <div class="mb-3">
-                                <label class="form-label text-muted">User Role</label>
+                                <label for="role" class="form-label text-muted">User Role</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-shield"></i>
                                     </span>
-                                    <select class="form-select" th:field="*{role}" required>
+                                    <select class="form-select" id="role" th:field="*{role}" required>
                                         <option value="USER">Regular User</option>
                                         <option value="TEAM_LEADER">Team Leader</option>
                                     </select>
@@ -132,17 +123,17 @@
                             </div>
                             <!-- Holiday Days -->
                             <div class="mb-4">
-                                <label class="form-label text-muted">Paid Holiday Days</label>
+                                <label for="paidHolidayDays" class="form-label text-muted">Paid Holiday Days</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-calendar-check"></i>
                                     </span>
-                                    <input type="number" class="form-control" name="paidHolidayDays"
+                                    <input type="number" id="paidHolidayDays" class="form-control" name="paidHolidayDays"
                                            th:value="${holidayEntry?.paidHolidayDays ?: 21}"
                                            min="0" max="30" required>
                                 </div>
                             </div>
-
+                            <!-- Submit Button -->
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="bi bi-check-circle me-2"></i>
                                 <span th:text="${isNewUser ? 'Create User' : 'Update User'}">Save</span>
@@ -150,8 +141,57 @@
                         </form>
                     </div>
                 </div>
+                <!-- Admin Password Change Card -->
+                <div class="row mb-4">
+                    <div class="col-lg-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-transparent">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-shield-lock me-2"></i>Change Admin Password
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form th:action="@{/admin/settings/change-password}" method="post" class="needs-validation" novalidate>
+                                    <!-- Current Password -->
+                                    <div class="mb-3">
+                                        <label for="currentPassword" class="form-label text-muted">Current Password</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="bi bi-key"></i>
+                                            </span>
+                                            <input type="password"
+                                                   class="form-control"
+                                                   id="currentPassword"
+                                                   name="currentPassword"
+                                                   required
+                                                   placeholder="Enter current password">
+                                        </div>
+                                    </div>
+                                    <!-- New Password -->
+                                    <div class="mb-4">
+                                        <label for="newPassword" class="form-label text-muted">New Password</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i class="bi bi-lock"></i>
+                                            </span>
+                                            <input type="password"
+                                                   class="form-control"
+                                                   id="newPassword"
+                                                   name="newPassword"
+                                                   required
+                                                   placeholder="Enter new password">
+                                        </div>
+                                    </div>
+                                    <!-- Submit Button -->
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-check-circle me-2"></i>Update Password
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-
             <!-- Users List Card -->
             <div class="col-lg-8">
                 <div class="card shadow-sm">
@@ -168,7 +208,7 @@
                                     <th class="border-0">Name</th>
                                     <th class="border-0">Username</th>
                                     <th class="border-0">Employee ID</th>
-                                    <th class="border-0">Role</th> <!-- Added Role column -->
+                                    <th class="border-0">Role</th>
                                     <th class="border-0">Schedule</th>
                                     <th class="border-0">Holiday Days</th>
                                     <th class="border-0">Actions</th>
@@ -177,7 +217,7 @@
                                 <tbody>
                                 <tr th:each="user : ${users}">
                                     <td th:text="${user.name}">John Doe</td>
-                                    <td th:text="${user.username}">johndoe</td>
+                                    <td th:text="${user.username}">john-doe</td>
                                     <td th:text="${user.employeeId}">EMP123</td>
                                     <td> <!-- Role badge -->
                                         <span class="badge"
@@ -216,73 +256,8 @@
                     </div>
                 </div>
             </div>
-            <!-- Admin Password Change Card -->
-            <div class="row mb-4">
-                <div class="col-lg-4 mx-auto">
-                    <div class="card shadow-sm">
-                        <div class="card-header bg-transparent">
-                            <h5 class="card-title mb-0">
-                                <i class="bi bi-shield-lock me-2"></i>Change Admin Password
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <form th:action="@{/admin/settings/change-password}" method="post" class="needs-validation" novalidate>
-                                <!-- Current Password -->
-                                <div class="mb-3">
-                                    <label class="form-label text-muted">Current Password</label>
-                                    <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="bi bi-key"></i>
-                                    </span>
-                                        <input type="password"
-                                               class="form-control"
-                                               name="currentPassword"
-                                               required
-                                               placeholder="Enter current password">
-                                    </div>
-                                </div>
-
-                                <!-- New Password -->
-                                <div class="mb-4">
-                                    <label class="form-label text-muted">New Password</label>
-                                    <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="bi bi-lock"></i>
-                                    </span>
-                                        <input type="password"
-                                               class="form-control"
-                                               name="newPassword"
-                                               required
-                                               placeholder="Enter new password">
-                                    </div>
-                                </div>
-
-                                <button type="submit" class="btn btn-primary w-100">
-                                    <i class="bi bi-check-circle me-2"></i>Update Password
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
-
-<!-- Scripts -->
-<th:block layout:fragment="scripts">
-    <script th:inline="javascript">
-        // Auto-dismiss alerts after 3 seconds
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                const alerts = document.querySelectorAll('.alert');
-                alerts.forEach(alert => {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                });
-            }, 3000);
-        });
-    </script>
-</th:block>
 </body>
 </html>

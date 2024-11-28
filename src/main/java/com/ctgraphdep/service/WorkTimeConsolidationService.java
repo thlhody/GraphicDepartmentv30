@@ -162,6 +162,11 @@ public class WorkTimeConsolidationService {
     }
 
     private void saveConsolidatedEntries(List<WorkTimeTable> newEntries, int year, int month) {
+        // First filter out any USER_IN_PROCESS entries before saving
+        List<WorkTimeTable> filteredEntries = newEntries.stream()
+                .filter(entry -> !SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync()))
+                .toList();
+
         // Load existing entries
         List<WorkTimeTable> existingEntries = dataAccess.readFile(
                 dataAccess.getAdminWorktimePath(year, month),

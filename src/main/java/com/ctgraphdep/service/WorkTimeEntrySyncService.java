@@ -15,7 +15,8 @@ import java.util.stream.Collectors;
 @Service
 public class WorkTimeEntrySyncService {
     private final DataAccessService dataAccess;
-    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {
+    };
 
     public WorkTimeEntrySyncService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
@@ -24,10 +25,11 @@ public class WorkTimeEntrySyncService {
 
     /**
      * Synchronizes worktime entries between general and user-specific files
+     *
      * @param username User's username
-     * @param userId User's ID
-     * @param year Year to sync
-     * @param month Month to sync
+     * @param userId   User's ID
+     * @param year     Year to sync
+     * @param month    Month to sync
      * @return List of synchronized entries
      */
     public List<WorkTimeTable> synchronizeEntries(String username, Integer userId, int year, int month) {
@@ -61,6 +63,7 @@ public class WorkTimeEntrySyncService {
             throw new RuntimeException("Failed to synchronize worktime entries", e);
         }
     }
+
     private List<WorkTimeTable> loadGeneralEntries(Integer userId, int year, int month) {
         Path generalPath = dataAccess.getAdminWorktimePath(year, month);
 
@@ -76,6 +79,7 @@ public class WorkTimeEntrySyncService {
 
         return userEntries;
     }
+
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
         Path userPath = dataAccess.getUserWorktimePath(username, year, month);
 
@@ -93,7 +97,8 @@ public class WorkTimeEntrySyncService {
 
         // First, add all existing valid user entries
         userEntries.stream()
-                .filter(entry -> entry.getAdminSync() == SyncStatus.USER_INPUT)
+                .filter(entry -> entry.getAdminSync() == SyncStatus.USER_INPUT ||
+                        entry.getAdminSync() == SyncStatus.USER_IN_PROCESS)
                 .forEach(entry -> mergedEntriesMap.put(entry.getWorkDate(), entry));
 
         // Then overlay admin entries (both edited and blank)
@@ -159,6 +164,7 @@ public class WorkTimeEntrySyncService {
                 String.format("Saved %d merged entries to user worktime file",
                         entries.size()));
     }
+
     /**
      * Gets the sync status for debugging/monitoring
      */

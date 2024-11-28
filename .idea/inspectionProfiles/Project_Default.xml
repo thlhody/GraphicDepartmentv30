@@ -4,7 +4,7 @@
     <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="35">
+          <list size="50">
             <item index="0" class="java.lang.String" itemvalue="sec:authentication" />
             <item index="1" class="java.lang.String" itemvalue="th:text" />
             <item index="2" class="java.lang.String" itemvalue="layout:decorate" />
@@ -40,6 +40,21 @@
             <item index="32" class="java.lang.String" itemvalue="th:checked" />
             <item index="33" class="java.lang.String" itemvalue="th:target" />
             <item index="34" class="java.lang.String" itemvalue="className" />
+            <item index="35" class="java.lang.String" itemvalue="th:onclick" />
+            <item index="36" class="java.lang.String" itemvalue="th:data-entry-id" />
+            <item index="37" class="java.lang.String" itemvalue="th:content" />
+            <item index="38" class="java.lang.String" itemvalue="th:data-entry" />
+            <item index="39" class="java.lang.String" itemvalue="th:data-date" />
+            <item index="40" class="java.lang.String" itemvalue="th:data-oms-id" />
+            <item index="41" class="java.lang.String" itemvalue="th:data-action-type" />
+            <item index="42" class="java.lang.String" itemvalue="th:data-colors-profile" />
+            <item index="43" class="java.lang.String" itemvalue="th:data-order-id" />
+            <item index="44" class="java.lang.String" itemvalue="th:data-production-id" />
+            <item index="45" class="java.lang.String" itemvalue="th:data-client-name" />
+            <item index="46" class="java.lang.String" itemvalue="th:data-print-prep-type" />
+            <item index="47" class="java.lang.String" itemvalue="th:data-graphic-complexity" />
+            <item index="48" class="java.lang.String" itemvalue="th:data-article-numbers" />
+            <item index="49" class="java.lang.String" itemvalue="th:data-observations" />
           </list>
         </value>
       </option>

@@ -155,11 +155,13 @@ public class UserSessionController extends BaseController {
         model.addAttribute("currentDateTime", CalculateWorkHoursUtil.formatDateTime(LocalDateTime.now()));
         model.addAttribute("dayStartTime", CalculateWorkHoursUtil.formatDateTime(session.getDayStartTime()));
         model.addAttribute("totalWorkRaw", formatWorkTime(session.getTotalWorkedMinutes()));
-        model.addAttribute("temporaryStopCount", session.getTemporaryStopCount());
+        model.addAttribute("temporaryStopCount", session.getTemporaryStopCount() != null ? session.getTemporaryStopCount() : 0);
         model.addAttribute("totalTemporaryStopTime", formatWorkTime(session.getTotalTemporaryStopMinutes()));
         model.addAttribute("overtime", formatWorkTime(session.getTotalOvertimeMinutes()));
         model.addAttribute("lunchBreakStatus", session.getLunchBreakDeducted());
         model.addAttribute("actualWorkTime", formatWorkTime(session.getFinalWorkedMinutes()));
+        LoggerUtil.debug(this.getClass(), "Model attributes: " + model.asMap());
+
     }
 
     private String formatWorkTime(Integer minutes) {

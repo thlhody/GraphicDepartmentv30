@@ -2,12 +2,12 @@
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}"
-      lang="English">
+      lang="en">
 <head>
     <title>Login - CT3</title>
     <style>
         .login-container {
-            min-height: calc(100vh - 200px);
+            min-height: calc(100vh - var(--navbar-height) - 100px);
             display: flex;
             align-items: center;
         }
@@ -15,185 +15,65 @@
         .login-card {
             background: #fff;
             border-radius: 1rem;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            animation: fadeIn 0.5s ease-out;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            animation: fadeIn 0.3s ease-in;
         }
 
         .login-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
         }
 
-        /* Add hero section styles from index */
         .hero-section {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            background: #fff;
             border-radius: 1rem;
             padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .welcome-text {
-            background: linear-gradient(45deg, #2c3e50, #3498db);
+            background: var(--primary-gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            animation: fadeInDown 1s ease-out;
             font-size: 2rem;
             margin-bottom: 1rem;
         }
 
         .main-image {
-            max-width: 200px; /* Reduced from 300px */
+            max-width: 200px;
             width: 100%;
             height: auto;
-            border-radius: 15px;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            animation: fadeIn 1.5s ease-out;
             margin-bottom: 2rem;
+            transition: transform 0.3s ease;
         }
 
         .main-image:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
+            transform: scale(1.05);
         }
 
         .status-card {
             border: none;
-            border-radius: 0.75rem;
-            transition: all 0.3s ease;
-            animation: slideDown 0.5s ease-out;
-        }
-
-        .status-card.online {
-            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-        }
-
-        .status-card.offline-available {
-            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
-        }
-
-        .status-card.offline-unavailable {
-            background: linear-gradient(135deg, #ffebee, #ffcdd2);
-        }
-
-        .input-group {
-            border-radius: 0.5rem;
-            overflow: hidden;
-        }
-
-        .input-group-text {
-            background: #f8f9fa;
-            border: 1px solid #ced4da;
-            border-right: none;
-        }
-
-        .form-control {
-            border: 1px solid #ced4da;
-            padding: 0.625rem;
-        }
-
-        .form-control:focus {
-            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
-            border-color: #3498db;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #2c3e50, #3498db);
-            border: none;
-            padding: 0.625rem;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background: linear-gradient(135deg, #34495e, #2980b9);
-            transform: translateY(-2px);
-        }
-
-        .btn-primary:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-        }
-
-        .password-toggle {
-            border: 1px solid #ced4da;
-            border-left: none;
-        }
-
-        .password-toggle:hover {
-            background-color: #e9ecef;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
         }
 
         .sync-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             background: rgba(0, 0, 0, 0.5);
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             z-index: 1000;
             opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .sync-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .sync-message {
-            background: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            text-align: center;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .login-container {
-                min-height: calc(100vh - 150px);
-                padding: 1rem;
-            }
-
-            .login-card {
-                margin: 0 auto;
-            }
+            transition: opacity 0.3s ease;
         }
     </style>
 </head>
 <body>
-<!-- src/main/resources/templates/login.html -->
-<!-- ... (keep the same head and styles) ... -->
-
 <div layout:fragment="content">
-    <!-- Sync Overlay remains the same -->
+    <!-- Sync Overlay -->
     <div id="syncOverlay" class="sync-overlay">
         <div class="sync-message">
             <div class="spinner-border text-primary" role="status">
@@ -203,12 +83,13 @@
         </div>
     </div>
 
+    <!-- Login Page Content -->
     <div class="login-container">
-        <div class="container py-5">
+        <div class="container">
             <div class="row justify-content-center align-items-center">
                 <!-- Left side - Image Section -->
                 <div class="col-lg-6 text-center d-none d-lg-block">
-                    <div class="hero-section p-4">
+                    <div class="hero-section">
                         <h1 class="welcome-text">Welcome to CT3</h1>
                         <p class="lead text-muted mb-4">
                             Making it easy to track your time and tasks!
@@ -216,15 +97,14 @@
                         <img th:src="@{/images/ct3front.png}"
                              alt="CT3 Front"
                              class="main-image"
-                             loading="lazy">
+                             loading="lazy" src="">
                     </div>
                 </div>
 
                 <!-- Right side - Login Form -->
                 <div class="col-12 col-lg-5">
                     <!-- System Status Card -->
-                    <div class="card mb-3 status-card" th:if="${mode != null}"
-                         th:classappend="${mode == 'ONLINE' ? 'online' : (offlineModeAvailable ? 'offline-available' : 'offline-unavailable')}">
+                    <div class="card status-card" th:if="${mode != null}">
                         <div class="card-body p-3">
                             <div th:if="${mode == 'ONLINE'}" class="d-flex align-items-center text-success">
                                 <i class="bi bi-wifi me-2"></i>
@@ -244,39 +124,36 @@
                     </div>
 
                     <!-- Login Card -->
-                    <div class="login-card">
+                    <div class="card login-card">
                         <div class="card-body p-4">
                             <h2 class="text-center mb-4">Login</h2>
 
                             <!-- Error Messages -->
-                            <div th:if="${param.error}" class="alert alert-danger d-flex align-items-center mb-3">
+                            <div th:if="${param.error}" class="alert alert-danger">
                                 <i class="bi bi-exclamation-circle me-2"></i>
-                                <span>Invalid username or password</span>
+                                Invalid username or password
                             </div>
-
-                            <div th:if="${param.logout}" class="alert alert-success d-flex align-items-center mb-3">
+                            <div th:if="${param.logout}" class="alert alert-success">
                                 <i class="bi bi-check-circle me-2"></i>
-                                <span>You have been logged out successfully</span>
+                                You have been logged out successfully
                             </div>
 
                             <!-- Login Form -->
-                            <form th:action="@{/login}" method="post" class="needs-validation" novalidate onsubmit="return handleLogin(event)">
+                            <form th:action="@{/login}" method="post" class="needs-validation" novalidate
+                                  onsubmit="return handleLogin(event)">
                                 <!-- Username Field -->
                                 <div class="mb-3">
                                     <label for="username" class="form-label">Username</label>
                                     <div class="input-group">
-                                        <span class="input-group-text">
-                                            <i class="bi bi-person"></i>
-                                        </span>
+                                            <span class="input-group-text">
+                                                <i class="bi bi-person"></i>
+                                            </span>
                                         <input type="text"
                                                class="form-control"
                                                id="username"
                                                name="username"
                                                required
                                                autocomplete="username">
-                                        <div class="invalid-feedback">
-                                            Please enter your username
-                                        </div>
                                     </div>
                                 </div>
 
@@ -284,23 +161,20 @@
                                 <div class="mb-3">
                                     <label for="password" class="form-label">Password</label>
                                     <div class="input-group">
-                                        <span class="input-group-text">
-                                            <i class="bi bi-lock"></i>
-                                        </span>
+                                            <span class="input-group-text">
+                                                <i class="bi bi-lock"></i>
+                                            </span>
                                         <input type="password"
                                                class="form-control"
                                                id="password"
                                                name="password"
                                                required
                                                autocomplete="current-password">
-                                        <button class="btn btn-outline-secondary password-toggle"
+                                        <button class="btn btn-outline-secondary"
                                                 type="button"
                                                 onclick="togglePassword()">
                                             <i class="bi bi-eye"></i>
                                         </button>
-                                        <div class="invalid-feedback">
-                                            Please enter your password
-                                        </div>
                                     </div>
                                 </div>
 
@@ -337,6 +211,7 @@
     </div>
 </div>
 
+<!-- Page Scripts -->
 <th:block layout:fragment="scripts">
     <script th:inline="javascript">
         function togglePassword() {
@@ -346,16 +221,13 @@
 
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
-                toggleIcon.classList.remove('bi-eye');
-                toggleIcon.classList.add('bi-eye-slash');
+                toggleIcon.classList.replace('bi-eye', 'bi-eye-slash');
             } else {
                 passwordInput.type = 'password';
-                toggleIcon.classList.remove('bi-eye-slash');
-                toggleIcon.classList.add('bi-eye');
+                toggleIcon.classList.replace('bi-eye-slash', 'bi-eye');
             }
         }
 
-        // Get the network availability from Thymeleaf
         const networkAvailable = /*[[${networkAvailable}]]*/ false;
 
         function handleLogin(event) {
@@ -369,8 +241,8 @@
 
             if (networkAvailable) {
                 const overlay = document.getElementById('syncOverlay');
+                overlay.style.opacity = '1';
                 overlay.style.display = 'flex';
-                overlay.classList.add('active');
             }
 
             return true;

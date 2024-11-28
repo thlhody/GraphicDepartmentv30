@@ -1,9 +1,9 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusDTO;
-import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,11 +11,10 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class OnlineMetricsService {
@@ -34,49 +33,54 @@ public class OnlineMetricsService {
     }
 
     public int getOnlineUserCount() {
-        List<UserStatusDTO> userStatuses = getUserStatuses();
-        return (int) userStatuses.stream()
+        return (int) getUserStatuses().stream()
                 .filter(status -> WorkCode.WORK_ONLINE.equals(status.getStatus()))
                 .count();
     }
 
     public int getActiveUserCount() {
-        List<UserStatusDTO> userStatuses = getUserStatuses();
-        return (int) userStatuses.stream()
+        return (int) getUserStatuses().stream()
                 .filter(status -> !WorkCode.WORK_OFFLINE.equals(status.getStatus()))
                 .count();
     }
 
     public List<UserStatusDTO> getUserStatuses() {
-        List<User> users = userService.getAllUsers().stream()
-                .filter(user -> !user.getRole().equals("ROLE_ADMIN"))
+        // Filter out administrators using multiple criteria
+        List<User> regularUsers = userService.getAllUsers().stream()
+                .filter(user -> !user.isAdmin() &&
+                        !user.getRole().equals("ROLE_ADMIN") &&
+                        !user.getRole().equals("ADMINISTRATOR") &&
+                        !user.getUsername().equalsIgnoreCase("admin"))
                 .toList();
 
-        return users.stream()
-                .map(user -> getUserStatus(user,
-                        pathConfig.getSessionFilePath(user.getUsername(), user.getUserId()).toString()))
-                .toList();
+        return regularUsers.stream()
+                .map(this::getUserStatus)
+                .collect(Collectors.toList());
     }
 
-    private UserStatusDTO getUserStatus(User user, String sessionPath) {
+    private UserStatusDTO getUserStatus(User user) {
+        Path sessionPath = pathConfig.getSessionFilePath(user.getUsername(), user.getUserId());
+
         try {
-            Path path = Paths.get(sessionPath);
-            if (Files.exists(path)) {
-                WorkUsersSessionsStates session =
-                        objectMapper.readValue(path.toFile(), WorkUsersSessionsStates.class);
-                return UserStatusDTO.builder()
-                        .username(user.getUsername())
-                        .name(user.getName())
-                        .status(getStatusDisplay(session.getSessionStatus()))
-                        .lastActive(formatDateTime(session.getLastActivity()))
-                        .build();
+            if (Files.exists(sessionPath)) {
+                WorkUsersSessionsStates session = objectMapper.readValue(sessionPath.toFile(), WorkUsersSessionsStates.class);
+                return buildUserStatusDTO(user, session);
             }
-            return createOfflineStatus(user);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    "Error reading session status: " + sessionPath, e);
-            return createOfflineStatus(user);
+                    "Error reading session for user " + user.getUsername() + ": " + e.getMessage());
         }
+
+        return createOfflineStatus(user);
+    }
+
+    private UserStatusDTO buildUserStatusDTO(User user, WorkUsersSessionsStates session) {
+        return UserStatusDTO.builder()
+                .username(user.getUsername())
+                .name(user.getName())
+                .status(determineStatus(session.getSessionStatus()))
+                .lastActive(formatDateTime(session.getLastActivity()))
+                .build();
     }
 
     private UserStatusDTO createOfflineStatus(User user) {
@@ -88,8 +92,10 @@ public class OnlineMetricsService {
                 .build();
     }
 
-    private String getStatusDisplay(String workCode) {
-        if (workCode == null) return WorkCode.WORK_OFFLINE;
+    private String determineStatus(String workCode) {
+        if (workCode == null) {
+            return WorkCode.WORK_OFFLINE;
+        }
 
         return switch (workCode) {
             case WorkCode.WORK_ONLINE -> WorkCode.WORK_ONLINE;
@@ -100,7 +106,9 @@ public class OnlineMetricsService {
     }
 
     private String formatDateTime(LocalDateTime dateTime) {
-        if (dateTime == null) return "Never";
+        if (dateTime == null) {
+            return "Never";
+        }
         return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 }

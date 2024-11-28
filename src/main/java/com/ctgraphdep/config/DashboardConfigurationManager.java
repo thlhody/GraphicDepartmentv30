@@ -45,7 +45,8 @@ public class DashboardConfigurationManager {
                         createUserWorktimeCard(),
                         createTimeOffCard(),
                         createOMSSystemCard(),
-                        createUserSettingsCard()
+                        createUserSettingsCard(),
+                        createUserRegisterCard()
                 ))
                 .build();
     }
@@ -185,6 +186,21 @@ public class DashboardConfigurationManager {
                 .actionUrl("/user/worktime")
                 .external(false)
                 .permission("VIEW_WORKTIME_USER")
+                .build();
+    }
+
+    private DashboardCard createUserRegisterCard() {
+        return DashboardCard.builder()
+                .title("Work Register")
+                .subtitle("Log your work activities")
+                .color("primary")
+                .icon("journal-text")
+                .badge("View")
+                .badgeColor("primary")
+                .actionText("Open Register")
+                .actionUrl("/user/register")
+                .external(false)
+                .permission("MANAGE_USER_REGISTER")
                 .build();
     }
 }

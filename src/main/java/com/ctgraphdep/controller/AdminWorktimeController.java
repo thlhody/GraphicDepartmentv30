@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller;
 
+import com.ctgraphdep.model.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -28,19 +29,19 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AdminWorkTimeController {
     private final WorkTimeManagementService workTimeManagementService;
-    private final WorkTimeConsolidationService consolidationService;
+    private final WorkTimeConsolidationService workTimeConsolidationService;
     private final UserManagementService userManagementService;
     private final AdminWorkTimeDisplayService displayService;
     private final WorkTimeExcelExporter excelExporter;
 
     public AdminWorkTimeController(
             WorkTimeManagementService workTimeManagementService,
-            WorkTimeConsolidationService consolidationService,
+            WorkTimeConsolidationService workTimeConsolidationService,
             UserManagementService userManagementService,
             AdminWorkTimeDisplayService displayService,
             WorkTimeExcelExporter excelExporter) {
         this.workTimeManagementService = workTimeManagementService;
-        this.consolidationService = consolidationService;
+        this.workTimeConsolidationService = workTimeConsolidationService;
         this.userManagementService = userManagementService;
         this.displayService = displayService;
         this.excelExporter = excelExporter;
@@ -72,9 +73,9 @@ public class AdminWorkTimeController {
             }
 
             // Consolidate worktime entries and organize by user and date
-            consolidationService.consolidateWorkTimeEntries(year, month);
+            workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
             Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap =
-                    convertToUserEntriesMap(consolidationService.getViewableEntries(year, month));
+                    convertToUserEntriesMap(workTimeConsolidationService.getViewableEntries(year, month));
 
             // Prepare model data
             prepareWorkTimeModel(model, year, month, selectedUserId, nonAdminUsers, userEntriesMap);
@@ -99,7 +100,7 @@ public class AdminWorkTimeController {
         try {
             List<User> nonAdminUsers = userManagementService.getNonAdminUsers();
             Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap =
-                    convertToUserEntriesMap(consolidationService.getViewableEntries(year, month));
+                    convertToUserEntriesMap(workTimeConsolidationService.getViewableEntries(year, month));
 
             byte[] excelData = excelExporter.exportToExcel(
                     nonAdminUsers,
@@ -146,7 +147,7 @@ public class AdminWorkTimeController {
             });
 
             // Trigger consolidation after update
-            consolidationService.consolidateWorkTimeEntries(year, month);
+            workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
             redirectAttributes.addFlashAttribute("successMessage", "Work time updated successfully");
 
         } catch (Exception e) {
@@ -172,7 +173,7 @@ public class AdminWorkTimeController {
             workTimeManagementService.addNationalHoliday(holidayDate);
 
             // Trigger consolidation after adding holiday
-            consolidationService.consolidateWorkTimeEntries(year, month);
+            workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
 
             redirectAttributes.addFlashAttribute("successMessage",
                     String.format("National holiday added for %s", holidayDate));
@@ -210,6 +211,9 @@ public class AdminWorkTimeController {
         model.addAttribute("dayHeaders", displayService.prepareDayHeaders(YearMonth.of(year, month)));
         model.addAttribute("userEntriesMap", userEntriesMap);
 
+        Map<String, Long> entryCounts = calculateEntryCounts(userEntriesMap);
+        model.addAttribute("entryCounts", entryCounts);
+
         // Handle selected user
         if (selectedUserId != null) {
             nonAdminUsers.stream()
@@ -221,6 +225,7 @@ public class AdminWorkTimeController {
                         model.addAttribute("selectedUserWorktime", userEntriesMap.get(selectedUserId));
                     });
         }
+
     }
 
     private Map<Integer, Map<LocalDate, WorkTimeTable>> convertToUserEntriesMap(
@@ -258,5 +263,37 @@ public class AdminWorkTimeController {
                 date.getDayOfWeek() == DayOfWeek.SUNDAY) {
             throw new IllegalArgumentException("Cannot add holidays on weekends");
         }
+    }
+
+    private Map<String, Long> calculateEntryCounts(Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
+        Map<String, Long> counts = new HashMap<>();
+
+        List<WorkTimeTable> allEntries = userEntriesMap.values().stream()
+                .flatMap(map -> map.values().stream())
+                .toList();
+
+        // Count time off types
+        counts.put("snCount", allEntries.stream()
+                .filter(e -> "SN".equals(e.getTimeOffType()))
+                .count());
+        counts.put("coCount", allEntries.stream()
+                .filter(e -> "CO".equals(e.getTimeOffType()))
+                .count());
+        counts.put("cmCount", allEntries.stream()
+                .filter(e -> "CM".equals(e.getTimeOffType()))
+                .count());
+
+        // Count by status
+        counts.put("adminEditedCount", allEntries.stream()
+                .filter(e -> SyncStatus.ADMIN_EDITED.equals(e.getAdminSync()))
+                .count());
+        counts.put("userInputCount", allEntries.stream()
+                .filter(e -> SyncStatus.USER_INPUT.equals(e.getAdminSync()))
+                .count());
+        counts.put("syncedCount", allEntries.stream()
+                .filter(e -> SyncStatus.USER_DONE.equals(e.getAdminSync()))
+                .count());
+
+        return counts;
     }
 }

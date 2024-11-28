@@ -23,6 +23,7 @@ public class PermissionFilterService {
     public static final String PERMISSION_MANAGE_ACCOUNT = "MANAGE_ACCOUNT";
     public static final String PERMISSION_REQUEST_TIMEOFF = "REQUEST_TIMEOFF";
     public static final String PERMISSION_VIEW_WORKTIME_USER = "VIEW_WORKTIME_USER";
+    public static final String PERMISSION_MANAGE_USER_REGISTER = "MANAGE_USER_REGISTER";
 
 
     // Team Leader Specific Permissions
@@ -67,7 +68,8 @@ public class PermissionFilterService {
                 PERMISSION_MANAGE_SESSION,
                 PERMISSION_MANAGE_ACCOUNT,
                 PERMISSION_REQUEST_TIMEOFF,
-                PERMISSION_VIEW_WORKTIME_USER
+                PERMISSION_VIEW_WORKTIME_USER,
+                PERMISSION_MANAGE_USER_REGISTER
         ));
     }
 

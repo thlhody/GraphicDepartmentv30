@@ -3,9 +3,11 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.SyncStatus;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -15,17 +17,35 @@ import java.util.stream.Collectors;
 @Service
 public class UserTimeOffService {
     private final DataAccessService dataAccess;
+    private final HolidayManagementService holidayService;
+    private final UserWorkTimeService userWorkTimeService;
     private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
 
-    public UserTimeOffService(DataAccessService dataAccess) {
+    public UserTimeOffService(DataAccessService dataAccess, HolidayManagementService holidayService, UserWorkTimeService userWorkTimeService) {
         this.dataAccess = dataAccess;
+        this.holidayService = holidayService;
+        this.userWorkTimeService = userWorkTimeService;
         LoggerUtil.initialize(this.getClass(), "Initializing User Time Off Service");
     }
 
+    @Transactional
     public void processTimeOffRequest(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
         LoggerUtil.info(this.getClass(),
                 String.format("Processing time off request for user %s: %s to %s (%s)",
                         user.getUsername(), startDate, endDate, timeOffType));
+
+        // Calculate workdays between dates
+        int workDays = CalculateWorkHoursUtil.calculateWorkDays(startDate, endDate, userWorkTimeService);
+
+        // For CO (paid holiday) requests, verify and deduct from holiday balance
+        if ("CO".equals(timeOffType)) {
+            boolean success = holidayService.useHolidayDays(user.getUsername(), user.getUserId(), workDays);
+            if (!success) {
+                throw new RuntimeException("Failed to deduct holiday days from balance");
+            }
+            LoggerUtil.info(this.getClass(),
+                    String.format("Deducted %d holiday days for user %s", workDays, user.getUsername()));
+        }
 
         // Create time off entries
         List<WorkTimeTable> entries = createTimeOffEntries(user, startDate, endDate, timeOffType);

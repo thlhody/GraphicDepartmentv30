@@ -1,13 +1,45 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       layout:decorate="~{layout/default}"
       lang="en">
 <head>
     <title>User Settings</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        /* Profile info styles */
+        .profile-stat {
+            transition: transform 0.2s ease;
+        }
+
+        .profile-stat:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Password form styles */
+        .password-form .input-group-text {
+            width: 42px;
+        }
+
+        .password-form .form-control::placeholder {
+            color: #adb5bd;
+            font-size: 0.875rem;
+        }
+
+        /* Card transitions */
+        .settings-card {
+            transition: all 0.3s ease;
+        }
+
+        .settings-card:hover {
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .settings-card {
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
 </head>
 <body>
 <div layout:fragment="content">
@@ -18,34 +50,30 @@
             <span th:text="${successMessage}"></span>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-
         <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
             <i class="bi bi-exclamation-circle me-2"></i>
             <span th:text="${errorMessage}"></span>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-
         <!-- Header Section -->
-        <header class="d-flex justify-content-between align-items-center mb-4">
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
-                <h1 class="h2 mb-0">Account Settings</h1>
-                <div class="badge bg-primary rounded-pill px-3 py-2">
+                <h1 class="header-title">Account Settings</h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
                     <span th:text="${user.role}">User</span>
                 </div>
             </div>
-            <nav class="d-flex align-items-center gap-2">
-                <a class="btn btn-outline-primary" th:href="@{/user}">
-                    <i class="bi bi-grid"></i> Dashboard
-                </a>
-            </nav>
-        </header>
-
+            <a class="btn btn-outline-primary" th:href="@{/user}">
+                <i class="bi bi-grid me-2"></i>Dashboard
+            </a>
+        </div>
         <!-- Main Content -->
         <div class="row g-4">
             <!-- User Information Card -->
             <div class="col-lg-8">
-                <div class="card shadow-sm h-100">
-                    <div class="card-header bg-transparent">
+                <div class="card settings-card h-100">
+                    <div class="card-header">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-person-circle me-2"></i>Profile Information
                         </h5>
@@ -54,7 +82,7 @@
                         <div class="row g-4">
                             <!-- Name -->
                             <div class="col-md-6">
-                                <div class="border-start border-4 border-primary ps-3">
+                                <div class="profile-stat border-start border-4 border-primary ps-3">
                                     <h6 class="text-muted mb-1">Name</h6>
                                     <div class="h5 mb-0" th:text="${user.name}">John Doe</div>
                                 </div>
@@ -62,7 +90,7 @@
 
                             <!-- Username -->
                             <div class="col-md-6">
-                                <div class="border-start border-4 border-info ps-3">
+                                <div class="profile-stat border-start border-4 border-info ps-3">
                                     <h6 class="text-muted mb-1">Username</h6>
                                     <div class="h5 mb-0" th:text="${user.username}">johndoe</div>
                                 </div>
@@ -70,7 +98,7 @@
 
                             <!-- Employee ID -->
                             <div class="col-md-6">
-                                <div class="border-start border-4 border-success ps-3">
+                                <div class="profile-stat border-start border-4 border-success ps-3">
                                     <h6 class="text-muted mb-1">Employee ID</h6>
                                     <div class="h5 mb-0" th:text="${user.employeeId}">EMP123</div>
                                 </div>
@@ -78,7 +106,7 @@
 
                             <!-- Schedule -->
                             <div class="col-md-6">
-                                <div class="border-start border-4 border-warning ps-3">
+                                <div class="profile-stat border-start border-4 border-warning ps-3">
                                     <h6 class="text-muted mb-1">Daily Schedule</h6>
                                     <div class="h5 mb-0">
                                         <span th:text="${user.schedule}">8</span>
@@ -90,44 +118,54 @@
                     </div>
                 </div>
             </div>
-
             <!-- Password Change Card -->
             <div class="col-lg-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-header bg-transparent">
+                <div class="card settings-card h-100">
+                    <div class="card-header">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-shield-lock me-2"></i>Security
                         </h5>
                     </div>
                     <div class="card-body">
-                        <form th:action="@{/user/settings/change-password}" method="post" class="needs-validation" novalidate>
+                        <form th:action="@{/user/settings/change-password}"
+                              method="post"
+                              class="needs-validation password-form"
+                              novalidate>
                             <!-- Current Password -->
                             <div class="mb-4">
-                                <label class="form-label text-muted">Current Password</label>
+                                <label for="currentPasswordInput" class="form-label text-muted">Current Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-key"></i>
                                     </span>
-                                    <input type="password"
+                                    <input id="currentPasswordInput"
+                                           type="password"
                                            class="form-control"
                                            name="currentPassword"
                                            required
                                            placeholder="Enter current password">
+                                    <div class="invalid-feedback">
+                                        Please enter your current password
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- New Password -->
                             <div class="mb-4">
-                                <label class="form-label text-muted">New Password</label>
+                                <label for="newPasswordInput" class="form-label text-muted">New Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <i class="bi bi-lock"></i>
                                     </span>
-                                    <input type="password"
+                                    <input id="newPasswordInput"
+                                           type="password"
                                            class="form-control"
                                            name="newPassword"
                                            required
                                            placeholder="Enter new password">
+                                    <div class="invalid-feedback">
+                                        Please enter a new password
+                                    </div>
                                 </div>
                             </div>
 
@@ -141,36 +179,5 @@
         </div>
     </div>
 </div>
-
-<!-- Scripts -->
-<th:block layout:fragment="scripts">
-    <script th:inline="javascript">
-        // Auto-dismiss alerts after 3 seconds
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                const alerts = document.querySelectorAll('.alert');
-                alerts.forEach(alert => {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                });
-            }, 3000);
-        });
-
-        // Form validation
-        (function () {
-            'use strict'
-            const forms = document.querySelectorAll('.needs-validation');
-            Array.from(forms).forEach(form => {
-                form.addEventListener('submit', event => {
-                    if (!form.checkValidity()) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    }
-                    form.classList.add('was-validated');
-                }, false);
-            });
-        })();
-    </script>
-</th:block>
 </body>
 </html>

@@ -2,54 +2,61 @@
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}"
-      lang="English">
+      lang="en">
 <head>
     <title>About - CT3</title>
     <style>
-        /* Remove any top margin/padding conflicts */
-        .container {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
+        .about-container {
+            max-width: 800px;
+            margin: 0 auto;
         }
 
         .logo-container {
             max-width: 300px;
             margin: 0 auto;
-            animation: fadeInUp 1s ease-out;
+            padding: 2rem 0;
         }
 
         .logo-container img {
             width: 100%;
             height: auto;
-            transition: transform 0.3s ease;
+            transition: transform 0.3s ease-in-out;
         }
 
         .logo-container:hover img {
             transform: scale(1.05);
         }
 
-        .typewriter {
-            background: linear-gradient(135deg, #2c3e50, #3498db);
+        .app-title {
+            background: var(--primary-gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            animation: fadeIn 1s ease-out;
+            font-size: 2.5rem;
+            font-weight: 600;
             margin-bottom: 2rem;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        .version-card {
+            background: #fff;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            animation: fadeIn 0.8s ease-out;
         }
 
         .version-info {
-            animation: fadeIn 1.5s ease-out;
-            padding: 1rem;
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            border-radius: 1rem;
-            display: inline-block;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 2rem;
+            font-size: 1.25rem;
+            color: #2c3e50;
+            margin-bottom: 0;
         }
 
-        .copyright-info {
+        .copyright-section {
+            text-align: center;
             color: #6c757d;
-            animation: fadeIn 2s ease-out;
-            font-size: 0.9rem;
+            padding: 2rem 0;
+            animation: fadeIn 1s ease-out;
         }
 
         @keyframes fadeInUp {
@@ -64,48 +71,45 @@
         }
 
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         @media (max-width: 768px) {
+            .about-container {
+                padding: 1rem;
+            }
+
             .logo-container {
                 max-width: 200px;
             }
 
-            .typewriter {
-                font-size: 1.8rem;
+            .app-title {
+                font-size: 2rem;
             }
 
-            .version-info {
-                padding: 0.75rem;
+            .version-card {
+                padding: 1.5rem;
             }
         }
     </style>
 </head>
 <body>
 <div layout:fragment="content">
-    <div class="container py-5">
-        <div class="hero-section">
+    <div class="container">
+        <div class="about-container">
             <div class="text-center">
-                <div class="logo-container mb-4">
-                    <img th:src="@{/images/ct3text.png}" alt="CT3 Logo" />
+                <div class="logo-container">
+                    <img th:src="@{/images/ct3text.png}" alt="CT3 Logo" src=""/>
                 </div>
-
-                <h1 class="display-5 fw-bold mb-4 typewriter">
+                <h1 class="app-title">
                     Creative Time And Task Tracker
                 </h1>
-
-                <div class="version-info">
-                    <h2 class="h4 mb-0">Version 5.0</h2>
+                <div class="version-card">
+                    <p class="version-info">Version 5.0</p>
                 </div>
-
-                <div class="copyright-info">
-                    © 2024 thlhody
+                <div class="copyright-section">
+                    <p class="mb-0">© 2024 thlhody. All rights reserved.</p>
                 </div>
             </div>
         </div>

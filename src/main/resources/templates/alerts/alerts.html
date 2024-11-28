@@ -53,8 +53,9 @@
                     <i class="bi bi-exclamation-triangle-fill"></i>
                 </div>
                 <div class="alert-content flex-grow-1">
-                    <div class="alert-heading h6 mb-0">Validation Warning</div>
+                    <div class="alert-heading h6 mb-0">Warning</div>
                     <div class="alert-text" th:switch="${param.error[0]}">
+                        <!-- National Holiday System Errors -->
                         <span th:case="'date_required'" class="d-flex align-items-center">
                             <i class="bi bi-calendar-x me-2"></i>
                             Please select a date before adding a national holiday.
@@ -67,18 +68,69 @@
                             <i class="bi bi-calendar-x me-2"></i>
                             Cannot add national holidays on weekends.
                         </span>
+
+                        <!-- TimeOff System Errors -->
+                        <span th:case="'type_required'" class="d-flex align-items-center">
+                            Please select a time off type.
+                        </span>
+                        <span th:case="'invalid_range'" class="d-flex align-items-center">
+                            End date must be after start date.
+                        </span>
+                        <span th:case="'past_date'" class="d-flex align-items-center">
+                            Cannot request time off for past dates.
+                        </span>
+                        <span th:case="'insufficient_days'" class="d-flex align-items-center">
+                            Insufficient paid holiday days available.
+                        </span>
+
+                        <!-- Form Validation Errors -->
+                        <span th:case="'missing_date'" class="d-flex align-items-center">
+                            <i class="bi bi-calendar-x me-2"></i>
+                            Please select a date.
+                        </span>
+                                <span th:case="'missing_order_id'" class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            Order ID is required.
+                        </span>
+                                <span th:case="'missing_oms_id'" class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            OMS ID is required.
+                        </span>
+                                <span th:case="'missing_client'" class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            Client name is required.
+                        </span>
+                                <span th:case="'missing_action_type'" class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            Action type is required.
+                        </span>
+                                <span th:case="'missing_print_type'" class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            Print type is required.
+                        </span>
+                                <span th:case="'missing_articles'" class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            Number of articles is required.
+                        </span>
+
+                        <!-- Operation Errors -->
                         <span th:case="'add_failed'" class="d-flex align-items-center">
                             <i class="bi bi-x-circle me-2"></i>
-                            Failed to add national holiday. Please try again.
+                            Failed to add entry. Please try again.
                         </span>
-                        <span th:case="'batch_add_failed'" class="d-flex align-items-center">
+                        <span th:case="'update_failed'" class="d-flex align-items-center">
                             <i class="bi bi-x-circle me-2"></i>
-                            Failed to add batch national holidays. Please try again.
+                            Failed to update entry. Please try again.
                         </span>
-                        <span th:case="'remove_failed'" class="d-flex align-items-center">
+                        <span th:case="'delete_failed'" class="d-flex align-items-center">
                             <i class="bi bi-x-circle me-2"></i>
-                            Failed to remove national holiday. Please try again.
+                            Failed to delete entry. Please try again.
                         </span>
+                        <span th:case="'permission_denied'" class="d-flex align-items-center">
+                            You don't have permission to modify this entry.
+                        </span>
+
+                        <!-- Generic Error -->
                         <span th:case="*" class="d-flex align-items-center">
                             <i class="bi bi-question-circle me-2"></i>
                             An unexpected error occurred. Please try again.
@@ -92,7 +144,6 @@
                 </button>
             </div>
         </div>
-
         <!-- Period Error -->
         <div th:if="${param.periodError != null}"
              class="alert alert-danger alert-dismissible fade show d-flex align-items-center"
@@ -113,7 +164,6 @@
             </div>
         </div>
     </div>
-
     <style>
         .alerts-container {
             position: relative;

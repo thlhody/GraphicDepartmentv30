@@ -209,9 +209,9 @@ public class PathConfig {
                 .resolve(String.format(worktimeFormat, username, year, month));
     }
 
-    public Path getUserRegisterPath(String username, Integer userId) {
+    public Path getUserRegisterPath(String username, Integer userId,int year, int month) {
         return activePath.resolve(user.get("register"))
-                .resolve(String.format(registerFormat, username, userId));
+                .resolve(String.format(registerFormat, username, userId, year, month));
     }
 
     public Path getHolidayListPath() {

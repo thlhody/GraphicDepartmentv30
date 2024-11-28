@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
 <body>
 <div th:fragment="table">
     <form th:action="@{/admin/worktime/update}" method="post">
@@ -74,12 +74,12 @@
                             <input type="text"
                                    class="worktime-input"
                                    th:name="|entries[${user.userId}].days[${day}]|"
-                                   th:value="${entry != null ?
-                                             (entry.adminSync == 'ADMIN_BLANK' ? '' :
-                                              entry.adminSync == 'USER_IN_PROCESS' ? '' :  <!-- Don't show value for in-process -->
+                                   th:with="displayValue=${entry != null ?
+                                             (entry.adminSync == 'ADMIN_BLANK' || entry.adminSync == 'USER_IN_PROCESS') ? '' :
                                              (entry.timeOffType != null ? entry.timeOffType :
-                                             (entry.totalWorkedMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalWorkedMinutes) : '')))
+                                             entry.totalWorkedMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalWorkedMinutes) : '')
                                              : ''}"
+                                   th:value="${displayValue}"
                                    pattern="^([1-9]|1\d|2[0-4]|SN|CO|CM)?$"
                                    title="Enter hours (1-24) or SN/CO/CM"
                                    maxlength="2">
@@ -115,7 +115,6 @@
             </div>
         </div>
     </form>
-
     <style>
         .worktime-table-wrapper {
             overflow-x: auto;

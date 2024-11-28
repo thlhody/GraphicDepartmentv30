@@ -5,36 +5,32 @@
       lang="en">
 <head>
     <title>Work Time Records</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
+        <!-- Alert System -->
+        <div class="mb-4">
+            <div th:replace="~{alerts/alerts :: alerts}"></div>
+        </div>
         <!-- Header Section -->
-        <header class="d-flex justify-content-between align-items-center mb-4">
+        <header class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
-                <h1 class="h2 mb-0">Work Time Records</h1>
-                <div class="badge bg-primary rounded-pill px-3 py-2">
-                    <i class="bi bi-person me-1"></i>
+                <h1 class="header-title mb-0">Work Time Records</h1>
+                <div class="badge bg-primary rounded-pill">
                     <span th:text="${user.name}"></span>
                 </div>
             </div>
-            <nav class="d-flex align-items-center gap-2">
-                <a th:href="${dashboardUrl}" class="btn btn-outline-primary">
-                    <i class="bi bi-grid"></i> Dashboard
-                </a>
-            </nav>
+            <a class="btn btn-outline-primary" th:href="${dashboardUrl}" >
+                <i class="bi bi-grid me-2"></i>Dashboard
+            </a>
         </header>
-
         <div class="row g-4">
             <!-- Summary Card -->
             <div class="col-lg-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-transparent">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-calendar3 me-2"></i>Month Summary
-                        </h5>
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Month Summary</h5>
                     </div>
                     <div class="card-body">
                         <!-- Work Days Section -->
@@ -52,11 +48,8 @@
                                 <span class="badge bg-warning rounded-pill" th:text="${summary.remainingWorkDays}"></span>
                             </div>
                         </div>
-
                         <!-- Time Off Section -->
-                        <h6 class="d-flex align-items-center mb-3">
-                            <i class="bi bi-calendar-check me-2"></i>Time Off
-                        </h6>
+                        <h6 class="mb-3">Time Off</h6>
                         <div class="mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="text-muted">National Holidays</span>
@@ -75,12 +68,9 @@
                                 <span class="badge bg-danger rounded-pill" th:text="${summary.cmDays}"></span>
                             </div>
                         </div>
-
                         <!-- Hours Summary Section -->
-                        <h6 class="d-flex align-items-center mb-3">
-                            <i class="bi bi-clock me-2"></i>Hours Summary
-                        </h6>
-                        <div class="mb-2">
+                        <h6 class="mb-3">Hours Summary</h6>
+                        <div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span>Regular Hours</span>
                                 <strong th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary.totalRegularMinutes)}"></strong>
@@ -103,54 +93,50 @@
             <!-- Work Time Records -->
             <div class="col-lg-8">
                 <div class="card shadow-sm">
-                    <div class="card-header bg-transparent">
+                    <!-- Month/Year selector -->
+                    <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="card-title mb-0">
-                                <i class="bi bi-table me-2"></i>Daily Records
-                            </h5>
-                            <form th:action="@{/user/worktime}" method="get"
-                                  class="d-flex gap-2 align-items-center">
-                                <select name="year" class="form-select form-select-sm"
-                                        style="width: 100px" onchange="this.form.submit()">
+                            <h5 class="card-title mb-0">Daily Records</h5>
+                            <form th:action="@{/user/worktime}" method="get" class="d-flex gap-2 align-items-center">
+                                <!-- Year input -->
+                                <select name="year" class="form-select form-select-sm" style="width: 100px"
+                                        onchange="this.form.submit()"
+                                        aria-label="Select year">
                                     <option th:each="yr : ${#numbers.sequence(2020, 2030)}"
                                             th:value="${yr}"
                                             th:text="${yr}"
                                             th:selected="${yr == currentYear}">
                                     </option>
                                 </select>
-                                <select name="month" class="form-select form-select-sm"
-                                        style="width: 130px" onchange="this.form.submit()">
-                                    <option value="1" th:selected="${currentMonth == 1}">January</option>
-                                    <option value="2" th:selected="${currentMonth == 2}">February</option>
-                                    <option value="3" th:selected="${currentMonth == 3}">March</option>
-                                    <option value="4" th:selected="${currentMonth == 4}">April</option>
-                                    <option value="5" th:selected="${currentMonth == 5}">May</option>
-                                    <option value="6" th:selected="${currentMonth == 6}">June</option>
-                                    <option value="7" th:selected="${currentMonth == 7}">July</option>
-                                    <option value="8" th:selected="${currentMonth == 8}">August</option>
-                                    <option value="9" th:selected="${currentMonth == 9}">September</option>
-                                    <option value="10" th:selected="${currentMonth == 10}">October</option>
-                                    <option value="11" th:selected="${currentMonth == 11}">November</option>
-                                    <option value="12" th:selected="${currentMonth == 12}">December</option>
+                                <!-- Month input -->
+                                <select name="month" class="form-select form-select-sm" style="width: 130px"
+                                        onchange="this.form.submit()"
+                                        aria-label="Select month">
+                                    <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                            th:value="${m}"
+                                            th:text="${T(java.time.Month).of(m)}"
+                                            th:selected="${m == currentMonth}">
+                                    </option>
                                 </select>
-                                <a class="btn btn-sm btn-outline-primary ms-2" th:href="@{/user/worktime}">
-                                    <i class="bi bi-calendar3"></i> Current
+                                <a class="btn btn-sm btn-outline-primary" th:href="@{/user/worktime}">
+                                    Current
                                 </a>
                             </form>
                         </div>
                     </div>
+                    <!-- Work Time Data Display -->
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-hover mb-0">
                                 <thead class="bg-light">
                                 <tr>
-                                    <th class="border-0">Date</th>
-                                    <th class="border-0">Start</th>
-                                    <th class="border-0">End</th>
-                                    <th class="border-0">Breaks</th>
-                                    <th class="border-0">Time Off</th>
-                                    <th class="border-0">Hours</th>
-                                    <th class="border-0">OT</th>
+                                    <th>Date</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Breaks</th>
+                                    <th>Time Off</th>
+                                    <th>Hours</th>
+                                    <th>OT</th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -180,8 +166,8 @@
                                     <td>
                                         <span th:if="${record.timeOffType}"
                                               th:class="${'badge rounded-pill ' +
-                                                (record.timeOffType == 'CO' ? 'bg-info' :
-                                                 record.timeOffType == 'CM' ? 'bg-danger' : 'bg-secondary')}"
+                                              (record.timeOffType == 'CO' ? 'bg-info' :
+                                               record.timeOffType == 'CM' ? 'bg-danger' : 'bg-secondary')}"
                                               th:text="${record.timeOffType}">
                                         </span>
                                         <span th:unless="${record.timeOffType}">-</span>
@@ -210,22 +196,5 @@
         </div>
     </div>
 </div>
-
-<style>
-    .table > :not(caption) > * > * {
-        padding: 1rem 0.75rem;
-    }
-    .badge {
-        font-weight: 500;
-    }
-    .form-select {
-        background-color: #fff;
-        border-color: #dee2e6;
-    }
-    .form-select:focus {
-        border-color: #86b7fe;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-    }
-</style>
 </body>
 </html>

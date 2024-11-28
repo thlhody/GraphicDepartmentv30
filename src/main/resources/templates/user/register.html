@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Work Registry</title>
+    <style>
+        /* Register form styles */
+        .register-form {
+            transition: all 0.3s ease;
+        }
+
+        .register-form:hover {
+            transform: translateY(-2px);
+        }
+
+        .form-control-sm {
+            height: calc(1.5em + 0.5rem + 2px);
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Table styles */
+        .table-actions {
+            width: 100px;
+        }
+
+        .table-actions .btn {
+            padding: 0.25rem 0.5rem;
+        }
+
+        /* Period selector */
+        .period-selector {
+            border-radius: 0.5rem;
+            background: #f8f9fa;
+        }
+
+        .period-selector .btn-group {
+            flex-wrap: wrap;
+        }
+
+        .period-selector .btn {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            padding: 3rem 1.5rem;
+            text-align: center;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .register-form .col-auto {
+                width: 100% !important;
+            }
+
+            .table-responsive {
+                margin: 0 -1rem;
+            }
+
+            .period-selector .btn-group {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<!-- Register Page Content -->
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Alert System -->
+        <div class="mb-4">
+            <div th:replace="~{alerts/alerts :: alerts}"></div>
+        </div>
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-journal-text me-2"></i>Work Registry
+                </h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
+                    <span th:text="${user.name}"></span>
+                </div>
+            </div>
+            <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
+                <i class="bi bi-grid me-2"></i>Dashboard
+            </a>
+        </div>
+        <!-- Period Selection -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form th:action="@{/user/register}" method="get" class="d-flex gap-3 align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="yearSelect" class="form-label mb-0">Year:</label>
+                        <select id="yearSelect" name="year" class="form-select" style="width: auto;">
+                            <option th:each="y : ${#numbers.sequence(2020, 2030)}"
+                                    th:value="${y}"
+                                    th:text="${y}"
+                                    th:selected="${y == currentYear}">
+                                2024
+                            </option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <a th:each="m : ${#numbers.sequence(1, 12)}"
+                           th:href="@{/user/register(year=${currentYear},month=${m})}"
+                           th:text="${T(java.time.Month).of(m)}"
+                           th:class="${'btn btn-outline-primary' + (m == currentMonth ? ' active' : '')}">
+                            Month
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <!-- Register Form -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form id="registerForm"
+                      th:action="@{/user/register/entry}"
+                      method="post"
+                      class="row g-3 needs-validation"
+                      novalidate>
+
+                    <input type="hidden" name="year" th:value="${currentYear}">
+                    <input type="hidden" name="month" th:value="${currentMonth}">
+                    <input type="hidden" name="id" id="editingId">
+
+                    <!-- Single Row with adjusted column sizes -->
+                    <div class="col-auto" style="width: 130px;">
+                        <label for="dateInput" class="form-label">Date*</label>
+                        <input id="dateInput" type="date" class="form-control form-control-sm" name="date" required
+                               th:value="${param.form_date != null ? param.form_date[0] : #temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}">
+                    </div>
+
+                    <div class="col-auto" style="width: 150px;">
+                        <label for="orderIdInput" class="form-label">Order ID*</label>
+                        <input id="orderIdInput" type="text" class="form-control form-control-sm" name="orderId"
+                               required
+                               th:value="${param.form_orderId != null ? param.form_orderId[0] : ''}"
+                               title="Format: 0000/00/AA or FARA ID"
+                               placeholder="1234/24/AB-GREEN">
+                    </div>
+
+                    <div class="col-auto" style="width: 140px;">
+                        <label for="productionIdInput" class="form-label">Production ID</label>
+                        <input id="productionIdInput" type="text" class="form-control form-control-sm"
+                               name="productionId"
+                               th:value="${param.form_productionId != null ? param.form_productionId[0] : ''}"
+                               title="Format: ABCD00-00000"
+                               placeholder="CVEX24-123456">
+                    </div>
+
+                    <div class="col-auto" style="width: 140px;">
+                        <label for="omsIdInput" class="form-label">OMS ID/EMAIL*</label>
+                        <input id="omsIdInput" type="text" class="form-control form-control-sm" name="omsId" required
+                               th:value="${param.form_omsId != null ? param.form_omsId[0] : ''}"
+                               title="Format: OMS00-000000, EMAIL, Sample ID, or OTHER"
+                               placeholder="OMS24-1234567">
+                    </div>
+
+                    <div class="col" style="min-width: 170px;">
+                        <label for="clientNameInput" class="form-label">Client Name*</label>
+                        <input id="clientNameInput" type="text" class="form-control form-control-sm" name="clientName"
+                               required
+                               th:value="${param.form_clientName != null ? param.form_clientName[0] : ''}"
+                               placeholder="Ex: ORBEA, CRAFT">
+                    </div>
+
+                    <div class="col-auto" style="width: 160px;">
+                        <label for="actionTypeSelect" class="form-label">Action Type*</label>
+                        <select id="actionTypeSelect" class="form-select form-select-sm" name="actionType" required>
+                            <option value="">Select Type</option>
+                            <option th:each="type : ${actionTypes}"
+                                    th:value="${type}"
+                                    th:selected="${param.form_actionType != null && param.form_actionType[0] == type}"
+                                    th:text="${type}">Action Type
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="col-auto" style="width: 140px;">
+                        <label for="printPrepTypeSelect" class="form-label">Print Prep Type*</label>
+                        <select id="printPrepTypeSelect" class="form-select form-select-sm" name="printPrepType"
+                                required>
+                            <option value="">Select Type</option>
+                            <option th:each="type : ${printPrepTypes}"
+                                    th:value="${type}"
+                                    th:selected="${param.form_printPrepType != null && param.form_printPrepType[0] == type}"
+                                    th:text="${type}">Print Type
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="col-auto" style="width: 90px;">
+                        <label for="colorsInput" class="form-label">Colors*</label>
+                        <input id="colorsInput" type="text" class="form-control form-control-sm" name="colorsProfile"
+                               required
+                               th:value="${param.form_colorsProfile != null ? param.form_colorsProfile[0] : ''}"
+                               pattern="[A-Za-z]{0,2}"
+                               title="Maximum 2 letters"
+                               maxlength="2"
+                               placeholder="A">
+                    </div>
+
+                    <div class="col-auto" style="width: 90px;">
+                        <label for="articlesInput" class="form-label">Articles*</label>
+                        <input id="articlesInput" type="number" class="form-control form-control-sm"
+                               name="articleNumbers"
+                               th:value="${param.form_articleNumbers != null ? param.form_articleNumbers[0] : ''}"
+                               min="1" max="99" required>
+                    </div>
+
+                    <div class="col-auto" style="width: 90px;">
+                        <label for="complexityInput" class="form-label">Complexity</label>
+                        <input id="complexityInput" type="number" class="form-control form-control-sm"
+                               name="graphicComplexity"
+                               th:value="${param.form_graphicComplexity != null ? param.form_graphicComplexity[0] : ''}"
+                               min="0" max="10" step="0.5">
+                    </div>
+
+                    <div class="col" style="min-width: 120px;">
+                        <label for="observationsInput" class="form-label">Observations</label>
+                        <input id="observationsInput" type="text" class="form-control form-control-sm"
+                               name="observations"
+                               th:value="${param.form_observations != null ? param.form_observations[0] : ''}"
+                               maxlength="500"
+                               placeholder="Observatii">
+                    </div>
+
+                    <div class="col-auto" style="width: 240px;">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm"
+                                    style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                                <i class="bi bi-plus-circle me-1"></i>Add Entry
+                            </button>
+                            <button type="button" onclick="resetForm()" class="btn btn-outline-secondary btn-sm"
+                                    style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                                <i class="bi bi-x-circle me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <!-- Entries Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <h5 class="card-title mb-0">Register Entries</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Order ID</th>
+                            <th>Production ID</th>
+                            <th>OMS ID</th>
+                            <th>Client</th>
+                            <th>Action</th>
+                            <th>Print Type</th>
+                            <th>Colors</th>
+                            <th>Articles</th>
+                            <th>Complexity</th>
+                            <th>Observations</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="entry : ${entries}">
+                            <td th:text="${entry.entryId}"></td>
+                            <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
+                            <td th:text="${entry.orderId}"></td>
+                            <td th:text="${entry.productionId}"></td>
+                            <td th:text="${entry.omsId}"></td>
+                            <td th:text="${entry.clientName}"></td>
+                            <td th:text="${entry.actionType}"></td>
+                            <td th:text="${entry.printPrepType}"></td>
+                            <td th:text="${entry.colorsProfile}"></td>
+                            <td th:text="${entry.articleNumbers}"></td>
+                            <td th:text="${entry.graphicComplexity}"></td>
+                            <td th:text="${entry.observations}"></td>
+                            <td>
+                                <div class="btn-group">
+                                    <!-- Edit button -->
+                                    <a href="#"
+                                       class="btn btn-sm btn-outline-primary edit-entry"
+                                       th:data-entry-id="${entry.entryId}"
+                                       th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                       th:data-order-id="${entry.orderId}"
+                                       th:data-production-id="${entry.productionId}"
+                                       th:data-oms-id="${entry.omsId}"
+                                       th:data-client-name="${entry.clientName}"
+                                       th:data-action-type="${entry.actionType}"
+                                       th:data-print-prep-type="${entry.printPrepType}"
+                                       th:data-colors-profile="${entry.colorsProfile}"
+                                       th:data-article-numbers="${entry.articleNumbers}"
+                                       th:data-graphic-complexity="${entry.graphicComplexity}"
+                                       th:data-observations="${entry.observations}">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <!-- Delete button  -->
+                                    <form th:action="@{/user/register/delete}"
+                                          method="post"
+                                          style="display: inline;">
+                                        <input type="hidden" name="entryId" th:value="${entry.entryId}"/>
+                                        <input type="hidden" name="year" th:value="${currentYear}"/>
+                                        <input type="hidden" name="month" th:value="${currentMonth}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Are you sure you want to delete this entry?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr th:if="${entries.empty}">
+                            <td colspan="13" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="bi bi-journal-x fs-2"></i>
+                                    <h5 class="mt-3">No Entries Found</h5>
+                                    <p>No register entries were found for this period.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- Scripts -->
+        <th:block layout:fragment="scripts">
+            <script th:inline="javascript">
+                const baseUrl = /*[[@{/user/register/entry/}]]*/ '/user/register/entry/';
+                const defaultUrl = /*[[@{/user/register/entry}]]*/ '/user/register/entry';
+
+                document.addEventListener('DOMContentLoaded', function () {
+
+                    // Edit button handlers
+                    const editButtons = document.querySelectorAll('[data-entry-id]');
+                    editButtons.forEach(button => {
+                        button.addEventListener('click', function (e) {
+                            e.preventDefault();
+                            populateForm(this);
+                        });
+                    });
+
+                    // Form validation handler
+                    const form = document.querySelector('form[action*="/register/entry"]');
+                    if (form) {
+                        form.addEventListener('submit', function (e) {
+                            if (!validateRegisterForm(this)) {
+                                e.preventDefault();
+                            }
+                        });
+                    }
+                });
+                // Populate form
+                function populateForm(button) {
+                    // Get the form using ID instead of attribute selector
+                    const form = document.getElementById('registerForm');
+
+                    if (!form) {
+                        console.error('Form not found');
+                        return;
+                    }
+
+                    // Get all the data attributes
+                    const entryId = button.getAttribute('data-entry-id');
+                    const date = button.getAttribute('data-date');
+                    const orderId = button.getAttribute('data-order-id');
+                    const productionId = button.getAttribute('data-production-id');
+                    const omsId = button.getAttribute('data-oms-id');
+                    const clientName = button.getAttribute('data-client-name');
+                    const actionType = button.getAttribute('data-action-type');
+                    const printPrepType = button.getAttribute('data-print-prep-type');
+                    const colorsProfile = button.getAttribute('data-colors-profile');
+                    const articleNumbers = button.getAttribute('data-article-numbers');
+                    const graphicComplexity = button.getAttribute('data-graphic-complexity');
+                    const observations = button.getAttribute('data-observations');
+
+                    // Set the form action for update
+                    form.setAttribute('action', baseUrl + entryId);
+                    form.setAttribute('method', 'post');
+
+                    // Populate form fields
+                    form.querySelector('input[name="date"]').value = date;
+                    form.querySelector('input[name="orderId"]').value = orderId;
+                    form.querySelector('input[name="productionId"]').value = productionId || '';
+                    form.querySelector('input[name="omsId"]').value = omsId;
+                    form.querySelector('input[name="clientName"]').value = clientName;
+                    form.querySelector('select[name="actionType"]').value = actionType;
+                    form.querySelector('select[name="printPrepType"]').value = printPrepType;
+                    form.querySelector('input[name="colorsProfile"]').value = colorsProfile || '';
+                    form.querySelector('input[name="articleNumbers"]').value = articleNumbers;
+                    form.querySelector('input[name="graphicComplexity"]').value = graphicComplexity || '';
+                    form.querySelector('input[name="observations"]').value = observations || '';
+
+                    // Update just the submit button text
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    submitButton.innerHTML = '<i class="bi bi-check-circle me-1"></i>Update Entry';
+
+                    // Scroll to
+                    form.scrollIntoView({behavior: 'smooth'});
+                }
+                // Reset form
+                function resetForm() {
+                    const form = document.getElementById('registerForm');
+                    if (!form) return;
+
+                    // Reset all form fields
+                    form.reset();
+
+                    // Set today's date
+                    form.querySelector('input[name="date"]').value = new Date().toISOString().split('T')[0];
+
+                    // Reset form action to default
+                    form.setAttribute('action', defaultUrl);
+                    form.setAttribute('method', 'post');
+
+                    // Reset submit button text if it was in update mode
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    if (submitButton.innerHTML.includes('Update')) {
+                        submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+                    }
+                }
+                // Form validation
+                function validateRegisterForm(form) {
+                    // Store form values before validation
+                    const formValues = {};
+                    for (const element of form.elements) {
+                        if (element.name) {
+                            formValues['form_' + element.name] = element.value;
+                        }
+                    }
+
+                    // Required fields array
+                    const requiredFields = [
+                        {name: 'date', message: 'missing_date'},
+                        {name: 'orderId', message: 'missing_order_id'},
+                        {name: 'omsId', message: 'missing_oms_id'},
+                        {name: 'clientName', message: 'missing_client'},
+                        {name: 'actionType', message: 'missing_action_type'},
+                        {name: 'printPrepType', message: 'missing_print_type'},
+                        {name: 'articleNumbers', message: 'missing_articles'}
+                    ];
+
+                    // Check required fields
+                    for (const field of requiredFields) {
+                        const input = form[field.name];
+                        if (!input || !input.value || input.value.trim() === '') {
+                            // Build redirect URL
+                            const params = new URLSearchParams();
+                            params.append('error', field.message);
+                            params.append('year', form.year.value);
+                            params.append('month', form.month.value);
+
+                            // Add all form values to parameters
+                            for (const [key, value] of Object.entries(formValues)) {
+                                if (value && typeof value === 'string' && value.trim() !== '') {
+                                    params.append(key, value);
+                                }
+                            }
+
+                            // Perform the redirect
+                            window.location.href = '/user/register?' + params.toString();
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+
+            </script>
+        </th:block>
+    </div>
+</div>
+</body>
+</html>

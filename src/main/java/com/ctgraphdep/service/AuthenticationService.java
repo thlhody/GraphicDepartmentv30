@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.security.CustomUserDetails;
@@ -26,15 +25,13 @@ public class AuthenticationService {
 
     private final DataAccessService dataAccess;
     private final PasswordEncoder passwordEncoder;
-    private final UserService userService;
+
 
     public AuthenticationService(
             DataAccessService dataAccess,
-            PasswordEncoder passwordEncoder,
-            UserService userService) {
+            PasswordEncoder passwordEncoder) {
         this.dataAccess = dataAccess;
         this.passwordEncoder = passwordEncoder;
-        this.userService = userService;
         LoggerUtil.initialize(this.getClass(), "Initializing Authentication Service");
     }
 
@@ -137,7 +134,7 @@ public class AuthenticationService {
             List<Path> directories = Arrays.asList(
                     dataAccess.getSessionPath("", 0).getParent(),
                     dataAccess.getUserWorktimePath("", 0, 0).getParent(),
-                    dataAccess.getUserRegisterPath("", 0).getParent()
+                    dataAccess.getUserRegisterPath("", 0,0,0).getParent()
             );
 
             // Add admin directories if user is admin

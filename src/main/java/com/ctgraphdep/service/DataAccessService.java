@@ -146,8 +146,8 @@ public class DataAccessService {
         return pathConfig.getSessionFilePath(username, userId);
     }
 
-    public Path getUserRegisterPath(String username, Integer userId) {
-        return pathConfig.getUserRegisterPath(username, userId);
+    public Path getUserRegisterPath(String username, Integer userId, int year, int month) {
+        return pathConfig.getUserRegisterPath(username, userId, year, month);
     }
 
     public Path getAdminRegisterPath(int year, int month) {
