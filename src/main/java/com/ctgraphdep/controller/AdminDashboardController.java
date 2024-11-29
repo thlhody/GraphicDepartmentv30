@@ -21,9 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class AdminDashboardController extends BaseDashboardController {
 
     @Autowired
-    public AdminDashboardController(
-            UserService userService,
-            DashboardService dashboardService,
+    public AdminDashboardController(UserService userService, DashboardService dashboardService,
             @Qualifier("adminDashboardConfig") DashboardConfiguration adminDashboardConfig,
             PermissionFilterService permissionFilterService) {
         super(userService, dashboardService, adminDashboardConfig, permissionFilterService);

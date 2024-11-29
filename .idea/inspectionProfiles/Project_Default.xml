@@ -4,7 +4,7 @@
     <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="50">
+          <list size="55">
             <item index="0" class="java.lang.String" itemvalue="sec:authentication" />
             <item index="1" class="java.lang.String" itemvalue="th:text" />
             <item index="2" class="java.lang.String" itemvalue="layout:decorate" />
@@ -55,6 +55,11 @@
             <item index="47" class="java.lang.String" itemvalue="th:data-graphic-complexity" />
             <item index="48" class="java.lang.String" itemvalue="th:data-article-numbers" />
             <item index="49" class="java.lang.String" itemvalue="th:data-observations" />
+            <item index="50" class="java.lang.String" itemvalue="th:data-title" />
+            <item index="51" class="java.lang.String" itemvalue="th:data-subtitle" />
+            <item index="52" class="java.lang.String" itemvalue="th:data-show-back" />
+            <item index="53" class="java.lang.String" itemvalue="th:data-back-url" />
+            <item index="54" class="java.lang.String" itemvalue="th:data-dashboard-url" />
           </list>
         </value>
       </option>

@@ -49,10 +49,7 @@ public class AdminHolidayController {
     }
 
     @PostMapping("/update")
-    public String updateHolidays(
-            @RequestParam Integer userId,
-            @RequestParam Integer days,
-            RedirectAttributes redirectAttributes) {
+    public String updateHolidays(@RequestParam Integer userId, @RequestParam Integer days, RedirectAttributes redirectAttributes) {
 
         LoggerUtil.info(this.getClass(),
                 String.format("Updating holiday days - User: %d, Days: %d",
@@ -72,17 +69,23 @@ public class AdminHolidayController {
     }
 
     @GetMapping("/history/{userId}")
-    public String viewUserHistory(@PathVariable Integer userId, Model model) {
-        Optional<User> user = userService.getUserById(userId);
-        if (user.isEmpty()) {
+    public String viewUserHistory(@PathVariable Integer userId, Model model,RedirectAttributes redirectAttributes) {
+        try {
+            Optional<User> user = userService.getUserById(userId);
+            if (user.isEmpty()) {
+                return "redirect:/admin/holidays";
+            }
+
+            List<WorkTimeTable> timeOffs = holidayHistoryService.getUserTimeOffHistory(user.get().getUsername());
+
+            model.addAttribute("user", user.get());
+            model.addAttribute("timeOffs", timeOffs);
+
+            return "admin/holiday-history";
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error viewing holiday history: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("errorMessage", "Error loading holiday history");
             return "redirect:/admin/holidays";
         }
-
-        List<WorkTimeTable> timeOffs = holidayHistoryService.getUserTimeOffHistory(user.get().getUsername());
-
-        model.addAttribute("user", user.get());
-        model.addAttribute("timeOffs", timeOffs);
-
-        return "admin/holiday-history";
     }
 }
