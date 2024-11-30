@@ -43,10 +43,10 @@ public class PathConfig {
     @Value("${dbj.dir.format.admin.worktime:general_worktime_%d_%02d.json}")
     private String adminWorktimeFormat;
 
-    @Value("${dbj.dir.format.admin.register:general_registru_%d_%02d.json}")
+    @Value("${dbj.dir.format.admin.register:admin_registru_%s_%d_%d_%02d.json}")
     private String adminRegisterFormat;
 
-    @Value("${dbj.dir.format.admin.bonus:general_bonus_%d_%02d.json}")
+    @Value("${dbj.dir.format.admin.bonus:admin_bonus_%d_%02d.json}")
     private String adminBonusFormat;
 
     @Value("${dbj.dir.format.holiday:paid_holiday_list.json}")
@@ -224,9 +224,9 @@ public class PathConfig {
                 .resolve(String.format(adminWorktimeFormat, year, month));
     }
 
-    public Path getAdminRegisterPath(int year, int month) {
+    public Path getAdminRegisterPath(String username, Integer userId, int year, int month) {
         return activePath.resolve(admin.get("register"))
-                .resolve(String.format(adminRegisterFormat, year, month));
+                .resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
     public Path getAdminBonusPath(int year, int month) {

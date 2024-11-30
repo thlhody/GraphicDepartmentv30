@@ -1,6 +1,8 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.model.BonusEntry;
+import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,9 +11,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -87,9 +87,7 @@ public class DataAccessService {
         }
     }
 
-    /**
-     * Ensure the directory structure exists for a given path
-     */
+    // Ensure the directory structure exists for a given path
     private void ensureDirectoryExists(Path path) throws IOException {
         Path parent = path.getParent();
         if (parent != null && !Files.exists(parent)) {
@@ -97,16 +95,12 @@ public class DataAccessService {
         }
     }
 
-    /**
-     * Get file lock for a specific path
-     */
+    //Get file lock for a specific path
     private ReentrantReadWriteLock getFileLock(Path path) {
         return fileLocks.computeIfAbsent(path, k -> new ReentrantReadWriteLock());
     }
 
-    /**
-     * Create empty data structure based on type
-     */
+    // Create empty data structure based on type
     @SuppressWarnings("unchecked")
     private <T> T createEmptyStructure(TypeReference<T> typeRef) {
         String typeName = typeRef.getType().getTypeName();
@@ -150,17 +144,41 @@ public class DataAccessService {
         return pathConfig.getUserRegisterPath(username, userId, year, month);
     }
 
-    public Path getAdminRegisterPath(int year, int month) {
-        return pathConfig.getAdminRegisterPath(year, month);
+    public Path getAdminRegisterPath(String username, Integer userId, int year, int month) {
+        return pathConfig.getAdminRegisterPath(username, userId, year, month);
+    }
+
+    public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, int year, int month) {
+        Path path = pathConfig.getUserRegisterPath(username, userId, year, month);
+        return readFile(path, new TypeReference<List<RegisterEntry>>() {}, true);
+    }
+
+    public void saveAdminRegisterEntries(String username, Integer userId, int year, int month,
+                                         List<RegisterEntry> entries) {
+        Path path = pathConfig.getAdminRegisterPath(username, userId, year, month);
+        writeFile(path, entries);
+    }
+
+    public Optional<BonusEntry> loadBonusEntry(Integer userId, int year, int month) {
+        Path path = pathConfig.getAdminBonusPath(year, month);
+        Map<Integer, BonusEntry> bonusEntries = readFile(path,
+                new TypeReference<Map<Integer, BonusEntry>>() {}, true);
+        return Optional.ofNullable(bonusEntries.get(userId));
+    }
+
+    public void saveBonusEntry(Integer userId, int year, int month, BonusEntry entry) {
+        Path path = pathConfig.getAdminBonusPath(year, month);
+        Map<Integer, BonusEntry> bonusEntries = readFile(path,
+                new TypeReference<Map<Integer, BonusEntry>>() {}, true);
+        bonusEntries.put(userId, entry);
+        writeFile(path, bonusEntries);
     }
 
     public Path getAdminBonusPath(int year, int month) {
         return pathConfig.getAdminBonusPath(year, month);
     }
 
-    /**
-     * Check if a file exists at the given path
-     */
+    // Check if a file exists at the given path
     public boolean fileExists(Path path) {
         ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
         readLock.lock();
@@ -171,9 +189,7 @@ public class DataAccessService {
         }
     }
 
-    /**
-     * Delete a file at the given path
-     */
+    //Delete a file at the given path
     public boolean deleteFile(Path path) {
         ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
         writeLock.lock();
@@ -211,9 +227,7 @@ public class DataAccessService {
         return pathConfig.getNetworkPath();
     }
 
-    /**
-     * Cleanup method for testing and maintenance
-     */
+    //Cleanup method for testing and maintenance
     public void cleanup() {
         fileLocks.clear();
     }

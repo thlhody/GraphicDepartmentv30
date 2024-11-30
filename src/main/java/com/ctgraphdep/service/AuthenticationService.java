@@ -141,7 +141,7 @@ public class AuthenticationService {
             if (isAdmin) {
                 List<Path> adminDirs = Arrays.asList(
                         dataAccess.getAdminWorktimePath(0, 0).getParent(),
-                        dataAccess.getAdminRegisterPath(0, 0).getParent(),
+                        dataAccess.getAdminRegisterPath("", 0,0,0).getParent(),
                         dataAccess.getHolidayPath().getParent()
                 );
                 directories = new ArrayList<>(directories);

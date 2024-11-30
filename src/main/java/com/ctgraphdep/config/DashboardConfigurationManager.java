@@ -25,7 +25,8 @@ public class DashboardConfigurationManager {
                         createWorktimeCard(),
                         createOMSSystemCard(),
                         createHolidaysCard(),
-                        createSettingsCard()
+                        createSettingsCard(),
+                        createAdminRegisterCard()
                 ))
                 .build();
     }
@@ -110,6 +111,21 @@ public class DashboardConfigurationManager {
                 .actionUrl("/admin/worktime")
                 .external(false)
                 .permission("VIEW_WORKTIME_ADMIN")
+                .build();
+    }
+
+    private DashboardCard createAdminRegisterCard() {
+        return DashboardCard.builder()
+                .title("Work Register Manager")
+                .subtitle("Manage work activities")
+                .color("primary")
+                .icon("journal-text")
+                .badge("View")
+                .badgeColor("primary")
+                .actionText("Manage Register")
+                .actionUrl("/admin/register")
+                .external(false)
+                .permission("MANAGE_USER_REGISTER")
                 .build();
     }
 

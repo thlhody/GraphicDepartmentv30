@@ -16,6 +16,7 @@ public class PermissionFilterService {
     public static final String PERMISSION_MANAGE_SETTINGS = "MANAGE_SETTINGS";
     public static final String PERMISSION_MANAGE_HOLIDAYS = "MANAGE_HOLIDAYS";
     public static final String PERMISSION_VIEW_WORKTIME_ADMIN = "VIEW_WORKTIME_ADMIN";
+    public static final String PERMISSION_MANAGE_ADMIN_REGISTER = "MANAGE_ADMIN_REGISTER";
 
     // User Permissions
     public static final String PERMISSION_VIEW_STATUS_USER = "VIEW_STATUS_USER";
@@ -44,7 +45,8 @@ public class PermissionFilterService {
                 PERMISSION_ACCESS_OMS,
                 PERMISSION_MANAGE_SETTINGS,
                 PERMISSION_MANAGE_HOLIDAYS,
-                PERMISSION_VIEW_WORKTIME_ADMIN
+                PERMISSION_VIEW_WORKTIME_ADMIN,
+                PERMISSION_MANAGE_ADMIN_REGISTER
         ));
 
         // Team Leader permissions

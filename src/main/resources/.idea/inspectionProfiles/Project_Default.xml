@@ -4,7 +4,7 @@
     <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="43">
+          <list size="46">
             <item index="0" class="java.lang.String" itemvalue="layout:fragment" />
             <item index="1" class="java.lang.String" itemvalue="th:src" />
             <item index="2" class="java.lang.String" itemvalue="th:classappend" />
@@ -48,6 +48,9 @@
             <item index="40" class="java.lang.String" itemvalue="th:object" />
             <item index="41" class="java.lang.String" itemvalue="th:required" />
             <item index="42" class="java.lang.String" itemvalue="th:name" />
+            <item index="43" class="java.lang.String" itemvalue="th:id" />
+            <item index="44" class="java.lang.String" itemvalue="th:aria-label" />
+            <item index="45" class="java.lang.String" itemvalue="th:for" />
           </list>
         </value>
       </option>

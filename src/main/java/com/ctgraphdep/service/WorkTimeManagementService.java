@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -314,5 +315,53 @@ public class WorkTimeManagementService {
 
         LoggerUtil.info(this.getClass(),
                 String.format("Saved %d entries to general worktime", finalEntries.size()));
+    }
+
+    public int getWorkedDays(Integer userId, int year, int month) {
+        LoggerUtil.info(this.getClass(),
+                String.format("Getting worked days for userId: %d, year: %d, month: %d",
+                        userId, year, month));
+
+        Path worktimePath = dataAccess.getAdminWorktimePath(year, month);
+        LoggerUtil.info(this.getClass(), "Loading from path: " + worktimePath);
+
+        List<WorkTimeTable> entries = dataAccess.readFile(
+                worktimePath,
+                WORKTIME_LIST_TYPE,
+                true
+        );
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Loaded %d total entries", entries.size()));
+
+        long workedDays = entries.stream()
+                .filter(entry -> {
+                    boolean matches = entry.getUserId().equals(userId);
+                    if (!matches) {
+                        LoggerUtil.debug(this.getClass(),
+                                String.format("Entry userId %d doesn't match requested %d",
+                                        entry.getUserId(), userId));
+                    }
+                    return matches;
+                })
+                .filter(entry -> {
+                    boolean isWorkDay = entry.getTimeOffType() == null &&
+                            entry.getTotalWorkedMinutes() != null &&
+                            entry.getTotalWorkedMinutes() > 0;
+                    if (!isWorkDay) {
+                        LoggerUtil.debug(this.getClass(),
+                                String.format("Entry for date %s filtered out: timeOffType=%s, minutes=%d",
+                                        entry.getWorkDate(),
+                                        entry.getTimeOffType(),
+                                        entry.getTotalWorkedMinutes()));
+                    }
+                    return isWorkDay;
+                })
+                .count();
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Found %d worked days for user %d", workedDays, userId));
+
+        return (int) workedDays;
     }
 }

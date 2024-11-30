@@ -35,7 +35,8 @@ public class PermissionConfiguration {
                 PermissionFilterService.PERMISSION_VIEW_WORKTIME_ADMIN,
                 PermissionFilterService.PERMISSION_REQUEST_TIMEOFF,
                 PermissionFilterService.PERMISSION_MANAGE_ACCOUNT,
-                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER
+                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER,
+                PermissionFilterService.PERMISSION_MANAGE_ADMIN_REGISTER
         ));
 
         // Could add other custom roles here
