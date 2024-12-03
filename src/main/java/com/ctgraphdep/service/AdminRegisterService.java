@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.enums.RegisterMergeRule;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
 import com.ctgraphdep.enums.ActionType;
@@ -22,32 +23,108 @@ import java.util.stream.Collectors;
 public class AdminRegisterService {
     private final DataAccessService dataAccessService;
     private final BonusCalculatorUtil bonusCalculator;
-    private final UserService userService;
     private final WorkTimeManagementService workTimeManagementService;
+
 
     @Autowired
     public AdminRegisterService(DataAccessService dataAccessService,
                                 BonusCalculatorUtil bonusCalculator,
-                                UserService userService,
                                 WorkTimeManagementService workTimeManagementService) {
         this.dataAccessService = dataAccessService;
         this.bonusCalculator = bonusCalculator;
-        this.userService = userService;
         this.workTimeManagementService = workTimeManagementService;
     }
 
-    // Load register entries for a specific user and period
+    // Update loadUserRegisterEntries method
     public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, int year, int month) {
-        LoggerUtil.info(this.getClass(), "Loading register entries for user: " + username + ", userId: " + userId + ", year: " + year + ", month: " + month);
-        return dataAccessService.loadUserRegisterEntries(username, userId, year, month);
+        // 1. Load user entries first
+        Path userPath = dataAccessService.getUserRegisterPath(username, userId, year, month);
+        List<RegisterEntry> userEntries = dataAccessService.readFile(
+                userPath,
+                new TypeReference<>() {
+                },
+                true
+        );
+
+        // 2. Check admin file
+        Path adminPath = dataAccessService.getAdminRegisterPath(username, userId, year, month);
+        List<RegisterEntry> adminEntries;
+
+        if (!Files.exists(adminPath)) {
+            // If no admin file exists, create it with user entries
+            adminEntries = userEntries.stream()
+                    .map(this::copyEntry)
+                    .collect(Collectors.toList());
+            dataAccessService.writeFile(adminPath, adminEntries);
+            return adminEntries;
+        }
+
+        // Load existing admin entries
+        adminEntries = dataAccessService.readFile(
+                adminPath,
+                new TypeReference<>() {
+                },
+                true
+        );
+
+        // 3. Merge entries based on status
+        List<RegisterEntry> mergedEntries = mergeEntries(userEntries, adminEntries);
+
+        // 4. Save merged entries to admin file
+        dataAccessService.writeFile(adminPath, mergedEntries);
+
+        return mergedEntries;
     }
 
-    // Save admin modified register entries
+    private List<RegisterEntry> mergeEntries(List<RegisterEntry> userEntries, List<RegisterEntry> adminEntries) {
+        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream()
+                .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
+
+        return userEntries.stream()
+                .map(userEntry -> RegisterMergeRule.apply(userEntry, adminEntriesMap.get(userEntry.getEntryId())))
+                .collect(Collectors.toList());
+    }
+
     public void saveAdminRegisterEntries(String username, Integer userId, int year, int month,
                                          List<RegisterEntry> entries) {
-        entries.forEach(entry -> entry.setAdminSync(SyncStatus.ADMIN_EDITED.name()));
-        dataAccessService.saveAdminRegisterEntries(username, userId, year, month, entries);
+        // Update statuses before saving
+        List<RegisterEntry> updatedEntries = entries.stream()
+                .map(entry -> {
+                    RegisterEntry updated = copyEntry(entry);
+                    // If status is USER_INPUT, change to USER_DONE
+                    if (updated.getAdminSync().equals(SyncStatus.USER_INPUT.name())) {
+                        updated.setAdminSync(SyncStatus.USER_DONE.name());
+                    }
+                    // ADMIN_EDITED entries remain unchanged
+                    return updated;
+                })
+                .collect(Collectors.toList());
+
+        // Save to admin file
+        Path adminPath = dataAccessService.getAdminRegisterPath(username, userId, year, month);
+        dataAccessService.writeFile(adminPath, updatedEntries);
     }
+
+
+    private RegisterEntry copyEntry(RegisterEntry source) {
+        return RegisterEntry.builder()
+                .entryId(source.getEntryId())
+                .userId(source.getUserId())
+                .date(source.getDate())
+                .orderId(source.getOrderId())
+                .productionId(source.getProductionId())
+                .omsId(source.getOmsId())
+                .clientName(source.getClientName())
+                .actionType(source.getActionType())
+                .printPrepType(source.getPrintPrepType())
+                .colorsProfile(source.getColorsProfile())
+                .articleNumbers(source.getArticleNumbers())
+                .graphicComplexity(source.getGraphicComplexity())
+                .observations(source.getObservations())
+                .adminSync(source.getAdminSync())
+                .build();
+    }
+
 
     // Filter entries by action type and/or print prep type
     public List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
@@ -76,9 +153,29 @@ public class AdminRegisterService {
                                   List<Integer> selectedEntryIds,
                                   String fieldName,
                                   String newValue) {
+        // Only update status for selected entries
         entries.stream()
                 .filter(entry -> selectedEntryIds.contains(entry.getEntryId()))
-                .forEach(entry -> updateEntryField(entry, fieldName, newValue));
+                .forEach(entry -> {
+                    // Store old value
+                    Object oldValue = getFieldValue(entry, fieldName);
+                    // Update field
+                    updateEntryField(entry, fieldName, newValue);
+                    // Only change status if value actually changed
+                    if (!Objects.equals(oldValue, getFieldValue(entry, fieldName))) {
+                        entry.setAdminSync(SyncStatus.ADMIN_EDITED.name());
+                    }
+                });
+    }
+
+    private Object getFieldValue(RegisterEntry entry, String fieldName) {
+        return switch (fieldName) {
+            case "graphicComplexity" -> entry.getGraphicComplexity();
+            case "articleNumbers" -> entry.getArticleNumbers();
+            case "colorsProfile" -> entry.getColorsProfile();
+            case "observations" -> entry.getObservations();
+            default -> throw new IllegalArgumentException("Invalid field name: " + fieldName);
+        };
     }
 
     public BonusCalculationResult calculateBonusFromRequest(Map<String, Object> request) {
@@ -250,7 +347,8 @@ public class AdminRegisterService {
             Map<Integer, BonusEntry> existingEntries = new HashMap<>();
             try {
                 existingEntries = dataAccessService.readFile(bonusPath,
-                        new TypeReference<Map<Integer, BonusEntry>>() {}, false);
+                        new TypeReference<>() {
+                        }, false);
                 LoggerUtil.info(this.getClass(),
                         String.format("Loaded %d existing entries", existingEntries.size()));
             } catch (Exception e) {
@@ -299,33 +397,13 @@ public class AdminRegisterService {
             case "observations" -> entry.setObservations(value);
             default -> throw new IllegalArgumentException("Invalid field name: " + fieldName);
         }
-        entry.setAdminSync(SyncStatus.ADMIN_EDITED.name());
     }
 
     private List<RegisterEntry> filterValidEntriesForBonus(List<RegisterEntry> entries) {
+        List<String> bonusEligibleTypes = ActionType.getBonusEligibleValues();
         return entries.stream()
-                .filter(entry -> Arrays.stream(ActionType.values())
-                        .map(ActionType::getValue)
-                        .anyMatch(type -> type.equals(entry.getActionType())))
+                .filter(entry -> bonusEligibleTypes.contains(entry.getActionType()))
                 .collect(Collectors.toList());
-    }
-
-    private BonusEntry createBonusEntry(Integer userId, BonusCalculationResult result) {
-        User user = userService.getUserById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        return BonusEntry.builder()
-                .name(user.getName())
-                .userId(userId)
-                .entries(result.getEntries())
-                .articleNumbers(result.getArticleNumbers())
-                .graphicComplexity(result.getGraphicComplexity())
-                .misc(result.getMisc())
-                .workedDays(result.getWorkedDays())
-                .workedPercentage(result.getWorkedPercentage())
-                .bonusPercentage(result.getBonusPercentage())
-                .bonusAmount(result.getBonusAmount())
-                .build();
     }
 
     private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, int year, int month) {
@@ -361,7 +439,8 @@ public class AdminRegisterService {
                     String.format("Loading bonus for user %d from path: %s", userId, bonusPath));
 
             Map<Integer, BonusEntry> entries = dataAccessService.readFile(bonusPath,
-                    new TypeReference<Map<Integer, BonusEntry>>() {}, false);
+                    new TypeReference<>() {
+                    }, false);
 
             Double bonus = Optional.ofNullable(entries.get(userId))
                     .map(BonusEntry::getBonusAmount)

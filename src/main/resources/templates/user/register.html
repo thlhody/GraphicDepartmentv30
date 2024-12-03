@@ -4,7 +4,7 @@
       layout:decorate="~{layout/default}"
       lang="en">
 <head>
-    <title>Work Registry</title>
+    <title>User Work Registry</title>
     <style>
         /* Register form styles */
         .register-form {
@@ -57,6 +57,48 @@
             margin-bottom: 1rem;
         }
 
+        /* General Badge Style */
+        .badge {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.875em;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 0.25rem;
+            color: #fff;
+        }
+
+        /* Action-Specific Colors */
+        .bg-order {
+            background-color: #007bff; /* Blue */
+        }
+
+        .bg-reorder {
+            background-color: #6c757d; /* Gray */
+        }
+
+        .bg-sample {
+            background-color: #28a745; /* Green */
+        }
+
+        .bg-strikeoff {
+            background-color: #ffc107; /* Yellow */
+            color: #212529; /* Dark text for contrast */
+        }
+
+        .bg-designs {
+            background-color: #dc3545; /* Red */
+        }
+
+        .bg-other {
+            background-color: #6f42c1; /* Purple */
+        }
+
+        .bg-layout {
+            background-color: #17a2b8; /* Teal */
+        }
+
+
         /* Mobile optimizations */
         @media (max-width: 768px) {
             .register-form .col-auto {
@@ -81,6 +123,7 @@
         <div class="mb-4">
             <div th:replace="~{alerts/alerts :: alerts}"></div>
         </div>
+
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
@@ -96,6 +139,7 @@
                 <i class="bi bi-grid me-2"></i>Dashboard
             </a>
         </div>
+
         <!-- Period Selection -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">
@@ -120,8 +164,41 @@
                         </a>
                     </div>
                 </form>
+                <!-- Summary Statistics -->
+                <div class="mt-4">
+                    <h5 class="mb-3">Monthly Summary</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Action Types - Single line -->
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <h6 class="card-subtitle mb-0 me-3">Action Types:</h6>
+                                <div class="d-flex gap-2">
+                                    <span class="badge bg-order">ORDIN: <span id="count-ordin">0</span></span>
+                                    <span class="badge bg-reorder">REORDIN: <span id="count-reordin">0</span></span>
+                                    <span class="badge bg-sample">CAMPION: <span id="count-campion">0</span></span>
+                                    <span class="badge bg-strikeoff">PROBA STAMPA: <span id="count-proba-stampa">0</span></span>
+                                    <span class="badge bg-designs">DESIGN: <span id="count-design">0</span></span>
+                                    <span class="badge bg-other">ALTELE: <span id="count-others">0</span></span>
+                                    <span class="badge bg-layout">IMPOSTARE: <span id="count-impostare">0</span></span>
+                                </div>
+                            </div>
+
+                            <!-- Key Metrics - Single line -->
+                            <div class="d-flex align-items-center gap-4">
+                                <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
+                                <div class="d-flex gap-4">
+                                    <span>Total Entries: <strong id="total-entries">0</strong></span>
+                                    <span>Total (No Impostare): <strong id="total-entries-no-impostare">0</strong></span>
+                                    <span>Avg Articles (No Impostare): <strong id="avg-articles">0.00</strong></span>
+                                    <span>Avg Complexity: <strong id="avg-complexity">0.00</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
         <!-- Register Form -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">
@@ -237,7 +314,7 @@
                                placeholder="Observatii">
                     </div>
 
-                    <div class="col-auto" style="width: 240px;">
+                    <div class="col-auto" style="width: 360px;">
                         <label class="form-label">&nbsp;</label>
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary btn-sm"
@@ -248,11 +325,17 @@
                                     style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
                                 <i class="bi bi-x-circle me-1"></i>Clear
                             </button>
+                            <a th:href="@{/user/register/export(year=${currentYear},month=${currentMonth})}"
+                               class="btn btn-outline-success btn-sm"
+                               style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                                <i class="bi bi-file-excel me-1"></i>Export
+                            </a>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
+
         <!-- Entries Table -->
         <div class="card shadow-sm">
             <div class="card-header bg-transparent">
@@ -344,6 +427,7 @@
                 </div>
             </div>
         </div>
+
         <!-- Scripts -->
         <th:block layout:fragment="scripts">
             <script th:inline="javascript">
@@ -362,15 +446,88 @@
                     });
 
                     // Form validation handler
-                    const form = document.querySelector('form[action*="/register/entry"]');
-                    if (form) {
-                        form.addEventListener('submit', function (e) {
+                    const formElement = document.querySelector('form[action*="/register/entry"]');
+                    if (formElement) {
+                        formElement.addEventListener('submit', function (e) {
                             if (!validateRegisterForm(this)) {
                                 e.preventDefault();
                             }
                         });
                     }
+
+                    const entryElements = document.querySelectorAll('[data-entry-id]'); // Select all entry elements
+                    updateActionTypeCounts(entryElements); // Initialize counts
+
+                    // Add event listener for changes, if required
+                    formElement.addEventListener('change', function () {
+                        updateActionTypeCounts(entryElements);
+                    });
+
+                    const entries = Array.from(entryElements).map(entry => ({
+                        actionType: entry.getAttribute('data-action-type'),
+                        articleNumbers: parseFloat(entry.getAttribute('data-article-numbers')) || 0,
+                        graphicComplexity: parseFloat(entry.getAttribute('data-graphic-complexity')) || 0
+                    }));
+
+                    // Update metrics on page load
+                    updateKeyMetrics(entries);
+
+                    // Add event listeners for dynamic updates if needed
+                    formElement.addEventListener('change', function () {
+                        updateKeyMetrics(entries); // Recalculate metrics on form change
+                    });
                 });
+                function updateKeyMetrics(entries) {
+                    let totalEntries = entries.length;
+                    let filteredEntries = entries.filter(entry => entry.actionType !== 'IMPOSTARE');
+                    let totalEntriesNoImpostare = filteredEntries.length;
+
+                    // Calculate averages excluding IMPOSTARE entries
+                    let totalArticles = filteredEntries.reduce((sum, entry) => sum + (entry.articleNumbers || 0), 0);
+                    let totalComplexity = filteredEntries.reduce((sum, entry) => sum + (entry.graphicComplexity || 0), 0);
+
+                    let avgArticles = totalEntriesNoImpostare > 0 ? (totalArticles / totalEntriesNoImpostare).toFixed(2) : '0.00';
+                    let avgComplexity = totalEntriesNoImpostare > 0 ? (totalComplexity / totalEntriesNoImpostare).toFixed(2) : '0.00';
+
+                    // Update UI
+                    document.querySelector('#total-entries').textContent = totalEntries;
+                    document.querySelector('#total-entries-no-impostare').textContent = totalEntriesNoImpostare;
+                    document.querySelector('#avg-articles').textContent = avgArticles;
+                    document.querySelector('#avg-complexity').textContent = avgComplexity;
+                }
+
+                function updateActionTypeCounts(entries) {
+                    const actionTypes = {
+                        ORDIN: 0,
+                        REORDIN: 0,
+                        'PROBA STAMPA': 0,
+                        IMPOSTARE: 0,
+                        DESIGN: 0,
+                        'DESIGN 3D': 0,
+                        CAMPION: 0,
+                        OTHERS: 0
+                    };
+
+                    entries.forEach(entry => {
+                        const actionType = entry.getAttribute('data-action-type');
+                        if (actionTypes.hasOwnProperty(actionType)) {
+                            actionTypes[actionType]++;
+                        } else if (actionType === 'DESIGN' || actionType === 'DESIGN 3D') {
+                            actionTypes.DESIGN++;
+                        } else {
+                            actionTypes.OTHERS++;
+                        }
+                    });
+
+                    // Update the UI
+                    Object.keys(actionTypes).forEach(type => {
+                        const element = document.querySelector(`#count-${type.toLowerCase().replace(/\s+/g, '-')}`);
+                        if (element) {
+                            element.textContent = actionTypes[type];
+                        }
+                    });
+                }
+
                 // Populate form
                 function populateForm(button) {
                     // Get the form using ID instead of attribute selector

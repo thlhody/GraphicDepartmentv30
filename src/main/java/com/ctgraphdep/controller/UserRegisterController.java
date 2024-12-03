@@ -10,7 +10,11 @@ import com.ctgraphdep.service.FolderStatusService;
 import com.ctgraphdep.service.UserRegisterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.utils.UserRegisterExcelExporter;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -25,13 +29,15 @@ import java.util.List;
 @RequestMapping("/user/register")
 public class UserRegisterController extends BaseController {
     private final UserRegisterService userRegisterService;
+    private final UserRegisterExcelExporter userRegisterExcelExporter;
 
     public UserRegisterController(
             UserService userService,
             FolderStatusService folderStatusService,
-            UserRegisterService userRegisterService) {
+            UserRegisterService userRegisterService, UserRegisterExcelExporter userRegisterExcelExporter) {
         super(userService, folderStatusService);
         this.userRegisterService = userRegisterService;
+        this.userRegisterExcelExporter = userRegisterExcelExporter;
         LoggerUtil.initialize(this.getClass(), "Initializing Register Controller");
     }
 
@@ -299,5 +305,28 @@ public class UserRegisterController extends BaseController {
         }
 
         return "redirect:/user/register?year=" + year + "&month=" + month;
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportToExcel(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam int year,
+            @RequestParam int month) {
+        try {
+            User user = getUser(userDetails);
+            List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
+                    user.getUsername(), user.getUserId(), year, month);
+
+            byte[] excelData = userRegisterExcelExporter.exportToExcel(user, entries, year, month);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            String.format("attachment; filename=\"register_%d_%02d.xlsx\"", year, month))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(excelData);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

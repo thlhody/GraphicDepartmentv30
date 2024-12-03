@@ -30,4 +30,11 @@ public enum ActionType {
                 .map(ActionType::getValue)
                 .toList();
     }
+
+    public static List<String> getBonusEligibleValues() {
+        return Arrays.stream(values())
+                .filter(type -> type != IMPOSTARE)
+                .map(ActionType::getValue)
+                .toList();
+    }
 }

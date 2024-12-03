@@ -121,8 +121,13 @@
                                 <a class="btn btn-sm btn-outline-primary" th:href="@{/user/worktime}">
                                     Current
                                 </a>
+                                <a class="btn btn-sm btn-outline-primary"
+                                   th:href="@{/user/worktime/export(year=${currentYear},month=${currentMonth})}">
+                                    <i class="bi bi-download me-2"></i>Export Excel
+                                </a>
                             </form>
                         </div>
+
                     </div>
                     <!-- Work Time Data Display -->
                     <div class="card-body p-0">

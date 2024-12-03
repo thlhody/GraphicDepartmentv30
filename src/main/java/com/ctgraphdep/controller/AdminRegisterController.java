@@ -166,7 +166,7 @@ public class AdminRegisterController {
                             .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
                             .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
                             .observations(data.get("observations") != null ? data.get("observations").toString() : "")
-                            .adminSync("ADMIN_EDITED")
+                            .adminSync(data.get("adminSync").toString())  // Keep existing status
                             .build())
                     .collect(Collectors.toList());
 
@@ -207,9 +207,16 @@ public class AdminRegisterController {
                             .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
                             .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
                             .observations(data.get("observations") != null ? data.get("observations").toString() : "")
-                            .adminSync("ADMIN_EDITED")  // Always set to ADMIN_EDITED when saving
+                            .adminSync(data.get("adminSync").toString())
                             .build())
                     .collect(Collectors.toList());
+
+            // Update USER_INPUT statuses to USER_DONE before saving
+            entries.forEach(entry -> {
+                if (entry.getAdminSync().equals(SyncStatus.USER_INPUT.name())) {
+                    entry.setAdminSync(SyncStatus.USER_DONE.name());
+                }
+            });
 
             adminRegisterService.saveAdminRegisterEntries(username, userId, year, month, entries);
             return ResponseEntity.ok().build();

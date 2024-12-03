@@ -22,11 +22,12 @@ public class DashboardConfigurationManager {
                 .refreshInterval(30000)
                 .cards(Arrays.asList(
                         createStatusCard("ADMIN"),
+                        createAdminRegisterCard(),
                         createWorktimeCard(),
                         createOMSSystemCard(),
                         createHolidaysCard(),
-                        createSettingsCard(),
-                        createAdminRegisterCard()
+                        createSettingsCard()
+
                 ))
                 .build();
     }
@@ -43,11 +44,11 @@ public class DashboardConfigurationManager {
                 .cards(Arrays.asList(
                         createStatusCard("USER"),
                         createSessionCard(),
+                        createUserRegisterCard(),
                         createUserWorktimeCard(),
                         createTimeOffCard(),
                         createOMSSystemCard(),
-                        createUserSettingsCard(),
-                        createUserRegisterCard()
+                        createUserSettingsCard()
                 ))
                 .build();
     }

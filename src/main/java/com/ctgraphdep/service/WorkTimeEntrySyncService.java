@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.SyncStatus;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -163,33 +162,5 @@ public class WorkTimeEntrySyncService {
         LoggerUtil.info(this.getClass(),
                 String.format("Saved %d merged entries to user worktime file",
                         entries.size()));
-    }
-
-    /**
-     * Gets the sync status for debugging/monitoring
-     */
-    public Map<String, Object> getSyncStatus(String username, Integer userId, int year, int month) {
-        Map<String, Object> status = new HashMap<>();
-
-        try {
-            List<WorkTimeTable> generalEntries = loadGeneralEntries(userId, year, month);
-            List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
-
-            status.put("generalEntriesCount", generalEntries.size());
-            status.put("userEntriesCount", userEntries.size());
-            status.put("adminEditsCount", generalEntries.stream()
-                    .filter(e -> SyncStatus.ADMIN_EDITED.equals(e.getAdminSync()))
-                    .count());
-            status.put("needsSync", hasAdminEdits(generalEntries));
-            status.put("lastSyncStatus", "SUCCESS");
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error getting sync status: %s", e.getMessage()));
-            status.put("lastSyncStatus", "ERROR");
-            status.put("errorMessage", e.getMessage());
-        }
-
-        return status;
     }
 }

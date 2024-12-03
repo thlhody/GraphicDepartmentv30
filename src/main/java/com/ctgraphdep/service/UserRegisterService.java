@@ -2,6 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.RegisterEntry;
+import com.ctgraphdep.model.SyncStatus;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,97 +24,85 @@ public class UserRegisterService {
         LoggerUtil.initialize(this.getClass(), "Initializing Register Service");
     }
 
-    /**
-     * Load register entries for a specific month
-     */
+    // Load register entries for a specific month
     @PreAuthorize("#username == authentication.name or hasAnyRole('ADMIN', 'TEAM_LEADER')")
     public List<RegisterEntry> loadMonthEntries(String username, Integer userId, int year, int month) {
-        lock.readLock().lock();
-        try {
-            Path registerPath = dataAccess.getUserRegisterPath(username, userId, year, month);
-            List<RegisterEntry> entries = dataAccess.readFile(registerPath, REGISTER_LIST_TYPE, true);
+        // First load user entries
+        Path userRegisterPath = dataAccess.getUserRegisterPath(username, userId, year, month);
+        List<RegisterEntry> userEntries = dataAccess.readFile(userRegisterPath, REGISTER_LIST_TYPE, true);
 
-            // Filter entries for this user only
-            return entries.stream()
-                    .filter(entry -> entry.getUserId().equals(userId))
-                    .sorted(Comparator.comparing(RegisterEntry::getDate)
-                            .thenComparing(RegisterEntry::getEntryId))
-                    .collect(Collectors.toList());
+        // Then check admin entries and update statuses
+        Path adminRegisterPath = dataAccess.getAdminRegisterPath(username, userId, year, month);
+        List<RegisterEntry> adminEntries = dataAccess.readFile(adminRegisterPath, REGISTER_LIST_TYPE, true);
 
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading register for user %s (ID: %d): %s",
-                            username, userId, e.getMessage()));
-            return new ArrayList<>();
-        } finally {
-            lock.readLock().unlock();
-        }
+        // Create map of admin entries for quick lookup
+        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream()
+                .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry, (e1, e2) -> e1));
+
+        // Update user entries based on admin status
+        List<RegisterEntry> updatedEntries = userEntries.stream()
+                .map(userEntry -> {
+                    RegisterEntry adminEntry = adminEntriesMap.get(userEntry.getEntryId());
+                    if (adminEntry != null) {
+                        if (adminEntry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name())) {
+                            // If admin edited, use admin version
+                            adminEntry.setAdminSync(SyncStatus.USER_DONE.name());
+                            return adminEntry;
+                        } else if (adminEntry.getAdminSync().equals(SyncStatus.USER_DONE.name())) {
+                            // If admin marked as done, update user status
+                            userEntry.setAdminSync(SyncStatus.USER_DONE.name());
+                        }
+                    }
+                    return userEntry;
+                })
+                .collect(Collectors.toList());
+
+        // Save updated entries back to user file
+        dataAccess.writeFile(userRegisterPath, updatedEntries);
+
+        return updatedEntries.stream()
+                .filter(entry -> entry.getUserId().equals(userId))
+                .sorted(Comparator.comparing(RegisterEntry::getDate).reversed()
+                        .thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()))
+                .collect(Collectors.toList());
     }
 
-    /**
-     * Save a new entry or update existing one
-     */
+    // Save a new entry or update existing one
     public void saveEntry(String username, Integer userId, RegisterEntry entry) {
+        // Validate entry
         validateEntry(entry);
 
-        // Ensure entry belongs to correct user
+        // Set initial state
         entry.setUserId(userId);
+        entry.setAdminSync("USER_INPUT");  // Always USER_INPUT for new/updated entries
 
-        lock.writeLock().lock();
-        try {
-            int year = entry.getDate().getYear();
-            int month = entry.getDate().getMonthValue();
-            Path registerPath = dataAccess.getUserRegisterPath(username, userId, year, month);
+        int year = entry.getDate().getYear();
+        int month = entry.getDate().getMonthValue();
+        Path registerPath = dataAccess.getUserRegisterPath(username, userId, year, month);
 
-            List<RegisterEntry> entries = dataAccess.readFile(registerPath, REGISTER_LIST_TYPE, true);
+        // Load existing entries
+        List<RegisterEntry> entries = dataAccess.readFile(registerPath, REGISTER_LIST_TYPE, true)
+                .stream()
+                .filter(e -> e.getUserId().equals(userId))
+                .collect(Collectors.toList());
 
-            // Filter out any entries that don't belong to this user
-            entries = entries.stream()
-                    .filter(e -> e.getUserId().equals(userId))
-                    .collect(Collectors.toList());
-
-            // Handle new entry
-            if (entry.getEntryId() == null) {
-                int nextId = generateNextEntryId(entries);
-                entry.setEntryId(nextId);
-                entries.add(entry);
-            }
-            // Handle update
-            else {
-                // Verify the entry being updated belongs to this user
-                entries.stream()
-                        .filter(e -> e.getEntryId().equals(entry.getEntryId()))
-                        .findFirst()
-                        .ifPresent(existingEntry -> {
-                            if (!existingEntry.getUserId().equals(userId)) {
-                                throw new IllegalArgumentException("Cannot modify entry belonging to another user");
-                            }
-                        });
-
-                entries.removeIf(e -> e.getEntryId().equals(entry.getEntryId()));
-                entries.add(entry);
-            }
-
-            // Sort entries
-            entries.sort(Comparator.comparing(RegisterEntry::getDate)
-                    .thenComparing(RegisterEntry::getEntryId));
-
-            // Save updated list
-            dataAccess.writeFile(registerPath, entries);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("%s register entry %d for user %s (ID: %d) on %s",
-                            entry.getEntryId() == null ? "Saved new" : "Updated",
-                            entry.getEntryId(), username, userId, entry.getDate()));
-
-        } finally {
-            lock.writeLock().unlock();
+        if (entry.getEntryId() == null) {
+            entry.setEntryId(generateNextEntryId(entries));
+            entries.add(entry);
+        } else {
+            entries.removeIf(e -> e.getEntryId().equals(entry.getEntryId()));
+            entries.add(entry);
         }
+
+        // Sort and save only to user file
+        entries.sort(Comparator.comparing(RegisterEntry::getDate).reversed()
+                .thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()));
+        dataAccess.writeFile(registerPath, entries);
+
+        // Remove the sync with admin - this should only happen when loading/viewing
     }
 
-    /**
-     * Get a specific entry by ID
-     */
+    // Get a specific entry by ID
     public RegisterEntry getEntry(String username, Integer userId, Integer id, int year, int month) {
         lock.readLock().lock();
         try {
@@ -131,9 +120,7 @@ public class UserRegisterService {
         }
     }
 
-    /**
-     * Delete an entry
-     */
+    // Delete an entry
     @PreAuthorize("#username == authentication.name")
     public void deleteEntry(String username, Integer userId, Integer entryId, int year, int month) {
         lock.writeLock().lock();

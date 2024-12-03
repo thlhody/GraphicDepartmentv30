@@ -4,6 +4,10 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.utils.UserWorktimeExcelExporter;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -19,15 +23,17 @@ public class UserWorktimeController extends BaseController {
 
     private final UserWorkTimeDisplayService displayService;
     private final WorkTimeEntrySyncService entrySyncService;
+    private final UserWorktimeExcelExporter excelExporter;
 
     public UserWorktimeController(
             UserService userService,
             FolderStatusService folderStatusService,
             UserWorkTimeDisplayService displayService,
-            WorkTimeEntrySyncService entrySyncService) {
+            WorkTimeEntrySyncService entrySyncService, UserWorktimeExcelExporter excelExporter) {
         super(userService, folderStatusService);
         this.displayService = displayService;
         this.entrySyncService = entrySyncService;
+        this.excelExporter = excelExporter;
         LoggerUtil.initialize(this.getClass(), "Initializing User Worktime Controller");
     }
 
@@ -115,6 +121,58 @@ public class UserWorktimeController extends BaseController {
                     String.format("Error processing worktime: %s", e.getMessage()));
             model.addAttribute("error", "Error loading worktime data");
             return "user/worktime";
+        }
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportToExcel(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month) {
+        try {
+            User user = getUser(userDetails);
+
+            // Set default year and month if not provided
+            LocalDate now = LocalDate.now();
+            year = Optional.ofNullable(year).orElse(now.getYear());
+            month = Optional.ofNullable(month).orElse(now.getMonthValue());
+
+            // Get worktime data
+            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(
+                    user.getUsername(),
+                    user.getUserId(),
+                    year,
+                    month
+            );
+
+            // Log the dates to verify data
+            LoggerUtil.info(this.getClass(),
+                    String.format("Exporting worktime data for %d/%d. Total entries: %d",
+                            month, year, worktimeData.size()));
+            worktimeData.forEach(entry ->
+                    LoggerUtil.debug(this.getClass(),
+                            "Entry date: " + entry.getWorkDate()));
+
+            // Get display data which includes the summary
+            Map<String, Object> displayData = displayService.prepareDisplayData(
+                    user,
+                    worktimeData,
+                    year,
+                    month
+            );
+            WorkTimeSummary summary = (WorkTimeSummary) displayData.get("summary");
+
+            byte[] excelData = excelExporter.exportToExcel(user, worktimeData, summary, year, month);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
+                                    user.getUsername(), year, month))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(excelData);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());
+            return ResponseEntity.internalServerError().build();
         }
     }
 }
