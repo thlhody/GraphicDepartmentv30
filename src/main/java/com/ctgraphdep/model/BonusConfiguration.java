@@ -67,8 +67,8 @@ public class BonusConfiguration {
     }
 
     // Validate that percentages sum to 1.0
-    public boolean isValid() {
+    public boolean notValid() {
         double sum = entriesPercentage + articlesPercentage + complexityPercentage + miscPercentage;
-        return Math.abs(sum - 1.0) < 0.0001;
+        return !(Math.abs(sum - 1.0) < 0.0001);
     }
 }

@@ -15,7 +15,8 @@ import java.util.List;
 @Service
 public class HolidayHistoryService {
     private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE =
-            new TypeReference<>() {};
+            new TypeReference<>() {
+            };
     private static final int HISTORY_MONTHS = 12;
 
     private final DataAccessService dataAccess;
@@ -29,6 +30,7 @@ public class HolidayHistoryService {
 
     /**
      * Get time off history for a user for the last 12 months
+     *
      * @param username User's username
      * @return List of time off entries
      */
@@ -53,9 +55,8 @@ public class HolidayHistoryService {
         return allTimeOffs;
     }
 
-    /**
-     * Load time off entries for a specific month
-     */
+
+    // Load time off entries for a specific month
     private List<WorkTimeTable> loadMonthlyTimeoffs(String username, YearMonth yearMonth) {
         Path filePath = dataAccess.getUserWorktimePath(username, yearMonth.getYear(), yearMonth.getMonthValue());
 
@@ -64,7 +65,7 @@ public class HolidayHistoryService {
         // Filter only time off entries (include all types)
         return monthEntries.stream()
                 .filter(entry -> entry.getTimeOffType() != null &&
-                        (entry.getTimeOffType().equals("CO") || entry.getTimeOffType().equals("CM") || entry.getTimeOffType().equals("SN")))
+                        (entry.getTimeOffType().equals(WorkCode.TIME_OFF_CODE) || entry.getTimeOffType().equals(WorkCode.MEDICAL_LEAVE_CODE) || entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE)))
                 .toList();
     }
 }

@@ -1,4 +1,3 @@
-// PathConfig.java
 package com.ctgraphdep.config;
 
 import com.ctgraphdep.utils.LoggerUtil;
@@ -243,17 +242,9 @@ public class PathConfig {
         return isPathAccessible(installPath);
     }
 
-    public List<String> getMissingDirectories() {
-        return Collections.unmodifiableList(missingDirectories);
-    }
-
     // Get Local Path (Installation Path)
     public Path getLocalPath() {
         return installPath;
-    }
-
-    public String getUserSession() {
-        return user.get("session");
     }
 
     private void verifyDirectoryStructure() {

@@ -26,12 +26,4 @@ public class SessionPersistenceService {
         }
     }
 
-    public void saveWorkTimeEntries(List<WorkTimeTable> entries, String filePath, String username) {
-        try {
-            dataAccess.writeFile(Path.of(filePath), entries);
-            LoggerUtil.info(this.getClass(), "Successfully saved worktime entries for user: " + username);
-        } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(), "Failed to save worktime entries: ", e);
-        }
-    }
 }

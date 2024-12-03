@@ -13,7 +13,6 @@ import java.awt.*;
 import java.util.Properties;
 
 @SpringBootApplication
-//@PropertySource("file:./config/application.properties")
 public class Application {
 
     private final CTTTSystemTray systemTray;

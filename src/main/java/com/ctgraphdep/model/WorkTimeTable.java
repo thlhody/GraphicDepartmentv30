@@ -1,5 +1,6 @@
 package com.ctgraphdep.model;
 
+import com.ctgraphdep.enums.SyncStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 

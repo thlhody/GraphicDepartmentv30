@@ -88,7 +88,7 @@ public class OnlineMetricsService {
                 .username(user.getUsername())
                 .name(user.getName())
                 .status(WorkCode.WORK_OFFLINE)
-                .lastActive("Never")
+                .lastActive(WorkCode.LAST_ACTIVE_NEVER)
                 .build();
     }
 
@@ -107,8 +107,8 @@ public class OnlineMetricsService {
 
     private String formatDateTime(LocalDateTime dateTime) {
         if (dateTime == null) {
-            return "Never";
+            return WorkCode.LAST_ACTIVE_NEVER;
         }
-        return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        return dateTime.format(WorkCode.INPUT_FORMATTER);
     }
 }

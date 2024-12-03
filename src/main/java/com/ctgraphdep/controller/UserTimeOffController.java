@@ -164,6 +164,7 @@ public class UserTimeOffController extends BaseController {
         model.addAttribute("today", LocalDate.now().format(DateTimeFormatter.ISO_DATE));
         model.addAttribute("upcomingTimeOff", currentRequest);
     }
+
     private TimeOffSummary calculateTimeOffSummary(List<WorkTimeTable> worktime, int availablePaidDays) {
         int snDays = 0, coDays = 0, cmDays = 0;
 

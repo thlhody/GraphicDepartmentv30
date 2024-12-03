@@ -1,6 +1,7 @@
 package com.ctgraphdep.controller;
 
-import com.ctgraphdep.model.SyncStatus;
+import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -274,13 +275,13 @@ public class AdminWorkTimeController {
 
         // Count time off types
         counts.put("snCount", allEntries.stream()
-                .filter(e -> "SN".equals(e.getTimeOffType()))
+                .filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType()))
                 .count());
         counts.put("coCount", allEntries.stream()
-                .filter(e -> "CO".equals(e.getTimeOffType()))
+                .filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType()))
                 .count());
         counts.put("cmCount", allEntries.stream()
-                .filter(e -> "CM".equals(e.getTimeOffType()))
+                .filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType()))
                 .count());
 
         // Count by status

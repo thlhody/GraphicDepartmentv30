@@ -18,9 +18,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/**
- * Controller handling login-related requests and system availability checks.
- */
+
+//Controller handling login-related requests and system availability checks.
 @Controller
 @RequestMapping("/login")
 public class LoginController extends BaseController {
@@ -40,7 +39,6 @@ public class LoginController extends BaseController {
     private static final String ATTR_OFFLINE_AVAILABLE = "offlineModeAvailable";
     private static final String ATTR_MODE = "mode";
     private static final String ATTR_TITLE = "title";
-
     private static final String MODE_ONLINE = "ONLINE";
     private static final String MODE_OFFLINE = "OFFLINE";
 
@@ -58,11 +56,9 @@ public class LoginController extends BaseController {
 
     /**
      * Handles the login page request and checks system availability.
-     *
      * @param model Spring MVC Model for view attributes
      * @return login view name
-     * @throws ResponseStatusException if critical system files are unavailable
-     */
+     * @throws ResponseStatusException if critical system files are unavailable*/
     @GetMapping
     public String login(Model model) {
         LoggerUtil.info(this.getClass(), "Accessing login page");
@@ -82,9 +78,7 @@ public class LoginController extends BaseController {
         }
     }
 
-    /**
-     * Checks the availability of network and offline modes.
-     */
+    // Checks the availability of network and offline modes.
     private SystemAvailability checkSystemAvailability() throws IOException {
         boolean networkAvailable = checkNetworkAvailability();
         boolean offlineModeAvailable = checkOfflineModeAvailability();
@@ -99,9 +93,7 @@ public class LoginController extends BaseController {
         return new SystemAvailability(networkAvailable, offlineModeAvailable);
     }
 
-    /**
-     * Checks if network mode is available.
-     */
+    // Checks if network mode is available.
     private boolean checkNetworkAvailability() {
         boolean available = pathConfig.isNetworkAvailable();
         LoggerUtil.debug(this.getClass(),
@@ -109,9 +101,7 @@ public class LoginController extends BaseController {
         return available;
     }
 
-    /**
-     * Checks if offline mode is available.
-     */
+    // Checks if offline mode is available.
     private boolean checkOfflineModeAvailability() {
         Path usersFilePath = pathConfig.getUsersJsonPath();
         boolean available = Files.exists(usersFilePath);
@@ -120,9 +110,7 @@ public class LoginController extends BaseController {
         return available;
     }
 
-    /**
-     * Populates model attributes based on system availability.
-     */
+    // Populates model attributes based on system availability.
     private void populateModelAttributes(Model model, SystemAvailability availability) {
         model.addAttribute(ATTR_NETWORK_AVAILABLE, availability.networkAvailable());
         model.addAttribute(ATTR_OFFLINE_AVAILABLE, availability.offlineModeAvailable());
@@ -130,8 +118,6 @@ public class LoginController extends BaseController {
         model.addAttribute(ATTR_TITLE, appTitle);
     }
 
-    /**
-     * Record containing system availability status.
-     */
+    // Record containing system availability status.
     private record SystemAvailability(boolean networkAvailable, boolean offlineModeAvailable) {}
 }

@@ -34,7 +34,6 @@ public class BonusCalculatorUtil {
         return ((sumComplexity / numberOfEntries) * complexityPercentage);
     }
 
-
     // Calculates the misc component of the bonus formula
     public double calculateMiscComponent(double miscValue, double miscPercentage) {
         validatePercentage(miscPercentage);
@@ -45,7 +44,7 @@ public class BonusCalculatorUtil {
     public BonusCalculationResult calculateBonus(int numberOfEntries, int workedDays, double sumArticleNumbers,
                                                  double sumComplexity, BonusConfiguration config) {
         // Validate configuration
-        if (!config.isValid()) {
+        if (config.notValid()) {
             throw new IllegalArgumentException("Invalid bonus configuration: percentages must sum to 1.0");
         }
 

@@ -1,8 +1,7 @@
 package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.RegisterEntry;
-import com.ctgraphdep.model.User;
+import com.ctgraphdep.model.*;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -10,13 +9,12 @@ import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 @Component
-public class UserRegisterExcelExporter {
+public class AdminRegisterExcelExporter {
 
-    public byte[] exportToExcel(User user, List<RegisterEntry> entries, int year, int month) {
+    public byte[] exportToExcel(User user, List<RegisterEntry> entries, BonusConfiguration bonusConfig,
+                                BonusCalculationResult bonusResult, int year, int month) {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             LoggerUtil.info(this.getClass(), "Creating Excel export for " + entries.size() + " entries");
             Sheet sheet = workbook.createSheet("Register Report");
@@ -30,11 +28,17 @@ public class UserRegisterExcelExporter {
             // Spacing row
             currentRow += 2;
 
-            // Monthly Summary Section
-            currentRow = createMonthlySection(sheet, styles, entries, currentRow);
+            // Bonus Configuration Section
+            currentRow = createBonusConfigSection(sheet, styles, bonusConfig, currentRow);
 
-            // Spacing rows before register entries
+            // Spacing row
             currentRow += 2;
+
+            // Bonus Calculation Results Section (if exists)
+            if (bonusResult != null) {
+                currentRow = createBonusResultSection(sheet, styles, bonusResult, currentRow);
+                currentRow += 2;
+            }
 
             // Register Entries Table Section
             currentRow = createRegisterEntriesSection(sheet, styles, entries, currentRow);
@@ -72,63 +76,74 @@ public class UserRegisterExcelExporter {
         return currentRow;
     }
 
-    private int createMonthlySection(Sheet sheet, Map<String, CellStyle> styles, List<RegisterEntry> entries, int startRow) {
-        AtomicInteger currentRow = new AtomicInteger(startRow);
+    private int createBonusConfigSection(Sheet sheet, Map<String, CellStyle> styles, BonusConfiguration config, int startRow) {
+        // Section title
+        Row titleRow = sheet.createRow(startRow++);
+        Cell titleCell = titleRow.createCell(0);
+        titleCell.setCellValue("Bonus Configuration");
+        titleCell.setCellStyle(styles.get("subHeader"));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, 2));
 
-        // Summary section title
-        Row summaryTitleRow = sheet.createRow(currentRow.getAndIncrement());
-        Cell summaryTitleCell = summaryTitleRow.createCell(0);
-        summaryTitleCell.setCellValue("Monthly Summary");
-        summaryTitleCell.setCellStyle(styles.get("subHeader"));
-        sheet.addMergedRegion(new CellRangeAddress(currentRow.get() - 1, currentRow.get() - 1, 0, 2));
+        // Add configuration rows
+        addConfigRow(sheet, styles, startRow++, "Bonus Sum", String.format("%.2f", config.getSumValue()));
+        addConfigRow(sheet, styles, startRow++, "Entries Percentage", String.format("%.2f%%", config.getEntriesPercentage() * 100));
+        addConfigRow(sheet, styles, startRow++, "Articles Percentage", String.format("%.2f%%", config.getArticlesPercentage() * 100));
+        addConfigRow(sheet, styles, startRow++, "Complexity Percentage", String.format("%.2f%%", config.getComplexityPercentage() * 100));
+        addConfigRow(sheet, styles, startRow++, "Misc Percentage", String.format("%.2f%%", config.getMiscPercentage() * 100));
+        addConfigRow(sheet, styles, startRow++, "Norm Value", String.format("%.2f", config.getNormValue()));
+        addConfigRow(sheet, styles, startRow++, "Misc Value", String.format("%.2f", config.getMiscValue()));
 
-        // Calculate summary statistics
-        Map<String, Long> actionTypeCounts = entries.stream()
-                .collect(Collectors.groupingBy(RegisterEntry::getActionType, Collectors.counting()));
+        return startRow;
+    }
 
-        List<RegisterEntry> nonImpostareEntries = entries.stream()
-                .filter(e -> !"IMPOSTARE".equals(e.getActionType()))
-                .toList();
+    private int createBonusResultSection(Sheet sheet, Map<String, CellStyle> styles, BonusCalculationResult result, int startRow) {
+        // Section title
+        Row titleRow = sheet.createRow(startRow++);
+        Cell titleCell = titleRow.createCell(0);
+        titleCell.setCellValue("Bonus Calculation Results");
+        titleCell.setCellStyle(styles.get("subHeader"));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, 2));
 
-        double avgArticles = nonImpostareEntries.stream()
-                .mapToInt(RegisterEntry::getArticleNumbers)
-                .average()
-                .orElse(0.0);
+        // Headers row
+        Row headerRow = sheet.createRow(startRow++);
+        String[] headers = {"Entries", "Art Nr.", "CG", "Misc", "Worked D", "Worked%", "Bonus%", "Bonus$",
+                "1M Ago", "2M Ago", "3M Ago"};
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(styles.get("columnHeader"));
+        }
 
-        double avgComplexity = nonImpostareEntries.stream()
-                .mapToDouble(RegisterEntry::getGraphicComplexity)
-                .average()
-                .orElse(0.0);
+        // Data row
+        Row dataRow = sheet.createRow(startRow++);
+        createNumericCell(dataRow, 0, result.getEntries(), styles.get("number"));
+        createNumericCell(dataRow, 1, result.getArticleNumbers(), styles.get("number"));
+        createNumericCell(dataRow, 2, result.getGraphicComplexity(), styles.get("number"));
+        createNumericCell(dataRow, 3, result.getMisc(), styles.get("number"));
+        createNumericCell(dataRow, 4, result.getWorkedDays(), styles.get("number"));
+        createNumericCell(dataRow, 5, result.getWorkedPercentage(), styles.get("percentage"));
+        createNumericCell(dataRow, 6, result.getBonusPercentage(), styles.get("percentage"));
+        createNumericCell(dataRow, 7, result.getBonusAmount(), styles.get("currency"));
 
-        // Add summary rows
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Total Entries", String.valueOf(entries.size()));
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Total (No Impostare)", String.valueOf(nonImpostareEntries.size()));
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Average Articles (No Impostare)", String.format("%.2f", avgArticles));
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Average CG (No Impostare)", String.format("%.2f", avgComplexity));
+        if (result.getPreviousMonths() != null) {
+            createNumericCell(dataRow, 8, result.getPreviousMonths().getMonth1(), styles.get("currency"));
+            createNumericCell(dataRow, 9, result.getPreviousMonths().getMonth2(), styles.get("currency"));
+            createNumericCell(dataRow, 10, result.getPreviousMonths().getMonth3(), styles.get("currency"));
+        }
 
-        currentRow.getAndIncrement(); // Add spacing
-
-        // Add action type counts
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Action Type Distribution", "");
-        actionTypeCounts.forEach((actionType, count) ->
-                addSummaryRow(sheet, styles, currentRow.getAndIncrement(), actionType, count.toString())
-        );
-
-        return currentRow.get();
+        return startRow;
     }
 
     private int createRegisterEntriesSection(Sheet sheet, Map<String, CellStyle> styles, List<RegisterEntry> entries, int startRow) {
-        int currentRow = startRow;
-
         // Table title
-        Row tableTitleRow = sheet.createRow(currentRow++);
+        Row tableTitleRow = sheet.createRow(startRow++);
         Cell tableTitleCell = tableTitleRow.createCell(0);
         tableTitleCell.setCellValue("Register Entries");
         tableTitleCell.setCellStyle(styles.get("subHeader"));
-        sheet.addMergedRegion(new CellRangeAddress(currentRow - 1, currentRow - 1, 0, 2));
+        sheet.addMergedRegion(new CellRangeAddress(startRow - 1, startRow - 1, 0, 2));
 
         // Headers row
-        Row headerRow = sheet.createRow(currentRow++);
+        Row headerRow = sheet.createRow(startRow++);
         String[] headers = {"Date", "Order ID", "Production ID", "OMS ID", "Client", "Action Type",
                 "Print Prep Type", "Colors Profile", "Articles", "Complexity", "Observations", "Status"};
         for (int i = 0; i < headers.length; i++) {
@@ -137,15 +152,13 @@ public class UserRegisterExcelExporter {
             cell.setCellStyle(styles.get("columnHeader"));
         }
 
-        // Sort entries by date and ID
+        // Sort entries by date
         List<RegisterEntry> sortedEntries = new ArrayList<>(entries);
-        sortedEntries.sort(Comparator.comparing(RegisterEntry::getDate).reversed()
-                .thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()));
+        sortedEntries.sort(Comparator.comparing(RegisterEntry::getDate).reversed());
 
         // Populate data rows
         for (RegisterEntry entry : sortedEntries) {
-            Row row = sheet.createRow(currentRow++);
-
+            Row row = sheet.createRow(startRow++);
             createCell(row, 0, entry.getDate().format(WorkCode.DATE_FORMATTER), styles.get("date"));
             createCell(row, 1, entry.getOrderId(), styles.get("text"));
             createCell(row, 2, entry.getProductionId(), styles.get("text"));
@@ -157,29 +170,21 @@ public class UserRegisterExcelExporter {
             createNumericCell(row, 8, entry.getArticleNumbers(), styles.get("number"));
             createNumericCell(row, 9, entry.getGraphicComplexity(), styles.get("number"));
             createCell(row, 10, entry.getObservations(), styles.get("text"));
-            createCell(row, 11, entry.getAdminSync(), styles.get("text"));
+            createCell(row, 11, entry.getAdminSync(), styles.get("status"));
         }
 
-        return currentRow;
+        return startRow;
     }
 
-    private void addSummaryRow(Sheet sheet, Map<String, CellStyle> styles, int rowNum, String label, String value) {
+    private void addConfigRow(Sheet sheet, Map<String, CellStyle> styles, int rowNum, String label, String value) {
         Row row = sheet.createRow(rowNum);
-
-        // Create and style the label cell (Column A)
         Cell labelCell = row.createCell(0);
         labelCell.setCellValue(label);
-        labelCell.setCellStyle(styles.get("summaryLabel"));
+        labelCell.setCellStyle(styles.get("label"));
 
-        // Create and style the value cell without merging (Column B)
         Cell valueCell = row.createCell(1);
         valueCell.setCellValue(value);
-        valueCell.setCellStyle(styles.get("summaryValue"));
-
-        // If it's a header row (empty value), merge cells A-L
-        if (value.isEmpty()) {
-            sheet.addMergedRegion(new CellRangeAddress(rowNum, rowNum, 0, 11));
-        }
+        valueCell.setCellStyle(styles.get("value"));
     }
 
     private void createCell(Row row, int column, String value, CellStyle style) {
@@ -218,68 +223,70 @@ public class UserRegisterExcelExporter {
         headerStyle.setAlignment(HorizontalAlignment.LEFT);
         styles.put("header", headerStyle);
 
+        // Sub-header style
+        CellStyle subHeaderStyle = workbook.createCellStyle();
+        subHeaderStyle.setFont(headerFont);
+        subHeaderStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        subHeaderStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        styles.put("subHeader", subHeaderStyle);
+
         // Column header style
         CellStyle columnHeaderStyle = workbook.createCellStyle();
-        Font columnHeaderFont = workbook.createFont();
-        columnHeaderFont.setBold(true);
-        columnHeaderStyle.setFont(columnHeaderFont);
+        columnHeaderStyle.setFont(headerFont);
         columnHeaderStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
         columnHeaderStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         columnHeaderStyle.setBorderBottom(BorderStyle.THIN);
-        columnHeaderStyle.setBorderTop(BorderStyle.THIN);
-        columnHeaderStyle.setBorderRight(BorderStyle.THIN);
-        columnHeaderStyle.setBorderLeft(BorderStyle.THIN);
         columnHeaderStyle.setAlignment(HorizontalAlignment.CENTER);
         styles.put("columnHeader", columnHeaderStyle);
+
+        // Label style
+        CellStyle labelStyle = workbook.createCellStyle();
+        labelStyle.setAlignment(HorizontalAlignment.LEFT);
+        styles.put("label", labelStyle);
+
+        // Value style
+        CellStyle valueStyle = workbook.createCellStyle();
+        valueStyle.setAlignment(HorizontalAlignment.CENTER);
+        styles.put("value", valueStyle);
 
         // Date style
         CellStyle dateStyle = workbook.createCellStyle();
         dateStyle.setBorderBottom(BorderStyle.THIN);
-        dateStyle.setBorderTop(BorderStyle.THIN);
-        dateStyle.setBorderRight(BorderStyle.THIN);
-        dateStyle.setBorderLeft(BorderStyle.THIN);
         dateStyle.setAlignment(HorizontalAlignment.CENTER);
         styles.put("date", dateStyle);
 
         // Text style
         CellStyle textStyle = workbook.createCellStyle();
         textStyle.setBorderBottom(BorderStyle.THIN);
-        textStyle.setBorderTop(BorderStyle.THIN);
-        textStyle.setBorderRight(BorderStyle.THIN);
-        textStyle.setBorderLeft(BorderStyle.THIN);
         textStyle.setAlignment(HorizontalAlignment.LEFT);
         styles.put("text", textStyle);
 
         // Number style
         CellStyle numberStyle = workbook.createCellStyle();
         numberStyle.setBorderBottom(BorderStyle.THIN);
-        numberStyle.setBorderTop(BorderStyle.THIN);
-        numberStyle.setBorderRight(BorderStyle.THIN);
-        numberStyle.setBorderLeft(BorderStyle.THIN);
         numberStyle.setAlignment(HorizontalAlignment.CENTER);
+        numberStyle.setDataFormat(workbook.createDataFormat().getFormat("0.00"));
         styles.put("number", numberStyle);
 
-        // Summary styles
-        CellStyle subHeaderStyle = workbook.createCellStyle();
-        Font subHeaderFont = workbook.createFont();
-        subHeaderFont.setBold(true);
-        subHeaderStyle.setFont(subHeaderFont);
-        subHeaderStyle.setAlignment(HorizontalAlignment.LEFT);
-        subHeaderStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-        subHeaderStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        styles.put("subHeader", subHeaderStyle);
+        // Percentage style
+        CellStyle percentageStyle = workbook.createCellStyle();
+        percentageStyle.setBorderBottom(BorderStyle.THIN);
+        percentageStyle.setAlignment(HorizontalAlignment.CENTER);
+        percentageStyle.setDataFormat(workbook.createDataFormat().getFormat("0.00%"));
+        styles.put("percentage", percentageStyle);
 
-        CellStyle summaryLabelStyle = workbook.createCellStyle();
-        summaryLabelStyle.setAlignment(HorizontalAlignment.LEFT);
-        styles.put("summaryLabel", summaryLabelStyle);
+        // Currency style
+        CellStyle currencyStyle = workbook.createCellStyle();
+        currencyStyle.setBorderBottom(BorderStyle.THIN);
+        currencyStyle.setAlignment(HorizontalAlignment.CENTER);
+        currencyStyle.setDataFormat(workbook.createDataFormat().getFormat("$#,##0.00"));
+        styles.put("currency", currencyStyle);
 
-        CellStyle summaryValueStyle = workbook.createCellStyle();
-        summaryValueStyle.setAlignment(HorizontalAlignment.CENTER);
-        summaryValueStyle.setBorderBottom(BorderStyle.THIN);
-        summaryValueStyle.setBorderTop(BorderStyle.THIN);
-        summaryValueStyle.setBorderRight(BorderStyle.THIN);
-        summaryValueStyle.setBorderLeft(BorderStyle.THIN);
-        styles.put("summaryValue", summaryValueStyle);
+        // Status style
+        CellStyle statusStyle = workbook.createCellStyle();
+        statusStyle.setBorderBottom(BorderStyle.THIN);
+        statusStyle.setAlignment(HorizontalAlignment.CENTER);
+        styles.put("status", statusStyle);
 
         return styles;
     }

@@ -148,17 +148,6 @@ public class DataAccessService {
         return pathConfig.getAdminRegisterPath(username, userId, year, month);
     }
 
-    public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, int year, int month) {
-        Path path = pathConfig.getUserRegisterPath(username, userId, year, month);
-        return readFile(path, new TypeReference<List<RegisterEntry>>() {}, true);
-    }
-
-    public void saveAdminRegisterEntries(String username, Integer userId, int year, int month,
-                                         List<RegisterEntry> entries) {
-        Path path = pathConfig.getAdminRegisterPath(username, userId, year, month);
-        writeFile(path, entries);
-    }
-
     public Optional<BonusEntry> loadBonusEntry(Integer userId, int year, int month) {
         Path path = pathConfig.getAdminBonusPath(year, month);
         Map<Integer, BonusEntry> bonusEntries = readFile(path,
@@ -189,21 +178,6 @@ public class DataAccessService {
         }
     }
 
-    //Delete a file at the given path
-    public boolean deleteFile(Path path) {
-        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
-        writeLock.lock();
-        try {
-            return Files.deleteIfExists(path);
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error deleting file %s: %s", path, e.getMessage()));
-            return false;
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
     public boolean isFileNewer(Path file1, Path file2) {
         ReentrantReadWriteLock.ReadLock readLock1 = getFileLock(file1).readLock();
         ReentrantReadWriteLock.ReadLock readLock2 = getFileLock(file2).readLock();
@@ -225,10 +199,5 @@ public class DataAccessService {
 
     public Path getNetworkPath() {
         return pathConfig.getNetworkPath();
-    }
-
-    //Cleanup method for testing and maintenance
-    public void cleanup() {
-        fileLocks.clear();
     }
 }

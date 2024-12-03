@@ -1,20 +1,22 @@
 package com.ctgraphdep.controller;
 
+import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.service.AdminRegisterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepType;
 import com.ctgraphdep.service.WorkTimeManagementService;
+import com.ctgraphdep.utils.AdminRegisterExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -30,13 +32,15 @@ public class AdminRegisterController {
     private final AdminRegisterService adminRegisterService;
     private final UserService userService;
     private final WorkTimeManagementService workTimeManagementService;
+    private final AdminRegisterExcelExporter adminRegisterExcelExporter;
 
     @Autowired
     public AdminRegisterController(AdminRegisterService adminRegisterService,
-                                   UserService userService, WorkTimeManagementService workTimeManagementService) {
+                                   UserService userService, WorkTimeManagementService workTimeManagementService, AdminRegisterExcelExporter adminRegisterExcelExporter) {
         this.adminRegisterService = adminRegisterService;
         this.userService = userService;
         this.workTimeManagementService = workTimeManagementService;
+        this.adminRegisterExcelExporter = adminRegisterExcelExporter;
         LoggerUtil.initialize(this.getClass(), "Initializing Admin Register Controller");
     }
 
@@ -263,5 +267,51 @@ public class AdminRegisterController {
                 username, userId, year, month);
         RegisterSummary summary = adminRegisterService.calculateRegisterSummary(entries);
         return ResponseEntity.ok(summary);
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportToExcel(
+            @RequestParam Integer userId,
+            @RequestParam Integer year,
+            @RequestParam Integer month) {
+        try {
+            // Get user details
+            User user = userService.getUserById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+
+            // Load register entries
+            List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(
+                    user.getUsername(), userId, year, month);
+
+            // Get bonus configuration and calculation result if exists
+            BonusConfiguration bonusConfig = BonusConfiguration.getDefaultConfig();
+            BonusCalculationResult bonusResult = null;
+
+            try {
+                // Try to load saved bonus result
+                bonusResult = adminRegisterService.loadSavedBonusResult(userId, year, month);
+            } catch (Exception e) {
+                LoggerUtil.info(this.getClass(), "No saved bonus result found for user " + userId);
+            }
+
+            // Generate Excel file
+            byte[] excelBytes = adminRegisterExcelExporter.exportToExcel(user, entries, bonusConfig, bonusResult, year, month);
+
+            // Set up response headers
+            String filename = String.format("register_report_%s_%d_%02d.xlsx",
+                    user.getUsername(), year, month);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDisposition(ContentDisposition.builder("attachment")
+                    .filename(filename, StandardCharsets.UTF_8)
+                    .build());
+
+            return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error exporting Excel: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

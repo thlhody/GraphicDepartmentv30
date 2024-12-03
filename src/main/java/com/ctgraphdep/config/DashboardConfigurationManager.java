@@ -24,6 +24,7 @@ public class DashboardConfigurationManager {
                         createStatusCard("ADMIN"),
                         createAdminRegisterCard(),
                         createWorktimeCard(),
+                        createAdminBonusCard(),
                         createOMSSystemCard(),
                         createHolidaysCard(),
                         createSettingsCard()
@@ -127,6 +128,20 @@ public class DashboardConfigurationManager {
                 .actionUrl("/admin/register")
                 .external(false)
                 .permission("MANAGE_USER_REGISTER")
+                .build();
+    }
+    private DashboardCard createAdminBonusCard() {
+        return DashboardCard.builder()
+                .title("Admin Bonus Management")
+                .subtitle("Manage Bonus")
+                .color("primary")
+                .icon("journal-text")
+                .badge("View")
+                .badgeColor("primary")
+                .actionText("Manage Register")
+                .actionUrl("/admin/bonus")
+                .external(false)
+                .permission("MANAGE_BONUS")
                 .build();
     }
 

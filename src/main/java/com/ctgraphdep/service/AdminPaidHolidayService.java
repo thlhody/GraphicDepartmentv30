@@ -18,7 +18,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class AdminPaidHolidayService {
     private final DataAccessService dataAccess;
     private final ReentrantLock holidayLock = new ReentrantLock();
-    private static final TypeReference<List<PaidHolidayEntry>> HOLIDAY_LIST_TYPE = new TypeReference<>() {};
 
     public AdminPaidHolidayService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;

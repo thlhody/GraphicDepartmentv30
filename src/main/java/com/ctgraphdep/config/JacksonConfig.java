@@ -18,9 +18,6 @@ import java.time.format.DateTimeFormatter;
 @Configuration
 public class JacksonConfig {
 
-    private static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
-    private static final String DATE_FORMAT = "yyyy-MM-dd";
-
     @Bean
     @Primary
     public ObjectMapper objectMapper() {
@@ -28,8 +25,8 @@ public class JacksonConfig {
         JavaTimeModule javaTimeModule = new JavaTimeModule();
 
         // Create formatters
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(DATE_TIME_FORMAT);
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(DATE_FORMAT);
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(WorkCode.DATE_TIME_FORMAT);
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(WorkCode.DATE_FORMAT);
 
         // Configure serializers and deserializers
         javaTimeModule.addSerializer(LocalDateTime.class, new LocalDateTimeSerializer(dateTimeFormatter));

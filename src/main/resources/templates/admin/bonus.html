@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>Admin Bonus Management</title>
+    <style>
+        .table-hover tbody tr:hover {
+            background-color: rgba(0, 0, 0, 0.075);
+        }
+        .entries-high {
+            background-color: #e3f2fd !important; /* Light blue */
+        }
+        .entries-medium {
+            background-color: #fff3e0 !important; /* Light orange */
+        }
+        .entries-low {
+            background-color: #ffebee !important; /* Light red */
+        }
+        .sortable {
+            cursor: pointer;
+        }
+        .sortable:hover {
+            background-color: #f8f9fa;
+        }
+        .sort-icon {
+            display: inline-block;
+            width: 0;
+            height: 0;
+            margin-left: 0.3em;
+            vertical-align: middle;
+            border-right: 4px solid transparent;
+            border-left: 4px solid transparent;
+        }
+        .sort-asc .sort-icon {
+            border-bottom: 4px solid #333;
+        }
+        .sort-desc .sort-icon {
+            border-top: 4px solid #333;
+        }
+        #monthSelect {
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-currency-dollar me-2"></i>Bonus Management
+                </h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-shield me-2"></i>Admin Panel
+                </div>
+            </div>
+            <a class="btn btn-outline-primary" th:href="@{/admin}">
+                <i class="bi bi-grid me-2"></i>Dashboard
+            </a>
+        </div>
+
+        <!-- Period Selection -->
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Update the year select -->
+                <div class="col-md-3">
+                    <label for="yearSelect" class="form-label">Year</label>
+                    <select id="yearSelect" class="form-select">
+                        <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
+                                th:value="${y}"
+                                th:text="${y}"
+                                th:selected="${y == currentYear}">
+                            2024
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Update the month select -->
+                <div class="col-md-3">
+                    <label for="monthSelect" class="form-label">Month</label>
+                    <select id="monthSelect" class="form-select">
+                        <option th:each="month : ${months}"
+                                th:value="${month.key}"
+                                th:text="${month.value}"
+                                th:selected="${month.key == currentMonth}">
+                            January
+                        </option>
+                    </select>
+                </div>
+                <!-- Load Data -->
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="loadData" class="btn btn-primary w-100">
+                        <i class="bi bi-sync me-2"></i>Load Data
+                    </button>
+                </div>
+
+                <!-- Export Excel -->
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="exportExcel" class="btn btn-success w-100">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bonus Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">Bonus Overview</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table id="bonusTable" class="table table-hover mb-0">
+                        <thead class="bg-light">
+                        <tr>
+                            <th class="sortable" data-sort="name">Name <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="entries">Entries <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="articleNumbers">Articles <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="graphicComplexity">Complexity <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="misc">Misc <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="workedDays">Worked Days <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="workedPercentage">Worked % <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="bonusPercentage">Bonus % <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="bonusAmount">Bonus Amount <span class="sort-icon"></span></th>
+                            <th>Previous M1</th>
+                            <th>Previous M2</th>
+                            <th>Previous M3</th>
+                        </tr>
+                        </thead>
+                        <tbody id="bonusTableBody">
+                        <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            initializePage();
+        });
+
+        function initializePage() {
+            // Set default values if not already set
+            const yearSelect = document.getElementById('yearSelect');
+            const monthSelect = document.getElementById('monthSelect');
+
+            // Set current year if not selected
+            if (!yearSelect.value) {
+                const currentYear = new Date().getFullYear();
+                yearSelect.value = currentYear;
+            }
+
+            // Set current month if not selected
+            if (!monthSelect.value) {
+                const currentMonth = new Date().getMonth() + 1; // JavaScript months are 0-based
+                monthSelect.value = currentMonth;
+            }
+
+            // Add event listeners
+            document.getElementById('loadData').addEventListener('click', loadBonusData);
+            document.getElementById('exportExcel').addEventListener('click', exportToExcel);
+
+            // Add sort listeners to all sortable headers
+            document.querySelectorAll('.sortable').forEach(header => {
+                header.addEventListener('click', () => sortTable(header.dataset.sort));
+            });
+
+            // Load initial data
+            loadBonusData();
+        }
+
+        // Add global sort state
+        let currentSort = {
+            column: 'name',
+            direction: 'asc'
+        };
+
+        async function loadBonusData() {
+            const year = document.getElementById('yearSelect').value;
+            const month = document.getElementById('monthSelect').value;
+
+            try {
+                const response = await fetch(`/admin/bonus/data?year=${year}&month=${month}`);
+                if (!response.ok) throw new Error('Failed to load bonus data');
+
+                const data = await response.json();
+                displayBonusData(data);
+            } catch (error) {
+                console.error('Error loading bonus data:', error);
+                showError('Failed to load bonus data');
+            }
+        }
+
+        function displayBonusData(data) {
+            const tbody = document.getElementById('bonusTableBody');
+            tbody.innerHTML = '';
+
+            Object.values(data).forEach(entry => {
+                const row = document.createElement('tr');
+
+                // Apply color based on entries
+                if (entry.entries > 40) {
+                    row.classList.add('entries-high');
+                } else if (entry.entries > 15) {
+                    row.classList.add('entries-medium');
+                } else {
+                    row.classList.add('entries-low');
+                }
+
+                row.innerHTML = `
+            <td>${entry.name || ''}</td>
+            <td>${entry.entries}</td>
+            <td>${formatNumber(entry.articleNumbers)}</td>
+            <td>${formatNumber(entry.graphicComplexity)}</td>
+            <td>${formatNumber(entry.misc)}</td>
+            <td>${entry.workedDays}</td>
+            <td>${formatPercent(entry.workedPercentage)}</td>
+            <td>${formatPercent(entry.bonusPercentage)}</td>
+            <td>${formatCurrency(entry.bonusAmount)}</td>
+            <td>${formatCurrency(entry.previousMonths?.month1 || 0)}</td>
+            <td>${formatCurrency(entry.previousMonths?.month2 || 0)}</td>
+            <td>${formatCurrency(entry.previousMonths?.month3 || 0)}</td>
+        `;
+
+                tbody.appendChild(row);
+            });
+
+            // Sort initially by name
+            sortTable('name');
+        }
+
+        // Add formatting helper functions
+        function formatNumber(value) {
+            return value?.toFixed(2) || '0.00';
+        }
+
+        function formatPercent(value) {
+            return (value?.toFixed(2) || '0.00') + '%';
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('ro-RO', {
+                style: 'currency',
+                currency: 'RON'
+            }).format(value || 0);
+        }
+
+        function sortTable(column) {
+            const tbody = document.getElementById('bonusTableBody');
+            const rows = Array.from(tbody.getElementsByTagName('tr'));
+
+            // Update sort direction
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+
+            // Update header styles
+            document.querySelectorAll('.sortable').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+                if (header.dataset.sort === column) {
+                    header.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+
+            // Sort rows
+            rows.sort((a, b) => {
+                let aVal = a.cells[getColumnIndex(column)].textContent;
+                let bVal = b.cells[getColumnIndex(column)].textContent;
+
+                // Convert to numbers if numeric
+                if (!isNaN(aVal)) {
+                    aVal = parseFloat(aVal);
+                    bVal = parseFloat(bVal);
+                }
+
+                if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Reorder table
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        function getColumnIndex(column) {
+            const columns = {
+                'name': 0,
+                'entries': 1,
+                'articleNumbers': 2,
+                'graphicComplexity': 3,
+                'misc': 4,
+                'workedDays': 5,
+                'workedPercentage': 6,
+                'bonusPercentage': 7,
+                'bonusAmount': 8
+            };
+            return columns[column] || 0;
+        }
+
+        function showError(message) {
+            // You can implement your preferred error display method here
+            alert(message);
+        }
+
+        // Add the export function
+        async function exportToExcel() {
+            const year = document.getElementById('yearSelect').value;
+            const month = document.getElementById('monthSelect').value;
+
+            try {
+                window.location.href = `/admin/bonus/export?year=${year}&month=${month}`;
+            } catch (error) {
+                console.error('Error exporting data:', error);
+                showError('Failed to export data');
+            }
+        }
+    </script>
+</th:block>
+</body>
+</html>

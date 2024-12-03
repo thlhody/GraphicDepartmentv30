@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -159,15 +160,15 @@ public class UserWorkTimeDisplayService {
 
             return WorkTimeSummary.builder()
                     .totalWorkDays(totalWorkDays)
-                    .daysWorked(counts.daysWorked)
+                    .daysWorked(counts.getDaysWorked())
                     .remainingWorkDays(totalWorkDays - (
-                            counts.daysWorked + counts.snDays + counts.coDays + counts.cmDays))
-                    .snDays(counts.snDays)
-                    .coDays(counts.coDays)
-                    .cmDays(counts.cmDays)
-                    .totalRegularMinutes(counts.regularMinutes)
-                    .totalOvertimeMinutes(counts.overtimeMinutes)
-                    .totalMinutes(counts.regularMinutes + counts.overtimeMinutes)
+                            counts.getDaysWorked() + counts.getSnDays() + counts.getCoDays() + counts.getCmDays()))
+                    .snDays(counts.getSnDays())
+                    .coDays(counts.getCoDays())
+                    .cmDays(counts.getCmDays())
+                    .totalRegularMinutes(counts.getRegularMinutes())
+                    .totalOvertimeMinutes(counts.getOvertimeMinutes())
+                    .totalMinutes(counts.getRegularMinutes() + counts.getOvertimeMinutes())
                     .availablePaidDays(paidHolidayDays)
                     .build();
         } catch (Exception e) {
@@ -176,14 +177,6 @@ public class UserWorkTimeDisplayService {
         }
     }
 
-    private static class WorkTimeCounts {
-        int daysWorked = 0;
-        int snDays = 0;
-        int coDays = 0;
-        int cmDays = 0;
-        int regularMinutes = 0;
-        int overtimeMinutes = 0;
-    }
 
     private WorkTimeCounts calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
         WorkTimeCounts counts = new WorkTimeCounts();
@@ -196,14 +189,14 @@ public class UserWorkTimeDisplayService {
 
             if (entry.getTimeOffType() != null) {
                 switch (entry.getTimeOffType()) {
-                    case "SN" -> counts.snDays++;
-                    case "CO" -> counts.coDays++;
-                    case "CM" -> counts.cmDays++;
+                    case "SN" -> counts.incrementSnDays();
+                    case "CO" -> counts.incrementCoDays();
+                    case "CM" -> counts.incrementCmDays();
                 }
             } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
-                counts.daysWorked++;
-                counts.regularMinutes += entry.getTotalWorkedMinutes();
-                counts.overtimeMinutes += entry.getTotalOvertimeMinutes();
+                counts.incrementDaysWorked();
+                counts.setRegularMinutes(entry.getTotalWorkedMinutes());
+                counts.setOvertimeMinutes(entry.getTotalOvertimeMinutes());
             }
         }
 

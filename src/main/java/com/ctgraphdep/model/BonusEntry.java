@@ -1,10 +1,13 @@
 package com.ctgraphdep.model;
 
+import com.ctgraphdep.config.WorkCode;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -14,8 +17,8 @@ public class BonusEntry {
     @JsonProperty("name")
     private String name;
 
-    @JsonProperty("userId")
-    private Integer userId;
+    @JsonProperty("employeeId")
+    private Integer employeeId;
 
     @JsonProperty("entries")
     private Integer entries;
@@ -47,10 +50,10 @@ public class BonusEntry {
     @JsonProperty("calculationDate")
     private String calculationDate;
 
-    public static BonusEntry fromBonusCalculationResult(String username, Integer userId, BonusCalculationResult result) {
+    public static BonusEntry fromBonusCalculationResult(String username, Integer employeeId, BonusCalculationResult result) {
         return BonusEntry.builder()
                 .name(username)
-                .userId(userId)
+                .employeeId(employeeId)
                 .entries(result.getEntries())
                 .articleNumbers(result.getArticleNumbers())
                 .graphicComplexity(result.getGraphicComplexity())
@@ -59,7 +62,7 @@ public class BonusEntry {
                 .workedPercentage(result.getWorkedPercentage())
                 .bonusPercentage(result.getBonusPercentage())
                 .bonusAmount(result.getBonusAmount())
-                .calculationDate(java.time.LocalDateTime.now().toString())
+                .calculationDate(WorkCode.DATE_FORMATTER.format(LocalDate.now()))
                 .build();
     }
 }

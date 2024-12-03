@@ -1,4 +1,4 @@
-package com.ctgraphdep.model;
+package com.ctgraphdep.enums;
 
 public enum SyncStatus {
     ADMIN_EDITED,    // when the admin changes an entry

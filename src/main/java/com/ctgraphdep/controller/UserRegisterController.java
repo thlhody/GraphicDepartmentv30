@@ -103,6 +103,7 @@ public class UserRegisterController extends BaseController {
             model.addAttribute("actionTypes", ActionType.getValues());
             model.addAttribute("printPrepTypes", PrintPrepType.getValues());
 
+
             // Add view control attributes
             if (currentUser.getRole().equals("ROLE_ADMIN") ||
                     currentUser.getRole().equals("ROLE_TEAM_LEADER")) {
@@ -196,39 +197,6 @@ public class UserRegisterController extends BaseController {
         }
 
         return "redirect:/user/register?year=" + year + "&month=" + month;
-    }
-
-    @GetMapping("/entry/{entryId}/edit")
-    public String editEntry(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable Integer entryId,
-            @RequestParam Integer year,
-            @RequestParam Integer month,
-            Model model) {
-
-        try {
-            User user = getUser(userDetails);
-            RegisterEntry entry = userRegisterService.getEntry(
-                    user.getUsername(),
-                    user.getUserId(),
-                    entryId,
-                    year,
-                    month
-            );
-
-            model.addAttribute("user", user);
-            model.addAttribute("entry", entry);
-            model.addAttribute("currentYear", year);
-            model.addAttribute("currentMonth", month);
-            model.addAttribute("actionTypes", ActionType.getValues());
-            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
-
-            return "user/register-edit";
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error loading entry for edit: " + e.getMessage());
-            return "redirect:/user/register?year=" + year + "&month=" + month;
-        }
     }
 
     @PostMapping("/entry/{entryId}")

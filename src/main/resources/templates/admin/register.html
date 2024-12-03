@@ -112,6 +112,11 @@
                     <div class="col">
                         <button id="saveChanges" class="btn btn-success w-100">Save</button>
                     </div>
+                    <div class="col">
+                        <button id="exportExcel" class="btn btn-info w-100">
+                            <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -164,11 +169,11 @@
                         <input type="number" class="form-control" id="miscValue" th:value="${bonusConfig.miscValue}" step="0.50">
                     </div>
                     <div class="col">
-                        <label for="workedDays" class="form-label">Worked Days</label>
-                        <input type="number" class="form-control" id="workedDays" readonly>
+                        <label for="workedDays" class="form-label">Worked D</label>
+                        <input class="form-control" id="workedDays" readonly>
                     </div>
                     <div class="col">
-                        <button class="btn btn-primary w-150" id="calculateBonusBtn">Calculate Bonus</button>
+                        <button class="btn btn-primary w-150" id="calculateBonusBtn">C. Bonus</button>
                     </div>
                 </div>
             </div>
@@ -186,16 +191,16 @@
                         <tr>
                             <th>Name</th>
                             <th>Entries</th>
-                            <th>Article Numbers</th>
-                            <th>Graphic Complexity</th>
+                            <th>Art Nr.</th>
+                            <th>CG</th>
                             <th>Misc</th>
-                            <th>Worked Days</th>
-                            <th>Worked %</th>
-                            <th>Bonus %</th>
-                            <th>Bonus $</th>
-                            <th>Previous Month</th>
-                            <th>2 Months Ago</th>
-                            <th>3 Months Ago</th>
+                            <th>Worked D</th>
+                            <th>Worked%</th>
+                            <th>Bonus%</th>
+                            <th>Bonus$</th>
+                            <th>1MAgo</th>
+                            <th>2MAgo</th>
+                            <th>3MAgo</th>
                         </tr>
                         </thead>
                         <tbody id="bonusResultsBody">
@@ -343,6 +348,7 @@
         };
 
         // Initialize the page
+        // Initialize the page
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Initializing Admin Register Management");
 
@@ -362,6 +368,24 @@
                 console.error("Initialization error:", error);
                 showError("Failed to initialize page. Please refresh and try again.");
             }
+        });
+
+        // Add separate event listener for export button
+        document.getElementById('exportExcel')?.addEventListener('click', function() {
+            const userId = document.getElementById('userSelect').value;
+            const year = document.getElementById('yearSelect').value;
+            const month = document.getElementById('monthSelect').value;
+
+            if (!userId) {
+                showError("Please select a user");
+                return;
+            }
+
+            // Create the export URL with query parameters
+            const exportUrl = `/admin/register/export?userId=${userId}&year=${year}&month=${month}`;
+
+            // Trigger the download
+            window.location.href = exportUrl;
         });
 
         // Form handling

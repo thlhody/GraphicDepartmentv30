@@ -97,8 +97,15 @@
         .bg-layout {
             background-color: #17a2b8; /* Teal */
         }
+        /* Admin Sync Status Badges */
+        .badge.bg-success {
+            background-color: #198754 !important;
+        }
 
-
+        .badge.bg-warning {
+            background-color: #ffc107 !important;
+            color: #000 !important;
+        }
         /* Mobile optimizations */
         @media (max-width: 768px) {
             .register-form .col-auto {
@@ -176,7 +183,8 @@
                                     <span class="badge bg-order">ORDIN: <span id="count-ordin">0</span></span>
                                     <span class="badge bg-reorder">REORDIN: <span id="count-reordin">0</span></span>
                                     <span class="badge bg-sample">CAMPION: <span id="count-campion">0</span></span>
-                                    <span class="badge bg-strikeoff">PROBA STAMPA: <span id="count-proba-stampa">0</span></span>
+                                    <span class="badge bg-strikeoff">PROBA STAMPA: <span
+                                            id="count-proba-stampa">0</span></span>
                                     <span class="badge bg-designs">DESIGN: <span id="count-design">0</span></span>
                                     <span class="badge bg-other">ALTELE: <span id="count-others">0</span></span>
                                     <span class="badge bg-layout">IMPOSTARE: <span id="count-impostare">0</span></span>
@@ -188,7 +196,8 @@
                                 <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
                                 <div class="d-flex gap-4">
                                     <span>Total Entries: <strong id="total-entries">0</strong></span>
-                                    <span>Total (No Impostare): <strong id="total-entries-no-impostare">0</strong></span>
+                                    <span>Total (No Impostare): <strong
+                                            id="total-entries-no-impostare">0</strong></span>
                                     <span>Avg Articles (No Impostare): <strong id="avg-articles">0.00</strong></span>
                                     <span>Avg Complexity: <strong id="avg-complexity">0.00</strong></span>
                                 </div>
@@ -210,7 +219,8 @@
 
                     <input type="hidden" name="year" th:value="${currentYear}">
                     <input type="hidden" name="month" th:value="${currentMonth}">
-                    <input type="hidden" name="id" id="editingId">
+                    <input type="hidden" name="entryId" id="editingId">
+                    <input type="hidden" name="isEdit" id="isEdit" value="false">
 
                     <!-- Single Row with adjusted column sizes -->
                     <div class="col-auto" style="width: 130px;">
@@ -362,6 +372,7 @@
                             <th>Articles</th>
                             <th>Complexity</th>
                             <th>Observations</th>
+                            <th>Admin Sync</th>
                             <th>Actions</th>
                         </tr>
                         </thead>
@@ -379,6 +390,16 @@
                             <td th:text="${entry.articleNumbers}"></td>
                             <td th:text="${entry.graphicComplexity}"></td>
                             <td th:text="${entry.observations}"></td>
+                            <td>
+                                <span th:switch="${entry.adminSync}">
+                                    <span th:case="'ADMIN_EDITED'"
+                                          class="badge bg-info">Edited</span>
+                                    <span th:case="'USER_INPUT'"
+                                          class="badge bg-secondary">In Process</span>
+                                    <span th:case="'USER_DONE'"
+                                          class="badge bg-success">Synced</span>
+                                </span>
+                            </td>
                             <td>
                                 <div class="btn-group">
                                     <!-- Edit button -->
@@ -414,7 +435,7 @@
                             </td>
                         </tr>
                         <tr th:if="${entries.empty}">
-                            <td colspan="13" class="text-center py-5">
+                            <td colspan="14" class="text-center py-5">
                                 <div class="text-muted">
                                     <i class="bi bi-journal-x fs-2"></i>
                                     <h5 class="mt-3">No Entries Found</h5>
@@ -477,6 +498,7 @@
                         updateKeyMetrics(entries); // Recalculate metrics on form change
                     });
                 });
+
                 function updateKeyMetrics(entries) {
                     let totalEntries = entries.length;
                     let filteredEntries = entries.filter(entry => entry.actionType !== 'IMPOSTARE');
@@ -528,86 +550,83 @@
                     });
                 }
 
-                // Populate form
                 function populateForm(button) {
-                    // Get the form using ID instead of attribute selector
                     const form = document.getElementById('registerForm');
-
                     if (!form) {
                         console.error('Form not found');
                         return;
                     }
 
-                    // Get all the data attributes
                     const entryId = button.getAttribute('data-entry-id');
-                    const date = button.getAttribute('data-date');
-                    const orderId = button.getAttribute('data-order-id');
-                    const productionId = button.getAttribute('data-production-id');
-                    const omsId = button.getAttribute('data-oms-id');
-                    const clientName = button.getAttribute('data-client-name');
-                    const actionType = button.getAttribute('data-action-type');
-                    const printPrepType = button.getAttribute('data-print-prep-type');
-                    const colorsProfile = button.getAttribute('data-colors-profile');
-                    const articleNumbers = button.getAttribute('data-article-numbers');
-                    const graphicComplexity = button.getAttribute('data-graphic-complexity');
-                    const observations = button.getAttribute('data-observations');
 
-                    // Set the form action for update
-                    form.setAttribute('action', baseUrl + entryId);
-                    form.setAttribute('method', 'post');
+                    // Use the Thymeleaf URL variable and ensure proper URL construction
+                    form.action = baseUrl + entryId;
+                    form.method = 'post';
+
+                    // Ensure year and month are included from hidden fields
+                    const year = form.querySelector('input[name="year"]').value;
+                    const month = form.querySelector('input[name="month"]').value;
 
                     // Populate form fields
-                    form.querySelector('input[name="date"]').value = date;
-                    form.querySelector('input[name="orderId"]').value = orderId;
-                    form.querySelector('input[name="productionId"]').value = productionId || '';
-                    form.querySelector('input[name="omsId"]').value = omsId;
-                    form.querySelector('input[name="clientName"]').value = clientName;
-                    form.querySelector('select[name="actionType"]').value = actionType;
-                    form.querySelector('select[name="printPrepType"]').value = printPrepType;
-                    form.querySelector('input[name="colorsProfile"]').value = colorsProfile || '';
-                    form.querySelector('input[name="articleNumbers"]').value = articleNumbers;
-                    form.querySelector('input[name="graphicComplexity"]').value = graphicComplexity || '';
-                    form.querySelector('input[name="observations"]').value = observations || '';
+                    const fieldMappings = {
+                        'date': button.getAttribute('data-date'),
+                        'orderId': button.getAttribute('data-order-id'),
+                        'productionId': button.getAttribute('data-production-id'),
+                        'omsId': button.getAttribute('data-oms-id'),
+                        'clientName': button.getAttribute('data-client-name'),
+                        'actionType': button.getAttribute('data-action-type'),
+                        'printPrepType': button.getAttribute('data-print-prep-type'),
+                        'colorsProfile': button.getAttribute('data-colors-profile'),
+                        'articleNumbers': button.getAttribute('data-article-numbers'),
+                        'graphicComplexity': button.getAttribute('data-graphic-complexity'),
+                        'observations': button.getAttribute('data-observations')
+                    };
 
-                    // Update just the submit button text
-                    const submitButton = form.querySelector('button[type="submit"]');
-                    submitButton.innerHTML = '<i class="bi bi-check-circle me-1"></i>Update Entry';
-
-                    // Scroll to
-                    form.scrollIntoView({behavior: 'smooth'});
-                }
-                // Reset form
-                function resetForm() {
-                    const form = document.getElementById('registerForm');
-                    if (!form) return;
-
-                    // Reset all form fields
-                    form.reset();
-
-                    // Set today's date
-                    form.querySelector('input[name="date"]').value = new Date().toISOString().split('T')[0];
-
-                    // Reset form action to default
-                    form.setAttribute('action', defaultUrl);
-                    form.setAttribute('method', 'post');
-
-                    // Reset submit button text if it was in update mode
-                    const submitButton = form.querySelector('button[type="submit"]');
-                    if (submitButton.innerHTML.includes('Update')) {
-                        submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
-                    }
-                }
-                // Form validation
-                function validateRegisterForm(form) {
-                    // Store form values before validation
-                    const formValues = {};
-                    for (const element of form.elements) {
-                        if (element.name) {
-                            formValues['form_' + element.name] = element.value;
+                    // Update all form fields
+                    for (const [fieldName, value] of Object.entries(fieldMappings)) {
+                        const field = form.querySelector(`[name="${fieldName}"]`);
+                        if (field) {
+                            field.value = value || '';
                         }
                     }
 
-                    // Required fields array
+                    // Update submit button text
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    submitButton.innerHTML = '<i class="bi bi-check-circle me-1"></i>Update';
+
+                    // Improved scroll behavior
+                    // First, find the form's card container
+                    const formCard = form.closest('.card');
+
+                    // Calculate the header height (if you have a fixed header)
+                    const headerOffset = 80; // Adjust this value based on your header height
+
+                    // Calculate the target scroll position
+                    const formCardTop = formCard.getBoundingClientRect().top;
+                    const scrollPosition = window.pageYOffset + formCardTop - headerOffset;
+
+                    // Smooth scroll to the form
+                    window.scrollTo({
+                        top: scrollPosition,
+                        behavior: 'smooth'
+                    });
+
+                    // Focus on the first input field after scrolling
+                    setTimeout(() => {
+                        const firstInput = form.querySelector('input:not([type="hidden"])');
+                        if (firstInput) {
+                            firstInput.focus();
+                        }
+                    }, 500); // Wait for scroll animation to complete
+                }
+
+                // Enhanced form validation function
+                function validateRegisterForm(form) {
+                    // Store form values
+                    const formValues = new FormData(form);
+                    const params = new URLSearchParams();
+
+                    // Required fields with their error messages
                     const requiredFields = [
                         {name: 'date', message: 'missing_date'},
                         {name: 'orderId', message: 'missing_order_id'},
@@ -620,22 +639,18 @@
 
                     // Check required fields
                     for (const field of requiredFields) {
-                        const input = form[field.name];
-                        if (!input || !input.value || input.value.trim() === '') {
-                            // Build redirect URL
-                            const params = new URLSearchParams();
+                        const value = formValues.get(field.name);
+                        if (!value || value.trim() === '') {
+                            // Add error and form data to URL parameters
                             params.append('error', field.message);
-                            params.append('year', form.year.value);
-                            params.append('month', form.month.value);
-
-                            // Add all form values to parameters
-                            for (const [key, value] of Object.entries(formValues)) {
-                                if (value && typeof value === 'string' && value.trim() !== '') {
-                                    params.append(key, value);
+                            formValues.forEach((value, key) => {
+                                if (value && value.trim() !== '') {
+                                    params.append('form_' + key, value);
                                 }
-                            }
+                            });
+                            params.append('year', formValues.get('year'));
+                            params.append('month', formValues.get('month'));
 
-                            // Perform the redirect
                             window.location.href = '/user/register?' + params.toString();
                             return false;
                         }
@@ -644,6 +659,31 @@
                     return true;
                 }
 
+                // Reset form function with proper cleanup
+                function resetForm() {
+                    const form = document.getElementById('registerForm');
+                    if (!form) return;
+
+                    // Reset all form fields
+                    form.reset();
+
+                    // Reset form action to default
+                    form.action = defaultUrl;
+                    form.method = 'post';
+
+                    // Clear the entry ID
+                    document.getElementById('editingId').value = '';
+
+                    // Set today's date
+                    const dateInput = form.querySelector('input[name="date"]');
+                    if (dateInput) {
+                        dateInput.value = new Date().toISOString().split('T')[0];
+                    }
+
+                    // Reset submit button text
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+                }
             </script>
         </th:block>
     </div>

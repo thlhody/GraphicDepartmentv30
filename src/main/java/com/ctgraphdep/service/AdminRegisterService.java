@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.enums.RegisterMergeRule;
+import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
 import com.ctgraphdep.enums.ActionType;
@@ -24,15 +25,17 @@ public class AdminRegisterService {
     private final DataAccessService dataAccessService;
     private final BonusCalculatorUtil bonusCalculator;
     private final WorkTimeManagementService workTimeManagementService;
+    private final UserService userService;
 
 
     @Autowired
     public AdminRegisterService(DataAccessService dataAccessService,
                                 BonusCalculatorUtil bonusCalculator,
-                                WorkTimeManagementService workTimeManagementService) {
+                                WorkTimeManagementService workTimeManagementService, UserService userService) {
         this.dataAccessService = dataAccessService;
         this.bonusCalculator = bonusCalculator;
         this.workTimeManagementService = workTimeManagementService;
+        this.userService = userService;
     }
 
     // Update loadUserRegisterEntries method
@@ -105,7 +108,6 @@ public class AdminRegisterService {
         dataAccessService.writeFile(adminPath, updatedEntries);
     }
 
-
     private RegisterEntry copyEntry(RegisterEntry source) {
         return RegisterEntry.builder()
                 .entryId(source.getEntryId())
@@ -124,7 +126,6 @@ public class AdminRegisterService {
                 .adminSync(source.getAdminSync())
                 .build();
     }
-
 
     // Filter entries by action type and/or print prep type
     public List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
@@ -194,7 +195,7 @@ public class AdminRegisterService {
             Map<String, Object> configValues = (Map<String, Object>) request.get("bonusConfig");
             BonusConfiguration config = convertToBonusConfiguration(configValues);
 
-            if (!config.isValid()) {
+            if (config.notValid()) {
                 throw new IllegalArgumentException("Invalid bonus configuration");
             }
 
@@ -324,53 +325,151 @@ public class AdminRegisterService {
     }
 
     // Save bonus calculation result
+
     public void saveBonusResult(Integer userId, int year, int month, BonusCalculationResult result, String username) {
-        // Create bonus entry from calculation result
-        BonusEntry bonusEntry = BonusEntry.fromBonusCalculationResult(username, userId, result);
-        LoggerUtil.info(this.getClass(),
-                String.format("Created bonus entry for user %d with amount %f",
-                        userId, bonusEntry.getBonusAmount()));
-
-        // Load and set previous months' bonuses
-        PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(userId, year, month);
-        bonusEntry.setPreviousMonths(previousMonths);
-        LoggerUtil.info(this.getClass(),
-                String.format("Set previous months bonuses: month1=%f, month2=%f, month3=%f",
-                        previousMonths.getMonth1(), previousMonths.getMonth2(), previousMonths.getMonth3()));
-
         try {
-            Path bonusPath = dataAccessService.getAdminBonusPath(year, month);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saving to path: %s", bonusPath));
+            // Get user's employeeId
+            Integer employeeId = userService.getUserById(userId)
+                    .map(User::getEmployeeId)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-            // Load existing entries if any
-            Map<Integer, BonusEntry> existingEntries = new HashMap<>();
+            // Create bonus entry from calculation result
+            BonusEntry bonusEntry = BonusEntry.fromBonusCalculationResult(username, employeeId, result);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Created bonus entry for employee %d with amount %f",
+                            employeeId, bonusEntry.getBonusAmount()));
+
+            // Load and set previous months' bonuses
+            PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(employeeId, year, month);
+            bonusEntry.setPreviousMonths(previousMonths);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Set previous months bonuses: month1=%f, month2=%f, month3=%f",
+                            previousMonths.getMonth1(), previousMonths.getMonth2(), previousMonths.getMonth3()));
+
             try {
-                existingEntries = dataAccessService.readFile(bonusPath,
-                        new TypeReference<>() {
-                        }, false);
+                Path bonusPath = dataAccessService.getAdminBonusPath(year, month);
                 LoggerUtil.info(this.getClass(),
-                        String.format("Loaded %d existing entries", existingEntries.size()));
+                        String.format("Saving to path: %s", bonusPath));
+
+                // Load existing entries if any
+                Map<Integer, BonusEntry> existingEntries = new HashMap<>();
+                try {
+                    existingEntries = dataAccessService.readFile(bonusPath,
+                            new TypeReference<Map<Integer, BonusEntry>>() {},
+                            false);
+                    LoggerUtil.info(this.getClass(),
+                            String.format("Loaded %d existing entries", existingEntries.size()));
+                } catch (Exception e) {
+                    LoggerUtil.info(this.getClass(),
+                            "No existing bonus entries found for " + year + "/" + month);
+                }
+
+                // Add or update the entry for this employee
+                existingEntries.put(employeeId, bonusEntry);
+
+                // Save all entries back to file
+                dataAccessService.writeFile(bonusPath, existingEntries);
+                LoggerUtil.info(this.getClass(),
+                        String.format("Successfully saved bonus calculation for user %s (Employee ID: %d) for %d/%d",
+                                username, employeeId, year, month));
             } catch (Exception e) {
-                LoggerUtil.info(this.getClass(),
-                        "No existing bonus entries found for " + year + "/" + month);
+                LoggerUtil.error(this.getClass(),
+                        "Error saving bonus calculation: " + e.getMessage(), e);
+                throw new RuntimeException("Failed to save bonus calculation", e);
             }
-
-            // Add or update the entry for this user
-            existingEntries.put(userId, bonusEntry);
-
-            // Save all entries back to file
-            dataAccessService.writeFile(bonusPath, existingEntries);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully saved bonus calculation for user %s (ID: %d) for %d/%d",
-                            username, userId, year, month));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    "Error saving bonus calculation: " + e.getMessage(), e);
-            throw new RuntimeException("Failed to save bonus calculation", e);
+                    String.format("Error processing bonus calculation for user %d: %s",
+                            userId, e.getMessage()));
+            throw new RuntimeException("Failed to process bonus calculation", e);
         }
     }
 
+    private Double loadMonthBonus(Integer employeeId, YearMonth month) {
+        try {
+            Path bonusPath = dataAccessService.getAdminBonusPath(month.getYear(), month.getMonthValue());
+            LoggerUtil.info(this.getClass(),
+                    String.format("Loading bonus for employee %d from path: %s", employeeId, bonusPath));
+
+            Map<Integer, BonusEntry> entries = dataAccessService.readFile(bonusPath,
+                    new TypeReference<Map<Integer, BonusEntry>>() {},
+                    false);
+
+            Double bonus = Optional.ofNullable(entries.get(employeeId))
+                    .map(BonusEntry::getBonusAmount)
+                    .orElse(0.0);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Loaded bonus amount: %f for employee %d in %s", bonus, employeeId, month));
+
+            return bonus;
+        } catch (Exception e) {
+            LoggerUtil.info(this.getClass(),
+                    String.format("No bonus entry found for employee %d in %s: %s",
+                            employeeId, month, e.getMessage()));
+            return 0.0;
+        }
+    }
+
+    private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer employeeId, int year, int month) {
+        YearMonth currentMonth = YearMonth.of(year, month);
+        LoggerUtil.info(this.getClass(),
+                String.format("Loading previous months bonuses for employee %d, current month: %s",
+                        employeeId, currentMonth));
+
+        // Calculate previous months
+        YearMonth month1 = currentMonth.minusMonths(1);
+        YearMonth month2 = currentMonth.minusMonths(2);
+        YearMonth month3 = currentMonth.minusMonths(3);
+
+        Double bonus1 = loadMonthBonus(employeeId, month1);
+        Double bonus2 = loadMonthBonus(employeeId, month2);
+        Double bonus3 = loadMonthBonus(employeeId, month3);
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Previous months bonuses for employee %d: %f, %f, %f",
+                        employeeId, bonus1, bonus2, bonus3));
+
+        return PreviousMonthsBonuses.builder()
+                .month1(bonus1)
+                .month2(bonus2)
+                .month3(bonus3)
+                .build();
+    }
+
+    public BonusCalculationResult loadSavedBonusResult(Integer userId, int year, int month) {
+        try {
+            // Get user's employeeId
+            Integer employeeId = userService.getUserById(userId)
+                    .map(User::getEmployeeId)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+            Optional<BonusEntry> bonusEntryOpt = dataAccessService.loadBonusEntry(employeeId, year, month);
+
+            if (bonusEntryOpt.isEmpty()) {
+                return null;
+            }
+
+            BonusEntry entry = bonusEntryOpt.get();
+
+            return BonusCalculationResult.builder()
+                    .entries(entry.getEntries())
+                    .articleNumbers(entry.getArticleNumbers())
+                    .graphicComplexity(entry.getGraphicComplexity())
+                    .misc(entry.getMisc())
+                    .workedDays(entry.getWorkedDays())
+                    .workedPercentage(entry.getWorkedPercentage())
+                    .bonusPercentage(entry.getBonusPercentage())
+                    .bonusAmount(entry.getBonusAmount())
+                    .previousMonths(entry.getPreviousMonths())
+                    .build();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading bonus result for user %d: %s",
+                            userId, e.getMessage()));
+            throw new RuntimeException("Failed to load bonus result", e);
+        }
+    }
     // Helper methods
     private boolean matchesSearchTerm(RegisterEntry entry, String term) {
         return String.valueOf(entry.getEntryId()).contains(term) ||
@@ -406,57 +505,6 @@ public class AdminRegisterService {
                 .collect(Collectors.toList());
     }
 
-    private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, int year, int month) {
-        YearMonth currentMonth = YearMonth.of(year, month);
-        LoggerUtil.info(this.getClass(),
-                String.format("Loading previous months bonuses for user %d, current month: %s",
-                        userId, currentMonth));
-
-        // Calculate previous months
-        YearMonth month1 = currentMonth.minusMonths(1);
-        YearMonth month2 = currentMonth.minusMonths(2);
-        YearMonth month3 = currentMonth.minusMonths(3);
-
-        Double bonus1 = loadMonthBonus(userId, month1);
-        Double bonus2 = loadMonthBonus(userId, month2);
-        Double bonus3 = loadMonthBonus(userId, month3);
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Previous months bonuses for user %d: %f, %f, %f",
-                        userId, bonus1, bonus2, bonus3));
-
-        return PreviousMonthsBonuses.builder()
-                .month1(bonus1)
-                .month2(bonus2)
-                .month3(bonus3)
-                .build();
-    }
-
-    private Double loadMonthBonus(Integer userId, YearMonth month) {
-        try {
-            Path bonusPath = dataAccessService.getAdminBonusPath(month.getYear(), month.getMonthValue());
-            LoggerUtil.info(this.getClass(),
-                    String.format("Loading bonus for user %d from path: %s", userId, bonusPath));
-
-            Map<Integer, BonusEntry> entries = dataAccessService.readFile(bonusPath,
-                    new TypeReference<>() {
-                    }, false);
-
-            Double bonus = Optional.ofNullable(entries.get(userId))
-                    .map(BonusEntry::getBonusAmount)
-                    .orElse(0.0);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Loaded bonus amount: %f for user %d in %s", bonus, userId, month));
-
-            return bonus;
-        } catch (Exception e) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("No bonus entry found for user %d in %s: %s",
-                            userId, month, e.getMessage()));
-            return 0.0;
-        }
-    }
 
     public RegisterSummary calculateRegisterSummary(List<RegisterEntry> entries) {
         // Filter valid entries
@@ -474,4 +522,6 @@ public class AdminRegisterService {
                         .orElse(0.0))
                 .build();
     }
+
+
 }

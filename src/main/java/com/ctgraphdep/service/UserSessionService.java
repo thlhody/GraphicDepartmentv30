@@ -1,7 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
-import com.ctgraphdep.model.SyncStatus;
+import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -336,7 +336,6 @@ public class UserSessionService {
         entry.setTimeOffType(null);
         return entry;
     }
-
 
     // Helper methods to reduce duplication
     private <T> T executeWithLock(SessionOperation<T> operation) {

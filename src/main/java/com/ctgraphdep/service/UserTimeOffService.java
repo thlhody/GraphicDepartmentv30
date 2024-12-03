@@ -2,7 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.model.SyncStatus;
+import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;

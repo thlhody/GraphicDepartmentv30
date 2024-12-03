@@ -1,5 +1,6 @@
 package com.ctgraphdep.utils;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -10,14 +11,11 @@ import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Component
 public class UserWorktimeExcelExporter {
 
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public byte[] exportToExcel(User user, List<WorkTimeTable> worktimeData, WorkTimeSummary summary, int year, int month) {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
@@ -101,7 +99,7 @@ public class UserWorktimeExcelExporter {
             Row row = sheet.createRow(currentRow++);
 
             // Date
-            createCell(row, 0, record.getWorkDate().format(DATE_FORMATTER), dateStyle);
+            createCell(row, 0, record.getWorkDate().format(WorkCode.DATE_FORMATTER), dateStyle);
 
             // Start Time
             createTimeCell(row, 1,
@@ -154,27 +152,24 @@ public class UserWorktimeExcelExporter {
         int currentRow = startRow;
 
         // Work Days Section
-        addSummaryRow(sheet, styles, currentRow++, "Work Days", String.valueOf(summary.getTotalWorkDays()));
-        addSummaryRow(sheet, styles, currentRow++, "Days Worked", String.valueOf(summary.getDaysWorked()));
-        addSummaryRow(sheet, styles, currentRow++, "Remaining", String.valueOf(summary.getRemainingWorkDays()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.WORK_DAYS, String.valueOf(summary.getTotalWorkDays()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.DAYS_WORKED, String.valueOf(summary.getDaysWorked()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.DAYS_REMAINING, String.valueOf(summary.getRemainingWorkDays()));
 
         currentRow++; // Spacing
 
         // Time Off Details
-        addSummaryRow(sheet, styles, currentRow++, "National Holidays", String.valueOf(summary.getSnDays()));
-        addSummaryRow(sheet, styles, currentRow++, "Available Paid Days", String.valueOf(summary.getAvailablePaidDays()));
-        addSummaryRow(sheet, styles, currentRow++, "Vacation (CO)", String.valueOf(summary.getCoDays()));
-        addSummaryRow(sheet, styles, currentRow++, "Medical (CM)", String.valueOf(summary.getCmDays()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.NATIONAL_HOLIDAY_CODE_LONG, String.valueOf(summary.getSnDays()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.AVAILABLE_PAID_DAYS, String.valueOf(summary.getAvailablePaidDays()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.TIME_OFF_CODE_LONG, String.valueOf(summary.getCoDays()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.MEDICAL_LEAVE_CODE_LONG, String.valueOf(summary.getCmDays()));
 
         currentRow++; // Spacing
 
         // Hours Details
-        addSummaryRow(sheet, styles, currentRow++, "Regular Hours",
-                CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalRegularMinutes()));
-        addSummaryRow(sheet, styles, currentRow++, "Overtime",
-                CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalOvertimeMinutes()));
-        addSummaryRow(sheet, styles, currentRow, "Total Hours",
-                CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalMinutes()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.REGULAR_HOURS, CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalRegularMinutes()));
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.OVERTIME, CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalOvertimeMinutes()));
+        addSummaryRow(sheet, styles, currentRow, WorkCode.TOTAL_HOURS, CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalMinutes()));
     }
 
     private void addSummaryRow(Sheet sheet, Map<String, CellStyle> styles, int rowNum, String label, String value) {
@@ -195,7 +190,7 @@ public class UserWorktimeExcelExporter {
     private void createTimeCell(Row row, int column, LocalTime time, CellStyle timeStyle, CellStyle defaultStyle) {
         Cell cell = row.createCell(column);
         if (time != null) {
-            cell.setCellValue(time.format(TIME_FORMATTER));
+            cell.setCellValue(time.format(WorkCode.TIME_FORMATTER));
             cell.setCellStyle(timeStyle);
         } else {
             cell.setCellValue("-");

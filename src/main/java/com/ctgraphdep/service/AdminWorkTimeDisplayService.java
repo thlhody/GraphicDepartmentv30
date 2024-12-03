@@ -18,9 +18,8 @@ import java.util.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminWorkTimeDisplayService {
 
-    /**
-     * Prepare day headers for display with Romanian day initials
-     */
+
+    // Prepare day headers for display with Romanian day initials
     public List<Map<String, String>> prepareDayHeaders(YearMonth yearMonth) {
         List<Map<String, String>> dayHeaders = new ArrayList<>();
 
@@ -42,9 +41,7 @@ public class AdminWorkTimeDisplayService {
         return dayHeaders;
     }
 
-    /**
-     * Calculate work time summaries for each user
-     */
+    // Calculate work time summaries for each user
     public Map<Integer, WorkTimeSummary> calculateUserSummaries(
             Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap,
             List<User> users,
@@ -69,9 +66,8 @@ public class AdminWorkTimeDisplayService {
         return summaries;
     }
 
-    /**
-     * Calculate summary for a single user
-     */
+
+    // Calculate summary for a single user
     private WorkTimeSummary calculateUserSummary(
             Map<LocalDate, WorkTimeTable> entries,
             int year,
@@ -122,9 +118,7 @@ public class AdminWorkTimeDisplayService {
                 .build();
     }
 
-    /**
-     * Check if date is weekend
-     */
+    // Check if date is weekend
     private boolean isWeekend(LocalDate date) {
         return date.getDayOfWeek() == DayOfWeek.SATURDAY ||
                 date.getDayOfWeek() == DayOfWeek.SUNDAY;

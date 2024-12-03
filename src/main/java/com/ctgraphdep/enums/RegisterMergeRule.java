@@ -1,7 +1,6 @@
 package com.ctgraphdep.enums;
 
 import com.ctgraphdep.model.RegisterEntry;
-import com.ctgraphdep.model.SyncStatus;
 
 import java.util.Arrays;
 import java.util.Objects;

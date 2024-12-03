@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.SyncStatus;
+import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
