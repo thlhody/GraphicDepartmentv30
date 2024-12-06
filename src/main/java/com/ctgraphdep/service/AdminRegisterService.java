@@ -8,6 +8,7 @@ import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepType;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -118,23 +119,13 @@ public class AdminRegisterService {
                 .omsId(source.getOmsId())
                 .clientName(source.getClientName())
                 .actionType(source.getActionType())
-                .printPrepType(source.getPrintPrepType())
+                .printPrepTypes(new ArrayList<>(source.getPrintPrepTypes()))
                 .colorsProfile(source.getColorsProfile())
                 .articleNumbers(source.getArticleNumbers())
                 .graphicComplexity(source.getGraphicComplexity())
                 .observations(source.getObservations())
                 .adminSync(source.getAdminSync())
                 .build();
-    }
-
-    // Filter entries by action type and/or print prep type
-    public List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
-                                             ActionType actionType,
-                                             PrintPrepType printPrepType) {
-        return entries.stream()
-                .filter(entry -> (actionType == null || entry.getActionType().equals(actionType.getValue())) &&
-                        (printPrepType == null || entry.getPrintPrepType().equals(printPrepType.getValue())))
-                .collect(Collectors.toList());
     }
 
     // Search entries by any field
@@ -207,15 +198,71 @@ public class AdminRegisterService {
         }
     }
 
+    public List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
+                                             ActionType actionType,
+                                             PrintPrepType printPrepType) {
+        return entries.stream()
+                .filter(entry -> {
+                    // If neither filter is selected, return all entries
+                    if (actionType == null && printPrepType == null) {
+                        return true;
+                    }
+
+                    // If only action type filter is selected
+                    if (printPrepType == null) {
+                        return actionType == null || entry.getActionType().equals(actionType.getValue());
+                    }
+
+                    // If only print prep type filter is selected
+                    if (actionType == null) {
+                        return entry.getPrintPrepTypes().contains(printPrepType.getValue());
+                    }
+
+                    // If both filters are selected
+                    return entry.getActionType().equals(actionType.getValue()) &&
+                            entry.getPrintPrepTypes().contains(printPrepType.getValue());
+                })
+                .collect(Collectors.toList());
+    }
+
+    private boolean matchesSearchTerm(RegisterEntry entry, String term) {
+        return String.valueOf(entry.getEntryId()).contains(term) ||
+                String.valueOf(entry.getUserId()).contains(term) ||
+                entry.getDate().toString().contains(term) ||
+                entry.getOrderId().toLowerCase().contains(term) ||
+                entry.getProductionId().toLowerCase().contains(term) ||
+                entry.getOmsId().toLowerCase().contains(term) ||
+                entry.getClientName().toLowerCase().contains(term) ||
+                entry.getActionType().toLowerCase().contains(term) ||
+                entry.getPrintPrepTypes().stream()
+                        .anyMatch(type -> type.toLowerCase().contains(term)) ||
+                entry.getColorsProfile().toLowerCase().contains(term) ||
+                String.valueOf(entry.getArticleNumbers()).contains(term) ||
+                String.valueOf(entry.getGraphicComplexity()).contains(term) ||
+                (entry.getObservations() != null &&
+                        entry.getObservations().toLowerCase().contains(term));
+    }
+
     private List<RegisterEntry> convertToRegisterEntries(List<Map<String, Object>> entriesData) {
         if (entriesData == null) return new ArrayList<>();
-
         return entriesData.stream()
                 .map(this::convertToRegisterEntry)
                 .collect(Collectors.toList());
     }
 
+    // And update any conversion methods that still use the old format
+    @SuppressWarnings("unchecked")
     private RegisterEntry convertToRegisterEntry(Map<String, Object> data) {
+        // Get printPrepTypes as a list from the data
+        List<String> printPrepTypes = new ArrayList<>();
+        if (data.get("printPrepTypes") instanceof List) {
+            printPrepTypes = new ArrayList<>(new LinkedHashSet<>((List<String>) data.get("printPrepTypes")));
+        } else if (data.get("printPrepTypes") instanceof String) {
+            printPrepTypes = new ArrayList<>(new LinkedHashSet<>(
+                    Arrays.asList(((String) data.get("printPrepTypes")).split("\\s*,\\s*"))
+            ));
+        }
+
         return RegisterEntry.builder()
                 .entryId(convertToInteger(data.get("entryId")))
                 .userId(convertToInteger(data.get("userId")))
@@ -225,7 +272,7 @@ public class AdminRegisterService {
                 .omsId(String.valueOf(data.get("omsId")))
                 .clientName(String.valueOf(data.get("clientName")))
                 .actionType(String.valueOf(data.get("actionType")))
-                .printPrepType(String.valueOf(data.get("printPrepType")))
+                .printPrepTypes(printPrepTypes)
                 .colorsProfile(String.valueOf(data.get("colorsProfile")))
                 .articleNumbers(convertToInteger(data.get("articleNumbers")))
                 .graphicComplexity(convertToDouble(data.get("graphicComplexity")))
@@ -388,21 +435,15 @@ public class AdminRegisterService {
     private Double loadMonthBonus(Integer employeeId, YearMonth month) {
         try {
             Path bonusPath = dataAccessService.getAdminBonusPath(month.getYear(), month.getMonthValue());
-            LoggerUtil.info(this.getClass(),
-                    String.format("Loading bonus for employee %d from path: %s", employeeId, bonusPath));
 
             Map<Integer, BonusEntry> entries = dataAccessService.readFile(bonusPath,
                     new TypeReference<Map<Integer, BonusEntry>>() {},
                     false);
 
-            Double bonus = Optional.ofNullable(entries.get(employeeId))
+            return Optional.ofNullable(entries.get(employeeId))
                     .map(BonusEntry::getBonusAmount)
                     .orElse(0.0);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Loaded bonus amount: %f for employee %d in %s", bonus, employeeId, month));
-
-            return bonus;
         } catch (Exception e) {
             LoggerUtil.info(this.getClass(),
                     String.format("No bonus entry found for employee %d in %s: %s",
@@ -411,30 +452,47 @@ public class AdminRegisterService {
         }
     }
 
-    private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer employeeId, int year, int month) {
-        YearMonth currentMonth = YearMonth.of(year, month);
-        LoggerUtil.info(this.getClass(),
-                String.format("Loading previous months bonuses for employee %d, current month: %s",
-                        employeeId, currentMonth));
+    private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, int year, int month) {
+        try {
+            // Get employee ID first
+            Integer employeeId = userService.getUserById(userId)
+                    .map(User::getEmployeeId)
+                    .orElse(userId); // Fallback to userId if employeeId not found
 
-        // Calculate previous months
-        YearMonth month1 = currentMonth.minusMonths(1);
-        YearMonth month2 = currentMonth.minusMonths(2);
-        YearMonth month3 = currentMonth.minusMonths(3);
+            YearMonth currentMonth = YearMonth.of(year, month);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Loading previous months bonuses for employee %d, current month: %s",
+                            employeeId, currentMonth));
 
-        Double bonus1 = loadMonthBonus(employeeId, month1);
-        Double bonus2 = loadMonthBonus(employeeId, month2);
-        Double bonus3 = loadMonthBonus(employeeId, month3);
+            // Calculate previous months
+            YearMonth month1 = currentMonth.minusMonths(1);
+            YearMonth month2 = currentMonth.minusMonths(2);
+            YearMonth month3 = currentMonth.minusMonths(3);
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Previous months bonuses for employee %d: %f, %f, %f",
-                        employeeId, bonus1, bonus2, bonus3));
+            Double bonus1 = loadMonthBonus(employeeId, month1);
+            Double bonus2 = loadMonthBonus(employeeId, month2);
+            Double bonus3 = loadMonthBonus(employeeId, month3);
 
-        return PreviousMonthsBonuses.builder()
-                .month1(bonus1)
-                .month2(bonus2)
-                .month3(bonus3)
-                .build();
+            LoggerUtil.info(this.getClass(),
+                    String.format("Previous months bonuses for employee %d: %f, %f, %f",
+                            employeeId, bonus1, bonus2, bonus3));
+
+            return PreviousMonthsBonuses.builder()
+                    .month1(bonus1)
+                    .month2(bonus2)
+                    .month3(bonus3)
+                    .build();
+
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(),
+                    String.format("Error loading previous bonuses for user %d, returning zeros: %s",
+                            userId, e.getMessage()));
+            return PreviousMonthsBonuses.builder()
+                    .month1(0.0)
+                    .month2(0.0)
+                    .month3(0.0)
+                    .build();
+        }
     }
 
     public BonusCalculationResult loadSavedBonusResult(Integer userId, int year, int month) {
@@ -470,23 +528,6 @@ public class AdminRegisterService {
             throw new RuntimeException("Failed to load bonus result", e);
         }
     }
-    // Helper methods
-    private boolean matchesSearchTerm(RegisterEntry entry, String term) {
-        return String.valueOf(entry.getEntryId()).contains(term) ||
-                String.valueOf(entry.getUserId()).contains(term) ||
-                entry.getDate().toString().contains(term) ||
-                entry.getOrderId().toLowerCase().contains(term) ||
-                entry.getProductionId().toLowerCase().contains(term) ||
-                entry.getOmsId().toLowerCase().contains(term) ||
-                entry.getClientName().toLowerCase().contains(term) ||
-                entry.getActionType().toLowerCase().contains(term) ||
-                entry.getPrintPrepType().toLowerCase().contains(term) ||
-                entry.getColorsProfile().toLowerCase().contains(term) ||
-                String.valueOf(entry.getArticleNumbers()).contains(term) ||
-                String.valueOf(entry.getGraphicComplexity()).contains(term) ||
-                (entry.getObservations() != null &&
-                        entry.getObservations().toLowerCase().contains(term));
-    }
 
     private void updateEntryField(RegisterEntry entry, String fieldName, String value) {
         switch (fieldName) {
@@ -504,7 +545,6 @@ public class AdminRegisterService {
                 .filter(entry -> bonusEligibleTypes.contains(entry.getActionType()))
                 .collect(Collectors.toList());
     }
-
 
     public RegisterSummary calculateRegisterSummary(List<RegisterEntry> entries) {
         // Filter valid entries

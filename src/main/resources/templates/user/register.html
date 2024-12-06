@@ -14,7 +14,43 @@
         .register-form:hover {
             transform: translateY(-2px);
         }
+        /* Set Select2 container height to match other inputs */
+        .select2-container--bootstrap-5 .select2-selection {
+            min-height: calc(1.5em + 0.5rem + 2px) !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+        }
 
+        /* Fix token/tag size */
+        .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+            padding: 2px 6px !important;
+            margin: 2px !important;
+            font-size: 0.875rem !important;
+        }
+
+        /* Adjust search box */
+        .select2-container--bootstrap-5 .select2-search__field {
+            margin-top: 2px !important;
+            height: calc(1.5em + 0.25rem) !important;
+        }
+
+        /* Fix dropdown size */
+        .select2-container--bootstrap-5 .select2-dropdown {
+            font-size: 0.875rem !important;
+        }
+
+        /* Fix dropdown items padding */
+        .select2-container--bootstrap-5 .select2-results__option {
+            padding: 0.25rem 0.5rem !important;
+        }
+
+        /* Make select2 match form-select-sm */
+        .select2-container--bootstrap-5.select2-container--form-select-sm .select2-selection {
+            min-height: calc(1.5em + 0.5rem + 2px) !important;
+            padding: 0.25rem 0.5rem !important;
+            font-size: 0.875rem !important;
+            border-radius: 0.25rem !important;
+        }
         .form-control-sm {
             height: calc(1.5em + 0.5rem + 2px);
             padding: 0.25rem 0.5rem;
@@ -199,7 +235,7 @@
                                     <span>Total (No Impostare): <strong
                                             id="total-entries-no-impostare">0</strong></span>
                                     <span>Avg Articles (No Impostare): <strong id="avg-articles">0.00</strong></span>
-                                    <span>Avg Complexity: <strong id="avg-complexity">0.00</strong></span>
+                                    <span>Avg Complexity (No Impostare): <strong id="avg-complexity">0.00</strong></span>
                                 </div>
                             </div>
                         </div>
@@ -276,14 +312,16 @@
                     </div>
 
                     <div class="col-auto" style="width: 140px;">
-                        <label for="printPrepTypeSelect" class="form-label">Print Prep Type*</label>
-                        <select id="printPrepTypeSelect" class="form-select form-select-sm" name="printPrepType"
+                        <label for="printPrepTypeSelect" class="form-label">Print Prep Types*</label>
+                        <select class="form-select form-select-sm select2-input"
+                                multiple
+                                name="printPrepTypes"
+                                id="printPrepTypeSelect"
                                 required>
-                            <option value="">Select Type</option>
                             <option th:each="type : ${printPrepTypes}"
                                     th:value="${type}"
-                                    th:selected="${param.form_printPrepType != null && param.form_printPrepType[0] == type}"
-                                    th:text="${type}">Print Type
+                                    th:text="${type}"
+                                    th:selected="${param.form_printPrepTypes != null && #strings.containsAny(param.form_printPrepTypes[0], type)}">
                             </option>
                         </select>
                     </div>
@@ -331,7 +369,8 @@
                                     style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
                                 <i class="bi bi-plus-circle me-1"></i>Add Entry
                             </button>
-                            <button type="button" onclick="resetForm()" class="btn btn-outline-secondary btn-sm"
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    onclick="window.registerFormHandler.resetForm()"
                                     style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
                                 <i class="bi bi-x-circle me-1"></i>Clear
                             </button>
@@ -385,7 +424,7 @@
                             <td th:text="${entry.omsId}"></td>
                             <td th:text="${entry.clientName}"></td>
                             <td th:text="${entry.actionType}"></td>
-                            <td th:text="${entry.printPrepType}"></td>
+                            <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
                             <td th:text="${entry.colorsProfile}"></td>
                             <td th:text="${entry.articleNumbers}"></td>
                             <td th:text="${entry.graphicComplexity}"></td>
@@ -412,7 +451,7 @@
                                        th:data-oms-id="${entry.omsId}"
                                        th:data-client-name="${entry.clientName}"
                                        th:data-action-type="${entry.actionType}"
-                                       th:data-print-prep-type="${entry.printPrepType}"
+                                       th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
                                        th:data-colors-profile="${entry.colorsProfile}"
                                        th:data-article-numbers="${entry.articleNumbers}"
                                        th:data-graphic-complexity="${entry.graphicComplexity}"
@@ -452,238 +491,516 @@
         <!-- Scripts -->
         <th:block layout:fragment="scripts">
             <script th:inline="javascript">
-                const baseUrl = /*[[@{/user/register/entry/}]]*/ '/user/register/entry/';
-                const defaultUrl = /*[[@{/user/register/entry}]]*/ '/user/register/entry';
+                // Constants for complexity calculations
+                const ACTION_TYPE_VALUES = {
+                    'ORDIN': 2.5,
+                    'REORDIN': 1.0,
+                    'CAMPION': 2.5,
+                    'PROBA STAMPA': 2.5,
+                    'ORD SPIZED': 2.0,
+                    'PROBA CULOARE': 2.5,
+                    'CARTELA CULORI': 2.5,
+                    'DESIGN': 2.5,
+                    'DESIGN 3D': 2.5,
+                    'PATTERN PREP': 2.5,
+                    'IMPOSTARE': 0.0,
+                    'OTHER': 2.5
+                };
 
-                document.addEventListener('DOMContentLoaded', function () {
+                // Print prep types that add complexity
+                const COMPLEXITY_PRINT_PREPS = {
+                    'SBS': 0.5,
+                    'NN': 0.5,
+                    'NAME': 0.5,
+                    'NUMBER': 0.5,
+                    'FLEX': 0.5,
+                    'BRODERIE': 0.5,
+                    'OTHER': 0.5
+                };
 
-                    // Edit button handlers
-                    const editButtons = document.querySelectorAll('[data-entry-id]');
-                    editButtons.forEach(button => {
-                        button.addEventListener('click', function (e) {
-                            e.preventDefault();
-                            populateForm(this);
+                // Print prep types that don't affect complexity
+                const NEUTRAL_PRINT_PREPS = {
+                    'DIGITAL': 0.0,
+                    'GPT': 0.0,
+                    'FILM': 0.0
+                };
+
+                class RegisterFormHandler {
+                    constructor() {
+                        this.form = document.getElementById('registerForm');
+                        this.initializeFormElements();
+                        this.initializeForm();
+                    }
+
+                    initializeFormElements() {
+                        this.actionTypeSelect = document.getElementById('actionTypeSelect');
+                        this.printPrepSelect = document.getElementById('printPrepTypeSelect');
+                        this.complexityInput = document.getElementById('complexityInput');
+                        this.colorsInput = document.getElementById('colorsInput');
+                        this.defaultUrl = '/user/register/entry';
+                    }
+
+                    initializeForm() {
+                        if (!this.form) return;
+
+                        // Initialize Select2 with simplified configuration
+                        $(this.printPrepSelect).select2({
+                            theme: 'bootstrap-5',
+                            width: '100%',
+                            placeholder: 'Select types',
+                            multiple: true,
+                            dropdownParent: $(this.printPrepSelect).parent(),
+                            selectionCssClass: 'form-select-sm'
                         });
-                    });
 
-                    // Form validation handler
-                    const formElement = document.querySelector('form[action*="/register/entry"]');
-                    if (formElement) {
-                        formElement.addEventListener('submit', function (e) {
-                            if (!validateRegisterForm(this)) {
-                                e.preventDefault();
-                            }
+                        this.setupEventListeners();
+                        this.initializeDefaultValues();
+                    }
+
+                    initializeSelect2() {
+                        // Initialize Select2 with custom configuration
+                        this.printPrepSelect.select2({
+                            theme: 'bootstrap-5',
+                            width: '100%',
+                            placeholder: 'Select print types...',
+                            allowClear: true,
+                            multiple: true,
+                            closeOnSelect: false,
+                            dropdownCssClass: 'select2-dropdown-medium'
                         });
                     }
 
-                    const entryElements = document.querySelectorAll('[data-entry-id]'); // Select all entry elements
-                    updateActionTypeCounts(entryElements); // Initialize counts
-
-                    // Add event listener for changes, if required
-                    formElement.addEventListener('change', function () {
-                        updateActionTypeCounts(entryElements);
-                    });
-
-                    const entries = Array.from(entryElements).map(entry => ({
-                        actionType: entry.getAttribute('data-action-type'),
-                        articleNumbers: parseFloat(entry.getAttribute('data-article-numbers')) || 0,
-                        graphicComplexity: parseFloat(entry.getAttribute('data-graphic-complexity')) || 0
-                    }));
-
-                    // Update metrics on page load
-                    updateKeyMetrics(entries);
-
-                    // Add event listeners for dynamic updates if needed
-                    formElement.addEventListener('change', function () {
-                        updateKeyMetrics(entries); // Recalculate metrics on form change
-                    });
-                });
-
-                function updateKeyMetrics(entries) {
-                    let totalEntries = entries.length;
-                    let filteredEntries = entries.filter(entry => entry.actionType !== 'IMPOSTARE');
-                    let totalEntriesNoImpostare = filteredEntries.length;
-
-                    // Calculate averages excluding IMPOSTARE entries
-                    let totalArticles = filteredEntries.reduce((sum, entry) => sum + (entry.articleNumbers || 0), 0);
-                    let totalComplexity = filteredEntries.reduce((sum, entry) => sum + (entry.graphicComplexity || 0), 0);
-
-                    let avgArticles = totalEntriesNoImpostare > 0 ? (totalArticles / totalEntriesNoImpostare).toFixed(2) : '0.00';
-                    let avgComplexity = totalEntriesNoImpostare > 0 ? (totalComplexity / totalEntriesNoImpostare).toFixed(2) : '0.00';
-
-                    // Update UI
-                    document.querySelector('#total-entries').textContent = totalEntries;
-                    document.querySelector('#total-entries-no-impostare').textContent = totalEntriesNoImpostare;
-                    document.querySelector('#avg-articles').textContent = avgArticles;
-                    document.querySelector('#avg-complexity').textContent = avgComplexity;
-                }
-
-                function updateActionTypeCounts(entries) {
-                    const actionTypes = {
-                        ORDIN: 0,
-                        REORDIN: 0,
-                        'PROBA STAMPA': 0,
-                        IMPOSTARE: 0,
-                        DESIGN: 0,
-                        'DESIGN 3D': 0,
-                        CAMPION: 0,
-                        OTHERS: 0
-                    };
-
-                    entries.forEach(entry => {
-                        const actionType = entry.getAttribute('data-action-type');
-                        if (actionTypes.hasOwnProperty(actionType)) {
-                            actionTypes[actionType]++;
-                        } else if (actionType === 'DESIGN' || actionType === 'DESIGN 3D') {
-                            actionTypes.DESIGN++;
-                        } else {
-                            actionTypes.OTHERS++;
-                        }
-                    });
-
-                    // Update the UI
-                    Object.keys(actionTypes).forEach(type => {
-                        const element = document.querySelector(`#count-${type.toLowerCase().replace(/\s+/g, '-')}`);
-                        if (element) {
-                            element.textContent = actionTypes[type];
-                        }
-                    });
-                }
-
-                function populateForm(button) {
-                    const form = document.getElementById('registerForm');
-                    if (!form) {
-                        console.error('Form not found');
-                        return;
-                    }
-
-                    const entryId = button.getAttribute('data-entry-id');
-
-                    // Use the Thymeleaf URL variable and ensure proper URL construction
-                    form.action = baseUrl + entryId;
-                    form.method = 'post';
-
-                    // Ensure year and month are included from hidden fields
-                    const year = form.querySelector('input[name="year"]').value;
-                    const month = form.querySelector('input[name="month"]').value;
-
-                    // Populate form fields
-                    const fieldMappings = {
-                        'date': button.getAttribute('data-date'),
-                        'orderId': button.getAttribute('data-order-id'),
-                        'productionId': button.getAttribute('data-production-id'),
-                        'omsId': button.getAttribute('data-oms-id'),
-                        'clientName': button.getAttribute('data-client-name'),
-                        'actionType': button.getAttribute('data-action-type'),
-                        'printPrepType': button.getAttribute('data-print-prep-type'),
-                        'colorsProfile': button.getAttribute('data-colors-profile'),
-                        'articleNumbers': button.getAttribute('data-article-numbers'),
-                        'graphicComplexity': button.getAttribute('data-graphic-complexity'),
-                        'observations': button.getAttribute('data-observations')
-                    };
-
-                    // Update all form fields
-                    for (const [fieldName, value] of Object.entries(fieldMappings)) {
-                        const field = form.querySelector(`[name="${fieldName}"]`);
-                        if (field) {
-                            field.value = value || '';
-                        }
-                    }
-
-                    // Update submit button text
-                    const submitButton = form.querySelector('button[type="submit"]');
-                    submitButton.innerHTML = '<i class="bi bi-check-circle me-1"></i>Update';
-
-                    // Improved scroll behavior
-                    // First, find the form's card container
-                    const formCard = form.closest('.card');
-
-                    // Calculate the header height (if you have a fixed header)
-                    const headerOffset = 80; // Adjust this value based on your header height
-
-                    // Calculate the target scroll position
-                    const formCardTop = formCard.getBoundingClientRect().top;
-                    const scrollPosition = window.pageYOffset + formCardTop - headerOffset;
-
-                    // Smooth scroll to the form
-                    window.scrollTo({
-                        top: scrollPosition,
-                        behavior: 'smooth'
-                    });
-
-                    // Focus on the first input field after scrolling
-                    setTimeout(() => {
-                        const firstInput = form.querySelector('input:not([type="hidden"])');
-                        if (firstInput) {
-                            firstInput.focus();
-                        }
-                    }, 500); // Wait for scroll animation to complete
-                }
-
-                // Enhanced form validation function
-                function validateRegisterForm(form) {
-                    // Store form values
-                    const formValues = new FormData(form);
-                    const params = new URLSearchParams();
-
-                    // Required fields with their error messages
-                    const requiredFields = [
-                        {name: 'date', message: 'missing_date'},
-                        {name: 'orderId', message: 'missing_order_id'},
-                        {name: 'omsId', message: 'missing_oms_id'},
-                        {name: 'clientName', message: 'missing_client'},
-                        {name: 'actionType', message: 'missing_action_type'},
-                        {name: 'printPrepType', message: 'missing_print_type'},
-                        {name: 'articleNumbers', message: 'missing_articles'}
-                    ];
-
-                    // Check required fields
-                    for (const field of requiredFields) {
-                        const value = formValues.get(field.name);
-                        if (!value || value.trim() === '') {
-                            // Add error and form data to URL parameters
-                            params.append('error', field.message);
-                            formValues.forEach((value, key) => {
-                                if (value && value.trim() !== '') {
-                                    params.append('form_' + key, value);
-                                }
+                    prepareFormData() {
+                        // Ensure printPrepTypes are properly set in the form
+                        const selectedPrintTypes = $(this.printPrepSelect).val();
+                        if (selectedPrintTypes) {
+                            // Create hidden inputs for each selected print type
+                            selectedPrintTypes.forEach(type => {
+                                const input = document.createElement('input');
+                                input.type = 'hidden';
+                                input.name = 'printPrepTypes[]';
+                                input.value = type;
+                                this.form.appendChild(input);
                             });
-                            params.append('year', formValues.get('year'));
-                            params.append('month', formValues.get('month'));
+                        }
+                    }
 
-                            window.location.href = '/user/register?' + params.toString();
+                    setupEventListeners() {
+                        // Form submission
+                        this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+
+                        // Action type changes
+                        this.actionTypeSelect.addEventListener('change', () => {
+                            this.autoFillColors();
+                            this.updateComplexityField();
+                        });
+
+                        // Print prep type changes
+                        $(this.printPrepSelect).on('change', () => {
+                            this.updateComplexityField();
+                        });
+
+                        // Edit button handlers
+                        document.querySelectorAll('.edit-entry').forEach(button => {
+                            button.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                this.populateForm(button);
+                            });
+                        });
+
+                        // Clear button
+                        const clearButton = this.form.querySelector('button[type="button"]');
+                        if (clearButton) {
+                            clearButton.addEventListener('click', () => this.resetForm());
+                        }
+                    }
+
+                    initializeDefaultValues() {
+                        // Set default date to today
+                        const dateInput = this.form.querySelector('input[name="date"]');
+                        if (dateInput) {
+                            dateInput.value = new Date().toISOString().split('T')[0];
+                        }
+
+                        this.autoFillColors();
+                        this.updateComplexityField();
+                    }
+
+                    calculateComplexity(actionType, printPrepTypes) {
+                        if (!actionType) return 0;
+
+                        // Special cases first
+                        if (actionType === 'IMPOSTARE') return 0.0;
+                        if (actionType === 'REORDIN') return 1.0;
+                        if (actionType === 'ORD SPIZED') return 2.0;
+
+                        // Fixed value actions
+                        const fixedValueActions = [
+                            'PROBA CULOARE', 'PROBA STAMPA', 'CARTELA CULORI',
+                            'DESIGN', 'DESIGN 3D', 'PATTERN PREP', 'OTHER'
+                        ];
+
+                        if (fixedValueActions.includes(actionType)) {
+                            return ACTION_TYPE_VALUES[actionType];
+                        }
+
+                        // For ORDIN and CAMPION, check print prep types
+                        if (actionType === 'ORDIN' || actionType === 'CAMPION') {
+                            const baseValue = ACTION_TYPE_VALUES[actionType];
+
+                            // If no print prep types selected, return base value
+                            if (!printPrepTypes || !printPrepTypes.length) return baseValue;
+
+                            // Check if any complexity-adding print prep types are selected
+                            const hasComplexityType = printPrepTypes.some(type => type in COMPLEXITY_PRINT_PREPS);
+
+                            // If any complexity-adding type is selected, return maximum complexity (3.0)
+                            if (hasComplexityType) {
+                                return 3.0;
+                            }
+
+                            // If only neutral types are selected, return base value
+                            return baseValue;
+                        }
+
+                        return ACTION_TYPE_VALUES[actionType] || 0;
+                    }
+
+                    updateComplexityField() {
+                        if (!this.complexityInput || !this.actionTypeSelect) return;
+
+                        // Get selected values correctly
+                        const selectedTypes = Array.from($(this.printPrepSelect).select2('data'))
+                            .map(item => item.text);
+
+                        const complexity = this.calculateComplexity(this.actionTypeSelect.value, selectedTypes);
+
+                        if (complexity >= 0) {
+                            this.complexityInput.value = complexity.toFixed(1);
+                        }
+                    }
+
+                    autoFillColors() {
+                        if (!this.colorsInput) return;
+
+                        // Auto-fill with 'A' if empty and action type is selected
+                        if (this.actionTypeSelect.value && (!this.colorsInput.value || this.colorsInput.value.trim() === '')) {
+                            this.colorsInput.value = 'A';
+                        }
+                    }
+
+                    validateForm() {
+                        const requiredFields = [
+                            { name: 'date', message: 'missing_date' },
+                            { name: 'orderId', message: 'missing_order_id' },
+                            { name: 'omsId', message: 'missing_oms_id' },
+                            { name: 'clientName', message: 'missing_client' },
+                            { name: 'actionType', message: 'missing_action_type' },
+                            { name: 'articleNumbers', message: 'missing_articles' }
+                        ];
+
+                        // Check regular fields
+                        for (const field of requiredFields) {
+                            const element = this.form.elements[field.name];
+                            if (!element || !element.value || element.value.trim() === '') {
+                                this.handleValidationError(field.message);
+                                return false;
+                            }
+                        }
+
+                        // Special check for printPrepTypes (Select2 multiple)
+                        const selectedPrintTypes = $(this.printPrepSelect).val();
+                        if (!selectedPrintTypes || selectedPrintTypes.length === 0) {
+                            this.handleValidationError('missing_print_type');
                             return false;
                         }
+
+                        return true;
                     }
 
-                    return true;
-                }
+                    handleValidationError(errorMessage) {
+                        const formData = new FormData(this.form);
+                        const params = new URLSearchParams();
 
-                // Reset form function with proper cleanup
-                function resetForm() {
-                    const form = document.getElementById('registerForm');
-                    if (!form) return;
+                        params.append('error', errorMessage);
+                        formData.forEach((value, key) => {
+                            if (value && value.trim() !== '') {
+                                params.append('form_' + key, value);
+                            }
+                        });
 
-                    // Reset all form fields
-                    form.reset();
+                        // Preserve year and month
+                        params.append('year', formData.get('year'));
+                        params.append('month', formData.get('month'));
 
-                    // Reset form action to default
-                    form.action = defaultUrl;
-                    form.method = 'post';
-
-                    // Clear the entry ID
-                    document.getElementById('editingId').value = '';
-
-                    // Set today's date
-                    const dateInput = form.querySelector('input[name="date"]');
-                    if (dateInput) {
-                        dateInput.value = new Date().toISOString().split('T')[0];
+                        window.location.href = '/user/register?' + params.toString();
                     }
 
-                    // Reset submit button text
-                    const submitButton = form.querySelector('button[type="submit"]');
-                    submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+                    handleSubmit(event) {
+                        event.preventDefault();
+
+                        if (!this.validateForm()) {
+                            return;
+                        }
+
+                        // Clear any existing printPrepTypes hidden fields
+                        this.form.querySelectorAll('input[name="printPrepTypes"]').forEach(el => el.remove());
+
+                        // Get selected print types from Select2 and remove duplicates
+                        const selectedPrintTypes = Array.from(new Set($(this.printPrepSelect).val()));
+
+                        if (selectedPrintTypes && selectedPrintTypes.length > 0) {
+                            // Create a hidden input for each unique selected print type
+                            selectedPrintTypes.forEach(type => {
+                                const input = document.createElement('input');
+                                input.type = 'hidden';
+                                input.name = 'printPrepTypes';
+                                input.value = type;
+                                this.form.appendChild(input);
+                            });
+                        }
+
+                        // Submit the form
+                        this.form.submit();
+                    }
+
+                    scrollToForm() {
+                        this.form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+
+                    resetForm() {
+                        this.form.reset();
+                        this.form.action = this.defaultUrl;
+                        this.form.method = 'post';
+
+                        // Reset hidden fields
+                        document.getElementById('editingId').value = '';
+                        document.getElementById('isEdit').value = 'false';
+
+                        // Reset date to today
+                        const dateInput = this.form.querySelector('input[name="date"]');
+                        if (dateInput) {
+                            dateInput.value = new Date().toISOString().split('T')[0];
+                        }
+
+                        // Reset Select2
+                        $(this.printPrepSelect).val(null).trigger('change');
+
+                        // Reset submit button
+                        const submitButton = this.form.querySelector('button[type="submit"]');
+                        submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+
+                        // Update calculated fields
+                        this.autoFillColors();
+                        this.updateComplexityField();
+                    }
+
+                    populateForm(button) {
+                        const entryId = button.getAttribute('data-entry-id');
+                        this.form.action = `${this.defaultUrl}/${entryId}`;
+                        this.form.method = 'post';
+
+                        // Handle print prep types correctly - remove duplicates when populating
+                        const printPrepTypesStr = button.getAttribute('data-print-prep-types');
+                        if (printPrepTypesStr) {
+                            const printPrepTypes = [...new Set(
+                                printPrepTypesStr.split(', ')
+                                    .map(type => type.trim())
+                                    .filter(type => type)
+                            )];
+                            $(this.printPrepSelect).val(printPrepTypes).trigger('change');
+                        }
+
+                        // Populate all fields
+                        const fields = [
+                            'date', 'orderId', 'productionId', 'omsId', 'clientName',
+                            'actionType', 'colorsProfile', 'articleNumbers',
+                            'graphicComplexity', 'observations'
+                        ];
+
+                        fields.forEach(field => {
+                            const input = this.form.querySelector(`[name="${field}"]`);
+                            if (input) {
+                                input.value = button.getAttribute(`data-${field.replace(/([A-Z])/g, '-$1').toLowerCase()}`) || '';
+                            }
+                        });
+
+                        // Update button text
+                        const submitButton = this.form.querySelector('button[type="submit"]');
+                        submitButton.innerHTML = '<i class="bi bi-check-circle me-1"></i>Update';
+
+                        this.scrollToForm();
+                    }
                 }
+
+                class RegisterSummaryHandler {
+                    constructor() {
+                        // Initialize counters
+                        this.actionCounts = {
+                            ordin: 0,
+                            reordin: 0,
+                            campion: 0,
+                            probaStampa: 0,
+                            design: 0,
+                            others: 0,
+                            impostare: 0
+                        };
+
+                        this.metrics = {
+                            totalEntries: 0,
+                            totalNoImpostare: 0,
+                            avgArticles: 0,
+                            avgComplexity: 0
+                        };
+
+                        this.setupObserver();
+                        // Initial calculation
+                        try {
+                            this.calculateStats();
+                        } catch (error) {
+                            console.error('Error calculating initial stats:', error);
+                        }
+
+                        // Add form submission handler to recalculate after form actions
+                        const registerForm = document.getElementById('registerForm');
+                        if (registerForm) {
+                            registerForm.addEventListener('submit', () => {
+                                // Allow time for DOM to update
+                                setTimeout(() => this.calculateStats(), 100);
+                            });
+                        }
+                    }
+
+                    setupObserver() {
+                        try {
+                            const tableBody = document.querySelector('.table tbody');
+                            if (tableBody) {
+                                const observer = new MutationObserver((mutations) => {
+                                    // Check if mutations actually affect our data
+                                    const hasRelevantChanges = mutations.some(mutation =>
+                                    mutation.type === 'childList' ||
+                                    (mutation.type === 'characterData' &&
+                                    mutation.target.parentElement?.tagName === 'TD')
+                                    );
+
+                                    if (hasRelevantChanges) {
+                                        this.calculateStats();
+                                    }
+                                });
+
+                                observer.observe(tableBody, {
+                                    childList: true,
+                                    subtree: true,
+                                    characterData: true
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error setting up observer:', error);
+                        }
+                    }
+
+                    calculateStats() {
+
+                        try {
+                            // Reset counters
+                            Object.keys(this.actionCounts).forEach(key => this.actionCounts[key] = 0);
+                            // Get all valid entries (excluding empty state row)
+                            const entries = Array.from(document.querySelectorAll('.table tbody tr'))
+                                .filter(row => !row.querySelector('.text-muted') && row.cells.length > 10);
+
+
+                            let totalArticles = 0;
+                            let totalComplexity = 0;
+                            let nonImpostareCount = 0;
+
+                            // Process each entry
+                            entries.forEach(row => {
+                                const cells = row.cells;
+                                const actionType = cells[6]?.textContent?.trim().toUpperCase();
+                                const articles = parseInt(cells[9]?.textContent || '0');
+                                const complexity = parseFloat(cells[10]?.textContent || '0');
+
+                                // Count action types
+                                switch(actionType) {
+                                    case 'ORDIN': this.actionCounts.ordin++; break;
+                                    case 'REORDIN': this.actionCounts.reordin++; break;
+                                    case 'CAMPION': this.actionCounts.campion++; break;
+                                    case 'PROBA STAMPA': this.actionCounts.probaStampa++; break;
+                                    case 'DESIGN':
+                                    case 'DESIGN 3D':this.actionCounts.design++;break;
+                                    case 'IMPOSTARE': this.actionCounts.impostare++; break;
+                                    default: this.actionCounts.others++; break;
+                                }
+
+                                // Calculate metrics excluding IMPOSTARE entries
+                                if (actionType !== 'IMPOSTARE') {
+                                    nonImpostareCount++;
+                                    totalArticles += articles;
+                                    totalComplexity += complexity;
+                                }
+                            });
+
+                            // Calculate metrics
+                            this.metrics.totalEntries = entries.length;
+                            this.metrics.totalNoImpostare = nonImpostareCount;
+                            this.metrics.avgArticles = nonImpostareCount ?
+                            (totalArticles / nonImpostareCount).toFixed(2) : '0.00';
+                            this.metrics.avgComplexity = nonImpostareCount ?
+                            (totalComplexity / nonImpostareCount).toFixed(2) : '0.00';
+
+                            this.updateUI();
+
+                        } catch (error) {
+                            console.error('Error calculating stats:', error);
+                            // Reset to safe values on error
+                            this.resetStats();
+                        }
+                    }
+
+                    resetStats() {
+                        Object.keys(this.actionCounts).forEach(key => this.actionCounts[key] = 0);
+                        this.metrics = {
+                            totalEntries: 0,
+                            totalNoImpostare: 0,
+                            avgArticles: '0.00',
+                            avgComplexity: '0.00'
+                        };
+                        this.updateUI();
+                    }
+
+                    updateUI() {
+                        try {
+                            const elements = {
+                                'count-ordin': this.actionCounts.ordin,
+                                'count-reordin': this.actionCounts.reordin,
+                                'count-campion': this.actionCounts.campion,
+                                'count-proba-stampa': this.actionCounts.probaStampa,
+                                'count-design': this.actionCounts.design,
+                                'count-others': this.actionCounts.others,
+                                'count-impostare': this.actionCounts.impostare,
+                                'total-entries': this.metrics.totalEntries,
+                                'total-entries-no-impostare': this.metrics.totalNoImpostare,
+                                'avg-articles': this.metrics.avgArticles,
+                                'avg-complexity': this.metrics.avgComplexity
+                            };
+
+                            Object.entries(elements).forEach(([id, value]) => {
+                                const element = document.getElementById(id);
+                                if (element) {
+                                    element.textContent = value;
+                                }
+                            });
+                        } catch (error) {
+                            console.error('Error updating UI:', error);
+                        }
+                    }
+                }
+
+                // Initialize on DOM load
+                document.addEventListener('DOMContentLoaded', () => {
+                    window.registerFormHandler = new RegisterFormHandler();
+                    window.registerSummaryHandler = new RegisterSummaryHandler();
+                });
             </script>
         </th:block>
     </div>

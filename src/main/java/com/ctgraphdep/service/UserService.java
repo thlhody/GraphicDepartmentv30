@@ -17,4 +17,5 @@ public interface UserService {
     boolean changePassword(Integer userId, String currentPassword, String newPassword);
     List<User> getNonAdminUsers(List<User> allUsers);
     String getPasswordHash(String username);
+    Optional<User> findByEmployeeId(Integer employeeId);
 }

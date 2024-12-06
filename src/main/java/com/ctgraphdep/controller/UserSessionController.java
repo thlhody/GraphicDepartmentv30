@@ -62,12 +62,20 @@ public class UserSessionController extends BaseController {
                     user.getUserId()
             );
 
+            // Verify session ownership
+            if (session != null && !session.getUsername().equals(user.getUsername())) {
+                LoggerUtil.warn(this.getClass(),
+                        "Session ownership mismatch for user: " + user.getUsername());
+                session = null;
+            }
+
             // Calculate work time if active
             if (isActiveSession(session)) {
                 updateActiveSession(session, user.getSchedule());
             }
 
             // Populate model
+            assert session != null;
             populateSessionModel(model, session);
 
             return "user/session";
@@ -78,10 +86,23 @@ public class UserSessionController extends BaseController {
             return "user/session";
         }
     }
+    private boolean verifySessionOwnership(String username, WorkUsersSessionsStates session) {
+        return session != null && session.getUsername().equals(username);
+    }
 
     @PostMapping("/start")
     public String startSession(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
+
+        // Clear any existing session first
+        WorkUsersSessionsStates existingSession = userSessionService.getCurrentSession(
+                user.getUsername(),
+                user.getUserId()
+        );
+
+        if (existingSession != null && !verifySessionOwnership(user.getUsername(), existingSession)) {
+            return "redirect:/user/session";
+        }
 
         userSessionService.startDay(
                 user.getUsername(),
@@ -115,13 +136,17 @@ public class UserSessionController extends BaseController {
     @PostMapping("/end")
     public String endSession(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
-
         WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(
                 user.getUsername(),
                 user.getUserId()
         );
 
-        if (currentSession != null && WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
+        // First check if session is already offline
+        if (currentSession == null || WorkCode.WORK_OFFLINE.equals(currentSession.getSessionStatus())) {
+            return "redirect:/user/session";
+        }
+
+        if (WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
             calculationService.calculateCurrentWork(currentSession, user.getSchedule());
             userSessionService.endDay(
                     user.getUsername(),

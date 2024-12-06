@@ -34,7 +34,7 @@ public class UserTimeOffService {
                 String.format("Processing time off request for user %s: %s to %s (%s)",
                         user.getUsername(), startDate, endDate, timeOffType));
 
-        // Calculate workdays between dates
+        // Calculate workdays between dates, excluding national holidays
         int workDays = CalculateWorkHoursUtil.calculateWorkDays(startDate, endDate, userWorkTimeService);
 
         // For CO (paid holiday) requests, verify and deduct from holiday balance
@@ -44,10 +44,10 @@ public class UserTimeOffService {
                 throw new RuntimeException("Failed to deduct holiday days from balance");
             }
             LoggerUtil.info(this.getClass(),
-                    String.format("Deducted %d holiday days for user %s", workDays, user.getUsername()));
+                    String.format("User %s used %d holiday days", user.getUsername(), workDays));
         }
 
-        // Create time off entries
+        // Create time off entries (skipping national holidays)
         List<WorkTimeTable> entries = createTimeOffEntries(user, startDate, endDate, timeOffType);
 
         // Save entries for each affected month
@@ -55,6 +55,87 @@ public class UserTimeOffService {
 
         LoggerUtil.info(this.getClass(),
                 String.format("Saved %d time off entries for user %s", entries.size(), user.getUsername()));
+    }
+
+    private List<WorkTimeTable> createTimeOffEntries(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
+        List<WorkTimeTable> entries = new ArrayList<>();
+        LocalDate currentDate = startDate;
+
+        while (!currentDate.isAfter(endDate)) {
+            // Skip weekends
+            if (currentDate.getDayOfWeek().getValue() >= 6) {
+                currentDate = currentDate.plusDays(1);
+                continue;
+            }
+
+            // Skip national holidays
+            if (userWorkTimeService.isNationalHoliday(currentDate)) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Skipping national holiday: %s", currentDate));
+                currentDate = currentDate.plusDays(1);
+                continue;
+            }
+
+            // Create entry
+            WorkTimeTable entry = new WorkTimeTable();
+            entry.setUserId(user.getUserId());
+            entry.setWorkDate(currentDate);
+            entry.setTimeOffType(timeOffType);
+            entry.setAdminSync(SyncStatus.USER_INPUT);
+
+            // Reset work-related fields
+            resetWorkFields(entry);
+
+            entries.add(entry);
+            currentDate = currentDate.plusDays(1);
+        }
+
+        return entries;
+    }
+
+    private void resetWorkFields(WorkTimeTable entry) {
+        entry.setDayStartTime(null);
+        entry.setDayEndTime(null);
+        entry.setTemporaryStopCount(0);
+        entry.setLunchBreakDeducted(false);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+    }
+
+    private void saveTimeOffEntries(String username, List<WorkTimeTable> newEntries) {
+        // Group entries by month
+        Map<YearMonth, List<WorkTimeTable>> entriesByMonth = newEntries.stream()
+                .collect(Collectors.groupingBy(entry ->
+                        YearMonth.from(entry.getWorkDate())));
+
+        // Process each month's entries
+        entriesByMonth.forEach((yearMonth, monthEntries) -> {
+            // Load existing entries for the month
+            List<WorkTimeTable> existingEntries = loadMonthEntries(username,
+                    yearMonth.getYear(), yearMonth.getMonthValue());
+
+            // Remove any existing entries for these dates
+            Set<LocalDate> newDates = monthEntries.stream()
+                    .map(WorkTimeTable::getWorkDate)
+                    .collect(Collectors.toSet());
+
+            // Filter out existing entries that conflict with new dates
+            existingEntries.removeIf(entry -> newDates.contains(entry.getWorkDate()));
+
+            // Add new entries
+            existingEntries.addAll(monthEntries);
+
+            // Sort entries by date
+            existingEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate));
+
+            // Save updated entries
+            saveMonthEntries(username, yearMonth.getYear(), yearMonth.getMonthValue(), existingEntries);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Saved %d entries for %s - %d/%d",
+                            existingEntries.size(), username, yearMonth.getYear(), yearMonth.getMonthValue()));
+        });
     }
 
     public List<WorkTimeTable> getUpcomingTimeOff(User user) {
@@ -79,70 +160,6 @@ public class UserTimeOffService {
                 .filter(entry -> entry.getWorkDate().isAfter(today))    // Only future dates
                 .sorted((a, b) -> a.getWorkDate().compareTo(b.getWorkDate()))
                 .collect(Collectors.toList());
-    }
-
-    private List<WorkTimeTable> createTimeOffEntries(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
-        List<WorkTimeTable> entries = new ArrayList<>();
-        LocalDate currentDate = startDate;
-
-        while (!currentDate.isAfter(endDate)) {
-            // Skip weekends
-            if (currentDate.getDayOfWeek().getValue() >= 6) {
-                currentDate = currentDate.plusDays(1);
-                continue;
-            }
-
-            // Create entry
-            WorkTimeTable entry = new WorkTimeTable();
-            entry.setUserId(user.getUserId());
-            entry.setWorkDate(currentDate);
-            entry.setTimeOffType(timeOffType);
-            entry.setAdminSync(SyncStatus.USER_INPUT);
-
-            // Set default values
-            entry.setDayStartTime(null);
-            entry.setDayEndTime(null);
-            entry.setTemporaryStopCount(0);
-            entry.setLunchBreakDeducted(false);
-            entry.setTotalWorkedMinutes(0);
-            entry.setTotalTemporaryStopMinutes(0);
-            entry.setTotalOvertimeMinutes(0);
-
-            entries.add(entry);
-            currentDate = currentDate.plusDays(1);
-        }
-
-        return entries;
-    }
-
-    private void saveTimeOffEntries(String username, List<WorkTimeTable> newEntries) {
-        // Group entries by month
-        Map<YearMonth, List<WorkTimeTable>> entriesByMonth = newEntries.stream()
-                .collect(Collectors.groupingBy(entry ->
-                        YearMonth.from(entry.getWorkDate())));
-
-        // Process each month's entries
-        entriesByMonth.forEach((yearMonth, monthEntries) -> {
-            // Load existing entries for the month
-            List<WorkTimeTable> existingEntries = loadMonthEntries(username,
-                    yearMonth.getYear(), yearMonth.getMonthValue());
-
-            // Remove any existing entries for these dates
-            Set<LocalDate> newDates = monthEntries.stream()
-                    .map(WorkTimeTable::getWorkDate)
-                    .collect(Collectors.toSet());
-
-            existingEntries.removeIf(entry -> newDates.contains(entry.getWorkDate()));
-
-            // Add new entries
-            existingEntries.addAll(monthEntries);
-
-            // Sort entries by date
-            existingEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate));
-
-            // Save updated entries
-            saveMonthEntries(username, yearMonth.getYear(), yearMonth.getMonthValue(), existingEntries);
-        });
     }
 
     private List<WorkTimeTable> loadMonthEntries(String username, int year, int month) {

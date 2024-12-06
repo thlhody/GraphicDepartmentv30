@@ -166,9 +166,8 @@ public class UserRegisterService {
         validateField(entry.getOmsId(), "OMS ID", "missing_oms_id");
         validateField(entry.getClientName(), "Client name", "missing_client_name");
         validateField(entry.getActionType(), "Action type", "missing_action_type");
-        validateField(entry.getPrintPrepType(), "Print prep type", "missing_print_prep_type");
+        validateField(entry.getPrintPrepTypes(), "Print prep types", "missing_print_prep_type");
         validateField(entry.getArticleNumbers(), "Article numbers", "missing_article_numbers");
-
     }
 
     private void validateField(Object field, String fieldName, String errorCode) {

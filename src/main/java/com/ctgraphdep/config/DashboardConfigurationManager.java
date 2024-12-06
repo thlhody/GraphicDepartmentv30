@@ -27,7 +27,8 @@ public class DashboardConfigurationManager {
                         createAdminBonusCard(),
                         createOMSSystemCard(),
                         createHolidaysCard(),
-                        createSettingsCard()
+                        createSettingsCard(),
+                        createAdminStatistics()
 
                 ))
                 .build();
@@ -142,6 +143,20 @@ public class DashboardConfigurationManager {
                 .actionUrl("/admin/bonus")
                 .external(false)
                 .permission("MANAGE_BONUS")
+                .build();
+    }
+    private DashboardCard createAdminStatistics() {
+        return DashboardCard.builder()
+                .title("Admin Statistics Management")
+                .subtitle("CT3 Statistics")
+                .color("primary")
+                .icon("journal-text")
+                .badge("View")
+                .badgeColor("primary")
+                .actionText("Manage Statistics")
+                .actionUrl("/admin/statistics")
+                .external(false)
+                .permission("MANAGE_STATISTICS")
                 .build();
     }
 

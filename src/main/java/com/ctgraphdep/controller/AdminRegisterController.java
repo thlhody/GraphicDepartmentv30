@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -156,22 +157,31 @@ public class AdminRegisterController {
             DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE;
 
             List<RegisterEntry> entries = entriesData.stream()
-                    .map(data -> RegisterEntry.builder()
-                            .entryId(Integer.parseInt(data.get("entryId").toString()))
-                            .userId(Integer.parseInt(data.get("userId").toString()))
-                            .date(LocalDate.parse(data.get("date").toString(), formatter))  // Parse ISO format date
-                            .orderId(data.get("orderId").toString())
-                            .productionId(data.get("productionId").toString())
-                            .omsId(data.get("omsId").toString())
-                            .clientName(data.get("clientName").toString())
-                            .actionType(data.get("actionType").toString())
-                            .printPrepType(data.get("printPrepType").toString())
-                            .colorsProfile(data.get("colorsProfile").toString())
-                            .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
-                            .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
-                            .observations(data.get("observations") != null ? data.get("observations").toString() : "")
-                            .adminSync(data.get("adminSync").toString())  // Keep existing status
-                            .build())
+                    .map(data -> {
+                        // Handle printPrepTypes conversion
+                        String printPrepTypesStr = String.valueOf(data.get("printPrepType"));
+                        List<String> printPrepTypes = new ArrayList<>();
+                        if (printPrepTypesStr != null && !printPrepTypesStr.isEmpty()) {
+                            printPrepTypes = Arrays.asList(printPrepTypesStr.split("\\s*,\\s*"));
+                        }
+
+                        return RegisterEntry.builder()
+                                .entryId(Integer.parseInt(data.get("entryId").toString()))
+                                .userId(Integer.parseInt(data.get("userId").toString()))
+                                .date(LocalDate.parse(data.get("date").toString(), formatter))
+                                .orderId(data.get("orderId").toString())
+                                .productionId(data.get("productionId").toString())
+                                .omsId(data.get("omsId").toString())
+                                .clientName(data.get("clientName").toString())
+                                .actionType(data.get("actionType").toString())
+                                .printPrepTypes(printPrepTypes)  // Updated to use the list
+                                .colorsProfile(data.get("colorsProfile").toString())
+                                .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
+                                .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
+                                .observations(data.get("observations") != null ? data.get("observations").toString() : "")
+                                .adminSync(data.get("adminSync").toString())
+                                .build();
+                    })
                     .collect(Collectors.toList());
 
             adminRegisterService.bulkUpdateEntries(entries, selectedIds, "graphicComplexity", newValue.toString());
@@ -197,22 +207,31 @@ public class AdminRegisterController {
             DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE;
 
             List<RegisterEntry> entries = entriesData.stream()
-                    .map(data -> RegisterEntry.builder()
-                            .entryId(Integer.parseInt(data.get("entryId").toString()))
-                            .userId(Integer.parseInt(data.get("userId").toString()))
-                            .date(LocalDate.parse(data.get("date").toString(), formatter))
-                            .orderId(data.get("orderId").toString())
-                            .productionId(data.get("productionId").toString())
-                            .omsId(data.get("omsId").toString())
-                            .clientName(data.get("clientName").toString())
-                            .actionType(data.get("actionType").toString())
-                            .printPrepType(data.get("printPrepType").toString())
-                            .colorsProfile(data.get("colorsProfile").toString())
-                            .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
-                            .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
-                            .observations(data.get("observations") != null ? data.get("observations").toString() : "")
-                            .adminSync(data.get("adminSync").toString())
-                            .build())
+                    .map(data -> {
+                        // Handle printPrepTypes conversion
+                        String printPrepTypesStr = String.valueOf(data.get("printPrepType"));
+                        List<String> printPrepTypes = new ArrayList<>();
+                        if (printPrepTypesStr != null && !printPrepTypesStr.isEmpty()) {
+                            printPrepTypes = Arrays.asList(printPrepTypesStr.split("\\s*,\\s*"));
+                        }
+
+                        return RegisterEntry.builder()
+                                .entryId(Integer.parseInt(data.get("entryId").toString()))
+                                .userId(Integer.parseInt(data.get("userId").toString()))
+                                .date(LocalDate.parse(data.get("date").toString(), formatter))
+                                .orderId(data.get("orderId").toString())
+                                .productionId(data.get("productionId").toString())
+                                .omsId(data.get("omsId").toString())
+                                .clientName(data.get("clientName").toString())
+                                .actionType(data.get("actionType").toString())
+                                .printPrepTypes(printPrepTypes)  // Updated to use the list
+                                .colorsProfile(data.get("colorsProfile").toString())
+                                .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
+                                .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
+                                .observations(data.get("observations") != null ? data.get("observations").toString() : "")
+                                .adminSync(data.get("adminSync").toString())
+                                .build();
+                    })
                     .collect(Collectors.toList());
 
             // Update USER_INPUT statuses to USER_DONE before saving

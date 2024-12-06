@@ -43,25 +43,36 @@ public class WorkTimeManagementService {
         try {
             validateUpdateRequest(userId, date, value);
 
+            // Check existing entry before update for CO handling
+            WorkTimeTable existingEntry = getExistingEntry(userId, date);
+            boolean wasTimeOff = existingEntry != null &&
+                    WorkCode.TIME_OFF_CODE.equals(existingEntry.getTimeOffType());
+
             // Create appropriate entry based on value
             WorkTimeTable entry;
-            if (value == null || value.trim().isEmpty()) {
-                // Create a blank entry with ADMIN_BLANK status
+            if (value == null || value.trim().isEmpty() || "REMOVE".equals(value)) {
+                // Handle removal explicitly
                 entry = createBlankEntry(userId, date);
-                entry.setAdminSync(SyncStatus.ADMIN_BLANK);  // Explicitly set status
+                entry.setAdminSync(SyncStatus.ADMIN_BLANK);
+                if (wasTimeOff) {
+                    restorePaidHoliday(userId);
+                }
             } else if (value.matches("^(SN|CO|CM)$")) {
                 entry = createTimeOffEntry(userId, date, value);
-                entry.setAdminSync(SyncStatus.ADMIN_EDITED);  // Set ADMIN_EDITED for new value
+                entry.setAdminSync(SyncStatus.ADMIN_EDITED);
+                if (WorkCode.TIME_OFF_CODE.equals(value) && !wasTimeOff) {
+                    processTimeOffUpdate(userId, date, value);
+                }
             } else if (value.matches("^([1-9]|1\\d|2[0-4])$")) {
                 entry = createWorkHoursEntry(userId, date, Integer.parseInt(value));
-                entry.setAdminSync(SyncStatus.ADMIN_EDITED);  // Set ADMIN_EDITED for new value
+                entry.setAdminSync(SyncStatus.ADMIN_EDITED);
+                if (wasTimeOff) {
+                    restorePaidHoliday(userId);
+                }
             } else {
                 LoggerUtil.info(WorkTimeManagementService.class, "Invalid value format: " + value);
                 throw new IllegalArgumentException("Invalid value format: " + value);
             }
-
-            // Handle CO removal if necessary
-            handleCORemoval(userId, date, value);
 
             // Save entry with proper status handling
             saveAdminEntryWithStatusHandling(entry, date.getYear(), date.getMonthValue());
@@ -73,6 +84,20 @@ public class WorkTimeManagementService {
         } finally {
             adminLock.unlock();
         }
+    }
+
+    private WorkTimeTable getExistingEntry(Integer userId, LocalDate date) {
+        List<WorkTimeTable> existingEntries = dataAccess.readFile(
+                dataAccess.getAdminWorktimePath(date.getYear(), date.getMonthValue()),
+                WORKTIME_LIST_TYPE,
+                true
+        );
+
+        return existingEntries.stream()
+                .filter(entry -> entry.getUserId().equals(userId) &&
+                        entry.getWorkDate().equals(date))
+                .findFirst()
+                .orElse(null);
     }
 
     private void saveAdminEntryWithStatusHandling(WorkTimeTable newEntry, int year, int month) {
@@ -148,6 +173,19 @@ public class WorkTimeManagementService {
         }
     }
 
+    private void processTimeOffUpdate(Integer userId, LocalDate date, String type) {
+        if (WorkCode.TIME_OFF_CODE.equals(type)) { // "CO" is the time off code
+            int availableDays = holidayService.getRemainingHolidayDays(null, userId);
+            if (availableDays < 1) {
+                throw new IllegalStateException("Insufficient paid holiday days available");
+            }
+            holidayService.updateUserHolidayDays(userId, availableDays - 1);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Deducted 1 paid holiday day for user %d. New balance: %d",
+                            userId, availableDays - 1));
+        }
+    }
+
     private void validateUpdateRequest(Integer userId, LocalDate date, String value) {
         if (userId == null || date == null) {
             throw new IllegalArgumentException("Invalid update parameters");
@@ -155,7 +193,7 @@ public class WorkTimeManagementService {
 
         YearMonth requested = YearMonth.from(date);
         YearMonth current = YearMonth.now();
-        YearMonth previous = current.minusMonths(1);
+        YearMonth previous = current.minusMonths(4);
 
         if (requested.isBefore(previous) || requested.isAfter(current)) {
             throw new IllegalArgumentException("Can only update current or previous month");
@@ -219,7 +257,7 @@ public class WorkTimeManagementService {
         entry.setTotalWorkedMinutes(totalMinutes);
 
         // Calculate end time based on total minutes
-        LocalDateTime endTime = CalculateWorkHoursUtil.calculateEndTime(date, totalMinutes);
+        LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
         entry.setDayEndTime(endTime);
 
         // Set lunch break if more than 4 hours
@@ -242,25 +280,6 @@ public class WorkTimeManagementService {
         entry.setTotalWorkedMinutes(0);
         entry.setTotalTemporaryStopMinutes(0);
         entry.setTotalOvertimeMinutes(0);
-    }
-
-    private void handleCORemoval(Integer userId, LocalDate date, String newValue) {
-        List<WorkTimeTable> existingEntries = dataAccess.readFile(
-                dataAccess.getAdminWorktimePath(date.getYear(), date.getMonthValue()),
-                WORKTIME_LIST_TYPE,
-                true
-        );
-
-        existingEntries.stream()
-                .filter(entry -> entry.getUserId().equals(userId) &&
-                        entry.getWorkDate().equals(date) &&
-                        WorkCode.TIME_OFF_CODE.equals(entry.getTimeOffType()))
-                .findFirst()
-                .ifPresent(entry -> {
-                    if (!WorkCode.TIME_OFF_CODE.equals(newValue)) {
-                        restorePaidHoliday(userId);
-                    }
-                });
     }
 
     private void restorePaidHoliday(Integer userId) {
@@ -331,16 +350,13 @@ public class WorkTimeManagementService {
                 true
         );
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Loaded %d total entries", entries.size()));
+        LoggerUtil.info(this.getClass(), String.format("Loaded %d total entries", entries.size()));
 
         long workedDays = entries.stream()
                 .filter(entry -> {
                     boolean matches = entry.getUserId().equals(userId);
                     if (!matches) {
-                        LoggerUtil.debug(this.getClass(),
-                                String.format("Entry userId %d doesn't match requested %d",
-                                        entry.getUserId(), userId));
+                        //LoggerUtil.debug(this.getClass(), String.format("Entry userId %d doesn't match requested %d", entry.getUserId(), userId));
                     }
                     return matches;
                 })
@@ -349,18 +365,13 @@ public class WorkTimeManagementService {
                             entry.getTotalWorkedMinutes() != null &&
                             entry.getTotalWorkedMinutes() > 0;
                     if (!isWorkDay) {
-                        LoggerUtil.debug(this.getClass(),
-                                String.format("Entry for date %s filtered out: timeOffType=%s, minutes=%d",
-                                        entry.getWorkDate(),
-                                        entry.getTimeOffType(),
-                                        entry.getTotalWorkedMinutes()));
+                        //LoggerUtil.debug(this.getClass(), String.format("Entry for date %s filtered out: timeOffType=%s, minutes=%d", entry.getWorkDate(), entry.getTimeOffType(), entry.getTotalWorkedMinutes()));
                     }
                     return isWorkDay;
                 })
                 .count();
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Found %d worked days for user %d", workedDays, userId));
+        LoggerUtil.info(this.getClass(), String.format("Found %d worked days for user %d", workedDays, userId));
 
         return (int) workedDays;
     }

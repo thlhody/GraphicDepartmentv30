@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="ProjectResources">
-    <resource url="http://www.thymeleaf.org" location="" />
-    <resource url="http://www.ultraq.net.nz/thymeleaf/layout" location="" />
-  </component>
-</project>

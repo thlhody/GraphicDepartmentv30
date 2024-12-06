@@ -152,7 +152,7 @@ public class UserRegisterExcelExporter {
             createCell(row, 3, entry.getOmsId(), styles.get("text"));
             createCell(row, 4, entry.getClientName(), styles.get("text"));
             createCell(row, 5, entry.getActionType(), styles.get("text"));
-            createCell(row, 6, entry.getPrintPrepType(), styles.get("text"));
+            createCell(row, 6, String.join(", ", entry.getPrintPrepTypes()), styles.get("text"));
             createCell(row, 7, entry.getColorsProfile(), styles.get("text"));
             createNumericCell(row, 8, entry.getArticleNumbers(), styles.get("number"));
             createNumericCell(row, 9, entry.getGraphicComplexity(), styles.get("number"));

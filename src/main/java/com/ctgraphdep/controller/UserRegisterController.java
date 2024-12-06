@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Controller
@@ -134,7 +136,7 @@ public class UserRegisterController extends BaseController {
             @RequestParam(required = false) String omsId,
             @RequestParam(required = false) String clientName,
             @RequestParam(required = false) String actionType,
-            @RequestParam(required = false) String printPrepType,
+            @RequestParam(required = false) List<String> printPrepTypes,  // Changed to List<String>
             @RequestParam(required = false) String colorsProfile,
             @RequestParam(required = false) Integer articleNumbers,
             @RequestParam(required = false) Double graphicComplexity,
@@ -160,7 +162,7 @@ public class UserRegisterController extends BaseController {
             if (actionType == null || actionType.trim().isEmpty()) {
                 return String.format("redirect:/user/register?error=missing_action_type&year=%d&month=%d", year, month);
             }
-            if (printPrepType == null || printPrepType.trim().isEmpty()) {
+            if (printPrepTypes == null || printPrepTypes.isEmpty()) {
                 return String.format("redirect:/user/register?error=missing_print_type&year=%d&month=%d", year, month);
             }
             if (articleNumbers == null) {
@@ -168,6 +170,7 @@ public class UserRegisterController extends BaseController {
             }
 
             User user = getUser(userDetails);
+            List<String> uniquePrintPrepTypes = new ArrayList<>(new LinkedHashSet<>(printPrepTypes));
 
             RegisterEntry entry = RegisterEntry.builder()
                     .userId(user.getUserId())
@@ -177,7 +180,7 @@ public class UserRegisterController extends BaseController {
                     .omsId(omsId.trim())
                     .clientName(clientName.trim())
                     .actionType(actionType)
-                    .printPrepType(printPrepType)
+                    .printPrepTypes(uniquePrintPrepTypes)  // Use the deduplicated list
                     .colorsProfile(colorsProfile != null ? colorsProfile.trim().toUpperCase() : null)
                     .articleNumbers(articleNumbers)
                     .graphicComplexity(graphicComplexity)
@@ -209,7 +212,7 @@ public class UserRegisterController extends BaseController {
             @RequestParam String omsId,
             @RequestParam String clientName,
             @RequestParam String actionType,
-            @RequestParam String printPrepType,
+            @RequestParam List<String> printPrepTypes,  // Changed to List<String>
             @RequestParam(required = false) String colorsProfile,
             @RequestParam Integer articleNumbers,
             @RequestParam(required = false) Double graphicComplexity,
@@ -223,14 +226,14 @@ public class UserRegisterController extends BaseController {
 
             RegisterEntry entry = RegisterEntry.builder()
                     .entryId(entryId)
-                    .userId(user.getUserId())  // Set the userId
+                    .userId(user.getUserId())
                     .date(date)
                     .orderId(orderId)
                     .productionId(productionId)
                     .omsId(omsId)
                     .clientName(clientName)
                     .actionType(actionType)
-                    .printPrepType(printPrepType)
+                    .printPrepTypes(printPrepTypes)  // Set the list directly
                     .colorsProfile(colorsProfile)
                     .articleNumbers(articleNumbers)
                     .graphicComplexity(graphicComplexity)

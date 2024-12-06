@@ -1,11 +1,12 @@
 package com.ctgraphdep.model;
 
-import com.ctgraphdep.enums.ActionType;
-import com.ctgraphdep.enums.PrintPrepType;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 @Data
 @Builder
@@ -38,8 +39,8 @@ public class RegisterEntry {
     @JsonProperty("actionType")
     private String actionType;
 
-    @JsonProperty("printPrepType")
-    private String printPrepType;
+    @JsonProperty("printPrepTypes")
+    private List<String> printPrepTypes = new ArrayList<>();
 
     @JsonProperty("colorsProfile")
     private String colorsProfile;
@@ -56,4 +57,18 @@ public class RegisterEntry {
     @JsonProperty("adminSync")
     private String adminSync;
 
+    public List<String> getPrintPrepTypes() {
+        // Return a new ArrayList to avoid modification of the internal list
+        // Also ensure we don't have duplicates by using a LinkedHashSet
+        return new ArrayList<>(new LinkedHashSet<>(
+                printPrepTypes != null ? printPrepTypes : new ArrayList<>()
+        ));
+    }
+
+    public void setPrintPrepTypes(List<String> printPrepTypes) {
+        // Use LinkedHashSet to remove duplicates while maintaining order
+        this.printPrepTypes = new ArrayList<>(new LinkedHashSet<>(
+                printPrepTypes != null ? printPrepTypes : new ArrayList<>()
+        ));
+    }
 }

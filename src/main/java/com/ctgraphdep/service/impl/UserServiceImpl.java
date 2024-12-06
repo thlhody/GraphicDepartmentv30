@@ -274,4 +274,10 @@ public class UserServiceImpl implements UserService {
         // Explicitly exclude password and other sensitive data
         return sanitized;
     }
+
+    public Optional<User> findByEmployeeId(Integer employeeId) {
+        return getAllUsers().stream()
+                .filter(user -> employeeId.equals(user.getEmployeeId()))
+                .findFirst();
+    }
 }

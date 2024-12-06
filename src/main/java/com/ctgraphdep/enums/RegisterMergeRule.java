@@ -53,13 +53,14 @@ public enum RegisterMergeRule {
 
     private static boolean entriesAreEqual(RegisterEntry entry1, RegisterEntry entry2) {
         if (entry1 == null || entry2 == null) return false;
+
         return Objects.equals(entry1.getDate(), entry2.getDate()) &&
                 Objects.equals(entry1.getOrderId(), entry2.getOrderId()) &&
                 Objects.equals(entry1.getProductionId(), entry2.getProductionId()) &&
                 Objects.equals(entry1.getOmsId(), entry2.getOmsId()) &&
                 Objects.equals(entry1.getClientName(), entry2.getClientName()) &&
                 Objects.equals(entry1.getActionType(), entry2.getActionType()) &&
-                Objects.equals(entry1.getPrintPrepType(), entry2.getPrintPrepType()) &&
+                Objects.equals(entry1.getPrintPrepTypes(), entry2.getPrintPrepTypes()) && // Changed to compare Lists
                 Objects.equals(entry1.getColorsProfile(), entry2.getColorsProfile()) &&
                 Objects.equals(entry1.getArticleNumbers(), entry2.getArticleNumbers()) &&
                 Objects.equals(entry1.getGraphicComplexity(), entry2.getGraphicComplexity()) &&

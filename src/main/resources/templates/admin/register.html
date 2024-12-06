@@ -40,6 +40,13 @@
         .card-body {
             padding: 1.5rem;
         }
+        .select2-container--bootstrap-5 .select2-selection {
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--multiple {
+            min-height: 38px;
+        }
         @media (max-width: 768px) {
             .register-form .col-auto {
                 width: 100% !important;
@@ -84,7 +91,8 @@
                         <label class="form-label" for="yearSelect">Year</label>
                         <select name="year" id="yearSelect" class="form-select" th:value="${currentYear}">
                             <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
-                                    th:value="${y}" th:text="${y}" th:selected="${y == currentYear}">2024</option>
+                                    th:value="${y}" th:text="${y}" th:selected="${y == currentYear}">2024
+                            </option>
                         </select>
                     </div>
                     <div class="col">
@@ -92,7 +100,8 @@
                         <select name="month" id="monthSelect" class="form-select" th:value="${currentMonth}">
                             <option th:each="m : ${#numbers.sequence(1, 12)}" th:value="${m}"
                                     th:text="${T(java.time.Month).of(m).toString().toLowerCase().substring(0,1).toUpperCase() + T(java.time.Month).of(m).toString().toLowerCase().substring(1)}"
-                                    th:selected="${m == currentMonth}">January</option>
+                                    th:selected="${m == currentMonth}">January
+                            </option>
                         </select>
                     </div>
                     <div class="col">
@@ -100,7 +109,9 @@
                         <select name="userId" id="userSelect" class="form-select">
                             <option value="">Select User</option>
                             <option th:each="user : ${users}" th:value="${user.userId}" th:text="${user.name}"
-                                    th:selected="${selectedUser != null && selectedUser.userId == user.userId}">User Name</option>
+                                    th:selected="${selectedUser != null && selectedUser.userId == user.userId}">User
+                                Name
+                            </option>
                         </select>
                     </div>
                     <div class="col">
@@ -134,23 +145,28 @@
                     </div>
                     <div class="col">
                         <label for="entriesPercentage" class="form-label">%Entries</label>
-                        <input type="number" class="form-control" id="entriesPercentage" th:value="${bonusConfig.entriesPercentage}" step="0.01">
+                        <input type="number" class="form-control" id="entriesPercentage"
+                               th:value="${bonusConfig.entriesPercentage}" step="0.01">
                     </div>
                     <div class="col">
                         <label for="articlesPercentage" class="form-label">%Art</label>
-                        <input type="number" class="form-control" id="articlesPercentage" th:value="${bonusConfig.articlesPercentage}" step="0.01">
+                        <input type="number" class="form-control" id="articlesPercentage"
+                               th:value="${bonusConfig.articlesPercentage}" step="0.01">
                     </div>
                     <div class="col">
                         <label for="complexityPercentage" class="form-label">%CG</label>
-                        <input type="number" class="form-control" id="complexityPercentage" th:value="${bonusConfig.complexityPercentage}" step="0.01">
+                        <input type="number" class="form-control" id="complexityPercentage"
+                               th:value="${bonusConfig.complexityPercentage}" step="0.01">
                     </div>
                     <div class="col">
                         <label for="miscPercentage" class="form-label">%Misc</label>
-                        <input type="number" class="form-control" id="miscPercentage" th:value="${bonusConfig.miscPercentage}" step="0.01">
+                        <input type="number" class="form-control" id="miscPercentage"
+                               th:value="${bonusConfig.miscPercentage}" step="0.01">
                     </div>
                     <div class="col">
                         <label for="normValue" class="form-label">Norm</label>
-                        <input type="number" class="form-control" id="normValue" th:value="${bonusConfig.normValue}" step="0.10">
+                        <input type="number" class="form-control" id="normValue" th:value="${bonusConfig.normValue}"
+                               step="0.10">
                     </div>
                     <div class="col">
                         <label for="totalEntries" class="form-label">Total Entries</label>
@@ -166,14 +182,15 @@
                     </div>
                     <div class="col">
                         <label for="miscValue" class="form-label">Misc</label>
-                        <input type="number" class="form-control" id="miscValue" th:value="${bonusConfig.miscValue}" step="0.50">
+                        <input type="number" class="form-control" id="miscValue" th:value="${bonusConfig.miscValue}"
+                               step="0.50">
                     </div>
                     <div class="col">
                         <label for="workedDays" class="form-label">Worked D</label>
                         <input class="form-control" id="workedDays" readonly>
                     </div>
                     <div class="col">
-                        <button class="btn btn-primary w-150" id="calculateBonusBtn">C. Bonus</button>
+                        <button class="btn btn-primary w-150" id="calculateBonusBtn">Bonus</button>
                     </div>
                 </div>
             </div>
@@ -222,14 +239,18 @@
                         <label for="actionType" class="form-label">Action Type</label>
                         <select class="form-select form-control-sm" id="actionType">
                             <option value="">Select Action Type</option>
-                            <option th:each="type : ${actionTypes}" th:value="${type}" th:text="${type}">Action Type</option>
+                            <option th:each="type : ${actionTypes}" th:value="${type}" th:text="${type}">Action Type
+                            </option>
                         </select>
                     </div>
                     <div class="col">
-                        <label for="printPrepType" class="form-label">Print Prep Type</label>
+                        <label for="printPrepType" class="form-label">Print Prep Types</label>
                         <select class="form-select form-control-sm" id="printPrepType">
                             <option value="">Select Print Prep Type</option>
-                            <option th:each="type : ${printPrepTypes}" th:value="${type}" th:text="${type}">Print Prep Type</option>
+                            <option th:each="type : ${printPrepTypes}"
+                                    th:value="${type}"
+                                    th:text="${type}">
+                            </option>
                         </select>
                     </div>
                     <div class="col">
@@ -237,7 +258,8 @@
                     </div>
                     <div class="col">
                         <label for="searchInput" class="form-label">Search</label>
-                        <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search...">
+                        <input type="text" class="form-control form-control-sm" id="searchInput"
+                               placeholder="Search...">
                     </div>
                     <div class="col">
                         <button class="btn btn-primary w-100" id="searchBtn">Search</button>
@@ -285,13 +307,13 @@
                             <th>Date</th>
                             <th>Order ID</th>
                             <th>Production ID</th>
-                            <th>OMS ID</th>
+                            <th>OMS ID/Email</th>
                             <th>Client</th>
                             <th>Action Type</th>
-                            <th>Print Prep</th>
+                            <th>Print Preps Types</th>
                             <th>Colors</th>
-                            <th>Articles</th>
-                            <th>Complexity</th>
+                            <th>Art Nr.</th>
+                            <th>CG</th>
                             <th>Notes</th>
                             <th>Status</th>
                         </tr>
@@ -300,8 +322,10 @@
                         <tr th:each="entry : ${entries}">
                             <td>
                                 <div class="form-check">
-                                    <input type="checkbox" class="form-check-input entry-select" th:id="${'entry-' + entry.entryId}" th:value="${entry.entryId}">
-                                    <label class="form-check-label" th:for="${'entry-' + entry.entryId}" th:text="${'SE-' + entry.entryId}">Select entry</label>
+                                    <input type="checkbox" class="form-check-input entry-select"
+                                           th:id="${'entry-' + entry.entryId}" th:value="${entry.entryId}">
+                                    <label class="form-check-label" th:for="${'entry-' + entry.entryId}"
+                                           th:text="${'SE-' + entry.entryId}">Select entry</label>
                                 </div>
                             </td>
                             <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">29/11/2024</td>
@@ -310,7 +334,7 @@
                             <td th:text="${entry.omsId}">OMS24-185474</td>
                             <td th:text="${entry.clientName}">Client</td>
                             <td th:text="${entry.actionType}">ORDIN</td>
-                            <td th:text="${entry.printPrepType}">DIGITAL</td>
+                            <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
                             <td th:text="${entry.colorsProfile}">A</td>
                             <td th:text="${entry.articleNumbers}">5</td>
                             <td th:text="${entry.graphicComplexity}">2.5</td>
@@ -368,6 +392,12 @@
                 console.error("Initialization error:", error);
                 showError("Failed to initialize page. Please refresh and try again.");
             }
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: 'Select types...',
+                allowClear: true
+            });
         });
 
         // Add separate event listener for export button
@@ -566,12 +596,45 @@
             const config = getBonusConfig();
             if (!validateBonusConfig(config)) return;
 
+            const workedDays = parseInt(document.getElementById('workedDays').value) || 0;
+            if (workedDays <= 0) {
+                showWarning('No worked days recorded for this period. The bonus calculation will show raw totals but bonus amounts will be zero.');
+            }
+
             try {
+                // Get visible entries from the table
+                const visibleEntries = Array.from(document.querySelectorAll('#registerTable tbody tr'))
+                    .filter(row => row.style.display !== 'none')
+                    .map(row => {
+                    // Convert date from dd/MM/yyyy to yyyy-MM-dd format
+                    const dateText = row.querySelector('td:nth-child(2)').textContent;
+                    const [day, month, year] = dateText.split('/');
+                    const isoDate = `${year}-${month}-${day}`;
+                    const printPrepTypesText = row.querySelector('td:nth-child(8)').textContent;
+
+                    return {
+                        entryId: parseInt(row.querySelector('.entry-select').value),
+                        userId: state.currentUser.userId,
+                        date: isoDate,
+                        orderId: row.querySelector('td:nth-child(3)').textContent,
+                        productionId: row.querySelector('td:nth-child(4)').textContent,
+                        omsId: row.querySelector('td:nth-child(5)').textContent,
+                        clientName: row.querySelector('td:nth-child(6)').textContent,
+                        actionType: row.querySelector('td:nth-child(7)').textContent,
+                        printPrepTypes: printPrepTypesText.split(',').map(t => t.trim()), // Convert to array
+                        colorsProfile: row.querySelector('td:nth-child(9)').textContent,
+                        articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
+                        graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),
+                        observations: row.querySelector('td:nth-child(12)').textContent || "",
+                        adminSync: row.querySelector('td:nth-child(13)').textContent
+                    };
+                });
+
                 const response = await fetch('/admin/register/calculate-bonus', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        entries: state.filteredEntries,
+                        entries: visibleEntries,
                         userId: state.currentUser?.userId,
                         year: state.currentYear,
                         month: state.currentMonth,
@@ -579,13 +642,22 @@
                     })
                 });
 
-                if (!response.ok) throw new Error('Bonus calculation failed');
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    throw new Error(`Bonus calculation failed: ${errorData}`);
+                }
 
                 const result = await response.json();
                 displayBonusResults(result);
             } catch (error) {
                 console.error('Bonus calculation error:', error);
-                showError(`Failed to calculate bonus: ${error.message}`);
+
+                // More specific error messaging
+                if (error.message.includes('Worked days must be greater than 0')) {
+                    showError('No worked days recorded for this period. Please ensure worked days are properly set.');
+                } else {
+                    showError(`Failed to calculate bonus: ${error.message}`);
+                }
             }
         }
 
@@ -630,26 +702,45 @@
             const printPrepType = document.getElementById('printPrepType').value;
             const rows = document.querySelectorAll('#registerTable tbody tr');
 
-            state.filteredEntries = state.entries.filter(entry => {
-                const actionTypeMatch = !actionType || entry.actionType === actionType;
-                const printPrepTypeMatch = !printPrepType || entry.printPrepType === printPrepType;
-                return actionTypeMatch && printPrepTypeMatch;
-            });
-
-            // Update table display
             rows.forEach(row => {
                 const rowActionType = row.querySelector('td:nth-child(7)').textContent;
-                const rowPrintPrepType = row.querySelector('td:nth-child(8)').textContent;
+                const rowPrintPrepTypes = row.querySelector('td:nth-child(8)').textContent.split(',').map(t => t.trim());
 
-                const actionTypeMatch = !actionType || rowActionType === actionType;
-                const printPrepTypeMatch = !printPrepType || rowPrintPrepType === printPrepType;
+                let showRow = true;
 
-                row.style.display = (actionTypeMatch && printPrepTypeMatch) ? '' : 'none';
+                if (actionType) {
+                    showRow = rowActionType === actionType;
+                }
+
+                if (printPrepType && showRow) {
+                    showRow = rowPrintPrepTypes.includes(printPrepType);
+                }
+
+                row.style.display = showRow ? '' : 'none';
             });
+
+            // Update filtered entries in state by getting visible rows
+            state.filteredEntries = Array.from(rows)
+                .filter(row => row.style.display !== 'none')
+                .map(row => ({
+                entryId: parseInt(row.querySelector('.entry-select').value),
+                userId: state.currentUser?.userId,
+                date: row.querySelector('td:nth-child(2)').textContent,
+                orderId: row.querySelector('td:nth-child(3)').textContent,
+                productionId: row.querySelector('td:nth-child(4)').textContent,
+                omsId: row.querySelector('td:nth-child(5)').textContent,
+                clientName: row.querySelector('td:nth-child(6)').textContent,
+                actionType: row.querySelector('td:nth-child(7)').textContent,
+                printPrepTypes: row.querySelector('td:nth-child(8)').textContent.split(',').map(t => t.trim()),
+                colorsProfile: row.querySelector('td:nth-child(9)').textContent,
+                articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
+                graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),
+                observations: row.querySelector('td:nth-child(12)').textContent || "",
+                adminSync: row.querySelector('td:nth-child(13)').textContent
+            }));
 
             updateSummaryFromEntries(state.filteredEntries);
         }
-
         //saveChanges to use state and async/await pattern
         async function saveChanges() {
             if (!state.currentUser) {
@@ -752,8 +843,42 @@
                 return;
             }
 
+            // Get previous months
+            const currentDate = new Date(state.currentYear, state.currentMonth - 1);
+            const prevMonths = [];
+
+            for (let i = 1; i <= 3; i++) {
+                const prevDate = new Date(currentDate);
+                prevDate.setMonth(currentDate.getMonth() - i);
+                const monthName = prevDate.toLocaleString('en-US', { month: 'short' });
+                const yearStr = prevDate.getFullYear().toString().slice(2);
+                prevMonths.push(`${monthName}/${yearStr}`);
+            }
+
+            // Add warning class if worked days is 0
+            const rowClass = result.workedDays <= 0 ? 'table-warning' : '';
+
+            // Update the table headers dynamically
+            const thead = bonusResults.querySelector('thead tr');
+            if (thead) {
+                thead.innerHTML = `
+            <th>Name</th>
+            <th>Entries</th>
+            <th>Art Nr.</th>
+            <th>CG</th>
+            <th>Misc</th>
+            <th>Worked D</th>
+            <th>Worked%</th>
+            <th>Bonus%</th>
+            <th>Bonus$</th>
+            <th>${prevMonths[0]}</th>
+            <th>${prevMonths[1]}</th>
+            <th>${prevMonths[2]}</th>
+        `;
+            }
+
             tbody.innerHTML = `
-        <tr>
+        <tr class="${rowClass}">
             <td>${state.currentUser?.name || ''}</td>
             <td>${result.entries}</td>
             <td>${result.articleNumbers.toFixed(2)}</td>
@@ -768,6 +893,17 @@
             <td>${(result.previousMonths?.month3 || 0).toFixed(2)}</td>
         </tr>
     `;
+
+            // Add explanatory message if worked days is 0
+            if (result.workedDays <= 0) {
+                tbody.innerHTML += `
+            <tr>
+                <td colspan="12" class="text-center text-warning">
+                    <small><i>* No worked days recorded - showing raw totals with zero bonus amounts</i></small>
+                </td>
+            </tr>
+        `;
+            }
 
             bonusResults.style.display = 'block';
         }
@@ -812,6 +948,20 @@
 
             const alertDiv = document.createElement('div');
             alertDiv.className = 'alert alert-danger';
+            alertDiv.textContent = message;
+
+            // Clear existing alerts
+            alertsContainer.innerHTML = '';
+            alertsContainer.appendChild(alertDiv);
+        }
+
+        // Add a warning function that shows an orange warning instead of a red error
+        function showWarning(message) {
+            const alertsContainer = document.querySelector('.alerts');
+            if (!alertsContainer) return;
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-warning'; // Use warning style
             alertDiv.textContent = message;
 
             // Clear existing alerts

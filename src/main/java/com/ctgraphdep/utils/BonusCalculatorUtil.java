@@ -8,13 +8,15 @@ import org.springframework.stereotype.Component;
 public class BonusCalculatorUtil {
 
      //Calculates the entries component of the bonus formula
-    public double calculateEntriesComponent(int numberOfEntries, int workedDays, double entriesPercentage) {
-        validatePercentage(entriesPercentage);
-        if (workedDays <= 0) {
-            throw new IllegalArgumentException("Worked days must be greater than 0");
-        }
-        return (((double) numberOfEntries / workedDays) * entriesPercentage);
-    }
+     public double calculateEntriesComponent(int numberOfEntries, int workedDays, double entriesPercentage) {
+         validatePercentage(entriesPercentage);
+         // Instead of throwing an error, return 0 for the component if no worked days
+         if (workedDays <= 0) {
+             LoggerUtil.warn(this.getClass(), "No worked days found, entries component will be 0");
+             return 0.0;
+         }
+         return (((double) numberOfEntries / workedDays) * entriesPercentage);
+     }
 
     //Calculates the articles component of the bonus formula
     public double calculateArticlesComponent(double sumArticleNumbers, int numberOfEntries, double articlesPercentage) {
@@ -46,6 +48,20 @@ public class BonusCalculatorUtil {
         // Validate configuration
         if (config.notValid()) {
             throw new IllegalArgumentException("Invalid bonus configuration: percentages must sum to 1.0");
+        }
+
+        // If no worked days, return a result with zeroed values but show the raw totals
+        if (workedDays <= 0) {
+            return BonusCalculationResult.builder()
+                    .entries(numberOfEntries)
+                    .articleNumbers(numberOfEntries > 0 ? sumArticleNumbers / numberOfEntries : 0)
+                    .graphicComplexity(numberOfEntries > 0 ? sumComplexity / numberOfEntries : 0)
+                    .misc(config.getMiscValue())
+                    .workedDays(0)
+                    .workedPercentage(0.0)
+                    .bonusPercentage(0.0)
+                    .bonusAmount(0.0)
+                    .build();
         }
 
         // Calculate individual components

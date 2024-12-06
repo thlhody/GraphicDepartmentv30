@@ -123,42 +123,23 @@ public class AdminWorkTimeController {
     }
 
     @PostMapping("/update")
-    public String updateWorktime(
+    @ResponseBody
+    public ResponseEntity<?> updateWorktime(
+            @RequestParam Integer userId,
             @RequestParam int year,
             @RequestParam int month,
-            @RequestParam Integer userId,
-            @RequestParam Map<String, String> entries,
-            RedirectAttributes redirectAttributes) {
+            @RequestParam int day,
+            @RequestParam String value) {
         try {
-            entries.forEach((key, value) -> {
-                if (key.startsWith("entries[" + userId + "].days[")) {
-                    String dayStr = key.replaceAll(".*\\[(\\d+)].*", "$1");
-                    try {
-                        int day = Integer.parseInt(dayStr);
-                        LocalDate date = LocalDate.of(year, month, day);
-                        String cleanValue = value.trim();
-
-                        workTimeManagementService.processWorktimeUpdate(userId, date,
-                                cleanValue.isEmpty() ? null : cleanValue);
-                    } catch (NumberFormatException e) {
-                        LoggerUtil.error(this.getClass(),
-                                "Invalid day format in entry key: " + key);
-                    }
-                }
-            });
-
+            LocalDate date = LocalDate.of(year, month, day);
+            workTimeManagementService.processWorktimeUpdate(userId, date, value);
             // Trigger consolidation after update
             workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
-            redirectAttributes.addFlashAttribute("successMessage", "Work time updated successfully");
-
+            return ResponseEntity.ok().build();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating worktime: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "Failed to update work time: " + e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-
-        return String.format("redirect:/admin/worktime?year=%d&month=%d&selectedUserId=%d",
-                year, month, userId);
     }
 
     @PostMapping("/holiday/add")
@@ -246,7 +227,7 @@ public class AdminWorkTimeController {
     private void validatePeriod(int year, int month) {
         YearMonth requested = YearMonth.of(year, month);
         YearMonth current = YearMonth.now();
-        YearMonth maxAllowed = current.plusMonths(1);
+        YearMonth maxAllowed = current.plusMonths(4);
 
         if (requested.isAfter(maxAllowed)) {
             throw new IllegalArgumentException("Cannot view future periods beyond next month");

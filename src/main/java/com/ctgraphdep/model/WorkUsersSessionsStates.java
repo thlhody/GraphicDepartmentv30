@@ -25,6 +25,9 @@ public class WorkUsersSessionsStates {
     @JsonProperty("dayStartTime")
     private LocalDateTime dayStartTime;
 
+    @JsonProperty("dayEndTime")
+    private LocalDateTime dayEndTime;
+
     @JsonProperty("currentStartTime")
     private LocalDateTime currentStartTime;
 

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>Statistics</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid px-4">
+        <h1 class="mt-4">Statistics Dashboard</h1>
+        <!-- Period Selector -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <form th:action="@{/admin/statistics}" method="get" class="d-flex gap-2">
+                    <div>
+                        <label for="monthSelect" class="form-label">Month</label>
+                        <select id="monthSelect" name="month" class="form-select">
+                            <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                    th:value="${m}"
+                                    th:text="${monthNames[m-1]}"
+                                    th:selected="${m == currentMonth}">
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="yearSelect" class="form-label">Year</label>
+                        <select id="yearSelect" name="year" class="form-select">
+                            <option th:each="y : ${#numbers.sequence(2023, #dates.year(#dates.createNow()))}"
+                                    th:value="${y}"
+                                    th:text="${y}"
+                                    th:selected="${y == currentYear}">
+                            </option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="row">
+            <!-- Client Distribution -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Client Distribution</h5>
+                        <canvas id="clientChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Types -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Action Types</h5>
+                        <canvas id="actionTypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Print Prep Types -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Print Prep Types</h5>
+                        <canvas id="printPrepTypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script th:inline="javascript">
+            // Chart data from server
+            const chartColors = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                '#9966FF', '#FF9F40', '#7CBA3D', '#6B8E23'
+            ];
+
+            // Create charts when DOM is loaded
+            document.addEventListener('DOMContentLoaded', function() {
+                createChart('clientChart',
+                    /*[[${statistics.clientDistribution}]]*/ null,
+                    'Client Distribution');
+
+                createChart('actionTypeChart',
+                    /*[[${statistics.actionTypeDistribution}]]*/ null,
+                    'Action Types');
+
+                createChart('printPrepTypeChart',
+                    /*[[${statistics.printPrepTypeDistribution}]]*/ null,
+                    'Print Prep Types');
+            });
+
+            function createChart(elementId, data, title) {
+                const ctx = document.getElementById(elementId).getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            data: data.data,
+                            backgroundColor: chartColors
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            },
+                            title: {
+                                display: true,
+                                text: title
+                            }
+                        }
+                    }
+                });
+            }
+        </script>
+    </th:block>
+</div>
+</body>
+</html>

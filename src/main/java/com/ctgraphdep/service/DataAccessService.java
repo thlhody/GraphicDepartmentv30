@@ -2,7 +2,6 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.BonusEntry;
-import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,24 +18,76 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class DataAccessService {
     private final ObjectMapper objectMapper;
     private final PathConfig pathConfig;
+    private final FileObfuscationService obfuscationService;
     private final Map<Path, ReentrantReadWriteLock> fileLocks;
 
-    public DataAccessService(ObjectMapper objectMapper, PathConfig pathConfig) {
+    public DataAccessService(ObjectMapper objectMapper, PathConfig pathConfig, FileObfuscationService obfuscationService) {
         this.objectMapper = objectMapper;
         this.pathConfig = pathConfig;
+        this.obfuscationService = obfuscationService;
         this.fileLocks = new ConcurrentHashMap<>();
         LoggerUtil.initialize(this.getClass(), "Initializing Data Access Service");
     }
+//
+//    public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
+//        ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
+//        readLock.lock();
+//
+//        try {
+//            if (!Files.exists(path)) {
+//                LoggerUtil.info(this.getClass(), "File not found: " + path);
+//                if (!createIfMissing) {
+//                    throw new IOException("File not found: " + path);
+//                }
+//                return createEmptyStructure(typeRef);
+//            }
+//
+//            byte[] fileData = Files.readAllBytes(path);
+//
+//            // Deobfuscate if necessary
+//            if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
+//                fileData = obfuscationService.deobfuscate(fileData);
+//            }
+//
+//            return objectMapper.readValue(fileData, typeRef);
+//
+//        } catch (IOException e) {
+//            LoggerUtil.error(this.getClass(),
+//                    String.format("Error reading file %s: %s", path, e.getMessage()));
+//            if (createIfMissing) {
+//                return createEmptyStructure(typeRef);
+//            }
+//            throw new RuntimeException("Failed to read file: " + path, e);
+//        } finally {
+//            readLock.unlock();
+//        }
+//    }
+//
+//    public <T> void writeFile(Path path, T data) {
+//        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
+//        writeLock.lock();
+//
+//        try {
+//            ensureDirectoryExists(path);
+//            byte[] jsonData = objectMapper.writeValueAsBytes(data);
+//
+//            // Obfuscate if necessary
+//            if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
+//                jsonData = obfuscationService.obfuscate(jsonData);
+//            }
+//
+//            Files.write(path, jsonData);
+//
+//            LoggerUtil.info(this.getClass(), "Successfully wrote data to file: " + path);
+//        } catch (Exception e) {
+//            LoggerUtil.error(this.getClass(),
+//                    String.format("Error writing file %s: %s", path, e.getMessage()));
+//            throw new RuntimeException("Failed to write file: " + path, e);
+//        } finally {
+//            writeLock.unlock();
+//        }
+//    }
 
-    /**
-     * Read data from a file with type-safe deserialization
-     *
-     * @param path File path
-     * @param typeRef Type reference for deserialization
-     * @param createIfMissing Create empty structure if file doesn't exist
-     * @return Deserialized data
-     * @throws RuntimeException if file reading fails
-     */
     public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
         ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
         readLock.lock();
@@ -49,7 +100,6 @@ public class DataAccessService {
                 }
                 return createEmptyStructure(typeRef);
             }
-
             return objectMapper.readValue(path.toFile(), typeRef);
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(),
@@ -62,14 +112,7 @@ public class DataAccessService {
             readLock.unlock();
         }
     }
-
-    /**
-     * Write data to a file with thread-safe operations
-     *
-     * @param path File path
-     * @param data Data to write
-     * @throws RuntimeException if file writing fails
-     */
+    //no encryption version
     public <T> void writeFile(Path path, T data) {
         ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
         writeLock.lock();
@@ -151,14 +194,16 @@ public class DataAccessService {
     public Optional<BonusEntry> loadBonusEntry(Integer userId, int year, int month) {
         Path path = pathConfig.getAdminBonusPath(year, month);
         Map<Integer, BonusEntry> bonusEntries = readFile(path,
-                new TypeReference<Map<Integer, BonusEntry>>() {}, true);
+                new TypeReference<Map<Integer, BonusEntry>>() {
+                }, true);
         return Optional.ofNullable(bonusEntries.get(userId));
     }
 
     public void saveBonusEntry(Integer userId, int year, int month, BonusEntry entry) {
         Path path = pathConfig.getAdminBonusPath(year, month);
         Map<Integer, BonusEntry> bonusEntries = readFile(path,
-                new TypeReference<Map<Integer, BonusEntry>>() {}, true);
+                new TypeReference<Map<Integer, BonusEntry>>() {
+                }, true);
         bonusEntries.put(userId, entry);
         writeFile(path, bonusEntries);
     }

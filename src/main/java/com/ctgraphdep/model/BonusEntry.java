@@ -14,8 +14,9 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BonusEntry {
-    @JsonProperty("name")
-    private String name;
+
+    @JsonProperty("username")
+    private String username;
 
     @JsonProperty("employeeId")
     private Integer employeeId;
@@ -52,7 +53,7 @@ public class BonusEntry {
 
     public static BonusEntry fromBonusCalculationResult(String username, Integer employeeId, BonusCalculationResult result) {
         return BonusEntry.builder()
-                .name(username)
+                .username(username)
                 .employeeId(employeeId)
                 .entries(result.getEntries())
                 .articleNumbers(result.getArticleNumbers())

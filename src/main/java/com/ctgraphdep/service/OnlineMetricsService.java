@@ -1,34 +1,28 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusDTO;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class OnlineMetricsService {
     private final UserService userService;
-    private final PathConfig pathConfig;
-    private final ObjectMapper objectMapper;
+    private final DataAccessService dataAccess;
+    private static final TypeReference<WorkUsersSessionsStates> SESSION_TYPE = new TypeReference<>() {};
 
     public OnlineMetricsService(
             UserService userService,
-            PathConfig pathConfig,
-            ObjectMapper objectMapper) {
+            DataAccessService dataAccess) {
         this.userService = userService;
-        this.pathConfig = pathConfig;
-        this.objectMapper = objectMapper;
+        this.dataAccess = dataAccess;
         LoggerUtil.initialize(this.getClass(), "Initializing Online Metrics Service");
     }
 
@@ -59,11 +53,13 @@ public class OnlineMetricsService {
     }
 
     private UserStatusDTO getUserStatus(User user) {
-        Path sessionPath = pathConfig.getSessionFilePath(user.getUsername(), user.getUserId());
-
         try {
-            if (Files.exists(sessionPath)) {
-                WorkUsersSessionsStates session = objectMapper.readValue(sessionPath.toFile(), WorkUsersSessionsStates.class);
+            if (dataAccess.fileExists(dataAccess.getSessionPath(user.getUsername(), user.getUserId()))) {
+                WorkUsersSessionsStates session = dataAccess.readFile(
+                        dataAccess.getSessionPath(user.getUsername(), user.getUserId()),
+                        SESSION_TYPE,
+                        false
+                );
                 return buildUserStatusDTO(user, session);
             }
         } catch (Exception e) {
