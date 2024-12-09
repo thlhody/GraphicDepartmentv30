@@ -136,9 +136,7 @@ public class UserWorkTimeService {
                             YearMonth.from(entry.getWorkDate())));
 
             // Process each month's entries
-            entriesByMonth.forEach((yearMonth, monthEntries) -> {
-                processMonthEntries(username, userId, monthEntries, yearMonth.getYear(), yearMonth.getMonthValue());
-            });
+            entriesByMonth.forEach((yearMonth, monthEntries) -> processMonthEntries(username, userId, monthEntries, yearMonth.getYear(), yearMonth.getMonthValue()));
 
             LoggerUtil.info(this.getClass(),
                     String.format("Saved %d entries for user %s", entries.size(), username));

@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Service
@@ -20,11 +21,13 @@ public class DataAccessService {
     private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
     private final Map<Path, ReentrantReadWriteLock> fileLocks;
+    private final ExecutorService asyncWriter;
 
-    public DataAccessService(ObjectMapper objectMapper, PathConfig pathConfig, FileObfuscationService obfuscationService) {
+    public DataAccessService(ObjectMapper objectMapper, PathConfig pathConfig, FileObfuscationService obfuscationService, ExecutorService asyncWriter) {
         this.objectMapper = objectMapper;
         this.pathConfig = pathConfig;
         this.obfuscationService = obfuscationService;
+        this.asyncWriter = asyncWriter;
         this.fileLocks = new ConcurrentHashMap<>();
         LoggerUtil.initialize(this.getClass(), "Initializing Data Access Service");
     }

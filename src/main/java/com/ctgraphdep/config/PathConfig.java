@@ -1,5 +1,6 @@
 package com.ctgraphdep.config;
 
+import com.ctgraphdep.model.DualPath;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,6 +29,12 @@ public class PathConfig {
 
     @Value("${app.local}")
     private String installationPath;
+
+    @Value("${app.dual.location.enabled:true}")
+    private boolean dualLocationEnabled;
+
+    @Value("${app.sync.enabled:true}")
+    private boolean syncEnabled;
 
     // File format configurations
     @Value("${dbj.dir.format.session:session_%s_%d.json}")
@@ -95,6 +102,7 @@ public class PathConfig {
     private final Map<String, String> user = new HashMap<>();
     private final Map<String, String> admin = new HashMap<>();
     private String login;
+    private DualPath currentDualPath;
 
     @Autowired
     public PathConfig() {
@@ -140,6 +148,68 @@ public class PathConfig {
                 String.format("Initialized paths - Network: %s, Installation: %s, Development: %s",
                         networkPath, installPath, devPath));
     }
+
+    private void determineDualPaths() {
+        if (isPathAccessible(networkPath)) {
+            currentDualPath = new DualPath(networkPath, installPath);
+            activePath = networkPath; // Maintain backward compatibility
+            LoggerUtil.info(this.getClass(),
+                    "Using network path as primary: " + networkPath);
+        } else {
+            currentDualPath = new DualPath(installPath, null);
+            activePath = installPath; // Maintain backward compatibility
+            LoggerUtil.info(this.getClass(),
+                    "Using installation path as primary: " + installPath);
+        }
+    }
+
+    public DualPath getWritePaths() {
+        return currentDualPath;
+    }
+
+    public Path getReadPath() {
+        if (isPathAccessible(currentDualPath.getPrimary())) {
+            return currentDualPath.getPrimary();
+        }
+        if (currentDualPath.hasSecondary() && isPathAccessible(currentDualPath.getSecondary())) {
+            return currentDualPath.getSecondary();
+        }
+        throw new RuntimeException("No accessible paths available");
+    }
+
+    public Path resolveUserPath(String username) {
+        if (!dualLocationEnabled) {
+            return activePath.resolve(user.get("worktime"))
+                    .resolve(username);
+        }
+
+        DualPath paths = getWritePaths();
+        if (paths.hasPrimary()) {
+            createDirectoryIfMissing(paths.getPrimary().resolve(user.get("worktime"))
+                    .resolve(username));
+        }
+        if (paths.hasSecondary()) {
+            createDirectoryIfMissing(paths.getSecondary().resolve(user.get("worktime"))
+                    .resolve(username));
+        }
+
+        return getReadPath().resolve(user.get("worktime"))
+                .resolve(username);
+    }
+
+    private void createDirectoryIfMissing(Path path) {
+        if (!Files.exists(path)) {
+            try {
+                Files.createDirectories(path);
+                LoggerUtil.info(this.getClass(),
+                        "Created directory: " + path);
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(),
+                        "Failed to create directory: " + path, e);
+            }
+        }
+    }
+
 
     private void determineActivePath() {
         // Try network path first

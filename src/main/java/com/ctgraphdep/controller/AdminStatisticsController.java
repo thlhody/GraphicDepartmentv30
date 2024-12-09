@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Optional;
 
 @Controller
@@ -32,14 +33,17 @@ public class AdminStatisticsController {
             @RequestParam(required = false) Integer month,
             Model model) {
 
-        // Set default year and month if not provided
         LocalDate now = LocalDate.now();
         year = Optional.ofNullable(year).orElse(now.getYear());
         month = Optional.ofNullable(month).orElse(now.getMonthValue());
 
         RegisterStatistics statistics = statisticsService.calculateStatistics(year, month);
+        Map<String, Map<String, Integer>> monthlyEntries = statisticsService.getMonthlyEntriesForYear(year);
+        Map<Integer, Integer> dailyEntries = statisticsService.getDailyEntriesForMonth(year, month);
 
         model.addAttribute("statistics", statistics);
+        model.addAttribute("monthlyEntries", monthlyEntries);
+        model.addAttribute("dailyEntries", dailyEntries);
         model.addAttribute("currentYear", year);
         model.addAttribute("currentMonth", month);
         model.addAttribute("monthNames", MONTH_NAMES);
