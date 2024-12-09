@@ -61,14 +61,7 @@ public class RegisterEntry {
         // Return a new ArrayList to avoid modification of the internal list
         // Also ensure we don't have duplicates by using a LinkedHashSet
         return new ArrayList<>(new LinkedHashSet<>(
-                printPrepTypes != null ? printPrepTypes : new ArrayList<>()
-        ));
-    }
-
-    public void setPrintPrepTypes(List<String> printPrepTypes) {
-        // Use LinkedHashSet to remove duplicates while maintaining order
-        this.printPrepTypes = new ArrayList<>(new LinkedHashSet<>(
-                printPrepTypes != null ? printPrepTypes : new ArrayList<>()
+                printPrepTypes
         ));
     }
 }

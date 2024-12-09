@@ -12,7 +12,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Service
@@ -21,13 +20,11 @@ public class DataAccessService {
     private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
     private final Map<Path, ReentrantReadWriteLock> fileLocks;
-    private final ExecutorService asyncWriter;
 
-    public DataAccessService(ObjectMapper objectMapper, PathConfig pathConfig, FileObfuscationService obfuscationService, ExecutorService asyncWriter) {
+    public DataAccessService(ObjectMapper objectMapper, PathConfig pathConfig, FileObfuscationService obfuscationService) {
         this.objectMapper = objectMapper;
         this.pathConfig = pathConfig;
         this.obfuscationService = obfuscationService;
-        this.asyncWriter = asyncWriter;
         this.fileLocks = new ConcurrentHashMap<>();
         LoggerUtil.initialize(this.getClass(), "Initializing Data Access Service");
     }
@@ -192,23 +189,6 @@ public class DataAccessService {
 
     public Path getAdminRegisterPath(String username, Integer userId, int year, int month) {
         return pathConfig.getAdminRegisterPath(username, userId, year, month);
-    }
-
-    public Optional<BonusEntry> loadBonusEntry(Integer userId, int year, int month) {
-        Path path = pathConfig.getAdminBonusPath(year, month);
-        Map<Integer, BonusEntry> bonusEntries = readFile(path,
-                new TypeReference<Map<Integer, BonusEntry>>() {
-                }, true);
-        return Optional.ofNullable(bonusEntries.get(userId));
-    }
-
-    public void saveBonusEntry(Integer userId, int year, int month, BonusEntry entry) {
-        Path path = pathConfig.getAdminBonusPath(year, month);
-        Map<Integer, BonusEntry> bonusEntries = readFile(path,
-                new TypeReference<Map<Integer, BonusEntry>>() {
-                }, true);
-        bonusEntries.put(userId, entry);
-        writeFile(path, bonusEntries);
     }
 
     public Path getAdminBonusPath(int year, int month) {

@@ -8,7 +8,6 @@ import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepType;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
-import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +26,8 @@ public class AdminRegisterService {
     private final BonusCalculatorUtil bonusCalculator;
     private final WorkTimeManagementService workTimeManagementService;
     private final UserService userService;
+    private static final TypeReference<Map<Integer, BonusEntry>> BONUS_ENTRY_TYPE =
+            new TypeReference<Map<Integer, BonusEntry>>() {};
 
 
     @Autowired
@@ -37,6 +38,18 @@ public class AdminRegisterService {
         this.bonusCalculator = bonusCalculator;
         this.workTimeManagementService = workTimeManagementService;
         this.userService = userService;
+    }
+
+    public Optional<BonusEntry> loadBonusEntry(Integer userId, int year, int month) {
+        try {
+            Path path = dataAccessService.getAdminBonusPath(year, month);
+            Map<Integer, BonusEntry> bonusEntries = dataAccessService.readFile(path, BONUS_ENTRY_TYPE, true);
+            return Optional.ofNullable(bonusEntries.get(userId));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading bonus entry for user %d: %s", userId, e.getMessage()));
+            return Optional.empty();
+        }
     }
 
     // Update loadUserRegisterEntries method
@@ -502,7 +515,7 @@ public class AdminRegisterService {
                     .map(User::getEmployeeId)
                     .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-            Optional<BonusEntry> bonusEntryOpt = dataAccessService.loadBonusEntry(employeeId, year, month);
+            Optional<BonusEntry> bonusEntryOpt = loadBonusEntry(employeeId, year, month);
 
             if (bonusEntryOpt.isEmpty()) {
                 return null;

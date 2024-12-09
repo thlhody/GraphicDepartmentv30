@@ -1,7 +1,8 @@
-package com.ctgraphdep.utils;
+
 
 import com.ctgraphdep.model.BonusCalculationResult;
 import com.ctgraphdep.model.BonusConfiguration;
+import com.ctgraphdep.utils.BonusCalculatorUtil;
 import org.junit.jupiter.api.Test;
 
 class BonusCalculatorTest {
