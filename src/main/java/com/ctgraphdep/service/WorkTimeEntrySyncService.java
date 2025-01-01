@@ -15,8 +15,7 @@ import java.util.stream.Collectors;
 @Service
 public class WorkTimeEntrySyncService {
     private final DataAccessService dataAccess;
-    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {
-    };
+    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
 
     public WorkTimeEntrySyncService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
@@ -29,33 +28,16 @@ public class WorkTimeEntrySyncService {
                     String.format("Starting entry synchronization for user %s (%d) - %d/%d",
                             username, userId, month, year));
 
-            // Load user entries
+            // Load both user and admin entries
             List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Loaded %d user entries", userEntries.size()));
-
-            // Load admin entries for this user
             List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Loaded %d admin entries", adminEntries.size()));
 
             // Create maps for efficient lookup
-            Map<LocalDate, WorkTimeTable> adminEntriesMap = adminEntries.stream()
-                    .collect(Collectors.toMap(
-                            WorkTimeTable::getWorkDate,
-                            entry -> entry,
-                            (e1, e2) -> e2  // Keep the latest entry in case of duplicates
-                    ));
+            Map<LocalDate, WorkTimeTable> adminEntriesMap = createEntriesMap(adminEntries);
+            Map<LocalDate, WorkTimeTable> userEntriesMap = createEntriesMap(userEntries);
 
-            Map<LocalDate, WorkTimeTable> userEntriesMap = userEntries.stream()
-                    .collect(Collectors.toMap(
-                            WorkTimeTable::getWorkDate,
-                            entry -> entry,
-                            (e1, e2) -> e2
-                    ));
-
-            // Process and merge entries
-            List<WorkTimeTable> mergedEntries = mergeEntries(userEntriesMap, adminEntriesMap);
+            // Merge entries according to new rules
+            List<WorkTimeTable> mergedEntries = mergeEntries(userEntriesMap, adminEntriesMap, userId);
 
             // Save merged entries back to user file
             saveUserEntries(username, mergedEntries, year, month);
@@ -70,12 +52,21 @@ public class WorkTimeEntrySyncService {
         }
     }
 
+    private Map<LocalDate, WorkTimeTable> createEntriesMap(List<WorkTimeTable> entries) {
+        return entries.stream()
+                .collect(Collectors.toMap(
+                        WorkTimeTable::getWorkDate,
+                        entry -> entry,
+                        (e1, e2) -> e2  // Keep the latest entry in case of duplicates
+                ));
+    }
+
     private List<WorkTimeTable> mergeEntries(
             Map<LocalDate, WorkTimeTable> userEntriesMap,
-            Map<LocalDate, WorkTimeTable> adminEntriesMap) {
+            Map<LocalDate, WorkTimeTable> adminEntriesMap,
+            Integer userId) {
 
         List<WorkTimeTable> mergedEntries = new ArrayList<>();
-
         Set<LocalDate> allDates = new HashSet<>();
         allDates.addAll(userEntriesMap.keySet());
         allDates.addAll(adminEntriesMap.keySet());
@@ -84,37 +75,85 @@ public class WorkTimeEntrySyncService {
             WorkTimeTable userEntry = userEntriesMap.get(date);
             WorkTimeTable adminEntry = adminEntriesMap.get(date);
 
-            if (adminEntry != null && SyncStatus.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
-                if (userEntry != null) {
-                    LoggerUtil.debug(this.getClass(),
-                            String.format("Removing entry for date %s due to ADMIN_BLANK status", date));
+            WorkTimeTable mergedEntry = processSingleEntry(userEntry, adminEntry);
+
+            if (mergedEntry != null) {
+                // Ensure userId is set
+                if (mergedEntry.getUserId() == null) {
+                    mergedEntry.setUserId(userId);
                 }
-                continue;
+                mergedEntries.add(mergedEntry);
+
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Processed entry for date %s, final status: %s",
+                                date, mergedEntry.getAdminSync()));
             }
-
-            // Remove the redundant condition as it's already handled above
-
-            WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry != null ? userEntry : createDefaultUserEntry(date), adminEntry);
-            mergedEntries.add(mergedEntry);
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Added merged entry for date %s with status %s",
-                            date, mergedEntry.getAdminSync()));
         }
 
         mergedEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate));
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Merged entries: %d total entries", mergedEntries.size()));
-
         return mergedEntries;
     }
 
-    private WorkTimeTable createDefaultUserEntry(LocalDate date) {
-        WorkTimeTable defaultEntry = new WorkTimeTable();
-        defaultEntry.setUserId(null);
-        defaultEntry.setWorkDate(date);
-        defaultEntry.setAdminSync(SyncStatus.ADMIN_EDITED);
-        return defaultEntry;
+    private WorkTimeTable processSingleEntry(WorkTimeTable userEntry, WorkTimeTable adminEntry) {
+        // Handle USER_IN_PROCESS entries
+        if (userEntry != null && SyncStatus.USER_IN_PROCESS.equals(userEntry.getAdminSync())) {
+            return userEntry;
+        }
+
+        // Handle USER_EDITED entries (cannot be overwritten by ADMIN_BLANK)
+        if (userEntry != null && SyncStatus.USER_EDITED.equals(userEntry.getAdminSync())) {
+            if (adminEntry != null && !SyncStatus.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
+                // If admin entry exists and matches, convert to USER_DONE
+                if (entriesMatch(userEntry, adminEntry)) {
+                    userEntry.setAdminSync(SyncStatus.USER_DONE);
+                }
+            }
+            return userEntry;
+        }
+
+        // Handle ADMIN_BLANK
+        if (adminEntry != null && SyncStatus.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
+            if (userEntry != null && userEntry.getTimeOffType() != null) {
+                // New entry over ADMIN_BLANK becomes USER_EDITED
+                userEntry.setAdminSync(SyncStatus.USER_EDITED);
+                return userEntry;
+            }
+            return null; // ADMIN_BLANK without new entry should not be displayed
+        }
+
+        // Handle ADMIN_EDITED entries
+        if (adminEntry != null && SyncStatus.ADMIN_EDITED.equals(adminEntry.getAdminSync())) {
+            WorkTimeTable result = copyWorkTimeEntry(adminEntry);
+            result.setAdminSync(SyncStatus.USER_DONE);
+            return result;
+        }
+
+        // Apply standard merge rules for other cases
+        return WorktimeMergeRule.apply(userEntry, adminEntry);
+    }
+
+    private boolean entriesMatch(WorkTimeTable entry1, WorkTimeTable entry2) {
+        if (entry1 == null || entry2 == null) return false;
+
+        return Objects.equals(entry1.getWorkDate(), entry2.getWorkDate()) &&
+                Objects.equals(entry1.getTotalWorkedMinutes(), entry2.getTotalWorkedMinutes()) &&
+                Objects.equals(entry1.getTimeOffType(), entry2.getTimeOffType());
+    }
+
+    private WorkTimeTable copyWorkTimeEntry(WorkTimeTable source) {
+        WorkTimeTable copy = new WorkTimeTable();
+        copy.setUserId(source.getUserId());
+        copy.setWorkDate(source.getWorkDate());
+        copy.setDayStartTime(source.getDayStartTime());
+        copy.setDayEndTime(source.getDayEndTime());
+        copy.setTemporaryStopCount(source.getTemporaryStopCount());
+        copy.setLunchBreakDeducted(source.isLunchBreakDeducted());
+        copy.setTimeOffType(source.getTimeOffType());
+        copy.setTotalWorkedMinutes(source.getTotalWorkedMinutes());
+        copy.setTotalTemporaryStopMinutes(source.getTotalTemporaryStopMinutes());
+        copy.setTotalOvertimeMinutes(source.getTotalOvertimeMinutes());
+        copy.setAdminSync(source.getAdminSync());
+        return copy;
     }
 
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {

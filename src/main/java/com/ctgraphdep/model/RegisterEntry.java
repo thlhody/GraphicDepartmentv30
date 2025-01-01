@@ -40,6 +40,7 @@ public class RegisterEntry {
     private String actionType;
 
     @JsonProperty("printPrepTypes")
+    @Builder.Default
     private List<String> printPrepTypes = new ArrayList<>();
 
     @JsonProperty("colorsProfile")

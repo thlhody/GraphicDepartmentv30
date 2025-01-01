@@ -8,6 +8,8 @@ import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -27,6 +29,7 @@ public class UserTimeOffController extends BaseController {
     private final UserTimeOffService timeOffService;
     private final AdminPaidHolidayService holidayService;
     private final UserWorkTimeService userWorkTimeService;
+    private final UserService userService;
 
     public UserTimeOffController(
             UserService userService,
@@ -38,6 +41,7 @@ public class UserTimeOffController extends BaseController {
         this.timeOffService = timeOffService;
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -118,6 +122,24 @@ public class UserTimeOffController extends BaseController {
             LoggerUtil.error(this.getClass(), "Error processing time off request: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", "Failed to process time off request");
             return "redirect:/user/timeoff?error=submit_failed";
+        }
+    }
+
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<WorkTimeTable>> getUpcomingTimeOff(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            User user = userService.getUserByUsername(userDetails.getUsername())
+                    .orElseThrow(() -> new IllegalStateException("User not found"));
+
+            List<WorkTimeTable> upcomingTimeOff = timeOffService.getUpcomingTimeOff(user);
+
+            return ResponseEntity.ok(upcomingTimeOff);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error getting upcoming time off: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

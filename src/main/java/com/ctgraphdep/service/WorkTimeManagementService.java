@@ -4,7 +4,6 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,7 +20,6 @@ import java.util.stream.Collectors;
 @Service
 @PreAuthorize("hasRole('ADMIN')")
 public class WorkTimeManagementService {
-
     private final AdminPaidHolidayService holidayService;
     private final DataAccessService dataAccess;
     private final UserService userService;
@@ -30,52 +28,31 @@ public class WorkTimeManagementService {
 
     public WorkTimeManagementService(
             DataAccessService dataAccess,
-            AdminPaidHolidayService holidayService, UserService userService) {
+            AdminPaidHolidayService holidayService,
+            UserService userService) {
         this.dataAccess = dataAccess;
         this.holidayService = holidayService;
         this.userService = userService;
         LoggerUtil.initialize(this.getClass(), "Initializing WorkTime Management Service");
     }
 
-    //Process admin worktime update for a specific user and date
     public void processWorktimeUpdate(Integer userId, LocalDate date, String value) {
         adminLock.lock();
         try {
             validateUpdateRequest(userId, date, value);
 
-            // Check existing entry before update for CO handling
+            // Get existing entry for comparison
             WorkTimeTable existingEntry = getExistingEntry(userId, date);
-            boolean wasTimeOff = existingEntry != null &&
-                    WorkCode.TIME_OFF_CODE.equals(existingEntry.getTimeOffType());
+            boolean wasTimeOff = isTimeOffEntry(existingEntry);
 
-            // Create appropriate entry based on value
-            WorkTimeTable entry;
-            if (value == null || value.trim().isEmpty() || "REMOVE".equals(value)) {
-                // Handle removal explicitly
-                entry = createBlankEntry(userId, date);
-                entry.setAdminSync(SyncStatus.ADMIN_BLANK);
-                if (wasTimeOff) {
-                    restorePaidHoliday(userId);
-                }
-            } else if (value.matches("^(SN|CO|CM)$")) {
-                entry = createTimeOffEntry(userId, date, value);
-                entry.setAdminSync(SyncStatus.ADMIN_EDITED);
-                if (WorkCode.TIME_OFF_CODE.equals(value) && !wasTimeOff) {
-                    processTimeOffUpdate(userId, date, value);
-                }
-            } else if (value.matches("^([1-9]|1\\d|2[0-4])$")) {
-                entry = createWorkHoursEntry(userId, date, Integer.parseInt(value));
-                entry.setAdminSync(SyncStatus.ADMIN_EDITED);
-                if (wasTimeOff) {
-                    restorePaidHoliday(userId);
-                }
-            } else {
-                LoggerUtil.info(WorkTimeManagementService.class, "Invalid value format: " + value);
-                throw new IllegalArgumentException("Invalid value format: " + value);
-            }
+            // Create new entry based on input value
+            WorkTimeTable newEntry = createEntryFromValue(userId, date, value);
 
-            // Save entry with proper status handling
-            saveAdminEntryWithStatusHandling(entry, date.getYear(), date.getMonthValue());
+            // Handle paid holiday balance updates
+            handlePaidHolidayBalance(existingEntry, newEntry);
+
+            // Save the entry
+            saveAdminEntry(newEntry, date.getYear(), date.getMonthValue());
 
             LoggerUtil.info(this.getClass(),
                     String.format("Processed admin worktime update for user %d on %s: %s",
@@ -86,95 +63,186 @@ public class WorkTimeManagementService {
         }
     }
 
-    private WorkTimeTable getExistingEntry(Integer userId, LocalDate date) {
-        List<WorkTimeTable> existingEntries = dataAccess.readFile(
-                dataAccess.getAdminWorktimePath(date.getYear(), date.getMonthValue()),
-                WORKTIME_LIST_TYPE,
-                true
-        );
-
-        return existingEntries.stream()
-                .filter(entry -> entry.getUserId().equals(userId) &&
-                        entry.getWorkDate().equals(date))
-                .findFirst()
-                .orElse(null);
+    private boolean isTimeOffEntry(WorkTimeTable entry) {
+        return entry != null && WorkCode.TIME_OFF_CODE.equals(entry.getTimeOffType());
     }
 
-    private void saveAdminEntryWithStatusHandling(WorkTimeTable newEntry, int year, int month) {
-        List<WorkTimeTable> entries = dataAccess.readFile(
-                dataAccess.getAdminWorktimePath(year, month),
-                WORKTIME_LIST_TYPE,
-                true
-        );
+    private WorkTimeTable createEntryFromValue(Integer userId, LocalDate date, String value) {
+        if (isRemoveValue(value)) {
+            return createAdminBlankEntry(userId, date);
+        }
 
-        // Remove existing entry for this date and user
-        entries.removeIf(e -> e.getUserId().equals(newEntry.getUserId()) &&
-                e.getWorkDate().equals(newEntry.getWorkDate()));
+        if (isTimeOffValue(value)) {
+            return createTimeOffEntry(userId, date, value);
+        }
 
-        // Always add the entry - includes ADMIN_BLANK to signal removal to user
-        entries.add(newEntry);
+        if (isWorkHoursValue(value)) {
+            return createWorkHoursEntry(userId, date, Integer.parseInt(value));
+        }
 
-        // Sort entries
-        entries.sort(Comparator
-                .comparing(WorkTimeTable::getWorkDate)
-                .thenComparing(WorkTimeTable::getUserId));
-
-        // Save the entries
-        dataAccess.writeFile(
-                dataAccess.getAdminWorktimePath(year, month),
-                entries
-        );
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Saved entry with status %s to general worktime",
-                        newEntry.getAdminSync()));
+        throw new IllegalArgumentException("Invalid value format: " + value);
     }
 
-    //Add national holiday for all users
+    private boolean isRemoveValue(String value) {
+        return value == null || value.trim().isEmpty() || "REMOVE".equals(value);
+    }
+
+    private boolean isTimeOffValue(String value) {
+        return value != null && value.matches("^(SN|CO|CM)$");
+    }
+
+    private boolean isWorkHoursValue(String value) {
+        return value != null && value.matches("^([1-9]|1\\d|2[0-4])$");
+    }
+
+    private void handlePaidHolidayBalance(WorkTimeTable existingEntry, WorkTimeTable newEntry) {
+        boolean wasTimeOff = isTimeOffEntry(existingEntry);
+        boolean isTimeOff = isTimeOffEntry(newEntry);
+
+        if (wasTimeOff && !isTimeOff) {
+            // Restore paid holiday day when removing CO
+            restorePaidHoliday(existingEntry.getUserId());
+        } else if (!wasTimeOff && isTimeOff && WorkCode.TIME_OFF_CODE.equals(newEntry.getTimeOffType())) {
+            // Deduct paid holiday day when adding CO
+            processTimeOffUpdate(newEntry.getUserId(), newEntry.getWorkDate(), newEntry.getTimeOffType());
+        }
+    }
+
     public void addNationalHoliday(LocalDate date) {
         adminLock.lock();
         try {
             validateHolidayDate(date);
 
-            // Get existing entries
-            List<WorkTimeTable> entries = dataAccess.readFile(
-                    dataAccess.getAdminWorktimePath(date.getYear(), date.getMonthValue()),
-                    WORKTIME_LIST_TYPE,
-                    true
-            );
+            List<WorkTimeTable> entries = loadAdminEntries(date.getYear(), date.getMonthValue());
+            List<User> nonAdminUsers = getNonAdminUsers();
 
-            // Get all non-admin users from user service
-            List<User> nonAdminUsers = userService.getAllUsers().stream()
-                    .filter(user -> !user.isAdmin())
-                    .toList();
-
-            // Remove any existing entries for this date
+            // Remove existing entries for this date
             entries.removeIf(entry -> entry.getWorkDate().equals(date));
 
             // Create holiday entries for each user
-            List<WorkTimeTable> holidayEntries = nonAdminUsers.stream()
-                    .map(user -> createTimeOffEntry(user.getUserId(), date, WorkCode.NATIONAL_HOLIDAY_CODE))
-                    .toList();
+            List<WorkTimeTable> holidayEntries = createHolidayEntriesForUsers(nonAdminUsers, date);
 
             if (!holidayEntries.isEmpty()) {
                 entries.addAll(holidayEntries);
                 saveAdminEntry(entries, date.getYear(), date.getMonthValue());
 
                 LoggerUtil.info(this.getClass(),
-                        String.format("Added national holiday for %s with %d entries",
-                                date, holidayEntries.size()));
-            } else {
-                LoggerUtil.info(this.getClass(),
-                        String.format("National holiday already exists for %s", date));
+                        String.format("Added national holiday for %s with %d entries", date, holidayEntries.size()));
             }
-
         } finally {
             adminLock.unlock();
         }
     }
 
+    private List<User> getNonAdminUsers() {
+        return userService.getAllUsers().stream()
+                .filter(user -> !user.isAdmin())
+                .toList();
+    }
+
+    private List<WorkTimeTable> createHolidayEntriesForUsers(List<User> users, LocalDate date) {
+        return users.stream()
+                .map(user -> createTimeOffEntry(user.getUserId(), date, WorkCode.NATIONAL_HOLIDAY_CODE))
+                .collect(Collectors.toList());
+    }
+
+    private WorkTimeTable createAdminBlankEntry(Integer userId, LocalDate date) {
+        WorkTimeTable entry = new WorkTimeTable();
+        entry.setUserId(userId);
+        entry.setWorkDate(date);
+        entry.setTimeOffType(null);
+        entry.setAdminSync(SyncStatus.ADMIN_BLANK);
+        resetEntryValues(entry);
+        return entry;
+    }
+
+    private WorkTimeTable createTimeOffEntry(Integer userId, LocalDate date, String type) {
+        WorkTimeTable entry = new WorkTimeTable();
+        entry.setUserId(userId);
+        entry.setWorkDate(date);
+        entry.setTimeOffType(type.toUpperCase());
+        entry.setAdminSync(SyncStatus.ADMIN_EDITED);
+        resetEntryValues(entry);
+        return entry;
+    }
+
+    private WorkTimeTable createWorkHoursEntry(Integer userId, LocalDate date, int hours) {
+        WorkTimeTable entry = new WorkTimeTable();
+        entry.setUserId(userId);
+        entry.setWorkDate(date);
+
+        LocalDateTime startTime = date.atTime(WorkCode.START_HOUR, 0);
+        entry.setDayStartTime(startTime);
+
+        int totalMinutes = (hours * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION;
+        entry.setTotalWorkedMinutes(totalMinutes);
+
+        LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
+        entry.setDayEndTime(endTime);
+
+        entry.setLunchBreakDeducted(hours > WorkCode.INTERVAL_HOURS_A);
+        entry.setTimeOffType(null);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setAdminSync(SyncStatus.ADMIN_EDITED);
+
+        return entry;
+    }
+
+    private void resetEntryValues(WorkTimeTable entry) {
+        entry.setDayStartTime(null);
+        entry.setDayEndTime(null);
+        entry.setTemporaryStopCount(0);
+        entry.setLunchBreakDeducted(false);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+    }
+
+    private WorkTimeTable getExistingEntry(Integer userId, LocalDate date) {
+        return loadAdminEntries(date.getYear(), date.getMonthValue()).stream()
+                .filter(entry -> entry.getUserId().equals(userId) &&
+                        entry.getWorkDate().equals(date))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<WorkTimeTable> loadAdminEntries(int year, int month) {
+        Path adminPath = dataAccess.getAdminWorktimePath(year, month);
+        return dataAccess.readFile(adminPath, WORKTIME_LIST_TYPE, true);
+    }
+
+    private void saveAdminEntry(WorkTimeTable entry, int year, int month) {
+        List<WorkTimeTable> entries = loadAdminEntries(year, month);
+
+        // Remove existing entry
+        entries.removeIf(e -> e.getUserId().equals(entry.getUserId()) &&
+                e.getWorkDate().equals(entry.getWorkDate()));
+
+        // Add new entry
+        entries.add(entry);
+
+        // Sort and save
+        saveAdminEntry(entries, year, month);
+    }
+
+    private void saveAdminEntry(List<WorkTimeTable> entries, int year, int month) {
+        entries.sort(Comparator
+                .comparing(WorkTimeTable::getWorkDate)
+                .thenComparing(WorkTimeTable::getUserId));
+
+        dataAccess.writeFile(
+                dataAccess.getAdminWorktimePath(year, month),
+                entries
+        );
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Saved %d entries to admin worktime", entries.size()));
+    }
+
     private void processTimeOffUpdate(Integer userId, LocalDate date, String type) {
-        if (WorkCode.TIME_OFF_CODE.equals(type)) { // "CO" is the time off code
+        if (WorkCode.TIME_OFF_CODE.equals(type)) {
             int availableDays = holidayService.getRemainingHolidayDays(null, userId);
             if (availableDays < 1) {
                 throw new IllegalStateException("Insufficient paid holiday days available");
@@ -183,6 +251,19 @@ public class WorkTimeManagementService {
             LoggerUtil.info(this.getClass(),
                     String.format("Deducted 1 paid holiday day for user %d. New balance: %d",
                             userId, availableDays - 1));
+        }
+    }
+
+    private void restorePaidHoliday(Integer userId) {
+        try {
+            int currentDays = holidayService.getRemainingHolidayDays(null, userId);
+            holidayService.updateUserHolidayDays(userId, currentDays + 1);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Restored paid holiday day for user %d. New balance: %d",
+                            userId, currentDays + 1));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error restoring paid holiday: " + e.getMessage());
+            throw new RuntimeException("Failed to restore paid holiday", e);
         }
     }
 
@@ -217,162 +298,12 @@ public class WorkTimeManagementService {
         }
     }
 
-    private WorkTimeTable createBlankEntry(Integer userId, LocalDate date) {
-        WorkTimeTable entry = new WorkTimeTable();
-        entry.setUserId(userId);
-        entry.setWorkDate(date);
-        entry.setTimeOffType(null);
-        entry.setAdminSync(SyncStatus.ADMIN_BLANK);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setDayStartTime(null);
-        entry.setDayEndTime(null);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setLunchBreakDeducted(false);
-        return entry;
-    }
-
-    private WorkTimeTable createTimeOffEntry(Integer userId, LocalDate date, String type) {
-        WorkTimeTable entry = new WorkTimeTable();
-        entry.setUserId(userId);
-        entry.setWorkDate(date);
-        entry.setTimeOffType(type.toUpperCase());
-        entry.setAdminSync(SyncStatus.ADMIN_EDITED);
-        resetEntryValues(entry);
-        return entry;
-    }
-
-    private WorkTimeTable createWorkHoursEntry(Integer userId, LocalDate date, int hours) {
-        WorkTimeTable entry = new WorkTimeTable();
-        entry.setUserId(userId);
-        entry.setWorkDate(date);
-
-        // Set start time at 07:00
-        LocalDateTime startTime = date.atTime(WorkCode.START_HOUR, 0);
-        entry.setDayStartTime(startTime);
-
-        // Calculate total minutes and end time
-        int totalMinutes = (hours * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION;
-        entry.setTotalWorkedMinutes(totalMinutes);
-
-        // Calculate end time based on total minutes
-        LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
-        entry.setDayEndTime(endTime);
-
-        // Set lunch break if more than 4 hours
-        entry.setLunchBreakDeducted(hours > WorkCode.INTERVAL_HOURS_A);
-
-        entry.setTimeOffType(null);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setAdminSync(SyncStatus.ADMIN_EDITED);
-
-        return entry;
-    }
-
-    private void resetEntryValues(WorkTimeTable entry) {
-        entry.setDayStartTime(null);
-        entry.setDayEndTime(null);
-        entry.setTemporaryStopCount(0);
-        entry.setLunchBreakDeducted(false);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-    }
-
-    private void restorePaidHoliday(Integer userId) {
-        try {
-            int currentDays = holidayService.getRemainingHolidayDays(null, userId);
-            holidayService.updateUserHolidayDays(userId, currentDays + 1);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Restored paid holiday day for user %d. New balance: %d",
-                            userId, currentDays + 1));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error restoring paid holiday: " + e.getMessage());
-            throw new RuntimeException("Failed to restore paid holiday", e);
-        }
-    }
-
-    private void saveAdminEntry(List<WorkTimeTable> newEntries, int year, int month) {
-        // Load existing entries
-        List<WorkTimeTable> existingEntries = dataAccess.readFile(
-                dataAccess.getAdminWorktimePath(year, month),
-                WORKTIME_LIST_TYPE,
-                true
-        );
-
-        // Create a map of existing entries that we want to keep (those not affected by new entries)
-        Map<String, WorkTimeTable> entriesMap = existingEntries.stream()
-                .filter(existing -> newEntries.stream()
-                        .noneMatch(newEntry ->
-                                newEntry.getUserId().equals(existing.getUserId()) &&
-                                        newEntry.getWorkDate().equals(existing.getWorkDate())))
-                .collect(Collectors.toMap(
-                        entry -> entry.getUserId() + "_" + entry.getWorkDate(),
-                        entry -> entry
-                ));
-
-        // Add all new entries to the map
-        newEntries.forEach(entry ->
-                entriesMap.put(entry.getUserId() + "_" + entry.getWorkDate(), entry));
-
-        // Convert back to sorted list
-        List<WorkTimeTable> finalEntries = new ArrayList<>(entriesMap.values());
-        finalEntries.sort(Comparator
-                .comparing(WorkTimeTable::getWorkDate)
-                .thenComparing(WorkTimeTable::getUserId));
-
-        // Save the combined entries
-        dataAccess.writeFile(
-                dataAccess.getAdminWorktimePath(year, month),
-                finalEntries
-        );
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Saved %d entries to general worktime", finalEntries.size()));
-    }
-
     public int getWorkedDays(Integer userId, int year, int month) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Getting worked days for userId: %d, year: %d, month: %d",
-                        userId, year, month));
-
-        Path worktimePath = dataAccess.getAdminWorktimePath(year, month);
-        LoggerUtil.info(this.getClass(), "Loading from path: " + worktimePath);
-
-        List<WorkTimeTable> entries = dataAccess.readFile(
-                worktimePath,
-                WORKTIME_LIST_TYPE,
-                true
-        );
-
-        LoggerUtil.info(this.getClass(), String.format("Loaded %d total entries", entries.size()));
-
-        long workedDays = entries.stream()
-                .filter(entry -> {
-                    boolean matches = entry.getUserId().equals(userId);
-                    if (!matches) {
-                        //LoggerUtil.debug(this.getClass(), String.format("Entry userId %d doesn't match requested %d", entry.getUserId(), userId));
-                    }
-                    return matches;
-                })
-                .filter(entry -> {
-                    boolean isWorkDay = entry.getTimeOffType() == null &&
-                            entry.getTotalWorkedMinutes() != null &&
-                            entry.getTotalWorkedMinutes() > 0;
-                    if (!isWorkDay) {
-                        //LoggerUtil.debug(this.getClass(), String.format("Entry for date %s filtered out: timeOffType=%s, minutes=%d", entry.getWorkDate(), entry.getTimeOffType(), entry.getTotalWorkedMinutes()));
-                    }
-                    return isWorkDay;
-                })
+        return (int) loadAdminEntries(year, month).stream()
+                .filter(entry -> entry.getUserId().equals(userId))
+                .filter(entry -> entry.getTimeOffType() == null &&
+                        entry.getTotalWorkedMinutes() != null &&
+                        entry.getTotalWorkedMinutes() > 0)
                 .count();
-
-        LoggerUtil.info(this.getClass(), String.format("Found %d worked days for user %d", workedDays, userId));
-
-        return (int) workedDays;
     }
 }

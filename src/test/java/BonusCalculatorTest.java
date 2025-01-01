@@ -14,10 +14,10 @@ class BonusCalculatorTest {
         BonusConfiguration config = BonusConfiguration.getDefaultConfig();
 
         // Input values
-        int numberOfEntries = 176;
-        int workedDays = 23;
-        double sumArticleNumbers = 356;
-        double sumComplexity =395.5;
+        int numberOfEntries = 45;
+        int workedDays = 12;
+        double sumArticleNumbers = 121;
+        double sumComplexity =106.5;
 
         // When
         BonusCalculationResult result = calculator.calculateBonus(

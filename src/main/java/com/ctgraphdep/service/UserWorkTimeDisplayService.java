@@ -25,7 +25,6 @@ public class UserWorkTimeDisplayService {
             int year,
             int month) {
 
-        // Validate inputs
         validateInput(user, worktimeData, year, month);
 
         LoggerUtil.info(this.getClass(),
@@ -35,16 +34,19 @@ public class UserWorkTimeDisplayService {
         try {
             Map<String, Object> displayData = new HashMap<>();
 
+            // Filter entries for display
+            List<WorkTimeTable> displayableEntries = filterEntriesForDisplay(worktimeData);
+
             // Process worktime calculations
             List<WorkTimeCalculationResult> processedWorktime = processWorktimeData(
-                    worktimeData, user.getSchedule());
+                    displayableEntries, user.getSchedule());
 
             // Get paid holiday information
             int paidHolidayDays = getPaidHolidayDays(user.getUserId());
 
             // Calculate summary
             WorkTimeSummary summary = calculateMonthSummary(
-                    worktimeData,
+                    displayableEntries,
                     processedWorktime,
                     year,
                     month,
@@ -53,14 +55,15 @@ public class UserWorkTimeDisplayService {
             );
 
             // Prepare display data
-            displayData.put("worktimeData", worktimeData);
+            displayData.put("worktimeData", displayableEntries);
             displayData.put("currentYear", year);
             displayData.put("currentMonth", month);
             displayData.put("user", sanitizeUserData(user));
             displayData.put("summary", summary);
 
             LoggerUtil.info(this.getClass(),
-                    String.format("Display data prepared successfully for user %s", user.getUsername()));
+                    String.format("Prepared display data with %d entries for user %s",
+                            displayableEntries.size(), user.getUsername()));
 
             return displayData;
 
@@ -70,6 +73,77 @@ public class UserWorkTimeDisplayService {
                             user.getUsername(), e.getMessage()));
             throw new RuntimeException("Failed to prepare display data", e);
         }
+    }
+
+    private List<WorkTimeTable> filterEntriesForDisplay(List<WorkTimeTable> entries) {
+        return entries.stream()
+                .filter(this::isEntryDisplayable)
+                .map(this::prepareEntryForDisplay)
+                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
+                .toList();
+    }
+
+    private boolean isEntryDisplayable(WorkTimeTable entry) {
+        if (entry == null) return false;
+
+        // Never display ADMIN_BLANK entries
+        if (SyncStatus.ADMIN_BLANK.equals(entry.getAdminSync())) {
+            return false;
+        }
+
+        // Display USER_IN_PROCESS entries with partial info
+        if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+            return true;
+        }
+
+        // Show all other valid entries
+        return entry.getAdminSync() != null;
+    }
+
+    private WorkTimeTable prepareEntryForDisplay(WorkTimeTable entry) {
+        WorkTimeTable displayEntry = copyWorkTimeEntry(entry);
+
+        // For USER_IN_PROCESS entries, show only partial information
+        if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+            displayEntry.setTotalWorkedMinutes(null);
+            displayEntry.setTotalOvertimeMinutes(null);
+            displayEntry.setDayEndTime(null);
+            displayEntry.setLunchBreakDeducted(false);
+            return displayEntry;
+        }
+
+        return displayEntry;
+    }
+
+    private List<WorkTimeCalculationResult> processWorktimeData(
+            List<WorkTimeTable> worktimeData,
+            int schedule) {
+
+        List<WorkTimeCalculationResult> processedWorktime = new ArrayList<>();
+
+        for (WorkTimeTable day : worktimeData) {
+            // Skip in-process entries and entries without worked minutes
+            if (SyncStatus.USER_IN_PROCESS.equals(day.getAdminSync()) ||
+                    day.getTotalWorkedMinutes() == null) {
+                continue;
+            }
+
+            try {
+                WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
+                        day.getTotalWorkedMinutes(),
+                        schedule
+                );
+                processedWorktime.add(result);
+
+                // Update the WorkTimeTable with processed values
+                updateWorkTimeTableWithResult(day, result);
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(),
+                        "Error processing worktime entry for date " + day.getWorkDate(), e);
+            }
+        }
+
+        return processedWorktime;
     }
 
     private void validateInput(User user, List<WorkTimeTable> worktimeData, int year, int month) {
@@ -86,43 +160,10 @@ public class UserWorkTimeDisplayService {
             throw new IllegalArgumentException("Invalid month: " + month);
         }
 
-        // Validate that all entries belong to the specified user
         if (worktimeData.stream()
                 .anyMatch(entry -> !entry.getUserId().equals(user.getUserId()))) {
             throw new SecurityException("Worktime data contains entries for other users");
         }
-    }
-
-    private List<WorkTimeCalculationResult> processWorktimeData(
-            List<WorkTimeTable> worktimeData,
-            int schedule) {
-
-        List<WorkTimeCalculationResult> processedWorktime = new ArrayList<>();
-
-        for (WorkTimeTable day : worktimeData) {
-            // Skip processing for in-process entries
-            if (SyncStatus.USER_IN_PROCESS.equals(day.getAdminSync())) {
-                continue;
-            }
-
-            if (day.getTotalWorkedMinutes() != null) {
-                try {
-                    WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
-                            day.getTotalWorkedMinutes(),
-                            schedule
-                    );
-                    processedWorktime.add(result);
-
-                    // Update the WorkTimeTable with processed values
-                    updateWorkTimeTableWithResult(day, result);
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            "Error processing worktime entry for date " + day.getWorkDate(), e);
-                }
-            }
-        }
-
-        return processedWorktime;
     }
 
     private void updateWorkTimeTableWithResult(WorkTimeTable day, WorkTimeCalculationResult result) {
@@ -177,7 +218,6 @@ public class UserWorkTimeDisplayService {
         }
     }
 
-
     private WorkTimeCounts calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
         WorkTimeCounts counts = new WorkTimeCounts();
 
@@ -203,15 +243,29 @@ public class UserWorkTimeDisplayService {
         return counts;
     }
 
+    private WorkTimeTable copyWorkTimeEntry(WorkTimeTable source) {
+        WorkTimeTable copy = new WorkTimeTable();
+        copy.setUserId(source.getUserId());
+        copy.setWorkDate(source.getWorkDate());
+        copy.setDayStartTime(source.getDayStartTime());
+        copy.setDayEndTime(source.getDayEndTime());
+        copy.setTemporaryStopCount(source.getTemporaryStopCount());
+        copy.setLunchBreakDeducted(source.isLunchBreakDeducted());
+        copy.setTimeOffType(source.getTimeOffType());
+        copy.setTotalWorkedMinutes(source.getTotalWorkedMinutes());
+        copy.setTotalTemporaryStopMinutes(source.getTotalTemporaryStopMinutes());
+        copy.setTotalOvertimeMinutes(source.getTotalOvertimeMinutes());
+        copy.setAdminSync(source.getAdminSync());
+        return copy;
+    }
+
     private User sanitizeUserData(User user) {
-        // Create a copy with only necessary display data
         User sanitized = new User();
         sanitized.setUserId(user.getUserId());
         sanitized.setName(user.getName());
         sanitized.setUsername(user.getUsername());
         sanitized.setEmployeeId(user.getEmployeeId());
         sanitized.setSchedule(user.getSchedule());
-        // Explicitly exclude password and other sensitive data
         return sanitized;
     }
 }
