@@ -25,13 +25,15 @@ public class AuthenticationService {
 
     private final DataAccessService dataAccess;
     private final PasswordEncoder passwordEncoder;
+    private final SessionRecoveryService sessionRecoveryService;
 
 
     public AuthenticationService(
             DataAccessService dataAccess,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder, SessionRecoveryService sessionRecoveryService) {
         this.dataAccess = dataAccess;
         this.passwordEncoder = passwordEncoder;
+        this.sessionRecoveryService = sessionRecoveryService;
         LoggerUtil.initialize(this.getClass(), "Initializing Authentication Service");
     }
 
@@ -99,6 +101,9 @@ public class AuthenticationService {
             if (rememberMe) {
                 storeUserDataLocally(user);
             }
+
+            // Add session recovery here
+            sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
 
             LoggerUtil.info(this.getClass(),
                     String.format("Successfully handled login for user: %s (rememberMe: %s)",

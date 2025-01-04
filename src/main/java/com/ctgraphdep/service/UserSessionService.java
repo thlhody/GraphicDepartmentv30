@@ -2,6 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.event.SessionEndEvent;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -9,6 +10,8 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,6 +20,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -26,6 +30,7 @@ public class UserSessionService {
     private final DataAccessService dataAccess;
     private final UserWorkTimeService userWorkTimeService;
     private final SessionPersistenceService persistenceService;
+    private final SessionMonitorService sessionMonitorService;
     private final PathConfig pathConfig;
     private final ReentrantLock sessionLock = new ReentrantLock();
     private final Map<String, WorkUsersSessionsStates> userSessions = new ConcurrentHashMap<>();
@@ -35,11 +40,12 @@ public class UserSessionService {
     public UserSessionService(
             DataAccessService dataAccess,
             UserWorkTimeService userWorkTimeService, SessionPersistenceService persistenceService,
-            PathConfig pathConfig, UserService userService) {
+            PathConfig pathConfig, UserService userService, @Lazy SessionMonitorService sessionMonitorService) {
         this.dataAccess = dataAccess;
         this.userWorkTimeService = userWorkTimeService;
         this.persistenceService = persistenceService;
         this.pathConfig = pathConfig;
+        this.sessionMonitorService = sessionMonitorService;
 
         LoggerUtil.initialize(this.getClass(), "Initializing User Session Service");
     }
@@ -260,11 +266,46 @@ public class UserSessionService {
         session.setCurrentStartTime(now);
         session.setLastActivity(now);
     }
+
+    // Add this method to UserSessionService
+    public void resumeSession(WorkUsersSessionsStates session) {
+        executeWithLock(() -> {
+            if (session != null && (
+                    WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
+                            WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()))) {
+
+                // Update last activity
+                session.setLastActivity(LocalDateTime.now());
+
+                // If was in temporary stop, handle resumption
+                if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                    updateSessionForResume(session, LocalDateTime.now());
+                }
+
+                // Save and start monitoring
+                saveSession(session.getUsername(), session);
+                sessionMonitorService.startMonitoring(session);
+
+                LoggerUtil.info(this.getClass(),
+                        String.format("Resumed existing session for user %s", session.getUsername()));
+            }
+            return null;
+        });
+    }
+
+    @EventListener
+    public void handleSessionEndEvent(SessionEndEvent event) {
+        endDay(event.getUsername(), event.getUserId(), event.getFinalMinutes());
+    }
+
     @SuppressWarnings("unused")
     public void endDay(String username, Integer userId, Integer finalMinutes) {
         executeWithLock(() -> {
             WorkUsersSessionsStates session = getCurrentSession(username, userId);
             if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
+                // Stop monitoring this session
+                sessionMonitorService.stopMonitoring(username, userId);
+
                 // Update session state
                 session.setSessionStatus(WorkCode.WORK_OFFLINE);
                 session.setDayEndTime(LocalDateTime.now());
@@ -302,6 +343,9 @@ public class UserSessionService {
             WorkUsersSessionsStates newSession = initializeSession(username, userId, startTime);
             saveSession(username, newSession);
             createWorktimeEntry(username, userId, newSession);
+
+            // Start monitoring this session
+            sessionMonitorService.startMonitoring(newSession);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Started new session for user %s (start time set to %s)",

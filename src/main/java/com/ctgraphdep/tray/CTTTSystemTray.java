@@ -1,6 +1,5 @@
 package com.ctgraphdep.tray;
 
-
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -15,7 +14,6 @@ import java.io.IOException;
 
 @Component
 public class CTTTSystemTray {
-
     @Value("${app.url}")
     private String appUrl;
 
@@ -25,16 +23,16 @@ public class CTTTSystemTray {
     @Value("${app.title:CTTT}")
     private String appTitle;
 
-
     private volatile boolean isInitialized = false;
+    private final Object trayLock = new Object();
     private TrayIcon trayIcon;
+    private PopupMenu defaultPopupMenu;
 
     public synchronized void initialize() {
         if (isInitialized) {
             return;
         }
 
-        // Check if we're running in headless mode
         if (GraphicsEnvironment.isHeadless()) {
             LoggerUtil.info(this.getClass(), "Running in headless mode - system tray disabled");
             isInitialized = true;
@@ -42,7 +40,6 @@ public class CTTTSystemTray {
         }
 
         try {
-            // Ensure we're running on EDT
             if (!SwingUtilities.isEventDispatchThread()) {
                 SwingUtilities.invokeAndWait(this::initializeOnEDT);
             } else {
@@ -52,52 +49,67 @@ public class CTTTSystemTray {
             LoggerUtil.info(this.getClass(), "System tray initialized successfully");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to initialize system tray: " + e.getMessage(), e);
-            // Don't throw exception, just log it and continue
             isInitialized = true;
         }
     }
 
     private void initializeOnEDT() {
         try {
-            // Check if system tray is supported
             if (!SystemTray.isSupported()) {
                 LoggerUtil.info(this.getClass(), "System tray is not supported on this platform");
                 return;
             }
 
-            // Load the system tray icon
+            // Create default popup menu
+            defaultPopupMenu = createPopupMenu();
+
+            // Load and create tray icon
             Image iconImage = loadTrayIcon();
             if (iconImage == null) {
                 LoggerUtil.error(this.getClass(), "Failed to load tray icon");
                 return;
             }
 
-            // Create and configure the tray icon
-            trayIcon = new TrayIcon(iconImage, appTitle);
+            // Create and configure tray icon with default menu
+            trayIcon = new TrayIcon(iconImage, appTitle, defaultPopupMenu);
             trayIcon.setImageAutoSize(true);
-            trayIcon.setPopupMenu(createPopupMenu());
-
-            // Add icon to system tray
-            SystemTray.getSystemTray().add(trayIcon);
 
             // Add double-click behavior
-            trayIcon.addActionListener(e -> openApplication());
+            trayIcon.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseClicked(java.awt.event.MouseEvent e) {
+                    if (e.getClickCount() == 2) {
+                        openApplication();
+                    }
+                }
+            });
 
+            SystemTray.getSystemTray().add(trayIcon);
             LoggerUtil.info(this.getClass(), "System tray icon created successfully");
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error in EDT initialization: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error in EDT initialization: " + e.getMessage());
+        }
+    }
+
+    // Add method to restore default menu
+    public void restoreDefaultMenu() {
+        if (trayIcon != null) {
+            trayIcon.setPopupMenu(defaultPopupMenu);
         }
     }
 
     private PopupMenu createPopupMenu() {
         PopupMenu popup = new PopupMenu();
 
+        // Open item
         MenuItem openItem = new MenuItem("Open");
         openItem.addActionListener(e -> openApplication());
         popup.add(openItem);
 
         popup.addSeparator();
 
+        // Exit item
         MenuItem exitItem = new MenuItem("Exit");
         exitItem.addActionListener(e -> {
             cleanup();
@@ -114,8 +126,6 @@ public class CTTTSystemTray {
             if (resourceUrl != null) {
                 return ImageIO.read(resourceUrl);
             }
-
-            // If no icon found, create a default one
             LoggerUtil.info(this.getClass(), "No icon found at, creating a default one!");
             return createDefaultIcon();
         } catch (IOException e) {
@@ -156,6 +166,20 @@ public class CTTTSystemTray {
             LoggerUtil.info(this.getClass(), "System tray cleanup completed");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during cleanup: " + e.getMessage());
+        }
+    }
+
+    public TrayIcon getTrayIcon() {
+        synchronized (trayLock) {
+            return trayIcon;
+        }
+    }
+
+    public void setPopupMenu(PopupMenu newPopup) {
+        synchronized (trayLock) {
+            if (trayIcon != null) {
+                trayIcon.setPopupMenu(newPopup);
+            }
         }
     }
 }

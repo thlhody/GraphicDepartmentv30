@@ -98,6 +98,10 @@ public class SecurityConfig {
 
     @Bean
     public HttpSessionSecurityContextRepository httpSessionSecurityContextRepository() {
-        return new HttpSessionSecurityContextRepository();
+        HttpSessionSecurityContextRepository repository = new HttpSessionSecurityContextRepository();
+        // Ensure web session handling doesn't affect work sessions
+        repository.setAllowSessionCreation(true);
+        repository.setDisableUrlRewriting(true);
+        return repository;
     }
 }
