@@ -1,7 +1,6 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
-import com.ctgraphdep.model.BonusEntry;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,118 +18,109 @@ public class DataAccessService {
     private final ObjectMapper objectMapper;
     private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
+    private final FileSyncService fileSyncService;
     private final Map<Path, ReentrantReadWriteLock> fileLocks;
 
-    public DataAccessService(ObjectMapper objectMapper, PathConfig pathConfig, FileObfuscationService obfuscationService) {
+    public DataAccessService(ObjectMapper objectMapper,
+                             PathConfig pathConfig,
+                             FileObfuscationService obfuscationService,FileSyncService fileSyncService) {
         this.objectMapper = objectMapper;
         this.pathConfig = pathConfig;
+        this.fileSyncService = fileSyncService;
         this.obfuscationService = obfuscationService;
         this.fileLocks = new ConcurrentHashMap<>();
         LoggerUtil.initialize(this.getClass(), "Initializing Data Access Service");
     }
-//
-//    public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
-//        ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
-//        readLock.lock();
-//
-//        try {
-//            if (!Files.exists(path)) {
-//                LoggerUtil.info(this.getClass(), "File not found: " + path);
-//                if (!createIfMissing) {
-//                    throw new IOException("File not found: " + path);
-//                }
-//                return createEmptyStructure(typeRef);
-//            }
-//
-//            byte[] fileData = Files.readAllBytes(path);
-//
-//            // Deobfuscate if necessary
-//            if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
-//                fileData = obfuscationService.deobfuscate(fileData);
-//            }
-//
-//            return objectMapper.readValue(fileData, typeRef);
-//
-//        } catch (IOException e) {
-//            LoggerUtil.error(this.getClass(),
-//                    String.format("Error reading file %s: %s", path, e.getMessage()));
-//            if (createIfMissing) {
-//                return createEmptyStructure(typeRef);
-//            }
-//            throw new RuntimeException("Failed to read file: " + path, e);
-//        } finally {
-//            readLock.unlock();
-//        }
-//    }
-//
-//    public <T> void writeFile(Path path, T data) {
-//        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
-//        writeLock.lock();
-//
-//        try {
-//            ensureDirectoryExists(path);
-//            byte[] jsonData = objectMapper.writeValueAsBytes(data);
-//
-//            // Obfuscate if necessary
-//            if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
-//                jsonData = obfuscationService.obfuscate(jsonData);
-//            }
-//
-//            Files.write(path, jsonData);
-//
-//            LoggerUtil.info(this.getClass(), "Successfully wrote data to file: " + path);
-//        } catch (Exception e) {
-//            LoggerUtil.error(this.getClass(),
-//                    String.format("Error writing file %s: %s", path, e.getMessage()));
-//            throw new RuntimeException("Failed to write file: " + path, e);
-//        } finally {
-//            writeLock.unlock();
-//        }
-//    }
 
     public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
-        ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
+        String filename = path.getFileName().toString();
+
+        // Use the full path for users.json
+        Path readPath = filename.equals(pathConfig.getUsersFilename()) ?
+                path : pathConfig.resolvePathForRead(filename);
+
+        LoggerUtil.debug(this.getClass(),
+                String.format("Reading file: %s (filename: %s)", readPath, filename));
+
+        ReentrantReadWriteLock.ReadLock readLock = getFileLock(readPath).readLock();
         readLock.lock();
 
         try {
-            if (!Files.exists(path)) {
-                LoggerUtil.info(this.getClass(), "File not found: " + path);
+            if (!Files.exists(readPath)) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("File not found: %s, createIfMissing: %s",
+                                readPath, createIfMissing));
+
                 if (!createIfMissing) {
-                    throw new IOException("File not found: " + path);
+                    throw new IOException("File not found: " + readPath);
                 }
+
+                // For users.json, create the directories if they don't exist
+                if (filename.equals(pathConfig.getUsersFilename())) {
+                    Files.createDirectories(readPath.getParent());
+                    T emptyStructure = createEmptyStructure(typeRef);
+                    objectMapper.writeValue(readPath.toFile(), emptyStructure);
+                    return emptyStructure;
+                }
+
                 return createEmptyStructure(typeRef);
             }
-            return objectMapper.readValue(path.toFile(), typeRef);
+
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Reading existing file: %s, size: %d bytes",
+                            readPath, Files.size(readPath)));
+
+            return objectMapper.readValue(readPath.toFile(), typeRef);
+
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error reading file %s: %s", path, e.getMessage()));
+                    String.format("Error reading file %s: %s", readPath, e.getMessage()));
             if (createIfMissing) {
                 return createEmptyStructure(typeRef);
             }
-            throw new RuntimeException("Failed to read file: " + path, e);
+            throw new RuntimeException("Failed to read file: " + readPath, e);
         } finally {
             readLock.unlock();
         }
     }
-    //no encryption version
     public <T> void writeFile(Path path, T data) {
-        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
+        String filename = path.getFileName().toString();
+        Path writePath = pathConfig.resolvePathForWrite(filename);
+
+        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(writePath).writeLock();
         writeLock.lock();
 
         try {
-            ensureDirectoryExists(path);
-            objectMapper.writeValue(path.toFile(), data);
-            LoggerUtil.info(this.getClass(), "Successfully wrote data to file: " + path);
+            // Ensure directory exists
+            ensureDirectoryExists(writePath);
+
+            // Write data
+            objectMapper.writeValue(writePath.toFile(), data);
+
+            // Handle network sync if required
+            if (pathConfig.requiresSync(filename)) {
+                syncWithNetwork(writePath, filename);
+            }
+
+            LoggerUtil.info(this.getClass(),
+                    "Successfully wrote data to file: " + writePath);
+
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error writing file %s: %s", path, e.getMessage()));
-            throw new RuntimeException("Failed to write file: " + path, e);
+                    String.format("Error writing file %s: %s", writePath, e.getMessage()));
+            throw new RuntimeException("Failed to write file: " + writePath, e);
         } finally {
             writeLock.unlock();
         }
     }
 
-    // Ensure the directory structure exists for a given path
+    private void syncWithNetwork(Path localPath, String filename) {
+        if (!pathConfig.isLocalOnlyFile(filename) && pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getNetworkPath().resolve(filename);
+            fileSyncService.syncToNetwork(localPath, networkPath);
+        }
+    }
+
     private void ensureDirectoryExists(Path path) throws IOException {
         Path parent = path.getParent();
         if (parent != null && !Files.exists(parent)) {
@@ -138,12 +128,10 @@ public class DataAccessService {
         }
     }
 
-    //Get file lock for a specific path
     private ReentrantReadWriteLock getFileLock(Path path) {
         return fileLocks.computeIfAbsent(path, k -> new ReentrantReadWriteLock());
     }
 
-    // Create empty data structure based on type
     @SuppressWarnings("unchecked")
     private <T> T createEmptyStructure(TypeReference<T> typeRef) {
         String typeName = typeRef.getType().getTypeName();
@@ -162,7 +150,7 @@ public class DataAccessService {
         }
     }
 
-    // Path helper methods using PathConfig's resolution
+    // Path resolution methods using PathConfig
     public Path getAdminWorktimePath(int year, int month) {
         return pathConfig.getAdminWorktimePath(year, month);
     }
@@ -195,12 +183,14 @@ public class DataAccessService {
         return pathConfig.getAdminBonusPath(year, month);
     }
 
-    // Check if a file exists at the given path
     public boolean fileExists(Path path) {
-        ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
+        String filename = path.getFileName().toString();
+        Path resolvedPath = pathConfig.resolvePathForRead(filename);
+
+        ReentrantReadWriteLock.ReadLock readLock = getFileLock(resolvedPath).readLock();
         readLock.lock();
         try {
-            return Files.exists(path);
+            return Files.exists(resolvedPath);
         } finally {
             readLock.unlock();
         }
@@ -225,7 +215,7 @@ public class DataAccessService {
         }
     }
 
-    public Path getNetworkPath() {
-        return pathConfig.getNetworkPath();
+    public boolean isSyncPending(Path path) {
+        return fileSyncService.isSyncPending(path);
     }
 }

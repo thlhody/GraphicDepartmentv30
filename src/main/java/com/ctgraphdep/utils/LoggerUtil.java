@@ -1,11 +1,7 @@
-// src/main/java/com/ctgraphdep/utils/LoggerUtil.java
 package com.ctgraphdep.utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 public final class LoggerUtil {
 
@@ -20,33 +16,6 @@ public final class LoggerUtil {
             message += ": " + additionalInfo;
         }
         logger.info(message);
-    }
-
-    public static void logUserAction(String action, String details) {
-        Logger logger = LoggerFactory.getLogger("UserActions");
-        String username = getCurrentUsername();
-        MDC.put("username", username);
-        try {
-            logger.info("{} - {}", action, details);
-        } finally {
-            MDC.remove("username");
-        }
-    }
-
-    public static void logControllerSwitch(Class<?> fromController, Class<?> toController) {
-        Logger logger = LoggerFactory.getLogger("ControllerSwitches");
-        String username = getCurrentUsername();
-        MDC.put("username", username);
-        try {
-            logger.info("Switching from {} to {}", fromController.getSimpleName(), toController.getSimpleName());
-        } finally {
-            MDC.remove("username");
-        }
-    }
-
-    private static String getCurrentUsername() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null ? authentication.getName() : "anonymous";
     }
 
     public static void info(Class<?> clazz, String message) {
@@ -73,11 +42,7 @@ public final class LoggerUtil {
         LoggerFactory.getLogger(clazz).trace(message);
     }
 
-    public static void logException(Class<?> clazz, String message, Exception e) {
-        LoggerFactory.getLogger(clazz).error(message, e);
-    }
-
-    public static void logAndThrow(Class<?> clazz, String message, Exception e) throws RuntimeException {
+    public static void logAndThrow(Class<?> clazz, String message, Exception e) {
         LoggerFactory.getLogger(clazz).error(message, e);
         throw new RuntimeException(message, e);
     }

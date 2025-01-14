@@ -6,6 +6,26 @@
 <head>
     <title>User Work Registry</title>
     <style>
+        /* Validation Messages */
+        .invalid-feedback {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.875rem;
+            color: #dc3545;
+        }
+
+        .is-invalid {
+            border-color: #dc3545;
+        }
+
+        .is-invalid:focus {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+        }
+
+        .select2-container--bootstrap-5 .select2-selection--multiple.is-invalid {
+            border-color: #dc3545;
+        }
         /* Register form styles */
         .register-form {
             transition: all 0.3s ease;
@@ -175,7 +195,7 @@
                 </h1>
                 <div class="badge bg-primary rounded-pill">
                     <i class="bi bi-person me-2"></i>
-                    <span th:text="${user.name}"></span>
+                    <span th:text="${userDisplayName}">Unknown User</span>
                 </div>
             </div>
             <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
@@ -321,7 +341,7 @@
                             <option th:each="type : ${printPrepTypes}"
                                     th:value="${type}"
                                     th:text="${type}"
-                                    th:selected="${param.form_printPrepTypes != null && #strings.containsAny(param.form_printPrepTypes[0], type)}">
+                                    th:selected="${param.form_printPrepTypes != null && #strings.contains(param.form_printPrepTypes[0], type)}">
                             </option>
                         </select>
                     </div>
@@ -473,7 +493,7 @@
                                 </div>
                             </td>
                         </tr>
-                        <tr th:if="${entries.empty}">
+                        <tr th:if="${entries == null || entries.empty}">
                             <td colspan="14" class="text-center py-5">
                                 <div class="text-muted">
                                     <i class="bi bi-journal-x fs-2"></i>
@@ -690,50 +710,90 @@
                     }
 
                     validateForm() {
+                        let isValid = true;
                         const requiredFields = [
-                            { name: 'date', message: 'missing_date' },
-                            { name: 'orderId', message: 'missing_order_id' },
-                            { name: 'omsId', message: 'missing_oms_id' },
-                            { name: 'clientName', message: 'missing_client' },
-                            { name: 'actionType', message: 'missing_action_type' },
-                            { name: 'articleNumbers', message: 'missing_articles' }
+                            { name: 'date', message: 'Date is required.' },
+                            { name: 'orderId', message: 'Order ID is required.' },
+                            { name: 'omsId', message: 'OMS ID is required.' },
+                            { name: 'clientName', message: 'Client Name is required.' },
+                            { name: 'actionType', message: 'Action Type is required.' },
+                            { name: 'articleNumbers', message: 'Articles number is required.' }
                         ];
+
+                        // Reset previous validation messages
+                        this.form.querySelectorAll('.is-invalid').forEach(el => {
+                            el.classList.remove('is-invalid');
+                        });
+                        this.form.querySelectorAll('.invalid-feedback').forEach(el => {
+                            el.remove();
+                        });
 
                         // Check regular fields
                         for (const field of requiredFields) {
                             const element = this.form.elements[field.name];
                             if (!element || !element.value || element.value.trim() === '') {
-                                this.handleValidationError(field.message);
-                                return false;
+                                this.addValidationError(element, field.message);
+                                isValid = false;
                             }
                         }
 
                         // Special check for printPrepTypes (Select2 multiple)
                         const selectedPrintTypes = $(this.printPrepSelect).val();
                         if (!selectedPrintTypes || selectedPrintTypes.length === 0) {
-                            this.handleValidationError('missing_print_type');
-                            return false;
+                            this.addValidationError(this.printPrepSelect, 'Print Prep Type is required.');
+                            isValid = false;
                         }
 
-                        return true;
+                        if (!isValid) {
+                            // Show error alert
+                            const alertContainer = document.querySelector('.alert-container');
+                            if (alertContainer) {
+                                const alert = document.createElement('div');
+                                alert.className = 'alert alert-danger alert-dismissible fade show';
+                                alert.innerHTML = `
+                <strong>Warning</strong>
+                <p>Please fill in all required fields.</p>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+                                alertContainer.appendChild(alert);
+                            }
+                        }
+
+                        return isValid;
+                    }
+
+                    addValidationError(element, message) {
+                        element.classList.add('is-invalid');
+                        const feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback';
+                        feedback.textContent = message;
+                        element.parentElement.appendChild(feedback);
                     }
 
                     handleValidationError(errorMessage) {
+                        // Create a URL with the current path
+                        const url = new URL(window.location.pathname, window.location.origin);
                         const formData = new FormData(this.form);
-                        const params = new URLSearchParams();
 
-                        params.append('error', errorMessage);
+                        // Add error parameter
+                        url.searchParams.append('error', errorMessage);
+
+                        // Add all form fields as parameters with 'form_' prefix
                         formData.forEach((value, key) => {
                             if (value && value.trim() !== '') {
-                                params.append('form_' + key, value);
+                                // Skip certain fields
+                                if (!['year', 'month', 'entryId', 'isEdit'].includes(key)) {
+                                    url.searchParams.append('form_' + key, value);
+                                }
                             }
                         });
 
-                        // Preserve year and month
-                        params.append('year', formData.get('year'));
-                        params.append('month', formData.get('month'));
+                        // Add year and month separately
+                        url.searchParams.append('year', formData.get('year'));
+                        url.searchParams.append('month', formData.get('month'));
 
-                        window.location.href = '/user/register?' + params.toString();
+                        // Redirect with all parameters
+                        window.location.href = url.toString();
                     }
 
                     handleSubmit(event) {

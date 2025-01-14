@@ -28,6 +28,13 @@ public class SessionRecoveryService {
             User user = userService.getUserById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
+            // Add check for admin user
+            if (user.isAdmin()) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Skipping session recovery for admin user %s", username));
+                return;
+            }
+
             WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, userId);
 
             if (!sessionCalculator.isValidSession(session)) {

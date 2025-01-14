@@ -32,10 +32,32 @@ public class UserServiceImpl implements UserService {
     public Optional<User> getUserByUsername(String username) {
         lock.readLock().lock();
         try {
-            return getAllUsers().stream()
-                    .filter(user -> user.getUsername().equals(username))
-                    .findFirst()
-                    .map(this::sanitizeUser);
+            Optional<User> user = getAllUsers().stream()
+                    .filter(u -> u.getUsername().equals(username))
+                    .findFirst();
+
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Found user by username '%s': %s",
+                            username,
+                            user.isPresent() ? "Yes" : "No"));
+
+            if (user.isPresent()) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("User details - ID: %d, Name: %s",
+                                user.get().getUserId(),
+                                user.get().getName()));
+
+                User sanitized = sanitizeUser(user.get());
+                assert sanitized != null;
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Sanitized user details - ID: %d, Name: %s",
+                                sanitized.getUserId(),
+                                sanitized.getName()));
+
+                return Optional.of(sanitized);
+            }
+
+            return Optional.empty();
         } finally {
             lock.readLock().unlock();
         }
@@ -264,20 +286,61 @@ public class UserServiceImpl implements UserService {
     }
 
     private User sanitizeUser(User user) {
-        User sanitized = new User();
-        sanitized.setUserId(user.getUserId());
-        sanitized.setUsername(user.getUsername());
-        sanitized.setName(user.getName());
-        sanitized.setEmployeeId(user.getEmployeeId());
-        sanitized.setSchedule(user.getSchedule());
-        sanitized.setRole(user.getRole());
-        // Explicitly exclude password and other sensitive data
-        return sanitized;
+        if (user == null) {
+            LoggerUtil.error(this.getClass(), "Attempting to sanitize null user");
+            return null;
+        }
+
+        try {
+            User sanitized = new User();
+            sanitized.setUserId(user.getUserId());
+            sanitized.setUsername(user.getUsername());
+            sanitized.setName(user.getName());       // Make sure this is preserved
+            sanitized.setEmployeeId(user.getEmployeeId());
+            sanitized.setSchedule(user.getSchedule());
+            sanitized.setRole(user.getRole());
+
+            // Verify sanitized user
+            if (sanitized.getName() == null) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Sanitized user '%s' has null name (original name: %s)",
+                                sanitized.getUsername(),
+                                user.getName()));
+            }
+
+            // Log sanitization results
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Found user by username '%s': Yes", user.getUsername()));
+            LoggerUtil.debug(this.getClass(),
+                    String.format("User details - ID: %d, Name: %s",
+                            user.getUserId(), user.getName()));
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Sanitized user details - ID: %d, Name: %s",
+                            sanitized.getUserId(), sanitized.getName()));
+
+            return sanitized;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error sanitizing user: %s", e.getMessage()));
+            throw new RuntimeException("Failed to sanitize user", e);
+        }
     }
 
     public Optional<User> findByEmployeeId(Integer employeeId) {
         return getAllUsers().stream()
                 .filter(user -> employeeId.equals(user.getEmployeeId()))
                 .findFirst();
+    }
+
+    // Add this method to UserServiceImpl
+    private void validateUserData(User user) {
+        LoggerUtil.debug(this.getClass(),
+                String.format("Validating user data for '%s':", user.getUsername()));
+        LoggerUtil.debug(this.getClass(),
+                String.format("- ID: %d", user.getUserId()));
+        LoggerUtil.debug(this.getClass(),
+                String.format("- Name: %s", user.getName()));
+        LoggerUtil.debug(this.getClass(),
+                String.format("- Role: %s", user.getRole()));
     }
 }

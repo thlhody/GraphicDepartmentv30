@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.security.CustomUserDetails;
@@ -12,6 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,14 +26,16 @@ public class AuthenticationService {
     private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
 
     private final DataAccessService dataAccess;
+    private final PathConfig pathConfig;
     private final PasswordEncoder passwordEncoder;
     private final SessionRecoveryService sessionRecoveryService;
 
 
     public AuthenticationService(
-            DataAccessService dataAccess,
+            DataAccessService dataAccess, PathConfig pathConfig,
             PasswordEncoder passwordEncoder, SessionRecoveryService sessionRecoveryService) {
         this.dataAccess = dataAccess;
+        this.pathConfig = pathConfig;
         this.passwordEncoder = passwordEncoder;
         this.sessionRecoveryService = sessionRecoveryService;
         LoggerUtil.initialize(this.getClass(), "Initializing Authentication Service");
@@ -94,16 +98,36 @@ public class AuthenticationService {
             CustomUserDetails userDetails = (CustomUserDetails) loadUser(username);
             User user = userDetails.getUser();
 
-            // Create local directories
-            ensureLocalDirectories(user.isAdmin());
+            try {
+                // Create local directories
+                ensureLocalDirectories(user.isAdmin());
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        "Failed to create local directories: " + e.getMessage() +
+                                " - continuing with login");
+            }
 
             // Store user data locally if remember me is enabled
             if (rememberMe) {
-                storeUserDataLocally(user);
+                try {
+                    storeUserDataLocally(user);
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(),
+                            "Failed to store user data locally: " + e.getMessage() +
+                                    " - continuing with login");
+                }
             }
 
             // Add session recovery here
-            sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
+            if (!user.isAdmin()) {
+                try {
+                    sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(),
+                            "Failed to recover session: " + e.getMessage() +
+                                    " - continuing with login");
+                }
+            }
 
             LoggerUtil.info(this.getClass(),
                     String.format("Successfully handled login for user: %s (rememberMe: %s)",
@@ -111,17 +135,31 @@ public class AuthenticationService {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error handling login for user %s: %s", username, e.getMessage()));
+                    String.format("Error handling login for user %s: %s",
+                            username, e.getMessage()));
             throw new RuntimeException("Failed to handle login", e);
         }
     }
 
     private Optional<User> findUserInFile(Path filePath, String username) {
         try {
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Looking for user %s in file: %s", username, filePath));
+
             List<User> users = dataAccess.readFile(filePath, USER_LIST_TYPE, true);
-            return users.stream()
+
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Found %d users in file", users.size()));
+
+            Optional<User> foundUser = users.stream()
                     .filter(u -> u.getUsername().equals(username))
                     .findFirst();
+
+            LoggerUtil.debug(this.getClass(),
+                    String.format("User %s %s", username,
+                            foundUser.isPresent() ? "found" : "not found"));
+
+            return foundUser;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error reading user data from %s: %s",
@@ -137,25 +175,26 @@ public class AuthenticationService {
     private void ensureLocalDirectories(boolean isAdmin) {
         try {
             List<Path> directories = Arrays.asList(
-                    dataAccess.getSessionPath("", 0).getParent(),
-                    dataAccess.getUserWorktimePath("", 0, 0).getParent(),
-                    dataAccess.getUserRegisterPath("", 0,0,0).getParent()
+                    pathConfig.getUserSessionDir(),
+                    pathConfig.getUserWorktimeDir(),
+                    pathConfig.getUserRegisterDir()
             );
 
             // Add admin directories if user is admin
             if (isAdmin) {
                 List<Path> adminDirs = Arrays.asList(
-                        dataAccess.getAdminWorktimePath(0, 0).getParent(),
-                        dataAccess.getAdminRegisterPath("", 0,0,0).getParent(),
-                        dataAccess.getHolidayPath().getParent()
+                        pathConfig.getAdminWorktimeDir(),
+                        pathConfig.getAdminRegisterDir(),
+                        pathConfig.getAdminBonusDir(),
+                        pathConfig.getLoginDir()
                 );
                 directories = new ArrayList<>(directories);
                 directories.addAll(adminDirs);
             }
 
             for (Path dir : directories) {
-                if (!dataAccess.fileExists(dir)) {
-                    dataAccess.writeFile(dir.resolve(".keep"), "");
+                if (!Files.exists(dir)) {
+                    Files.createDirectories(dir);
                     LoggerUtil.debug(this.getClass(), "Created directory: " + dir);
                 }
             }

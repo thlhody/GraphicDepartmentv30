@@ -25,11 +25,11 @@ public class AdminBonusService {
 
     public AdminBonusService(
             DataAccessService dataAccessService,
-            UserService userService, AdminBonusExcelExporter adminBonusExcelExporterexcelExporter) {
+            UserService userService, AdminBonusExcelExporter adminBonusExcelExporter) {
         this.dataAccessService = dataAccessService;
         this.userService = userService;
-        this.adminBonusExcelExporter = adminBonusExcelExporterexcelExporter;
-        LoggerUtil.initialize(this.getClass(), "Initializing Admin Bonus Service");
+        this.adminBonusExcelExporter = adminBonusExcelExporter;
+        LoggerUtil.initialize(this.getClass(), "Starting bonus management services");
     }
 
     public Map<Integer, BonusEntryDTO> loadBonusData(int year, int month) {
@@ -43,9 +43,6 @@ public class AdminBonusService {
 
             Map<Integer, BonusEntryDTO> enrichedData = new HashMap<>();
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Found %d bonus entries in file", bonusData.size()));
-
             bonusData.forEach((employeeId, entry) -> {
                 try {
                     // Find user by employeeId instead of userId
@@ -54,31 +51,23 @@ public class AdminBonusService {
                         User user = userOpt.get();
                         BonusEntryDTO dto = new BonusEntryDTO(entry, user.getName());
                         enrichedData.put(employeeId, dto);
-                        LoggerUtil.info(this.getClass(),
-                                String.format("Successfully enriched data for employee %d: %s",
-                                        employeeId, user.getName()));
+                        LoggerUtil.info(this.getClass(), String.format("Successfully enriched data for employee %d: %s", employeeId, user.getName()));
                     } else {
                         BonusEntryDTO dto = new BonusEntryDTO(entry, entry.getUsername());
                         enrichedData.put(employeeId, dto);
-                        LoggerUtil.warn(this.getClass(),
-                                String.format("User not found for employee ID %d, using username",
-                                        employeeId));
+                        LoggerUtil.warn(this.getClass(), String.format("User not found for employee ID %d, using username", employeeId));
                     }
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            String.format("Error processing employee ID %d: %s",
-                                    employeeId, e.getMessage()));
+                    LoggerUtil.error(this.getClass(), String.format("Error processing employee ID %d: %s", employeeId, e.getMessage()));
                 }
             });
 
             return enrichedData;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading bonus data for %d/%d: %s",
-                            year, month, e.getMessage()));
-            throw new RuntimeException("Failed to load bonus data", e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error loading bonus data for %d/%d: %s", year, month, e.getMessage()), e);
         }
+        return null;
     }
 
     public byte[] exportBonusData(int year, int month) {
@@ -86,21 +75,22 @@ public class AdminBonusService {
             Map<Integer, BonusEntryDTO> bonusData = loadBonusData(year, month);
             return adminBonusExcelExporter.exportToExcel(bonusData, year, month);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error exporting bonus data for %d/%d: %s",
-                            year, month, e.getMessage()));
-            throw new RuntimeException("Failed to export bonus data", e);
+            LoggerUtil.logAndThrow(this.getClass(),
+                    String.format("Error exporting bonus data for %d/%d: %s", year, month, e.getMessage()),
+                    e);
         }
+        return null;
     }
+
     public byte[] exportUserBonusData(int year, int month) {
         try {
             Map<Integer, BonusEntryDTO> bonusData = loadBonusData(year, month);
             return adminBonusExcelExporter.exportUserToExcel(bonusData, year, month);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error exporting user bonus data for %d/%d: %s",
-                            year, month, e.getMessage()));
-            throw new RuntimeException("Failed to export user bonus data", e);
+            LoggerUtil.logAndThrow(this.getClass(),
+                    String.format("Error exporting user bonus data for %d/%d: %s", year, month, e.getMessage()),
+                    e);
         }
+        return null;
     }
 }

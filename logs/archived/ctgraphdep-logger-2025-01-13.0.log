@@ -1,0 +1,238 @@
+2025-01-13 17:19:55,680 INFO o.h.v.i.u.Version [background-preinit] HV000001: Hibernate Validator 8.0.1.Final
+2025-01-13 17:19:55,742 INFO o.s.b.StartupInfoLogger [restartedMain] Starting Application using Java 17.0.12 with PID 15368 (D:\WorkT\Projects Java\GraphDepG\target\classes started by thlho in D:\WorkT\Projects Java\GraphDepG)
+2025-01-13 17:19:55,742 DEBUG o.s.b.StartupInfoLogger [restartedMain] Running with Spring Boot v3.2.0, Spring v6.1.1
+2025-01-13 17:19:55,743 INFO o.s.b.SpringApplication [restartedMain] No active profile set, falling back to 1 default profile: "default"
+2025-01-13 17:19:56,010 INFO o.s.b.l.DeferredLog [restartedMain] Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-01-13 17:19:56,011 INFO o.s.b.l.DeferredLog [restartedMain] For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2025-01-13 17:19:56,723 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-01-13 17:19:56,754 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Finished Spring Data repository scanning in 20 ms. Found 0 JPA repository interfaces.
+2025-01-13 17:19:57,615 INFO o.s.b.w.e.t.TomcatWebServer [restartedMain] Tomcat initialized with port 8443 (http)
+2025-01-13 17:19:57,623 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing ProtocolHandler ["http-nio-8443"]
+2025-01-13 17:19:57,623 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting service [Tomcat]
+2025-01-13 17:19:57,623 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting Servlet engine: [Apache Tomcat/10.1.16]
+2025-01-13 17:19:57,733 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing Spring embedded WebApplicationContext
+2025-01-13 17:19:57,733 INFO o.s.b.w.s.c.ServletWebServerApplicationContext [restartedMain] Root WebApplicationContext: initialization completed in 1722 ms
+2025-01-13 17:19:57,796 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Starting...
+2025-01-13 17:19:58,131 INFO c.z.h.p.HikariPool [restartedMain] HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:ctgraphdb user=SA
+2025-01-13 17:19:58,147 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Start completed.
+2025-01-13 17:19:58,147 INFO o.s.b.a.h.H2ConsoleAutoConfiguration [restartedMain] H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:ctgraphdb'
+2025-01-13 17:19:58,289 WARN o.a.j.l.DirectJDKLog [restartedMain] Cannot deserialize session attribute [SPRING_SECURITY_CONTEXT] for session [5A47908B7F898FF8821EAC7833D2C94A]
+2025-01-13 17:19:58,504 INFO o.h.j.i.u.LogHelper [restartedMain] HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-01-13 17:19:58,719 INFO o.h.Version [restartedMain] HHH000412: Hibernate ORM core version 6.3.1.Final
+2025-01-13 17:19:58,814 INFO o.h.c.i.RegionFactoryInitiator [restartedMain] HHH000026: Second-level cache disabled
+2025-01-13 17:19:59,020 INFO o.s.o.j.p.SpringPersistenceUnitInfo [restartedMain] No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-01-13 17:19:59,288 INFO o.h.e.t.j.p.i.JtaPlatformInitiator [restartedMain] HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-01-13 17:19:59,288 INFO o.s.o.j.AbstractEntityManagerFactoryBean [restartedMain] Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-01-13 17:19:59,308 INFO c.c.u.LoggerUtil [restartedMain] Initializing PathConfig$$SpringCGLIB$$0: Initializing Path Configuration
+2025-01-13 17:19:59,323 INFO c.c.u.LoggerUtil [restartedMain] Initialized paths - Network: D:\servernetworkgrafubu\CTTT, Installation: D:\serverlocalhome\CTTT, Development: D:\serverlocaldevelopment
+2025-01-13 17:19:59,323 INFO c.c.u.LoggerUtil [restartedMain] Initialized directory mappings
+2025-01-13 17:19:59,323 INFO c.c.u.LoggerUtil [restartedMain] Using network path: D:\servernetworkgrafubu\CTTT
+2025-01-13 17:19:59,323 INFO c.c.u.LoggerUtil [restartedMain] Created directory and initialized: D:\servernetworkgrafubu\CTTT\dbj\admin\holiday
+2025-01-13 17:19:59,323 INFO c.c.u.LoggerUtil [restartedMain] Created directory and initialized: D:\servernetworkgrafubu\CTTT\dbj\admin\register
+2025-01-13 17:19:59,354 INFO c.c.u.LoggerUtil [restartedMain] Initializing DataAccessService: Initializing Data Access Service
+2025-01-13 17:19:59,371 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserServiceImpl: Initializing User Service
+2025-01-13 17:19:59,371 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorkTimeService: Initializing User WorkTime Service
+2025-01-13 17:19:59,380 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionPersistenceService: Initializing Session Persistence Service
+2025-01-13 17:19:59,403 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSessionService: Initializing User Session Service
+2025-01-13 17:19:59,403 INFO c.c.u.LoggerUtil [restartedMain] Initializing AuthenticationService: Initializing Authentication Service
+2025-01-13 17:19:59,419 INFO c.c.u.LoggerUtil [restartedMain] Initializing AboutController: Initializing About Controller
+2025-01-13 17:19:59,436 INFO c.c.u.LoggerUtil [restartedMain] Initializing FolderStatusService: Initializing Folder Status Service
+2025-01-13 17:19:59,446 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminBonusService: Initializing Admin Bonus Service
+2025-01-13 17:19:59,446 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminBonusController: Initializing Admin Bonus Controller
+2025-01-13 17:19:59,462 INFO c.c.u.LoggerUtil [restartedMain] Initializing OnlineMetricsService: Initializing Online Metrics Service
+2025-01-13 17:19:59,473 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_USER: MANAGE_USER_REGISTER, MANAGE_ACCOUNT, VIEW_STATUS_USER, ACCESS_OMS, MANAGE_SESSION, VIEW_WORKTIME_USER, REQUEST_TIMEOFF
+2025-01-13 17:19:59,473 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_ADMIN: MANAGE_SESSION, MANAGE_SETTINGS, VIEW_WORKTIME_ADMIN, REQUEST_TIMEOFF, MANAGE_USER_REGISTER, MANAGE_HOLIDAYS, ACCESS_OMS, MANAGE_ACCOUNT, VIEW_STATUS_ADMIN, MANAGE_ADMIN_REGISTER
+2025-01-13 17:19:59,474 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_TEAM_LEADER: VIEW_STATUS_ADMIN, VIEW_WORKTIME_USER, MANAGE_SESSION
+2025-01-13 17:19:59,475 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminDashboardController: Initializing Base Dashboard Controller
+2025-01-13 17:19:59,482 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminPaidHolidayService: Initializing Paid Holiday Service
+2025-01-13 17:19:59,482 INFO c.c.u.LoggerUtil [restartedMain] Initializing HolidayHistoryService: Initializing Holiday History Service
+2025-01-13 17:19:59,482 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminHolidayController: Initializing Paid Holiday Controller
+2025-01-13 17:19:59,507 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeManagementService: Initializing WorkTime Management Service
+2025-01-13 17:19:59,529 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminRegisterController: Initializing Admin Register Controller
+2025-01-13 17:19:59,529 INFO c.c.u.LoggerUtil [restartedMain] Initializing HolidayManagementService: Initializing Holiday Management Service
+2025-01-13 17:19:59,529 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserManagementService: Initializing User Management Service
+2025-01-13 17:19:59,529 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminSettingsController: Initializing Admin Settings Controller
+2025-01-13 17:19:59,546 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeConsolidationService: Initializing WorkTime Consolidation Service
+2025-01-13 17:19:59,546 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminWorkTimeController: Initializing Admin Worktime Controller
+2025-01-13 17:19:59,546 INFO c.c.u.LoggerUtil [restartedMain] Initializing FolderStatusController: Initializing Status Controller
+2025-01-13 17:19:59,561 INFO c.c.u.LoggerUtil [restartedMain] Initializing HomeController: Initializing Home Controller
+2025-01-13 17:19:59,561 INFO c.c.u.LoggerUtil [restartedMain] Initializing LoginController: Initializing Login Controller
+2025-01-13 17:19:59,561 INFO c.c.u.LoggerUtil [restartedMain] Initializing StatusController: Initializing Status Controller
+2025-01-13 17:19:59,561 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserDashboardController: Initializing Base Dashboard Controller
+2025-01-13 17:19:59,561 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRegisterService: Initializing Register Service
+2025-01-13 17:19:59,561 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRegisterController: Initializing Register Controller
+2025-01-13 17:19:59,580 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRestController: Initializing User REST Controller
+2025-01-13 17:19:59,580 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionCalculationService: Initializing Session Calculation Service
+2025-01-13 17:19:59,580 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSessionController: Initializing User Session Controller
+2025-01-13 17:19:59,580 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSettingsController: Initializing User Settings Controller
+2025-01-13 17:19:59,593 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserTimeOffService: Initializing User Time Off Service
+2025-01-13 17:19:59,625 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorkTimeDisplayService: Initializing User Worktime Display Service
+2025-01-13 17:19:59,625 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeEntrySyncService: Initializing WorkTime Entry Sync Service
+2025-01-13 17:19:59,625 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorktimeController: Initializing User Worktime Controller
+2025-01-13 17:19:59,625 INFO c.c.u.LoggerUtil [restartedMain] Initializing CustomAuthenticationProvider: Initializing Custom Authentication Provider
+2025-01-13 17:19:59,625 INFO c.c.u.LoggerUtil [restartedMain] Initializing CustomUserDetailsService: Initializing Custom User Details Service
+2025-01-13 17:19:59,983 INFO c.c.u.LoggerUtil [restartedMain] Initializing CustomAuthenticationProvider: Initializing Custom Authentication Provider
+2025-01-13 17:20:00,369 INFO o.s.s.w.DefaultSecurityFilterChain [restartedMain] Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@2540502, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@540c8d26, org.springframework.security.web.context.SecurityContextHolderFilter@403c479b, org.springframework.security.web.header.HeaderWriterFilter@1fa6d7c4, org.springframework.web.filter.CorsFilter@3f44b12b, org.springframework.security.web.authentication.logout.LogoutFilter@1169c593, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@5ba5ec07, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@5e4abd29, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@ff54c83, org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter@314b5d19, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@61afe12c, org.springframework.security.web.access.ExceptionTranslationFilter@3a34f2c4, org.springframework.security.web.access.intercept.AuthorizationFilter@2f6d1095]
+2025-01-13 17:20:01,144 INFO o.s.b.d.a.OptionalLiveReloadServer [restartedMain] LiveReload server is running on port 35729
+2025-01-13 17:20:01,192 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting ProtocolHandler ["http-nio-8443"]
+2025-01-13 17:20:01,239 INFO o.s.b.w.e.t.TomcatWebServer [restartedMain] Tomcat started on port 8443 (http) with context path ''
+2025-01-13 17:20:01,256 INFO o.s.b.StartupInfoLogger [restartedMain] Started Application in 5.983 seconds (process running for 6.475)
+2025-01-13 17:20:01,256 INFO c.c.u.LoggerUtil [restartedMain] Headless mode check - GraphicsEnvironment: false, System property: false
+2025-01-13 17:20:02,594 INFO c.c.u.LoggerUtil [AWT-EventQueue-0] System tray icon created successfully
+2025-01-13 17:20:02,594 INFO c.c.u.LoggerUtil [AWT-EventQueue-0] System tray initialized successfully
+2025-01-13 17:20:17,093 INFO c.c.u.LoggerUtil [AWT-EventQueue-0] Opening CTTT application in browser
+2025-01-13 17:20:20,264 INFO o.a.j.l.DirectJDKLog [http-nio-8443-exec-1] Initializing Spring DispatcherServlet 'dispatcherServlet'
+2025-01-13 17:20:20,265 INFO o.s.w.s.FrameworkServlet [http-nio-8443-exec-1] Initializing Servlet 'dispatcherServlet'
+2025-01-13 17:20:20,267 INFO o.s.w.s.FrameworkServlet [http-nio-8443-exec-1] Completed initialization in 1 ms
+2025-01-13 17:20:20,290 WARN o.s.w.s.h.HandlerMappingIntrospector$CacheResultLogHelper [http-nio-8443-exec-1] Cache miss for REQUEST dispatch to '/' (previous null). Performing CorsConfiguration lookup. This is logged once only at WARN level, and every time at TRACE.
+2025-01-13 17:20:20,358 INFO c.c.u.LoggerUtil [http-nio-8443-exec-2] Accessing login page
+2025-01-13 17:20:20,359 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-2] Network mode availability: true
+2025-01-13 17:20:20,372 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-2] Offline mode availability: true
+2025-01-13 17:20:21,377 WARN o.s.w.s.h.HandlerMappingIntrospector$CacheResultLogHelper [http-nio-8443-exec-4] Cache miss for REQUEST dispatch to '/favicon.ico' (previous null). Performing MatchableHandlerMapping lookup. This is logged once only at WARN level, and every time at TRACE.
+2025-01-13 17:20:23,704 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Starting authentication process for user: tudor
+2025-01-13 17:20:23,755 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Loading user details for: tudor
+2025-01-13 17:20:23,827 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully authenticated user tudor
+2025-01-13 17:20:23,860 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Session created: 019429B88881B6D9AA3EEF3B8549F443
+2025-01-13 17:20:23,862 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Loading user details for: tudor
+2025-01-13 17:20:23,864 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Created 3 local directories successfully
+2025-01-13 17:20:23,881 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json
+2025-01-13 17:20:23,881 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Created new offline session for user tudor
+2025-01-13 17:20:23,881 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully handled login for user: tudor (rememberMe: false)
+2025-01-13 17:20:37,449 INFO c.c.u.LoggerUtil [http-nio-8443-exec-8] File not found: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_tudor_2025_01.json
+2025-01-13 17:20:37,449 INFO c.c.u.LoggerUtil [http-nio-8443-exec-8] File not found: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_tudor_2025_02.json
+2025-01-13 17:20:45,170 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] File not found: D:\servernetworkgrafubu\CTTT\dbj\admin\adminworktime\general_worktime_2025_01.json
+2025-01-13 17:20:45,170 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-9] Checking national holiday for 2025-01-14. Found 0 admin entries
+2025-01-13 17:20:45,171 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-9] Including workday: 2025-01-14
+2025-01-13 17:20:45,200 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] Processing time off request for user tudor: 2025-01-14 to 2025-01-14 (CO)
+2025-01-13 17:20:45,201 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] File not found: D:\servernetworkgrafubu\CTTT\dbj\admin\adminworktime\general_worktime_2025_01.json
+2025-01-13 17:20:45,201 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-9] Checking national holiday for 2025-01-14. Found 0 admin entries
+2025-01-13 17:20:45,201 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] File not found: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_2_2025_01.json
+2025-01-13 17:20:45,203 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\login\paid_holiday_list.json
+2025-01-13 17:20:45,203 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] User tudor used 1 holiday days
+2025-01-13 17:20:45,204 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] Deducted 1 paid holiday days for user tudor
+2025-01-13 17:20:45,204 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] File not found: D:\servernetworkgrafubu\CTTT\dbj\admin\adminworktime\general_worktime_2025_01.json
+2025-01-13 17:20:45,204 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-9] Checking national holiday for 2025-01-14. Found 0 admin entries
+2025-01-13 17:20:45,204 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] File not found: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_2_2025_01.json
+2025-01-13 17:20:45,205 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] File not found: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_2_2025_01.json
+2025-01-13 17:20:45,205 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] File not found: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_tudor_2025_01.json
+2025-01-13 17:20:45,208 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_tudor_2025_01.json
+2025-01-13 17:20:45,209 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] Saved 1 entries for tudor - 2025/1
+2025-01-13 17:20:45,209 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] Processed 1 time off entries for user tudor
+2025-01-13 17:20:45,231 INFO c.c.u.LoggerUtil [http-nio-8443-exec-10] File not found: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_tudor_2025_02.json
+2025-01-13 17:20:48,944 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Session destroyed: 019429B88881B6D9AA3EEF3B8549F443
+2025-01-13 17:20:48,952 INFO c.c.u.LoggerUtil [http-nio-8443-exec-4] Accessing login page
+2025-01-13 17:20:48,952 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-4] Network mode availability: true
+2025-01-13 17:20:48,953 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-4] Offline mode availability: true
+2025-01-13 17:20:51,718 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Starting authentication process for user: admin
+2025-01-13 17:20:51,719 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Loading user details for: admin
+2025-01-13 17:20:51,782 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully authenticated user admin
+2025-01-13 17:20:51,782 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Session created: F5712A19F7759BC89CCB0AABA66A6482
+2025-01-13 17:20:51,783 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Loading user details for: admin
+2025-01-13 17:20:51,784 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Created 6 local directories successfully
+2025-01-13 17:20:51,786 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_admin_1.json
+2025-01-13 17:20:51,786 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Created new offline session for user admin
+2025-01-13 17:20:51,786 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully handled login for user: admin (rememberMe: false)
+2025-01-13 17:20:55,102 INFO c.c.u.LoggerUtil [http-nio-8443-exec-7] Loading holiday list
+2025-01-13 17:20:55,103 INFO c.c.u.LoggerUtil [http-nio-8443-exec-7] Found 4 entries
+2025-01-13 17:20:58,351 INFO c.c.u.LoggerUtil [Catalina-utility-1] Session destroyed: 5A47908B7F898FF8821EAC7833D2C94A
+2025-01-13 17:21:31,161 INFO c.c.u.LoggerUtil [http-nio-8443-exec-9] Session destroyed: F5712A19F7759BC89CCB0AABA66A6482
+2025-01-13 17:21:31,169 INFO c.c.u.LoggerUtil [http-nio-8443-exec-1] Accessing login page
+2025-01-13 17:21:31,169 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-1] Network mode availability: true
+2025-01-13 17:21:31,170 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-1] Offline mode availability: true
+2025-01-13 17:21:34,292 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Starting authentication process for user: tudor
+2025-01-13 17:21:34,293 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Loading user details for: tudor
+2025-01-13 17:21:34,355 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Successfully authenticated user tudor
+2025-01-13 17:21:34,355 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Session created: 9DFEEB763EDB2A8F37E075C8C63A5D9B
+2025-01-13 17:21:34,356 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Loading user details for: tudor
+2025-01-13 17:21:34,356 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Created 3 local directories successfully
+2025-01-13 17:21:34,357 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-3] Found local session for user tudor
+2025-01-13 17:21:34,358 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-3] Found network session for user tudor
+2025-01-13 17:21:34,359 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json
+2025-01-13 17:21:34,359 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Using newer local session for user tudor
+2025-01-13 17:21:34,359 INFO c.c.u.LoggerUtil [http-nio-8443-exec-3] Successfully handled login for user: tudor (rememberMe: false)
+2025-01-13 17:21:35,846 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-4] Found local session for user tudor
+2025-01-13 17:21:35,847 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-4] Found network session for user tudor
+2025-01-13 17:21:35,847 INFO c.c.u.LoggerUtil [http-nio-8443-exec-4] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json
+2025-01-13 17:21:35,848 INFO c.c.u.LoggerUtil [http-nio-8443-exec-4] Using newer local session for user tudor
+2025-01-13 17:21:35,848 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-4] Model attributes: {syncStatus=SyncFolderStatus(network=true, local=true, syncError=null, retryCount=0, nextRetry=0), sessionStatus=Offline, currentDateTime=13/01/2025 :: 17:21, dayStartTime=13/01/2025 :: 17:20, totalWorkRaw=00:00, temporaryStopCount=0, totalTemporaryStopTime=00:00, overtime=00:00, lunchBreakStatus=false, actualWorkTime=00:00}
+2025-01-13 17:21:37,320 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-5] Found local session for user tudor
+2025-01-13 17:21:37,320 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-5] Found network session for user tudor
+2025-01-13 17:21:37,321 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json
+2025-01-13 17:21:37,321 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Using newer local session for user tudor
+2025-01-13 17:21:37,322 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json
+2025-01-13 17:21:37,323 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\userworktime\worktime_tudor_2025_01.json
+2025-01-13 17:21:37,323 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Saved worktime entry for user tudor on 2025-01-13
+2025-01-13 17:21:37,325 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Started session monitoring for user tudor with interval 30 minutes
+2025-01-13 17:21:37,325 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Started monitoring session for user tudor
+2025-01-13 17:21:37,325 INFO c.c.u.LoggerUtil [http-nio-8443-exec-5] Started new session for user tudor (start time set to 2025-01-13T17:11:37.321873100)
+2025-01-13 17:21:37,330 INFO c.c.u.LoggerUtil [http-nio-8443-exec-6] Calculated work time for user tudor - Raw: 10, Breaks: 0 (0 stops)
+2025-01-13 17:21:37,330 INFO c.c.u.LoggerUtil [http-nio-8443-exec-6] Successfully wrote data to file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json
+2025-01-13 17:21:37,330 INFO c.c.u.LoggerUtil [http-nio-8443-exec-6] Session persisted for user: tudor
+2025-01-13 17:21:37,330 DEBUG c.c.u.LoggerUtil [http-nio-8443-exec-6] Model attributes: {syncStatus=SyncFolderStatus(network=true, local=true, syncError=null, retryCount=0, nextRetry=0), sessionStatus=Online, currentDateTime=13/01/2025 :: 17:21, dayStartTime=13/01/2025 :: 17:11, totalWorkRaw=00:10, temporaryStopCount=0, totalTemporaryStopTime=00:00, overtime=00:00, lunchBreakStatus=false, actualWorkTime=00:00}
+2025-01-13 18:54:50,280 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] Background monitor executor shutdown complete
+2025-01-13 18:54:50,280 INFO o.s.o.j.AbstractEntityManagerFactoryBean [SpringApplicationShutdownHook] Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-01-13 18:54:50,290 WARN o.s.b.f.s.DisposableBeanAdapter [SpringApplicationShutdownHook] Invocation of destroy method failed on bean with name 'inMemoryDatabaseShutdownExecutor': org.h2.jdbc.JdbcSQLNonTransientConnectionException: Database is already closed (to disable automatic closing at VM shutdown, add ";DB_CLOSE_ON_EXIT=FALSE" to the db URL) [90121-224]
+2025-01-13 18:54:50,290 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown initiated...
+2025-01-13 18:54:50,295 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown completed.
+2025-01-13 18:54:55,560 INFO o.h.v.i.u.Version [background-preinit] HV000001: Hibernate Validator 8.0.1.Final
+2025-01-13 18:54:55,618 INFO o.s.b.StartupInfoLogger [restartedMain] Starting Application using Java 17.0.12 with PID 16992 (D:\WorkT\Projects Java\GraphDepG\target\classes started by thlho in D:\WorkT\Projects Java\GraphDepG)
+2025-01-13 18:54:55,618 DEBUG o.s.b.StartupInfoLogger [restartedMain] Running with Spring Boot v3.2.0, Spring v6.1.1
+2025-01-13 18:54:55,619 INFO o.s.b.SpringApplication [restartedMain] No active profile set, falling back to 1 default profile: "default"
+2025-01-13 18:54:55,876 INFO o.s.b.l.DeferredLog [restartedMain] Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-01-13 18:54:55,876 INFO o.s.b.l.DeferredLog [restartedMain] For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2025-01-13 18:54:56,553 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-01-13 18:54:56,585 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Finished Spring Data repository scanning in 18 ms. Found 0 JPA repository interfaces.
+2025-01-13 18:54:57,303 INFO o.s.b.w.e.t.TomcatWebServer [restartedMain] Tomcat initialized with port 8443 (http)
+2025-01-13 18:54:57,315 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing ProtocolHandler ["http-nio-8443"]
+2025-01-13 18:54:57,315 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting service [Tomcat]
+2025-01-13 18:54:57,321 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting Servlet engine: [Apache Tomcat/10.1.16]
+2025-01-13 18:54:57,388 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing Spring embedded WebApplicationContext
+2025-01-13 18:54:57,388 INFO o.s.b.w.s.c.ServletWebServerApplicationContext [restartedMain] Root WebApplicationContext: initialization completed in 1512 ms
+2025-01-13 18:54:57,462 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Starting...
+2025-01-13 18:54:57,754 INFO c.z.h.p.HikariPool [restartedMain] HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:ctgraphdb user=SA
+2025-01-13 18:54:57,754 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Start completed.
+2025-01-13 18:54:57,770 INFO o.s.b.a.h.H2ConsoleAutoConfiguration [restartedMain] H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:ctgraphdb'
+2025-01-13 18:54:57,885 WARN o.a.j.l.DirectJDKLog [restartedMain] Cannot deserialize session attribute [SPRING_SECURITY_CONTEXT] for session [9DFEEB763EDB2A8F37E075C8C63A5D9B]
+2025-01-13 18:54:58,124 INFO o.h.j.i.u.LogHelper [restartedMain] HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-01-13 18:54:58,331 INFO o.h.Version [restartedMain] HHH000412: Hibernate ORM core version 6.3.1.Final
+2025-01-13 18:54:58,414 INFO o.h.c.i.RegionFactoryInitiator [restartedMain] HHH000026: Second-level cache disabled
+2025-01-13 18:54:58,561 INFO o.s.o.j.p.SpringPersistenceUnitInfo [restartedMain] No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-01-13 18:54:58,763 INFO o.h.e.t.j.p.i.JtaPlatformInitiator [restartedMain] HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-01-13 18:54:58,779 INFO o.s.o.j.AbstractEntityManagerFactoryBean [restartedMain] Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-01-13 18:54:58,795 INFO c.c.u.LoggerUtil [restartedMain] Initializing PathConfig$$SpringCGLIB$$0: Initializing Path Configuration
+2025-01-13 18:54:58,805 INFO c.c.u.LoggerUtil [restartedMain] Initialized paths - Network: D:\servernetworkgrafubu\CTTT, Installation: D:\serverlocalhome\CTTT, Development: D:\serverlocaldevelopment
+2025-01-13 18:54:58,805 INFO c.c.u.LoggerUtil [restartedMain] Initialized directory mappings
+2025-01-13 18:54:58,811 INFO c.c.u.LoggerUtil [restartedMain] Using network path: D:\servernetworkgrafubu\CTTT
+2025-01-13 18:54:58,827 WARN o.s.c.s.AbstractApplicationContext [restartedMain] Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'securityConfig' defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\config\SecurityConfig.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'authenticationService' defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\service\AuthenticationService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'dataAccessService' defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\service\DataAccessService.class]: Unsatisfied dependency expressed through constructor parameter 3: Error creating bean with name 'fileSyncService' defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\service\FileSyncService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'dataAccessService': Requested bean is currently in creation: Is there an unresolvable circular reference?
+2025-01-13 18:54:58,827 INFO o.s.o.j.AbstractEntityManagerFactoryBean [restartedMain] Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-01-13 18:54:58,843 WARN o.s.b.f.s.DisposableBeanAdapter [restartedMain] Invocation of destroy method failed on bean with name 'inMemoryDatabaseShutdownExecutor': org.h2.jdbc.JdbcSQLNonTransientConnectionException: Database is already closed (to disable automatic closing at VM shutdown, add ";DB_CLOSE_ON_EXIT=FALSE" to the db URL) [90121-224]
+2025-01-13 18:54:58,843 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Shutdown initiated...
+2025-01-13 18:54:58,843 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Shutdown completed.
+2025-01-13 18:54:58,843 INFO o.a.j.l.DirectJDKLog [restartedMain] Stopping service [Tomcat]
+2025-01-13 18:54:58,858 INFO o.s.b.a.l.ConditionEvaluationReportLogger [restartedMain] 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2025-01-13 18:54:58,909 ERROR o.s.b.d.LoggingFailureAnalysisReporter [restartedMain] 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+The dependencies of some of the beans in the application context form a cycle:
+
+   securityConfig defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\config\SecurityConfig.class]
+      ↓
+   authenticationService defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\service\AuthenticationService.class]
+┌─────┐
+|  dataAccessService defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\service\DataAccessService.class]
+↑     ↓
+|  fileSyncService defined in file [D:\WorkT\Projects Java\GraphDepG\target\classes\com\ctgraphdep\service\FileSyncService.class]
+└─────┘
+
+
+Action:
+
+Relying upon circular references is discouraged and they are prohibited by default. Update your application to remove the dependency cycle between beans. As a last resort, it may be possible to break the cycle automatically by setting spring.main.allow-circular-references to true.
+

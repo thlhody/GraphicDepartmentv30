@@ -12,6 +12,7 @@ import jakarta.annotation.PostConstruct;
 
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Getter
 @Setter
@@ -20,6 +21,7 @@ import java.util.*;
 @ConfigurationProperties(prefix = "dbj")
 public class PathConfig {
 
+    //main paths
     @Value("${app.paths.network}")
     private String networkBasePath;
 
@@ -36,7 +38,7 @@ public class PathConfig {
     @Value("${dbj.dir.format.worktime:worktime_%s_%d_%02d.json}")
     private String worktimeFormat;
 
-    @Value("${dbj.dir.format.register:registru_%s_%d.json}")
+    @Value("${dbj.dir.format.register:registru_%s_%d_%d_%02d.json}")
     private String registerFormat;
 
     @Value("${dbj.dir.format.admin.worktime:general_worktime_%d_%02d.json}")
@@ -48,8 +50,8 @@ public class PathConfig {
     @Value("${dbj.dir.format.admin.bonus:admin_bonus_%d_%02d.json}")
     private String adminBonusFormat;
 
-    @Value("${dbj.dir.format.holiday:paid_holiday_list.json}")
-    private String holidayListFormat;
+    @Value("${dbj.users.holiday:paid_holiday_list.json}")
+    private String holidayFilename;
 
     @Value("${dbj.users.filename:users.json}")
     private String usersFilename;
@@ -72,9 +74,6 @@ public class PathConfig {
     @Value("${dbj.user.register}")
     private String userRegister;
 
-    @Value("${dbj.admin.holiday}")
-    private String adminHoliday;
-
     @Value("${dbj.admin.worktime}")
     private String adminWorktime;
 
@@ -95,6 +94,20 @@ public class PathConfig {
     private final Map<String, String> user = new HashMap<>();
     private final Map<String, String> admin = new HashMap<>();
     private String login;
+
+    private static final Set<String> NETWORK_PRIMARY_FILES = Set.of(
+            "users.json",
+            "paid_holiday_list.json"
+    );
+
+    private static final Set<String> LOCAL_ONLY_FILES = Set.of(
+            "admin_bonus_%d_%02d.json"
+    );
+
+    // Network status tracking
+    private final AtomicBoolean networkAvailable = new AtomicBoolean(false);
+    private final Object networkStatusLock = new Object();
+
 
     @Autowired
     public PathConfig() {
@@ -119,7 +132,6 @@ public class PathConfig {
         user.put("register", userRegister);
 
         // Initialize admin mappings
-        admin.put("holiday", adminHoliday);
         admin.put("worktime", adminWorktime);
         admin.put("register", adminRegister);
         admin.put("bonus", adminBonus);
@@ -139,6 +151,114 @@ public class PathConfig {
         LoggerUtil.info(this.getClass(),
                 String.format("Initialized paths - Network: %s, Installation: %s, Development: %s",
                         networkPath, installPath, devPath));
+    }
+
+    // Add new methods for file type checking
+    public boolean isNetworkPrimaryFile(String filename) {
+        return NETWORK_PRIMARY_FILES.contains(filename) ||
+                NETWORK_PRIMARY_FILES.stream()
+                        .anyMatch(pattern -> filename.matches(pattern.replace("%d", "\\d+")));
+    }
+
+    public boolean isLocalOnlyFile(String filename) {
+        return LOCAL_ONLY_FILES.contains(filename) ||
+                LOCAL_ONLY_FILES.stream()
+                        .anyMatch(pattern -> filename.matches(pattern.replace("%d", "\\d+")));
+    }
+
+    public boolean requiresSync(String filename) {
+        return !isLocalOnlyFile(filename) && !isNetworkPrimaryFile(filename);
+    }
+
+    // Enhance path resolution for different file types
+    public Path resolvePathForWrite(String filename) {
+        // Specific handling for different file types
+        if (filename.startsWith("session_")) {
+            // Always write session files to local path
+            return installPath.resolve(userSession).resolve(filename);
+        }
+        if (filename.startsWith("worktime_")) {
+            // Write worktime files to local path first
+            return installPath.resolve(userWorktime).resolve(filename);
+        }
+        if (filename.startsWith("registru_")) {
+            // Write register files to local path first
+            return installPath.resolve(userRegister).resolve(filename);
+        }
+        if (filename.startsWith("general_worktime_")) {
+            // Write admin worktime files to local path first
+            return installPath.resolve(adminWorktime).resolve(filename);
+        }
+        if (filename.startsWith("admin_registru_")) {
+            // Write admin register files to local path first
+            return installPath.resolve(adminRegister).resolve(filename);
+        }
+        if (filename.startsWith("admin_bonus_")) {
+            // Write admin bonus files to local path first
+            return installPath.resolve(adminBonus).resolve(filename);
+        }
+        if (filename.equals(usersFilename)) {
+            // Write users file to local login path
+            return installPath.resolve(loginPath).resolve(filename);
+        }
+        if (filename.equals(holidayFilename)) {
+            // Write holiday file to local login path
+            return installPath.resolve(login).resolve(filename);
+        }
+
+        // Fallback to local installation path
+        return installPath.resolve(filename);
+    }
+
+    public Path resolvePathForRead(String filename) {
+        // Special handling for network-primary files
+        if (filename.equals(usersFilename) || filename.equals(holidayFilename)) {
+            // Prefer network path for these files
+            return networkAvailable.get() ?
+                    networkPath.resolve(loginPath).resolve(filename) :
+                    installPath.resolve(loginPath).resolve(filename);
+        }
+
+        // Determine the appropriate base path
+        Path basePath = networkAvailable.get() ? networkPath : installPath;
+
+        // Specific resolution for different file types
+        if (filename.startsWith("session_")) {
+            return installPath.resolve(userSession).resolve(filename);
+        }
+        if (filename.startsWith("worktime_")) {
+            return installPath.resolve(userWorktime).resolve(filename);
+        }
+        if (filename.startsWith("registru_")) {
+            return installPath.resolve(userRegister).resolve(filename);
+        }
+        if (filename.startsWith("general_worktime_")) {
+            return installPath.resolve(adminWorktime).resolve(filename);
+        }
+        if (filename.startsWith("admin_registru_")) {
+            return installPath.resolve(adminRegister).resolve(filename);
+        }
+        if (filename.startsWith("admin_bonus_")) {
+            return installPath.resolve(adminBonus).resolve(filename);
+        }
+
+        // Fallback to local installation path
+        return installPath.resolve(filename);
+    }
+
+    // Enhance network status checking
+    public void updateNetworkStatus() {
+        synchronized (networkStatusLock) {
+            boolean previous = networkAvailable.get();
+            boolean current = isPathAccessible(networkPath);
+            networkAvailable.set(current);
+
+            if (previous != current) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Network status changed from %s to %s",
+                                previous, current));
+            }
+        }
     }
 
     private void determineActivePath() {
@@ -172,10 +292,11 @@ public class PathConfig {
 
     private boolean isPathAccessible(Path path) {
         try {
-            return Files.exists(path);
-        } catch (Exception e) {
+            return Files.exists(path) && Files.isWritable(path);
+        } catch (SecurityException e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error checking path %s: %s", path, e.getMessage()));
+                    String.format("Security error checking path %s: %s",
+                            path, e.getMessage()));
             return false;
         }
     }
@@ -193,44 +314,36 @@ public class PathConfig {
         }
     }
 
-    // Path resolution methods
     public Path getUsersJsonPath() {
-        return activePath.resolve(login).resolve(usersFilename);
-    }
-
-    public Path getSessionFilePath(String username, Integer userId) {
-        return activePath.resolve(user.get("session"))
-                .resolve(String.format(sessionFormat, username, userId));
-    }
-
-    public Path getUserWorktimeFilePath(String username, int year, int month) {
-        return activePath.resolve(user.get("worktime"))
-                .resolve(String.format(worktimeFormat, username, year, month));
-    }
-
-    public Path getUserRegisterPath(String username, Integer userId,int year, int month) {
-        return activePath.resolve(user.get("register"))
-                .resolve(String.format(registerFormat, username, userId, year, month));
+        return activePath.resolve(loginPath).resolve(usersFilename);
     }
 
     public Path getHolidayListPath() {
-        return activePath.resolve(admin.get("holiday"))
-                .resolve(holidayListFormat);
+        return activePath.resolve(login).resolve(holidayFilename);
+    }
+
+    public Path getSessionFilePath(String username, Integer userId) {
+        return activePath.resolve(userSession).resolve(String.format(sessionFormat, username, userId));
+    }
+
+    public Path getUserWorktimeFilePath(String username, int year, int month) {
+        return activePath.resolve(userWorktime).resolve(String.format(worktimeFormat, username, year, month));
+    }
+
+    public Path getUserRegisterPath(String username, Integer userId, int year, int month) {
+        return activePath.resolve(userRegister).resolve(String.format(registerFormat, username, userId, year, month));
     }
 
     public Path getAdminWorktimePath(int year, int month) {
-        return activePath.resolve(admin.get("worktime"))
-                .resolve(String.format(adminWorktimeFormat, year, month));
+        return activePath.resolve(adminWorktime).resolve(String.format(adminWorktimeFormat, year, month));
     }
 
     public Path getAdminRegisterPath(String username, Integer userId, int year, int month) {
-        return activePath.resolve(admin.get("register"))
-                .resolve(String.format(adminRegisterFormat, username, userId, year, month));
+        return activePath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
     public Path getAdminBonusPath(int year, int month) {
-        return activePath.resolve(admin.get("bonus"))
-                .resolve(String.format(adminBonusFormat, year, month));
+        return activePath.resolve(adminBonus).resolve(String.format(adminBonusFormat, year, month));
     }
 
     // Status checks
@@ -255,10 +368,16 @@ public class PathConfig {
 
         missingDirectories.clear();
 
-        List<String> pathsToVerify = new ArrayList<>();
-        pathsToVerify.addAll(user.values());
-        pathsToVerify.addAll(admin.values());
-        pathsToVerify.add(login);
+        // Use the configured paths from properties
+        List<String> pathsToVerify = Arrays.asList(
+                loginPath,           // dbj/login
+                userSession,         // dbj/user/usersession
+                userWorktime,        // dbj/user/userworktime
+                userRegister,        // dbj/user/userregister
+                adminWorktime,       // dbj/admin/adminworktime
+                adminRegister,       // dbj/admin/adminregister
+                adminBonus          // dbj/admin/bonus
+        );
 
         for (String dirPath : pathsToVerify) {
             Path fullPath = activePath.resolve(dirPath);
@@ -267,7 +386,7 @@ public class PathConfig {
                 if (createMissing) {
                     try {
                         Files.createDirectories(fullPath);
-                        if (dirPath.endsWith("login")) {
+                        if (dirPath.equals(loginPath)) {
                             Files.write(fullPath.resolve(usersFilename), "[]".getBytes());
                         }
                         LoggerUtil.info(this.getClass(),
@@ -279,5 +398,34 @@ public class PathConfig {
                 }
             }
         }
+    }
+
+    // Base directory path getters
+    public Path getUserSessionDir() {
+        return activePath.resolve(userSession);
+    }
+
+    public Path getUserWorktimeDir() {
+        return activePath.resolve(userWorktime);
+    }
+
+    public Path getUserRegisterDir() {
+        return activePath.resolve(userRegister);
+    }
+
+    public Path getAdminWorktimeDir() {
+        return activePath.resolve(adminWorktime);
+    }
+
+    public Path getAdminRegisterDir() {
+        return activePath.resolve(adminRegister);
+    }
+
+    public Path getAdminBonusDir() {
+        return activePath.resolve(adminBonus);
+    }
+
+    public Path getLoginDir() {
+        return activePath.resolve(loginPath);
     }
 }

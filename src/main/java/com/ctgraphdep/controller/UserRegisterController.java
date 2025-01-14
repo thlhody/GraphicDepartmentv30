@@ -46,34 +46,57 @@ public class UserRegisterController extends BaseController {
     @GetMapping
     public String showRegister(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) String username,  // Add username parameter
+            @RequestParam(required = false) String username,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
             Model model) {
 
         try {
+            // Get current user
             User currentUser = getUser(userDetails);
-            User targetUser;
+            if (currentUser == null) {
+                LoggerUtil.error(this.getClass(), "Current user is null after getUser()");
+                return "redirect:/login";
+            }
 
-            // Determine which user's register to display
+            // Initialize year and month if not provided
+            LocalDate now = LocalDate.now();
+            year = year != null ? year : now.getYear();
+            month = month != null ? month : now.getMonthValue();
+
+            // Always set these basic attributes regardless of potential errors
+            model.addAttribute("actionTypes", ActionType.getValues());
+            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
+            model.addAttribute("currentYear", year);
+            model.addAttribute("currentMonth", month);
+
+            // Determine target user
+            User targetUser = currentUser;
             if (username != null) {
-                // If username is provided and user has admin role, show that user's register
                 if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
                     targetUser = getUserService().getUserByUsername(username)
                             .orElseThrow(() -> new RuntimeException("User not found"));
-                } else if (username.equals(currentUser.getUsername())) {
-                    // Regular users can only view their own register
-                    targetUser = currentUser;
-                } else {
-                    // If regular user tries to access another user's register, redirect to their own
+                } else if (!username.equals(currentUser.getUsername())) {
                     return "redirect:/user/register";
                 }
-            } else {
-                // No username specified, show current user's register
-                targetUser = currentUser;
             }
 
-            // Add role-specific view attributes
+            // Set user information
+            model.addAttribute("user", targetUser);
+            model.addAttribute("userName", targetUser.getName());
+            model.addAttribute("userDisplayName",
+                    targetUser.getName() != null ? targetUser.getName() : targetUser.getUsername());
+
+            // Load entries
+            List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
+                    targetUser.getUsername(),
+                    targetUser.getUserId(),
+                    year,
+                    month
+            );
+            model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
+
+            // Add role-specific attributes
             if (currentUser.hasRole("ADMIN")) {
                 model.addAttribute("isAdminView", true);
                 model.addAttribute("dashboardUrl", "/admin");
@@ -84,34 +107,10 @@ public class UserRegisterController extends BaseController {
                 model.addAttribute("dashboardUrl", "/user");
             }
 
-            // Set default year and month if not provided
-            LocalDate now = LocalDate.now();
-            year = year != null ? year : now.getYear();
-            month = month != null ? month : now.getMonthValue();
-
-            // Load entries for the target user
-            List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
-                    targetUser.getUsername(),
-                    targetUser.getUserId(),
-                    year,
-                    month
-            );
-
-            // Add all necessary data to model
-            model.addAttribute("user", targetUser);
-            model.addAttribute("entries", entries);
-            model.addAttribute("currentYear", year);
-            model.addAttribute("currentMonth", month);
-            model.addAttribute("actionTypes", ActionType.getValues());
-            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
-
-
-            // Add view control attributes
-            if (currentUser.getRole().equals("ROLE_ADMIN") ||
-                    currentUser.getRole().equals("ROLE_TEAM_LEADER")) {
+            // Add view control attributes for admin/team leader
+            if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
                 model.addAttribute("isAdminView", true);
                 model.addAttribute("targetUser", targetUser);
-
                 if (!targetUser.equals(currentUser)) {
                     model.addAttribute("viewingOtherUser", true);
                     model.addAttribute("canEdit", true);
@@ -121,8 +120,26 @@ public class UserRegisterController extends BaseController {
             return "user/register";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error loading register page: " + e.getMessage());
-            model.addAttribute("error", "Error loading register data");
+            LoggerUtil.error(this.getClass(), "Error loading register page: " + e.getMessage(), e);
+
+            // Set error attributes while preserving basic functionality
+            model.addAttribute("error", "Error loading register data: " + e.getMessage());
+            model.addAttribute("entries", new ArrayList<>());
+            model.addAttribute("actionTypes", ActionType.getValues());
+            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
+            model.addAttribute("currentYear", year);
+            model.addAttribute("currentMonth", month);
+
+            // Try to set user info from current user if available
+            if (userDetails != null) {
+                User currentUser = getUser(userDetails);
+                if (currentUser != null) {
+                    model.addAttribute("user", currentUser);
+                    model.addAttribute("userName", currentUser.getName());
+                    model.addAttribute("userDisplayName", currentUser.getName());
+                }
+            }
+
             return "user/register";
         }
     }

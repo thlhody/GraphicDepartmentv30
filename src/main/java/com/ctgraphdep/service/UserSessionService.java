@@ -3,7 +3,6 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.event.SessionEndEvent;
-import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.config.WorkCode;
@@ -20,7 +19,6 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,6 +28,7 @@ public class UserSessionService {
     private final DataAccessService dataAccess;
     private final UserWorkTimeService userWorkTimeService;
     private final SessionPersistenceService persistenceService;
+    private final UserService userService;
     private final SessionMonitorService sessionMonitorService;
     private final PathConfig pathConfig;
     private final ReentrantLock sessionLock = new ReentrantLock();
@@ -44,6 +43,7 @@ public class UserSessionService {
         this.dataAccess = dataAccess;
         this.userWorkTimeService = userWorkTimeService;
         this.persistenceService = persistenceService;
+        this.userService = userService;
         this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
 
@@ -413,6 +413,18 @@ public class UserSessionService {
             return Files.getLastModifiedTime(file1).compareTo(
                     Files.getLastModifiedTime(file2)) > 0;
         } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private boolean isSessionEligibleUser(Integer userId) {
+        try {
+            return userService.getUserById(userId)
+                    .map(user -> !user.isAdmin())
+                    .orElse(false);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error checking user eligibility for session: %d", userId));
             return false;
         }
     }
