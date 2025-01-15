@@ -23,8 +23,8 @@ import java.util.Optional;
 @Slf4j
 @Service
 public class AuthenticationService {
-    private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
 
+    private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
     private final DataAccessService dataAccess;
     private final PathConfig pathConfig;
     private final PasswordEncoder passwordEncoder;
@@ -38,7 +38,7 @@ public class AuthenticationService {
         this.pathConfig = pathConfig;
         this.passwordEncoder = passwordEncoder;
         this.sessionRecoveryService = sessionRecoveryService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Authentication Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public AuthenticationStatus getAuthenticationStatus() {

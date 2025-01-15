@@ -46,7 +46,7 @@ public class NetworkMonitorService {
         this.locationStrategy = locationStrategy;
         this.syncStatusManager = syncStatusManager;
         this.syncService = syncService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Network Monitor Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PostConstruct

@@ -6,6 +6,10 @@ import java.util.Map;
 
 public class WorkCode {
 
+    //file format
+    public static final String JSON_FORMAT = ".json";
+    public static final String HOURLY = "_hourly";
+
     //time off codes
     public static final String NATIONAL_HOLIDAY_CODE = "SN";
     public static final String TIME_OFF_CODE = "CO";
@@ -25,6 +29,7 @@ public class WorkCode {
 
 
     //work hours codes
+    public static final Integer ONE_MINUTE_DELAY = 1;
     public static final Integer HOUR_DURATION = 60;           // Minutes in an hour
     public static final Integer FULL_DAY_DURATION = 510;        // 8.5 hours in minutes (8 * 60 + 30)510
     public static final Integer BUFFER_MINUTES = 10;          // Buffer time in minutes

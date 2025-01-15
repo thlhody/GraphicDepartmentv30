@@ -11,22 +11,23 @@ import java.util.Objects;
 
 @Service
 public class SessionCalculator {
+
     public boolean shouldEndSession(User user, WorkUsersSessionsStates session, LocalDateTime currentTime) {
         if (!isValidSession(session)) return false;
 
-        int maxMinutes = calculateMaxAllowedMinutes(user);
-        int effectiveMinutes = calculateEffectiveMinutes(session, currentTime);
+        Integer maxMinutes = calculateMaxAllowedMinutes(user);
+        Integer effectiveMinutes = calculateEffectiveMinutes(session, currentTime);
 
         return effectiveMinutes >= maxMinutes;
     }
 
-    private int calculateMaxAllowedMinutes(User user) {
+    private Integer calculateMaxAllowedMinutes(User user) {
         return Objects.equals(user.getSchedule(), WorkCode.INTERVAL_HOURS_C) ?
                 WorkCode.FULL_DAY_DURATION :
                 user.getSchedule() * WorkCode.HOUR_DURATION;
     }
 
-    private int calculateEffectiveMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
+    private Integer calculateEffectiveMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
         long totalMinutes = ChronoUnit.MINUTES.between(session.getDayStartTime(), currentTime);
         return (int) totalMinutes - (session.getTotalTemporaryStopMinutes() != null ?
                 session.getTotalTemporaryStopMinutes() : 0);
@@ -64,7 +65,7 @@ public class SessionCalculator {
                 !session.getDayStartTime().toLocalDate().equals(LocalDateTime.now().toLocalDate());
     }
 
-    public int calculateFinalMinutes(User user, WorkUsersSessionsStates session) {
+    public Integer calculateFinalMinutes(User user, WorkUsersSessionsStates session) {
         if (!isValidSession(session)) return 0;
 
         if (isSessionFromPreviousDay(session)) {
@@ -87,7 +88,7 @@ public class SessionCalculator {
                         WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
     }
 
-    public int calculateTempStopDuration(WorkUsersSessionsStates session) {
+    public Integer calculateTempStopDuration(WorkUsersSessionsStates session) {
         if (!isValidSession(session) ||
                 !WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) ||
                 session.getLastTemporaryStopTime() == null) {

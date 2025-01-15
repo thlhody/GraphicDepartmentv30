@@ -1,4 +1,3 @@
-
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.BonusEntry;
@@ -7,11 +6,8 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.AdminBonusExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
-import org.apache.poi.ss.usermodel.*;
-        import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,10 +25,10 @@ public class AdminBonusService {
         this.dataAccessService = dataAccessService;
         this.userService = userService;
         this.adminBonusExcelExporter = adminBonusExcelExporter;
-        LoggerUtil.initialize(this.getClass(), "Starting bonus management services");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
-    public Map<Integer, BonusEntryDTO> loadBonusData(int year, int month) {
+    public Map<Integer, BonusEntryDTO> loadBonusData(Integer year, Integer month) {
         try {
             Path bonusPath = dataAccessService.getAdminBonusPath(year, month);
             Map<Integer, BonusEntry> bonusData = dataAccessService.readFile(
@@ -70,7 +66,7 @@ public class AdminBonusService {
         return null;
     }
 
-    public byte[] exportBonusData(int year, int month) {
+    public byte[] exportBonusData(Integer year, Integer month) {
         try {
             Map<Integer, BonusEntryDTO> bonusData = loadBonusData(year, month);
             return adminBonusExcelExporter.exportToExcel(bonusData, year, month);
@@ -82,7 +78,7 @@ public class AdminBonusService {
         return null;
     }
 
-    public byte[] exportUserBonusData(int year, int month) {
+    public byte[] exportUserBonusData(Integer year, Integer month) {
         try {
             Map<Integer, BonusEntryDTO> bonusData = loadBonusData(year, month);
             return adminBonusExcelExporter.exportUserToExcel(bonusData, year, month);

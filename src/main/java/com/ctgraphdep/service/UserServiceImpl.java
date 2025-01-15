@@ -1,8 +1,6 @@
-package com.ctgraphdep.service.impl;
+package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.DataAccessService;
-import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.beans.factory.annotation.Autowired;

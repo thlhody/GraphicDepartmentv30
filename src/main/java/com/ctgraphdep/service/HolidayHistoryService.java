@@ -20,20 +20,12 @@ public class HolidayHistoryService {
     private static final int HISTORY_MONTHS = 12;
 
     private final DataAccessService dataAccess;
-    private final UserService userService;
 
-    public HolidayHistoryService(DataAccessService dataAccess, UserService userService) {
+    public HolidayHistoryService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
-        this.userService = userService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Holiday History Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Get time off history for a user for the last 12 months
-     *
-     * @param username User's username
-     * @return List of time off entries
-     */
     // Get time off history for a user for the last 12 months
     public List<WorkTimeTable> getUserTimeOffHistory(String username) {
         List<WorkTimeTable> allTimeOffs = new ArrayList<>();
@@ -54,7 +46,6 @@ public class HolidayHistoryService {
         }
         return allTimeOffs;
     }
-
 
     // Load time off entries for a specific month
     private List<WorkTimeTable> loadMonthlyTimeoffs(String username, YearMonth yearMonth) {

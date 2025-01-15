@@ -26,9 +26,7 @@ public class AdminRegisterService {
     private final BonusCalculatorUtil bonusCalculator;
     private final WorkTimeManagementService workTimeManagementService;
     private final UserService userService;
-    private static final TypeReference<Map<Integer, BonusEntry>> BONUS_ENTRY_TYPE =
-            new TypeReference<Map<Integer, BonusEntry>>() {};
-
+    private static final TypeReference<Map<Integer, BonusEntry>> BONUS_ENTRY_TYPE = new TypeReference<Map<Integer, BonusEntry>>() {};
 
     @Autowired
     public AdminRegisterService(DataAccessService dataAccessService,
@@ -38,9 +36,10 @@ public class AdminRegisterService {
         this.bonusCalculator = bonusCalculator;
         this.workTimeManagementService = workTimeManagementService;
         this.userService = userService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
-    public Optional<BonusEntry> loadBonusEntry(Integer userId, int year, int month) {
+    public Optional<BonusEntry> loadBonusEntry(Integer userId, Integer year, Integer month) {
         try {
             Path path = dataAccessService.getAdminBonusPath(year, month);
             Map<Integer, BonusEntry> bonusEntries = dataAccessService.readFile(path, BONUS_ENTRY_TYPE, true);
@@ -52,8 +51,7 @@ public class AdminRegisterService {
         }
     }
 
-    // Update loadUserRegisterEntries method
-    public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, int year, int month) {
+    public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, Integer year, Integer month) {
         // 1. Load user entries first
         Path userPath = dataAccessService.getUserRegisterPath(username, userId, year, month);
         List<RegisterEntry> userEntries = dataAccessService.readFile(
@@ -102,7 +100,7 @@ public class AdminRegisterService {
                 .collect(Collectors.toList());
     }
 
-    public void saveAdminRegisterEntries(String username, Integer userId, int year, int month,
+    public void saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month,
                                          List<RegisterEntry> entries) {
         // Update statuses before saving
         List<RegisterEntry> updatedEntries = entries.stream()
@@ -223,7 +221,7 @@ public class AdminRegisterService {
 
                     // If only action type filter is selected
                     if (printPrepType == null) {
-                        return actionType == null || entry.getActionType().equals(actionType.getValue());
+                        return entry.getActionType().equals(actionType.getValue());
                     }
 
                     // If only print prep type filter is selected
@@ -263,7 +261,6 @@ public class AdminRegisterService {
                 .collect(Collectors.toList());
     }
 
-    // And update any conversion methods that still use the old format
     @SuppressWarnings("unchecked")
     private RegisterEntry convertToRegisterEntry(Map<String, Object> data) {
         // Get printPrepTypes as a list from the data
@@ -337,12 +334,9 @@ public class AdminRegisterService {
             return LocalDate.now();
         }
     }
+
     //Calculate bonus for filtered entries
-    public BonusCalculationResult calculateBonus(List<RegisterEntry> entries,
-                                                 Integer userId,
-                                                 int year,
-                                                 int month,
-                                                 BonusConfiguration config) {
+    public BonusCalculationResult calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config) {
         // Filter valid entries for bonus calculation
         List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
 
@@ -385,8 +379,7 @@ public class AdminRegisterService {
     }
 
     // Save bonus calculation result
-
-    public void saveBonusResult(Integer userId, int year, int month, BonusCalculationResult result, String username) {
+    public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResult result, String username) {
         try {
             // Get user's employeeId
             Integer employeeId = userService.getUserById(userId)
@@ -465,7 +458,7 @@ public class AdminRegisterService {
         }
     }
 
-    private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, int year, int month) {
+    private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, Integer year, Integer month) {
         try {
             // Get employee ID first
             Integer employeeId = userService.getUserById(userId)
@@ -508,7 +501,7 @@ public class AdminRegisterService {
         }
     }
 
-    public BonusCalculationResult loadSavedBonusResult(Integer userId, int year, int month) {
+    public BonusCalculationResult loadSavedBonusResult(Integer userId, Integer year, Integer month) {
         try {
             // Get user's employeeId
             Integer employeeId = userService.getUserById(userId)

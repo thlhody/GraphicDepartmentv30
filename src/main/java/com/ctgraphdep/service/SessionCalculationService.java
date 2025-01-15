@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 public class SessionCalculationService {
 
     public SessionCalculationService() {
-        LoggerUtil.initialize(this.getClass(), "Initializing Session Calculation Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     private boolean isActiveSession(WorkUsersSessionsStates session) {
@@ -21,7 +21,7 @@ public class SessionCalculationService {
                 WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
     }
 
-    public void calculateCurrentWork(WorkUsersSessionsStates session, int userSchedule) {
+    public void calculateCurrentWork(WorkUsersSessionsStates session, Integer userSchedule) {
         try {
             if (session == null || !isActiveSession(session)) {
                 return;

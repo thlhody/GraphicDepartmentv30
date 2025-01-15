@@ -21,7 +21,7 @@ public class AdminPaidHolidayService {
 
     public AdminPaidHolidayService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
-        LoggerUtil.initialize(this.getClass(), "Initializing Paid Holiday Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -51,7 +51,7 @@ public class AdminPaidHolidayService {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    public void updateUserHolidayDays(Integer userId, int days) {
+    public void updateUserHolidayDays(Integer userId, Integer days) {
         holidayLock.lock();
         try {
             List<PaidHolidayEntry> entries = loadHolidayList();
@@ -92,7 +92,7 @@ public class AdminPaidHolidayService {
     }
 
     @PreAuthorize("#username == authentication.name")
-    public boolean useHolidayDays(String username, Integer userId, int daysToUse, String timeOffType) {
+    public boolean useHolidayDays(String username, Integer userId, Integer daysToUse, String timeOffType) {
         // Only reduce holiday balance for CO type
         if (!"CO".equals(timeOffType)) {
             return true;
@@ -178,7 +178,7 @@ public class AdminPaidHolidayService {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    public void initializeUserHolidays(User user, int initialDays) {
+    public void initializeUserHolidays(User user, Integer initialDays) {
         holidayLock.lock();
         try {
             List<PaidHolidayEntry> entries = loadHolidayList();

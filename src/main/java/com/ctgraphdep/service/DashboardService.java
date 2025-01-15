@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dashboard.*;
+import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
@@ -16,6 +17,7 @@ public class DashboardService {
             FolderStatusService folderStatusService) {
         this.onlineMetricsService = onlineMetricsService;
         this.folderStatusService = folderStatusService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public DashboardViewModel buildDashboardViewModel(User currentUser, DashboardConfiguration config) {

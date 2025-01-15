@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.model.SyncStatus;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,26 +27,6 @@ public class SyncStatusManager {
     private final FileSyncService fileSyncService;
     private final Map<String, SyncStatus> syncStatusMap = new ConcurrentHashMap<>();
 
-    private static class SyncStatus {
-        LocalDateTime lastSyncAttempt;
-        LocalDateTime lastSuccessfulSync;
-        int retryCount;
-        boolean syncPending;
-        String errorMessage;
-        Path localPath;
-        Path networkPath;
-
-        SyncStatus(Path localPath, Path networkPath) {
-            this.localPath = localPath;
-            this.networkPath = networkPath;
-            this.lastSyncAttempt = null;
-            this.lastSuccessfulSync = null;
-            this.retryCount = 0;
-            this.syncPending = false;
-            this.errorMessage = null;
-        }
-    }
-
     public SyncStatusManager(PathConfig pathConfig, FileSyncService fileSyncService) {
         this.pathConfig = pathConfig;
         this.fileSyncService = fileSyncService;
@@ -53,11 +34,10 @@ public class SyncStatusManager {
     }
 
     public void trackSync(String filename, Path localPath, Path networkPath) {
-        SyncStatus status = syncStatusMap.computeIfAbsent(filename,
-                k -> new SyncStatus(localPath, networkPath));
-
-        status.lastSyncAttempt = LocalDateTime.now();
-        status.syncPending = true;
+        SyncStatus status = new SyncStatus(localPath, networkPath);
+        status.setLastAttempt(LocalDateTime.now());
+        status.setSyncPending(true);
+        syncStatusMap.put(filename, status);
 
         LoggerUtil.info(this.getClass(),
                 String.format("Started tracking sync for file: %s", filename));
@@ -66,10 +46,10 @@ public class SyncStatusManager {
     public void markSyncSuccess(String filename) {
         SyncStatus status = syncStatusMap.get(filename);
         if (status != null) {
-            status.lastSuccessfulSync = LocalDateTime.now();
-            status.syncPending = false;
-            status.retryCount = 0;
-            status.errorMessage = null;
+            status.setLastSuccessfulSync(LocalDateTime.now());
+            status.setSyncPending(false);
+            status.resetRetryCount();
+            status.setErrorMessage(null);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Sync successful for file: %s", filename));
@@ -79,14 +59,14 @@ public class SyncStatusManager {
     public void markSyncFailure(String filename, String errorMessage) {
         SyncStatus status = syncStatusMap.get(filename);
         if (status != null) {
-            status.retryCount++;
-            status.errorMessage = errorMessage;
+            status.incrementRetryCount();
+            status.setErrorMessage(errorMessage);
 
             LoggerUtil.error(this.getClass(),
                     String.format("Sync failed for file %s: %s (Attempt %d/%d)",
-                            filename, errorMessage, status.retryCount, maxRetries));
+                            filename, errorMessage, status.getRetryCount(), maxRetries));
 
-            if (status.retryCount >= maxRetries) {
+            if (status.getRetryCount() >= maxRetries) {
                 scheduleRetryAfterDelay(filename);
             }
         }
@@ -95,7 +75,7 @@ public class SyncStatusManager {
     private void scheduleRetryAfterDelay(String filename) {
         SyncStatus status = syncStatusMap.get(filename);
         if (status != null) {
-            status.retryCount = 0;  // Reset retry count
+            status.resetRetryCount();
 
             LoggerUtil.info(this.getClass(),
                     String.format("Scheduling retry after delay for file: %s", filename));
@@ -115,15 +95,15 @@ public class SyncStatusManager {
     }
 
     private boolean shouldRetry(SyncStatus status) {
-        if (!status.syncPending) {
+        if (!status.isSyncPending()) {
             return false;
         }
 
-        if (status.lastSyncAttempt == null) {
+        if (status.getLastAttempt() == null) {
             return true;
         }
 
-        LocalDateTime nextRetryTime = status.lastSyncAttempt
+        LocalDateTime nextRetryTime = status.getLastAttempt()
                 .plusNanos(retryDelay * 1_000_000);
         return LocalDateTime.now().isAfter(nextRetryTime);
     }
@@ -133,30 +113,30 @@ public class SyncStatusManager {
             LoggerUtil.info(this.getClass(),
                     String.format("Retrying sync for file: %s", filename));
 
-            fileSyncService.syncToNetwork(status.localPath, status.networkPath);
+            fileSyncService.syncToNetwork(status.getLocalPath(), status.getNetworkPath());
         }
     }
 
     public Set<String> getFailedSyncs() {
         return syncStatusMap.entrySet().stream()
-                .filter(e -> e.getValue().syncPending && e.getValue().errorMessage != null)
+                .filter(e -> e.getValue().isSyncPending() && e.getValue().getErrorMessage() != null)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
     }
 
     public boolean isSyncPending(String filename) {
         SyncStatus status = syncStatusMap.get(filename);
-        return status != null && status.syncPending;
+        return status != null && status.isSyncPending();
     }
 
     public String getSyncError(String filename) {
         SyncStatus status = syncStatusMap.get(filename);
-        return status != null ? status.errorMessage : null;
+        return status != null ? status.getErrorMessage() : null;
     }
 
     public LocalDateTime getLastSuccessfulSync(String filename) {
         SyncStatus status = syncStatusMap.get(filename);
-        return status != null ? status.lastSuccessfulSync : null;
+        return status != null ? status.getLastSuccessfulSync() : null;
     }
 
     public void clearSyncStatus(String filename) {

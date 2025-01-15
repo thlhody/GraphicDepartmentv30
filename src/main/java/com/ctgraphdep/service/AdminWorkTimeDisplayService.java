@@ -18,7 +18,6 @@ import java.util.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminWorkTimeDisplayService {
 
-
     // Prepare day headers for display with Romanian day initials
     public List<Map<String, String>> prepareDayHeaders(YearMonth yearMonth) {
         List<Map<String, String>> dayHeaders = new ArrayList<>();
@@ -45,8 +44,8 @@ public class AdminWorkTimeDisplayService {
     public Map<Integer, WorkTimeSummary> calculateUserSummaries(
             Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap,
             List<User> users,
-            int year,
-            int month) {
+            Integer year,
+            Integer month) {
 
         Map<Integer, WorkTimeSummary> summaries = new HashMap<>();
 
@@ -66,22 +65,21 @@ public class AdminWorkTimeDisplayService {
         return summaries;
     }
 
-
     // Calculate summary for a single user
     private WorkTimeSummary calculateUserSummary(
             Map<LocalDate, WorkTimeTable> entries,
-            int year,
-            int month,
-            int schedule) {
+            Integer year,
+            Integer month,
+            Integer schedule) {
 
-        int totalWorkDays = CalculateWorkHoursUtil.calculateWorkDays(year, month);
+        Integer totalWorkDays = CalculateWorkHoursUtil.calculateWorkDays(year, month);
 
-        int daysWorked = 0;
-        int snDays = 0;
-        int coDays = 0;
-        int cmDays = 0;
-        int totalRegularMinutes = 0;
-        int totalOvertimeMinutes = 0;
+        Integer daysWorked = 0;
+        Integer snDays = 0;
+        Integer coDays = 0;
+        Integer cmDays = 0;
+        Integer totalRegularMinutes = 0;
+        Integer totalOvertimeMinutes = 0;
 
         // Process each entry
         for (WorkTimeTable entry : entries.values()) {
@@ -103,7 +101,7 @@ public class AdminWorkTimeDisplayService {
         }
 
         // Calculate remaining work days
-        int remainingWorkDays = totalWorkDays - (daysWorked + snDays + coDays + cmDays);
+        Integer remainingWorkDays = totalWorkDays - (daysWorked + snDays + coDays + cmDays);
 
         return WorkTimeSummary.builder()
                 .totalWorkDays(totalWorkDays)

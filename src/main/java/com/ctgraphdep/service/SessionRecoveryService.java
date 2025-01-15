@@ -66,12 +66,12 @@ public class SessionRecoveryService {
     }
 
     private void handlePreviousDaySession(User user, WorkUsersSessionsStates session) {
-        int finalMinutes = sessionCalculator.calculateFinalMinutes(user, session);
+        Integer finalMinutes = sessionCalculator.calculateFinalMinutes(user, session);
         userSessionService.endDay(session.getUsername(), session.getUserId(), finalMinutes);
     }
 
     private void handleStuckTemporaryStop(User user, WorkUsersSessionsStates session) {
-        int finalMinutes = session.getTotalWorkedMinutes() != null ?
+        Integer finalMinutes = session.getTotalWorkedMinutes() != null ?
                 session.getTotalWorkedMinutes() -
                         (session.getTotalTemporaryStopMinutes() != null ?
                                 session.getTotalTemporaryStopMinutes() : 0) : 0;

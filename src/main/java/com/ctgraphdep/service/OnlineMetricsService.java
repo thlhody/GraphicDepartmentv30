@@ -23,7 +23,7 @@ public class OnlineMetricsService {
             DataAccessService dataAccess) {
         this.userService = userService;
         this.dataAccess = dataAccess;
-        LoggerUtil.initialize(this.getClass(), "Initializing Online Metrics Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public int getOnlineUserCount() {

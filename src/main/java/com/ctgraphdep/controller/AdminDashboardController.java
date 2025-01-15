@@ -2,11 +2,9 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseDashboardController;
 import com.ctgraphdep.model.dashboard.DashboardConfiguration;
-import com.ctgraphdep.model.dashboard.DashboardViewModel;
 import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;

@@ -23,9 +23,10 @@ public class AdminStatisticsService {
     public AdminStatisticsService(DataAccessService dataAccess, UserService userService) {
         this.dataAccess = dataAccess;
         this.userService = userService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
-    public RegisterStatistics calculateStatistics(int year, int month) {
+    public RegisterStatistics calculateStatistics(Integer year, Integer month) {
         List<RegisterEntry> allEntries = getAllEntriesForMonth(year, month);
 
         return RegisterStatistics.builder()
@@ -38,7 +39,7 @@ public class AdminStatisticsService {
                 .build();
     }
 
-    private List<RegisterEntry> getAllEntriesForMonth(int year, int month) {
+    private List<RegisterEntry> getAllEntriesForMonth(Integer year, Integer month) {
         List<RegisterEntry> allEntries = new ArrayList<>();
         List<User> users = userService.getAllUsers().stream()
                 .filter(user -> !user.isAdmin())
@@ -121,7 +122,7 @@ public class AdminStatisticsService {
                 .orElse(0.0);
     }
 
-    public Map<String, Map<String, Integer>> getMonthlyEntriesForYear(int year) {
+    public Map<String, Map<String, Integer>> getMonthlyEntriesForYear(Integer year) {
         Map<String, Map<String, Integer>> result = new HashMap<>();
         Map<String, Integer> regularEntries = new LinkedHashMap<>();
         Map<String, Integer> spizedEntries = new LinkedHashMap<>();
@@ -158,7 +159,7 @@ public class AdminStatisticsService {
         return result;
     }
 
-    public Map<Integer, Integer> getDailyEntriesForMonth(int year, int month) {
+    public Map<Integer, Integer> getDailyEntriesForMonth(Integer year, Integer month) {
         Map<Integer, Integer> dailyEntries = new TreeMap<>(); // Using TreeMap to maintain order by day
 
         // Get all entries for the month
@@ -174,7 +175,7 @@ public class AdminStatisticsService {
         entries.stream()
                 .filter(entry -> !"IMPOSTARE".equals(entry.getActionType()))
                 .forEach(entry -> {
-                    int day = entry.getDate().getDayOfMonth();
+                    Integer day = entry.getDate().getDayOfMonth();
                     dailyEntries.merge(day, 1, Integer::sum);
                 });
 

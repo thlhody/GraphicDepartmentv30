@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.model.FileLocationInfo;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class FileLocationStrategy {
+
     private final PathConfig pathConfig;
     private final FileSyncService fileSyncService;
 
@@ -23,24 +25,10 @@ public class FileLocationStrategy {
     private final Map<String, FileLocationInfo> locationCache = new ConcurrentHashMap<>();
     private final AtomicBoolean forcedLocalMode = new AtomicBoolean(false);
 
-    private static class FileLocationInfo {
-        Path currentLocation;
-        LocalDateTime lastAccessTime;
-        boolean syncPending;
-        boolean networkAvailable;
-
-        FileLocationInfo(Path location) {
-            this.currentLocation = location;
-            this.lastAccessTime = LocalDateTime.now();
-            this.syncPending = false;
-            this.networkAvailable = false;
-        }
-    }
-
     public FileLocationStrategy(PathConfig pathConfig, FileSyncService fileSyncService) {
         this.pathConfig = pathConfig;
         this.fileSyncService = fileSyncService;
-        LoggerUtil.initialize(this.getClass(), "Initializing File Location Strategy");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public Path resolveReadLocation(String filename) {
@@ -86,18 +74,18 @@ public class FileLocationStrategy {
         if (pathConfig.isNetworkPrimaryFile(filename)) {
             if (isNetworkAccessible()) {
                 Path networkPath = pathConfig.getNetworkPath().resolve(filename);
-                locationInfo.currentLocation = networkPath;
+                locationInfo.setCurrentLocation(networkPath);
                 return networkPath;
             }
             // Fallback to local if network unavailable
-            locationInfo.syncPending = true;
+            locationInfo.setSyncPending(true);
             return pathConfig.getLocalPath().resolve(filename);
         }
 
         // For dual-location files, always write to local first
         Path localPath = pathConfig.getLocalPath().resolve(filename);
-        locationInfo.currentLocation = localPath;
-        locationInfo.syncPending = true;
+        locationInfo.setCurrentLocation(localPath);
+        locationInfo.setSyncPending(true);
 
         return localPath;
     }
@@ -105,8 +93,8 @@ public class FileLocationStrategy {
     public void handleSuccessfulWrite(String filename, Path location) {
         FileLocationInfo locationInfo = locationCache.get(filename);
         if (locationInfo != null) {
-            locationInfo.currentLocation = location;
-            locationInfo.lastAccessTime = LocalDateTime.now();
+            locationInfo.setCurrentLocation(location);
+            locationInfo.setLastAccessTime(LocalDateTime.now());
 
             if (syncEnabled && !pathConfig.isLocalOnlyFile(filename) &&
                     !location.startsWith(pathConfig.getNetworkPath())) {
@@ -122,7 +110,7 @@ public class FileLocationStrategy {
 
             FileLocationInfo locationInfo = locationCache.get(filename);
             if (locationInfo != null) {
-                locationInfo.syncPending = true;
+                locationInfo.setSyncPending(true);
             }
         }
     }
@@ -133,8 +121,8 @@ public class FileLocationStrategy {
         }
 
         // Check if we have a pending sync
-        if (locationInfo.syncPending &&
-                fileSyncService.isSyncPending(locationInfo.currentLocation)) {
+        if (locationInfo.isSyncPending() &&
+                fileSyncService.isSyncPending(locationInfo.getCurrentLocation())) {
             return false;
         }
 
@@ -147,8 +135,8 @@ public class FileLocationStrategy {
     }
 
     private void updateLocationInfo(FileLocationInfo info) {
-        info.networkAvailable = isNetworkAccessible();
-        info.lastAccessTime = LocalDateTime.now();
+        info.setNetworkAvailable(isNetworkAccessible());
+        info.setLastAccessTime(LocalDateTime.now());
     }
 
     public boolean isNetworkAccessible() {
@@ -168,7 +156,7 @@ public class FileLocationStrategy {
 
     public boolean isSyncPending(String filename) {
         FileLocationInfo info = locationCache.get(filename);
-        return info != null && info.syncPending;
+        return info != null && info.isSyncPending();
     }
 
     public void clearLocationCache() {
@@ -178,6 +166,6 @@ public class FileLocationStrategy {
 
     public Path getCurrentLocation(String filename) {
         FileLocationInfo info = locationCache.get(filename);
-        return info != null ? info.currentLocation : null;
+        return info != null ? info.getCurrentLocation() : null;
     }
 }

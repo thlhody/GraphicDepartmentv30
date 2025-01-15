@@ -1,8 +1,10 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -47,7 +49,7 @@ public class SessionMonitorService {
         initialWarningShown.put(sessionKey, false);
         tempStopMonitoringActive.put(sessionKey, false);
 
-        if (session.getSessionStatus().equals("Temporary Stop")) {
+        if (session.getSessionStatus().equals(WorkCode.WORK_TEMPORARY_STOP)) {
             startTempStopMonitoring(session);
         } else {
             backgroundMonitor.startSessionMonitoring(session, this::checkSession);
@@ -180,6 +182,7 @@ public class SessionMonitorService {
         return username + "_" + userId;
     }
 
+    @PreDestroy
     public void cleanup() {
         backgroundMonitor.shutdown();
         initialWarningShown.clear();

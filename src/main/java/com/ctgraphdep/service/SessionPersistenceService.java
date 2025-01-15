@@ -1,12 +1,10 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
-import java.util.List;
 
 @Service
 public class SessionPersistenceService {

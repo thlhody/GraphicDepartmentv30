@@ -1,6 +1,8 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.SyncStatus;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +14,6 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class FileSyncService {
@@ -27,13 +28,6 @@ public class FileSyncService {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     private PathConfig pathConfig;
-
-    private static class SyncStatus {
-        AtomicInteger retryCount = new AtomicInteger(0);
-        LocalDateTime lastAttempt = LocalDateTime.now();
-        ScheduledFuture<?> scheduledRetry;
-        boolean syncInProgress = false;
-    }
 
     public FileSyncService() {
         LoggerUtil.initialize(this.getClass(), "Initializing File Sync Service");
@@ -50,43 +44,37 @@ public class FileSyncService {
             return;
         }
 
-        SyncStatus status = syncStatusMap.computeIfAbsent(localPath, k -> new SyncStatus());
-        if (status.syncInProgress) {
+        SyncStatus status = syncStatusMap.computeIfAbsent(localPath,
+                k -> new SyncStatus(localPath, networkPath));
+
+        if (status.isSyncInProgress()) {
             LoggerUtil.info(this.getClass(),
                     "Sync already in progress for: " + localPath);
             return;
         }
 
-        status.syncInProgress = true;
+        status.setSyncInProgress(true);
         try {
-            // Use PathConfig to get the relative path from the local base path
             Path relativePath = pathConfig.getLocalPath().relativize(localPath);
-
-            // Construct the full network destination path
             Path fullNetworkPath = pathConfig.getNetworkPath().resolve(relativePath);
-
-            // Call the performSync method with the local and full network paths
             performSync(localPath, fullNetworkPath, status);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Unexpected error during sync process: %s", e.getMessage()));
             handleSyncFailure(localPath, networkPath, status, e);
         } finally {
-            status.syncInProgress = false;
+            status.setSyncInProgress(false);
         }
     }
 
     private void performSync(Path localPath, Path networkPath, SyncStatus status) {
         try {
-            // Create parent directories if they don't exist
             Files.createDirectories(networkPath.getParent());
-
-            // Copy file with replace existing option
             Files.copy(localPath, networkPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Reset sync status on success
             syncStatusMap.remove(localPath);
             cancelScheduledRetry(status);
+            status.setLastSuccessfulSync(LocalDateTime.now());
 
             LoggerUtil.info(this.getClass(),
                     "Successfully synced file to network: " + networkPath);
@@ -105,8 +93,8 @@ public class FileSyncService {
 
         SyncStatus status = syncStatusMap.get(localPath);
         if (status != null &&
-                status.retryCount.get() >= maxRetries &&
-                !hasDelayPassed(status.lastAttempt)) {
+                status.getRetryCount() >= maxRetries &&
+                !hasDelayPassed(status.getLastAttempt())) {
             LoggerUtil.info(this.getClass(),
                     "Max retries reached and delay not passed for: " + localPath);
             return false;
@@ -115,11 +103,12 @@ public class FileSyncService {
         return true;
     }
 
-
     private void handleSyncFailure(Path localPath, Path networkPath,
                                    SyncStatus status, Exception e) {
-        int currentRetries = status.retryCount.incrementAndGet();
-        status.lastAttempt = LocalDateTime.now();
+        int currentRetries = status.incrementRetryCount();
+        status.setLastAttempt(LocalDateTime.now());
+        status.setErrorMessage(e.getMessage());
+        status.setSyncPending(true);
 
         LoggerUtil.error(this.getClass(),
                 String.format("Failed to sync file: %s, attempt %d/%d: %s",
@@ -132,32 +121,33 @@ public class FileSyncService {
         }
     }
 
-    private void scheduleQuickRetry(Path localPath, Path networkPath,
-                                    SyncStatus status) {
+    private void scheduleQuickRetry(Path localPath, Path networkPath, SyncStatus status) {
         cancelScheduledRetry(status);
-        status.scheduledRetry = scheduler.schedule(
+        ScheduledFuture<?> future = scheduler.schedule(
                 () -> syncToNetwork(localPath, networkPath),
-                10, // 10 minutes
+                WorkCode.ON_FOR_TEN_MINUTES,
                 TimeUnit.MINUTES
         );
+        status.setScheduledRetry(future);
     }
 
-    private void scheduleLongRetry(Path localPath, Path networkPath,
-                                   SyncStatus status) {
+    private void scheduleLongRetry(Path localPath, Path networkPath, SyncStatus status) {
         cancelScheduledRetry(status);
-        status.scheduledRetry = scheduler.schedule(
+        ScheduledFuture<?> future = scheduler.schedule(
                 () -> {
-                    status.retryCount.set(0);
+                    status.resetRetryCount();
                     syncToNetwork(localPath, networkPath);
                 },
                 retryDelay,
                 TimeUnit.MILLISECONDS
         );
+        status.setScheduledRetry(future);
     }
 
     private void cancelScheduledRetry(SyncStatus status) {
-        if (status.scheduledRetry != null && !status.scheduledRetry.isDone()) {
-            status.scheduledRetry.cancel(false);
+        ScheduledFuture<?> scheduledRetry = status.getScheduledRetry();
+        if (scheduledRetry != null && !scheduledRetry.isDone()) {
+            scheduledRetry.cancel(false);
         }
     }
 
@@ -167,14 +157,15 @@ public class FileSyncService {
     }
 
     public boolean isSyncPending(Path localPath) {
-        return syncStatusMap.containsKey(localPath);
+        SyncStatus status = syncStatusMap.get(localPath);
+        return status != null && status.isSyncPending();
     }
 
     @PreDestroy
     public void shutdown() {
         scheduler.shutdown();
         try {
-            if (!scheduler.awaitTermination(60, TimeUnit.SECONDS)) {
+            if (!scheduler.awaitTermination(WorkCode.ONE_MINUTE_DELAY, TimeUnit.MINUTES)) {
                 scheduler.shutdownNow();
             }
         } catch (InterruptedException e) {

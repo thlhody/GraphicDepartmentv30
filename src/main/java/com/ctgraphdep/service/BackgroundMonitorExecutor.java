@@ -38,6 +38,7 @@ public class BackgroundMonitorExecutor {
         this.sessionCalculator = sessionCalculator;
         this.notificationService = notificationService;
         this.userService = userService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PostConstruct
@@ -86,7 +87,7 @@ public class BackgroundMonitorExecutor {
             }
 
             return Files.list(sessionPath)
-                    .filter(path -> path.toString().endsWith(".json"))
+                    .filter(path -> path.toString().endsWith(WorkCode.JSON_FORMAT))
                     .map(this::loadSession)
                     .filter(Objects::nonNull)
                     .filter(session -> WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
@@ -137,7 +138,7 @@ public class BackgroundMonitorExecutor {
 
         ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
                 () -> monitor.accept(session),
-                1, // 1 minute initial delay
+                WorkCode.ONE_MINUTE_DELAY, // 1 minute initial delay
                 WorkCode.CHECK_INTERVAL,
                 TimeUnit.MINUTES
         );
@@ -149,7 +150,7 @@ public class BackgroundMonitorExecutor {
     }
 
     public void startHourlyMonitoring(String username, Integer userId, Runnable monitor) {
-        String key = getKey(username, userId) + "_hourly";
+        String key = getKey(username, userId) + WorkCode.HOURLY;
 
         // Cancel any existing hourly monitoring
         stopTask(key);
@@ -159,7 +160,7 @@ public class BackgroundMonitorExecutor {
 
         ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
                 monitor,
-                1, // 1 minute initial delay
+                WorkCode.ONE_MINUTE_DELAY, // 1 minute initial delay
                 WorkCode.HOURLY_CHECK_INTERVAL,
                 TimeUnit.MINUTES
         );
@@ -174,7 +175,7 @@ public class BackgroundMonitorExecutor {
         // Stop both regular and hourly monitoring
         String baseKey = getKey(username, userId);
         stopTask(baseKey);
-        stopTask(baseKey + "_hourly");
+        stopTask(baseKey + WorkCode.HOURLY);
         monitoringStates.remove(baseKey);
 
         LoggerUtil.info(this.getClass(),

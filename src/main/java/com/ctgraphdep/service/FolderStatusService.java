@@ -24,7 +24,7 @@ public class FolderStatusService {
         this.retryCount = new AtomicInteger(0);
         this.lastSuccessfulSync = new AtomicLong(0);
         this.lastError = new AtomicReference<>(null);
-        LoggerUtil.initialize(this.getClass(), "Initializing Folder Status Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public SyncFolderStatus getStatus() {

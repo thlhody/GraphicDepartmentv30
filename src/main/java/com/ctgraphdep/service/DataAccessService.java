@@ -29,7 +29,7 @@ public class DataAccessService {
         this.fileSyncService = fileSyncService;
         this.obfuscationService = obfuscationService;
         this.fileLocks = new ConcurrentHashMap<>();
-        LoggerUtil.initialize(this.getClass(), "Initializing Data Access Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
@@ -83,6 +83,7 @@ public class DataAccessService {
             readLock.unlock();
         }
     }
+
     public <T> void writeFile(Path path, T data) {
         String filename = path.getFileName().toString();
         Path writePath = pathConfig.resolvePathForWrite(filename);
@@ -121,10 +122,14 @@ public class DataAccessService {
         }
     }
 
-    private void ensureDirectoryExists(Path path) throws IOException {
+    private void ensureDirectoryExists(Path path)  {
         Path parent = path.getParent();
         if (parent != null && !Files.exists(parent)) {
-            Files.createDirectories(parent);
+            try {
+                Files.createDirectories(parent);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -151,11 +156,11 @@ public class DataAccessService {
     }
 
     // Path resolution methods using PathConfig
-    public Path getAdminWorktimePath(int year, int month) {
+    public Path getAdminWorktimePath(Integer year, Integer month) {
         return pathConfig.getAdminWorktimePath(year, month);
     }
 
-    public Path getUserWorktimePath(String username, int year, int month) {
+    public Path getUserWorktimePath(String username, Integer year, Integer month) {
         return pathConfig.getUserWorktimeFilePath(username, year, month);
     }
 
@@ -171,15 +176,15 @@ public class DataAccessService {
         return pathConfig.getSessionFilePath(username, userId);
     }
 
-    public Path getUserRegisterPath(String username, Integer userId, int year, int month) {
+    public Path getUserRegisterPath(String username, Integer userId, Integer year, Integer month) {
         return pathConfig.getUserRegisterPath(username, userId, year, month);
     }
 
-    public Path getAdminRegisterPath(String username, Integer userId, int year, int month) {
+    public Path getAdminRegisterPath(String username, Integer userId, Integer year, Integer month) {
         return pathConfig.getAdminRegisterPath(username, userId, year, month);
     }
 
-    public Path getAdminBonusPath(int year, int month) {
+    public Path getAdminBonusPath(Integer year, Integer month) {
         return pathConfig.getAdminBonusPath(year, month);
     }
 
