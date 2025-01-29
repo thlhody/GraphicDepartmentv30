@@ -37,7 +37,7 @@ public class UserWorktimeController extends BaseController {
         this.displayService = displayService;
         this.entrySyncService = entrySyncService;
         this.excelExporter = excelExporter;
-        LoggerUtil.initialize(this.getClass(), "Initializing User Worktime Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

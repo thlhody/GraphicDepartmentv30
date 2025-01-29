@@ -23,7 +23,7 @@ public class UserServiceImpl implements UserService {
     public UserServiceImpl(DataAccessService dataAccess, PasswordEncoder passwordEncoder) {
         this.dataAccess = dataAccess;
         this.passwordEncoder = passwordEncoder;
-        LoggerUtil.initialize(this.getClass(), "Initializing User Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Override

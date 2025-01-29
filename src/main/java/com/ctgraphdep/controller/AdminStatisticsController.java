@@ -2,6 +2,7 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.model.statistics.RegisterStatistics;
 import com.ctgraphdep.service.AdminStatisticsService;
+import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -25,6 +26,7 @@ public class AdminStatisticsController {
 
     public AdminStatisticsController(AdminStatisticsService statisticsService) {
         this.statisticsService = statisticsService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

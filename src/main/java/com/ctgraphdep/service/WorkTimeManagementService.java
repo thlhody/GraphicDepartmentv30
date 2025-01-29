@@ -33,7 +33,7 @@ public class WorkTimeManagementService {
         this.dataAccess = dataAccess;
         this.holidayService = holidayService;
         this.userService = userService;
-        LoggerUtil.initialize(this.getClass(), "Initializing WorkTime Management Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public void processWorktimeUpdate(Integer userId, LocalDate date, String value) {

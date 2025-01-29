@@ -15,7 +15,7 @@ public class UserWorkTimeDisplayService {
 
     public UserWorkTimeDisplayService(AdminPaidHolidayService holidayService) {
         this.holidayService = holidayService;
-        LoggerUtil.initialize(this.getClass(), "Initializing User Worktime Display Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PreAuthorize("#user.username == authentication.name or hasRole('ADMIN')")

@@ -88,7 +88,6 @@ public class PathConfig {
 
     private Path networkPath;
     private Path installPath;
-    private Path devPath;
     private Path activePath;
     private final List<String> missingDirectories;
     private final Map<String, String> user = new HashMap<>();
@@ -112,7 +111,7 @@ public class PathConfig {
     @Autowired
     public PathConfig() {
         this.missingDirectories = new ArrayList<>();
-        LoggerUtil.initialize(this.getClass(), "Initializing Path Configuration");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PostConstruct
@@ -146,11 +145,10 @@ public class PathConfig {
         // Initialize all possible paths
         networkPath = Paths.get(networkBasePath);
         installPath = Paths.get(installationPath, appTitle);
-        devPath = Paths.get(developmentBasePath);
 
         LoggerUtil.info(this.getClass(),
-                String.format("Initialized paths - Network: %s, Installation: %s, Development: %s",
-                        networkPath, installPath, devPath));
+                String.format("Initialized paths - Network: %s, Installation: %s",
+                        networkPath, installPath));
     }
 
     // Add new methods for file type checking
@@ -277,14 +275,6 @@ public class PathConfig {
             return;
         }
         LoggerUtil.warn(this.getClass(), "Installation path not accessible: " + installPath);
-
-        // Try development path
-        if (isPathAccessible(devPath)) {
-            activePath = devPath;
-            LoggerUtil.info(this.getClass(), "Using development path: " + devPath);
-            return;
-        }
-        LoggerUtil.warn(this.getClass(), "Development path not accessible: " + devPath);
 
         // If no path is accessible, create structure in installation path
         createStructureInInstallPath();

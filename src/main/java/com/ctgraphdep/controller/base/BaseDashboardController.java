@@ -29,7 +29,7 @@ public abstract class BaseDashboardController {
         this.dashboardService = dashboardService;
         this.dashboardConfig = dashboardConfig;
         this.permissionFilterService = permissionFilterService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Base Dashboard Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     protected DashboardViewModel prepareDashboardViewModel() {

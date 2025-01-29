@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class AboutController {
 
     public AboutController() {
-        LoggerUtil.initialize(this.getClass(), "Initializing About Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping("/about")

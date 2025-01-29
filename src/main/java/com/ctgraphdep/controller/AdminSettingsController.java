@@ -29,7 +29,7 @@ public class AdminSettingsController {
             HolidayManagementService holidayService) {
         this.userService = userService;
         this.holidayService = holidayService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Admin Settings Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

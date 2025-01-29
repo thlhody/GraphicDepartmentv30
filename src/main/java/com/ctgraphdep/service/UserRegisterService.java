@@ -21,7 +21,7 @@ public class UserRegisterService {
 
     public UserRegisterService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
-        LoggerUtil.initialize(this.getClass(), "Initializing Register Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     // Load register entries for a specific month

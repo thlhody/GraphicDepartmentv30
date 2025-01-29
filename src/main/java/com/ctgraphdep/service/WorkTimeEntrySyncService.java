@@ -19,7 +19,7 @@ public class WorkTimeEntrySyncService {
 
     public WorkTimeEntrySyncService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
-        LoggerUtil.initialize(this.getClass(), "Initializing WorkTime Entry Sync Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public List<WorkTimeTable> synchronizeEntries(String username, Integer userId, int year, int month) {

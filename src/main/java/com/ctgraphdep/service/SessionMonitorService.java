@@ -33,6 +33,7 @@ public class SessionMonitorService {
         this.sessionCalculator = sessionCalculator;
         this.userService = userService;
         this.backgroundMonitor = backgroundMonitor;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Autowired

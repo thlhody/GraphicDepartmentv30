@@ -47,8 +47,7 @@ public class UserSessionController extends BaseController {
         this.userService = userService;
         this.persistenceService = persistenceService;
         this.pathConfig = pathConfig;
-
-        LoggerUtil.initialize(this.getClass(), "Initializing User Session Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

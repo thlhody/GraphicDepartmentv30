@@ -42,7 +42,7 @@ public class AdminRegisterController {
         this.userService = userService;
         this.workTimeManagementService = workTimeManagementService;
         this.adminRegisterExcelExporter = adminRegisterExcelExporter;
-        LoggerUtil.initialize(this.getClass(), "Initializing Admin Register Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

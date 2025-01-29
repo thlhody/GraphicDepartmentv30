@@ -40,7 +40,7 @@ public class UserRegisterController extends BaseController {
         super(userService, folderStatusService);
         this.userRegisterService = userRegisterService;
         this.userRegisterExcelExporter = userRegisterExcelExporter;
-        LoggerUtil.initialize(this.getClass(), "Initializing Register Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

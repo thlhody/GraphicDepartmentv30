@@ -49,7 +49,7 @@ public class AdminWorkTimeController {
         this.userManagementService = userManagementService;
         this.displayService = displayService;
         this.excelExporter = excelExporter;
-        LoggerUtil.initialize(this.getClass(), "Initializing Admin Worktime Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

@@ -30,7 +30,7 @@ public class FileSyncService {
     private PathConfig pathConfig;
 
     public FileSyncService() {
-        LoggerUtil.initialize(this.getClass(), "Initializing File Sync Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Autowired

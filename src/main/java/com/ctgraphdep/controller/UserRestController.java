@@ -18,7 +18,7 @@ public class UserRestController {
 
     public UserRestController(UserService userService) {
         this.userService = userService;
-        LoggerUtil.initialize(this.getClass(), "Initializing User REST Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

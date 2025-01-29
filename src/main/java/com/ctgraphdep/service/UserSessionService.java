@@ -46,8 +46,7 @@ public class UserSessionService {
         this.userService = userService;
         this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
-
-        LoggerUtil.initialize(this.getClass(), "Initializing User Session Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public WorkUsersSessionsStates getCurrentSession(String username, Integer userId) {

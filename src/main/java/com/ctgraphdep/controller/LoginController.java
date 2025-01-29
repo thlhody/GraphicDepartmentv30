@@ -51,7 +51,7 @@ public class LoginController extends BaseController {
             PathConfig pathConfig) {
         super(userService, folderStatusService);
         this.pathConfig = pathConfig;
-        LoggerUtil.initialize(this.getClass(), "Initializing Login Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**

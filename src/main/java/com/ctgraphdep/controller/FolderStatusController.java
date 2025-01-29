@@ -14,7 +14,7 @@ public class FolderStatusController {
 
     public FolderStatusController(FolderStatusService folderStatusService) {
         this.folderStatusService = folderStatusService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Status Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping("/fragments/status")

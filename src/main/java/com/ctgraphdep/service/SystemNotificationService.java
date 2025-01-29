@@ -37,6 +37,7 @@ public class SystemNotificationService {
         this.eventPublisher = eventPublisher;
         this.sessionMonitorService = sessionMonitorService;
         this.userResponded = new AtomicBoolean(false);
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public void showSessionWarning(String username, Integer userId, Integer finalMinutes) {

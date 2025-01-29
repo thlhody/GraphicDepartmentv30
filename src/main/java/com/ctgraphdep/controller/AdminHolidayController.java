@@ -28,7 +28,7 @@ public class AdminHolidayController {
         this.holidayService = holidayService;
         this.holidayHistoryService = holidayHistoryService;
         this.userService = userService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Paid Holiday Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

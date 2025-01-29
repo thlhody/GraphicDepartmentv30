@@ -29,7 +29,7 @@ public class StatusController extends BaseController {
             OnlineMetricsService onlineMetricsService) {
         super(userService, folderStatusService);
         this.onlineMetricsService = onlineMetricsService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Status Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

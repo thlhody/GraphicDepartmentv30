@@ -21,6 +21,7 @@ public class SessionRecoveryService {
         this.userSessionService = userSessionService;
         this.sessionCalculator = sessionCalculator;
         this.userService = userService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public void recoverSession(String username, Integer userId) {

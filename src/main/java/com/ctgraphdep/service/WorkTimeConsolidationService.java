@@ -24,7 +24,7 @@ public class WorkTimeConsolidationService {
     public WorkTimeConsolidationService(DataAccessService dataAccess, UserService userService) {
         this.dataAccess = dataAccess;
         this.userService = userService;
-        LoggerUtil.initialize(this.getClass(), "Initializing WorkTime Consolidation Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public void consolidateWorkTimeEntries(int year, int month) {

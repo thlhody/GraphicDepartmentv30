@@ -29,7 +29,7 @@ public class UserWorkTimeService {
             UserService userService) {
         this.dataAccess = dataAccess;
         this.userService = userService;
-        LoggerUtil.initialize(this.getClass(), "Initializing User WorkTime Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PreAuthorize("#username == authentication.name")

@@ -46,6 +46,7 @@ public class UserTimeOffController extends BaseController {
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
         this.userService = userService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

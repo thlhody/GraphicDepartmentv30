@@ -30,7 +30,7 @@ public class SyncStatusManager {
     public SyncStatusManager(PathConfig pathConfig, FileSyncService fileSyncService) {
         this.pathConfig = pathConfig;
         this.fileSyncService = fileSyncService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Sync Status Manager");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public void trackSync(String filename, Path localPath, Path networkPath) {

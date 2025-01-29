@@ -19,7 +19,7 @@ public class UserSettingsController {
 
     public UserSettingsController(UserService userService) {
         this.userService = userService;
-        LoggerUtil.initialize(this.getClass(), "Initializing User Settings Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

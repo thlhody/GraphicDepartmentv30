@@ -12,7 +12,7 @@ public class SessionPersistenceService {
 
     public SessionPersistenceService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
-        LoggerUtil.initialize(this.getClass(), "Initializing Session Persistence Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public void persistSession(WorkUsersSessionsStates session, String filePath) {

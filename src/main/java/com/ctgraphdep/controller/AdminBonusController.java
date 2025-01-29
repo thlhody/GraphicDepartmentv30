@@ -31,7 +31,7 @@ public class AdminBonusController extends BaseController {
             AdminBonusService adminBonusService) {
         super(userService, folderStatusService);
         this.adminBonusService = adminBonusService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Admin Bonus Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping

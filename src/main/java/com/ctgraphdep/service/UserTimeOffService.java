@@ -26,7 +26,7 @@ public class UserTimeOffService {
         this.dataAccess = dataAccess;
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
-        LoggerUtil.initialize(this.getClass(), "Initializing User Time Off Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Transactional

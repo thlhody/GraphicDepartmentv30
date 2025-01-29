@@ -26,7 +26,7 @@ public class CustomUserDetailsService implements UserDetailsService {
             DataAccessService dataAccess) {
         this.userService = userService;
         this.dataAccess = dataAccess;
-        LoggerUtil.initialize(this.getClass(), "Initializing Custom User Details Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Override

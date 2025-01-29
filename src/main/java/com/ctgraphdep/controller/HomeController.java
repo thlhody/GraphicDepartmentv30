@@ -13,7 +13,7 @@ public class HomeController extends BaseController {
 
     public HomeController(UserService userService, FolderStatusService folderStatusService) {
         super(userService, folderStatusService);
-        LoggerUtil.initialize(this.getClass(), "Initializing Home Controller");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping("/")

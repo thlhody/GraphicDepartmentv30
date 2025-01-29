@@ -15,7 +15,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
     public CustomAuthenticationProvider(AuthenticationService authService) {
         this.authService = authService;
-        LoggerUtil.initialize(this.getClass(), "Initializing Custom Authentication Provider");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Override

@@ -27,7 +27,7 @@ public class UserManagementService {
         this.dataAccess = dataAccess;
         this.holidayService = holidayService;
         this.passwordEncoder = passwordEncoder;
-        LoggerUtil.initialize(this.getClass(), "Initializing User Management Service");
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     public List<User> getAllUsers() {
