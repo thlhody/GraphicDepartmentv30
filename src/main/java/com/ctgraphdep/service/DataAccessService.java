@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,8 +36,9 @@ public class DataAccessService {
     public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
         String filename = path.getFileName().toString();
 
-        // Use the full path for users.json
-        Path readPath = filename.equals(pathConfig.getUsersFilename()) ?
+        // Ensure the full correct path is used
+        Path readPath = filename.equals(pathConfig.getUsersFilename()) ||
+                filename.equals(pathConfig.getLocalUsersFilename()) ?
                 path : pathConfig.resolvePathForRead(filename);
 
         LoggerUtil.debug(this.getClass(),
@@ -46,24 +48,25 @@ public class DataAccessService {
         readLock.lock();
 
         try {
-            if (!Files.exists(readPath)) {
+            if (!Files.exists(readPath) || Files.size(readPath) <= 3) {
                 LoggerUtil.debug(this.getClass(),
-                        String.format("File not found: %s, createIfMissing: %s",
+                        String.format("File not found or empty: %s, createIfMissing: %s",
                                 readPath, createIfMissing));
 
                 if (!createIfMissing) {
-                    throw new IOException("File not found: " + readPath);
+                    throw new IOException("File not found or empty: " + readPath);
                 }
 
-                // For users.json, create the directories if they don't exist
-                if (filename.equals(pathConfig.getUsersFilename())) {
-                    Files.createDirectories(readPath.getParent());
-                    T emptyStructure = createEmptyStructure(typeRef);
-                    objectMapper.writeValue(readPath.toFile(), emptyStructure);
-                    return emptyStructure;
-                }
+                // Create empty structure
+                T emptyStructure = createEmptyStructure(typeRef);
 
-                return createEmptyStructure(typeRef);
+                // Ensure parent directory exists
+                Files.createDirectories(readPath.getParent());
+
+                // Write empty structure
+                objectMapper.writeValue(readPath.toFile(), emptyStructure);
+
+                return emptyStructure;
             }
 
             LoggerUtil.debug(this.getClass(),
@@ -75,8 +78,18 @@ public class DataAccessService {
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error reading file %s: %s", readPath, e.getMessage()));
+
             if (createIfMissing) {
-                return createEmptyStructure(typeRef);
+                try {
+                    T emptyStructure = createEmptyStructure(typeRef);
+                    Files.createDirectories(readPath.getParent());
+                    objectMapper.writeValue(readPath.toFile(), emptyStructure);
+                    return emptyStructure;
+                } catch (IOException ex) {
+                    LoggerUtil.error(this.getClass(),
+                            "Failed to create empty file: " + ex.getMessage());
+                    throw new RuntimeException("Failed to create empty file", ex);
+                }
             }
             throw new RuntimeException("Failed to read file: " + readPath, e);
         } finally {
@@ -113,6 +126,10 @@ public class DataAccessService {
         } finally {
             writeLock.unlock();
         }
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Writing file: filename=%s, writePath=%s, loginPath=%s",
+                        filename, writePath, pathConfig.getLoginPath()));
     }
 
     private void syncWithNetwork(Path localPath, String filename) {
@@ -159,33 +176,31 @@ public class DataAccessService {
     public Path getAdminWorktimePath(Integer year, Integer month) {
         return pathConfig.getAdminWorktimePath(year, month);
     }
+    public Path getAdminRegisterPath(String username, Integer userId, Integer year, Integer month) {
+        return pathConfig.getAdminRegisterPath(username, userId, year, month);
+    }
+    public Path getAdminBonusPath(Integer year, Integer month) {
+        return pathConfig.getAdminBonusPath(year, month);
+    }
 
     public Path getUserWorktimePath(String username, Integer year, Integer month) {
         return pathConfig.getUserWorktimeFilePath(username, year, month);
+    }
+    public Path getUserRegisterPath(String username, Integer userId, Integer year, Integer month) {
+        return pathConfig.getUserRegisterPath(username, userId, year, month);
+    }
+    public Path getSessionPath(String username, Integer userId) {
+        return pathConfig.getSessionFilePath(username, userId);
     }
 
     public Path getHolidayPath() {
         return pathConfig.getHolidayListPath();
     }
-
     public Path getUsersPath() {
         return pathConfig.getUsersJsonPath();
     }
-
-    public Path getSessionPath(String username, Integer userId) {
-        return pathConfig.getSessionFilePath(username, userId);
-    }
-
-    public Path getUserRegisterPath(String username, Integer userId, Integer year, Integer month) {
-        return pathConfig.getUserRegisterPath(username, userId, year, month);
-    }
-
-    public Path getAdminRegisterPath(String username, Integer userId, Integer year, Integer month) {
-        return pathConfig.getAdminRegisterPath(username, userId, year, month);
-    }
-
-    public Path getAdminBonusPath(Integer year, Integer month) {
-        return pathConfig.getAdminBonusPath(year, month);
+    public Path getLocalUsersPath() {
+        return pathConfig.getLocalUsersJsonPath();
     }
 
     public boolean fileExists(Path path) {
@@ -220,7 +235,83 @@ public class DataAccessService {
         }
     }
 
-    public boolean isSyncPending(Path path) {
-        return fileSyncService.isSyncPending(path);
+    /**
+     * Reads user data from the most appropriate location (network or local)
+     * and handles all path resolution and fallback logic.
+     */
+    public List<User> readUserData() {
+        // Try network path first if available
+        if (pathConfig.isNetworkAvailable()) {
+            try {
+                Path networkPath = pathConfig.getUsersJsonPath();
+                if (Files.exists(networkPath) && Files.size(networkPath) > 3) {
+                    List<User> users = readFile(networkPath, new TypeReference<>() {}, false);
+                    LoggerUtil.info(this.getClass(),
+                            "Successfully read users from network path");
+                    return users;
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        "Could not read network users file: " + e.getMessage());
+            }
+        }
+
+        // Fallback to local path
+        try {
+            Path localPath = pathConfig.getLocalUsersJsonPath();
+            if (Files.exists(localPath) && Files.size(localPath) > 3) {
+                List<User> users = readFile(localPath, new TypeReference<>() {}, false);
+                LoggerUtil.info(this.getClass(),
+                        "Successfully read users from local path");
+                return users;
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Could not read local users file: " + e.getMessage());
+        }
+
+        // Return empty list if no users found
+        return new ArrayList<>();
     }
+
+    /**
+     * Saves user data to appropriate location(s)
+     */
+    public void saveUserData(List<User> users) {
+        // Always save to local path
+        Path localPath = pathConfig.getLocalUsersJsonPath();
+        writeFile(localPath, users);
+        LoggerUtil.info(this.getClass(), "Saved users to local path");
+
+        // If network available, save there too
+        if (pathConfig.isNetworkAvailable()) {
+            try {
+                Path networkPath = pathConfig.getUsersJsonPath();
+                writeFile(networkPath, users);
+                LoggerUtil.info(this.getClass(), "Saved users to network path");
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        "Could not save to network path: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Finds a user by username
+     */
+    public Optional<User> findUserByUsername(String username) {
+        return readUserData().stream()
+                .filter(user -> user.getUsername().equals(username))
+                .findFirst();
+    }
+
+    /**
+     * Finds a user by ID
+     */
+    public Optional<User> findUserById(Integer userId) {
+        return readUserData().stream()
+                .filter(user -> user.getUserId().equals(userId))
+                .findFirst();
+    }
+
 }

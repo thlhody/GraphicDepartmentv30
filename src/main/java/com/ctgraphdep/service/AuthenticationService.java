@@ -3,7 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.security.CustomUserDetails;
+import com.ctgraphdep.security.CustomUserDetailsService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import groovy.util.logging.Slf4j;
@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -27,35 +28,67 @@ public class AuthenticationService {
     private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
     private final DataAccessService dataAccess;
     private final PathConfig pathConfig;
+    private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final SessionRecoveryService sessionRecoveryService;
-
+    private final CustomUserDetailsService userDetailsService;  // Add this
 
     public AuthenticationService(
-            DataAccessService dataAccess, PathConfig pathConfig,
-            PasswordEncoder passwordEncoder, SessionRecoveryService sessionRecoveryService) {
+            DataAccessService dataAccess,
+            PathConfig pathConfig, UserService userService,
+            PasswordEncoder passwordEncoder,
+            SessionRecoveryService sessionRecoveryService,
+            CustomUserDetailsService userDetailsService) {  // Add this
         this.dataAccess = dataAccess;
         this.pathConfig = pathConfig;
+        this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.sessionRecoveryService = sessionRecoveryService;
+        this.userDetailsService = userDetailsService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     public AuthenticationStatus getAuthenticationStatus() {
-        boolean networkAvailable = dataAccess.fileExists(dataAccess.getUsersPath());
-        boolean offlineModeAvailable = isOfflineModeAvailable();
+        try {
+            // Get status directly from PathConfig
+            boolean networkAvailable = pathConfig.isNetworkAvailable();
 
-        return new AuthenticationStatus(
-                networkAvailable,
-                offlineModeAvailable,
-                networkAvailable ? "ONLINE" : "OFFLINE"
-        );
+            // Always check local path availability as fallback
+            Path localUsersPath = dataAccess.getLocalUsersPath();
+            boolean offlineModeAvailable = Files.exists(localUsersPath) &&
+                    Files.size(localUsersPath) > 3;
+
+            String status = networkAvailable ? "ONLINE" :
+                    offlineModeAvailable ? "OFFLINE" : "UNAVAILABLE";
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Authentication Status: Network=%b, Local=%b, Status=%s",
+                            networkAvailable, offlineModeAvailable, status));
+
+            return new AuthenticationStatus(networkAvailable, offlineModeAvailable, status);
+
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error checking authentication status: " + e.getMessage());
+
+            return new AuthenticationStatus(false, false, "UNAVAILABLE");
+        }
     }
 
     public UserDetails authenticateUser(String username, String password, boolean offlineMode) {
+        // Get the full user object without sanitization
         UserDetails userDetails = offlineMode ?
-                loadUserOffline(username) :
-                loadUser(username);
+                userDetailsService.loadUserByUsernameOffline(username) :
+                userDetailsService.loadUserByUsername(username);
+
+        // Add debug logs to track password handling
+        LoggerUtil.debug(this.getClass(),
+                String.format("Authenticating user: %s, Encoded password from details: %s",
+                        username, userDetails.getPassword()));
+
+        LoggerUtil.debug(this.getClass(),
+                String.format("Password matcher result: %b",
+                        passwordEncoder.matches(password, userDetails.getPassword())));
 
         if (passwordEncoder.matches(password, userDetails.getPassword())) {
             LoggerUtil.info(this.getClass(),
@@ -67,71 +100,56 @@ public class AuthenticationService {
         throw new BadCredentialsException("Invalid credentials");
     }
 
-    public UserDetails loadUser(String username) {
-        Optional<User> user = findUserInFile(dataAccess.getUsersPath(), username);
-        if (user.isEmpty()) {
-            LoggerUtil.warn(this.getClass(), "User not found: " + username);
-            throw new UsernameNotFoundException("User not found: " + username);
-        }
-
-        LoggerUtil.info(this.getClass(), "Loading user details for: " + username);
-        return new CustomUserDetails(user.get());
-    }
-
-    public UserDetails loadUserOffline(String username) {
-        Path offlineUsersPath = dataAccess.getUsersPath();
-        Optional<User> user = findUserInFile(offlineUsersPath, username);
-
-        if (user.isEmpty()) {
-            LoggerUtil.warn(this.getClass(),
-                    "User not found in offline storage: " + username);
-            throw new UsernameNotFoundException(
-                    "User not found in offline storage: " + username);
-        }
-
-        LoggerUtil.info(this.getClass(), "Loaded user from offline storage: " + username);
-        return new CustomUserDetails(user.get());
-    }
-
     public void handleSuccessfulLogin(String username, boolean rememberMe) {
         try {
-            CustomUserDetails userDetails = (CustomUserDetails) loadUser(username);
-            User user = userDetails.getUser();
+            // Use the authentication details directly instead of searching again
+            Optional<User> userOptional = userService.getUserByUsername(username);
 
-            try {
-                // Create local directories
-                ensureLocalDirectories(user.isAdmin());
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        "Failed to create local directories: " + e.getMessage() +
-                                " - continuing with login");
+            if (userOptional.isEmpty()) {
+                // As a fallback, try local storage
+                userOptional = getUserFromLocalStorage(username);
             }
 
-            // Store user data locally if remember me is enabled
-            if (rememberMe) {
+            if (userOptional.isPresent()) {
+                User user = userOptional.get();
+
                 try {
-                    storeUserDataLocally(user);
+                    // Create local directories
+                    ensureLocalDirectories(user.isAdmin());
                 } catch (Exception e) {
                     LoggerUtil.warn(this.getClass(),
-                            "Failed to store user data locally: " + e.getMessage() +
+                            "Failed to create local directories: " + e.getMessage() +
                                     " - continuing with login");
                 }
-            }
 
-            // Add session recovery here
-            if (!user.isAdmin()) {
-                try {
-                    sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            "Failed to recover session: " + e.getMessage() +
-                                    " - continuing with login");
+                // Store user data locally if remember me is enabled
+                if (rememberMe) {
+                    try {
+                        storeUserDataLocally(user);
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(),
+                                "Failed to store user data locally: " + e.getMessage() +
+                                        " - continuing with login");
+                    }
                 }
-            }
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully handled login for user: %s (rememberMe: %s)",
-                            username, rememberMe));
+                // Add session recovery here
+                if (!user.isAdmin()) {
+                    try {
+                        sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(),
+                                "Failed to recover session: " + e.getMessage() +
+                                        " - continuing with login");
+                    }
+                }
+
+                LoggerUtil.info(this.getClass(),
+                        String.format("Successfully handled login for user: %s (rememberMe: %s)",
+                                username, rememberMe));
+            } else {
+                throw new UsernameNotFoundException("User not found after authentication");
+            }
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
@@ -141,35 +159,22 @@ public class AuthenticationService {
         }
     }
 
-    private Optional<User> findUserInFile(Path filePath, String username) {
+    // Add this helper method to the AuthenticationService
+    private Optional<User> getUserFromLocalStorage(String username) {
         try {
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Looking for user %s in file: %s", username, filePath));
-
-            List<User> users = dataAccess.readFile(filePath, USER_LIST_TYPE, true);
-
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Found %d users in file", users.size()));
-
-            Optional<User> foundUser = users.stream()
-                    .filter(u -> u.getUsername().equals(username))
-                    .findFirst();
-
-            LoggerUtil.debug(this.getClass(),
-                    String.format("User %s %s", username,
-                            foundUser.isPresent() ? "found" : "not found"));
-
-            return foundUser;
+            Path localUsersPath = dataAccess.getLocalUsersPath();
+            if (Files.exists(localUsersPath) && Files.size(localUsersPath) > 3) {
+                List<User> localUsers = dataAccess.readFile(localUsersPath,
+                        new TypeReference<List<User>>() {}, false);
+                return localUsers.stream()
+                        .filter(u -> u.getUsername().equals(username))
+                        .findFirst();
+            }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading user data from %s: %s",
-                            filePath, e.getMessage()));
-            return Optional.empty();
+            LoggerUtil.warn(this.getClass(),
+                    "Error reading local users file: " + e.getMessage());
         }
-    }
-
-    private boolean isOfflineModeAvailable() {
-        return dataAccess.fileExists(dataAccess.getUsersPath());
+        return Optional.empty();
     }
 
     private void ensureLocalDirectories(boolean isAdmin) {
@@ -211,20 +216,17 @@ public class AuthenticationService {
 
     private void storeUserDataLocally(User user) {
         try {
-            Path usersPath = dataAccess.getUsersPath();
-            List<User> users = dataAccess.readFile(usersPath, USER_LIST_TYPE, true);
+            Path localUsersPath = dataAccess.getLocalUsersPath(); // New method needed in DataAccessService
 
-            // Remove existing user if present
-            users.removeIf(u -> u.getUsername().equals(user.getUsername()));
+            // Create a new list with just this user
+            List<User> singleUserList = new ArrayList<>();
+            singleUserList.add(user);
 
-            // Add updated user
-            users.add(user);
-
-            // Save updated user list
-            dataAccess.writeFile(usersPath, users);
+            // Save only this user's data locally
+            dataAccess.writeFile(localUsersPath, singleUserList);
 
             LoggerUtil.info(this.getClass(),
-                    String.format("Stored user data locally for: %s", user.getUsername()));
+                    String.format("Stored single user data locally for: %s", user.getUsername()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),

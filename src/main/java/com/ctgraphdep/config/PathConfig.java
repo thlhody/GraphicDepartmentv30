@@ -3,6 +3,7 @@ package com.ctgraphdep.config;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -10,6 +11,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +55,10 @@ public class PathConfig {
 
     @Value("${dbj.users.holiday:paid_holiday_list.json}")
     private String holidayFilename;
+
+    @Getter
+    @Value("${dbj.users.local.filename:local_users.json}")
+    private String localUsersFilename;
 
     @Value("${dbj.users.filename:users.json}")
     private String usersFilename;
@@ -100,7 +107,8 @@ public class PathConfig {
     );
 
     private static final Set<String> LOCAL_ONLY_FILES = Set.of(
-            "admin_bonus_%d_%02d.json"
+            "admin_bonus_%d_%02d.json",
+            "local_users.json}"
     );
 
     // Network status tracking
@@ -116,11 +124,19 @@ public class PathConfig {
 
     @PostConstruct
     public void init() {
-        initializePaths();
-        initializeDirectoryMappings();
-        determineActivePath();
-        if (verifyEnabled) {
-            verifyDirectoryStructure();
+        try {
+            initializePaths();
+            initializeDirectoryMappings();
+            determineActivePath();
+
+            if (verifyEnabled) {
+                verifyDirectoryStructure();
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during initialization", e);
+            // Instead of throwing an exception, fall back to local path
+            activePath = installPath;
+            networkAvailable.set(false);
         }
     }
 
@@ -195,6 +211,9 @@ public class PathConfig {
             // Write admin bonus files to local path first
             return installPath.resolve(adminBonus).resolve(filename);
         }
+        if (filename.equals(localUsersFilename)) {
+            return installPath.resolve(loginPath).resolve(filename);
+        }
         if (filename.equals(usersFilename)) {
             // Write users file to local login path
             return installPath.resolve(loginPath).resolve(filename);
@@ -208,13 +227,18 @@ public class PathConfig {
         return installPath.resolve(filename);
     }
 
+    @SneakyThrows
     public Path resolvePathForRead(String filename) {
-        // Special handling for network-primary files
         if (filename.equals(usersFilename) || filename.equals(holidayFilename)) {
-            // Prefer network path for these files
-            return networkAvailable.get() ?
-                    networkPath.resolve(loginPath).resolve(filename) :
-                    installPath.resolve(loginPath).resolve(filename);
+            // Always check if network path is accessible
+            if (isNetworkAvailable()) {
+                Path networkFilePath = networkPath.resolve(loginPath).resolve(filename);
+                if (Files.exists(networkFilePath) && Files.size(networkFilePath) > 0) {
+                    return networkFilePath;
+                }
+            }
+            // Fallback to local path if network path is not accessible or file is empty
+            return installPath.resolve(loginPath).resolve(filename);
         }
 
         // Determine the appropriate base path
@@ -259,55 +283,152 @@ public class PathConfig {
         }
     }
 
-    private void determineActivePath() {
-        // Try network path first
-        if (isPathAccessible(networkPath)) {
-            activePath = networkPath;
-            LoggerUtil.info(this.getClass(), "Using network path: " + networkPath);
-            return;
-        }
-        LoggerUtil.warn(this.getClass(), "Network path not accessible: " + networkPath);
-
-        // Try installation path
-        if (isPathAccessible(installPath)) {
-            activePath = installPath;
-            LoggerUtil.info(this.getClass(), "Using installation path: " + installPath);
-            return;
-        }
-        LoggerUtil.warn(this.getClass(), "Installation path not accessible: " + installPath);
-
-        // If no path is accessible, create structure in installation path
-        createStructureInInstallPath();
-    }
-
     private boolean isPathAccessible(Path path) {
         try {
-            return Files.exists(path) && Files.isWritable(path);
-        } catch (SecurityException e) {
+            if (path == null) {
+                LoggerUtil.error(this.getClass(), "Path is null");
+                return false;
+            }
+
+            // More comprehensive path checks
+            boolean exists = Files.exists(path);
+            boolean isDirectory = Files.isDirectory(path);
+            boolean isReadable = Files.isReadable(path);
+            boolean isWritable = Files.isWritable(path);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Path Check: %s - Exists: %b, IsDirectory: %b, Readable: %b, Writable: %b",
+                            path, exists, isDirectory, isReadable, isWritable));
+
+            return exists && isDirectory && isReadable && isWritable;
+        } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Security error checking path %s: %s",
-                            path, e.getMessage()));
+                    String.format("Error checking path %s: %s",
+                            path, e.getMessage()), e);
             return false;
         }
     }
 
-    private void createStructureInInstallPath() {
+    private void determineActivePath() {
+        LoggerUtil.info(this.getClass(), "Determining active path");
+
         try {
+            // Normalize paths with explicit creation
+            networkPath = createAndValidatePath(networkBasePath);
+            installPath = createAndValidatePath(installationPath + File.separator + appTitle);
+
+            // Always ensure installation path exists
             Files.createDirectories(installPath);
+
+            // Set initial state to local mode
             activePath = installPath;
-            LoggerUtil.info(this.getClass(),
-                    "Created and using installation path: " + installPath);
+            networkAvailable.set(false);
+
+            // Try to enable network mode if possible
+            if (checkNetworkPathAccessibility(networkPath)) {
+                activePath = networkPath;
+                networkAvailable.set(true);
+                LoggerUtil.info(this.getClass(), "Using network path: " + networkPath);
+            } else {
+                LoggerUtil.info(this.getClass(), "Using local installation path: " + installPath);
+            }
+
+            // Create required directories in active path
+            createRequiredDirectories();
+
         } catch (Exception e) {
-            String errorMsg = "Failed to create installation directory structure";
-            LoggerUtil.error(this.getClass(), errorMsg, e);
-            throw new RuntimeException(errorMsg, e);
+            LoggerUtil.error(this.getClass(), "Error determining active path", e);
+            // Ensure we fallback to installation path
+            activePath = installPath;
+            networkAvailable.set(false);
+
+            // Try to create local directories as last resort
+            try {
+                Files.createDirectories(installPath);
+                createRequiredDirectories();
+            } catch (IOException ioEx) {
+                LoggerUtil.error(this.getClass(), "Critical failure: Cannot create installation directory", ioEx);
+            }
+        }
+    }
+
+    private Path createAndValidatePath(String pathString) {
+        Path path = Paths.get(pathString).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(path);
+            if (!Files.isWritable(path)) {
+                throw new IOException("Path is not writable: " + path);
+            }
+        } catch (IOException e) {
+            LoggerUtil.warn(this.getClass(), "Could not create/validate path: " + path + " - " + e.getMessage());
+        }
+        return path;
+    }
+
+    private void createRequiredDirectories() {
+        List<String> requiredDirs = Arrays.asList(
+                login,
+                userSession,
+                userWorktime,
+                userRegister,
+                adminWorktime,
+                adminRegister,
+                adminBonus
+        );
+
+        for (String dir : requiredDirs) {
+            try {
+                Path dirPath = activePath.resolve(dir);
+                Files.createDirectories(dirPath);
+
+                // Initialize users.json in login directory if needed
+                if (dir.equals(login)) {
+                    Path usersFile = dirPath.resolve(usersFilename);
+                    if (!Files.exists(usersFile)) {
+                        Files.write(usersFile, "[]".getBytes());
+                    }
+                }
+            } catch (IOException e) {
+                LoggerUtil.warn(this.getClass(), "Could not create directory: " + dir + " - " + e.getMessage());
+            }
+        }
+    }
+
+    private boolean checkNetworkPathAccessibility(Path networkPath) {
+        try {
+            if (!Files.exists(networkPath)) {
+                LoggerUtil.debug(this.getClass(), "Network path does not exist");
+                return false;
+            }
+
+            if (!Files.isDirectory(networkPath)) {
+                LoggerUtil.debug(this.getClass(), "Network path is not a directory");
+                return false;
+            }
+
+            // Check if users.json exists in network path
+            Path usersFile = networkPath.resolve(loginPath).resolve(usersFilename);
+            boolean usersFileAccessible = Files.exists(usersFile);
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Network path check - Path: %s, Exists: %b, IsDir: %b, UsersFile: %b",
+                    networkPath, true, true, usersFileAccessible));
+
+            return Files.isReadable(networkPath) && Files.isWritable(networkPath);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error checking network path: " + e.getMessage());
+            return false;
         }
     }
 
     public Path getUsersJsonPath() {
         return activePath.resolve(loginPath).resolve(usersFilename);
     }
-
+    public Path getLocalUsersJsonPath() {
+        return installPath.resolve(loginPath).resolve(localUsersFilename);
+    }
     public Path getHolidayListPath() {
         return activePath.resolve(login).resolve(holidayFilename);
     }
@@ -315,11 +436,9 @@ public class PathConfig {
     public Path getSessionFilePath(String username, Integer userId) {
         return activePath.resolve(userSession).resolve(String.format(sessionFormat, username, userId));
     }
-
     public Path getUserWorktimeFilePath(String username, int year, int month) {
         return activePath.resolve(userWorktime).resolve(String.format(worktimeFormat, username, year, month));
     }
-
     public Path getUserRegisterPath(String username, Integer userId, int year, int month) {
         return activePath.resolve(userRegister).resolve(String.format(registerFormat, username, userId, year, month));
     }
@@ -327,22 +446,25 @@ public class PathConfig {
     public Path getAdminWorktimePath(int year, int month) {
         return activePath.resolve(adminWorktime).resolve(String.format(adminWorktimeFormat, year, month));
     }
-
     public Path getAdminRegisterPath(String username, Integer userId, int year, int month) {
         return activePath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
-
     public Path getAdminBonusPath(int year, int month) {
         return activePath.resolve(adminBonus).resolve(String.format(adminBonusFormat, year, month));
     }
 
     // Status checks
     public boolean isNetworkAvailable() {
-        return isPathAccessible(networkPath);
-    }
-
-    public boolean isLocalAvailable() {
-        return isPathAccessible(installPath);
+        synchronized (networkStatusLock) {
+            // Do a fresh check if needed
+            if (!networkAvailable.get()) {
+                boolean available = checkNetworkPathAccessibility(networkPath);
+                networkAvailable.set(available);
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Refreshed network status: %b", available));
+            }
+            return networkAvailable.get();
+        }
     }
 
     // Get Local Path (Installation Path)
@@ -394,11 +516,9 @@ public class PathConfig {
     public Path getUserSessionDir() {
         return activePath.resolve(userSession);
     }
-
     public Path getUserWorktimeDir() {
         return activePath.resolve(userWorktime);
     }
-
     public Path getUserRegisterDir() {
         return activePath.resolve(userRegister);
     }
@@ -406,11 +526,9 @@ public class PathConfig {
     public Path getAdminWorktimeDir() {
         return activePath.resolve(adminWorktime);
     }
-
     public Path getAdminRegisterDir() {
         return activePath.resolve(adminRegister);
     }
-
     public Path getAdminBonusDir() {
         return activePath.resolve(adminBonus);
     }
@@ -418,4 +536,5 @@ public class PathConfig {
     public Path getLoginDir() {
         return activePath.resolve(loginPath);
     }
+
 }

@@ -28,50 +28,17 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Optional<User> getUserByUsername(String username) {
-        lock.readLock().lock();
-        try {
-            Optional<User> user = getAllUsers().stream()
-                    .filter(u -> u.getUsername().equals(username))
-                    .findFirst();
-
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Found user by username '%s': %s",
-                            username,
-                            user.isPresent() ? "Yes" : "No"));
-
-            if (user.isPresent()) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("User details - ID: %d, Name: %s",
-                                user.get().getUserId(),
-                                user.get().getName()));
-
-                User sanitized = sanitizeUser(user.get());
-                assert sanitized != null;
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Sanitized user details - ID: %d, Name: %s",
-                                sanitized.getUserId(),
-                                sanitized.getName()));
-
-                return Optional.of(sanitized);
-            }
-
-            return Optional.empty();
-        } finally {
-            lock.readLock().unlock();
-        }
+        return dataAccess.findUserByUsername(username);
     }
 
     @Override
     public Optional<User> getUserById(Integer userId) {
-        lock.readLock().lock();
-        try {
-            return getAllUsers().stream()
-                    .filter(user -> user.getUserId().equals(userId))
-                    .findFirst()
-                    .map(this::sanitizeUser);
-        } finally {
-            lock.readLock().unlock();
-        }
+        return dataAccess.findUserById(userId);
+    }
+
+    @Override
+    public List<User> getAllUsers() {
+        return dataAccess.readUserData();
     }
 
     @Override
@@ -82,16 +49,6 @@ public class UserServiceImpl implements UserService {
                     .filter(User::isAdmin)  // Assuming isAdmin() is a method in the User class
                     .findFirst()
                     .map(this::sanitizeUser);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public List<User> getAllUsers() {
-        lock.readLock().lock();
-        try {
-            return dataAccess.readFile(dataAccess.getUsersPath(), USER_LIST_TYPE, true);
         } finally {
             lock.readLock().unlock();
         }
@@ -112,33 +69,27 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User saveUser(User user) {
-        lock.writeLock().lock();
-        try {
-            List<User> users = getAllUsers();
-            validateNewUser(user, users);
+        List<User> users = dataAccess.readUserData();
 
-            if (user.getUserId() == null) {
-                // New user
-                user.setUserId(generateNextUserId(users));
-                encryptPassword(user, null);
-                users.add(user);
+        if (user.getUserId() == null) {
+            // New user
+            user.setUserId(generateNextUserId(users));
+            encryptPassword(user, null);
+            users.add(user);
+        } else {
+            // Update existing user
+            int index = findUserIndex(users, user.getUserId());
+            if (index >= 0) {
+                User existingUser = users.get(index);
+                encryptPassword(user, existingUser);
+                users.set(index, user);
             } else {
-                // Update existing user
-                int index = findUserIndex(users, user.getUserId());
-                if (index >= 0) {
-                    User existingUser = users.get(index);
-                    encryptPassword(user, existingUser);
-                    users.set(index, user);
-                } else {
-                    throw new IllegalArgumentException("User not found for update: " + user.getUserId());
-                }
+                throw new IllegalArgumentException("User not found for update: " + user.getUserId());
             }
-
-            saveUsers(users);
-            return sanitizeUser(user);
-        } finally {
-            lock.writeLock().unlock();
         }
+
+        dataAccess.saveUserData(users);
+        return user;
     }
 
     @Override
