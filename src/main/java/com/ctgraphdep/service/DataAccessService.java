@@ -5,6 +5,7 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.SneakyThrows;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -131,6 +132,26 @@ public class DataAccessService {
                 String.format("Writing file: filename=%s, writePath=%s, loginPath=%s",
                         filename, writePath, pathConfig.getLoginPath()));
     }
+
+
+    @SneakyThrows
+    private <T> T readAndDeserialize(Path path, TypeReference<T> typeRef) {
+        byte[] content = Files.readAllBytes(path);
+//        if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
+//            content = obfuscationService.deobfuscate(content);
+//        }
+        return objectMapper.readValue(content, typeRef);
+    }
+
+    @SneakyThrows
+    private <T> void serializeAndWrite(Path path, T data)  {
+        byte[] content = objectMapper.writeValueAsBytes(data);
+//        if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
+//            content = obfuscationService.obfuscate(content);
+//        }
+        Files.write(path, content);
+    }
+
 
     private void syncWithNetwork(Path localPath, String filename) {
         if (!pathConfig.isLocalOnlyFile(filename) && pathConfig.isNetworkAvailable()) {
