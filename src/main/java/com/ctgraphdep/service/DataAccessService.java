@@ -152,7 +152,6 @@ public class DataAccessService {
         Files.write(path, content);
     }
 
-
     private void syncWithNetwork(Path localPath, String filename) {
         if (!pathConfig.isLocalOnlyFile(filename) && pathConfig.isNetworkAvailable()) {
             Path networkPath = pathConfig.getNetworkPath().resolve(filename);
