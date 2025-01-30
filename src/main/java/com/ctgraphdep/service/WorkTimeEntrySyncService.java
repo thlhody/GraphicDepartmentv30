@@ -111,24 +111,18 @@ public class WorkTimeEntrySyncService {
             return userEntry;
         }
 
-        // Handle ADMIN_BLANK
+        // Admin's blank entry always removes the user entry
         if (adminEntry != null && SyncStatus.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
-            if (userEntry != null && userEntry.getTimeOffType() != null) {
-                // New entry over ADMIN_BLANK becomes USER_EDITED
-                userEntry.setAdminSync(SyncStatus.USER_EDITED);
-                return userEntry;
-            }
-            return null; // ADMIN_BLANK without new entry should not be displayed
+            return null; // Completely remove the entry
         }
 
-        // Handle ADMIN_EDITED entries
+        // Admin-edited entry takes precedence
         if (adminEntry != null && SyncStatus.ADMIN_EDITED.equals(adminEntry.getAdminSync())) {
             WorkTimeTable result = copyWorkTimeEntry(adminEntry);
             result.setAdminSync(SyncStatus.USER_DONE);
             return result;
         }
 
-        // Apply standard merge rules for other cases
         return WorktimeMergeRule.apply(userEntry, adminEntry);
     }
 

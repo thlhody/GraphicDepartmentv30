@@ -1,6 +1,8 @@
 package com.ctgraphdep.enums;
 
 import com.ctgraphdep.model.WorkTimeTable;
+import com.ctgraphdep.utils.LoggerUtil;
+
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.BiPredicate;
@@ -93,7 +95,18 @@ public enum WorktimeMergeRule {
     }
 
     public static WorkTimeTable apply(WorkTimeTable user, WorkTimeTable admin) {
-        // Process special case for new entries over ADMIN_BLANK first
+        // Debug logging
+        LoggerUtil.debug(WorktimeMergeRule.class, "Merge Rule Apply - User: " +
+                (user != null ? user.getAdminSync() + ", TimeOffType: " + user.getTimeOffType() : "null"));
+        LoggerUtil.debug(WorktimeMergeRule.class, "Merge Rule Apply - Admin: " +
+                (admin != null ? admin.getAdminSync() + ", TimeOffType: " + admin.getTimeOffType() : "null"));
+
+        // If admin explicitly sets an entry to ADMIN_BLANK, always remove it
+        if (admin != null && SyncStatus.ADMIN_BLANK.equals(admin.getAdminSync())) {
+            return null; // Completely remove the entry
+        }
+
+        // Special case for handling new entries over ADMIN_BLANK
         if (admin != null && SyncStatus.ADMIN_BLANK.equals(admin.getAdminSync()) &&
                 user != null && user.getTimeOffType() != null &&
                 !SyncStatus.USER_EDITED.equals(user.getAdminSync())) {
@@ -101,6 +114,7 @@ public enum WorktimeMergeRule {
             return user;
         }
 
+        // Use the existing rule-based approach
         return Arrays.stream(values())
                 .filter(rule -> rule.condition.test(user, admin))
                 .findFirst()

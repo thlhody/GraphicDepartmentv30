@@ -43,10 +43,100 @@ public class BackgroundMonitorExecutor {
 
     @PostConstruct
     public void initializeExistingSessions() {
+        // Get local PC username from environment/configuration
+        String pcUsername = System.getProperty("user.name");
+
+        // ADD THIS: Get the logged-in app username
+        String loggedInUsername = getCurrentLoggedInUsername(); // You'll need to implement this method
+
+        LoggerUtil.info(this.getClass(), "PC Username: " + pcUsername);
+        LoggerUtil.info(this.getClass(), "Logged-in App Username: " + loggedInUsername);
+
         List<WorkUsersSessionsStates> activeSessions = loadActiveSessions();
+
+        LoggerUtil.info(this.getClass(), "Total active sessions found: " + activeSessions.size());
+
         for(WorkUsersSessionsStates session : activeSessions) {
-            startMonitoring(session);
+            // CHANGE THIS: Compare with logged-in app username instead of PC username
+            if (session.getUsername().equals(loggedInUsername)) {
+                LoggerUtil.info(this.getClass(),
+                        "CRITICAL: Preparing to monitor session for MATCHING user: " + session.getUsername() +
+                                " (User ID: " + session.getUserId() + ")");
+                startMonitoring(session);
+            } else {
+                LoggerUtil.info(this.getClass(),
+                        "SKIPPING session for user: " + session.getUsername() +
+                                " (Does NOT match logged-in username: " + loggedInUsername + ")");
+            }
         }
+    }
+
+    private String getCurrentLoggedInUsername() {
+        try {
+            // Get the LOCAL session directory
+            Path localSessionPath = dataAccess.getLocalSessionPath("", 0).getParent();
+
+            LoggerUtil.debug(this.getClass(), "Searching for LOCAL session files in: " + localSessionPath);
+
+            // List ALL local session files
+            List<Path> localSessionFiles = Files.list(localSessionPath)
+                    .filter(path -> {
+                        String filename = path.getFileName().toString();
+                        // Check for session files with .json extension
+                        boolean isSessionFile = filename.startsWith("session_") &&
+                                filename.endsWith(".json");
+
+                        LoggerUtil.debug(this.getClass(),
+                                "Checking local file: " + filename +
+                                        ", Is valid session file: " + isSessionFile);
+
+                        return isSessionFile;
+                    })
+                    .sorted((p1, p2) -> {
+                        try {
+                            // Sort by most recently modified, most recent first
+                            return Files.getLastModifiedTime(p2).compareTo(Files.getLastModifiedTime(p1));
+                        } catch (IOException e) {
+                            LoggerUtil.error(this.getClass(),
+                                    "Error comparing file modification times: " + e.getMessage());
+                            return 0;
+                        }
+                    })
+                    .toList();
+
+            // If local session files exist, process the most recent one
+            if (!localSessionFiles.isEmpty()) {
+                Path mostRecentLocalSessionFile = localSessionFiles.get(0);
+
+                LoggerUtil.info(this.getClass(),
+                        "Most recent local session file found: " + mostRecentLocalSessionFile.getFileName());
+
+                // Read the session file ONLY from local path
+                WorkUsersSessionsStates session = dataAccess.readFile(
+                        mostRecentLocalSessionFile,
+                        new TypeReference<WorkUsersSessionsStates>() {},
+                        false
+                );
+
+                // Validate the session and extract username
+                if (session != null && session.getUsername() != null) {
+                    LoggerUtil.info(this.getClass(),
+                            "Current logged-in username from local session: " + session.getUsername());
+                    return session.getUsername();
+                } else {
+                    LoggerUtil.warn(this.getClass(),
+                            "No valid username found in the most recent local session file");
+                }
+            } else {
+                LoggerUtil.warn(this.getClass(), "No local session files found");
+            }
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error searching for local session files: " + e.getMessage());
+        }
+
+        // Fallback if no username can be determined
+        return null;
     }
 
     private void startMonitoring(WorkUsersSessionsStates session) {
@@ -71,6 +161,7 @@ public class BackgroundMonitorExecutor {
     }
 
     private WorkUsersSessionsStates loadSession(Path sessionPath) {
+        // Only try to load from local path
         try {
             return dataAccess.readFile(sessionPath, new TypeReference<WorkUsersSessionsStates>() {}, false);
         } catch (Exception e) {
@@ -81,18 +172,26 @@ public class BackgroundMonitorExecutor {
 
     private List<WorkUsersSessionsStates> loadActiveSessions() {
         try {
-            Path sessionPath = dataAccess.getSessionPath("", 0).getParent();
-            if (!Files.exists(sessionPath)) {
+            // Get logged-in app username
+            String loggedInUsername = getCurrentLoggedInUsername();
+
+            // Get the LOCAL session directory
+            Path localSessionPath = dataAccess.getLocalSessionPath("", 0).getParent();
+
+            if (!Files.exists(localSessionPath)) {
                 return Collections.emptyList();
             }
 
-            return Files.list(sessionPath)
+            // Only look for files matching logged-in username in LOCAL PATH
+            return Files.list(localSessionPath)
+                    .filter(path -> path.getFileName().toString().startsWith("session_" + loggedInUsername))
                     .filter(path -> path.toString().endsWith(WorkCode.JSON_FORMAT))
                     .map(this::loadSession)
                     .filter(Objects::nonNull)
                     .filter(session -> WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
                             WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()))
                     .collect(Collectors.toList());
+
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(), "Failed to load active sessions: " + e.getMessage());
             return Collections.emptyList();
@@ -101,9 +200,12 @@ public class BackgroundMonitorExecutor {
 
     private void checkSession(WorkUsersSessionsStates session) {
         try {
-            // Get fresh session state
+            LoggerUtil.info(this.getClass(),
+                    "Checking session for user: " + session.getUsername() +
+                            ", User ID: " + session.getUserId());
+            // Get fresh session state using LOCAL session path
             WorkUsersSessionsStates currentSession = loadSession(
-                    dataAccess.getSessionPath(session.getUsername(), session.getUserId())
+                    dataAccess.getLocalSessionPath(session.getUsername(), session.getUserId())
             );
 
             // Stop monitoring if session ended or invalid
@@ -125,7 +227,9 @@ public class BackgroundMonitorExecutor {
                 );
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error checking session: " + e.getMessage());
+            LoggerUtil.error(this.getClass(),
+                    "Error checking session for user " + session.getUsername() +
+                            ": " + e.getMessage());
         }
     }
 

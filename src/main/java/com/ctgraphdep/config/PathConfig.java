@@ -229,45 +229,66 @@ public class PathConfig {
 
     @SneakyThrows
     public Path resolvePathForRead(String filename) {
+        // Handle users.json and holiday list - NETWORK ONLY with local fallback
         if (filename.equals(usersFilename) || filename.equals(holidayFilename)) {
-            // Always check if network path is accessible
             if (isNetworkAvailable()) {
                 Path networkFilePath = networkPath.resolve(loginPath).resolve(filename);
                 if (Files.exists(networkFilePath) && Files.size(networkFilePath) > 0) {
                     return networkFilePath;
                 }
             }
-            // Fallback to local path if network path is not accessible or file is empty
             return installPath.resolve(loginPath).resolve(filename);
         }
 
-        // Determine the appropriate base path
-        Path basePath = networkAvailable.get() ? networkPath : installPath;
+        // Handle local_users.json - LOCAL ONLY
+        if (filename.equals(localUsersFilename)) {
+            return installPath.resolve(loginPath).resolve(filename);
+        }
 
-        // Specific resolution for different file types
-        if (filename.startsWith("session_")) {
-            return installPath.resolve(userSession).resolve(filename);
-        }
-        if (filename.startsWith("worktime_")) {
-            return installPath.resolve(userWorktime).resolve(filename);
-        }
-        if (filename.startsWith("registru_")) {
-            return installPath.resolve(userRegister).resolve(filename);
-        }
-        if (filename.startsWith("general_worktime_")) {
-            return installPath.resolve(adminWorktime).resolve(filename);
-        }
-        if (filename.startsWith("admin_registru_")) {
-            return installPath.resolve(adminRegister).resolve(filename);
-        }
+        // Handle admin bonus files - LOCAL ONLY
         if (filename.startsWith("admin_bonus_")) {
             return installPath.resolve(adminBonus).resolve(filename);
         }
 
-        // Fallback to local installation path
+        // Handle all other files - NETWORK FIRST with local fallback
+        if (isNetworkAvailable()) {
+            Path networkFilePath = null;
+
+            // Determine correct network path based on file type
+            if (filename.startsWith("session_")) {
+                networkFilePath = networkPath.resolve(userSession).resolve(filename);
+            } else if (filename.startsWith("worktime_")) {
+                networkFilePath = networkPath.resolve(userWorktime).resolve(filename);
+            } else if (filename.startsWith("registru_")) {
+                networkFilePath = networkPath.resolve(userRegister).resolve(filename);
+            } else if (filename.startsWith("general_worktime_")) {
+                networkFilePath = networkPath.resolve(adminWorktime).resolve(filename);
+            } else if (filename.startsWith("admin_registru_")) {
+                networkFilePath = networkPath.resolve(adminRegister).resolve(filename);
+            }
+
+            // If network path was determined and file exists, use it
+            if (networkFilePath != null && Files.exists(networkFilePath)) {
+                return networkFilePath;
+            }
+        }
+
+        // Fallback to local paths if network unavailable or file not found
+        if (filename.startsWith("session_")) {
+            return installPath.resolve(userSession).resolve(filename);
+        } else if (filename.startsWith("worktime_")) {
+            return installPath.resolve(userWorktime).resolve(filename);
+        } else if (filename.startsWith("registru_")) {
+            return installPath.resolve(userRegister).resolve(filename);
+        } else if (filename.startsWith("general_worktime_")) {
+            return installPath.resolve(adminWorktime).resolve(filename);
+        } else if (filename.startsWith("admin_registru_")) {
+            return installPath.resolve(adminRegister).resolve(filename);
+        }
+
+        // Default fallback to local installation path
         return installPath.resolve(filename);
     }
-
     // Enhance network status checking
     public void updateNetworkStatus() {
         synchronized (networkStatusLock) {
@@ -396,6 +417,7 @@ public class PathConfig {
 
     private boolean checkNetworkPathAccessibility(Path networkPath) {
         try {
+            // First just check basic connectivity
             if (!Files.exists(networkPath)) {
                 LoggerUtil.debug(this.getClass(), "Network path does not exist");
                 return false;
@@ -406,16 +428,33 @@ public class PathConfig {
                 return false;
             }
 
-            // Check if users.json exists in network path
-            Path usersFile = networkPath.resolve(loginPath).resolve(usersFilename);
-            boolean usersFileAccessible = Files.exists(usersFile);
+            // Add retry logic for write check
+            int maxRetries = 3;
+            int retryDelay = 1000; // 1 second
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Network path check - Path: %s, Exists: %b, IsDir: %b, UsersFile: %b",
-                    networkPath, true, true, usersFileAccessible));
+            for (int i = 0; i < maxRetries; i++) {
+                try {
+                    // Create a test file to verify write access
+                    Path testFile = networkPath.resolve(".test_write_" + System.currentTimeMillis());
+                    Files.createFile(testFile);
+                    Files.delete(testFile);
 
-            return Files.isReadable(networkPath) && Files.isWritable(networkPath);
+                    // If we get here, write access is confirmed
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Network path check successful - Path: %s, Exists: true, IsDir: true",
+                            networkPath));
+                    return true;
+                } catch (Exception e) {
+                    if (i < maxRetries - 1) {
+                        Thread.sleep(retryDelay);
+                        continue;
+                    }
+                    LoggerUtil.warn(this.getClass(),
+                            "Write check failed after retries: " + e.getMessage());
+                }
+            }
 
+            return false;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     "Error checking network path: " + e.getMessage());
@@ -435,6 +474,10 @@ public class PathConfig {
 
     public Path getSessionFilePath(String username, Integer userId) {
         return activePath.resolve(userSession).resolve(String.format(sessionFormat, username, userId));
+    }
+    public Path getLocalSessionFilePath(String username, Integer userId) {
+        // This method specifically returns the local session file path
+        return installPath.resolve(userSession).resolve(String.format(sessionFormat, username, userId));
     }
     public Path getUserWorktimeFilePath(String username, int year, int month) {
         return activePath.resolve(userWorktime).resolve(String.format(worktimeFormat, username, year, month));
@@ -516,6 +559,7 @@ public class PathConfig {
     public Path getUserSessionDir() {
         return activePath.resolve(userSession);
     }
+
     public Path getUserWorktimeDir() {
         return activePath.resolve(userWorktime);
     }

@@ -95,10 +95,18 @@ public class UserTimeOffController extends BaseController {
 
         // Validate future dates
         LocalDate today = LocalDate.now();
-        if (startDate.isBefore(today)) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Cannot request time off for past dates");
-            return "redirect:/user/timeoff?error=past_date";
+        LocalDate maxAllowedDate = today.plusMonths(6);
+        LocalDate retroactiveCutoff = LocalDate.now().minusMonths(1);  // Allow up to 1 month back
+        if (startDate.isBefore(retroactiveCutoff)) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Cannot request time off more than a month in the past");
+            return "redirect:/user/timeoff?error=too_far_past";
         }
+
+        if (startDate.isAfter(maxAllowedDate)) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Cannot request time off more than 6 months in advance");
+            return "redirect:/user/timeoff?error=too_far_future";
+        }
+
 
         try {
             User user = getUser(userDetails);

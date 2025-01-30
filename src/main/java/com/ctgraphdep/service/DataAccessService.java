@@ -124,6 +124,8 @@ public class DataAccessService {
             LoggerUtil.error(this.getClass(),
                     String.format("Error writing file %s: %s", writePath, e.getMessage()));
             throw new RuntimeException("Failed to write file: " + writePath, e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             writeLock.unlock();
         }
@@ -152,10 +154,29 @@ public class DataAccessService {
         Files.write(path, content);
     }
 
-    private void syncWithNetwork(Path localPath, String filename) {
+    private void syncWithNetwork(Path localPath, String filename) throws InterruptedException {
         if (!pathConfig.isLocalOnlyFile(filename) && pathConfig.isNetworkAvailable()) {
-            Path networkPath = pathConfig.getNetworkPath().resolve(filename);
-            fileSyncService.syncToNetwork(localPath, networkPath);
+            // Add retry logic for network operations
+            int maxRetries = 3;
+            int retryDelay = 1000;
+
+            for (int i = 0; i < maxRetries; i++) {
+                try {
+                    Path networkPath = pathConfig.getNetworkPath().resolve(filename);
+                    fileSyncService.syncToNetwork(localPath, networkPath);
+                    return;
+                } catch (Exception e) {
+                    if (i < maxRetries - 1) {
+                        LoggerUtil.warn(this.getClass(),
+                                "Retry " + (i + 1) + " of " + maxRetries +
+                                        " for network sync: " + e.getMessage());
+                        Thread.sleep(retryDelay);
+                        continue;
+                    }
+                    LoggerUtil.error(this.getClass(),
+                            "Network sync failed after retries: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -211,6 +232,9 @@ public class DataAccessService {
     }
     public Path getSessionPath(String username, Integer userId) {
         return pathConfig.getSessionFilePath(username, userId);
+    }
+    public Path getLocalSessionPath(String username, Integer userId) {
+        return pathConfig.getLocalSessionFilePath(username, userId);
     }
 
     public Path getHolidayPath() {

@@ -85,7 +85,6 @@ public class DashboardConfigurationManager {
                 .permission("ACCESS_OMS")
                 .build();
     }
-
     // Admin Cards
     private DashboardCard createSettingsCard() {
         return DashboardCard.builder()
@@ -131,6 +130,7 @@ public class DashboardConfigurationManager {
                 .permission("MANAGE_USER_REGISTER")
                 .build();
     }
+
     private DashboardCard createAdminBonusCard() {
         return DashboardCard.builder()
                 .title("Admin Bonus Management")
@@ -145,6 +145,7 @@ public class DashboardConfigurationManager {
                 .permission("MANAGE_BONUS")
                 .build();
     }
+
     private DashboardCard createAdminStatistics() {
         return DashboardCard.builder()
                 .title("Admin Statistics Management")
@@ -174,7 +175,6 @@ public class DashboardConfigurationManager {
                 .permission("MANAGE_HOLIDAYS")
                 .build();
     }
-
     // User Cards
     private DashboardCard createSessionCard() {
         return DashboardCard.builder()
