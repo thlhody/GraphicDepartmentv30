@@ -31,7 +31,7 @@ public class WorkCode {
     //work hours codes
     public static final Integer ONE_MINUTE_DELAY = 1;
     public static final Integer HOUR_DURATION = 60;           // Minutes in an hour
-    public static final Integer FULL_DAY_DURATION = 510;        // 8.5 hours in minutes (8 * 60 + 30)510
+    public static final Integer FULL_DAY_DURATION = 15;        // 8.5 hours in minutes (8 * 60 + 30)510
     public static final Integer BUFFER_MINUTES = 10;          // Buffer time in minutes
     public static final Integer START_HOUR = 7;               // Start hour
     public static final Integer HALF_HOUR_DURATION = 30;      // Half hour duration
@@ -45,8 +45,8 @@ public class WorkCode {
 
     public static final Integer ON_FOR_FIVE_MINUTES = five_minutes; // Auto-timer set for 5 minutes (WorkCode.CHECK_EVERY_FIVE_MINUTES)
     public static final Integer ON_FOR_TEN_MINUTES = ten_minutes; // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
-    public static final Integer CHECK_INTERVAL = 30; // checks every 30 minutes in order to see if the end time is reached
-    public static final Integer HOURLY_CHECK_INTERVAL = 60; // hourly checks
+    public static final Integer CHECK_INTERVAL = 2; // checks every 30 minutes in order to see if the end time is reached
+    public static final Integer HOURLY_CHECK_INTERVAL = 2; // hourly checks
 
 
     public static final Integer MAX_TEMP_STOP_HOURS = 15; // 24 - MAX_WORK_HOURS

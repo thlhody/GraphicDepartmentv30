@@ -75,8 +75,12 @@ public class WorkTimeEntrySyncService {
             WorkTimeTable userEntry = userEntriesMap.get(date);
             WorkTimeTable adminEntry = adminEntriesMap.get(date);
 
-            WorkTimeTable mergedEntry = processSingleEntry(userEntry, adminEntry);
+            // Skip if both entries are null
+            if (userEntry == null && adminEntry == null) {
+                continue;
+            }
 
+            WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, adminEntry);
             if (mergedEntry != null) {
                 // Ensure userId is set
                 if (mergedEntry.getUserId() == null) {

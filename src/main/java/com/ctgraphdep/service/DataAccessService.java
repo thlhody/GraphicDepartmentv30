@@ -2,10 +2,13 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.User;
+import com.ctgraphdep.security.CustomUserDetails;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.SneakyThrows;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -25,7 +28,7 @@ public class DataAccessService {
 
     public DataAccessService(ObjectMapper objectMapper,
                              PathConfig pathConfig,
-                             FileObfuscationService obfuscationService,FileSyncService fileSyncService) {
+                             FileObfuscationService obfuscationService, FileSyncService fileSyncService) {
         this.objectMapper = objectMapper;
         this.pathConfig = pathConfig;
         this.fileSyncService = fileSyncService;
@@ -33,6 +36,15 @@ public class DataAccessService {
         this.fileLocks = new ConcurrentHashMap<>();
         LoggerUtil.initialize(this.getClass(), null);
     }
+
+    private User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
+            return ((CustomUserDetails) auth.getPrincipal()).getUser();
+        }
+        throw new SecurityException("No authenticated user found");
+    }
+
 
     public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
         String filename = path.getFileName().toString();
@@ -100,41 +112,59 @@ public class DataAccessService {
 
     public <T> void writeFile(Path path, T data) {
         String filename = path.getFileName().toString();
-        Path writePath = pathConfig.resolvePathForWrite(filename);
-
-        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(writePath).writeLock();
-        writeLock.lock();
+        User currentUser = getCurrentUser();
+        boolean isAdmin = currentUser.isAdmin();
+        String username = currentUser.getUsername();
 
         try {
-            // Ensure directory exists
-            ensureDirectoryExists(writePath);
+            // Get the correct local path with full directory structure
+            Path localPath = pathConfig.resolvePathForWrite(filename);
+            LoggerUtil.info(this.getClass(), "Writing to local path: " + localPath);
 
-            // Write data
-            objectMapper.writeValue(writePath.toFile(), data);
+            ensureDirectoryExists(localPath);
+            objectMapper.writeValue(localPath.toFile(), data);
 
-            // Handle network sync if required
-            if (pathConfig.requiresSync(filename)) {
-                syncWithNetwork(writePath, filename);
+            // For worktime files, explicitly check if sync is needed
+            boolean shouldSync = filename.startsWith("worktime_") ||
+                    pathConfig.shouldSync(filename, isAdmin, username);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Should sync file %s? %b", filename, shouldSync));
+
+            if (shouldSync) {
+                // Get correct network path maintaining directory structure
+                Path networkPath = pathConfig.getNetworkPath().resolve(
+                        localPath.subpath(pathConfig.getLocalPath().getNameCount(), localPath.getNameCount())
+                );
+                LoggerUtil.info(this.getClass(), "Network path for sync: " + networkPath);
+
+                syncWithNetwork(localPath, networkPath);
             }
 
-            LoggerUtil.info(this.getClass(),
-                    "Successfully wrote data to file: " + writePath);
-
-        } catch (IOException e) {
+        } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error writing file %s: %s", writePath, e.getMessage()));
-            throw new RuntimeException("Failed to write file: " + writePath, e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } finally {
-            writeLock.unlock();
+                    String.format("Error writing file %s: %s", filename, e.getMessage()), e);
+            throw new RuntimeException("Failed to write file", e);
         }
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Writing file: filename=%s, writePath=%s, loginPath=%s",
-                        filename, writePath, pathConfig.getLoginPath()));
     }
 
+    private void syncWithNetwork(Path localPath, Path networkPath) {
+        if (!pathConfig.isNetworkAvailable()) {
+            LoggerUtil.warn(this.getClass(), "Network not available for sync");
+            return;
+        }
+
+        try {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Starting sync from %s to %s", localPath, networkPath));
+
+            fileSyncService.syncToNetwork(localPath, networkPath);
+
+            LoggerUtil.info(this.getClass(), "Sync completed successfully");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error during sync: " + e.getMessage(), e);
+        }
+    }
 
     @SneakyThrows
     private <T> T readAndDeserialize(Path path, TypeReference<T> typeRef) {
@@ -154,31 +184,6 @@ public class DataAccessService {
         Files.write(path, content);
     }
 
-    private void syncWithNetwork(Path localPath, String filename) throws InterruptedException {
-        if (!pathConfig.isLocalOnlyFile(filename) && pathConfig.isNetworkAvailable()) {
-            // Add retry logic for network operations
-            int maxRetries = 3;
-            int retryDelay = 1000;
-
-            for (int i = 0; i < maxRetries; i++) {
-                try {
-                    Path networkPath = pathConfig.getNetworkPath().resolve(filename);
-                    fileSyncService.syncToNetwork(localPath, networkPath);
-                    return;
-                } catch (Exception e) {
-                    if (i < maxRetries - 1) {
-                        LoggerUtil.warn(this.getClass(),
-                                "Retry " + (i + 1) + " of " + maxRetries +
-                                        " for network sync: " + e.getMessage());
-                        Thread.sleep(retryDelay);
-                        continue;
-                    }
-                    LoggerUtil.error(this.getClass(),
-                            "Network sync failed after retries: " + e.getMessage());
-                }
-            }
-        }
-    }
 
     private void ensureDirectoryExists(Path path)  {
         Path parent = path.getParent();

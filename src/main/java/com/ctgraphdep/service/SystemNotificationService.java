@@ -41,7 +41,7 @@ public class SystemNotificationService {
     }
 
     public void showSessionWarning(String username, Integer userId, Integer finalMinutes) {
-        if (!validateTrayIcon()) return;
+        if (checkTrayIcon()) return;
         showNotificationDialog(
                 username,
                 userId,
@@ -55,7 +55,7 @@ public class SystemNotificationService {
     }
 
     public void showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
-        if (!validateTrayIcon()) return;
+        if (checkTrayIcon()) return;
         showNotificationDialog(
                 username,
                 userId,
@@ -69,7 +69,7 @@ public class SystemNotificationService {
     }
 
     public void showLongTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
-        if (!validateTrayIcon()) return;
+        if (checkTrayIcon()) return;
 
         int stopMinutes = (int) java.time.Duration.between(tempStopStart, LocalDateTime.now()).toMinutes();
         int hours = stopMinutes / 60;
@@ -253,12 +253,12 @@ public class SystemNotificationService {
         return button;
     }
 
-    private boolean validateTrayIcon() {
+    private boolean checkTrayIcon() {
         if (systemTray.getTrayIcon() == null) {
             LoggerUtil.error(this.getClass(), "System tray icon not available");
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
 
     private void showDialog(JDialog dialog) {

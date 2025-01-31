@@ -101,6 +101,18 @@ public class PathConfig {
     private final Map<String, String> admin = new HashMap<>();
     private String login;
 
+    // Update the pattern sets to ensure they match exactly
+    private static final Set<String> USER_SYNCABLE_PATTERNS = Set.of(
+            "session_.*_\\d+\\.json",
+            "worktime_.*_\\d{4}_\\d{2}\\.json",
+            "registru_.*_\\d+_\\d{4}_\\d{2}\\.json"
+    );
+
+    private static final Set<String> ADMIN_SYNCABLE_PATTERNS = Set.of(
+            "general_worktime_%d_%02d\\.json",
+            "admin_registru_%s_%d_%d_%02d\\.json"
+    );
+
     private static final Set<String> NETWORK_PRIMARY_FILES = Set.of(
             "users.json",
             "paid_holiday_list.json"
@@ -108,7 +120,7 @@ public class PathConfig {
 
     private static final Set<String> LOCAL_ONLY_FILES = Set.of(
             "admin_bonus_%d_%02d.json",
-            "local_users.json}"
+            "local_users.json"
     );
 
     // Network status tracking
@@ -174,14 +186,48 @@ public class PathConfig {
                         .anyMatch(pattern -> filename.matches(pattern.replace("%d", "\\d+")));
     }
 
-    public boolean isLocalOnlyFile(String filename) {
-        return LOCAL_ONLY_FILES.contains(filename) ||
-                LOCAL_ONLY_FILES.stream()
-                        .anyMatch(pattern -> filename.matches(pattern.replace("%d", "\\d+")));
+    private boolean matchesPattern(String filename, Set<String> patterns) {
+        for (String pattern : patterns) {
+            if (filename.matches(pattern)) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("File %s matches pattern %s", filename, pattern));
+                return true;
+            }
+        }
+        return false;
     }
 
-    public boolean requiresSync(String filename) {
-        return !isLocalOnlyFile(filename) && !isNetworkPrimaryFile(filename);
+    public boolean shouldSync(String filename, boolean isAdmin, String username) {
+        LoggerUtil.info(this.getClass(),
+                String.format("Checking sync for file: %s, isAdmin: %b, username: %s",
+                        filename, isAdmin, username));
+
+        // First check if it's excluded from sync
+        if (isLocalOnlyFile(filename)) {
+            LoggerUtil.info(this.getClass(), "File is local-only, skipping sync");
+            return false;
+        }
+
+        if (isNetworkPrimaryFile(filename)) {
+            LoggerUtil.info(this.getClass(), "File is network-primary, skipping sync");
+            return false;
+        }
+
+        boolean shouldSync = false;
+        if (isAdmin) {
+            shouldSync = matchesPattern(filename, ADMIN_SYNCABLE_PATTERNS);
+        } else {
+            shouldSync = matchesPattern(filename, USER_SYNCABLE_PATTERNS) &&
+                    filename.contains(username);
+        }
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Final sync decision for %s: %b", filename, shouldSync));
+        return shouldSync;
+    }
+
+    public boolean isLocalOnlyFile(String filename) {
+        return LOCAL_ONLY_FILES.contains(filename);
     }
 
     // Enhance path resolution for different file types
@@ -229,7 +275,7 @@ public class PathConfig {
 
     @SneakyThrows
     public Path resolvePathForRead(String filename) {
-        // Handle users.json and holiday list - NETWORK ONLY with local fallback
+        // For network primary files
         if (filename.equals(usersFilename) || filename.equals(holidayFilename)) {
             if (isNetworkAvailable()) {
                 Path networkFilePath = networkPath.resolve(loginPath).resolve(filename);
@@ -240,40 +286,38 @@ public class PathConfig {
             return installPath.resolve(loginPath).resolve(filename);
         }
 
-        // Handle local_users.json - LOCAL ONLY
+        // For local-only files
         if (filename.equals(localUsersFilename)) {
             return installPath.resolve(loginPath).resolve(filename);
         }
-
-        // Handle admin bonus files - LOCAL ONLY
         if (filename.startsWith("admin_bonus_")) {
             return installPath.resolve(adminBonus).resolve(filename);
         }
 
-        // Handle all other files - NETWORK FIRST with local fallback
+        // For all other files
         if (isNetworkAvailable()) {
             Path networkFilePath = null;
 
-            // Determine correct network path based on file type
+            // Determine correct network path with proper subdirectories
             if (filename.startsWith("session_")) {
-                networkFilePath = networkPath.resolve(userSession).resolve(filename);
+                networkFilePath = networkPath.resolve(userSession).resolve(filename); // dbj/user/usersession
             } else if (filename.startsWith("worktime_")) {
-                networkFilePath = networkPath.resolve(userWorktime).resolve(filename);
+                networkFilePath = networkPath.resolve(userWorktime).resolve(filename); // dbj/user/userworktime
             } else if (filename.startsWith("registru_")) {
-                networkFilePath = networkPath.resolve(userRegister).resolve(filename);
+                networkFilePath = networkPath.resolve(userRegister).resolve(filename); // dbj/user/userregister
             } else if (filename.startsWith("general_worktime_")) {
-                networkFilePath = networkPath.resolve(adminWorktime).resolve(filename);
+                networkFilePath = networkPath.resolve(adminWorktime).resolve(filename); // dbj/admin/adminworktime
             } else if (filename.startsWith("admin_registru_")) {
-                networkFilePath = networkPath.resolve(adminRegister).resolve(filename);
+                networkFilePath = networkPath.resolve(adminRegister).resolve(filename); // dbj/admin/adminregister
             }
 
-            // If network path was determined and file exists, use it
+            // If network path exists, use it
             if (networkFilePath != null && Files.exists(networkFilePath)) {
                 return networkFilePath;
             }
         }
 
-        // Fallback to local paths if network unavailable or file not found
+        // Fallback to local with correct subdirectories
         if (filename.startsWith("session_")) {
             return installPath.resolve(userSession).resolve(filename);
         } else if (filename.startsWith("worktime_")) {
@@ -286,7 +330,6 @@ public class PathConfig {
             return installPath.resolve(adminRegister).resolve(filename);
         }
 
-        // Default fallback to local installation path
         return installPath.resolve(filename);
     }
     // Enhance network status checking

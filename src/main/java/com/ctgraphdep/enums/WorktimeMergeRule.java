@@ -11,8 +11,18 @@ import java.util.function.BiFunction;
 public enum WorktimeMergeRule {
     // Keep user in-process entries untouched
     USER_IN_PROCESS((user, admin) ->
-            SyncStatus.USER_IN_PROCESS.equals(user.getAdminSync()),
+            user != null && SyncStatus.USER_IN_PROCESS.equals(user.getAdminSync()),
             (user, admin) -> user),
+
+    // Handle new user entries
+    NEW_USER_ENTRY((user, admin) -> admin == null && user != null,
+            (user, admin) -> {
+                if (SyncStatus.USER_IN_PROCESS.equals(user.getAdminSync())) {
+                    return user;
+                }
+                user.setAdminSync(SyncStatus.USER_INPUT);
+                return user;
+            }),
 
     // Admin edited entry takes precedence over user entries unless their USER_IN_PROCESS or USER_EDITED
     ADMIN_EDITED((user, admin) ->
@@ -34,17 +44,6 @@ public enum WorktimeMergeRule {
                     admin != null &&
                     SyncStatus.ADMIN_BLANK.equals(admin.getAdminSync()),
             (user, admin) -> user),
-
-    // New entry over ADMIN_BLANK becomes USER_EDITED
-    NEW_OVER_ADMIN_BLANK((user, admin) ->
-            user != null &&
-                    admin != null &&
-                    SyncStatus.ADMIN_BLANK.equals(admin.getAdminSync()) &&
-                    !SyncStatus.USER_EDITED.equals(user.getAdminSync()),
-            (user, admin) -> {
-                user.setAdminSync(SyncStatus.USER_EDITED);
-                return user;
-            }),
 
     // ADMIN_BLANK entries should not be displayed (return null to remove entry)
     ADMIN_BLANK((user, admin) ->
@@ -74,11 +73,8 @@ public enum WorktimeMergeRule {
                 return user;
             }),
 
-    // Keep regular USER_INPUT if no admin edit exists
-    USER_INPUT((user, admin) ->
-            user != null &&
-                    SyncStatus.USER_INPUT.equals(user.getAdminSync()) &&
-                    (admin == null || !SyncStatus.ADMIN_EDITED.equals(admin.getAdminSync())),
+    // Keep user entry if no admin edit exists
+    USER_ENTRY((user, admin) -> user != null && admin == null,
             (user, admin) -> user),
 
     // Default case - prefer admin entry if it exists, otherwise keep user entry
@@ -95,26 +91,25 @@ public enum WorktimeMergeRule {
     }
 
     public static WorkTimeTable apply(WorkTimeTable user, WorkTimeTable admin) {
-        // Debug logging
-        LoggerUtil.debug(WorktimeMergeRule.class, "Merge Rule Apply - User: " +
-                (user != null ? user.getAdminSync() + ", TimeOffType: " + user.getTimeOffType() : "null"));
-        LoggerUtil.debug(WorktimeMergeRule.class, "Merge Rule Apply - Admin: " +
-                (admin != null ? admin.getAdminSync() + ", TimeOffType: " + admin.getTimeOffType() : "null"));
+        LoggerUtil.debug(WorktimeMergeRule.class,
+                String.format("Merging - User: %s, Admin: %s",
+                        user != null ? user.getAdminSync() : "null",
+                        admin != null ? admin.getAdminSync() : "null"));
 
-        // If admin explicitly sets an entry to ADMIN_BLANK, always remove it
-        if (admin != null && SyncStatus.ADMIN_BLANK.equals(admin.getAdminSync())) {
-            return null; // Completely remove the entry
+        // If both entries are null, return null
+        if (user == null && admin == null) {
+            return null;
         }
 
-        // Special case for handling new entries over ADMIN_BLANK
-        if (admin != null && SyncStatus.ADMIN_BLANK.equals(admin.getAdminSync()) &&
-                user != null && user.getTimeOffType() != null &&
-                !SyncStatus.USER_EDITED.equals(user.getAdminSync())) {
-            user.setAdminSync(SyncStatus.USER_EDITED);
+        // Handle new user entries
+        if (admin == null && user != null) {
+            if (!SyncStatus.USER_IN_PROCESS.equals(user.getAdminSync())) {
+                user.setAdminSync(SyncStatus.USER_INPUT);
+            }
             return user;
         }
 
-        // Use the existing rule-based approach
+        // Use existing rule-based approach for other cases
         return Arrays.stream(values())
                 .filter(rule -> rule.condition.test(user, admin))
                 .findFirst()

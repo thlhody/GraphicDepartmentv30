@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -31,42 +32,38 @@ public class UserRegisterService {
         Path userRegisterPath = dataAccess.getUserRegisterPath(username, userId, year, month);
         List<RegisterEntry> userEntries = dataAccess.readFile(userRegisterPath, REGISTER_LIST_TYPE, true);
 
-        // Then check admin entries and update statuses
+        // Check if admin file exists - don't create it if missing
         Path adminRegisterPath = dataAccess.getAdminRegisterPath(username, userId, year, month);
-        List<RegisterEntry> adminEntries = dataAccess.readFile(adminRegisterPath, REGISTER_LIST_TYPE, true);
+        List<RegisterEntry> adminEntries = Collections.emptyList();
 
-        // Create map of admin entries for quick lookup
+        if (Files.exists(adminRegisterPath)) {
+            adminEntries = dataAccess.readFile(adminRegisterPath, REGISTER_LIST_TYPE, false);
+        }
+
+        // Create map for admin entries lookup
         Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream()
-                .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry, (e1, e2) -> e1));
+                .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
 
-        // Update user entries based on admin status
+        // Update user entries based on admin entries
         List<RegisterEntry> updatedEntries = userEntries.stream()
                 .map(userEntry -> {
                     RegisterEntry adminEntry = adminEntriesMap.get(userEntry.getEntryId());
-                    if (adminEntry != null) {
-                        if (adminEntry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name())) {
-                            // If admin edited, use admin version
-                            adminEntry.setAdminSync(SyncStatus.USER_DONE.name());
-                            return adminEntry;
-                        } else if (adminEntry.getAdminSync().equals(SyncStatus.USER_DONE.name())) {
-                            // If admin marked as done, update user status
-                            userEntry.setAdminSync(SyncStatus.USER_DONE.name());
-                        }
+                    if (adminEntry != null && adminEntry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name())) {
+                        adminEntry.setAdminSync(SyncStatus.USER_DONE.name());
+                        return adminEntry;
                     }
                     return userEntry;
                 })
                 .collect(Collectors.toList());
 
-        // Save updated entries back to user file
+        // Save updated entries to user file
         dataAccess.writeFile(userRegisterPath, updatedEntries);
 
         return updatedEntries.stream()
                 .filter(entry -> entry.getUserId().equals(userId))
-                .sorted(Comparator.comparing(RegisterEntry::getDate).reversed()
-                        .thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()))
+                .sorted(Comparator.comparing(RegisterEntry::getDate).reversed())
                 .collect(Collectors.toList());
     }
-
     // Save a new entry or update existing one
     public void saveEntry(String username, Integer userId, RegisterEntry entry) {
         // Validate entry
