@@ -4344,3 +4344,268 @@ To: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json
 2025-01-31 15:23:34,042 WARN o.s.b.f.s.DisposableBeanAdapter [SpringApplicationShutdownHook] Invocation of destroy method failed on bean with name 'inMemoryDatabaseShutdownExecutor': org.h2.jdbc.JdbcSQLNonTransientConnectionException: Database is already closed (to disable automatic closing at VM shutdown, add ";DB_CLOSE_ON_EXIT=FALSE" to the db URL) [90121-224]
 2025-01-31 15:23:34,042 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown initiated...
 2025-01-31 15:23:34,047 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown completed.
+2025-01-31 15:27:13,829 INFO o.h.v.i.u.Version [background-preinit] HV000001: Hibernate Validator 8.0.1.Final
+2025-01-31 15:27:13,891 INFO o.s.b.StartupInfoLogger [restartedMain] Starting Application using Java 17.0.12 with PID 9836 (D:\WorkT\Projects Java\GraphDepG\target\classes started by thlho in D:\WorkT\Projects Java\GraphDepG)
+2025-01-31 15:27:13,891 DEBUG o.s.b.StartupInfoLogger [restartedMain] Running with Spring Boot v3.2.0, Spring v6.1.1
+2025-01-31 15:27:13,891 INFO o.s.b.SpringApplication [restartedMain] No active profile set, falling back to 1 default profile: "default"
+2025-01-31 15:27:14,150 INFO o.s.b.l.DeferredLog [restartedMain] Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-01-31 15:27:14,150 INFO o.s.b.l.DeferredLog [restartedMain] For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2025-01-31 15:27:14,812 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-01-31 15:27:14,835 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Finished Spring Data repository scanning in 19 ms. Found 0 JPA repository interfaces.
+2025-01-31 15:27:15,590 INFO o.s.b.w.e.t.TomcatWebServer [restartedMain] Tomcat initialized with port 8443 (http)
+2025-01-31 15:27:15,604 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing ProtocolHandler ["http-nio-8443"]
+2025-01-31 15:27:15,604 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting service [Tomcat]
+2025-01-31 15:27:15,604 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting Servlet engine: [Apache Tomcat/10.1.16]
+2025-01-31 15:27:15,696 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing Spring embedded WebApplicationContext
+2025-01-31 15:27:15,703 INFO o.s.b.w.s.c.ServletWebServerApplicationContext [restartedMain] Root WebApplicationContext: initialization completed in 1546 ms
+2025-01-31 15:27:15,767 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Starting...
+2025-01-31 15:27:16,065 INFO c.z.h.p.HikariPool [restartedMain] HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:ctgraphdb user=SA
+2025-01-31 15:27:16,072 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Start completed.
+2025-01-31 15:27:16,094 INFO o.s.b.a.h.H2ConsoleAutoConfiguration [restartedMain] H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:ctgraphdb'
+2025-01-31 15:27:16,232 WARN o.a.j.l.DirectJDKLog [restartedMain] Cannot deserialize session attribute [SPRING_SECURITY_CONTEXT] for session [E98BEB28B3319944C0657B2E34E0F616]
+2025-01-31 15:27:16,461 INFO o.h.j.i.u.LogHelper [restartedMain] HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-01-31 15:27:16,646 INFO o.h.Version [restartedMain] HHH000412: Hibernate ORM core version 6.3.1.Final
+2025-01-31 15:27:16,689 INFO o.h.c.i.RegionFactoryInitiator [restartedMain] HHH000026: Second-level cache disabled
+2025-01-31 15:27:16,828 INFO o.s.o.j.p.SpringPersistenceUnitInfo [restartedMain] No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-01-31 15:27:17,083 INFO o.h.e.t.j.p.i.JtaPlatformInitiator [restartedMain] HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-01-31 15:27:17,086 INFO o.s.o.j.AbstractEntityManagerFactoryBean [restartedMain] Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-01-31 15:27:17,100 INFO c.c.u.LoggerUtil [restartedMain] Initializing PathConfig$$SpringCGLIB$$0
+2025-01-31 15:27:17,112 INFO c.c.u.LoggerUtil [restartedMain] Initialized paths - Network: D:\servernetworkgrafubu\CTTT, Installation: D:\serverlocalhome\CTTT
+2025-01-31 15:27:17,114 INFO c.c.u.LoggerUtil [restartedMain] Initialized directory mappings
+2025-01-31 15:27:17,114 INFO c.c.u.LoggerUtil [restartedMain] Determining active path
+2025-01-31 15:27:17,117 DEBUG c.c.u.LoggerUtil [restartedMain] Network path check successful - Path: D:\servernetworkgrafubu\CTTT, Exists: true, IsDir: true
+2025-01-31 15:27:17,117 INFO c.c.u.LoggerUtil [restartedMain] Using network path: D:\servernetworkgrafubu\CTTT
+2025-01-31 15:27:17,143 INFO c.c.u.LoggerUtil [restartedMain] Initializing FileSyncService
+2025-01-31 15:27:17,143 INFO c.c.u.LoggerUtil [restartedMain] Initializing DataAccessService
+2025-01-31 15:27:17,150 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserServiceImpl
+2025-01-31 15:27:17,157 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorkTimeService
+2025-01-31 15:27:17,157 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionPersistenceService
+2025-01-31 15:27:17,183 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSessionService
+2025-01-31 15:27:17,185 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionRecoveryService
+2025-01-31 15:27:17,185 INFO c.c.u.LoggerUtil [restartedMain] Initializing CustomUserDetailsService
+2025-01-31 15:27:17,185 INFO c.c.u.LoggerUtil [restartedMain] Initializing AuthenticationService
+2025-01-31 15:27:17,192 INFO c.c.u.LoggerUtil [restartedMain] Initializing AboutController
+2025-01-31 15:27:17,200 INFO c.c.u.LoggerUtil [restartedMain] Initializing FolderStatusService
+2025-01-31 15:27:17,206 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminBonusService
+2025-01-31 15:27:17,206 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminBonusController
+2025-01-31 15:27:17,213 INFO c.c.u.LoggerUtil [restartedMain] Initializing OnlineMetricsService
+2025-01-31 15:27:17,213 INFO c.c.u.LoggerUtil [restartedMain] Initializing DashboardService
+2025-01-31 15:27:17,220 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_USER: MANAGE_ACCOUNT, MANAGE_USER_REGISTER, REQUEST_TIMEOFF, VIEW_WORKTIME_USER, MANAGE_SESSION, ACCESS_OMS, VIEW_STATUS_USER
+2025-01-31 15:27:17,220 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_ADMIN: MANAGE_HOLIDAYS, MANAGE_USER_REGISTER, REQUEST_TIMEOFF, VIEW_WORKTIME_ADMIN, MANAGE_SETTINGS, MANAGE_SESSION, MANAGE_ADMIN_REGISTER, VIEW_STATUS_ADMIN, MANAGE_ACCOUNT, ACCESS_OMS
+2025-01-31 15:27:17,220 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_TEAM_LEADER: VIEW_STATUS_ADMIN, MANAGE_SESSION, VIEW_WORKTIME_USER
+2025-01-31 15:27:17,220 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminDashboardController
+2025-01-31 15:27:17,230 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminPaidHolidayService
+2025-01-31 15:27:17,233 INFO c.c.u.LoggerUtil [restartedMain] Initializing HolidayHistoryService
+2025-01-31 15:27:17,234 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminHolidayController
+2025-01-31 15:27:17,250 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeManagementService
+2025-01-31 15:27:17,252 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminRegisterService
+2025-01-31 15:27:17,255 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminRegisterController
+2025-01-31 15:27:17,262 INFO c.c.u.LoggerUtil [restartedMain] Initializing HolidayManagementService
+2025-01-31 15:27:17,262 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserManagementService
+2025-01-31 15:27:17,262 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminSettingsController
+2025-01-31 15:27:17,272 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminStatisticsService
+2025-01-31 15:27:17,273 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminStatisticsController
+2025-01-31 15:27:17,276 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeConsolidationService
+2025-01-31 15:27:17,281 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminWorkTimeController
+2025-01-31 15:27:17,281 INFO c.c.u.LoggerUtil [restartedMain] Initializing FolderStatusController
+2025-01-31 15:27:17,283 INFO c.c.u.LoggerUtil [restartedMain] Initializing HomeController
+2025-01-31 15:27:17,284 INFO c.c.u.LoggerUtil [restartedMain] Initializing LoginController
+2025-01-31 15:27:17,284 INFO c.c.u.LoggerUtil [restartedMain] Initializing StatusController
+2025-01-31 15:27:17,284 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserDashboardController
+2025-01-31 15:27:17,291 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRegisterService
+2025-01-31 15:27:17,291 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRegisterController
+2025-01-31 15:27:17,299 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRestController
+2025-01-31 15:27:17,306 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionCalculationService
+2025-01-31 15:27:17,307 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSessionController
+2025-01-31 15:27:17,309 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSettingsController
+2025-01-31 15:27:17,312 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserTimeOffService
+2025-01-31 15:27:17,326 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserTimeOffController
+2025-01-31 15:27:17,333 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorkTimeDisplayService
+2025-01-31 15:27:17,340 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeEntrySyncService
+2025-01-31 15:27:17,340 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorktimeController
+2025-01-31 15:27:17,368 INFO c.c.u.LoggerUtil [restartedMain] Initializing SystemNotificationService
+2025-01-31 15:27:17,368 INFO c.c.u.LoggerUtil [restartedMain] Initializing BackgroundMonitorExecutor
+2025-01-31 15:27:17,368 DEBUG c.c.u.LoggerUtil [restartedMain] Searching for LOCAL session files in: D:\serverlocalhome\CTTT\dbj\user\usersession
+2025-01-31 15:27:17,375 DEBUG c.c.u.LoggerUtil [restartedMain] Checking local file: session_tudor_2.json, Is valid session file: true
+2025-01-31 15:27:17,375 INFO c.c.u.LoggerUtil [restartedMain] Most recent local session file found: session_tudor_2.json
+2025-01-31 15:27:17,375 DEBUG c.c.u.LoggerUtil [restartedMain] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:27:17,375 DEBUG c.c.u.LoggerUtil [restartedMain] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:27:17,474 INFO c.c.u.LoggerUtil [restartedMain] Current logged-in username from local session: tudor
+2025-01-31 15:27:17,474 INFO c.c.u.LoggerUtil [restartedMain] PC Username: thlho
+2025-01-31 15:27:17,474 INFO c.c.u.LoggerUtil [restartedMain] Logged-in App Username: tudor
+2025-01-31 15:27:17,474 DEBUG c.c.u.LoggerUtil [restartedMain] Searching for LOCAL session files in: D:\serverlocalhome\CTTT\dbj\user\usersession
+2025-01-31 15:27:17,474 DEBUG c.c.u.LoggerUtil [restartedMain] Checking local file: session_tudor_2.json, Is valid session file: true
+2025-01-31 15:27:17,474 INFO c.c.u.LoggerUtil [restartedMain] Most recent local session file found: session_tudor_2.json
+2025-01-31 15:27:17,474 DEBUG c.c.u.LoggerUtil [restartedMain] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:27:17,474 DEBUG c.c.u.LoggerUtil [restartedMain] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:27:17,474 INFO c.c.u.LoggerUtil [restartedMain] Current logged-in username from local session: tudor
+2025-01-31 15:27:17,481 DEBUG c.c.u.LoggerUtil [restartedMain] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:27:17,481 DEBUG c.c.u.LoggerUtil [restartedMain] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:27:17,481 INFO c.c.u.LoggerUtil [restartedMain] Total active sessions found: 1
+2025-01-31 15:27:17,483 INFO c.c.u.LoggerUtil [restartedMain] CRITICAL: Preparing to monitor session for MATCHING user: tudor (User ID: 2)
+2025-01-31 15:27:17,485 INFO c.c.u.LoggerUtil [restartedMain] Started monitoring session for user: tudor
+2025-01-31 15:27:17,485 INFO c.c.u.LoggerUtil [restartedMain] Initializing FileLocationStrategy
+2025-01-31 15:27:17,488 INFO c.c.u.LoggerUtil [restartedMain] Initializing SyncStatusManager
+2025-01-31 15:27:17,517 INFO c.c.u.LoggerUtil [restartedMain] Initializing NetworkMonitorService
+2025-01-31 15:27:17,517 INFO c.c.u.LoggerUtil [restartedMain] Network monitoring started
+2025-01-31 15:27:17,517 INFO c.c.u.LoggerUtil [pool-4-thread-1] Path Check: D:\servernetworkgrafubu\CTTT - Exists: true, IsDirectory: true, Readable: true, Writable: true
+2025-01-31 15:27:17,517 INFO c.c.u.LoggerUtil [pool-4-thread-1] Network status changed to: Available
+2025-01-31 15:27:17,517 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionMonitorService
+2025-01-31 15:27:17,580 INFO c.c.u.LoggerUtil [restartedMain] Initializing CustomAuthenticationProvider
+2025-01-31 15:27:18,084 INFO o.s.s.w.DefaultSecurityFilterChain [restartedMain] Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@75d4f7e3, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@5b70e004, org.springframework.security.web.context.SecurityContextHolderFilter@2b963b8a, org.springframework.security.web.header.HeaderWriterFilter@7428668c, org.springframework.web.filter.CorsFilter@6565a186, org.springframework.security.web.authentication.logout.LogoutFilter@42524658, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@6da3b8f1, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@efb1d19, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@6216ddb, org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter@2e7999d, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@65b912c3, org.springframework.security.web.access.ExceptionTranslationFilter@68516bab, org.springframework.security.web.access.intercept.AuthorizationFilter@17b21241]
+2025-01-31 15:27:18,739 INFO o.s.b.d.a.OptionalLiveReloadServer [restartedMain] LiveReload server is running on port 35729
+2025-01-31 15:27:18,774 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting ProtocolHandler ["http-nio-8443"]
+2025-01-31 15:27:18,830 INFO o.s.b.w.e.t.TomcatWebServer [restartedMain] Tomcat started on port 8443 (http) with context path ''
+2025-01-31 15:27:18,844 INFO o.s.b.StartupInfoLogger [restartedMain] Started Application in 5.379 seconds (process running for 5.761)
+2025-01-31 15:27:18,852 INFO c.c.u.LoggerUtil [restartedMain] Headless mode check - GraphicsEnvironment: false, System property: false
+2025-01-31 15:27:20,112 INFO c.c.u.LoggerUtil [AWT-EventQueue-0] System tray icon created successfully
+2025-01-31 15:27:20,112 INFO c.c.u.LoggerUtil [AWT-EventQueue-0] System tray initialized successfully
+2025-01-31 15:28:17,486 INFO c.c.u.LoggerUtil [pool-3-thread-1] Checking session for user: tudor, User ID: 2
+2025-01-31 15:28:17,486 DEBUG c.c.u.LoggerUtil [pool-3-thread-1] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:28:17,486 DEBUG c.c.u.LoggerUtil [pool-3-thread-1] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:28:17,486 DEBUG c.c.u.LoggerUtil [pool-3-thread-1] Reading file: D:\servernetworkgrafubu\CTTT\dbj\login\users.json (filename: users.json)
+2025-01-31 15:28:17,486 DEBUG c.c.u.LoggerUtil [pool-3-thread-1] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\login\users.json, size: 3875 bytes
+2025-01-31 15:28:17,494 INFO c.c.u.LoggerUtil [pool-3-thread-1] Successfully read users from network path
+2025-01-31 15:28:19,542 DEBUG c.c.u.LoggerUtil [AWT-EventQueue-0] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:28:19,542 DEBUG c.c.u.LoggerUtil [AWT-EventQueue-0] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:28:19,542 DEBUG c.c.u.LoggerUtil [AWT-EventQueue-0] Found local session for user tudor
+2025-01-31 15:28:19,542 DEBUG c.c.u.LoggerUtil [AWT-EventQueue-0] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:28:19,542 DEBUG c.c.u.LoggerUtil [AWT-EventQueue-0] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:28:19,547 DEBUG c.c.u.LoggerUtil [AWT-EventQueue-0] Found network session for user tudor
+2025-01-31 15:28:19,548 ERROR c.c.u.LoggerUtil [AWT-EventQueue-0] Error getting session for user tudor: No authenticated user found
+2025-01-31 15:28:21,935 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] Background monitor executor shutdown complete
+2025-01-31 15:28:21,935 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] Network monitoring stopped
+2025-01-31 15:28:21,935 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] Background monitor executor shutdown complete
+2025-01-31 15:28:21,937 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] File sync service scheduler shutdown completed
+2025-01-31 15:28:21,937 INFO o.s.o.j.AbstractEntityManagerFactoryBean [SpringApplicationShutdownHook] Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-01-31 15:28:21,937 WARN o.s.b.f.s.DisposableBeanAdapter [SpringApplicationShutdownHook] Invocation of destroy method failed on bean with name 'inMemoryDatabaseShutdownExecutor': org.h2.jdbc.JdbcSQLNonTransientConnectionException: Database is already closed (to disable automatic closing at VM shutdown, add ";DB_CLOSE_ON_EXIT=FALSE" to the db URL) [90121-224]
+2025-01-31 15:28:21,937 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown initiated...
+2025-01-31 15:28:21,944 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown completed.
+2025-01-31 15:30:18,882 INFO o.h.v.i.u.Version [background-preinit] HV000001: Hibernate Validator 8.0.1.Final
+2025-01-31 15:30:18,960 INFO o.s.b.StartupInfoLogger [restartedMain] Starting Application using Java 17.0.12 with PID 18276 (D:\WorkT\Projects Java\GraphDepG\target\classes started by thlho in D:\WorkT\Projects Java\GraphDepG)
+2025-01-31 15:30:18,960 DEBUG o.s.b.StartupInfoLogger [restartedMain] Running with Spring Boot v3.2.0, Spring v6.1.1
+2025-01-31 15:30:18,963 INFO o.s.b.SpringApplication [restartedMain] No active profile set, falling back to 1 default profile: "default"
+2025-01-31 15:30:19,213 INFO o.s.b.l.DeferredLog [restartedMain] Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-01-31 15:30:19,213 INFO o.s.b.l.DeferredLog [restartedMain] For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2025-01-31 15:30:19,975 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-01-31 15:30:19,991 INFO o.s.d.r.c.RepositoryConfigurationDelegate [restartedMain] Finished Spring Data repository scanning in 18 ms. Found 0 JPA repository interfaces.
+2025-01-31 15:30:20,765 INFO o.s.b.w.e.t.TomcatWebServer [restartedMain] Tomcat initialized with port 8443 (http)
+2025-01-31 15:30:20,781 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing ProtocolHandler ["http-nio-8443"]
+2025-01-31 15:30:20,793 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting service [Tomcat]
+2025-01-31 15:30:20,793 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting Servlet engine: [Apache Tomcat/10.1.16]
+2025-01-31 15:30:20,876 INFO o.a.j.l.DirectJDKLog [restartedMain] Initializing Spring embedded WebApplicationContext
+2025-01-31 15:30:20,876 INFO o.s.b.w.s.c.ServletWebServerApplicationContext [restartedMain] Root WebApplicationContext: initialization completed in 1663 ms
+2025-01-31 15:30:20,938 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Starting...
+2025-01-31 15:30:21,253 INFO c.z.h.p.HikariPool [restartedMain] HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:ctgraphdb user=SA
+2025-01-31 15:30:21,253 INFO c.z.h.HikariDataSource [restartedMain] HikariPool-1 - Start completed.
+2025-01-31 15:30:21,280 INFO o.s.b.a.h.H2ConsoleAutoConfiguration [restartedMain] H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:ctgraphdb'
+2025-01-31 15:30:21,612 INFO o.h.j.i.u.LogHelper [restartedMain] HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-01-31 15:30:21,830 INFO o.h.Version [restartedMain] HHH000412: Hibernate ORM core version 6.3.1.Final
+2025-01-31 15:30:21,904 INFO o.h.c.i.RegionFactoryInitiator [restartedMain] HHH000026: Second-level cache disabled
+2025-01-31 15:30:22,125 INFO o.s.o.j.p.SpringPersistenceUnitInfo [restartedMain] No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-01-31 15:30:22,377 INFO o.h.e.t.j.p.i.JtaPlatformInitiator [restartedMain] HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-01-31 15:30:22,377 INFO o.s.o.j.AbstractEntityManagerFactoryBean [restartedMain] Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-01-31 15:30:22,392 INFO c.c.u.LoggerUtil [restartedMain] Initializing PathConfig$$SpringCGLIB$$0
+2025-01-31 15:30:22,408 INFO c.c.u.LoggerUtil [restartedMain] Initialized paths - Network: D:\servernetworkgrafubu\CTTT, Installation: D:\serverlocalhome\CTTT
+2025-01-31 15:30:22,408 INFO c.c.u.LoggerUtil [restartedMain] Initialized directory mappings
+2025-01-31 15:30:22,408 INFO c.c.u.LoggerUtil [restartedMain] Determining active path
+2025-01-31 15:30:22,408 DEBUG c.c.u.LoggerUtil [restartedMain] Network path check successful - Path: D:\servernetworkgrafubu\CTTT, Exists: true, IsDir: true
+2025-01-31 15:30:22,408 INFO c.c.u.LoggerUtil [restartedMain] Using network path: D:\servernetworkgrafubu\CTTT
+2025-01-31 15:30:22,439 INFO c.c.u.LoggerUtil [restartedMain] Initializing FileSyncService
+2025-01-31 15:30:22,439 INFO c.c.u.LoggerUtil [restartedMain] Initializing DataAccessService
+2025-01-31 15:30:22,439 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserServiceImpl
+2025-01-31 15:30:22,456 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorkTimeService
+2025-01-31 15:30:22,456 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionPersistenceService
+2025-01-31 15:30:22,471 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSessionService
+2025-01-31 15:30:22,471 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionRecoveryService
+2025-01-31 15:30:22,471 INFO c.c.u.LoggerUtil [restartedMain] Initializing CustomUserDetailsService
+2025-01-31 15:30:22,471 INFO c.c.u.LoggerUtil [restartedMain] Initializing AuthenticationService
+2025-01-31 15:30:22,486 INFO c.c.u.LoggerUtil [restartedMain] Initializing AboutController
+2025-01-31 15:30:22,486 INFO c.c.u.LoggerUtil [restartedMain] Initializing FolderStatusService
+2025-01-31 15:30:22,486 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminBonusService
+2025-01-31 15:30:22,486 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminBonusController
+2025-01-31 15:30:22,502 INFO c.c.u.LoggerUtil [restartedMain] Initializing OnlineMetricsService
+2025-01-31 15:30:22,502 INFO c.c.u.LoggerUtil [restartedMain] Initializing DashboardService
+2025-01-31 15:30:22,502 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_USER: REQUEST_TIMEOFF, MANAGE_USER_REGISTER, MANAGE_ACCOUNT, VIEW_STATUS_USER, ACCESS_OMS, MANAGE_SESSION, VIEW_WORKTIME_USER
+2025-01-31 15:30:22,502 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_ADMIN: MANAGE_ACCOUNT, VIEW_STATUS_ADMIN, MANAGE_ADMIN_REGISTER, MANAGE_SESSION, MANAGE_SETTINGS, VIEW_WORKTIME_ADMIN, REQUEST_TIMEOFF, MANAGE_USER_REGISTER, MANAGE_HOLIDAYS, ACCESS_OMS
+2025-01-31 15:30:22,502 INFO c.c.u.LoggerUtil [restartedMain] Added permissions for role ROLE_TEAM_LEADER: MANAGE_SESSION, VIEW_STATUS_ADMIN, VIEW_WORKTIME_USER
+2025-01-31 15:30:22,502 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminDashboardController
+2025-01-31 15:30:22,518 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminPaidHolidayService
+2025-01-31 15:30:22,518 INFO c.c.u.LoggerUtil [restartedMain] Initializing HolidayHistoryService
+2025-01-31 15:30:22,518 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminHolidayController
+2025-01-31 15:30:22,531 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeManagementService
+2025-01-31 15:30:22,531 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminRegisterService
+2025-01-31 15:30:22,540 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminRegisterController
+2025-01-31 15:30:22,543 INFO c.c.u.LoggerUtil [restartedMain] Initializing HolidayManagementService
+2025-01-31 15:30:22,543 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserManagementService
+2025-01-31 15:30:22,547 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminSettingsController
+2025-01-31 15:30:22,549 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminStatisticsService
+2025-01-31 15:30:22,549 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminStatisticsController
+2025-01-31 15:30:22,549 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeConsolidationService
+2025-01-31 15:30:22,549 INFO c.c.u.LoggerUtil [restartedMain] Initializing AdminWorkTimeController
+2025-01-31 15:30:22,549 INFO c.c.u.LoggerUtil [restartedMain] Initializing FolderStatusController
+2025-01-31 15:30:22,549 INFO c.c.u.LoggerUtil [restartedMain] Initializing HomeController
+2025-01-31 15:30:22,565 INFO c.c.u.LoggerUtil [restartedMain] Initializing LoginController
+2025-01-31 15:30:22,566 INFO c.c.u.LoggerUtil [restartedMain] Initializing StatusController
+2025-01-31 15:30:22,566 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserDashboardController
+2025-01-31 15:30:22,566 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRegisterService
+2025-01-31 15:30:22,566 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRegisterController
+2025-01-31 15:30:22,566 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserRestController
+2025-01-31 15:30:22,581 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionCalculationService
+2025-01-31 15:30:22,581 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSessionController
+2025-01-31 15:30:22,581 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserSettingsController
+2025-01-31 15:30:22,581 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserTimeOffService
+2025-01-31 15:30:22,597 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserTimeOffController
+2025-01-31 15:30:22,597 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorkTimeDisplayService
+2025-01-31 15:30:22,597 INFO c.c.u.LoggerUtil [restartedMain] Initializing WorkTimeEntrySyncService
+2025-01-31 15:30:22,597 INFO c.c.u.LoggerUtil [restartedMain] Initializing UserWorktimeController
+2025-01-31 15:30:22,631 INFO c.c.u.LoggerUtil [restartedMain] Initializing SystemNotificationService
+2025-01-31 15:30:22,644 INFO c.c.u.LoggerUtil [restartedMain] Initializing BackgroundMonitorExecutor
+2025-01-31 15:30:22,646 DEBUG c.c.u.LoggerUtil [restartedMain] Searching for LOCAL session files in: D:\serverlocalhome\CTTT\dbj\user\usersession
+2025-01-31 15:30:22,646 DEBUG c.c.u.LoggerUtil [restartedMain] Checking local file: session_tudor_2.json, Is valid session file: true
+2025-01-31 15:30:22,646 INFO c.c.u.LoggerUtil [restartedMain] Most recent local session file found: session_tudor_2.json
+2025-01-31 15:30:22,646 DEBUG c.c.u.LoggerUtil [restartedMain] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:30:22,646 DEBUG c.c.u.LoggerUtil [restartedMain] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:30:22,738 INFO c.c.u.LoggerUtil [restartedMain] Current logged-in username from local session: tudor
+2025-01-31 15:30:22,738 INFO c.c.u.LoggerUtil [restartedMain] PC Username: thlho
+2025-01-31 15:30:22,738 INFO c.c.u.LoggerUtil [restartedMain] Logged-in App Username: tudor
+2025-01-31 15:30:22,738 DEBUG c.c.u.LoggerUtil [restartedMain] Searching for LOCAL session files in: D:\serverlocalhome\CTTT\dbj\user\usersession
+2025-01-31 15:30:22,738 DEBUG c.c.u.LoggerUtil [restartedMain] Checking local file: session_tudor_2.json, Is valid session file: true
+2025-01-31 15:30:22,738 INFO c.c.u.LoggerUtil [restartedMain] Most recent local session file found: session_tudor_2.json
+2025-01-31 15:30:22,738 DEBUG c.c.u.LoggerUtil [restartedMain] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:30:22,738 DEBUG c.c.u.LoggerUtil [restartedMain] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:30:22,738 INFO c.c.u.LoggerUtil [restartedMain] Current logged-in username from local session: tudor
+2025-01-31 15:30:22,754 DEBUG c.c.u.LoggerUtil [restartedMain] Reading file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json (filename: session_tudor_2.json)
+2025-01-31 15:30:22,754 DEBUG c.c.u.LoggerUtil [restartedMain] Reading existing file: D:\servernetworkgrafubu\CTTT\dbj\user\usersession\session_tudor_2.json, size: 515 bytes
+2025-01-31 15:30:22,754 INFO c.c.u.LoggerUtil [restartedMain] Total active sessions found: 1
+2025-01-31 15:30:22,754 INFO c.c.u.LoggerUtil [restartedMain] CRITICAL: Preparing to monitor session for MATCHING user: tudor (User ID: 2)
+2025-01-31 15:30:22,754 INFO c.c.u.LoggerUtil [restartedMain] Started monitoring session for user: tudor
+2025-01-31 15:30:22,754 INFO c.c.u.LoggerUtil [restartedMain] Initializing FileLocationStrategy
+2025-01-31 15:30:22,754 INFO c.c.u.LoggerUtil [restartedMain] Initializing SyncStatusManager
+2025-01-31 15:30:22,770 INFO c.c.u.LoggerUtil [restartedMain] Initializing NetworkMonitorService
+2025-01-31 15:30:22,770 INFO c.c.u.LoggerUtil [restartedMain] Network monitoring started
+2025-01-31 15:30:22,786 INFO c.c.u.LoggerUtil [pool-4-thread-1] Path Check: D:\servernetworkgrafubu\CTTT - Exists: true, IsDirectory: true, Readable: true, Writable: true
+2025-01-31 15:30:22,786 INFO c.c.u.LoggerUtil [pool-4-thread-1] Network status changed to: Available
+2025-01-31 15:30:22,786 INFO c.c.u.LoggerUtil [restartedMain] Initializing SessionMonitorService
+2025-01-31 15:30:22,849 INFO c.c.u.LoggerUtil [restartedMain] Initializing CustomAuthenticationProvider
+2025-01-31 15:30:23,351 INFO o.s.s.w.DefaultSecurityFilterChain [restartedMain] Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@6377f2a, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@6aaabd8e, org.springframework.security.web.context.SecurityContextHolderFilter@4396650a, org.springframework.security.web.header.HeaderWriterFilter@7df55a3, org.springframework.web.filter.CorsFilter@3dcb8fe7, org.springframework.security.web.authentication.logout.LogoutFilter@b16c2d2, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@3e30a372, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@24087e63, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@486c99f5, org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter@2ebf3125, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@ba7cff2, org.springframework.security.web.access.ExceptionTranslationFilter@14044d46, org.springframework.security.web.access.intercept.AuthorizationFilter@572fcf76]
+2025-01-31 15:30:24,106 INFO o.s.b.d.a.OptionalLiveReloadServer [restartedMain] LiveReload server is running on port 35729
+2025-01-31 15:30:24,137 INFO o.a.j.l.DirectJDKLog [restartedMain] Starting ProtocolHandler ["http-nio-8443"]
+2025-01-31 15:30:24,168 INFO o.s.b.w.e.t.TomcatWebServer [restartedMain] Tomcat started on port 8443 (http) with context path ''
+2025-01-31 15:30:24,185 INFO o.s.b.StartupInfoLogger [restartedMain] Started Application in 5.664 seconds (process running for 6.062)
+2025-01-31 15:30:24,200 INFO c.c.u.LoggerUtil [restartedMain] Headless mode check - GraphicsEnvironment: false, System property: false
+2025-01-31 15:30:25,485 INFO c.c.u.LoggerUtil [AWT-EventQueue-0] System tray icon created successfully
+2025-01-31 15:30:25,485 INFO c.c.u.LoggerUtil [AWT-EventQueue-0] System tray initialized successfully
+2025-01-31 15:30:38,203 INFO o.a.j.l.DirectJDKLog [http-nio-8443-exec-1] Initializing Spring DispatcherServlet 'dispatcherServlet'
+2025-01-31 15:30:38,203 INFO o.s.w.s.FrameworkServlet [http-nio-8443-exec-1] Initializing Servlet 'dispatcherServlet'
+2025-01-31 15:30:38,205 INFO o.s.w.s.FrameworkServlet [http-nio-8443-exec-1] Completed initialization in 2 ms
+2025-01-31 15:30:38,207 WARN o.s.w.s.h.HandlerMappingIntrospector$CacheResultLogHelper [http-nio-8443-exec-1] Cache miss for REQUEST dispatch to '/user/session' (previous null). Performing CorsConfiguration lookup. This is logged once only at WARN level, and every time at TRACE.
+2025-01-31 15:30:38,213 WARN o.s.w.s.h.HandlerMappingIntrospector$CacheResultLogHelper [http-nio-8443-exec-1] Cache miss for REQUEST dispatch to '/user/session' (previous null). Performing MatchableHandlerMapping lookup. This is logged once only at WARN level, and every time at TRACE.
+2025-01-31 15:31:18,645 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] Background monitor executor shutdown complete
+2025-01-31 15:31:18,646 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] Network monitoring stopped
+2025-01-31 15:31:18,646 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] Background monitor executor shutdown complete
+2025-01-31 15:31:18,647 INFO c.c.u.LoggerUtil [SpringApplicationShutdownHook] File sync service scheduler shutdown completed
+2025-01-31 15:31:18,648 INFO o.s.o.j.AbstractEntityManagerFactoryBean [SpringApplicationShutdownHook] Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-01-31 15:31:18,652 WARN o.s.b.f.s.DisposableBeanAdapter [SpringApplicationShutdownHook] Invocation of destroy method failed on bean with name 'inMemoryDatabaseShutdownExecutor': org.h2.jdbc.JdbcSQLNonTransientConnectionException: Database is already closed (to disable automatic closing at VM shutdown, add ";DB_CLOSE_ON_EXIT=FALSE" to the db URL) [90121-224]
+2025-01-31 15:31:18,652 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown initiated...
+2025-01-31 15:31:18,652 INFO c.z.h.HikariDataSource [SpringApplicationShutdownHook] HikariPool-1 - Shutdown completed.

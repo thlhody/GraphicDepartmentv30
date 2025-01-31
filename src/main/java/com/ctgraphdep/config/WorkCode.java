@@ -42,12 +42,12 @@ public class WorkCode {
 
     private static final Integer five_minutes = 5 * 60 * 1000;
     private static final Integer ten_minutes = 10 * 60 * 1000;
+    private static final Integer one_minute = 60 * 1000;
 
-    public static final Integer ON_FOR_FIVE_MINUTES = five_minutes; // Auto-timer set for 5 minutes (WorkCode.CHECK_EVERY_FIVE_MINUTES)
-    public static final Integer ON_FOR_TEN_MINUTES = ten_minutes; // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
+    public static final Integer ON_FOR_FIVE_MINUTES = one_minute; // Auto-timer set for 5 minutes (WorkCode.CHECK_EVERY_FIVE_MINUTES)
+    public static final Integer ON_FOR_TEN_MINUTES = one_minute; // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
     public static final Integer CHECK_INTERVAL = 2; // checks every 30 minutes in order to see if the end time is reached
     public static final Integer HOURLY_CHECK_INTERVAL = 2; // hourly checks
-
 
     public static final Integer MAX_TEMP_STOP_HOURS = 15; // 24 - MAX_WORK_HOURS
     public static final Integer TEMP_STOP_WARNING_INTERVAL = 60; // Minutes between warnings
