@@ -13,8 +13,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -47,6 +45,11 @@ public class UserSessionService {
         this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
         LoggerUtil.initialize(this.getClass(), null);
+    }
+
+    @EventListener
+    public void handleSessionEndEvent(SessionEndEvent event) {
+        endDay(event.getUsername(), event.getUserId(), event.getFinalMinutes());
     }
 
     public WorkUsersSessionsStates getCurrentSession(String username, Integer userId) {
@@ -84,94 +87,56 @@ public class UserSessionService {
     }
 
     private WorkUsersSessionsStates resolveSession(String username, Integer userId) {
-        // Get local and network paths using DataAccessService
-        Path localPath = dataAccess.getSessionPath(username, userId);
-        Path networkPath = dataAccess.getSessionPath(username, userId);  // This will use the correct format
-
+        // Get local path first
+        Path localPath = dataAccess.getLocalSessionPath(username, userId);
         WorkUsersSessionsStates localSession = null;
-        WorkUsersSessionsStates networkSession = null;
 
-        // Try to read local session
+        // Try to read local session first
         if (dataAccess.fileExists(localPath)) {
             try {
                 localSession = dataAccess.readFile(localPath, SESSION_TYPE, false);
                 LoggerUtil.debug(this.getClass(),
                         String.format("Found local session for user %s", username));
+
+                // If local exists, use it and sync to network if needed
+                if (localSession != null && pathConfig.isNetworkAvailable()) {
+                    dataAccess.writeFile(pathConfig.getSessionFilePath(username, userId), localSession);
+                }
+                return localSession;
             } catch (Exception e) {
                 LoggerUtil.warn(this.getClass(),
                         String.format("Could not read local session for user %s: %s", username, e.getMessage()));
             }
         }
 
-        // Try to read network session
-        if (dataAccess.fileExists(networkPath)) {
+        // If no local session, try network as fallback for initialization only
+        if (pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getSessionFilePath(username, userId);
             try {
-                networkSession = dataAccess.readFile(networkPath, SESSION_TYPE, false);
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Found network session for user %s", username));
+                if (dataAccess.fileExists(networkPath)) {
+                    WorkUsersSessionsStates networkSession = dataAccess.readFile(networkPath, SESSION_TYPE, false);
+                    if (networkSession != null) {
+                        // Copy network session to local for future use
+                        dataAccess.writeFile(localPath, networkSession);
+                        LoggerUtil.info(this.getClass(),
+                                String.format("Initialized local session from network for user %s", username));
+                        return networkSession;
+                    }
+                }
             } catch (Exception e) {
                 LoggerUtil.warn(this.getClass(),
                         String.format("Could not read network session for user %s: %s", username, e.getMessage()));
             }
         }
 
-        // Resolve which session to use
-        WorkUsersSessionsStates session = resolveSessionConflict(
-                localPath, networkPath, localSession, networkSession, username);
-
         // If no session exists, create new one
-        if (session == null) {
-            session = initializeSession(username, userId, LocalDateTime.now());
-            session.setSessionStatus(WorkCode.WORK_OFFLINE);
-            saveSession(username, session);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Created new offline session for user %s", username));
-        }
+        WorkUsersSessionsStates newSession = initializeSession(username, userId, LocalDateTime.now());
+        newSession.setSessionStatus(WorkCode.WORK_OFFLINE);
+        saveSession(username, newSession);
+        LoggerUtil.info(this.getClass(),
+                String.format("Created new offline session for user %s", username));
 
-        return session;
-    }
-
-    private WorkUsersSessionsStates resolveSessionConflict(
-            Path localPath,
-            Path networkPath,
-            WorkUsersSessionsStates localSession,
-            WorkUsersSessionsStates networkSession,
-            String username) {
-
-        WorkUsersSessionsStates resolvedSession = null;
-
-        if (localSession != null && networkSession != null) {
-            // Both exist - use newer one
-            if (dataAccess.isFileNewer(networkPath, localPath)) {
-                resolvedSession = networkSession;
-                // Update local with network version
-                dataAccess.writeFile(localPath, networkSession);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Using newer network session for user %s", username));
-            } else {
-                resolvedSession = localSession;
-                // Update network with local version
-                dataAccess.writeFile(networkPath, localSession);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Using newer local session for user %s", username));
-            }
-        } else if (localSession != null) {
-            resolvedSession = localSession;
-            // Copy to network if possible
-            if (dataAccess.fileExists(networkPath.getParent())) {
-                dataAccess.writeFile(networkPath, localSession);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Copied local session to network for user %s", username));
-            }
-        } else if (networkSession != null) {
-            resolvedSession = networkSession;
-            // Copy to local
-            dataAccess.writeFile(localPath, networkSession);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Copied network session to local for user %s", username));
-        }
-
-        return resolvedSession;
+        return newSession;
     }
 
     private WorkUsersSessionsStates initializeSession(String username, Integer userId, LocalDateTime startTime) {
@@ -195,8 +160,7 @@ public class UserSessionService {
     }
 
     private void saveSession(String username, WorkUsersSessionsStates session) {
-        Path sessionPath = pathConfig.getSessionFilePath(username, session.getUserId());
-        dataAccess.writeFile(sessionPath, session);
+        dataAccess.writeLocalSessionFile(session);
         userSessions.put(username, session);
     }
 
@@ -212,7 +176,6 @@ public class UserSessionService {
         entry.setTotalTemporaryStopMinutes(0);
         entry.setLunchBreakDeducted(false);
         entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
-
         userWorkTimeService.saveWorkTimeEntry(username, entry, today.getYear(), today.getMonthValue());
     }
 
@@ -224,7 +187,6 @@ public class UserSessionService {
                 LocalDateTime now = LocalDateTime.now();
                 updateSessionForTemporaryStop(session, now);
                 saveSession(username, session);
-
                 LoggerUtil.info(this.getClass(), String.format("Started temporary stop for user %s", username));
             }
             return null;
@@ -266,7 +228,29 @@ public class UserSessionService {
         session.setLastActivity(now);
     }
 
-    // Add this method to UserSessionService
+    public void startDay(String username, Integer userId) {
+        executeWithLock(() -> {
+            // Clear any existing session
+            userSessions.remove(username);
+            activeSessions.remove(userId);
+
+            // Create fresh session
+            LocalDateTime startTime = LocalDateTime.now().minusMinutes(WorkCode.BUFFER_MINUTES);
+            WorkUsersSessionsStates newSession = initializeSession(username, userId, startTime);
+            saveSession(username, newSession);
+            createWorktimeEntry(username, userId, newSession);
+
+            // Start monitoring this session
+            sessionMonitorService.startMonitoring(newSession);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Started new session for user %s (start time set to %s)",
+                            username, startTime));
+
+            return newSession;
+        });
+    }
+
     public void resumeSession(WorkUsersSessionsStates session) {
         executeWithLock(() -> {
             if (session != null && (
@@ -291,81 +275,74 @@ public class UserSessionService {
             return null;
         });
     }
-
-    @EventListener
-    public void handleSessionEndEvent(SessionEndEvent event) {
-        endDay(event.getUsername(), event.getUserId(), event.getFinalMinutes());
-    }
-
-    @SuppressWarnings("unused")
+    //end day
     public void endDay(String username, Integer userId, Integer finalMinutes) {
         executeWithLock(() -> {
-            WorkUsersSessionsStates session = getCurrentSession(username, userId);
-            if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-                // Stop monitoring this session
-                sessionMonitorService.stopMonitoring(username, userId);
-
-                // Update session state
-                session.setSessionStatus(WorkCode.WORK_OFFLINE);
-                session.setDayEndTime(LocalDateTime.now());
-                session.setFinalWorkedMinutes(finalMinutes);
-                session.setWorkdayCompleted(true);
-                session.setLastActivity(LocalDateTime.now());
-
-                // Update worktime entry
-                updateWorktimeEntry(username, session);
-
-                // Save final state
-                String sessionPath = pathConfig.getSessionFilePath(username, userId).toString();
-                persistenceService.persistSession(session, sessionPath);
-
-                // Clear session
-                userSessions.remove(username);
-                activeSessions.remove(userId);
-
-                LoggerUtil.info(this.getClass(),
-                        String.format("Ended session for user %s with %d minutes",
-                                username, finalMinutes));
+            try {
+                WorkUsersSessionsStates session = loadAndValidateSession(username, userId);
+                if (session != null) {
+                    processSessionEnd(session, finalMinutes);
+                    updateWorkTimeAndPersist(session);
+                    cleanupSession(username, userId);
+                    logSessionEnd(username, finalMinutes);
+                }
+            } catch (Exception e) {
+                handleEndDayError(username, e);
             }
             return null;
         });
     }
 
-    public void startDay(String username, Integer userId) {
-        executeWithLock(() -> {
-            // Clear any existing session
-            userSessions.remove(username);
-            activeSessions.remove(userId);
-
-            // Create fresh session
-            LocalDateTime startTime = LocalDateTime.now().minusMinutes(WorkCode.BUFFER_MINUTES);
-            WorkUsersSessionsStates newSession = initializeSession(username, userId, startTime);
-            saveSession(username, newSession);
-            createWorktimeEntry(username, userId, newSession);
-
-            // Start monitoring this session
-            sessionMonitorService.startMonitoring(newSession);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Started new session for user %s (start time set to %s)",
-                            username, startTime));
-
-            return newSession;
-        });
+    private WorkUsersSessionsStates loadAndValidateSession(String username, Integer userId) {
+        WorkUsersSessionsStates session = dataAccess.readLocalSessionFile(username, userId);
+        if (session == null || !WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
+            LoggerUtil.warn(this.getClass(),
+                    String.format("No active session found for user %s", username));
+            return null;
+        }
+        return session;
     }
+
+    private void processSessionEnd(WorkUsersSessionsStates session, Integer finalMinutes) {
+        LocalDateTime now = LocalDateTime.now();
+        session.setSessionStatus(WorkCode.WORK_OFFLINE);
+        session.setDayEndTime(now);
+        session.setFinalWorkedMinutes(finalMinutes);
+        session.setWorkdayCompleted(true);
+        session.setLastActivity(now);
+    }
+
+    private void updateWorkTimeAndPersist(WorkUsersSessionsStates session) {
+        updateWorktimeEntry(session.getUsername(), session);
+        dataAccess.writeLocalSessionFile(session);
+        sessionMonitorService.stopMonitoring(session.getUsername(), session.getUserId());
+    }
+
+    private void cleanupSession(String username, Integer userId) {
+        userSessions.remove(username);
+        activeSessions.remove(userId);
+    }
+
+    private void logSessionEnd(String username, Integer finalMinutes) {
+        LoggerUtil.info(this.getClass(),
+                String.format("Successfully ended session for user %s with %d minutes",
+                        username, finalMinutes));
+    }
+
+    private void handleEndDayError(String username, Exception e) {
+        LoggerUtil.error(this.getClass(),
+                String.format("Failed to end session for user %s: %s",
+                        username, e.getMessage()));
+        throw new RuntimeException("Failed to end session", e);
+    }
+    //end day.
 
     private void updateWorktimeEntry(String username, WorkUsersSessionsStates session) {
         LocalDateTime now = LocalDateTime.now();
         WorkTimeTable entry = createWorkTimeEntryFromSession(session, now);
         entry.setAdminSync(SyncStatus.USER_INPUT);  // Now set to USER_INPUT when completed
         LocalDate workDate = session.getDayStartTime().toLocalDate();
-        userWorkTimeService.saveWorkTimeEntry(
-                username,
-                entry,
-                workDate.getYear(),
-                workDate.getMonthValue()
-        );
-
+        userWorkTimeService.saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue());
         LoggerUtil.info(this.getClass(), String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
                         username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
     }
@@ -386,8 +363,6 @@ public class UserSessionService {
         return entry;
     }
 
-    // Helper methods to reduce duplication
-
     private <T> T executeWithLock(SessionOperation<T> operation) {
         sessionLock.lock();
         try {
@@ -405,27 +380,6 @@ public class UserSessionService {
 
     private boolean isValidSessionForOperation(WorkUsersSessionsStates session, String expectedStatus) {
         return session != null && expectedStatus.equals(session.getSessionStatus());
-    }
-
-    private boolean isFileNewer(Path file1, Path file2) {
-        try {
-            return Files.getLastModifiedTime(file1).compareTo(
-                    Files.getLastModifiedTime(file2)) > 0;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    private boolean isSessionEligibleUser(Integer userId) {
-        try {
-            return userService.getUserById(userId)
-                    .map(user -> !user.isAdmin())
-                    .orElse(false);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error checking user eligibility for session: %d", userId));
-            return false;
-        }
     }
 
 }

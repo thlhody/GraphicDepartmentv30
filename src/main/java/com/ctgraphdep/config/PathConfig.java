@@ -109,8 +109,8 @@ public class PathConfig {
     );
 
     private static final Set<String> ADMIN_SYNCABLE_PATTERNS = Set.of(
-            "general_worktime_%d_%02d\\.json",
-            "admin_registru_%s_%d_%d_%02d\\.json"
+            "general_worktime_\\d{4}_\\d{2}\\.json",
+            "admin_registru_.*_\\d+_\\d{4}_\\d{2}\\.json"
     );
 
     private static final Set<String> NETWORK_PRIMARY_FILES = Set.of(

@@ -151,10 +151,7 @@ public class UserWorkTimeService {
         }
     }
 
-    private void processMonthEntries(
-            String username,
-            Integer userId,
-            List<WorkTimeTable> newEntries,
+    private void processMonthEntries(String username, Integer userId, List<WorkTimeTable> newEntries,
             int year,
             int month) {
 
@@ -246,7 +243,7 @@ public class UserWorkTimeService {
         lock.writeLock().lock();
         try {
             // Get session file path
-            Path filePath = dataAccess.getUserWorktimePath(username,year, month);
+            Path filePath = dataAccess.getUserWorktimePath(username, year, month);
 
             // Read existing entries
             List<WorkTimeTable> entries = dataAccess.readFile(filePath, WORKTIME_LIST_TYPE, true);
@@ -265,8 +262,8 @@ public class UserWorkTimeService {
                     .comparing(WorkTimeTable::getWorkDate)
                     .thenComparing(WorkTimeTable::getUserId));
 
-            // Save updated entries
-            dataAccess.writeFile(filePath, entries);
+            // Save updated entries using the new method
+            dataAccess.writeLocalWorkTimeEntry(username, entries, year, month);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Saved worktime entry for user %s on %s",
@@ -276,7 +273,6 @@ public class UserWorkTimeService {
             lock.writeLock().unlock();
         }
     }
-
     public boolean isNationalHoliday(LocalDate date) {
         lock.readLock().lock();
         try {

@@ -43,17 +43,12 @@ public class BackgroundMonitorExecutor {
 
     @PostConstruct
     public void initializeExistingSessions() {
-        // Get local PC username from environment/configuration
-        String pcUsername = System.getProperty("user.name");
 
         // ADD THIS: Get the logged-in app username
         String loggedInUsername = getCurrentLoggedInUsername(); // You'll need to implement this method
-
-        LoggerUtil.info(this.getClass(), "PC Username: " + pcUsername);
         LoggerUtil.info(this.getClass(), "Logged-in App Username: " + loggedInUsername);
 
         List<WorkUsersSessionsStates> activeSessions = loadActiveSessions();
-
         LoggerUtil.info(this.getClass(), "Total active sessions found: " + activeSessions.size());
 
         for(WorkUsersSessionsStates session : activeSessions) {
@@ -112,11 +107,7 @@ public class BackgroundMonitorExecutor {
                         "Most recent local session file found: " + mostRecentLocalSessionFile.getFileName());
 
                 // Read the session file ONLY from local path
-                WorkUsersSessionsStates session = dataAccess.readFile(
-                        mostRecentLocalSessionFile,
-                        new TypeReference<WorkUsersSessionsStates>() {},
-                        false
-                );
+                WorkUsersSessionsStates session = dataAccess.readFile(mostRecentLocalSessionFile, new TypeReference<WorkUsersSessionsStates>() {}, false);
 
                 // Validate the session and extract username
                 if (session != null && session.getUsername() != null) {
@@ -172,9 +163,6 @@ public class BackgroundMonitorExecutor {
 
     private List<WorkUsersSessionsStates> loadActiveSessions() {
         try {
-            // Get logged-in app username
-            String loggedInUsername = getCurrentLoggedInUsername();
-
             // Get the LOCAL session directory
             Path localSessionPath = dataAccess.getLocalSessionPath("", 0).getParent();
 
@@ -184,8 +172,7 @@ public class BackgroundMonitorExecutor {
 
             // Only look for files matching logged-in username in LOCAL PATH
             return Files.list(localSessionPath)
-                    .filter(path -> path.getFileName().toString().startsWith("session_" + loggedInUsername))
-                    .filter(path -> path.toString().endsWith(WorkCode.JSON_FORMAT))
+
                     .map(this::loadSession)
                     .filter(Objects::nonNull)
                     .filter(session -> WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
