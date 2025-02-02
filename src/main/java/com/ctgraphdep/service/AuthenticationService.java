@@ -102,38 +102,28 @@ public class AuthenticationService {
 
     public void handleSuccessfulLogin(String username, boolean rememberMe) {
         try {
-            // Use the authentication details directly instead of searching again
             Optional<User> userOptional = userService.getUserByUsername(username);
 
             if (userOptional.isEmpty()) {
-                // As a fallback, try local storage
                 userOptional = getUserFromLocalStorage(username);
             }
 
             if (userOptional.isPresent()) {
                 User user = userOptional.get();
 
-                try {
-                    // Create local directories
-                    ensureLocalDirectories(user.isAdmin());
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            "Failed to create local directories: " + e.getMessage() +
-                                    " - continuing with login");
-                }
-
-                // Store user data locally if remember me is enabled
+                // Only create local directories and store user data if rememberMe is true
                 if (rememberMe) {
                     try {
+                        ensureLocalDirectories(user.isAdmin());
                         storeUserDataLocally(user);
                     } catch (Exception e) {
                         LoggerUtil.warn(this.getClass(),
-                                "Failed to store user data locally: " + e.getMessage() +
+                                "Failed to handle local storage: " + e.getMessage() +
                                         " - continuing with login");
                     }
                 }
 
-                // Add session recovery here
+                // Session recovery should still happen regardless of rememberMe
                 if (!user.isAdmin()) {
                     try {
                         sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());

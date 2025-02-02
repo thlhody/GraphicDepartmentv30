@@ -211,6 +211,10 @@ public class DataAccessService {
 
     public <T> void writeFile(Path path, T data) {
         String filename = path.getFileName().toString();
+        if (filename.equals(pathConfig.getLocalUsersFilename())) {
+            writeOperation(path, data, false); // Never sync local users file
+            return;
+        }
         User currentUser = getCurrentUser();
         Path localPath = pathConfig.resolvePathForWrite(filename);
 
