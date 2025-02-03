@@ -14,31 +14,50 @@ import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl implements UserService {
-    private final DataAccessService dataAccess;
+    private final DataAccessService dataAccessService;
     private final PasswordEncoder passwordEncoder;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
 
     @Autowired
-    public UserServiceImpl(DataAccessService dataAccess, PasswordEncoder passwordEncoder) {
-        this.dataAccess = dataAccess;
+    public UserServiceImpl(DataAccessService dataAccessService, PasswordEncoder passwordEncoder) {
+        this.dataAccessService = dataAccessService;
         this.passwordEncoder = passwordEncoder;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Override
     public Optional<User> getUserByUsername(String username) {
-        return dataAccess.findUserByUsername(username);
+        List<User> users = getAllUsers();
+        return users.stream()
+                .filter(user -> user.getUsername() != null &&
+                        user.getUsername().equals(username))
+                .findFirst()
+                .map(this::sanitizeUser);  // For display/general use
+    }
+
+    // New method for getting complete user data including sensitive info
+    public Optional<User> getCompleteUserByUsername(String username) {
+        List<User> users = getAllUsers();
+        return users.stream()
+                .filter(user -> user.getUsername() != null &&
+                        user.getUsername().equals(username))
+                .findFirst();  // Return complete user without sanitization
     }
 
     @Override
     public Optional<User> getUserById(Integer userId) {
-        return dataAccess.findUserById(userId);
+        List<User> users = getAllUsers();
+        return users.stream()
+                .filter(user -> user.getUserId() != null &&
+                        user.getUserId().equals(userId))
+                .findFirst()
+                .map(this::sanitizeUser);
     }
 
     @Override
     public List<User> getAllUsers() {
-        return dataAccess.readUserData();
+        return dataAccessService.readUsersNetwork();
     }
 
     @Override
@@ -69,10 +88,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User saveUser(User user) {
-        List<User> users = dataAccess.readUserData();
+        List<User> users = getAllUsers();
 
         if (user.getUserId() == null) {
             // New user
+            validateNewUser(user, users);
             user.setUserId(generateNextUserId(users));
             encryptPassword(user, null);
             users.add(user);
@@ -80,6 +100,7 @@ public class UserServiceImpl implements UserService {
             // Update existing user
             int index = findUserIndex(users, user.getUserId());
             if (index >= 0) {
+                validateUserUpdate(user, users.get(index), users);
                 User existingUser = users.get(index);
                 encryptPassword(user, existingUser);
                 users.set(index, user);
@@ -88,7 +109,8 @@ public class UserServiceImpl implements UserService {
             }
         }
 
-        dataAccess.saveUserData(users);
+        // Save to network users path
+        saveUsers(users);
         return user;
     }
 
@@ -167,7 +189,7 @@ public class UserServiceImpl implements UserService {
 
     private void saveUsers(List<User> users) {
         try {
-            dataAccess.writeFile(dataAccess.getUsersPath(), users);
+            dataAccessService.writeUsersNetwork(users);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to save users: " + e.getMessage());
             throw new RuntimeException("Failed to save users", e);

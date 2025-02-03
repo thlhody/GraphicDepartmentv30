@@ -9,8 +9,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
@@ -32,6 +30,7 @@ public class UserWorkTimeService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    // Load month worktime - local with network sync
     @PreAuthorize("#username == authentication.name")
     public List<WorkTimeTable> loadMonthWorktime(String username, int year, int month) {
         validatePeriod(year, month);
@@ -39,52 +38,20 @@ public class UserWorkTimeService {
 
         lock.readLock().lock();
         try {
-            // First check admin entries for any edits or blanks
-            List<WorkTimeTable> adminEntries = loadAdminEntries(username, userId, year, month);
-
-            // Load user entries
-            Path userPath = dataAccess.getUserWorktimePath(username, year, month);
-            List<WorkTimeTable> userEntries = loadUserEntries(userPath);
-
-            // Merge entries, giving priority to admin entries and handling ADMIN_BLANK
+            List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
+            List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
             List<WorkTimeTable> mergedEntries = mergeEntries(userEntries, adminEntries);
 
-            // Save if there were any admin changes
             if (!adminEntries.isEmpty()) {
-                saveEntriesWithBackup(username, mergedEntries, year, month);
+                dataAccess.writeUserWorktime(username, mergedEntries, year, month);
             }
 
             return mergedEntries.stream()
                     .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
                     .collect(Collectors.toList());
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading worktime for %s: %s", username, e.getMessage()));
-            return new ArrayList<>();
         } finally {
             lock.readLock().unlock();
         }
-    }
-
-    private List<WorkTimeTable> loadAdminEntries(String username, Integer userId, int year, int month) {
-        Path adminPath = dataAccess.getAdminWorktimePath(year, month);
-        if (!Files.exists(adminPath)) {
-            return new ArrayList<>();
-        }
-
-        return dataAccess.readFile(adminPath, WORKTIME_LIST_TYPE, true).stream()
-                .filter(entry -> entry.getUserId().equals(userId))
-                .filter(entry -> entry.getAdminSync() == SyncStatus.ADMIN_EDITED
-                        || entry.getAdminSync() == SyncStatus.ADMIN_BLANK)
-                .collect(Collectors.toList());
-    }
-
-    private List<WorkTimeTable> loadUserEntries(Path path) {
-        if (!Files.exists(path)) {
-            return new ArrayList<>();
-        }
-        return dataAccess.readFile(path, WORKTIME_LIST_TYPE, true);
     }
 
     private List<WorkTimeTable> mergeEntries(List<WorkTimeTable> userEntries, List<WorkTimeTable> adminEntries) {
@@ -151,21 +118,10 @@ public class UserWorkTimeService {
         }
     }
 
-    private void processMonthEntries(
-            String username,
-            Integer userId,
-            List<WorkTimeTable> newEntries,
-            int year,
-            int month) {
-
-        Path userPath = dataAccess.getUserWorktimePath(username, year, month);
-
-        // Create backup before processing
-        createBackup(userPath);
-
+    // Process month entries - local with network sync
+    private void processMonthEntries(String username, Integer userId, List<WorkTimeTable> newEntries, int year, int month) {
         try {
-            // Load existing entries
-            List<WorkTimeTable> existingEntries = loadUserEntries(userPath);
+            List<WorkTimeTable> existingEntries = loadUserEntries(username, year, month);
 
             // Remove existing entries for these dates
             Set<LocalDate> newDates = newEntries.stream()
@@ -177,67 +133,17 @@ public class UserWorkTimeService {
                             !newDates.contains(entry.getWorkDate()))
                     .collect(Collectors.toList());
 
-            // Add new entries
             remainingEntries.addAll(newEntries);
-
-            // Sort entries
             remainingEntries.sort(Comparator
                     .comparing(WorkTimeTable::getWorkDate)
                     .thenComparing(WorkTimeTable::getUserId));
 
-            // Save updated entries
-            saveEntriesWithBackup(username, remainingEntries, year, month);
+            dataAccess.writeUserWorktime(username, remainingEntries, year, month);
 
         } catch (Exception e) {
-            // Try to restore from backup
-            restoreFromBackup(userPath);
-            throw e;
-        }
-    }
-
-    private void createBackup(Path originalPath) {
-        if (!Files.exists(originalPath)) {
-            return;
-        }
-
-        try {
-            Path backupPath = originalPath.resolveSibling(originalPath.getFileName() + ".bak");
-            Files.copy(originalPath, backupPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            LoggerUtil.info(this.getClass(), "Created backup: " + backupPath);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to create backup: " + e.getMessage());
-        }
-    }
-
-    private void restoreFromBackup(Path originalPath) {
-        Path backupPath = originalPath.resolveSibling(originalPath.getFileName() + ".bak");
-        if (!Files.exists(backupPath)) {
-            return;
-        }
-
-        try {
-            Files.copy(backupPath, originalPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            LoggerUtil.info(this.getClass(), "Restored from backup: " + originalPath);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to restore from backup: " + e.getMessage());
-        }
-    }
-
-    private void saveEntriesWithBackup(String username, List<WorkTimeTable> entries, int year, int month) {
-        Path userPath = dataAccess.getUserWorktimePath(username, year, month);
-
-        try {
-            // Create backup
-            createBackup(userPath);
-
-            // Save entries
-            dataAccess.writeFile(userPath, entries);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved %d entries for %s/%d", entries.size(), month, year));
-        } catch (Exception e) {
-            restoreFromBackup(userPath);
-            throw new RuntimeException("Failed to save entries", e);
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error processing month entries for %s: %s", username, e.getMessage()));
+            throw new RuntimeException("Failed to process month entries", e);
         }
     }
 
@@ -245,17 +151,19 @@ public class UserWorkTimeService {
     public void saveWorkTimeEntry(String username, WorkTimeTable entry, int year, int month) {
         lock.writeLock().lock();
         try {
-            // Get session file path
-            Path filePath = dataAccess.getUserWorktimePath(username,year, month);
+            // Initialize entries as empty list if null
+            List<WorkTimeTable> entries = loadUserEntries(username, year, month);
+            if (entries == null) {
+                entries = new ArrayList<>();
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Initializing new entries list for user %s - %d/%d",
+                                username, year, month));
+            }
 
-            // Read existing entries
-            List<WorkTimeTable> entries = dataAccess.readFile(filePath, WORKTIME_LIST_TYPE, true);
-
-            // Remove any existing entry for the same date and user
+            // Remove existing entry if present
             entries.removeIf(e ->
                     e.getUserId().equals(entry.getUserId()) &&
-                            e.getWorkDate().equals(entry.getWorkDate())
-            );
+                            e.getWorkDate().equals(entry.getWorkDate()));
 
             // Add new entry
             entries.add(entry);
@@ -265,47 +173,67 @@ public class UserWorkTimeService {
                     .comparing(WorkTimeTable::getWorkDate)
                     .thenComparing(WorkTimeTable::getUserId));
 
-            // Save updated entries
-            dataAccess.writeFile(filePath, entries);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved worktime entry for user %s on %s",
-                            username, entry.getWorkDate()));
+            // Save entries
+            try {
+                dataAccess.writeUserWorktime(username, entries, year, month);
+                LoggerUtil.info(this.getClass(),
+                        String.format("Saved worktime entry for user %s - %d/%d",
+                                username, year, month));
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(),
+                        String.format("Failed to save worktime entry for user %s: %s",
+                                username, e.getMessage()));
+                throw new RuntimeException("Failed to save worktime entry", e);
+            }
 
         } finally {
             lock.writeLock().unlock();
         }
     }
 
+    // Modify loadUserEntries to always return a List (never null)
+    private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
+        try {
+            List<WorkTimeTable> entries = dataAccess.readUserWorktime(username, year, month);
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading user entries for %s: %s", username, e.getMessage()));
+            return new ArrayList<>();  // Return empty list instead of null
+        }
+    }
+
+    // Load admin entries from network only - username removed as not needed
+    private List<WorkTimeTable> loadAdminEntries(Integer userId, int year, int month) {
+        try {
+            List<WorkTimeTable> adminEntries = dataAccess.readNetworkAdminWorktime(year, month);
+            return adminEntries.stream()
+                    .filter(entry -> entry.getUserId().equals(userId))
+                    .filter(entry -> entry.getAdminSync() == SyncStatus.ADMIN_EDITED
+                            || entry.getAdminSync() == SyncStatus.ADMIN_BLANK)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading admin entries for user %d: %s", userId, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+   // Check national holiday - network path only
     public boolean isNationalHoliday(LocalDate date) {
         lock.readLock().lock();
         try {
-            // Use admin worktime path because national holidays are set by admins
-            Path filePath = dataAccess.getAdminWorktimePath(date.getYear(), date.getMonthValue());
-            List<WorkTimeTable> entries = dataAccess.readFile(filePath, WORKTIME_LIST_TYPE, true);
+            List<WorkTimeTable> entries = dataAccess.readNetworkAdminWorktime(date.getYear(), date.getMonthValue());
 
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Checking national holiday for %s. Found %d admin entries",
-                            date, entries.size()));
-
-            // A day is a national holiday if there exists an admin synced SN entry
-            boolean isHoliday = entries.stream()
+            return entries.stream()
                     .anyMatch(entry ->
                             entry.getWorkDate().equals(date) &&
                                     WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType()) &&
                                     SyncStatus.ADMIN_EDITED.equals(entry.getAdminSync()));
-
-            if (isHoliday) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("%s is marked as a national holiday", date));
-            }
-
-            return isHoliday;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error checking national holiday for %s: %s",
-                            date, e.getMessage()));
-            return false;  // Default to not a holiday in case of error
+                    String.format("Error checking national holiday for %s: %s", date, e.getMessage()));
+            return false;
         } finally {
             lock.readLock().unlock();
         }

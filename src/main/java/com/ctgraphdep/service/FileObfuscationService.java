@@ -19,8 +19,4 @@ public class FileObfuscationService {
         // XOR is its own inverse, so we can use the same operation
         return obfuscate(data);
     }
-
-    public boolean shouldObfuscate(String filename) {
-        return !filename.equals("users.json");
-    }
 }

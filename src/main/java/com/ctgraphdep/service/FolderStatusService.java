@@ -11,7 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
-public class FolderStatusService {
+public class
+FolderStatusService {
     private static final int MAX_RETRIES = 3;
 
     private final PathConfig pathConfig;

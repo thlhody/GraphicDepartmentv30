@@ -7,7 +7,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -33,12 +32,12 @@ public class UserManagementService {
     public List<User> getAllUsers() {
         lock.readLock().lock();
         try {
-            Path usersPath = dataAccess.getUsersPath();
-            return dataAccess.readFile(usersPath, USER_LIST_TYPE, true);
+            return dataAccess.readUsersNetwork();
         } finally {
             lock.readLock().unlock();
         }
     }
+
 
     public List<User> getNonAdminUsers() {
         return getAllUsers().stream()
@@ -271,7 +270,11 @@ public class UserManagementService {
     }
 
     private void saveUserList(List<User> users) {
-        Path usersPath = dataAccess.getUsersPath();
-        dataAccess.writeFile(usersPath, users);
+        lock.writeLock().lock();
+        try {
+            dataAccess.writeUsersNetwork(users);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 }

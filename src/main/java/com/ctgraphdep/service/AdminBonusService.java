@@ -5,13 +5,9 @@ import com.ctgraphdep.model.BonusEntryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.AdminBonusExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class AdminBonusService {
@@ -30,40 +26,51 @@ public class AdminBonusService {
 
     public Map<Integer, BonusEntryDTO> loadBonusData(Integer year, Integer month) {
         try {
-            Path bonusPath = dataAccessService.getAdminBonusPath(year, month);
-            Map<Integer, BonusEntry> bonusData = dataAccessService.readFile(
-                    bonusPath,
-                    new TypeReference<>() {},
-                    false
-            );
+            // Get bonus data with null check
+            List<BonusEntry> bonusData = dataAccessService.readAdminBonus(year, month);
+            if (bonusData == null) {
+                bonusData = new ArrayList<>(); // Initialize empty list if null
+            }
 
             Map<Integer, BonusEntryDTO> enrichedData = new HashMap<>();
 
-            bonusData.forEach((employeeId, entry) -> {
+            // Process each bonus entry safely
+            for (BonusEntry entry : bonusData) {
                 try {
                     // Find user by employeeId instead of userId
-                    Optional<User> userOpt = userService.findByEmployeeId(employeeId);
+                    Optional<User> userOpt = userService.findByEmployeeId(entry.getEmployeeId());
+
                     if (userOpt.isPresent()) {
                         User user = userOpt.get();
                         BonusEntryDTO dto = new BonusEntryDTO(entry, user.getName());
-                        enrichedData.put(employeeId, dto);
-                        LoggerUtil.info(this.getClass(), String.format("Successfully enriched data for employee %d: %s", employeeId, user.getName()));
+                        enrichedData.put(entry.getEmployeeId(), dto);
+                        LoggerUtil.info(this.getClass(),
+                                String.format("Successfully enriched data for employee %d: %s",
+                                        entry.getEmployeeId(), user.getName()));
                     } else {
+                        // Fallback to using username if user not found
                         BonusEntryDTO dto = new BonusEntryDTO(entry, entry.getUsername());
-                        enrichedData.put(employeeId, dto);
-                        LoggerUtil.warn(this.getClass(), String.format("User not found for employee ID %d, using username", employeeId));
+                        enrichedData.put(entry.getEmployeeId(), dto);
+                        LoggerUtil.warn(this.getClass(),
+                                String.format("User not found for employee ID %d, using username",
+                                        entry.getEmployeeId()));
                     }
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format("Error processing employee ID %d: %s", employeeId, e.getMessage()));
+                    LoggerUtil.error(this.getClass(),
+                            String.format("Error processing employee ID %d: %s",
+                                    entry.getEmployeeId(), e.getMessage()));
+                    // Continue processing other entries
                 }
-            });
+            }
 
             return enrichedData;
 
         } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(), String.format("Error loading bonus data for %d/%d: %s", year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading bonus data for %d/%d: %s",
+                            year, month, e.getMessage()));
+            return new HashMap<>(); // Return empty map instead of null
         }
-        return null;
     }
 
     public byte[] exportBonusData(Integer year, Integer month) {

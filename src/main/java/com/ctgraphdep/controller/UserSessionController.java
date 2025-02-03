@@ -1,6 +1,5 @@
 package com.ctgraphdep.controller;
 
-import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -30,7 +29,6 @@ public class UserSessionController extends BaseController {
     private final SessionCalculationService calculationService;
     private final UserSessionService userSessionService;
     private final SessionPersistenceService persistenceService;
-    private final PathConfig pathConfig;
     private final UserService userService;
 
     @Autowired
@@ -39,14 +37,12 @@ public class UserSessionController extends BaseController {
             UserService userService,
             FolderStatusService folderStatusService,
             SessionCalculationService calculationService,
-            SessionPersistenceService persistenceService,
-            PathConfig pathConfig) {
+            SessionPersistenceService persistenceService) {
         super(userService, folderStatusService);
         this.userSessionService = userSessionService;
         this.calculationService = calculationService;
         this.userService = userService;
         this.persistenceService = persistenceService;
-        this.pathConfig = pathConfig;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -74,7 +70,7 @@ public class UserSessionController extends BaseController {
 
             // Calculate work time if active
             if (isActiveSession(session)) {
-                updateActiveSession(session, user.getSchedule());
+                updateActiveSession(session);  // Remove the schedule parameter
             }
 
             // Populate model
@@ -169,13 +165,24 @@ public class UserSessionController extends BaseController {
         );
     }
 
-    private void updateActiveSession(WorkUsersSessionsStates session, int schedule) {
-        calculationService.calculateCurrentWork(session, schedule);
-        String sessionPath = pathConfig.getSessionFilePath(
-                session.getUsername(),
-                session.getUserId()
-        ).toString();
-        persistenceService.persistSession(session, sessionPath);
+    private void updateActiveSession(WorkUsersSessionsStates session) {
+        try {
+            // Get user schedule
+            User user = userService.getUserById(session.getUserId())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Calculate current work using user's schedule
+            calculationService.calculateCurrentWork(session, user.getSchedule());
+
+            // Persist session using the SessionPersistenceService
+            persistenceService.persistSession(session);
+
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Updated active session for user %s", session.getUsername()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error updating active session: %s", e.getMessage()));
+        }
     }
 
     private void populateSessionModel(Model model, WorkUsersSessionsStates session) {

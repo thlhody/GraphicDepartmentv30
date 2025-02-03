@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -28,8 +27,7 @@ public class HolidayManagementService {
     public void saveHolidayList(List<PaidHolidayEntry> entries) {
         holidayLock.lock();
         try {
-            Path holidayPath = dataAccess.getHolidayPath();
-            dataAccess.writeFile(holidayPath, entries);
+            dataAccess.writeHolidayEntries(entries);
             LoggerUtil.info(this.getClass(),
                     String.format("Saved holiday list with %d entries", entries.size()));
         } finally {
@@ -60,8 +58,7 @@ public class HolidayManagementService {
 
     @PreAuthorize("#username == authentication.name or hasRole('ADMIN')")
     public int getRemainingHolidayDays(String username, Integer userId) {
-        Path holidayPath = dataAccess.getHolidayPath();
-        List<PaidHolidayEntry> entries = dataAccess.readFile(holidayPath, HOLIDAY_LIST_TYPE, true);
+        List<PaidHolidayEntry> entries = dataAccess.readHolidayEntries();
 
         return entries.stream()
                 .filter(entry -> entry.getUserId().equals(userId))
@@ -70,12 +67,12 @@ public class HolidayManagementService {
                 .orElse(0);
     }
 
+
     @PreAuthorize("#username == authentication.name")
     public boolean useHolidayDays(String username, Integer userId, int daysToUse) {
         holidayLock.lock();
         try {
-            Path holidayPath = dataAccess.getHolidayPath();
-            List<PaidHolidayEntry> entries = dataAccess.readFile(holidayPath, HOLIDAY_LIST_TYPE, true);
+            List<PaidHolidayEntry> entries = dataAccess.readHolidayEntries();
 
             Optional<PaidHolidayEntry> userEntry = entries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
@@ -87,7 +84,8 @@ public class HolidayManagementService {
 
                 if (remainingDays >= daysToUse) {
                     entry.setPaidHolidayDays(remainingDays - daysToUse);
-                    dataAccess.writeFile(holidayPath, entries);
+                    dataAccess.writeHolidayEntries(entries);
+
                     LoggerUtil.info(this.getClass(),
                             String.format("User %s used %d holiday days", username, daysToUse));
                     return true;
@@ -102,17 +100,8 @@ public class HolidayManagementService {
     @PreAuthorize("hasRole('ADMIN')")
     public List<PaidHolidayEntry> getHolidayList() {
         try {
-            Path holidayPath = dataAccess.getHolidayPath();
-            List<PaidHolidayEntry> entries = dataAccess.readFile(
-                    holidayPath,
-                    new TypeReference<List<PaidHolidayEntry>>() {},
-                    true
-            );
-            if (entries == null) {
-                LoggerUtil.warn(this.getClass(), "Holiday list was null, returning empty list");
-                return new ArrayList<>();
-            }
-            return entries;
+            List<PaidHolidayEntry> entries = dataAccess.readHolidayEntries();
+            return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     "Error reading holiday list: " + e.getMessage());

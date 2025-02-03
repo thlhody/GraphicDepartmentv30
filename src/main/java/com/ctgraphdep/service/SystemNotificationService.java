@@ -1,11 +1,9 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.event.SessionEndEvent;
 import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.NotificationBackgroundUtility;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -19,8 +17,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 public class SystemNotificationService {
     private final CTTTSystemTray systemTray;
-    private final ApplicationEventPublisher eventPublisher;
     private final SessionMonitorService sessionMonitorService;
+    private final UserSessionService userSessionService;
     private final AtomicBoolean userResponded;
 
     private static final int NOTIFICATION_WIDTH = 600;
@@ -29,13 +27,10 @@ public class SystemNotificationService {
     private static final Dimension BUTTON_SIZE = new Dimension(160, 35);
     private static final int BUTTON_SPACING = 20;
 
-    public SystemNotificationService(
-            CTTTSystemTray systemTray,
-            ApplicationEventPublisher eventPublisher,
-            @Lazy SessionMonitorService sessionMonitorService) {
+    public SystemNotificationService(CTTTSystemTray systemTray, @Lazy SessionMonitorService sessionMonitorService, UserSessionService userSessionService) {
         this.systemTray = systemTray;
-        this.eventPublisher = eventPublisher;
         this.sessionMonitorService = sessionMonitorService;
+        this.userSessionService = userSessionService;
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -298,6 +293,13 @@ public class SystemNotificationService {
     }
 
     private void publishEndSession(String username, Integer userId, Integer finalMinutes) {
-        eventPublisher.publishEvent(new SessionEndEvent(this, username, userId, finalMinutes));
+        try {
+            userSessionService.endDay(username, userId, finalMinutes);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Successfully ended session through notification for user %s", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Failed to end session through notification: " + e.getMessage());
+        }
     }
 }

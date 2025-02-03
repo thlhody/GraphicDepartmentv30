@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
