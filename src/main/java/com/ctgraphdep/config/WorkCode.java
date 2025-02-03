@@ -27,7 +27,6 @@ public class WorkCode {
     public static final String OVERTIME = "Overtime";
     public static final String TOTAL_HOURS = "Total Hours";
 
-
     //work hours codes
     public static final Integer ONE_MINUTE_DELAY = 1;
     public static final Integer HOUR_DURATION = 60;           // Minutes in an hour
@@ -39,7 +38,6 @@ public class WorkCode {
     public static final Integer INTERVAL_HOURS_B = 11;        // Interval working hours 11 hours
     public static final Integer INTERVAL_HOURS_C = 8;         // Interval working hours 8 hours
 
-
     private static final Integer five_minutes = 5 * 60 * 1000;
     private static final Integer ten_minutes = 10 * 60 * 1000;
 
@@ -47,7 +45,6 @@ public class WorkCode {
     public static final Integer ON_FOR_TEN_MINUTES = ten_minutes; // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
     public static final Integer CHECK_INTERVAL = 30; // checks every 30 minutes in order to see if the end time is reached
     public static final Integer HOURLY_CHECK_INTERVAL = 60; // hourly checks
-
 
     public static Integer MAX_TEMP_STOP_HOURS = 15; // 24 - MAX_WORK_HOURS
     public static Integer TEMP_STOP_WARNING_INTERVAL = 60; // Minutes between warnings
@@ -80,7 +77,6 @@ public class WorkCode {
 
     //status dialog codes
     public static final String STATUS_UNKNOWN = "Unknown";
-
 
     //work messages
     public static final String NOTICE_TITLE = "END SCHEDULE NOTICE";
