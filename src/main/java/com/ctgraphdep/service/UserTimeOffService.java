@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.enums.SyncStatus;
@@ -15,15 +16,15 @@ import java.util.stream.Collectors;
 
 @Service
 public class UserTimeOffService {
-    private final DataAccessService dataAccess;
+    private final DataAccessService dataAccessService;
     private final HolidayManagementService holidayService;
     private final UserWorkTimeService userWorkTimeService;
     private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
 
-    public UserTimeOffService(DataAccessService dataAccess,
+    public UserTimeOffService(DataAccessService dataAccessService,
                               HolidayManagementService holidayService,
                               UserWorkTimeService userWorkTimeService) {
-        this.dataAccess = dataAccess;
+        this.dataAccessService = dataAccessService;
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -117,9 +118,7 @@ public class UserTimeOffService {
             if (isEligibleForTimeOff(user.getUserId(), currentDate)) {
                 WorkTimeTable existingEntry = getExistingEntry(user.getUserId(), currentDate);
                 WorkTimeTable entry = createTimeOffEntry(user, currentDate, timeOffType, existingEntry);
-                if (entry != null) {
-                    entries.add(entry);
-                }
+                entries.add(entry);
             }
             currentDate = currentDate.plusDays(1);
         }
@@ -211,33 +210,21 @@ public class UserTimeOffService {
 
     private List<WorkTimeTable> loadMonthEntries(String username, int year, int month) {
         try {
-            return dataAccess.readFile(
-                    dataAccess.getUserWorktimePath(username, year, month),
-                    WORKTIME_LIST_TYPE,
-                    true
-            );
+            // Read local worktime entries, isAdmin=false because this is user context
+            List<WorkTimeTable> entries = dataAccessService.readUserWorktime(username, year, month);
+
+            // Handle null result from DataAccessService
+            if (entries == null) {
+                entries = new ArrayList<>();
+            }
+
+            return entries;
+
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error loading entries for %s - %d/%d: %s",
+                    String.format("Error loading worktime entries for %s - %d/%d: %s",
                             username, year, month, e.getMessage()));
             return new ArrayList<>();
-        }
-    }
-
-    private void saveMonthEntries(String username, int year, int month, List<WorkTimeTable> entries) {
-        try {
-            dataAccess.writeFile(
-                    dataAccess.getUserWorktimePath(username, year, month),
-                    entries
-            );
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved %d entries for %s - %d/%d",
-                            entries.size(), username, year, month));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving entries for %s - %d/%d: %s",
-                            username, year, month, e.getMessage()));
-            throw new RuntimeException("Failed to save time off entries", e);
         }
     }
 
@@ -246,22 +233,39 @@ public class UserTimeOffService {
         YearMonth currentMonth = YearMonth.now();
         YearMonth nextMonth = currentMonth.plusMonths(1);
 
-        // Get entries for current and next month
+        // Get entries for current and next month - with null checks
         List<WorkTimeTable> currentMonthEntries = loadMonthEntries(user.getUsername(),
                 currentMonth.getYear(), currentMonth.getMonthValue());
         List<WorkTimeTable> nextMonthEntries = loadMonthEntries(user.getUsername(),
                 nextMonth.getYear(), nextMonth.getMonthValue());
 
-        // Combine and filter entries
+        // Both lists are now guaranteed to not be null due to loadMonthEntries
         List<WorkTimeTable> allEntries = new ArrayList<>();
         allEntries.addAll(currentMonthEntries);
         allEntries.addAll(nextMonthEntries);
 
         return allEntries.stream()
                 .filter(entry -> entry.getTimeOffType() != null)  // Only time off entries
-                .filter(entry -> !entry.getTimeOffType().equals("SN"))  // Exclude national holidays
+                .filter(entry -> !entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE))  // Exclude national holidays
                 .filter(entry -> entry.getWorkDate().isAfter(today))  // Only future dates
                 .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
                 .collect(Collectors.toList());
+    }
+
+    private void saveMonthEntries(String username, int year, int month, List<WorkTimeTable> entries) {
+        try {
+            // Write to local and sync to network using DataAccessService
+            dataAccessService.writeUserWorktime(username, entries, year, month);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Saved %d worktime entries for %s - %d/%d",
+                            entries.size(), username, year, month));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error saving worktime entries for %s - %d/%d: %s",
+                            username, year, month, e.getMessage()));
+            throw new RuntimeException("Failed to save time off entries", e);
+        }
     }
 }

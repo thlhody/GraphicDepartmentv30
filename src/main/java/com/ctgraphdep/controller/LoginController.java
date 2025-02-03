@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-
 //Controller handling login-related requests and system availability checks.
 @Controller
 @RequestMapping("/login")
@@ -103,7 +102,7 @@ public class LoginController extends BaseController {
 
     // Checks if offline mode is available.
     private boolean checkOfflineModeAvailability() {
-        Path usersFilePath = pathConfig.getUsersJsonPath();
+        Path usersFilePath = pathConfig.getLocalUsersPath();
         boolean available = Files.exists(usersFilePath);
         LoggerUtil.debug(this.getClass(),
                 String.format("Offline mode availability: %s", available));

@@ -12,8 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
@@ -26,7 +24,6 @@ public class AdminRegisterService {
     private final BonusCalculatorUtil bonusCalculator;
     private final WorkTimeManagementService workTimeManagementService;
     private final UserService userService;
-    private static final TypeReference<Map<Integer, BonusEntry>> BONUS_ENTRY_TYPE = new TypeReference<Map<Integer, BonusEntry>>() {};
 
     @Autowired
     public AdminRegisterService(DataAccessService dataAccessService,
@@ -41,9 +38,10 @@ public class AdminRegisterService {
 
     public Optional<BonusEntry> loadBonusEntry(Integer userId, Integer year, Integer month) {
         try {
-            Path path = dataAccessService.getAdminBonusPath(year, month);
-            Map<Integer, BonusEntry> bonusEntries = dataAccessService.readFile(path, BONUS_ENTRY_TYPE, true);
-            return Optional.ofNullable(bonusEntries.get(userId));
+            List<BonusEntry> bonusEntries = dataAccessService.readAdminBonus(year, month);
+            return bonusEntries.stream()
+                    .filter(entry -> entry.getEmployeeId().equals(userId))
+                    .findFirst();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error loading bonus entry for user %d: %s", userId, e.getMessage()));
@@ -52,41 +50,34 @@ public class AdminRegisterService {
     }
 
     public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, Integer year, Integer month) {
-        // 1. Load user entries first
-        Path userPath = dataAccessService.getUserRegisterPath(username, userId, year, month);
-        List<RegisterEntry> userEntries = dataAccessService.readFile(
-                userPath,
-                new TypeReference<>() {
-                },
-                true
-        );
+        // 1. Load user entries from network location
+        List<RegisterEntry> userEntries = dataAccessService.readNetworkUserRegister(username, userId, year, month);
+        if (userEntries == null) {
+            userEntries = new ArrayList<>();
+        }
 
-        // 2. Check admin file
-        Path adminPath = dataAccessService.getAdminRegisterPath(username, userId, year, month);
+        // 2. Check local admin file
         List<RegisterEntry> adminEntries;
-
-        if (!Files.exists(adminPath)) {
-            // If no admin file exists, create it with user entries
+        try {
+            adminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
+            if (adminEntries == null) {
+                adminEntries = new ArrayList<>();
+            }
+        } catch (Exception e) {
+            // If no local admin file exists, create it with user entries
             adminEntries = userEntries.stream()
                     .map(this::copyEntry)
                     .collect(Collectors.toList());
-            dataAccessService.writeFile(adminPath, adminEntries);
-            return adminEntries;
         }
-
-        // Load existing admin entries
-        adminEntries = dataAccessService.readFile(
-                adminPath,
-                new TypeReference<>() {
-                },
-                true
-        );
 
         // 3. Merge entries based on status
         List<RegisterEntry> mergedEntries = mergeEntries(userEntries, adminEntries);
 
-        // 4. Save merged entries to admin file
-        dataAccessService.writeFile(adminPath, mergedEntries);
+        // 4. Save merged entries to local admin register file
+        dataAccessService.writeLocalAdminRegister(username, userId, mergedEntries, year, month);
+
+        // 5. Sync local admin register to network
+        dataAccessService.syncAdminRegisterToNetwork(username, userId, year, month);
 
         return mergedEntries;
     }
@@ -116,8 +107,7 @@ public class AdminRegisterService {
                 .collect(Collectors.toList());
 
         // Save to admin file
-        Path adminPath = dataAccessService.getAdminRegisterPath(username, userId, year, month);
-        dataAccessService.writeFile(adminPath, updatedEntries);
+        dataAccessService.writeLocalAdminRegister(username, userId, updatedEntries, year, month);
     }
 
     private RegisterEntry copyEntry(RegisterEntry source) {
@@ -379,7 +369,8 @@ public class AdminRegisterService {
     }
 
     // Save bonus calculation result
-    public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResult result, String username) {
+    public void saveBonusResult(Integer userId, Integer year, Integer month,
+                                BonusCalculationResult result, String username) {
         try {
             // Get user's employeeId
             Integer employeeId = userService.getUserById(userId)
@@ -395,41 +386,25 @@ public class AdminRegisterService {
             // Load and set previous months' bonuses
             PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(employeeId, year, month);
             bonusEntry.setPreviousMonths(previousMonths);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Set previous months bonuses: month1=%f, month2=%f, month3=%f",
-                            previousMonths.getMonth1(), previousMonths.getMonth2(), previousMonths.getMonth3()));
 
+            // Read existing bonus entries
+            List<BonusEntry> existingEntries;
             try {
-                Path bonusPath = dataAccessService.getAdminBonusPath(year, month);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Saving to path: %s", bonusPath));
-
-                // Load existing entries if any
-                Map<Integer, BonusEntry> existingEntries = new HashMap<>();
-                try {
-                    existingEntries = dataAccessService.readFile(bonusPath,
-                            new TypeReference<Map<Integer, BonusEntry>>() {},
-                            false);
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Loaded %d existing entries", existingEntries.size()));
-                } catch (Exception e) {
-                    LoggerUtil.info(this.getClass(),
-                            "No existing bonus entries found for " + year + "/" + month);
-                }
-
-                // Add or update the entry for this employee
-                existingEntries.put(employeeId, bonusEntry);
-
-                // Save all entries back to file
-                dataAccessService.writeFile(bonusPath, existingEntries);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Successfully saved bonus calculation for user %s (Employee ID: %d) for %d/%d",
-                                username, employeeId, year, month));
+                existingEntries = dataAccessService.readAdminBonus(year, month);
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(),
-                        "Error saving bonus calculation: " + e.getMessage(), e);
-                throw new RuntimeException("Failed to save bonus calculation", e);
+                existingEntries = new ArrayList<>();
             }
+
+            // Find and replace or add the entry for this employee
+            existingEntries.removeIf(entry -> entry.getEmployeeId().equals(employeeId));
+            existingEntries.add(bonusEntry);
+
+            // Save all entries
+            dataAccessService.writeAdminBonus(existingEntries, year, month);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Successfully saved bonus calculation for user %s (Employee ID: %d) for %d/%d",
+                            username, employeeId, year, month));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error processing bonus calculation for user %d: %s",
@@ -440,14 +415,12 @@ public class AdminRegisterService {
 
     private Double loadMonthBonus(Integer employeeId, YearMonth month) {
         try {
-            Path bonusPath = dataAccessService.getAdminBonusPath(month.getYear(), month.getMonthValue());
+            List<BonusEntry> entries = dataAccessService.readAdminBonus(month.getYear(), month.getMonthValue());
 
-            Map<Integer, BonusEntry> entries = dataAccessService.readFile(bonusPath,
-                    new TypeReference<Map<Integer, BonusEntry>>() {},
-                    false);
-
-            return Optional.ofNullable(entries.get(employeeId))
+            return entries.stream()
+                    .filter(entry -> entry.getEmployeeId().equals(employeeId))
                     .map(BonusEntry::getBonusAmount)
+                    .findFirst()
                     .orElse(0.0);
 
         } catch (Exception e) {

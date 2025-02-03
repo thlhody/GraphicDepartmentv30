@@ -1,274 +1,486 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
-import com.ctgraphdep.enums.SyncStatus;
-import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.security.CustomUserDetails;
+import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 @Service
 public class DataAccessService {
     private final ObjectMapper objectMapper;
-    private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
+    private final PathConfig pathConfig;
     private final FileSyncService fileSyncService;
     private final Map<Path, ReentrantReadWriteLock> fileLocks;
+    private final FileBackupService backupService;
 
     public DataAccessService(ObjectMapper objectMapper,
-                             PathConfig pathConfig,
                              FileObfuscationService obfuscationService,
-                             FileSyncService fileSyncService) {
+                             PathConfig pathConfig,
+                             FileSyncService fileSyncService,
+                             FileBackupService backupService) {
         this.objectMapper = objectMapper;
+        this.obfuscationService = obfuscationService;
         this.pathConfig = pathConfig;
         this.fileSyncService = fileSyncService;
-        this.obfuscationService = obfuscationService;
+        this.backupService = backupService;
         this.fileLocks = new ConcurrentHashMap<>();
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    // Core read operation that tries network first, then local
-    private <T> T readOperation(Path networkPath, Path localPath, TypeReference<T> typeRef, boolean createIfMissing) {
-        // Always check local path first
+    // Core read/write operations
+    private <T> T readFile(Path path, TypeReference<T> typeRef, boolean skipSerialization) {
+        ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
+        readLock.lock();
         try {
-            if (Files.exists(localPath) && Files.size(localPath) > 3) {
-                return deserializeFromPath(localPath, typeRef);
+            if (!Files.exists(path) || Files.size(path) < 3) {
+                return null;
             }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    "Could not read from local path: " + e.getMessage());
-        }
 
-        // Only try network if local doesn't exist
-        if (pathConfig.isNetworkAvailable()) {
+            byte[] content = Files.readAllBytes(path);
+
+//            if (!skipSerialization) {
+//                content = obfuscationService.deobfuscate(content);
+//            }
+
+            return objectMapper.readValue(content, typeRef);
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Error reading file: " + path);
+            throw new RuntimeException("Failed to read file", e);
+        } finally {
+            readLock.unlock();
+        }
+    }
+    private <T> void writeFile(Path path, T data, boolean skipSerialization) {
+        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
+        writeLock.lock();
+        try {
+            if (Files.exists(path)) {
+                backupService.createBackup(path);
+            }
+
+            Files.createDirectories(path.getParent());
+            byte[] content = objectMapper.writeValueAsBytes(data);
+
+//            if (!skipSerialization) {
+//                content = obfuscationService.obfuscate(content);
+//            }
+
             try {
-                if (Files.exists(networkPath) && Files.size(networkPath) > 3) {
-                    T data = deserializeFromPath(networkPath, typeRef);
-                    // Copy network data to local for future use
-                    ensureDirectoryExists(localPath.getParent());
-                    serializeToPath(localPath, data);
-                    return data;
-                }
+                Files.write(path, content);
+                LoggerUtil.info(this.getClass(), "Successfully wrote to file: " + path);
+                // Delete backup after successful write
+                backupService.deleteBackup(path);
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        "Could not read from network path: " + e.getMessage());
-            }
-        }
-
-        // If nothing exists and createIfMissing is true
-        if (createIfMissing) {
-            try {
-                return createAndSaveEmptyStructure(localPath, typeRef);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        throw new RuntimeException("File not found and creation not requested");
-    }
-    // Core write operation that always writes to local first, then syncs
-    private <T> void writeOperation(Path localPath, T data, boolean requiresSync) {
-        try {
-            // Force local path to be under installation directory
-            Path forcedLocalPath = ensureInstallationPath(localPath);
-
-            // Always ensure we're writing to local directory
-            ensureDirectoryExists(forcedLocalPath.getParent());
-            serializeToPath(forcedLocalPath, data);
-            LoggerUtil.info(this.getClass(), "Successfully wrote to local path: " + forcedLocalPath);
-
-            // Only sync to network if required and available
-            if (requiresSync && pathConfig.isNetworkAvailable()) {
-                // For network path, maintain the original structure under network root
-                Path networkPath = pathConfig.getNetworkPath().resolve(
-                        forcedLocalPath.subpath(pathConfig.getLocalPath().getNameCount(), forcedLocalPath.getNameCount())
-                );
-                syncToNetwork(forcedLocalPath, networkPath);
+                // Restore from backup if write fails
+                backupService.restoreFromBackup(path);
+                LoggerUtil.logAndThrow(this.getClass(), "Successfully restored from backup ", e);
             }
         } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Failed to write file: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error writing file: " + path);
             throw new RuntimeException("Failed to write file", e);
+        } finally {
+            writeLock.unlock();
         }
     }
 
-    private Path ensureInstallationPath(Path path) {
-        // Get the relative path from either network or local root
-        Path relativePath;
-        if (path.startsWith(pathConfig.getNetworkPath())) {
-            relativePath = pathConfig.getNetworkPath().relativize(path);
-        } else if (path.startsWith(pathConfig.getLocalPath())) {
-            relativePath = pathConfig.getLocalPath().relativize(path);
-        } else {
-            // If path doesn't start with either, assume it's already relative
-            relativePath = path;
-        }
-
-        // Force the path to be under installation directory
-        return pathConfig.getLocalPath().resolve(relativePath);
-    }
-
-    // File serialization/deserialization
-    private <T> T deserializeFromPath(Path path, TypeReference<T> typeRef) throws IOException {
-        byte[] content = Files.readAllBytes(path);
-//        if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
-//            content = obfuscationService.deobfuscate(content);
-//        }
-        return objectMapper.readValue(content, typeRef);
-    }
-
-    private <T> void serializeToPath(Path path, T data) throws IOException {
-        byte[] content = objectMapper.writeValueAsBytes(data);
-//        if (obfuscationService.shouldObfuscate(path.getFileName().toString())) {
-//            content = obfuscationService.obfuscate(content);
-//        }
-        Files.write(path, content);
-    }
-
-    private void syncToNetwork(Path localPath, Path networkPath) {
-        try {
-            if (!Files.exists(localPath)) {
-                LoggerUtil.warn(this.getClass(), "Cannot sync - local file does not exist: " + localPath);
-                return;
-            }
-
-            // Use FileSyncService instead of direct Files.copy
-            fileSyncService.syncToNetwork(localPath, networkPath);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Initiated sync from local to network:\nFrom: %s\nTo: %s",
-                            localPath, networkPath));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Failed to sync to network: " + e.getMessage());
-        }
-    }
-
-    // Utility methods
-    @SuppressWarnings("unchecked")
-    private <T> T createEmptyStructure(TypeReference<T> typeRef) {
-        String typeName = typeRef.getType().getTypeName();
-        if (typeName.contains("List")) return (T) new ArrayList<>();
-        if (typeName.contains("Map")) return (T) new HashMap<>();
-        try {
-            return objectMapper.readValue("{}", typeRef);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create empty structure", e);
-        }
-    }
-
-    private <T> T createAndSaveEmptyStructure(Path path, TypeReference<T> typeRef) throws IOException {
-        T emptyStructure = createEmptyStructure(typeRef);
-        Files.createDirectories(path.getParent());
-        objectMapper.writeValue(path.toFile(), emptyStructure);
-        return emptyStructure;
-    }
-
-    private void ensureDirectoryExists(Path path) throws IOException {
-        Path parent = path.getParent();
-        if (parent != null && !Files.exists(parent)) {
-            Files.createDirectories(parent);
-        }
-    }
-
-    private ReentrantReadWriteLock getFileLock(Path path) {
-        return fileLocks.computeIfAbsent(path, k -> new ReentrantReadWriteLock());
-    }
-
-    private User getCurrentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
-            return ((CustomUserDetails) auth.getPrincipal()).getUser();
-        }
-        throw new SecurityException("No authenticated user found");
-    }
-
-    // Public API methods
-    public <T> T readFile(Path path, TypeReference<T> typeRef, boolean createIfMissing) {
+    // Then the local/network operations use these base operations
+    private <T> T readLocal(Path path, TypeReference<T> typeRef) {
         String filename = path.getFileName().toString();
-        boolean isUserFile = filename.equals(pathConfig.getUsersFilename()) ||
-                filename.equals(pathConfig.getLocalUsersFilename());
-
-        Path networkPath = isUserFile ? path : pathConfig.resolvePathForRead(filename);
-        Path localPath = isUserFile ? path : pathConfig.resolvePathForWrite(filename);
-
-        return readOperation(networkPath, localPath, typeRef, createIfMissing);
+        boolean skipSerialization = filename.equals("users.json") ||
+                filename.equals("local_users.json");
+        return readFile(path, typeRef, skipSerialization);
     }
-
-    public <T> void writeFile(Path path, T data) {
+    private <T> void writeLocal(Path path, T data) {
         String filename = path.getFileName().toString();
-        if (filename.equals(pathConfig.getLocalUsersFilename())) {
-            writeOperation(path, data, false); // Never sync local users file
-            return;
+        boolean skipSerialization = filename.equals("users.json") ||
+                filename.equals("local_users.json");
+        writeFile(path, data, skipSerialization);
+    }
+    private <T> T readNetwork(Path path, TypeReference<T> typeRef) {
+        if (!pathConfig.isNetworkAvailable()) {
+            throw new RuntimeException("Network not available");
         }
-        User currentUser = getCurrentUser();
-        Path localPath = pathConfig.resolvePathForWrite(filename);
-
-        boolean shouldSync = filename.startsWith("worktime_") ||
-                pathConfig.shouldSync(filename, currentUser.isAdmin(), currentUser.getUsername());
-
-        writeOperation(localPath, data, shouldSync);
+        String filename = path.getFileName().toString();
+        boolean skipSerialization = filename.equals("users.json") ||
+                filename.equals("local_users.json");
+        return readFile(path, typeRef, skipSerialization);
+    }
+    private <T> void writeNetwork(Path path, T data) {
+        if (!pathConfig.isNetworkAvailable()) {
+            throw new RuntimeException("Network not available");
+        }
+        String filename = path.getFileName().toString();
+        boolean skipSerialization = filename.equals("users.json") ||
+                filename.equals("local_users.json");
+        writeFile(path, data, skipSerialization);
     }
 
-    // Session-specific operations
-    public WorkUsersSessionsStates readLocalSessionFile(String username, Integer userId) {
-        Path localPath = pathConfig.getLocalSessionFilePath(username, userId);
-        Path networkPath = pathConfig.getSessionFilePath(username, userId);
-        TypeReference<WorkUsersSessionsStates> sessionType = new TypeReference<>() {};
-
-        try {
-            // Use readOperation for network-first, local-fallback behavior
-            WorkUsersSessionsStates session = readOperation(networkPath, localPath, sessionType, false);
-
-            // Verify session ownership
-            if (session != null &&
-                    username.equals(session.getUsername()) &&
-                    userId.equals(session.getUserId())) {
-                return session;
-            }
-
-            LoggerUtil.warn(this.getClass(), "Session ownership verification failed");
-            return null;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading session file for user %s: %s", username, e.getMessage()));
-            return null;
-        }
-    }
-
+    // Session file operations - Local primary with network sync
     public void writeLocalSessionFile(WorkUsersSessionsStates session) {
         validateSession(session);
 
+        Path localPath = pathConfig.getLocalSessionPath(session.getUsername(), session.getUserId());
+        writeLocal(localPath, session);
+
+        if (pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getNetworkSessionPath(session.getUsername(), session.getUserId());
+            fileSyncService.syncToNetwork(localPath, networkPath);
+        }
+    }
+    public WorkUsersSessionsStates readLocalSessionFile(String username, Integer userId) {
+        Path localPath = pathConfig.getLocalSessionPath(username, userId);
+        return readLocal(localPath, new TypeReference<>() {});
+    }
+    // Session file - Network read only
+    public WorkUsersSessionsStates readNetworkSessionFile(String username, Integer userId) {
         try {
-            Path localPath = pathConfig.getLocalSessionFilePath(session.getUsername(), session.getUserId());
-
-            // Use writeOperation to handle local write and network sync
-            writeOperation(localPath, session, true);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully wrote session file for user %s", session.getUsername()));
-        } catch (Exception e) {
+            Path networkPath = pathConfig.getNetworkSessionPath(username, userId);
+            return readNetwork(networkPath, new TypeReference<WorkUsersSessionsStates>() {});
+        } catch (RuntimeException e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Failed to write session file for user %s: %s",
-                            session.getUsername(), e.getMessage()));
-            throw new RuntimeException("Failed to write session file", e);
+                    String.format("Error reading network session for user status %s: %s",
+                            username, e.getMessage()));
+            return null;
+        }
+    }
+    // Helper method to check if network session exists
+    public boolean networkSessionExists(String username, Integer userId) {
+        if (!pathConfig.isNetworkAvailable()) {
+            return false;
+        }
+
+        Path networkPath = pathConfig.getNetworkSessionPath(username, userId);
+        try {
+            return Files.exists(networkPath) && Files.size(networkPath) > 3;
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error checking network session existence for %s: %s",
+                            username, e.getMessage()));
+            return false;
         }
     }
 
+    // Network User file - Network only
+    public List<User> readUsersNetwork() {
+        Path networkPath = pathConfig.getNetworkUsersPath();
+
+        try {
+            // Read doesn't need lock since we have ReentrantReadWriteLock in readFile
+            return readNetwork(networkPath, new TypeReference<>() {});
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading network users: %s", e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    public void writeUsersNetwork(List<User> users) {
+        Path networkPath = pathConfig.getNetworkUsersPath();
+        Path lockPath = pathConfig.getUsersLockPath();
+
+        try {
+            acquireLock(lockPath);
+            writeNetwork(networkPath, users);
+            LoggerUtil.info(this.getClass(), "Successfully wrote users to network");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error writing network users: %s", e.getMessage()));
+            throw new RuntimeException("Failed to write network users", e);
+        } finally {
+            releaseLock(lockPath);
+        }
+    }
+    // Local users file - Local only
+    public List<User> readLocalUsers() {
+        Path localPath = pathConfig.getLocalUsersPath();
+
+        try {
+            // Read doesn't need lock since we have ReentrantReadWriteLock in readFile
+            List<User> users = readLocal(localPath, new TypeReference<>() {});
+            return users != null ? users : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading local users: %s", e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    public void writeLocalUsers(User user) {
+        Path localPath = pathConfig.getLocalUsersPath();
+        Path lockPath = pathConfig.getUsersLockPath();
+
+        try {
+            acquireLock(lockPath);
+            List<User> localUsers = Collections.singletonList(user);
+            writeLocal(localPath, localUsers);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Successfully wrote local user data for: %s", user.getUsername()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error writing local user data: %s", e.getMessage()));
+            throw new RuntimeException("Failed to write local user data", e);
+        } finally {
+            releaseLock(lockPath);
+        }
+    }
+
+    // Single read method for holiday entries
+    public List<PaidHolidayEntry> readHolidayEntries() {
+        Path networkPath = pathConfig.getNetworkHolidayPath();
+        Path localCachePath = pathConfig.getHolidayCachePath();
+
+        try {
+            // Try network first
+            if (pathConfig.isNetworkAvailable()) {
+                List<PaidHolidayEntry> networkEntries = readNetwork(networkPath, new TypeReference<>() {});
+                if (networkEntries != null) {
+                    // Update cache with network data
+                    writeLocal(localCachePath, networkEntries);
+                    return networkEntries;
+                }
+            }
+
+            // Fallback to cache if network unavailable or read failed
+            List<PaidHolidayEntry> cacheEntries = readLocal(localCachePath, new TypeReference<>() {});
+            return cacheEntries != null ? cacheEntries : new ArrayList<>();
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading holiday entries: %s", e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    // Single write method for holiday entries
+    public void writeHolidayEntries(List<PaidHolidayEntry> entries) {
+        Path networkPath = pathConfig.getNetworkHolidayPath();
+        Path localCachePath = pathConfig.getHolidayCachePath();
+        Path lockPath = pathConfig.getHolidayLockPath();
+
+        try {
+            acquireLock(lockPath);
+
+            // Always update cache first
+            writeLocal(localCachePath, entries);
+
+            // Then try network if available
+            if (pathConfig.isNetworkAvailable()) {
+                writeNetwork(networkPath, entries);
+                LoggerUtil.info(this.getClass(), "Successfully wrote holiday entries to network");
+            } else {
+                LoggerUtil.warn(this.getClass(), "Network unavailable, holiday entries stored in cache only");
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error writing holiday entries: %s", e.getMessage()));
+            throw new RuntimeException("Failed to write holiday entries", e);
+        } finally {
+            releaseLock(lockPath);
+        }
+    }
+
+    public List<WorkTimeTable> readNetworkUserWorktime(String username, int year, int month) {
+        try {
+            Path networkPath = pathConfig.getNetworkWorktimePath(username, year, month);
+            List<WorkTimeTable> entries = readNetwork(networkPath, new TypeReference<>() {});
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading network worktime for user %s - %d/%d: %s",
+                            username, year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    // Worktime file operations - Bidirectional sync - UserTimeOffService,
+    public List<WorkTimeTable> readUserWorktime(String username, int year, int month) {
+        Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
+        try {
+            // Check if local file exists
+            if (!Files.exists(localPath)) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("No local worktime file exists for %s - %d/%d, returning empty list",
+                                username, year, month));
+                return new ArrayList<>();
+            }
+
+            // Read from local file
+            List<WorkTimeTable> localEntries = readLocal(localPath, new TypeReference<>() {});
+            if (localEntries == null) {
+                localEntries = new ArrayList<>();
+            }
+
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Successfully read %d entries from local worktime for user %s - %d/%d",
+                            localEntries.size(), username, year, month));
+
+            return localEntries;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading local worktime file for %s: %s",
+                            username, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    public void writeUserWorktime(String username, List<WorkTimeTable> entries, int year, int month) {
+        // First write to local file
+        Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
+        writeLocal(localPath, entries);
+
+        // Then sync to network if available
+        if (pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getNetworkWorktimePath(username, year, month);
+            fileSyncService.syncToNetwork(localPath, networkPath);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Synced worktime file to network for user %s - %d/%d",
+                            username, year, month));
+        } else {
+            LoggerUtil.warn(this.getClass(),
+                    String.format("Network unavailable, worktime file for user %s - %d/%d stored only locally",
+                            username, year, month));
+        }
+    }
+
+    // Register file operations - Bidirectional sync UserRegisterService
+    public void writeUserRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
+        Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
+        writeLocal(localPath, entries);
+
+        if (pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
+            fileSyncService.syncToNetwork(localPath, networkPath);
+        }
+    }
+
+    public List<RegisterEntry> readUserRegister(String username, Integer userId, int year, int month, boolean isAdmin) {
+        if (isAdmin && pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
+            return readNetwork(networkPath, new TypeReference<>() {});
+        }
+        Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
+        return readLocal(localPath, new TypeReference<>() {});
+    }
+
+    // Admin worktime operations - Bidirectional sync - for WorkTimeConsolidationService
+    public void writeAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
+        Path localPath = pathConfig.getLocalAdminWorktimePath(year, month);
+        writeLocal(localPath, entries);
+
+        if (pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getNetworkAdminWorktimePath(year, month);
+            fileSyncService.syncToNetwork(localPath, networkPath);
+        }
+    }
+    public List<WorkTimeTable> readLocalAdminWorktime(int year, int month) {
+        Path localPath = pathConfig.getLocalAdminWorktimePath(year, month);
+        try {
+            if (!Files.exists(localPath)) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("No local admin worktime file exists for %d/%d, returning empty list",
+                                year, month));
+                return new ArrayList<>();
+            }
+
+            List<WorkTimeTable> entries = readLocal(localPath, new TypeReference<>() {});
+            return entries != null ? entries : new ArrayList<>();
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading local admin worktime for %d/%d: %s",
+                            year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    // Admin worktime operations - Network only
+    public List<WorkTimeTable> readNetworkAdminWorktime(int year, int month) {
+        try {
+            if (!pathConfig.isNetworkAvailable()) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Network not available for admin worktime %d/%d", year, month));
+                return new ArrayList<>();
+            }
+
+            Path networkPath = pathConfig.getNetworkAdminWorktimePath(year, month);
+            if (!Files.exists(networkPath)) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("No network admin worktime file exists for %d/%d", year, month));
+                return new ArrayList<>();
+            }
+
+            List<WorkTimeTable> entries = readNetwork(networkPath, new TypeReference<>() {});
+            if (entries == null) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Empty or invalid network admin worktime for %d/%d", year, month));
+                return new ArrayList<>();
+            }
+            return entries;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading network admin worktime for %d/%d: %s",
+                            year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    // Admin bonus operations - Local only for AdminBonusService
+    public void writeAdminBonus(List<BonusEntry> entries, int year, int month) {
+        Path localPath = pathConfig.getLocalBonusPath(year, month);
+        writeLocal(localPath, entries);
+    }
+
+    public List<BonusEntry> readAdminBonus(int year, int month) {
+        try {
+            Path localPath = pathConfig.getLocalBonusPath(year, month);
+            List<BonusEntry> entries = readLocal(localPath, new TypeReference<>() {});
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading admin bonus data for %d/%d: %s",
+                            year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    // Specific methods - Bidirectional sync for AdminRegisterService
+    public List<RegisterEntry> readNetworkUserRegister(String username, Integer userId, int year, int month) {
+        Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
+        return readNetwork(networkPath, new TypeReference<>() {});
+    }
+
+    public void writeLocalAdminRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
+        Path localAdminPath = pathConfig.getLocalAdminRegisterPath(username, userId, year, month);
+        writeLocal(localAdminPath, entries);
+    }
+
+    public List<RegisterEntry> readLocalAdminRegister(String username, Integer userId, int year, int month) {
+        Path localAdminPath = pathConfig.getLocalAdminRegisterPath(username, userId, year, month);
+        List<RegisterEntry> entries = readLocal(localAdminPath, new TypeReference<>() {});
+        return entries != null ? entries : new ArrayList<>(); // Return empty list instead of null
+    }
+
+    public void syncAdminRegisterToNetwork(String username, Integer userId, int year, int month) {
+        if (!pathConfig.isNetworkAvailable()) {
+            return;
+        }
+
+        Path localAdminPath = pathConfig.getLocalAdminRegisterPath(username, userId, year, month);
+        Path networkAdminPath = pathConfig.getNetworkAdminRegisterPath(username, userId, year, month);
+        fileSyncService.syncToNetwork(localAdminPath, networkAdminPath);
+    }
+
+    // Utility methods
     private void validateSession(WorkUsersSessionsStates session) {
         if (session == null) {
             throw new IllegalArgumentException("Session cannot be null");
@@ -278,159 +490,37 @@ public class DataAccessService {
         }
     }
 
-    // WorkTime operations
-    public void writeLocalWorkTimeEntry(String username, List<WorkTimeTable> entries, int year, int month) {
-        // Group entries by date and get only the most recent entry for each date
-        Map<LocalDate, WorkTimeTable> uniqueEntries = entries.stream()
-                .collect(Collectors.groupingBy(
-                        WorkTimeTable::getWorkDate,
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                list -> list.stream()
-                                        .max(Comparator.comparing(WorkTimeTable::getDayStartTime)
-                                                .thenComparing(e -> {
-                                                    if (e.getAdminSync() == SyncStatus.USER_IN_PROCESS) return 0;
-                                                    if (e.getAdminSync() == SyncStatus.USER_INPUT) return 1;
-                                                    return -1;
-                                                }))
-                                        .orElse(null)
-                        )
-                ));
+    private ReentrantReadWriteLock getFileLock(Path path) {
+        return fileLocks.computeIfAbsent(path, k -> new ReentrantReadWriteLock());
+    }
 
-        List<WorkTimeTable> dedupedEntries = new ArrayList<>(uniqueEntries.values());
-        dedupedEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate));
-
-        // Get paths but ensure local path is under installation directory
-        Path basePath = pathConfig.getUserWorktimeFilePath(username, year, month);
-        Path localPath = ensureInstallationPath(basePath);
-        Path networkPath = pathConfig.getUserWorktimeFilePath(username, year, month);
-
-        try {
-            // Write to local
-            writeOperation(localPath, dedupedEntries, false);
+    // Generic lock handling methods
+    private void acquireLock(Path lockFile) throws InterruptedException {
+        while (Files.exists(lockFile)) {
             LoggerUtil.info(this.getClass(),
-                    String.format("Wrote %d unique entries to local storage for %s",
-                            dedupedEntries.size(), username));
+                    String.format("Waiting for lock to be released: %s",
+                            lockFile.getFileName()));
+            Thread.sleep(1000);
+        }
 
-            // Sync to network if available
-            if (pathConfig.isNetworkAvailable()) {
-                fileSyncService.syncToNetwork(localPath, networkPath);
-                LoggerUtil.info(this.getClass(), "Synced worktime entries to network");
-            }
-        } catch (Exception e) {
+        try {
+            Files.createFile(lockFile);
+        } catch (IOException e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Failed to write worktime entries: %s", e.getMessage()));
-            throw new RuntimeException("Failed to write worktime entries", e);
+                    String.format("Error creating lock file %s: %s",
+                            lockFile.getFileName(), e.getMessage()));
+            throw new RuntimeException("Failed to create lock file", e);
         }
     }
 
-    // File existence and comparison operations
-    public boolean fileExists(Path path) {
-        String filename = path.getFileName().toString();
-        Path resolvedPath = pathConfig.resolvePathForRead(filename);
-
-        ReentrantReadWriteLock.ReadLock readLock = getFileLock(resolvedPath).readLock();
-        readLock.lock();
+    private void releaseLock(Path lockFile) {
         try {
-            return Files.exists(resolvedPath);
-        } catch (Exception e) {
-            return false;
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    // User data operations
-    public List<User> readUserData() {
-        TypeReference<List<User>> userListType = new TypeReference<>() {};
-        Path networkPath = pathConfig.getUsersJsonPath();
-        Path localPath = pathConfig.getLocalUsersJsonPath();
-
-        try {
-            // Use readOperation for network-first, local-fallback behavior
-            return readOperation(networkPath, localPath, userListType, false);
-        } catch (Exception e) {
+            Files.deleteIfExists(lockFile);
+        } catch (IOException e) {
             LoggerUtil.error(this.getClass(),
-                    "Failed to read user data, returning empty list: " + e.getMessage());
-            return new ArrayList<>();
+                    String.format("Error removing lock file %s: %s",
+                            lockFile.getFileName(), e.getMessage()));
         }
     }
 
-    public void saveUserData(List<User> users) {
-        Path localPath = pathConfig.getLocalUsersJsonPath();
-        Path networkPath = pathConfig.getUsersJsonPath();
-
-        try {
-            // Always write to local path first
-            writeOperation(localPath, users, false);
-            LoggerUtil.info(this.getClass(), "Saved users to local path");
-
-            // Write to network if available using FileSyncService
-            if (pathConfig.isNetworkAvailable()) {
-                try {
-                    fileSyncService.syncToNetwork(localPath, networkPath);
-                    LoggerUtil.info(this.getClass(), "Synced users to network path");
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            "Could not sync to network path: " + e.getMessage());
-                }
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to save user data: " + e.getMessage());
-            throw new RuntimeException("Failed to save user data", e);
-        }
-    }
-
-    public Optional<User> findUserByUsername(String username) {
-        return readUserData().stream()
-                .filter(user -> user.getUsername().equals(username))
-                .findFirst();
-    }
-
-    public Optional<User> findUserById(Integer userId) {
-        return readUserData().stream()
-                .filter(user -> user.getUserId().equals(userId))
-                .findFirst();
-    }
-
-    // Path resolution methods
-    public Path getAdminWorktimePath(Integer year, Integer month) {
-        return pathConfig.getAdminWorktimePath(year, month);
-    }
-
-    public Path getAdminRegisterPath(String username, Integer userId, Integer year, Integer month) {
-        return pathConfig.getAdminRegisterPath(username, userId, year, month);
-    }
-
-    public Path getAdminBonusPath(Integer year, Integer month) {
-        return pathConfig.getAdminBonusPath(year, month);
-    }
-
-    public Path getUserWorktimePath(String username, Integer year, Integer month) {
-        return pathConfig.getUserWorktimeFilePath(username, year, month);
-    }
-
-    public Path getUserRegisterPath(String username, Integer userId, Integer year, Integer month) {
-        return pathConfig.getUserRegisterPath(username, userId, year, month);
-    }
-
-    public Path getSessionPath(String username, Integer userId) {
-        return pathConfig.getSessionFilePath(username, userId);
-    }
-
-    public Path getLocalSessionPath(String username, Integer userId) {
-        return pathConfig.getLocalSessionFilePath(username, userId);
-    }
-
-    public Path getHolidayPath() {
-        return pathConfig.getHolidayListPath();
-    }
-
-    public Path getUsersPath() {
-        return pathConfig.getUsersJsonPath();
-    }
-
-    public Path getLocalUsersPath() {
-        return pathConfig.getLocalUsersJsonPath();
-    }
 }

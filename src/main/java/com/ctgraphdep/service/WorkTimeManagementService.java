@@ -5,11 +5,9 @@ import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -24,7 +22,6 @@ public class WorkTimeManagementService {
     private final DataAccessService dataAccess;
     private final UserService userService;
     private final ReentrantLock adminLock = new ReentrantLock();
-    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
 
     public WorkTimeManagementService(
             DataAccessService dataAccess,
@@ -209,8 +206,36 @@ public class WorkTimeManagementService {
     }
 
     private List<WorkTimeTable> loadAdminEntries(int year, int month) {
-        Path adminPath = dataAccess.getAdminWorktimePath(year, month);
-        return dataAccess.readFile(adminPath, WORKTIME_LIST_TYPE, true);
+        try {
+            // Load from local since we're using local-primary approach
+            List<WorkTimeTable> entries = dataAccess.readLocalAdminWorktime(year, month);
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading admin entries for %d/%d: %s",
+                            year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    private void saveAdminEntry(List<WorkTimeTable> entries, int year, int month) {
+        try {
+            // Sort entries before saving
+            entries.sort(Comparator
+                    .comparing(WorkTimeTable::getWorkDate)
+                    .thenComparing(WorkTimeTable::getUserId));
+
+            // Write using DataAccessService which handles local save and network sync
+            dataAccess.writeAdminWorktime(entries, year, month);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Saved %d entries to admin worktime", entries.size()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error saving admin entries for %d/%d: %s",
+                            year, month, e.getMessage()));
+            throw new RuntimeException("Failed to save admin entries", e);
+        }
     }
 
     private void saveAdminEntry(WorkTimeTable entry, int year, int month) {
@@ -227,19 +252,6 @@ public class WorkTimeManagementService {
         saveAdminEntry(entries, year, month);
     }
 
-    private void saveAdminEntry(List<WorkTimeTable> entries, int year, int month) {
-        entries.sort(Comparator
-                .comparing(WorkTimeTable::getWorkDate)
-                .thenComparing(WorkTimeTable::getUserId));
-
-        dataAccess.writeFile(
-                dataAccess.getAdminWorktimePath(year, month),
-                entries
-        );
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Saved %d entries to admin worktime", entries.size()));
-    }
 
     private void processTimeOffUpdate(Integer userId, LocalDate date, String type) {
         if (WorkCode.TIME_OFF_CODE.equals(type)) {

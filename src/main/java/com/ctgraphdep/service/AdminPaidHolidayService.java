@@ -3,11 +3,9 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.model.PaidHolidayEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -156,9 +154,8 @@ public class AdminPaidHolidayService {
     }
 
     public List<PaidHolidayEntry> loadHolidayList() {
-        Path filePath = dataAccess.getHolidayPath();
         try {
-            return dataAccess.readFile(filePath, new TypeReference<>() {}, true);
+            return dataAccess.readHolidayEntries();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     "Error loading holiday list: " + e.getMessage());
@@ -167,9 +164,8 @@ public class AdminPaidHolidayService {
     }
 
     private void saveHolidayList(List<PaidHolidayEntry> entries) {
-        Path filePath = dataAccess.getHolidayPath();
         try {
-            dataAccess.writeFile(filePath, entries);
+            dataAccess.writeHolidayEntries(entries);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     "Error saving holiday list: " + e.getMessage());

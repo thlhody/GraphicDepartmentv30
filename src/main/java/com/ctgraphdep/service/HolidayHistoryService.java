@@ -3,10 +3,8 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -14,11 +12,6 @@ import java.util.List;
 
 @Service
 public class HolidayHistoryService {
-    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE =
-            new TypeReference<>() {
-            };
-    private static final int HISTORY_MONTHS = 12;
-
     private final DataAccessService dataAccess;
 
     public HolidayHistoryService(DataAccessService dataAccess) {
@@ -32,7 +25,7 @@ public class HolidayHistoryService {
         LocalDate now = LocalDate.now();
 
         // Get files for the last 12 months
-        for (int i = 0; i < HISTORY_MONTHS; i++) {
+        for (int i = 0; i < WorkCode.HISTORY_MONTHS; i++) {
             LocalDate date = now.minusMonths(i);
             YearMonth yearMonth = YearMonth.from(date);
             try {
@@ -49,14 +42,18 @@ public class HolidayHistoryService {
 
     // Load time off entries for a specific month
     private List<WorkTimeTable> loadMonthlyTimeoffs(String username, YearMonth yearMonth) {
-        Path filePath = dataAccess.getUserWorktimePath(username, yearMonth.getYear(), yearMonth.getMonthValue());
-
-        List<WorkTimeTable> monthEntries = dataAccess.readFile(filePath, WORKTIME_LIST_TYPE, true);
+        List<WorkTimeTable> monthEntries = dataAccess.readNetworkUserWorktime(
+                username,
+                yearMonth.getYear(),
+                yearMonth.getMonthValue()
+        );
 
         // Filter only time off entries (include all types)
         return monthEntries.stream()
                 .filter(entry -> entry.getTimeOffType() != null &&
-                        (entry.getTimeOffType().equals(WorkCode.TIME_OFF_CODE) || entry.getTimeOffType().equals(WorkCode.MEDICAL_LEAVE_CODE) || entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE)))
+                        (entry.getTimeOffType().equals(WorkCode.TIME_OFF_CODE) ||
+                                entry.getTimeOffType().equals(WorkCode.MEDICAL_LEAVE_CODE) ||
+                                entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE)))
                 .toList();
     }
 }

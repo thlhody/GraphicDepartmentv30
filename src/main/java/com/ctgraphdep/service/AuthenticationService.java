@@ -15,9 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,14 +28,14 @@ public class AuthenticationService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final SessionRecoveryService sessionRecoveryService;
-    private final CustomUserDetailsService userDetailsService;  // Add this
+    private final CustomUserDetailsService userDetailsService;
 
     public AuthenticationService(
             DataAccessService dataAccess,
             PathConfig pathConfig, UserService userService,
             PasswordEncoder passwordEncoder,
             SessionRecoveryService sessionRecoveryService,
-            CustomUserDetailsService userDetailsService) {  // Add this
+            CustomUserDetailsService userDetailsService) {
         this.dataAccess = dataAccess;
         this.pathConfig = pathConfig;
         this.userService = userService;
@@ -50,13 +47,12 @@ public class AuthenticationService {
 
     public AuthenticationStatus getAuthenticationStatus() {
         try {
-            // Get status directly from PathConfig
+            // Use PathConfig for network status
             boolean networkAvailable = pathConfig.isNetworkAvailable();
 
-            // Always check local path availability as fallback
-            Path localUsersPath = dataAccess.getLocalUsersPath();
-            boolean offlineModeAvailable = Files.exists(localUsersPath) &&
-                    Files.size(localUsersPath) > 3;
+            // Use DataAccessService for checking local files
+            List<User> localUsers = dataAccess.readLocalUsers();
+            boolean offlineModeAvailable = localUsers != null && !localUsers.isEmpty();
 
             String status = networkAvailable ? "ONLINE" :
                     offlineModeAvailable ? "OFFLINE" : "UNAVAILABLE";
@@ -66,11 +62,9 @@ public class AuthenticationService {
                             networkAvailable, offlineModeAvailable, status));
 
             return new AuthenticationStatus(networkAvailable, offlineModeAvailable, status);
-
-        } catch (IOException e) {
+        } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     "Error checking authentication status: " + e.getMessage());
-
             return new AuthenticationStatus(false, false, "UNAVAILABLE");
         }
     }
@@ -149,13 +143,10 @@ public class AuthenticationService {
         }
     }
 
-    // Add this helper method to the AuthenticationService
     private Optional<User> getUserFromLocalStorage(String username) {
         try {
-            Path localUsersPath = dataAccess.getLocalUsersPath();
-            if (Files.exists(localUsersPath) && Files.size(localUsersPath) > 3) {
-                List<User> localUsers = dataAccess.readFile(localUsersPath,
-                        new TypeReference<List<User>>() {}, false);
+            List<User> localUsers = dataAccess.readLocalUsers();
+            if (localUsers != null) {
                 return localUsers.stream()
                         .filter(u -> u.getUsername().equals(username))
                         .findFirst();
@@ -169,54 +160,51 @@ public class AuthenticationService {
 
     private void ensureLocalDirectories(boolean isAdmin) {
         try {
-            List<Path> directories = Arrays.asList(
-                    pathConfig.getUserSessionDir(),
-                    pathConfig.getUserWorktimeDir(),
-                    pathConfig.getUserRegisterDir()
-            );
-
-            // Add admin directories if user is admin
+            // PathConfig already handles base directory creation in its init()
+            // We don't need to manually create directories anymore
+            // Just verify they exist
+            verifyUserDirectories();
             if (isAdmin) {
-                List<Path> adminDirs = Arrays.asList(
-                        pathConfig.getAdminWorktimeDir(),
-                        pathConfig.getAdminRegisterDir(),
-                        pathConfig.getAdminBonusDir(),
-                        pathConfig.getLoginDir()
-                );
-                directories = new ArrayList<>(directories);
-                directories.addAll(adminDirs);
+                verifyAdminDirectories();
             }
-
-            for (Path dir : directories) {
-                if (!Files.exists(dir)) {
-                    Files.createDirectories(dir);
-                    LoggerUtil.debug(this.getClass(), "Created directory: " + dir);
-                }
-            }
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Created %d local directories successfully", directories.size()));
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    "Error creating local directories: " + e.getMessage());
-            throw new RuntimeException("Failed to create local directories", e);
+                    "Error verifying local directories: " + e.getMessage());
+            throw new RuntimeException("Failed to verify local directories", e);
+        }
+    }
+
+    private void verifyUserDirectories() throws IOException {
+        if (!Files.exists(pathConfig.getLocalSessionPath("test", 0).getParent()) ||
+                !Files.exists(pathConfig.getLocalWorktimePath("test", 0, 0).getParent()) ||
+                !Files.exists(pathConfig.getLocalRegisterPath("test", 0, 0, 0).getParent())) {
+            throw new IOException("Required user directories not found");
+        }
+    }
+
+    private void verifyAdminDirectories() throws IOException {
+        if (!Files.exists(pathConfig.getLocalAdminWorktimePath(0, 0).getParent()) ||
+                !Files.exists(pathConfig.getLocalAdminRegisterPath("test", 0, 0, 0).getParent()) ||
+                !Files.exists(pathConfig.getLocalBonusPath(0, 0).getParent())) {
+            throw new IOException("Required admin directories not found");
         }
     }
 
     private void storeUserDataLocally(User user) {
         try {
-            Path localUsersPath = dataAccess.getLocalUsersPath(); // New method needed in DataAccessService
+            // Get the full, unsanitized user data
+            Optional<User> fullUserData = userService.getCompleteUserByUsername(user.getUsername());
 
-            // Create a new list with just this user
-            List<User> singleUserList = new ArrayList<>();
-            singleUserList.add(user);
-
-            // Save only this user's data locally
-            dataAccess.writeFile(localUsersPath, singleUserList);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Stored single user data locally for: %s", user.getUsername()));
+            if (fullUserData.isPresent()) {
+                // Store the complete user object including password
+                dataAccess.writeLocalUsers(fullUserData.get());
+                LoggerUtil.info(this.getClass(),
+                        String.format("Stored complete user data locally for: %s", user.getUsername()));
+            } else {
+                LoggerUtil.error(this.getClass(),
+                        String.format("Could not find complete user data for: %s", user.getUsername()));
+                throw new RuntimeException("Failed to store complete user data locally");
+            }
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),

@@ -46,23 +46,22 @@ public class AdminStatisticsService {
                 .toList();
 
         for (User user : users) {
-            Path registerPath = dataAccess.getUserRegisterPath(
-                    user.getUsername(),
-                    user.getUserId(),
-                    year,
-                    month
-            );
-
             try {
-                List<RegisterEntry> userEntries = dataAccess.readFile(
-                        registerPath,
-                        new TypeReference<>() {},
-                        true
+                // Use readUserRegister method with isAdmin set to true to read from network path
+                List<RegisterEntry> userEntries = dataAccess.readNetworkUserRegister(
+                        user.getUsername(),
+                        user.getUserId(),
+                        year,
+                        month
                 );
-                allEntries.addAll(userEntries);
+
+                if (userEntries != null) {
+                    allEntries.addAll(userEntries);
+                }
             } catch (Exception e) {
                 LoggerUtil.error(this.getClass(),
-                        "Error reading register for user " + user.getUsername());
+                        String.format("Error reading register for user %s: %s",
+                                user.getUsername(), e.getMessage()));
             }
         }
         return allEntries;

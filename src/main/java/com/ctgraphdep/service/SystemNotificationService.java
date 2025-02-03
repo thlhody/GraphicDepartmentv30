@@ -1,13 +1,9 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.event.SessionEndEvent;
-import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.NotificationBackgroundUtility;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 

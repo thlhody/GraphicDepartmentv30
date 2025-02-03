@@ -2,7 +2,6 @@ package com.ctgraphdep.security;
 
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.service.DataAccessService;
-import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -10,136 +9,71 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
     private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
-
-    private final UserService userService;
     private final DataAccessService dataAccess;
 
-    public CustomUserDetailsService(UserService userService, DataAccessService dataAccess) {
-        this.userService = userService;
+    public CustomUserDetailsService(DataAccessService dataAccess) {
         this.dataAccess = dataAccess;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Override
     public UserDetails loadUserByUsername(String username) {
-        // First, try network path
-        Path networkUsersPath = dataAccess.getUsersPath();
         LoggerUtil.debug(this.getClass(),
-                String.format("Attempting to load user from network path: %s", networkUsersPath));
+                String.format("Loading user from network: %s", username));
 
         try {
-            // Check network path file
-            if (Files.exists(networkUsersPath) && Files.size(networkUsersPath) > 3) {
-                List<User> networkUsers = dataAccess.readFile(networkUsersPath, USER_LIST_TYPE, false);
-                Optional<User> networkUser = networkUsers.stream()
-                        .filter(u -> u.getUsername().equals(username))
-                        .findFirst();
+            // Read from network users.json
+            List<User> users = dataAccess.readUsersNetwork();
 
-                if (networkUser.isPresent()) {
-                    LoggerUtil.info(this.getClass(),
-                            "Found user in network path: " + username);
-                    return new CustomUserDetails(networkUser.get());
-                }
-            } else {
-                LoggerUtil.warn(this.getClass(),
-                        "Network users.json is missing or empty");
-            }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    "Error reading network users file: " + e.getMessage());
-        }
-
-        // If network path fails, try local path
-        Path localUsersPath = dataAccess.getLocalUsersPath();
-        LoggerUtil.debug(this.getClass(),
-                String.format("Attempting to load user from local path: %s", localUsersPath));
-
-        try {
-            // Check local path file
-            if (Files.exists(localUsersPath) && Files.size(localUsersPath) > 3) {
-                List<User> localUsers = dataAccess.readFile(localUsersPath, USER_LIST_TYPE, false);
-                Optional<User> localUser = localUsers.stream()
-                        .filter(u -> u.getUsername().equals(username))
-                        .findFirst();
-
-                if (localUser.isPresent()) {
-                    LoggerUtil.info(this.getClass(),
-                            "Found user in local path: " + username);
-                    return new CustomUserDetails(localUser.get());
-                }
-            } else {
-                LoggerUtil.warn(this.getClass(),
-                        "Local local_users.json is missing or empty");
-            }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    "Error reading local users file: " + e.getMessage());
-        }
-
-        // If no user found in either location
-        LoggerUtil.error(this.getClass(),
-                String.format("User not found in network or local storage: %s", username));
-        throw new UsernameNotFoundException("User not found in any storage: " + username);
-    }
-
-    public UserDetails loadUserByUsernameOffline(String username) {
-        // First try local storage
-        LoggerUtil.debug(this.getClass(),
-                String.format("Attempting offline authentication for %s", username));
-        Path localUsersPath = dataAccess.getLocalUsersPath();
-        if (dataAccess.fileExists(localUsersPath)) {
-            try {
-                List<User> localUsers = dataAccess.readFile(localUsersPath, USER_LIST_TYPE, false);
-                Optional<User> userOpt = localUsers.stream()
-                        .filter(u -> u.getUsername().equals(username))
-                        .findFirst();
-
-                if (userOpt.isPresent()) {
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Loaded user from local storage: %s", username));
-                    return new CustomUserDetails(userOpt.get());
-                }
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Error reading local user data: %s", e.getMessage()));
-            }
-        }
-
-        // If not found in local storage, try network path as fallback
-        Path usersPath = dataAccess.getUsersPath();
-        if (!dataAccess.fileExists(usersPath)) {
-            LoggerUtil.error(this.getClass(), "Offline user data file not found");
-            throw new UsernameNotFoundException("Offline data not available");
-        }
-
-        try {
-            List<User> users = dataAccess.readFile(usersPath, USER_LIST_TYPE, false);
-            Optional<User> userOpt = users.stream()
+            return users.stream()
                     .filter(u -> u.getUsername().equals(username))
-                    .findFirst();
-
-            if (userOpt.isPresent()) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Loaded user from network storage: %s", username));
-                return new CustomUserDetails(userOpt.get());
-            }
-
-            LoggerUtil.warn(this.getClass(),
-                    String.format("User not found in any storage: %s", username));
-            throw new UsernameNotFoundException("User not found in any storage");
+                    .findFirst()
+                    .map(CustomUserDetails::new)
+                    .orElseThrow(() -> {
+                        LoggerUtil.warn(this.getClass(),
+                                String.format("User not found in network storage: %s", username));
+                        return new UsernameNotFoundException("User not found: " + username);
+                    });
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error reading user data: %s", e.getMessage()));
+                    String.format("Error reading network users file: %s", e.getMessage()));
             throw new UsernameNotFoundException("Error accessing user data", e);
+        }
+    }
+
+    public UserDetails loadUserByUsernameOffline(String username) {
+        LoggerUtil.debug(this.getClass(),
+                String.format("Loading user from local storage: %s", username));
+
+        try {
+            // Read from local local_users.json
+            List<User> localUsers = dataAccess.readLocalUsers();
+
+            if (localUsers != null && !localUsers.isEmpty()) {
+                return localUsers.stream()
+                        .filter(u -> u.getUsername().equals(username))
+                        .findFirst()
+                        .map(CustomUserDetails::new)
+                        .orElseThrow(() -> {
+                            LoggerUtil.warn(this.getClass(),
+                                    String.format("User not found in local storage: %s", username));
+                            return new UsernameNotFoundException("User not found in local storage");
+                        });
+            }
+
+            LoggerUtil.warn(this.getClass(), "No users found in local storage");
+            throw new UsernameNotFoundException("No local user data available");
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading local users file: %s", e.getMessage()));
+            throw new UsernameNotFoundException("Error accessing local user data", e);
         }
     }
 }

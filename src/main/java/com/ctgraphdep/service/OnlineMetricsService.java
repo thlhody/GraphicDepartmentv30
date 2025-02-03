@@ -54,17 +54,20 @@ public class OnlineMetricsService {
 
     private UserStatusDTO getUserStatus(User user) {
         try {
-            if (dataAccess.fileExists(dataAccess.getSessionPath(user.getUsername(), user.getUserId()))) {
-                WorkUsersSessionsStates session = dataAccess.readFile(
-                        dataAccess.getSessionPath(user.getUsername(), user.getUserId()),
-                        SESSION_TYPE,
-                        false
+            if (dataAccess.networkSessionExists(user.getUsername(), user.getUserId())) {
+                WorkUsersSessionsStates session = dataAccess.readNetworkSessionFile(
+                        user.getUsername(),
+                        user.getUserId()
                 );
-                return buildUserStatusDTO(user, session);
+
+                if (session != null) {
+                    return buildUserStatusDTO(user, session);
+                }
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    "Error reading session for user " + user.getUsername() + ": " + e.getMessage());
+                    String.format("Error reading network session for user %s: %s",
+                            user.getUsername(), e.getMessage()));
         }
 
         return createOfflineStatus(user);

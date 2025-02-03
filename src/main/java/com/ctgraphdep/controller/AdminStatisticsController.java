@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.statistics.RegisterStatistics;
 import com.ctgraphdep.service.AdminStatisticsService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -19,10 +20,6 @@ import java.util.Optional;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminStatisticsController {
     private final AdminStatisticsService statisticsService;
-    private final String[] MONTH_NAMES = {
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-    };
 
     public AdminStatisticsController(AdminStatisticsService statisticsService) {
         this.statisticsService = statisticsService;
@@ -48,7 +45,7 @@ public class AdminStatisticsController {
         model.addAttribute("dailyEntries", dailyEntries);
         model.addAttribute("currentYear", year);
         model.addAttribute("currentMonth", month);
-        model.addAttribute("monthNames", MONTH_NAMES);
+        model.addAttribute("monthNames", WorkCode.MONTH_NAMES);
 
         return "admin/statistics";
     }

@@ -138,14 +138,6 @@ public class NetworkMonitorService {
         }
     }
 
-    public void addNetworkStatusListener(NetworkStatusListener listener) {
-        statusListeners.add(listener);
-    }
-
-    public void removeNetworkStatusListener(NetworkStatusListener listener) {
-        statusListeners.remove(listener);
-    }
-
     private void notifyStatusListeners(boolean status) {
         for (NetworkStatusListener listener : statusListeners) {
             try {
@@ -157,15 +149,4 @@ public class NetworkMonitorService {
         }
     }
 
-    public boolean isNetworkAvailable() {
-        return lastKnownNetworkStatus;
-    }
-
-    public LocalDateTime getLastCheckTime() {
-        return lastNetworkCheck;
-    }
-
-    public void forceNetworkCheck() {
-        checkNetworkStatus();
-    }
 }

@@ -7,7 +7,7 @@ import java.util.Map;
 public class WorkCode {
 
     //file format
-    public static final String JSON_FORMAT = ".json";
+    public static final String BACKUP_EXTENSION = ".bak";
     public static final String HOURLY = "_hourly";
 
     //time off codes
@@ -66,6 +66,11 @@ public class WorkCode {
             DayOfWeek.THURSDAY, "J", DayOfWeek.FRIDAY, "V", DayOfWeek.SATURDAY, "S",
             DayOfWeek.SUNDAY, "D"
     );
+    public static final Integer HISTORY_MONTHS = 12;
+    public static final String[] MONTH_NAMES = {
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+    };
 
     //work statuses
     public static final String WORK_ONLINE = "Online";

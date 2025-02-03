@@ -4,21 +4,18 @@ import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.enums.WorktimeMergeRule;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class WorkTimeEntrySyncService {
-    private final DataAccessService dataAccess;
-    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
+    private final DataAccessService dataAccessService;
 
-    public WorkTimeEntrySyncService(DataAccessService dataAccess) {
-        this.dataAccess = dataAccess;
+    public WorkTimeEntrySyncService(DataAccessService dataAccessService) {
+        this.dataAccessService = dataAccessService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -68,29 +65,34 @@ public class WorkTimeEntrySyncService {
 
         List<WorkTimeTable> mergedEntries = new ArrayList<>();
         Set<LocalDate> allDates = new HashSet<>();
-        allDates.addAll(userEntriesMap.keySet());
-        allDates.addAll(adminEntriesMap.keySet());
+        if (userEntriesMap != null) {
+            allDates.addAll(userEntriesMap.keySet());
+        }
+        if (adminEntriesMap != null) {
+            allDates.addAll(adminEntriesMap.keySet());
+        }
 
         for (LocalDate date : allDates) {
-            WorkTimeTable userEntry = userEntriesMap.get(date);
-            WorkTimeTable adminEntry = adminEntriesMap.get(date);
+            WorkTimeTable userEntry = userEntriesMap != null ? userEntriesMap.get(date) : null;
+            WorkTimeTable adminEntry = adminEntriesMap != null ? adminEntriesMap.get(date) : null;
 
-            // Skip if both entries are null
-            if (userEntry == null && adminEntry == null) {
-                continue;
-            }
+            try {
+                WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, adminEntry);
+                if (mergedEntry != null) {
+                    // Ensure userId is set
+                    if (mergedEntry.getUserId() == null) {
+                        mergedEntry.setUserId(userId);
+                    }
+                    mergedEntries.add(mergedEntry);
 
-            WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, adminEntry);
-            if (mergedEntry != null) {
-                // Ensure userId is set
-                if (mergedEntry.getUserId() == null) {
-                    mergedEntry.setUserId(userId);
+                    LoggerUtil.debug(this.getClass(),
+                            String.format("Processed entry for date %s, final status: %s",
+                                    date, mergedEntry.getAdminSync()));
                 }
-                mergedEntries.add(mergedEntry);
-
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Processed entry for date %s, final status: %s",
-                                date, mergedEntry.getAdminSync()));
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(),
+                        String.format("Error merging entries for date %s: %s", date, e.getMessage()));
+                // Continue processing other entries
             }
         }
 
@@ -128,7 +130,7 @@ public class WorkTimeEntrySyncService {
         }
 
         return WorktimeMergeRule.apply(userEntry, adminEntry);
-    }
+    }  //?????
 
     private boolean entriesMatch(WorkTimeTable entry1, WorkTimeTable entry2) {
         if (entry1 == null || entry2 == null) return false;
@@ -155,33 +157,63 @@ public class WorkTimeEntrySyncService {
     }
 
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
-        Path userPath = dataAccess.getUserWorktimePath(username, year, month);
-        List<WorkTimeTable> entries = dataAccess.readFile(userPath, WORKTIME_LIST_TYPE, true);
+        try {
+            // Use readUserWorktime with isAdmin=false to read from local
+            List<WorkTimeTable> entries = dataAccessService.readUserWorktime(username, year, month);
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Loaded %d entries from user worktime file for %s",
-                        entries.size(), username));
-        return entries;
+            if (entries == null) {
+                entries = new ArrayList<>();
+            }
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Loaded %d entries from user worktime file for %s",
+                            entries.size(), username));
+            return entries;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading user entries for %s: %s",
+                            username, e.getMessage()));
+            return new ArrayList<>();
+        }
     }
 
     private List<WorkTimeTable> loadAdminEntries(Integer userId, int year, int month) {
-        Path adminPath = dataAccess.getAdminWorktimePath(year, month);
-        List<WorkTimeTable> allEntries = dataAccess.readFile(adminPath, WORKTIME_LIST_TYPE, true);
+        try {
+            List<WorkTimeTable> allEntries = dataAccessService.readNetworkAdminWorktime(year, month);
+            // allEntries will never be null now due to changes above
 
-        List<WorkTimeTable> userEntries = allEntries.stream()
-                .filter(entry -> entry.getUserId().equals(userId))
-                .collect(Collectors.toList());
+            List<WorkTimeTable> userEntries = allEntries.stream()
+                    .filter(entry -> entry.getUserId() != null &&
+                            entry.getUserId().equals(userId))
+                    .collect(Collectors.toList());
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Loaded %d admin entries for user %d",
-                        userEntries.size(), userId));
-        return userEntries;
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Loaded %d admin entries for user %d from %d/%d",
+                            userEntries.size(), userId, year, month));
+
+            return userEntries;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading admin entries for user %d: %s",
+                            userId, e.getMessage()));
+            return new ArrayList<>();
+        }
     }
 
     private void saveUserEntries(String username, List<WorkTimeTable> entries, int year, int month) {
-        Path userPath = dataAccess.getUserWorktimePath(username, year, month);
-        dataAccess.writeFile(userPath, entries);
-        LoggerUtil.info(this.getClass(),
-                String.format("Saved %d merged entries to user worktime file", entries.size()));
+        try {
+            // Use writeUserWorktime which handles local save and network sync
+            dataAccessService.writeUserWorktime(username, entries, year, month);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Saved %d merged entries to user worktime file",
+                            entries.size()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error saving user entries for %s: %s",
+                            username, e.getMessage()));
+            throw new RuntimeException("Failed to save worktime entries", e);
+        }
     }
 }
