@@ -14,6 +14,7 @@ import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -28,6 +29,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Controller
+@PreAuthorize("isAuthenticated()")
 @RequestMapping("/user/timeoff")
 public class UserTimeOffController extends BaseController {
     private final UserTimeOffService timeOffService;
@@ -53,6 +55,13 @@ public class UserTimeOffController extends BaseController {
     public String showTimeOffPage(@AuthenticationPrincipal UserDetails userDetails, Model model) {
         try {
             User user = getUser(userDetails);
+
+            // Determine dashboard URL based on user role
+            String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" :
+                    user.hasRole("ADMIN") ? "/admin" : "/user";
+
+            model.addAttribute("dashboardUrl", dashboardUrl);
+
             prepareTimeOffPageModel(model, user);
             return "user/timeoff";
         } catch (Exception e) {

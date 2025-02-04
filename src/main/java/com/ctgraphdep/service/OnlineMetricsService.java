@@ -42,7 +42,7 @@ public class OnlineMetricsService {
         // Filter out administrators using multiple criteria
         List<User> regularUsers = userService.getAllUsers().stream()
                 .filter(user -> !user.isAdmin() &&
-                        !user.getRole().equals("ROLE_ADMIN") &&
+                        !user.getRole().equals("ADMIN") &&
                         !user.getRole().equals("ADMINISTRATOR") &&
                         !user.getUsername().equalsIgnoreCase("admin"))
                 .toList();

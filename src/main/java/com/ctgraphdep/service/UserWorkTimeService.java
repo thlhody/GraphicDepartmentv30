@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
@@ -7,6 +8,7 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -20,38 +22,79 @@ public class UserWorkTimeService {
     private final DataAccessService dataAccess;
     private final UserService userService;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
+    private final PathConfig pathConfig;
 
     public UserWorkTimeService(
             DataAccessService dataAccess,
-            UserService userService) {
+            UserService userService, PathConfig pathConfig) {
         this.dataAccess = dataAccess;
         this.userService = userService;
+        this.pathConfig = pathConfig;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     // Load month worktime - local with network sync
-    @PreAuthorize("#username == authentication.name")
+    @PreAuthorize("#username == authentication.name or hasAnyRole('ADMIN', 'TEAM_LEADER')")
     public List<WorkTimeTable> loadMonthWorktime(String username, int year, int month) {
         validatePeriod(year, month);
         Integer userId = getUserId(username);
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        lock.readLock().lock();
-        try {
-            List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
-            List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
-            List<WorkTimeTable> mergedEntries = mergeEntries(userEntries, adminEntries);
+        // If accessing own data, use normal local path flow
+        if (currentUsername.equals(username)) {
+            lock.readLock().lock();
+            try {
+                List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
+                List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
+                List<WorkTimeTable> mergedEntries = mergeEntries(userEntries, adminEntries);
 
-            if (!adminEntries.isEmpty()) {
-                dataAccess.writeUserWorktime(username, mergedEntries, year, month);
+                if (!adminEntries.isEmpty()) {
+                    dataAccess.writeUserWorktime(username, mergedEntries, year, month);
+                }
+
+                return mergedEntries.stream()
+                        .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
+                        .collect(Collectors.toList());
+            } finally {
+                lock.readLock().unlock();
             }
-
-            return mergedEntries.stream()
-                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                    .collect(Collectors.toList());
-        } finally {
-            lock.readLock().unlock();
         }
+
+        // For admin/team leader viewing others, read directly from network
+        if (pathConfig.isNetworkAvailable()) {
+            return dataAccess.readNetworkUserWorktime(username, year, month);
+        }
+        throw new RuntimeException("Network access required to view other users' worktime");
+    }
+
+    // In UserWorkTimeService
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEAM_LEADER')")
+    public List<WorkTimeTable> loadViewOnlyWorktime(String username, int year, int month) {
+        validatePeriod(year, month);
+        Integer userId = getUserId(username);
+
+        // Only read from network for admins/team leaders viewing others
+        List<WorkTimeTable> userEntries = dataAccess.readNetworkUserWorktime(username, year, month);
+        List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
+
+        Map<LocalDate, WorkTimeTable> mergedMap = new HashMap<>();
+
+        if (userEntries != null) {
+            userEntries.forEach(entry -> mergedMap.put(entry.getWorkDate(), entry));
+        }
+
+        if (adminEntries != null) {
+            adminEntries.forEach(adminEntry -> {
+                if (adminEntry.getAdminSync() == SyncStatus.ADMIN_EDITED) {
+                    adminEntry.setAdminSync(SyncStatus.USER_DONE);
+                    mergedMap.put(adminEntry.getWorkDate(), adminEntry);
+                }
+            });
+        }
+
+        return new ArrayList<>(mergedMap.values()).stream()
+                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
+                .collect(Collectors.toList());
     }
 
     private List<WorkTimeTable> mergeEntries(List<WorkTimeTable> userEntries, List<WorkTimeTable> adminEntries) {

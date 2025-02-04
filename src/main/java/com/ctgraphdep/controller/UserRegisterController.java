@@ -15,6 +15,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -29,6 +30,7 @@ import java.util.List;
 
 @Controller
 @RequestMapping("/user/register")
+@PreAuthorize("isAuthenticated()")
 public class UserRegisterController extends BaseController {
     private final UserRegisterService userRegisterService;
     private final UserRegisterExcelExporter userRegisterExcelExporter;
@@ -102,7 +104,7 @@ public class UserRegisterController extends BaseController {
                 model.addAttribute("dashboardUrl", "/admin");
             } else if (currentUser.hasRole("TEAM_LEADER")) {
                 model.addAttribute("isTeamLeaderView", true);
-                model.addAttribute("dashboardUrl", "/team-leader");
+                model.addAttribute("dashboardUrl", "/team-lead");
             } else {
                 model.addAttribute("dashboardUrl", "/user");
             }

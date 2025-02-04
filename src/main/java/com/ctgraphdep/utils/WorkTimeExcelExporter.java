@@ -57,7 +57,7 @@ public class WorkTimeExcelExporter {
 
     private List<User> filterNonAdminUsers(List<User> users) {
         return users.stream()
-                .filter(user -> !user.getRole().contains("ROLE_ADMIN"))
+                .filter(user -> !user.getRole().contains("ADMIN"))
                 .toList();
     }
 

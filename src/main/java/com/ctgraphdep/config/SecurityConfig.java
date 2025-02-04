@@ -43,7 +43,8 @@ public class SecurityConfig {
                     .authorizeHttpRequests(authorize -> authorize
                             .requestMatchers("/", "/about", "/css/**", "/images/**", "/icons/**", "/api/system/status").permitAll()
                             .requestMatchers("/admin/**").hasRole("ADMIN")
-                            .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
+                            .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
+                            .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")
                             .anyRequest().authenticated()
                     )
                     .formLogin(form -> form
@@ -60,11 +61,23 @@ public class SecurityConfig {
                                             .map(GrantedAuthority::getAuthority)
                                             .collect(Collectors.toSet());
 
+                                    LoggerUtil.debug(this.getClass(),
+                                            String.format("User %s has roles: %s",
+                                                    username,
+                                                    String.join(", ", roles)));
+
+                                    LoggerUtil.debug(this.getClass(), "Checking roles for redirect...");
                                     if (roles.contains("ROLE_ADMIN")) {
+                                        LoggerUtil.debug(this.getClass(), "Redirecting to admin...");
                                         response.sendRedirect("/admin");
+                                    } else if (roles.contains("ROLE_TEAM_LEADER")) {
+                                        LoggerUtil.debug(this.getClass(), "Redirecting to team lead...");
+                                        response.sendRedirect("/team-lead");
                                     } else if (roles.contains("ROLE_USER")) {
+                                        LoggerUtil.debug(this.getClass(), "Redirecting to user...");
                                         response.sendRedirect("/user");
                                     } else {
+                                        LoggerUtil.debug(this.getClass(), "Redirecting to home...");
                                         response.sendRedirect("/");
                                     }
                                 } catch (Exception e) {

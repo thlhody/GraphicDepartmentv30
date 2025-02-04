@@ -14,15 +14,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 @Controller
-@RequestMapping("/admin")
-@PreAuthorize("hasRole('ROLE_ADMIN')")
-public class AdminDashboardController extends BaseDashboardController {
+@RequestMapping("/team-lead")
+@PreAuthorize("hasRole('ROLE_TEAM_LEADER')")
+public class TeamLeadDashboardController extends BaseDashboardController {
 
     @Autowired
-    public AdminDashboardController(UserService userService, DashboardService dashboardService,
-            @Qualifier("adminDashboardConfig") DashboardConfiguration adminDashboardConfig,
+    public TeamLeadDashboardController(
+            UserService userService,
+            DashboardService dashboardService,
+            @Qualifier("teamLeadDashboardConfig") DashboardConfiguration teamLeadDashboardConfig,
             PermissionFilterService permissionFilterService) {
-        super(userService, dashboardService, adminDashboardConfig, permissionFilterService);
+        super(userService, dashboardService, teamLeadDashboardConfig, permissionFilterService);
     }
 
     @GetMapping
@@ -32,11 +34,11 @@ public class AdminDashboardController extends BaseDashboardController {
 
     @Override
     protected String getTemplateType() {
-        return "admin";
+        return "team-lead";
     }
 
     @Override
     protected String getDashboardViewName() {
-        return "Admin Dashboard";
+        return getCurrentUser().getName() + " (Team Leader)";
     }
 }

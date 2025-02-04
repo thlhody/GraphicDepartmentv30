@@ -6,6 +6,7 @@ import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -26,40 +27,34 @@ public class UserRegisterService {
     @PreAuthorize("#username == authentication.name or hasAnyRole('ADMIN', 'TEAM_LEADER')")
     public List<RegisterEntry> loadMonthEntries(String username, Integer userId, int year, int month) {
         try {
-            // First get local user register
-            List<RegisterEntry> userEntries = dataAccessService.readUserRegister(username, userId, year, month, false);
-            if (userEntries == null) {
-                userEntries = new ArrayList<>();
-            }
+            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
 
-            // Check admin register on network - with null check
-            List<RegisterEntry> adminEntries = new ArrayList<>(); // Initialize with empty list
-            if (pathConfig.isNetworkAvailable()) {
-                try {
-                    List<RegisterEntry> tempAdminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
-                    if (tempAdminEntries != null) {
-                        adminEntries = tempAdminEntries;
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Admin register not found for %s: %s", username, e.getMessage()));
+            // If accessing own data, use local path and merge with admin entries
+            if (currentUsername.equals(username)) {
+                List<RegisterEntry> userEntries = dataAccessService.readUserRegister(username, userId, year, month);
+                if (userEntries == null) {
+                    userEntries = new ArrayList<>();
                 }
+
+                List<RegisterEntry> adminEntries = new ArrayList<>();
+                if (pathConfig.isNetworkAvailable()) {
+                    try {
+                        adminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(), "Admin register not found: " + e.getMessage());
+                    }
+                }
+
+                List<RegisterEntry> mergedEntries = mergeEntries(userEntries, adminEntries);
+                dataAccessService.writeUserRegister(username, userId, mergedEntries, year, month);
+                return mergedEntries;
             }
 
-            // Update user entries based on admin entries
-            List<RegisterEntry> updatedEntries = mergeEntries(userEntries, adminEntries);
-
-            // Save updated entries locally
-            dataAccessService.writeUserRegister(username, userId, updatedEntries, year, month);
-
-            return updatedEntries.stream()
-                    .filter(entry -> entry.getUserId().equals(userId))
-                    .sorted(Comparator.comparing(RegisterEntry::getDate).reversed())
-                    .collect(Collectors.toList());
+            // For admin/team leader accessing other users, read directly from network
+            return dataAccessService.readNetworkUserRegister(username, userId, year, month);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading entries for user %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), "Error loading entries: " + e.getMessage());
             return new ArrayList<>();
         }
     }
@@ -93,7 +88,7 @@ public class UserRegisterService {
 
         try {
             // Load existing entries
-            List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month, false);
+            List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month);
             if (entries == null) entries = new ArrayList<>();
 
             // Update or add entry
@@ -123,7 +118,7 @@ public class UserRegisterService {
     public void deleteEntry(String username, Integer userId, Integer entryId, int year, int month) {
         try {
             // Load existing entries
-            List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month, false);
+            List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month);
             if (entries != null) {
                 // Verify entry exists and belongs to user
                 boolean entryExists = entries.stream()

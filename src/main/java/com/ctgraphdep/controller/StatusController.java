@@ -19,7 +19,7 @@ import java.util.List;
 
 @Controller
 @RequestMapping("/status")
-@PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+@PreAuthorize("isAuthenticated()")
 public class StatusController extends BaseController {
     private final OnlineMetricsService onlineMetricsService;
 
@@ -38,6 +38,14 @@ public class StatusController extends BaseController {
 
         User currentUser = getUser(userDetails);
 
+        // Determine dashboard URL based on user role
+        String dashboardUrl = currentUser.hasRole("TEAM_LEADER") ? "/team-lead" :
+                currentUser.hasRole("ADMIN") ? "/admin" : "/user";
+
+        LoggerUtil.debug(this.getClass(),
+                String.format("Determined Dashboard URL for %s: %s",
+                        currentUser.getUsername(), dashboardUrl));
+
         // Get filtered status list for non-admin users
         List<UserStatusDTO> userStatuses = onlineMetricsService.getUserStatuses();
         long onlineCount = userStatuses.stream()
@@ -49,6 +57,7 @@ public class StatusController extends BaseController {
         model.addAttribute("currentUsername", currentUser.getUsername());
         model.addAttribute("onlineCount", onlineCount);
         model.addAttribute("isAdminView", currentUser.isAdmin());
+        model.addAttribute("dashboardUrl", dashboardUrl);  // Add this line
 
         return "status/status";
     }

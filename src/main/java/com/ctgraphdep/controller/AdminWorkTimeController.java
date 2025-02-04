@@ -29,8 +29,7 @@ import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin/worktime")
-@PreAuthorize("hasRole('ADMIN')")
-@Slf4j
+@PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminWorkTimeController {
     private final WorkTimeManagementService workTimeManagementService;
     private final WorkTimeConsolidationService workTimeConsolidationService;

@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin/register")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminRegisterController {
 
     private final AdminRegisterService adminRegisterService;

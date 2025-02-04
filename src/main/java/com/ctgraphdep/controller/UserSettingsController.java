@@ -4,6 +4,7 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.annotation.Secured;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -12,8 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
+@PreAuthorize("isAuthenticated()")
 @RequestMapping("/user/settings")
-@Secured("ROLE_USER")
+@Secured("USER")
 public class UserSettingsController {
     private final UserService userService;
 
@@ -24,11 +26,14 @@ public class UserSettingsController {
 
     @GetMapping
     public String settings(@AuthenticationPrincipal UserDetails userDetails, Model model) {
-        LoggerUtil.info(this.getClass(), "Accessing user settings");
-
         User user = userService.getUserByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" :
+                user.hasRole("ADMIN") ? "/admin" :
+                        "/user";
+
+        model.addAttribute("dashboardUrl", dashboardUrl);
         model.addAttribute("user", user);
         return "user/settings";
     }

@@ -30,6 +30,7 @@ public class PermissionFilterService {
 
 
     // Team Leader Specific Permissions
+    public static final String PERMISSION_VIEW_STATUS_TEAM_LEADER = "VIEW_STATUS_TEAM_LEADER";
     public static final String PERMISSION_MANAGE_TEAM = "MANAGE_TEAM";
     public static final String PERMISSION_VIEW_TEAM_WORKTIME = "VIEW_TEAM_WORKTIME";
     public static final String PERMISSION_APPROVE_TIMEOFF = "APPROVE_TIMEOFF";
@@ -42,7 +43,7 @@ public class PermissionFilterService {
 
     static {
         // Admin permissions
-        ROLE_PERMISSIONS.put("ROLE_ADMIN", Set.of(
+        ROLE_PERMISSIONS.put("ADMIN", Set.of(
                 PERMISSION_VIEW_STATUS_ADMIN,
                 PERMISSION_ACCESS_OMS,
                 PERMISSION_MANAGE_SETTINGS,
@@ -54,8 +55,8 @@ public class PermissionFilterService {
         ));
 
         // Team Leader permissions
-        ROLE_PERMISSIONS.put("ROLE_TL", Set.of(
-                PERMISSION_VIEW_STATUS_ADMIN,
+        ROLE_PERMISSIONS.put("TEAM_LEADER", Set.of(
+                PERMISSION_VIEW_STATUS_TEAM_LEADER,
                 PERMISSION_ACCESS_OMS,
                 PERMISSION_MANAGE_SESSION,
                 PERMISSION_MANAGE_ACCOUNT,
@@ -68,7 +69,7 @@ public class PermissionFilterService {
         ));
 
         // User permissions
-        ROLE_PERMISSIONS.put("ROLE_USER", Set.of(
+        ROLE_PERMISSIONS.put("USER", Set.of(
                 PERMISSION_VIEW_STATUS_USER,
                 PERMISSION_ACCESS_OMS,
                 PERMISSION_MANAGE_SESSION,
@@ -78,11 +79,6 @@ public class PermissionFilterService {
                 PERMISSION_MANAGE_USER_REGISTER
         ));
     }
-
-    private boolean hasTeamLeaderRole(User user) {
-        return user.hasRole("ROLE_TL");
-    }
-
 
     public List<DashboardCard> filterCardsByPermission(List<DashboardCard> cards, User user) {
         if (cards == null || user == null) {
@@ -111,9 +107,11 @@ public class PermissionFilterService {
 
     private Set<String> getUserPermissions(User user) {
         if (user.isAdmin()) {
-            return ROLE_PERMISSIONS.get("ROLE_ADMIN");
+            return ROLE_PERMISSIONS.get("ADMIN");
+        } else if (user.hasRole("TEAM_LEADER")) {
+            return ROLE_PERMISSIONS.get("TEAM_LEADER");
         }
-        return ROLE_PERMISSIONS.get("ROLE_USER");
+        return ROLE_PERMISSIONS.get("USER");
     }
 
     public void addRolePermissions(String role, Set<String> permissions) {

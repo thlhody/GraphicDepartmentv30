@@ -18,7 +18,7 @@ import java.util.Optional;
 
 @Controller
 @RequestMapping("/admin/holidays")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminHolidayController {
     private final AdminPaidHolidayService holidayService;
     private final HolidayHistoryService holidayHistoryService;

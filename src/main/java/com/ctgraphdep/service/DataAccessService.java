@@ -2,9 +2,11 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -25,17 +27,19 @@ public class DataAccessService {
     private final FileSyncService fileSyncService;
     private final Map<Path, ReentrantReadWriteLock> fileLocks;
     private final FileBackupService backupService;
+    private final FileAccessSecurityRules securityRules;
 
     public DataAccessService(ObjectMapper objectMapper,
                              FileObfuscationService obfuscationService,
                              PathConfig pathConfig,
                              FileSyncService fileSyncService,
-                             FileBackupService backupService) {
+                             FileBackupService backupService, FileAccessSecurityRules securityRules) {
         this.objectMapper = objectMapper;
         this.obfuscationService = obfuscationService;
         this.pathConfig = pathConfig;
         this.fileSyncService = fileSyncService;
         this.backupService = backupService;
+        this.securityRules = securityRules;
         this.fileLocks = new ConcurrentHashMap<>();
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -305,56 +309,58 @@ public class DataAccessService {
     }
     // Worktime file operations - Bidirectional sync - UserTimeOffService,
     public List<WorkTimeTable> readUserWorktime(String username, int year, int month) {
-        Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
         try {
-            // Check if local file exists
-            if (!Files.exists(localPath)) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("No local worktime file exists for %s - %d/%d, returning empty list",
-                                username, year, month));
-                return new ArrayList<>();
+            // Get current user
+            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+            // If user is accessing their own data (including team leaders), use local path
+            if (currentUsername.equals(username)) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Reading local worktime for user %s", username));
+                Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
+                List<WorkTimeTable> entries = readLocal(localPath, new TypeReference<>() {});
+                return entries != null ? entries : new ArrayList<>();
             }
 
-            // Read from local file
-            List<WorkTimeTable> localEntries = readLocal(localPath, new TypeReference<>() {});
-            if (localEntries == null) {
-                localEntries = new ArrayList<>();
+            // If accessing other user's data, use network path
+            if (pathConfig.isNetworkAvailable()) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Reading network worktime for user %s by %s",
+                                username, currentUsername));
+                return readNetworkUserWorktime(username, year, month);
             }
 
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Successfully read %d entries from local worktime for user %s - %d/%d",
-                            localEntries.size(), username, year, month));
-
-            return localEntries;
-
+            throw new RuntimeException("Network access required but not available");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error reading local worktime file for %s: %s",
+                    String.format("Error reading worktime for user %s: %s",
                             username, e.getMessage()));
             return new ArrayList<>();
         }
     }
+    // In DataAccessService, modify writeUserWorktime:
     public void writeUserWorktime(String username, List<WorkTimeTable> entries, int year, int month) {
+        // Get current user
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        // Only validate write access if user is writing their own data
+        if (currentUsername.equals(username)) {
+            securityRules.validateFileAccess(username, true);
+        }
+
         // First write to local file
         Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
         writeLocal(localPath, entries);
 
-        // Then sync to network if available
         if (pathConfig.isNetworkAvailable()) {
             Path networkPath = pathConfig.getNetworkWorktimePath(username, year, month);
             fileSyncService.syncToNetwork(localPath, networkPath);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Synced worktime file to network for user %s - %d/%d",
-                            username, year, month));
-        } else {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("Network unavailable, worktime file for user %s - %d/%d stored only locally",
-                            username, year, month));
         }
     }
 
     // Register file operations - Bidirectional sync UserRegisterService
     public void writeUserRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
+        securityRules.validateFileAccess(username, true);
         Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
         writeLocal(localPath, entries);
 
@@ -364,13 +370,37 @@ public class DataAccessService {
         }
     }
 
-    public List<RegisterEntry> readUserRegister(String username, Integer userId, int year, int month, boolean isAdmin) {
-        if (isAdmin && pathConfig.isNetworkAvailable()) {
-            Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
-            return readNetwork(networkPath, new TypeReference<>() {});
+    public List<RegisterEntry> readUserRegister(String username, Integer userId, int year, int month) {
+        try {
+            // Get current user from security context
+            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+            // If accessing own data, use local path
+            if (currentUsername.equals(username)) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Reading local register for user %s", username));
+                Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
+                List<RegisterEntry> entries = readLocal(localPath, new TypeReference<>() {});
+                return entries != null ? entries : new ArrayList<>();
+            }
+
+            // If accessing other user's data, try network path (removing security validation)
+            if (pathConfig.isNetworkAvailable()) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Reading network register for user %s by %s",
+                                username, currentUsername));
+                Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
+                List<RegisterEntry> entries = readNetwork(networkPath, new TypeReference<>() {});
+                return entries != null ? entries : new ArrayList<>();
+            }
+
+            throw new RuntimeException("Network access required but not available");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading register for user %s: %s",
+                            username, e.getMessage()));
+            return new ArrayList<>();
         }
-        Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
-        return readLocal(localPath, new TypeReference<>() {});
     }
 
     // Admin worktime operations - Bidirectional sync - for WorkTimeConsolidationService

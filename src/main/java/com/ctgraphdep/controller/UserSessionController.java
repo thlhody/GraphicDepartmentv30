@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
 
 @Controller
 @PreAuthorize("isAuthenticated()")
-@RequestMapping("/user/session")
+@RequestMapping({"/user/session", "/team-lead/session"})
 public class UserSessionController extends BaseController {
 
     private final SessionCalculationService calculationService;
@@ -49,7 +49,7 @@ public class UserSessionController extends BaseController {
     @GetMapping
     public String getSessionPage(@AuthenticationPrincipal UserDetails userDetails, Model model) {
         User user = getUser(userDetails);
-
+        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
         if (user.isAdmin()) {
             return "redirect:/admin/dashboard";
         }
@@ -77,12 +77,12 @@ public class UserSessionController extends BaseController {
             assert session != null;
             populateSessionModel(model, session);
 
-            return "user/session";
+            return basePath.substring(1) + "/session";
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error loading session page: " + e.getMessage());
             model.addAttribute("error", "Error loading session data");
-            return "user/session";
+            return basePath.substring(1) + "/session";
         }
     }
     private boolean verifySessionOwnership(String username, WorkUsersSessionsStates session) {
@@ -92,6 +92,7 @@ public class UserSessionController extends BaseController {
     @PostMapping("/start")
     public String startSession(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
+        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
 
         // Clear any existing session first
         WorkUsersSessionsStates existingSession = userSessionService.getCurrentSession(
@@ -100,7 +101,7 @@ public class UserSessionController extends BaseController {
         );
 
         if (existingSession != null && !verifySessionOwnership(user.getUsername(), existingSession)) {
-            return "redirect:/user/session";
+            return "redirect:" + basePath + "/session";
         }
 
         userSessionService.startDay(
@@ -108,12 +109,13 @@ public class UserSessionController extends BaseController {
                 user.getUserId()
         );
 
-        return "redirect:/user/session?action=start";
+        return "redirect:" + basePath + "/session?action=start";
     }
 
     @PostMapping("/temp-stop")
     public String toggleTemporaryStop(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
+        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
         WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(
                 user.getUsername(),
                 user.getUserId()
@@ -122,19 +124,21 @@ public class UserSessionController extends BaseController {
         if (currentSession != null) {
             if (WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
                 userSessionService.startTemporaryStop(user.getUsername(), user.getUserId());
-                return "redirect:/user/session?action=pause";
+                return "redirect:" + basePath + "/session?action=pause";
             } else if (WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
                 userSessionService.resumeFromTemporaryStop(user.getUsername(), user.getUserId());
-                return "redirect:/user/session?action=resume";
+                return "redirect:" + basePath + "/session?action=resume";
             }
-        }
 
-        return "redirect:/user/session";
+            return "redirect:" + basePath + "/session";
+        }
+        return "redirect:" + basePath + "/session";
     }
 
     @PostMapping("/end")
     public String endSession(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
+        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
         WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(
                 user.getUsername(),
                 user.getUserId()
@@ -142,7 +146,7 @@ public class UserSessionController extends BaseController {
 
         // First check if session is already offline
         if (currentSession == null || WorkCode.WORK_OFFLINE.equals(currentSession.getSessionStatus())) {
-            return "redirect:/user/session";
+            return "redirect:" + basePath + "/session";
         }
 
         if (WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
@@ -152,10 +156,10 @@ public class UserSessionController extends BaseController {
                     user.getUserId(),
                     currentSession.getFinalWorkedMinutes()
             );
-            return "redirect:/user/session?action=end";
+            return "redirect:" + basePath + "/session?action=end";
         }
 
-        return "redirect:/user/session";
+        return "redirect:" + basePath + "/session";
     }
 
     private boolean isActiveSession(WorkUsersSessionsStates session) {

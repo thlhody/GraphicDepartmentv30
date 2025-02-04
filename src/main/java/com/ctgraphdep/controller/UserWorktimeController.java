@@ -2,15 +2,13 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.*;
-import com.ctgraphdep.service.FolderStatusService;
-import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.UserWorkTimeDisplayService;
-import com.ctgraphdep.service.WorkTimeEntrySyncService;
+import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserWorktimeExcelExporter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -21,20 +19,23 @@ import java.time.LocalDate;
 import java.util.*;
 
 @Controller
+@PreAuthorize("isAuthenticated()")
 @RequestMapping("/user/worktime")
 public class UserWorktimeController extends BaseController {
 
     private final UserWorkTimeDisplayService displayService;
+    private final UserWorkTimeService userWorkTimeService;
     private final WorkTimeEntrySyncService entrySyncService;
     private final UserWorktimeExcelExporter excelExporter;
 
     public UserWorktimeController(
             UserService userService,
             FolderStatusService folderStatusService,
-            UserWorkTimeDisplayService displayService,
+            UserWorkTimeDisplayService displayService, UserWorkTimeService userWorkTimeService,
             WorkTimeEntrySyncService entrySyncService, UserWorktimeExcelExporter excelExporter) {
         super(userService, folderStatusService);
         this.displayService = displayService;
+        this.userWorkTimeService = userWorkTimeService;
         this.entrySyncService = entrySyncService;
         this.excelExporter = excelExporter;
         LoggerUtil.initialize(this.getClass(), null);
@@ -76,7 +77,7 @@ public class UserWorktimeController extends BaseController {
                 model.addAttribute("dashboardUrl", "/admin");
             } else if (currentUser.hasRole("TEAM_LEADER")) {
                 model.addAttribute("isTeamLeaderView", true);
-                model.addAttribute("dashboardUrl", "/team-leader");
+                model.addAttribute("dashboardUrl", "/team-lead");
             } else {
                 model.addAttribute("dashboardUrl", "/user");
             }
@@ -87,12 +88,22 @@ public class UserWorktimeController extends BaseController {
             month = Optional.ofNullable(month).orElse(now.getMonthValue());
 
             // Synchronize and get worktime entries
-            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(
-                    targetUser.getUsername(),
-                    targetUser.getUserId(),
-                    year,
-                    month
-            );
+            List<WorkTimeTable> worktimeData = null;
+
+            if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
+                worktimeData = userWorkTimeService.loadViewOnlyWorktime(
+                        targetUser.getUsername(),
+                        year,
+                        month
+                );
+            } else {
+                worktimeData = entrySyncService.synchronizeEntries(
+                        targetUser.getUsername(),
+                        targetUser.getUserId(),
+                        year,
+                        month
+                );
+            }
 
             // Prepare display data
             Map<String, Object> displayData = displayService.prepareDisplayData(
@@ -103,8 +114,8 @@ public class UserWorktimeController extends BaseController {
             );
 
             // Add role-based view data
-            if (currentUser.getRole().equals("ROLE_ADMIN") ||
-                    currentUser.getRole().equals("ROLE_TEAM_LEADER")) {
+            if (currentUser.getRole().equals("ADMIN") ||
+                    currentUser.getRole().equals("TEAM_LEADER")) {
                 model.addAttribute("isAdminView", true);
                 model.addAttribute("targetUser", targetUser);
 

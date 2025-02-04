@@ -35,6 +35,31 @@ public class DashboardConfigurationManager {
     }
 
     @Bean
+    @Qualifier("teamLeadDashboardConfig")
+    public DashboardConfiguration teamLeadDashboardConfig() {
+        return DashboardConfiguration.builder()
+                .title("Team Lead Dashboard")
+                .description("Team Management Dashboard")
+                .role("TEAM_LEADER")
+                .refreshEnabled(true)
+                .refreshInterval(45000)
+                .cards(Arrays.asList(
+                        createStatusCard("ADMIN"),
+                        createTeamLeadSessionCard(),
+                        createTeamLeadRegisterCard(),
+                        createTeamLeadWorktimeCard(),
+                        createTeamLeadTimeOffCard(),
+                        createTeamStatusCard(),
+                        createTeamWorkTimeCard(),
+                        createTeamTimeOffCard(),
+                        createTeamStatisticsCard(),
+                        createOMSSystemCard(),
+                        createUserSettingsCard()
+                ))
+                .build();
+    }
+
+    @Bean
     @Qualifier("userDashboardConfig")
     public DashboardConfiguration userDashboardConfig() {
         return DashboardConfiguration.builder()
@@ -175,6 +200,128 @@ public class DashboardConfigurationManager {
                 .permission("MANAGE_HOLIDAYS")
                 .build();
     }
+
+    // Team Leader Cards
+    private DashboardCard createTeamStatusCard() {
+        return DashboardCard.builder()
+                .title("Team Status")
+                .subtitle("Monitor team members")
+                .color("success")
+                .icon("people-fill")
+                .badge("Team")
+                .badgeColor("success")
+                .actionText("View Team")
+                .actionUrl("/team-lead/team")
+                .external(false)
+                .permission("MANAGE_TEAM")
+                .build();
+    }
+
+    private DashboardCard createTeamWorkTimeCard() {
+        return DashboardCard.builder()
+                .title("Team Work Hours")
+                .subtitle("View team working hours")
+                .color("warning")
+                .icon("clock-history")
+                .badge("View")
+                .badgeColor("warning")
+                .actionText("View Hours")
+                .actionUrl("/team-lead/worktime")
+                .external(false)
+                .permission("VIEW_TEAM_WORKTIME")
+                .build();
+    }
+
+    private DashboardCard createTeamTimeOffCard() {
+        return DashboardCard.builder()
+                .title("Team Time Off")
+                .subtitle("Manage leave requests")
+                .color("info")
+                .icon("calendar-check")
+                .badge("Manage")
+                .badgeColor("info")
+                .actionText("View Requests")
+                .actionUrl("/team-lead/timeoff")
+                .external(false)
+                .permission("APPROVE_TIMEOFF")
+                .build();
+    }
+
+    private DashboardCard createTeamStatisticsCard() {
+        return DashboardCard.builder()
+                .title("Team Statistics")
+                .subtitle("View team performance")
+                .color("primary")
+                .icon("graph-up")
+                .badge("Stats")
+                .badgeColor("primary")
+                .actionText("View Stats")
+                .actionUrl("/team-lead/statistics")
+                .external(false)
+                .permission("VIEW_TEAM_STATS")
+                .build();
+    }
+
+    private DashboardCard createTeamLeadSessionCard() {
+        return DashboardCard.builder()
+                .title("Work Session")
+                .subtitle("Manage your work time")
+                .color("success")
+                .icon("play-circle-fill")
+                .badge("Active")
+                .badgeColor("success")
+                .actionText("Start Work")
+                .actionUrl("/team-lead/session")
+                .external(false)
+                .permission("MANAGE_SESSION")
+                .build();
+    }
+
+    private DashboardCard createTeamLeadRegisterCard() {
+        return DashboardCard.builder()
+                .title("Work Register")
+                .subtitle("Log your work activities")
+                .color("primary")
+                .icon("journal-text")
+                .badge("View")
+                .badgeColor("primary")
+                .actionText("Open Register")
+                .actionUrl("/user/register")
+                .external(false)
+                .permission("MANAGE_USER_REGISTER")
+                .build();
+    }
+
+    private DashboardCard createTeamLeadWorktimeCard() {
+        return DashboardCard.builder()
+                .title("Work Hours")
+                .subtitle("View your hours")
+                .color("warning")
+                .icon("clock-fill")
+                .badge("View")
+                .badgeColor("warning")
+                .actionText("View Hours")
+                .actionUrl("/user/worktime")
+                .external(false)
+                .permission("VIEW_WORKTIME_USER")
+                .build();
+    }
+
+    private DashboardCard createTeamLeadTimeOffCard() {
+        return DashboardCard.builder()
+                .title("Time Off")
+                .subtitle("Request leave")
+                .color("info")
+                .icon("calendar-fill")
+                .badge("Request")
+                .badgeColor("info")
+                .actionText("Request Time Off")
+                .actionUrl("/user/timeoff")
+                .external(false)
+                .permission("REQUEST_TIMEOFF")
+                .build();
+    }
+
     // User Cards
     private DashboardCard createSessionCard() {
         return DashboardCard.builder()

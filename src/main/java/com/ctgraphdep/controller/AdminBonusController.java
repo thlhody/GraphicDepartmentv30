@@ -9,6 +9,7 @@ import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.MonthFormatter;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -22,6 +23,7 @@ import java.util.Map;
 
 @Controller
 @RequestMapping("/admin/bonus")
+@PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminBonusController extends BaseController {
     private final AdminBonusService adminBonusService;
 

@@ -34,7 +34,7 @@ public abstract class BaseDashboardController {
 
     protected DashboardViewModel prepareDashboardViewModel() {
         User currentUser = getCurrentUser();
-
+        validateUserRole(currentUser);
         // Filter cards based on permissions
         List<DashboardCard> filteredCards = permissionFilterService.filterCardsByPermission(
                 dashboardConfig.getCards(),
@@ -80,8 +80,16 @@ public abstract class BaseDashboardController {
         if (auth == null || auth.getName() == null) {
             throw new AccessDeniedException("No authenticated user found");
         }
-        return userService.getUserByUsername(auth.getName())
+        User user = userService.getUserByUsername(auth.getName())
                 .orElseThrow(() -> new AccessDeniedException("User not found"));
+
+        LoggerUtil.debug(this.getClass(),
+                String.format("Current user: %s, Role: %s, Required role: %s",
+                        user.getUsername(),
+                        user.getRole(),
+                        dashboardConfig.getRole()));
+
+        return user;
     }
 
     private void validateUserRole(User user) {

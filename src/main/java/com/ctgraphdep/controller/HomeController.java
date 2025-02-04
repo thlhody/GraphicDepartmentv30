@@ -21,7 +21,7 @@ public class HomeController extends BaseController {
         // If user is authenticated, redirect to appropriate dashboard
         if (authentication != null && authentication.isAuthenticated()) {
             if (authentication.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+                    .anyMatch(a -> a.getAuthority().equals("ADMIN"))) {
                 return "redirect:/admin";
             }
             return "redirect:/user";

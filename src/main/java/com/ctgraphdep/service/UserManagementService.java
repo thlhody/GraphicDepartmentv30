@@ -41,7 +41,7 @@ public class UserManagementService {
 
     public List<User> getNonAdminUsers() {
         return getAllUsers().stream()
-                .filter(user -> !user.hasRole("ROLE_ADMIN"))  // Use hasRole method instead
+                .filter(user -> !user.hasRole("ADMIN"))  // Use hasRole method instead
                 .collect(Collectors.toList());
     }
 
@@ -144,7 +144,7 @@ public class UserManagementService {
 
                 // Preserve admin role if exists
                 if (existingUser.isAdmin()) {
-                    user.setRole("ROLE_ADMIN");
+                    user.setRole("ADMIN");
                 }
 
                 users.set(index, user);
@@ -244,7 +244,7 @@ public class UserManagementService {
         if (user.getSchedule() == null || user.getSchedule() < 1) {
             throw new IllegalArgumentException("Invalid schedule value");
         }
-        if ("ROLE_ADMIN".equals(user.getRole())) {
+        if ("ADMIN".equals(user.getRole())) {
             throw new IllegalArgumentException("Cannot assign admin role");
         }
     }
