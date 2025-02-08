@@ -44,7 +44,10 @@ public class PermissionConfiguration {
         service.addRolePermissions("TEAM_LEADER", Set.of(
                 PermissionFilterService.PERMISSION_VIEW_STATUS_ADMIN,
                 PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER,
-                PermissionFilterService.PERMISSION_MANAGE_SESSION
+                PermissionFilterService.PERMISSION_MANAGE_SESSION,
+                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER,
+                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF
+
         ));
 
         return service;

@@ -60,6 +60,7 @@ public class PermissionFilterService {
                 PERMISSION_ACCESS_OMS,
                 PERMISSION_MANAGE_SESSION,
                 PERMISSION_MANAGE_ACCOUNT,
+                PERMISSION_MANAGE_USER_REGISTER,
                 PERMISSION_REQUEST_TIMEOFF,
                 PERMISSION_VIEW_WORKTIME_USER,
                 PERMISSION_MANAGE_TEAM,
