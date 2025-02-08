@@ -9,16 +9,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class SessionRecoveryService {
     private final UserSessionService userSessionService;
-    private final SessionCalculator sessionCalculator;
+    private final CalculateSessionService calculateSessionService;
     private final UserService userService;
 
     @Autowired
     public SessionRecoveryService(
             UserSessionService userSessionService,
-            SessionCalculator sessionCalculator,
+            CalculateSessionService calculateSessionService,
             UserService userService) {
         this.userSessionService = userSessionService;
-        this.sessionCalculator = sessionCalculator;
+        this.calculateSessionService = calculateSessionService;
         this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -37,7 +37,7 @@ public class SessionRecoveryService {
 
             WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, userId);
 
-            if (!sessionCalculator.isValidSession(session)) {
+            if (!calculateSessionService.isValidSession(session)) {
                 return;
             }
 
@@ -53,20 +53,20 @@ public class SessionRecoveryService {
     }
 
     private boolean needsRecovery(WorkUsersSessionsStates session) {
-        return sessionCalculator.isSessionFromPreviousDay(session) ||
-                sessionCalculator.isStuckTemporaryStop(session);
+        return calculateSessionService.isSessionFromPreviousDay(session) ||
+                calculateSessionService.isStuckTemporaryStop(session);
     }
 
     private void handleRecovery(User user, WorkUsersSessionsStates session) {
-        if (sessionCalculator.isSessionFromPreviousDay(session)) {
+        if (calculateSessionService.isSessionFromPreviousDay(session)) {
             handlePreviousDaySession(user, session);
-        } else if (sessionCalculator.isStuckTemporaryStop(session)) {
+        } else if (calculateSessionService.isStuckTemporaryStop(session)) {
             handleStuckTemporaryStop(user, session);
         }
     }
 
     private void handlePreviousDaySession(User user, WorkUsersSessionsStates session) {
-        Integer finalMinutes = sessionCalculator.calculateFinalMinutes(user, session);
+        Integer finalMinutes = calculateSessionService.calculateFinalMinutes(user, session);
         userSessionService.endDay(session.getUsername(), session.getUserId(), finalMinutes);
     }
 

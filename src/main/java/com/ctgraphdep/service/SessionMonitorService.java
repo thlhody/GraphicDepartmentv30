@@ -15,7 +15,7 @@ import java.util.Map;
 @Service
 public class SessionMonitorService {
     private final SystemNotificationService notificationService;
-    private final SessionCalculator sessionCalculator;
+    private final CalculateSessionService calculateSessionService;
     private final UserService userService;
     private final BackgroundMonitorExecutor backgroundMonitor;
     private UserSessionService userSessionService;
@@ -26,11 +26,11 @@ public class SessionMonitorService {
 
     public SessionMonitorService(
             SystemNotificationService notificationService,
-            SessionCalculator sessionCalculator,
+            CalculateSessionService calculateSessionService,
             UserService userService,
             BackgroundMonitorExecutor backgroundMonitor) {
         this.notificationService = notificationService;
-        this.sessionCalculator = sessionCalculator;
+        this.calculateSessionService = calculateSessionService;
         this.userService = userService;
         this.backgroundMonitor = backgroundMonitor;
         LoggerUtil.initialize(this.getClass(), null);
@@ -42,7 +42,7 @@ public class SessionMonitorService {
     }
 
     public void startMonitoring(WorkUsersSessionsStates session) {
-        if (!sessionCalculator.isValidSession(session)) {
+        if (!calculateSessionService.isValidSession(session)) {
             return;
         }
 
@@ -88,12 +88,12 @@ public class SessionMonitorService {
                     session.getUserId()
             );
 
-            if (sessionCalculator.isStuckTemporaryStop(currentSession)) {
+            if (calculateSessionService.isStuckTemporaryStop(currentSession)) {
                 endSession(session.getUsername(), session.getUserId());
                 return;
             }
 
-            if (sessionCalculator.shouldShowTempStopWarning(currentSession)) {
+            if (calculateSessionService.shouldShowTempStopWarning(currentSession)) {
                 notificationService.showLongTempStopWarning(
                         session.getUsername(),
                         session.getUserId(),
@@ -110,11 +110,11 @@ public class SessionMonitorService {
             User user = userService.getUserById(session.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (sessionCalculator.shouldEndSession(user, session, LocalDateTime.now())) {
+            if (calculateSessionService.shouldEndSession(user, session, LocalDateTime.now())) {
                 String sessionKey = getSessionKey(session.getUsername(), session.getUserId());
 
                 if (!initialWarningShown.getOrDefault(sessionKey, false)) {
-                    int finalMinutes = sessionCalculator.calculateFinalMinutes(user, session);
+                    int finalMinutes = calculateSessionService.calculateFinalMinutes(user, session);
                     notificationService.showSessionWarning(
                             session.getUsername(),
                             session.getUserId(),
@@ -139,10 +139,10 @@ public class SessionMonitorService {
 
     private void checkContinuedSession(String username, Integer userId) {
         WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, userId);
-        if (sessionCalculator.isValidSession(session)) {
+        if (calculateSessionService.isValidSession(session)) {
             User user = userService.getUserById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
-            int finalMinutes = sessionCalculator.calculateFinalMinutes(user, session);
+            int finalMinutes = calculateSessionService.calculateFinalMinutes(user, session);
             notificationService.showHourlyWarning(username, userId, finalMinutes);
         }
     }
@@ -165,7 +165,7 @@ public class SessionMonitorService {
         WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, userId);
         User user = userService.getUserById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        int finalMinutes = sessionCalculator.calculateFinalMinutes(user, session);
+        int finalMinutes = calculateSessionService.calculateFinalMinutes(user, session);
         userSessionService.endDay(username, userId, finalMinutes);
         stopMonitoring(username, userId);
     }

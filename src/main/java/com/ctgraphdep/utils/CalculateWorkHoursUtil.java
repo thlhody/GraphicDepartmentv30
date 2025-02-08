@@ -2,6 +2,7 @@ package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.UserWorkTimeService;
 
 import java.time.DayOfWeek;
@@ -9,6 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 public class CalculateWorkHoursUtil {
@@ -109,11 +111,6 @@ public class CalculateWorkHoursUtil {
     public static int hoursToMinutes(int hours) {
         int baseMinutes = hours * WorkCode.HOUR_DURATION;
         return baseMinutes + WorkCode.HALF_HOUR_DURATION; // Add 30 minutes for lunch
-    }
-
-    // New method to calculate end time based on start hour and total minutes
-    public static LocalDateTime calculateEndTime(LocalDate date, int totalMinutes) {
-        return date.atTime(WorkCode.START_HOUR, 0).plusMinutes(totalMinutes);
     }
 
 }

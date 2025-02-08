@@ -4,11 +4,7 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.SessionCalculationService;
-import com.ctgraphdep.service.SessionPersistenceService;
-import com.ctgraphdep.service.FolderStatusService;
-import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.UserSessionService;
+import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +22,7 @@ import java.time.LocalDateTime;
 @RequestMapping({"/user/session", "/team-lead/session"})
 public class UserSessionController extends BaseController {
 
-    private final SessionCalculationService calculationService;
+    private final CalculateSessionService calculateSessionService;
     private final UserSessionService userSessionService;
     private final SessionPersistenceService persistenceService;
     private final UserService userService;
@@ -36,11 +32,11 @@ public class UserSessionController extends BaseController {
             UserSessionService userSessionService,
             UserService userService,
             FolderStatusService folderStatusService,
-            SessionCalculationService calculationService,
+            CalculateSessionService calculateSessionService,
             SessionPersistenceService persistenceService) {
         super(userService, folderStatusService);
         this.userSessionService = userSessionService;
-        this.calculationService = calculationService;
+        this.calculateSessionService = calculateSessionService;
         this.userService = userService;
         this.persistenceService = persistenceService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -150,7 +146,7 @@ public class UserSessionController extends BaseController {
         }
 
         if (WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
-            calculationService.calculateCurrentWork(currentSession, user.getSchedule());
+            calculateSessionService.calculateCurrentWork(currentSession, user.getSchedule());
             userSessionService.endDay(
                     user.getUsername(),
                     user.getUserId(),
@@ -176,7 +172,7 @@ public class UserSessionController extends BaseController {
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             // Calculate current work using user's schedule
-            calculationService.calculateCurrentWork(session, user.getSchedule());
+            calculateSessionService.calculateCurrentWork(session, user.getSchedule());
 
             // Persist session using the SessionPersistenceService
             persistenceService.persistSession(session);

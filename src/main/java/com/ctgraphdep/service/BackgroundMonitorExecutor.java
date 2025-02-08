@@ -25,18 +25,18 @@ public class BackgroundMonitorExecutor {
     private final Map<String, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
     private final Map<String, MonitoringState> monitoringStates = new ConcurrentHashMap<>();
     private final DataAccessService dataAccess;
-    private final SessionCalculator sessionCalculator;
+    private final CalculateSessionService calculateSessionService;
     private final SystemNotificationService notificationService;
     private final UserService userService;
     private final PathConfig pathConfig;
 
     public BackgroundMonitorExecutor(
             DataAccessService dataAccess,
-            SessionCalculator sessionCalculator,
+            CalculateSessionService calculateSessionService,
             SystemNotificationService notificationService,
             UserService userService, PathConfig pathConfig) {
         this.dataAccess = dataAccess;
-        this.sessionCalculator = sessionCalculator;
+        this.calculateSessionService = calculateSessionService;
         this.notificationService = notificationService;
         this.userService = userService;
         this.pathConfig = pathConfig;
@@ -231,8 +231,8 @@ public class BackgroundMonitorExecutor {
             User user = userService.getUserById(session.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (sessionCalculator.shouldEndSession(user, currentSession, LocalDateTime.now())) {
-                int finalMinutes = sessionCalculator.calculateFinalMinutes(user, currentSession);
+            if (calculateSessionService.shouldEndSession(user, currentSession, LocalDateTime.now())) {
+                int finalMinutes = calculateSessionService.calculateFinalMinutes(user, currentSession);
                 notificationService.showSessionWarning(
                         currentSession.getUsername(),
                         currentSession.getUserId(),

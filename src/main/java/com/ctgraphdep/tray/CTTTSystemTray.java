@@ -150,6 +150,10 @@ public class CTTTSystemTray {
     private void openApplication() {
         String urlToOpen = appUrl != null ? appUrl : appUrlBackup;
         try {
+            // Add trailing slash to ensure proper redirection
+            if (!urlToOpen.endsWith("/")) {
+                urlToOpen += "/";
+            }
             Desktop.getDesktop().browse(new URI(urlToOpen));
             LoggerUtil.info(this.getClass(), "Opening CTTT application in browser");
         } catch (Exception e) {

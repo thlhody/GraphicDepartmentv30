@@ -21,10 +21,14 @@ public class HomeController extends BaseController {
         // If user is authenticated, redirect to appropriate dashboard
         if (authentication != null && authentication.isAuthenticated()) {
             if (authentication.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ADMIN"))) {
-                return "redirect:/admin";
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+                return "redirect:/admin/dashboard";
             }
-            return "redirect:/user";
+            if (authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_TEAM_LEADER"))) {
+                return "redirect:/team-lead/session";  // Changed from /team-lead
+            }
+            return "redirect:/user/session";  // Changed from /user
         }
         return "redirect:/login";
     }
