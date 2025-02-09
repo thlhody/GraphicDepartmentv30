@@ -8,6 +8,7 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -234,15 +235,70 @@ public class UserWorkTimeService {
         }
     }
 
+    public void saveWorkTimeEntry(String username, WorkTimeTable entry,
+                                  int year, int month, String operatingUsername) {
+        lock.writeLock().lock();
+        try {
+            List<WorkTimeTable> entries = loadUserEntries(username, year, month);
+            if (entries == null) {
+                entries = new ArrayList<>();
+            }
+
+            // Remove existing entry if present
+            entries.removeIf(e ->
+                    e.getUserId().equals(entry.getUserId()) &&
+                            e.getWorkDate().equals(entry.getWorkDate()));
+
+            entries.add(entry);
+            entries.sort(Comparator
+                    .comparing(WorkTimeTable::getWorkDate)
+                    .thenComparing(WorkTimeTable::getUserId));
+
+            try {
+                // Use the new overloaded method
+                dataAccess.writeUserWorktime(username, entries, year, month, operatingUsername);
+                LoggerUtil.info(this.getClass(),
+                        String.format("Saved worktime entry for user %s - %d/%d using file-based auth",
+                                username, year, month));
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(),
+                        String.format("Failed to save worktime entry for user %s: %s",
+                                username, e.getMessage()));
+                throw new RuntimeException("Failed to save worktime entry", e);
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     // Modify loadUserEntries to always return a List (never null)
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
         try {
-            List<WorkTimeTable> entries = dataAccess.readUserWorktime(username, year, month);
+            // Get current username from SecurityContext if available
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) {
+                // Use normal security context flow
+                List<WorkTimeTable> entries = dataAccess.readUserWorktime(username, year, month);
+                return entries != null ? entries : new ArrayList<>();
+            } else {
+                // If no security context (AWT thread), use username from session
+                return loadUserEntries(username, year, month, username);
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading user entries for %s: %s", username, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    public List<WorkTimeTable> loadUserEntries(String username, int year, int month, String operatingUsername) {
+        try {
+            List<WorkTimeTable> entries = dataAccess.readUserWorktime(username, year, month, operatingUsername);
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error loading user entries for %s: %s", username, e.getMessage()));
-            return new ArrayList<>();  // Return empty list instead of null
+            return new ArrayList<>();
         }
     }
 

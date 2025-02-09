@@ -213,22 +213,40 @@ public class UserSessionService {
     //temporary stop and resume
     public void startTemporaryStop(String username, Integer userId) {
         executeWithLock(() -> {
+            LoggerUtil.info(this.getClass(),
+                    "Starting temporary stop for user: " + username);
+
             WorkUsersSessionsStates session = getCurrentSession(username, userId);
+            // Log before state change
+            LoggerUtil.debug(this.getClass(),
+                    "Current session status: " + session.getSessionStatus());
+
             if (isValidSessionForOperation(session, WorkCode.WORK_ONLINE)) {
                 LocalDateTime now = LocalDateTime.now();
                 updateSessionForTemporaryStop(session, now);
                 saveSession(username, session);
-                LoggerUtil.info(this.getClass(), String.format("Started temporary stop for user %s", username));
+
+                // Log after state change
+                LoggerUtil.debug(this.getClass(),
+                        "New session status: " + session.getSessionStatus());
             }
             return null;
         });
     }
 
     private void updateSessionForTemporaryStop(WorkUsersSessionsStates session, LocalDateTime now) {
+        // Calculate worked minutes up to this temporary stop
         int workedMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
                 session.getCurrentStartTime(), now);
 
+        // Add these minutes to total worked time
         session.setTotalWorkedMinutes(session.getTotalWorkedMinutes() + workedMinutes);
+
+        // Update final minutes to reflect actual work time (total - breaks)
+        int actualMinutes = session.getTotalWorkedMinutes() -
+                (session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0);
+        session.setFinalWorkedMinutes(actualMinutes);
+
         session.setSessionStatus(WorkCode.WORK_TEMPORARY_STOP);
         session.setLastTemporaryStopTime(now);
         session.setTemporaryStopCount(session.getTemporaryStopCount() + 1);
@@ -253,7 +271,16 @@ public class UserSessionService {
         int stopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
                 session.getLastTemporaryStopTime(), now);
 
-        session.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes() + stopMinutes);
+        // Update total temporary stop minutes
+        session.setTotalTemporaryStopMinutes(
+                (session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0)
+                        + stopMinutes
+        );
+
+        // Update final minutes to reflect actual work time
+        int actualMinutes = session.getTotalWorkedMinutes() - session.getTotalTemporaryStopMinutes();
+        session.setFinalWorkedMinutes(actualMinutes);
+
         session.setSessionStatus(WorkCode.WORK_ONLINE);
         session.setCurrentStartTime(now);
         session.setLastActivity(now);
@@ -288,20 +315,18 @@ public class UserSessionService {
                     WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
                             WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()))) {
 
-                // Update last activity
+                // Just update last activity without changing status
                 session.setLastActivity(LocalDateTime.now());
 
-                // If was in temporary stop, handle resumption
-                if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                    updateSessionForResume(session, LocalDateTime.now());
-                }
-
-                // Save and start monitoring
+                // Save the session with its current status
                 saveSession(session.getUsername(), session);
+
+                // Start appropriate monitoring based on current status
                 sessionMonitorService.startMonitoring(session);
 
                 LoggerUtil.info(this.getClass(),
-                        String.format("Resumed existing session for user %s", session.getUsername()));
+                        String.format("Resumed existing session for user %s with status %s",
+                                session.getUsername(), session.getSessionStatus()));
             }
             return null;
         });
@@ -400,10 +425,15 @@ public class UserSessionService {
     private void updateWorktimeEntry(String username, WorkUsersSessionsStates session) {
         LocalDateTime now = LocalDateTime.now();
         WorkTimeTable entry = createWorkTimeEntryFromSession(session, now);
-        entry.setAdminSync(SyncStatus.USER_INPUT);  // Now set to USER_INPUT when completed
+        entry.setAdminSync(SyncStatus.USER_INPUT); // Now set to USER_INPUT when completed
         LocalDate workDate = session.getDayStartTime().toLocalDate();
-        userWorkTimeService.saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue());
-        LoggerUtil.info(this.getClass(), String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
+
+        // Use the session username for authentication
+        userWorkTimeService.saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), session.getUsername()  // Pass the username from session
+        );
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
                         username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
     }
 

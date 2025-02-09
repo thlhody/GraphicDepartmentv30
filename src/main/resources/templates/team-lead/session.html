@@ -91,10 +91,11 @@
                 <button type="submit"
                         class="btn"
                         th:classappend="${sessionStatus == 'Temporary Stop' ? 'btn-info' : 'btn-warning'}"
-                        th:disabled="${sessionStatus == 'Offline'}">
+                        th:disabled="${sessionStatus == 'Offline'}"
+                        th:with="isTemporaryStop=${sessionStatus == 'Temporary Stop'}">
                     <i class="bi"
-                       th:classappend="${sessionStatus == 'Temporary Stop' ? 'bi-play-circle' : 'bi-pause-circle'}"></i>
-                    <span th:text="${sessionStatus == 'Temporary Stop' ? 'Resume' : 'Pause'}">Pause</span>
+                       th:classappend="${isTemporaryStop ? 'bi-play-circle' : 'bi-pause-circle'}"></i>
+                    <span th:text="${isTemporaryStop ? 'Resume' : 'Pause'}">Pause</span>
                 </button>
             </form>
 

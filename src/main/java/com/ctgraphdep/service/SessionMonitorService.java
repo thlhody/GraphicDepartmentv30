@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,17 +48,29 @@ public class SessionMonitorService {
         }
 
         String sessionKey = getSessionKey(session.getUsername(), session.getUserId());
+
+        // Stop any existing monitoring
+        stopMonitoring(session.getUsername(), session.getUserId());
+
         initialWarningShown.put(sessionKey, false);
         tempStopMonitoringActive.put(sessionKey, false);
 
+        // Add debug logging
+        LoggerUtil.debug(this.getClass(),
+                String.format("Starting monitoring for session with status: %s",
+                        session.getSessionStatus()));
+
         if (session.getSessionStatus().equals(WorkCode.WORK_TEMPORARY_STOP)) {
             startTempStopMonitoring(session);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Started temporary stop monitoring for user %s",
+                            session.getUsername()));
         } else {
             backgroundMonitor.startSessionMonitoring(session, this::checkSession);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Started regular monitoring for user %s",
+                            session.getUsername()));
         }
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Started monitoring session for user %s", session.getUsername()));
     }
 
     private void startTempStopMonitoring(WorkUsersSessionsStates session) {
@@ -88,17 +101,24 @@ public class SessionMonitorService {
                     session.getUserId()
             );
 
-            if (calculateSessionService.isStuckTemporaryStop(currentSession)) {
-                endSession(session.getUsername(), session.getUserId());
-                return;
-            }
+            // Calculate time in temporary stop
+            int tempStopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
+                    currentSession.getLastTemporaryStopTime(),
+                    LocalDateTime.now()
+            );
 
-            if (calculateSessionService.shouldShowTempStopWarning(currentSession)) {
+            // Show warning every TEMP_STOP_WARNING_INTERVAL minutes (default 60)
+            if (tempStopMinutes > 0 && tempStopMinutes % WorkCode.TEMP_STOP_WARNING_INTERVAL == 0) {
                 notificationService.showLongTempStopWarning(
                         session.getUsername(),
                         session.getUserId(),
                         session.getLastTemporaryStopTime()
                 );
+            }
+
+            // Check for max duration
+            if (tempStopMinutes >= WorkCode.MAX_TEMP_STOP_HOURS * 60) {
+                endSession(session.getUsername(), session.getUserId());
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error checking temporary stop: " + e.getMessage());
@@ -106,11 +126,35 @@ public class SessionMonitorService {
     }
 
     private void checkSession(WorkUsersSessionsStates session) {
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Checking session - Username: %s, Status: %s, LastActivity: %s",
+                session.getUsername(),
+                session.getSessionStatus(),
+                session.getLastActivity()));
         try {
+            WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(
+                    session.getUsername(),
+                    session.getUserId()
+            );
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Checking session - Username: %s, Current Status: %s, Original Status: %s",
+                    session.getUsername(),
+                    currentSession.getSessionStatus(),
+                    session.getSessionStatus()
+            ));
+
+            // Skip if status changed to temp stop
+            if (WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
+                LoggerUtil.debug(this.getClass(),
+                        "Skipping regular check for temp stop session");
+                return;
+            }
+
             User user = userService.getUserById(session.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (calculateSessionService.shouldEndSession(user, session, LocalDateTime.now())) {
+            if (calculateSessionService.shouldEndSession(user, session, LocalDateTime.now()) && !session.getSessionStatus().equals(WorkCode.WORK_TEMPORARY_STOP)) {
                 String sessionKey = getSessionKey(session.getUsername(), session.getUserId());
 
                 if (!initialWarningShown.getOrDefault(sessionKey, false)) {

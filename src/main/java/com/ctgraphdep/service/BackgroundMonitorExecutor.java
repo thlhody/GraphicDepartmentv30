@@ -221,6 +221,13 @@ public class BackgroundMonitorExecutor {
                     session.getUserId()
             );
 
+            if (!currentSession.getSessionStatus().equals(session.getSessionStatus())) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Session status changed from %s to %s",
+                                session.getSessionStatus(),
+                                currentSession.getSessionStatus()));
+            }
+
             // Stop monitoring if session ended or invalid
             if (currentSession == null ||
                     WorkCode.WORK_OFFLINE.equals(currentSession.getSessionStatus())) {
@@ -248,14 +255,18 @@ public class BackgroundMonitorExecutor {
 
     public void startSessionMonitoring(WorkUsersSessionsStates session, Consumer<WorkUsersSessionsStates> monitor) {
         String key = getKey(session.getUsername(), session.getUserId());
-        if (tasks.containsKey(key)) {
-            // Cancel existing monitoring task
-            stopTask(key);
+        // Cancel ALL existing tasks first
+        stopMonitoring(session.getUsername(), session.getUserId());
+
+        if (session.getSessionStatus().equals(WorkCode.WORK_TEMPORARY_STOP)) {
+            LoggerUtil.debug(this.getClass(),
+                    "Skipping regular monitoring for temp stop session");
+            return;
         }
 
         ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
                 () -> monitor.accept(session),
-                WorkCode.ONE_MINUTE_DELAY, // 1 minute initial delay
+                WorkCode.ONE_MINUTE_DELAY,
                 WorkCode.CHECK_INTERVAL,
                 TimeUnit.MINUTES
         );
@@ -269,23 +280,21 @@ public class BackgroundMonitorExecutor {
     public void startHourlyMonitoring(String username, Integer userId, Runnable monitor) {
         String key = getKey(username, userId) + WorkCode.HOURLY;
 
-        // Cancel any existing hourly monitoring
+        // Cancel any existing monitoring
         stopTask(key);
-
-        // Also stop the regular session monitoring since we're switching to hourly
-        stopTask(getKey(username, userId));
+        stopTask(getKey(username, userId));  // Stop regular monitoring
 
         ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
                 monitor,
-                WorkCode.ONE_MINUTE_DELAY, // 1 minute initial delay
-                WorkCode.HOURLY_CHECK_INTERVAL,
+                WorkCode.ONE_MINUTE_DELAY,
+                WorkCode.TEMP_STOP_WARNING_INTERVAL,  // Use warning interval (60 minutes)
                 TimeUnit.MINUTES
         );
         tasks.put(key, future);
 
         LoggerUtil.info(this.getClass(),
-                String.format("Started hourly monitoring for user %s with interval %d minutes",
-                        username, WorkCode.HOURLY_CHECK_INTERVAL));
+                String.format("Started temp stop monitoring for user %s with interval %d minutes",
+                        username, WorkCode.TEMP_STOP_WARNING_INTERVAL));
     }
 
     public void stopMonitoring(String username, Integer userId) {

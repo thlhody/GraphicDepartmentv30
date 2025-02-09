@@ -338,6 +338,22 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
+    public List<WorkTimeTable> readUserWorktime(String username, int year, int month, String operatingUsername) {
+        try {
+            // Verify username matches the operating user
+            if (username.equals(operatingUsername)) {
+                Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
+                return readLocal(localPath, new TypeReference<List<WorkTimeTable>>() {});
+            } else {
+                throw new SecurityException("Username mismatch with operating user");
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading worktime for user %s: %s", username, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
     // In DataAccessService, modify writeUserWorktime:
     public void writeUserWorktime(String username, List<WorkTimeTable> entries, int year, int month) {
         // Get current user
@@ -355,6 +371,27 @@ public class DataAccessService {
         if (pathConfig.isNetworkAvailable()) {
             Path networkPath = pathConfig.getNetworkWorktimePath(username, year, month);
             fileSyncService.syncToNetwork(localPath, networkPath);
+        }
+    }
+    public void writeUserWorktime(String username, List<WorkTimeTable> entries, int year, int month, String operatingUsername) {
+        try {
+            // Verify the username matches the session file
+            if (username.equals(operatingUsername)) {
+                // Write to local file
+                Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
+                writeLocal(localPath, entries);
+
+                if (pathConfig.isNetworkAvailable()) {
+                    Path networkPath = pathConfig.getNetworkWorktimePath(username, year, month);
+                    fileSyncService.syncToNetwork(localPath, networkPath);
+                }
+            } else {
+                throw new SecurityException("Username mismatch with session file");
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error writing worktime for user %s: %s", username, e.getMessage()));
+            throw new RuntimeException("Failed to write worktime", e);
         }
     }
 

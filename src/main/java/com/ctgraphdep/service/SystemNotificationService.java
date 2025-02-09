@@ -1,6 +1,8 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.NotificationBackgroundUtility;
@@ -11,6 +13,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.geom.RoundRectangle2D;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -20,6 +23,7 @@ public class SystemNotificationService {
     private final SessionMonitorService sessionMonitorService;
     private final UserSessionService userSessionService;
     private final AtomicBoolean userResponded;
+    private final PathConfig pathConfig;
 
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
@@ -27,10 +31,11 @@ public class SystemNotificationService {
     private static final Dimension BUTTON_SIZE = new Dimension(160, 35);
     private static final int BUTTON_SPACING = 20;
 
-    public SystemNotificationService(CTTTSystemTray systemTray, @Lazy SessionMonitorService sessionMonitorService, UserSessionService userSessionService) {
+    public SystemNotificationService(CTTTSystemTray systemTray, @Lazy SessionMonitorService sessionMonitorService, UserSessionService userSessionService, PathConfig pathConfig) {
         this.systemTray = systemTray;
         this.sessionMonitorService = sessionMonitorService;
         this.userSessionService = userSessionService;
+        this.pathConfig = pathConfig;
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -82,21 +87,33 @@ public class SystemNotificationService {
                 null,
                 WorkCode.NOTICE_TITLE,
                 formattedMessage,
-                WorkCode.ON_FOR_FIVE_MINUTES,
+                WorkCode.ON_FOR_FIVE_MINUTES,  // 5 minutes timeout
                 false,
-                true
+                true  // isTempStop = true
         );
+
+        LoggerUtil.debug(this.getClass(),
+                String.format("Showing temp stop warning - Duration: %d hours %d minutes",
+                        hours, minutes));
     }
 
-    private void showNotificationDialog(
-            String username,
-            Integer userId,
-            Integer finalMinutes,
-            String title,
-            String message,
-            int timeoutPeriod,
-            boolean isHourly,
-            boolean isTempStop) {
+    private void showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
+            int timeoutPeriod, boolean isHourly, boolean isTempStop) {
+        LoggerUtil.debug(this.getClass(),
+                String.format("Showing notification - isHourly: %b, isTempStop: %b",
+                        isHourly, isTempStop));
+
+        // Add session status check
+        WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(username, userId);
+
+        // Don't show regular notifications during temp stop
+        if (!isTempStop &&
+                WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
+            LoggerUtil.debug(this.getClass(),
+                    "Skipping regular notification during temp stop");
+            return;
+        }
+
         userResponded.set(false);
         SwingUtilities.invokeLater(() -> {
             DialogComponents components = createDialog(title, message);
@@ -108,6 +125,8 @@ public class SystemNotificationService {
             showDialog(components.dialog);
             startAutoCloseTimer(components.dialog, username, userId, finalMinutes, timeoutPeriod, isTempStop);
         });
+
+
     }
 
     private static class DialogComponents {
@@ -294,12 +313,38 @@ public class SystemNotificationService {
 
     private void publishEndSession(String username, Integer userId, Integer finalMinutes) {
         try {
-            userSessionService.endDay(username, userId, finalMinutes);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully ended session through notification for user %s", username));
+            // Get username from session file
+            Path sessionPath = pathConfig.getLocalSessionPath(username, userId);
+            String sessionFilename = sessionPath.getFileName().toString();
+            String extractedUsername = extractUsernameFromSessionFile(sessionFilename);
+
+            if (extractedUsername != null) {
+                userSessionService.endDay(extractedUsername, userId, finalMinutes );
+                LoggerUtil.info(this.getClass(),
+                        String.format("Successfully ended session through notification for user %s", extractedUsername));
+            } else {
+                LoggerUtil.error(this.getClass(),
+                        "Failed to extract username from session file: " + sessionFilename);
+            }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     "Failed to end session through notification: " + e.getMessage());
         }
+    }
+
+    private String extractUsernameFromSessionFile(String filename) {
+        // Expects filename format: session_username_userId.json
+        try {
+            String[] parts = filename.replace("session_", "")
+                    .replace(".json", "")
+                    .split("_");
+            if (parts.length >= 2) {
+                return parts[0];
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error extracting username from filename: " + filename);
+        }
+        return null;
     }
 }

@@ -57,6 +57,16 @@ public class UserSessionController extends BaseController {
                     user.getUserId()
             );
 
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Session status before formatting: %s", session.getSessionStatus()));
+
+            String formattedStatus = getFormattedStatus(session.getSessionStatus());
+
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Formatted session status: %s", formattedStatus));
+
+            model.addAttribute("sessionStatus", formattedStatus);
+
             // Verify session ownership
             if (session != null && !session.getUsername().equals(user.getUsername())) {
                 LoggerUtil.warn(this.getClass(),
@@ -189,14 +199,34 @@ public class UserSessionController extends BaseController {
         model.addAttribute("sessionStatus", getFormattedStatus(session.getSessionStatus()));
         model.addAttribute("currentDateTime", CalculateWorkHoursUtil.formatDateTime(LocalDateTime.now()));
         model.addAttribute("dayStartTime", CalculateWorkHoursUtil.formatDateTime(session.getDayStartTime()));
-        model.addAttribute("totalWorkRaw", formatWorkTime(session.getTotalWorkedMinutes()));
-        model.addAttribute("temporaryStopCount", session.getTemporaryStopCount() != null ? session.getTemporaryStopCount() : 0);
-        model.addAttribute("totalTemporaryStopTime", formatWorkTime(session.getTotalTemporaryStopMinutes()));
+
+        // If in temporary stop, calculate current break duration
+        int currentBreakMinutes = 0;
+        if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) &&
+                session.getLastTemporaryStopTime() != null) {
+            currentBreakMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
+                    session.getLastTemporaryStopTime(),
+                    LocalDateTime.now()
+            );
+        }
+
+        // Calculate total break time including current break if in temporary stop
+        int totalBreakMinutes = (session.getTotalTemporaryStopMinutes() != null ?
+                session.getTotalTemporaryStopMinutes() : 0) + currentBreakMinutes;
+
+        // Set total work raw (will now show actual working time)
+        model.addAttribute("totalWorkRaw", formatWorkTime(session.getTotalWorkedMinutes() - totalBreakMinutes));
+
+        model.addAttribute("temporaryStopCount", session.getTemporaryStopCount() != null ?
+                session.getTemporaryStopCount() : 0);
+        model.addAttribute("totalTemporaryStopTime", formatWorkTime(totalBreakMinutes));
         model.addAttribute("overtime", formatWorkTime(session.getTotalOvertimeMinutes()));
         model.addAttribute("lunchBreakStatus", session.getLunchBreakDeducted());
         model.addAttribute("actualWorkTime", formatWorkTime(session.getFinalWorkedMinutes()));
-        LoggerUtil.debug(this.getClass(), "Model attributes: " + model.asMap());
+        model.addAttribute("lastTemporaryStopTime", session.getLastTemporaryStopTime() != null ?
+                CalculateWorkHoursUtil.formatDateTime(session.getLastTemporaryStopTime()) : null);
 
+        LoggerUtil.debug(this.getClass(), "Model attributes: " + model.asMap());
     }
 
     private String formatWorkTime(Integer minutes) {
@@ -205,6 +235,9 @@ public class UserSessionController extends BaseController {
 
     private String getFormattedStatus(String status) {
         if (status == null) return "Offline";
+        LoggerUtil.debug(this.getClass(),
+                String.format("Converting status from '%s' to formatted status", status));
+
         return switch (status) {
             case WorkCode.WORK_ONLINE -> "Online";
             case WorkCode.WORK_TEMPORARY_STOP -> "Temporary Stop";

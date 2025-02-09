@@ -47,7 +47,7 @@ public class WorkCode {
     public static final Integer HOURLY_CHECK_INTERVAL = 5; // hourly checks
 
     public static Integer MAX_TEMP_STOP_HOURS = 15; // 24 - MAX_WORK_HOURS
-    public static Integer TEMP_STOP_WARNING_INTERVAL = 60; // Minutes between warnings
+    public static Integer TEMP_STOP_WARNING_INTERVAL = 10; // Minutes between warnings
 
     //date format
     public static final DateTimeFormatter INPUT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
