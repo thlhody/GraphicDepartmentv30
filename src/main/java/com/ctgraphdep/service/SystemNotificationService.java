@@ -53,7 +53,6 @@ public class SystemNotificationService {
                 false
         );
     }
-
     public void showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
         if (checkTrayIcon()) return;
         showNotificationDialog(
@@ -67,7 +66,6 @@ public class SystemNotificationService {
                 false
         );
     }
-
     public void showLongTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
         if (checkTrayIcon()) return;
 
@@ -97,7 +95,7 @@ public class SystemNotificationService {
                         hours, minutes));
     }
 
-    private void showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
+    public void showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
             int timeoutPeriod, boolean isHourly, boolean isTempStop) {
         LoggerUtil.debug(this.getClass(),
                 String.format("Showing notification - isHourly: %b, isTempStop: %b",
@@ -288,13 +286,7 @@ public class SystemNotificationService {
         dialog.toFront();
     }
 
-    private void startAutoCloseTimer(
-            JDialog dialog,
-            String username,
-            Integer userId,
-            Integer finalMinutes,
-            int timeoutPeriod,
-            boolean isTempStop) {
+    private void startAutoCloseTimer(JDialog dialog, String username, Integer userId, Integer finalMinutes, int timeoutPeriod, boolean isTempStop) {
         Timer timer = new Timer(timeoutPeriod, e -> {
             if (!userResponded.get()) {
                 dialog.dispose();

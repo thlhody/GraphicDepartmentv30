@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.event.SessionEndEvent;
+import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.config.WorkCode;
@@ -235,22 +236,28 @@ public class UserSessionService {
     }
 
     private void updateSessionForTemporaryStop(WorkUsersSessionsStates session, LocalDateTime now) {
-        // Calculate worked minutes up to this temporary stop
-        int workedMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
-                session.getCurrentStartTime(), now);
+        // Calculate work minutes from last start to now
+        int workedMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(session.getCurrentStartTime(), now);
 
-        // Add these minutes to total worked time
-        session.setTotalWorkedMinutes(session.getTotalWorkedMinutes() + workedMinutes);
+        // Add only actual work minutes to total
+        session.setTotalWorkedMinutes((session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0) + workedMinutes);
 
-        // Update final minutes to reflect actual work time (total - breaks)
-        int actualMinutes = session.getTotalWorkedMinutes() -
-                (session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0);
-        session.setFinalWorkedMinutes(actualMinutes);
+        // Create and add new temporary stop entry
+        TemporaryStop stop = new TemporaryStop();
+        stop.setStartTime(now);
 
+        // Initialize temporaryStops if null
+        if (session.getTemporaryStops() == null) {
+            session.setTemporaryStops(new ArrayList<>());
+        }
+        session.getTemporaryStops().add(stop);
+
+        // Update session state
         session.setSessionStatus(WorkCode.WORK_TEMPORARY_STOP);
         session.setLastTemporaryStopTime(now);
         session.setTemporaryStopCount(session.getTemporaryStopCount() + 1);
         session.setLastActivity(now);
+
     }
 
     public void resumeFromTemporaryStop(String username, Integer userId) {
@@ -271,18 +278,26 @@ public class UserSessionService {
         int stopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
                 session.getLastTemporaryStopTime(), now);
 
-        // Update total temporary stop minutes
-        session.setTotalTemporaryStopMinutes(
-                (session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0)
-                        + stopMinutes
-        );
+        // Update the last temporary stop entry
+        if (!session.getTemporaryStops().isEmpty()) {
+            TemporaryStop lastStop = session.getTemporaryStops().get(session.getTemporaryStops().size() - 1);
+            lastStop.setEndTime(now);
+            lastStop.setDuration(stopMinutes);
+        }
 
-        // Update final minutes to reflect actual work time
-        int actualMinutes = session.getTotalWorkedMinutes() - session.getTotalTemporaryStopMinutes();
+        // Update total temporary stop minutes by summing all stop durations
+        int totalStopMinutes = session.getTemporaryStops().stream()
+                .mapToInt(stop -> stop.getDuration() != null ? stop.getDuration() : 0)
+                .sum();
+        session.setTotalTemporaryStopMinutes(totalStopMinutes);
+
+        // Calculate final worked minutes (raw work minus stops)
+        int actualMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
         session.setFinalWorkedMinutes(actualMinutes);
 
+        // Update session state for resuming work
         session.setSessionStatus(WorkCode.WORK_ONLINE);
-        session.setCurrentStartTime(now);
+        session.setCurrentStartTime(now);  // Reset start time for next work period
         session.setLastActivity(now);
     }
 

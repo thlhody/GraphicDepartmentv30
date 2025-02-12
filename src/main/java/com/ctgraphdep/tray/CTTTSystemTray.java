@@ -26,7 +26,6 @@ public class CTTTSystemTray {
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();
     private TrayIcon trayIcon;
-    private PopupMenu defaultPopupMenu;
 
     public synchronized void initialize() {
         if (isInitialized) {
@@ -61,7 +60,7 @@ public class CTTTSystemTray {
             }
 
             // Create default popup menu
-            defaultPopupMenu = createPopupMenu();
+            PopupMenu defaultPopupMenu = createPopupMenu();
 
             // Load and create tray icon
             Image iconImage = loadTrayIcon();
@@ -89,13 +88,6 @@ public class CTTTSystemTray {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in EDT initialization: " + e.getMessage());
-        }
-    }
-
-    // Add method to restore default menu
-    public void restoreDefaultMenu() {
-        if (trayIcon != null) {
-            trayIcon.setPopupMenu(defaultPopupMenu);
         }
     }
 
@@ -179,11 +171,4 @@ public class CTTTSystemTray {
         }
     }
 
-    public void setPopupMenu(PopupMenu newPopup) {
-        synchronized (trayLock) {
-            if (trayIcon != null) {
-                trayIcon.setPopupMenu(newPopup);
-            }
-        }
-    }
 }

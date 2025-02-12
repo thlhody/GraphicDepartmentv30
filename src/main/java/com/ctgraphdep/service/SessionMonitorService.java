@@ -154,7 +154,7 @@ public class SessionMonitorService {
             User user = userService.getUserById(session.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (calculateSessionService.shouldEndSession(user, session, LocalDateTime.now()) && !session.getSessionStatus().equals(WorkCode.WORK_TEMPORARY_STOP)) {
+            if (calculateSessionService.shouldEndSession(session, LocalDateTime.now()) && !session.getSessionStatus().equals(WorkCode.WORK_TEMPORARY_STOP)) {
                 String sessionKey = getSessionKey(session.getUsername(), session.getUserId());
 
                 if (!initialWarningShown.getOrDefault(sessionKey, false)) {
@@ -174,6 +174,8 @@ public class SessionMonitorService {
     }
 
     public void markSessionContinued(String username, Integer userId) {
+        stopMonitoring(username, userId);
+
         backgroundMonitor.startHourlyMonitoring(username, userId,
                 () -> checkContinuedSession(username, userId));
 
@@ -232,5 +234,6 @@ public class SessionMonitorService {
         backgroundMonitor.shutdown();
         initialWarningShown.clear();
         tempStopMonitoringActive.clear();
+
     }
 }

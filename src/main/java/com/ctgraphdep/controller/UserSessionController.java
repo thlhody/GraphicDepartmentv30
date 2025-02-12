@@ -196,43 +196,42 @@ public class UserSessionController extends BaseController {
     }
 
     private void populateSessionModel(Model model, WorkUsersSessionsStates session) {
+        //initial values
         model.addAttribute("sessionStatus", getFormattedStatus(session.getSessionStatus()));
         model.addAttribute("currentDateTime", CalculateWorkHoursUtil.formatDateTime(LocalDateTime.now()));
         model.addAttribute("dayStartTime", CalculateWorkHoursUtil.formatDateTime(session.getDayStartTime()));
-
-        // If in temporary stop, calculate current break duration
-        int currentBreakMinutes = 0;
-        if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) &&
-                session.getLastTemporaryStopTime() != null) {
-            currentBreakMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
-                    session.getLastTemporaryStopTime(),
-                    LocalDateTime.now()
-            );
-        }
-
-        // Calculate total break time including current break if in temporary stop
-        int totalBreakMinutes = (session.getTotalTemporaryStopMinutes() != null ?
-                session.getTotalTemporaryStopMinutes() : 0) + currentBreakMinutes;
-
-        // Set total work raw (will now show actual working time)
-        model.addAttribute("totalWorkRaw", formatWorkTime(session.getTotalWorkedMinutes() - totalBreakMinutes));
-
-        model.addAttribute("temporaryStopCount", session.getTemporaryStopCount() != null ?
-                session.getTemporaryStopCount() : 0);
-        model.addAttribute("totalTemporaryStopTime", formatWorkTime(totalBreakMinutes));
-        model.addAttribute("overtime", formatWorkTime(session.getTotalOvertimeMinutes()));
-        model.addAttribute("lunchBreakStatus", session.getLunchBreakDeducted());
+        //work values
+        model.addAttribute("totalWorkRaw", formatWorkTime(session.getTotalWorkedMinutes()));
         model.addAttribute("actualWorkTime", formatWorkTime(session.getFinalWorkedMinutes()));
-        model.addAttribute("lastTemporaryStopTime", session.getLastTemporaryStopTime() != null ?
-                CalculateWorkHoursUtil.formatDateTime(session.getLastTemporaryStopTime()) : null);
+        model.addAttribute("lunchBreakStatus", session.getLunchBreakDeducted());
+        model.addAttribute("overtime", formatWorkTime(session.getTotalOvertimeMinutes()));
+        //temporary stop values
+        model.addAttribute("lastTemporaryStopTime", formatLastTempStopTime(session));
+        model.addAttribute("temporaryStopCount", getTemporaryStopCount(session));
+        model.addAttribute("totalTemporaryStopTime", formatWorkTime(calculateTotalBreakMinutes(session)));
 
         LoggerUtil.debug(this.getClass(), "Model attributes: " + model.asMap());
     }
 
+    //helper methods
     private String formatWorkTime(Integer minutes) {
-        return minutes != null ? CalculateWorkHoursUtil.minutesToHHmm(minutes) : "00:00";
+        return minutes != null ? CalculateWorkHoursUtil.minutesToHHmm(minutes) : "--:--";
     }
-
+    private int getTemporaryStopCount(WorkUsersSessionsStates session) {
+        return session != null && session.getTemporaryStopCount() != null ? session.getTemporaryStopCount() : 0;
+    }
+    private String formatLastTempStopTime(WorkUsersSessionsStates session) {
+        return session != null && session.getLastTemporaryStopTime() != null ? CalculateWorkHoursUtil.formatDateTime(session.getLastTemporaryStopTime()) : "--:--";
+    }
+    private int calculateTotalBreakMinutes(WorkUsersSessionsStates session) {
+        // Calculate current break duration if in temporary stop
+        int currentBreakMinutes = 0;
+        if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) && session.getLastTemporaryStopTime() != null) {
+            currentBreakMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(session.getLastTemporaryStopTime(), LocalDateTime.now());
+        }
+        // Add current break to total temporary stop minutes
+        return (session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0) + currentBreakMinutes;
+    }
     private String getFormattedStatus(String status) {
         if (status == null) return "Offline";
         LoggerUtil.debug(this.getClass(),

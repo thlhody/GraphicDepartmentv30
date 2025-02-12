@@ -25,17 +25,21 @@ public class BackgroundMonitorExecutor {
     private final Map<String, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
     private final Map<String, MonitoringState> monitoringStates = new ConcurrentHashMap<>();
     private final DataAccessService dataAccess;
+    private final UserSessionService sessionService;
+    private final SessionRecoveryService sessionRecoveryService;
     private final CalculateSessionService calculateSessionService;
     private final SystemNotificationService notificationService;
     private final UserService userService;
     private final PathConfig pathConfig;
 
     public BackgroundMonitorExecutor(
-            DataAccessService dataAccess,
+            DataAccessService dataAccess, UserSessionService sessionService, SessionRecoveryService sessionRecoveryService,
             CalculateSessionService calculateSessionService,
             SystemNotificationService notificationService,
             UserService userService, PathConfig pathConfig) {
         this.dataAccess = dataAccess;
+        this.sessionService = sessionService;
+        this.sessionRecoveryService = sessionRecoveryService;
         this.calculateSessionService = calculateSessionService;
         this.notificationService = notificationService;
         this.userService = userService;
@@ -45,25 +49,28 @@ public class BackgroundMonitorExecutor {
 
     @PostConstruct
     public void initializeExistingSessions() {
-
-        // ADD THIS: Get the logged-in app username
-        String loggedInUsername = getCurrentLoggedInUsername(); // You'll need to implement this method
+        String loggedInUsername = getCurrentLoggedInUsername();
         LoggerUtil.info(this.getClass(), "Logged-in App Username: " + loggedInUsername);
 
         List<WorkUsersSessionsStates> activeSessions = loadActiveSessions();
         LoggerUtil.info(this.getClass(), "Total active sessions found: " + activeSessions.size());
 
         for(WorkUsersSessionsStates session : activeSessions) {
-            // CHANGE THIS: Compare with logged-in app username instead of PC username
             if (session.getUsername().equals(loggedInUsername)) {
                 LoggerUtil.info(this.getClass(),
-                        "CRITICAL: Preparing to monitor session for MATCHING user: " + session.getUsername() +
-                                " (User ID: " + session.getUserId() + ")");
-                startMonitoring(session);
-            } else {
-                LoggerUtil.info(this.getClass(),
-                        "SKIPPING session for user: " + session.getUsername() +
-                                " (Does NOT match logged-in username: " + loggedInUsername + ")");
+                        "CRITICAL: Preparing to recover session for MATCHING user: " +
+                                session.getUsername() + " (User ID: " + session.getUserId() + ")");
+
+                // First recover the session
+                sessionRecoveryService.recoverSession(session.getUsername(), session.getUserId());
+
+                // Then start monitoring if still active
+                WorkUsersSessionsStates recoveredSession =
+                        sessionService.getCurrentSession(session.getUsername(), session.getUserId());
+
+                if (calculateSessionService.isValidSession(recoveredSession)) {
+                    startMonitoring(recoveredSession);
+                }
             }
         }
     }
@@ -238,7 +245,7 @@ public class BackgroundMonitorExecutor {
             User user = userService.getUserById(session.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (calculateSessionService.shouldEndSession(user, currentSession, LocalDateTime.now())) {
+            if (calculateSessionService.shouldEndSession(currentSession, LocalDateTime.now())) {
                 int finalMinutes = calculateSessionService.calculateFinalMinutes(user, currentSession);
                 notificationService.showSessionWarning(
                         currentSession.getUsername(),
@@ -283,6 +290,8 @@ public class BackgroundMonitorExecutor {
         // Cancel any existing monitoring
         stopTask(key);
         stopTask(getKey(username, userId));  // Stop regular monitoring
+
+        stopMonitoring(username, userId);  // This should cancel both regular and hourly tasks
 
         ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
                 monitor,
