@@ -71,6 +71,15 @@ public class SessionRecoveryService {
     }
 
     private WorkUsersSessionsStates handleTemporaryStop(User user, WorkUsersSessionsStates session) {
+        if (calculateSessionService.isSessionFromPreviousDay(session)) {
+            int finalMinutes = calculateSessionService.calculateFinalMinutes(user, session);
+            userSessionService.endDay(session.getUsername(), session.getUserId(), finalMinutes);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Ended previous day session for user %s with %d minutes",
+                            session.getUsername(), finalMinutes));
+            return null;
+        }
+
         int tempStopDuration = calculateSessionService.calculateCurrentTempStopDuration(session);
         LocalDateTime tempStopStart = session.getLastTemporaryStopTime();
 
@@ -106,6 +115,15 @@ public class SessionRecoveryService {
     }
 
     private WorkUsersSessionsStates handleOnlineSession(User user, WorkUsersSessionsStates session) {
+        if (calculateSessionService.isSessionFromPreviousDay(session)) {
+            int finalMinutes = calculateSessionService.calculateFinalMinutes(user, session);
+            userSessionService.endDay(session.getUsername(), session.getUserId(), finalMinutes);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Ended previous day session for user %s with %d minutes",
+                            session.getUsername(), finalMinutes));
+            return null;
+        }
+
         if (calculateSessionService.isSessionFromPreviousDay(session)) {
             int finalMinutes = calculateSessionService.calculateFinalMinutes(user, session);
             userSessionService.endDay(session.getUsername(), session.getUserId(), finalMinutes);

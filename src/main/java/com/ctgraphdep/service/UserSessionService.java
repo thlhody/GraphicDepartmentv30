@@ -27,23 +27,18 @@ import java.util.concurrent.locks.ReentrantLock;
 public class UserSessionService {
     private final DataAccessService dataAccess;
     private final UserWorkTimeService userWorkTimeService;
-    private final SessionPersistenceService persistenceService;
-    private final UserService userService;
     private final SessionMonitorService sessionMonitorService;
     private final PathConfig pathConfig;
     private final ReentrantLock sessionLock = new ReentrantLock();
     private final Map<String, WorkUsersSessionsStates> userSessions = new ConcurrentHashMap<>();
-    private static final TypeReference<WorkUsersSessionsStates> SESSION_TYPE = new TypeReference<WorkUsersSessionsStates>() {};
     private final Map<Integer, WorkUsersSessionsStates> activeSessions = new ConcurrentHashMap<>();
 
     public UserSessionService(
             DataAccessService dataAccess,
-            UserWorkTimeService userWorkTimeService, SessionPersistenceService persistenceService,
-            PathConfig pathConfig, UserService userService, @Lazy SessionMonitorService sessionMonitorService) {
+            UserWorkTimeService userWorkTimeService,
+            PathConfig pathConfig, @Lazy SessionMonitorService sessionMonitorService) {
         this.dataAccess = dataAccess;
         this.userWorkTimeService = userWorkTimeService;
-        this.persistenceService = persistenceService;
-        this.userService = userService;
         this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
         LoggerUtil.initialize(this.getClass(), null);

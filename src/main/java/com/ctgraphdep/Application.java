@@ -34,7 +34,6 @@ public class Application {
         // Add additional properties programmatically
         Properties props = new Properties();
         props.put("spring.main.headless", "false");
-//        props.put("spring.config.location", "classpath:/application.properties,file:./config/application.properties");
         app.setDefaultProperties(props);
 
         // Run the application
@@ -63,6 +62,21 @@ public class Application {
             LoggerUtil.error(Application.class,
                     "Still running in headless mode despite configuration! " +
                             "System tray will be disabled. Please check your environment configuration.");
+        }
+    }
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        if (!GraphicsEnvironment.isHeadless()) {
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    LoggerUtil.info(this.getClass(), "Initializing System Tray");
+                    systemTray.initialize();
+                    LoggerUtil.info(this.getClass(), "System Tray initialization completed");
+                } catch (Exception e) {
+                    LoggerUtil.error(Application.class,
+                            "Failed to initialize system tray: " + e.getMessage());
+                }
+            });
         }
     }
 }
