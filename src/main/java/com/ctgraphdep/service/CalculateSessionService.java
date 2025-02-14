@@ -1,27 +1,30 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.SessionCalculationResult;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.enums.SessionEndRule;
+import com.ctgraphdep.utils.CalculateSessionAutoUtil;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
+import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 
 @Service
 public class CalculateSessionService {
-    private final DataAccessService dataAccess;
     private final SessionPersistenceService persistenceService;
 
-    public CalculateSessionService(DataAccessService dataAccess, SessionPersistenceService persistenceService) {
-        this.dataAccess = dataAccess;
+    public CalculateSessionService(SessionPersistenceService persistenceService) {
         this.persistenceService = persistenceService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
-    // Core validation
+    /**
+     * Core validation and rule checking
+     */
     public boolean isValidSession(WorkUsersSessionsStates session) {
         return session != null &&
                 session.getUsername() != null &&
@@ -31,69 +34,85 @@ public class CalculateSessionService {
                         WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
     }
 
-    // For checking if session should end
-    public boolean shouldEndSession(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        if (!isValidSession(session)) return false;
-        Integer schedule = getScheduleFromLocalUser(session.getUsername());
-        int effectiveMinutes = calculateEffectiveMinutes(session, currentTime);
-        return effectiveMinutes >= WorkCode.calculateFullDayDuration(schedule);
+    /**
+     * Checks if any session end rule applies
+     */
+    public Optional<SessionEndRule> checkSessionEndRules(WorkUsersSessionsStates session, Integer schedule) {
+        if (!isValidSession(session)) {
+            return Optional.empty();
+        }
+
+        SessionEndRule applicableRule = SessionEndRule.findApplicableRule(session, schedule);
+        return Optional.ofNullable(applicableRule);
     }
 
-    // For temporary stop maximum duration checks
-    public boolean isStuckTemporaryStop(WorkUsersSessionsStates session) {
-        return isValidSession(session) &&
-                WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) &&
-                session.getLastTemporaryStopTime() != null &&
-                ChronoUnit.HOURS.between(
-                        session.getLastTemporaryStopTime(),
-                        LocalDateTime.now()
-                ) >= WorkCode.MAX_TEMP_STOP_HOURS;
+    /**
+     * Calculate all session metrics and apply rules
+     */
+    public WorkUsersSessionsStates calculateSessionMetrics(WorkUsersSessionsStates session, Integer schedule) {
+        try {
+            if (!isValidSession(session)) {
+                return session;
+            }
+
+            // Use new utility to calculate all metrics
+            SessionCalculationResult result =
+                    CalculateSessionAutoUtil.calculateSessionMetrics(session, schedule);
+
+            // Update session with results
+            CalculateSessionAutoUtil.updateSessionWithCalculations(session, result);
+
+            // Log calculation results
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Calculated metrics for session - User: %s, Total: %d, Final: %d, TempStop: %d",
+                            session.getUsername(),
+                            result.getTotalWorkMinutes(),
+                            result.getFinalWorkMinutes(),
+                            result.getTotalTemporaryStopMinutes()));
+
+            // Persist changes
+            persistenceService.persistSession(session);
+
+            return session;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error calculating session metrics: %s", e.getMessage()));
+            return session;
+        }
     }
 
-    // For session recovery
-    public boolean isSessionFromPreviousDay(WorkUsersSessionsStates session) {
-        return isValidSession(session) &&
-                !session.getDayStartTime().toLocalDate().equals(LocalDateTime.now().toLocalDate());
-    }
-
-    // Calculate final minutes for ending session
+    /**
+     * Calculate final minutes for ending session
+     */
     public Integer calculateFinalMinutes(User user, WorkUsersSessionsStates session) {
-        if (!isValidSession(session)) return 0;
+        if (!isValidSession(session)) {
+            return 0;
+        }
 
-        // Previous day sessions use full schedule time
-        if (isSessionFromPreviousDay(session)) {
+        // For previous day sessions, use schedule duration
+        if (CalculateSessionAutoUtil.isSessionFromPreviousDay(session)) {
             return WorkCode.calculateFullDayDuration(user.getSchedule());
         }
 
-        // Calculate actual worked minutes minus breaks
-        return calculateEffectiveMinutes(session, LocalDateTime.now());
+        // Calculate using full metrics
+        SessionCalculationResult result =
+                CalculateSessionAutoUtil.calculateSessionMetrics(session, user.getSchedule());
+        return result.getFinalWorkMinutes();
     }
 
-    // Helper methods
-    private Integer getScheduleFromLocalUser(String username) {
-        try {
-            return dataAccess.readLocalUsers().stream()
-                    .filter(user -> username.equals(user.getUsername()))
-                    .findFirst()
-                    .map(User::getSchedule)
-                    .orElse(WorkCode.INTERVAL_HOURS_C);
-        } catch (Exception e) {
-            return WorkCode.INTERVAL_HOURS_C;
-        }
+    /**
+     * Check if session is from previous day
+     */
+    public boolean isSessionFromPreviousDay(WorkUsersSessionsStates session) {
+        return CalculateSessionAutoUtil.isSessionFromPreviousDay(session);
     }
 
-    private Integer calculateEffectiveMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        int totalMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
-                session.getDayStartTime(),
-                currentTime
-        );
-        return totalMinutes - (session.getTotalTemporaryStopMinutes() != null ?
-                session.getTotalTemporaryStopMinutes() : 0);
-    }
-
+    /**
+     * Calculate current temporary stop duration
+     */
     public int calculateCurrentTempStopDuration(WorkUsersSessionsStates session) {
-        if (!WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) ||
-                session.getLastTemporaryStopTime() == null) {
+        if (!isActiveTemporaryStop(session)) {
             return 0;
         }
 
@@ -103,28 +122,9 @@ public class CalculateSessionService {
         );
     }
 
-
-    // New method without persistence
-    public void calculateCurrentWorkWithoutPersist(WorkUsersSessionsStates session, Integer userSchedule) {
-        if (!isValidSession(session)) return;
-
-        // Do calculations
-        calculateCurrentWorkInternal(session, userSchedule);
-    }
-
-    // Original method with persistence
-    public void calculateCurrentWork(WorkUsersSessionsStates session, Integer userSchedule) {
-        if (!isValidSession(session)) return;
-
-        // Do calculations
-        calculateCurrentWorkInternal(session, userSchedule);
-
-        // Persist changes
-        persistenceService.persistSession(session);
-    }
-
-    // Internal calculation logic
-    private void calculateCurrentWorkInternal(WorkUsersSessionsStates session, Integer userSchedule) {
-        // Original calculation logic here
+    private boolean isActiveTemporaryStop(WorkUsersSessionsStates session) {
+        return isValidSession(session) &&
+                WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) &&
+                session.getLastTemporaryStopTime() != null;
     }
 }

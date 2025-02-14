@@ -2,6 +2,8 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.DialogComponents;
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -15,6 +17,9 @@ import java.awt.image.BufferedImage;
 import java.awt.geom.RoundRectangle2D;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
@@ -24,75 +29,91 @@ public class SystemNotificationService {
     private final UserSessionService userSessionService;
     private final AtomicBoolean userResponded;
     private final PathConfig pathConfig;
+    private final UserService userService;
 
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
     private static final int BUTTONS_PANEL_HEIGHT = 50;
     private static final Dimension BUTTON_SIZE = new Dimension(160, 35);
     private static final int BUTTON_SPACING = 20;
+    private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
 
-    public SystemNotificationService(CTTTSystemTray systemTray, @Lazy SessionMonitorService sessionMonitorService, UserSessionService userSessionService, PathConfig pathConfig) {
+    public SystemNotificationService(CTTTSystemTray systemTray, @Lazy SessionMonitorService sessionMonitorService, UserSessionService userSessionService, PathConfig pathConfig, UserService userService) {
         this.systemTray = systemTray;
         this.sessionMonitorService = sessionMonitorService;
         this.userSessionService = userSessionService;
         this.pathConfig = pathConfig;
+        this.userService = userService;
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     public void showSessionWarning(String username, Integer userId, Integer finalMinutes) {
         if (checkTrayIcon()) return;
-        showNotificationDialog(
-                username,
-                userId,
-                finalMinutes,
-                WorkCode.NOTICE_TITLE,
-                WorkCode.SESSION_WARNING_MESSAGE,
-                WorkCode.ON_FOR_TEN_MINUTES,
-                false,
-                false
-        );
+
+        // Only show schedule end warning once
+        if (canShowNotification(username, "SCHEDULE_END", 24 * 60)) { // Once per day
+            showNotificationDialog(
+                    username,
+                    userId,
+                    finalMinutes,
+                    WorkCode.NOTICE_TITLE,
+                    WorkCode.SESSION_WARNING_MESSAGE,
+                    WorkCode.ON_FOR_TEN_MINUTES,
+                    false,
+                    false
+            );
+        }
     }
+
     public void showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
         if (checkTrayIcon()) return;
-        showNotificationDialog(
-                username,
-                userId,
-                finalMinutes,
-                WorkCode.NOTICE_TITLE,
-                WorkCode.HOURLY_WARNING_MESSAGE,
-                WorkCode.ON_FOR_FIVE_MINUTES,
-                true,
-                false
-        );
+
+        // Show overtime warning hourly
+        if (canShowNotification(username, "OVERTIME", 60)) { // Every hour
+            showNotificationDialog(
+                    username,
+                    userId,
+                    finalMinutes,
+                    WorkCode.NOTICE_TITLE,
+                    WorkCode.HOURLY_WARNING_MESSAGE,
+                    WorkCode.ON_FOR_FIVE_MINUTES,
+                    true,
+                    false
+            );
+        }
     }
+
     public void showLongTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
         if (checkTrayIcon()) return;
 
-        int stopMinutes = (int) java.time.Duration.between(tempStopStart, LocalDateTime.now()).toMinutes();
-        int hours = stopMinutes / 60;
-        int minutes = stopMinutes % 60;
+        // Show temp stop warning hourly
+        if (canShowNotification(username, "TEMP_STOP", 60)) { // Every hour
+            int stopMinutes = (int) java.time.Duration.between(tempStopStart, LocalDateTime.now()).toMinutes();
+            int hours = stopMinutes / 60;
+            int minutes = stopMinutes % 60;
 
-        String formattedMessage = String.format(
-                WorkCode.LONG_TEMP_STOP_WARNING,
-                hours,
-                minutes
-        );
+            String formattedMessage = String.format(
+                    WorkCode.LONG_TEMP_STOP_WARNING,
+                    hours,
+                    minutes
+            );
 
-        showNotificationDialog(
-                username,
-                userId,
-                null,
-                WorkCode.NOTICE_TITLE,
-                formattedMessage,
-                WorkCode.ON_FOR_FIVE_MINUTES,  // 5 minutes timeout
-                false,
-                true  // isTempStop = true
-        );
+            showNotificationDialog(
+                    username,
+                    userId,
+                    null,
+                    WorkCode.NOTICE_TITLE,
+                    formattedMessage,
+                    WorkCode.ON_FOR_FIVE_MINUTES,
+                    false,
+                    true
+            );
+        }
+    }
 
-        LoggerUtil.debug(this.getClass(),
-                String.format("Showing temp stop warning - Duration: %d hours %d minutes",
-                        hours, minutes));
+    public void clearNotificationHistory(String username) {
+        lastNotificationTimes.keySet().removeIf(key -> key.startsWith(username + "_"));
     }
 
     public void showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
@@ -125,16 +146,6 @@ public class SystemNotificationService {
         });
 
 
-    }
-
-    private static class DialogComponents {
-        final JDialog dialog;
-        final JPanel buttonsPanel;
-
-        DialogComponents(JDialog dialog, JPanel buttonsPanel) {
-            this.dialog = dialog;
-            this.buttonsPanel = buttonsPanel;
-        }
     }
 
     private DialogComponents createDialog(String title, String message) {
@@ -338,5 +349,29 @@ public class SystemNotificationService {
                     "Error extracting username from filename: " + filename);
         }
         return null;
+    }
+
+    private String getNotificationKey(String username, String notificationType) {
+        return username + "_" + notificationType;
+    }
+
+    private boolean canShowNotification(String username, String notificationType, int intervalMinutes) {
+        String key = getNotificationKey(username, notificationType);
+        LocalDateTime lastTime = lastNotificationTimes.get(key);
+
+        if (lastTime == null) {
+            lastNotificationTimes.put(key, LocalDateTime.now());
+            return true;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        long minutesSinceLastNotification = ChronoUnit.MINUTES.between(lastTime, now);
+
+        if (minutesSinceLastNotification >= intervalMinutes) {
+            lastNotificationTimes.put(key, now);
+            return true;
+        }
+
+        return false;
     }
 }

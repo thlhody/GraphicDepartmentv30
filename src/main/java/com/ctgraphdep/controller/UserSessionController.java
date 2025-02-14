@@ -22,7 +22,6 @@ import java.time.LocalDateTime;
 @RequestMapping({"/user/session", "/team-lead/session"})
 public class UserSessionController extends BaseController {
 
-    private final CalculateSessionService calculateSessionService;
     private final UserSessionService userSessionService;
     private final SessionPersistenceService persistenceService;
     private final UserService userService;
@@ -32,11 +31,9 @@ public class UserSessionController extends BaseController {
             UserSessionService userSessionService,
             UserService userService,
             FolderStatusService folderStatusService,
-            CalculateSessionService calculateSessionService,
             SessionPersistenceService persistenceService) {
         super(userService, folderStatusService);
         this.userSessionService = userSessionService;
-        this.calculateSessionService = calculateSessionService;
         this.userService = userService;
         this.persistenceService = persistenceService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -68,7 +65,7 @@ public class UserSessionController extends BaseController {
             model.addAttribute("sessionStatus", formattedStatus);
 
             // Verify session ownership
-            if (session != null && !session.getUsername().equals(user.getUsername())) {
+            if (!session.getUsername().equals(user.getUsername())) {
                 LoggerUtil.warn(this.getClass(),
                         "Session ownership mismatch for user: " + user.getUsername());
                 session = null;
@@ -156,7 +153,6 @@ public class UserSessionController extends BaseController {
         }
 
         if (WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
-            calculateSessionService.calculateCurrentWork(currentSession, user.getSchedule());
             userSessionService.endDay(
                     user.getUsername(),
                     user.getUserId(),
@@ -180,9 +176,6 @@ public class UserSessionController extends BaseController {
             // Get user schedule
             User user = userService.getUserById(session.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
-
-            // Calculate current work using user's schedule
-            calculateSessionService.calculateCurrentWork(session, user.getSchedule());
 
             // Persist session using the SessionPersistenceService
             persistenceService.persistSession(session);
