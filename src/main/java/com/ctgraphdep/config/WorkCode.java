@@ -53,14 +53,14 @@ public class WorkCode {
     }
 
     public static final Integer ONE_MINUTE_DELAY = 1;     // 8.5 hours in minutes (8 * 60 + 30)510
-    public static final Integer CHECK_INTERVAL = 5; // checks every 30 minutes in order to see if the end time is reached
+    public static final Integer CHECK_INTERVAL = 30; // checks every 30 minutes in order to see if the end time is reached
+    public static final Integer HOURLY_INTERVAL = 60; //for hourly checks
     private static final Integer five_minutes = 5 * 60 * 1000;
     private static final Integer ten_minutes = 10 * 60 * 1000;
     public static final Integer ON_FOR_FIVE_MINUTES = five_minutes; // Auto-timer set for 5 minutes (WorkCode.CHECK_EVERY_FIVE_MINUTES)
     public static final Integer ON_FOR_TEN_MINUTES = ten_minutes;   // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
 
     public static Integer MAX_TEMP_STOP_HOURS = 15;                 // 24 - MAX_WORK_HOURS
-    public static Integer TEMP_STOP_WARNING_INTERVAL = 60;           // Minutes between warnings
 
     //date format
     public static final DateTimeFormatter INPUT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

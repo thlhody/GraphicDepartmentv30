@@ -25,16 +25,18 @@ public class UserSessionController extends BaseController {
     private final UserSessionService userSessionService;
     private final SessionPersistenceService persistenceService;
     private final UserService userService;
+    private final UserSessionCalcService calculatorService;
 
     @Autowired
     public UserSessionController(
             UserSessionService userSessionService,
             UserService userService,
             FolderStatusService folderStatusService,
-            SessionPersistenceService persistenceService) {
+            SessionPersistenceService persistenceService,UserSessionCalcService calculatorService) {
         super(userService, folderStatusService);
         this.userSessionService = userSessionService;
         this.userService = userService;
+        this.calculatorService = calculatorService;
         this.persistenceService = persistenceService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -53,7 +55,7 @@ public class UserSessionController extends BaseController {
                     user.getUsername(),
                     user.getUserId()
             );
-
+            LoggerUtil.info(this.getClass(), "Session data: " + session);
             LoggerUtil.debug(this.getClass(),
                     String.format("Session status before formatting: %s", session.getSessionStatus()));
 
@@ -176,6 +178,8 @@ public class UserSessionController extends BaseController {
             // Get user schedule
             User user = userService.getUserById(session.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
+            // Calculate and update session values
+            calculatorService.updateSessionCalculations(session);
 
             // Persist session using the SessionPersistenceService
             persistenceService.persistSession(session);

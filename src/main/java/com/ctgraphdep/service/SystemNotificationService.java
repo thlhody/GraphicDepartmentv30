@@ -3,12 +3,10 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.DialogComponents;
-import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.NotificationBackgroundUtility;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.swing.*;
@@ -25,11 +23,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 public class SystemNotificationService {
     private final CTTTSystemTray systemTray;
-    private final SessionMonitorService sessionMonitorService;
     private final UserSessionService userSessionService;
     private final AtomicBoolean userResponded;
     private final PathConfig pathConfig;
-    private final UserService userService;
+    private final SessionMonitorService sessionMonitorService;
 
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
@@ -38,12 +35,11 @@ public class SystemNotificationService {
     private static final int BUTTON_SPACING = 20;
     private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
 
-    public SystemNotificationService(CTTTSystemTray systemTray, @Lazy SessionMonitorService sessionMonitorService, UserSessionService userSessionService, PathConfig pathConfig, UserService userService) {
+    public SystemNotificationService(CTTTSystemTray systemTray, UserSessionService userSessionService, PathConfig pathConfig, SessionMonitorService sessionMonitorService) {
         this.systemTray = systemTray;
-        this.sessionMonitorService = sessionMonitorService;
         this.userSessionService = userSessionService;
         this.pathConfig = pathConfig;
-        this.userService = userService;
+        this.sessionMonitorService = sessionMonitorService;
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -53,34 +49,24 @@ public class SystemNotificationService {
 
         // Only show schedule end warning once
         if (canShowNotification(username, "SCHEDULE_END", 24 * 60)) { // Once per day
-            showNotificationDialog(
-                    username,
-                    userId,
-                    finalMinutes,
+            showNotificationDialog(username, userId, finalMinutes,
                     WorkCode.NOTICE_TITLE,
                     WorkCode.SESSION_WARNING_MESSAGE,
                     WorkCode.ON_FOR_TEN_MINUTES,
-                    false,
-                    false
+                    false, false
             );
         }
     }
 
     public void showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
         if (checkTrayIcon()) return;
-
         // Show overtime warning hourly
-        if (canShowNotification(username, "OVERTIME", 60)) { // Every hour
-            showNotificationDialog(
-                    username,
-                    userId,
-                    finalMinutes,
+        if (canShowNotification(username, "OVERTIME", WorkCode.CHECK_INTERVAL)) { // Every hour
+            showNotificationDialog(username, userId, finalMinutes,
                     WorkCode.NOTICE_TITLE,
                     WorkCode.HOURLY_WARNING_MESSAGE,
                     WorkCode.ON_FOR_FIVE_MINUTES,
-                    true,
-                    false
-            );
+                    true, false);
         }
     }
 
@@ -118,18 +104,14 @@ public class SystemNotificationService {
 
     public void showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
             int timeoutPeriod, boolean isHourly, boolean isTempStop) {
-        LoggerUtil.debug(this.getClass(),
-                String.format("Showing notification - isHourly: %b, isTempStop: %b",
-                        isHourly, isTempStop));
+        LoggerUtil.debug(this.getClass(), String.format("Showing notification - isHourly: %b, isTempStop: %b", isHourly, isTempStop));
 
         // Add session status check
         WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(username, userId);
 
         // Don't show regular notifications during temp stop
-        if (!isTempStop &&
-                WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
-            LoggerUtil.debug(this.getClass(),
-                    "Skipping regular notification during temp stop");
+        if (!isTempStop && WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
+            LoggerUtil.debug(this.getClass(), "Skipping regular notification during temp stop");
             return;
         }
 
@@ -213,9 +195,12 @@ public class SystemNotificationService {
         endButton.addActionListener(e -> {
             userResponded.set(true);
             components.dialog.dispose();
+            // First resume from temp stop, then end session
+            sessionMonitorService.resumeFromTempStop(username, userId);
             sessionMonitorService.endSession(username, userId);
             LoggerUtil.info(this.getClass(), "User chose to end session from temporary stop");
         });
+
 
         buttonsPanel.add(continueButton);
         buttonsPanel.add(resumeButton);
@@ -230,8 +215,8 @@ public class SystemNotificationService {
         continueButton.addActionListener(e -> {
             userResponded.set(true);
             components.dialog.dispose();
-            if (isHourly) {
-                sessionMonitorService.markSessionContinued(username, userId);
+            if (!isHourly) {
+                sessionMonitorService.activateHourlyMonitoring(username);
             }
             LoggerUtil.info(this.getClass(), "User chose to continue working");
         });
@@ -303,6 +288,7 @@ public class SystemNotificationService {
                 dialog.dispose();
                 if (!isTempStop) {
                     publishEndSession(username, userId, finalMinutes);
+                    sessionMonitorService.clearMonitoring(username);
                     LoggerUtil.info(this.getClass(), "Auto-ending session due to no response");
                 } else {
                     sessionMonitorService.continueTempStop(username, userId);
@@ -323,6 +309,7 @@ public class SystemNotificationService {
 
             if (extractedUsername != null) {
                 userSessionService.endDay(extractedUsername, userId, finalMinutes );
+                sessionMonitorService.clearMonitoring(username);
                 LoggerUtil.info(this.getClass(),
                         String.format("Successfully ended session through notification for user %s", extractedUsername));
             } else {

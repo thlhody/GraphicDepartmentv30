@@ -2,24 +2,23 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.enums.SyncStatus;
-import com.ctgraphdep.event.SessionEndEvent;
-import com.ctgraphdep.model.TemporaryStop;
-import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.model.WorkUsersSessionsStates;
+
+import com.ctgraphdep.model.*;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -28,25 +27,21 @@ public class UserSessionService {
     private final DataAccessService dataAccess;
     private final UserWorkTimeService userWorkTimeService;
     private final SessionMonitorService sessionMonitorService;
+    private final UserService userService;
     private final PathConfig pathConfig;
     private final ReentrantLock sessionLock = new ReentrantLock();
     private final Map<String, WorkUsersSessionsStates> userSessions = new ConcurrentHashMap<>();
     private final Map<Integer, WorkUsersSessionsStates> activeSessions = new ConcurrentHashMap<>();
 
-    public UserSessionService(
-            DataAccessService dataAccess,
-            UserWorkTimeService userWorkTimeService,
-            PathConfig pathConfig, @Lazy SessionMonitorService sessionMonitorService) {
+    //Core service methods
+    public UserSessionService(DataAccessService dataAccess, UserWorkTimeService userWorkTimeService,
+                              @Lazy SessionMonitorService sessionMonitorService, UserService userService, PathConfig pathConfig) {
         this.dataAccess = dataAccess;
         this.userWorkTimeService = userWorkTimeService;
-        this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
+        this.userService = userService;
+        this.pathConfig = pathConfig;
         LoggerUtil.initialize(this.getClass(), null);
-    }
-
-    @EventListener
-    public void handleSessionEndEvent(SessionEndEvent event) {
-        endDay(event.getUsername(), event.getUserId(), event.getFinalMinutes());
     }
 
     public WorkUsersSessionsStates getCurrentSession(String username, Integer userId) {
@@ -61,6 +56,12 @@ public class UserSessionService {
 
         try {
             session = resolveSession(username, userId);
+
+            // Check if session is from a previous day
+            if (isPreviousDaySession(session)) {
+                handlePreviousDaySession(session);
+            }
+
             userSessions.put(username, session);
             return session;
         } catch (Exception e) {
@@ -75,14 +76,147 @@ public class UserSessionService {
             return session;
         }
     }
+    private boolean isPreviousDaySession(WorkUsersSessionsStates session) {
+        if (session == null || session.getDayStartTime() == null || WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
+            return false;
+        }
 
+        LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+        LocalDate today = LocalDateTime.now().toLocalDate();
+
+        return sessionDate.isBefore(today);
+    }
+    private void handlePreviousDaySession(WorkUsersSessionsStates session) {
+        try {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Handling previous day session for user %s from %s",
+                            session.getUsername(),
+                            session.getDayStartTime().format(DateTimeFormatter.ISO_LOCAL_DATE)));
+
+            // Calculate default values for the session
+            SessionCalculationResult calculationResult = calculateDefaultSessionValues(session);
+
+            // Update and persist the session
+            updateAndPersistSession(session, calculationResult);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Successfully handled previous day session for user %s",
+                            session.getUsername()));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error handling previous day session: %s", e.getMessage()));
+            throw new RuntimeException("Failed to handle previous day session", e);
+        }
+    }
+    private SessionCalculationResult calculateDefaultSessionValues(WorkUsersSessionsStates session) {
+        // Get user's schedule
+        User user = userService.getUserById(session.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Calculate default duration based on schedule
+        int scheduleDuration = Objects.equals(user.getSchedule(), WorkCode.INTERVAL_HOURS_C) ? 510 : user.getSchedule() * 60;
+        // Direct conversion for other schedules
+        // 8.5 hours in minutes for 8-hour schedule
+
+        // Store original values
+        LocalDateTime originalStartTime = session.getDayStartTime();
+        int originalTempStopCount = session.getTemporaryStopCount();
+        int originalTempStopMinutes = session.getTotalTemporaryStopMinutes();
+        List<TemporaryStop> originalTempStops = session.getTemporaryStops();
+        LocalDateTime originalLastTempStopTime = session.getLastTemporaryStopTime();
+
+        // Calculate end time and work time results
+        LocalDateTime calculatedEndTime = originalStartTime.plusMinutes(scheduleDuration);
+        WorkTimeCalculationResult workTimeResult =
+                CalculateWorkHoursUtil.calculateWorkTime(scheduleDuration, user.getSchedule());
+
+        return new SessionCalculationResult(
+                scheduleDuration,
+                calculatedEndTime,
+                workTimeResult,
+                originalStartTime,
+                originalTempStopCount,
+                originalTempStopMinutes,
+                originalTempStops,
+                originalLastTempStopTime
+        );
+    }
+    private void updateAndPersistSession(WorkUsersSessionsStates session, SessionCalculationResult calc) {
+        // Update session with calculated values
+        session.setSessionStatus(WorkCode.WORK_OFFLINE);
+        session.setDayEndTime(calc.getCalculatedEndTime());
+        session.setCurrentStartTime(calc.getOriginalStartTime());
+        session.setTotalWorkedMinutes(calc.getScheduleDuration());
+        session.setFinalWorkedMinutes(calc.getWorkTimeResult().getProcessedMinutes());
+        session.setTotalOvertimeMinutes(calc.getWorkTimeResult().getOvertimeMinutes());
+        session.setLunchBreakDeducted(calc.getWorkTimeResult().isLunchDeducted());
+        session.setWorkdayCompleted(true);
+        session.setLastActivity(LocalDateTime.now());
+
+        // Preserve temporary stop information
+        session.setTemporaryStopCount(calc.getOriginalTempStopCount());
+        session.setTotalTemporaryStopMinutes(calc.getOriginalTempStopMinutes());
+        session.setTemporaryStops(calc.getOriginalTempStops());
+        session.setLastTemporaryStopTime(calc.getOriginalLastTempStopTime());
+
+        // Save updated session
+        saveSession(session.getUsername(), session);
+
+        // End the day with calculated values for the original date
+        endDay(session.getUsername(),
+                session.getUserId(),
+                calc.getWorkTimeResult().getFinalTotalMinutes());
+    }
+
+    //Session Initialization & Cleanup
+    public void startDay(String username, Integer userId) {
+        executeWithLock(() -> {
+            // Clear any existing session
+            userSessions.remove(username);
+            activeSessions.remove(userId);
+
+            // Create fresh session
+            LocalDateTime startTime = LocalDateTime.now().minusMinutes(WorkCode.BUFFER_MINUTES);
+            WorkUsersSessionsStates newSession = initializeSession(username, userId, startTime);
+            saveSession(username, newSession);
+            createWorktimeEntry(username, userId, newSession);
+
+            // Start session monitoring
+            sessionMonitorService.startMonitoring(username);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Started new session for user %s (start time set to %s)",
+                            username, startTime));
+
+            return newSession;
+        });
+    }
+    private WorkUsersSessionsStates initializeSession(String username, Integer userId, LocalDateTime startTime) {
+        WorkUsersSessionsStates session = new WorkUsersSessionsStates();
+        session.setUserId(userId);
+        session.setUsername(username);
+        session.setSessionStatus(WorkCode.WORK_ONLINE);
+        session.setDayStartTime(startTime);
+        session.setCurrentStartTime(startTime);
+        session.setTotalWorkedMinutes(0);
+        session.setFinalWorkedMinutes(0);
+        session.setTotalOvertimeMinutes(0);
+        session.setLunchBreakDeducted(false);
+        session.setWorkdayCompleted(false);
+        session.setTemporaryStopCount(0);
+        session.setTotalTemporaryStopMinutes(0);
+        session.setTemporaryStops(new ArrayList<>());
+        session.setLastTemporaryStopTime(null);
+        session.setLastActivity(LocalDateTime.now());
+        return session;
+    }
     private void clearStaleSession(String username) {
         WorkUsersSessionsStates existingSession = userSessions.get(username);
         if (existingSession != null && WorkCode.WORK_OFFLINE.equals(existingSession.getSessionStatus())) {
             userSessions.remove(username);
         }
     }
-
     private WorkUsersSessionsStates resolveSession(String username, Integer userId) {
         try {
             // Try to read local session first
@@ -153,27 +287,8 @@ public class UserSessionService {
         }
     }
 
-    private WorkUsersSessionsStates initializeSession(String username, Integer userId, LocalDateTime startTime) {
-        WorkUsersSessionsStates session = new WorkUsersSessionsStates();
-        session.setUserId(userId);
-        session.setUsername(username);
-        session.setSessionStatus(WorkCode.WORK_ONLINE);
-        session.setDayStartTime(startTime);
-        session.setCurrentStartTime(startTime);
-        session.setTotalWorkedMinutes(0);
-        session.setFinalWorkedMinutes(0);
-        session.setTotalOvertimeMinutes(0);
-        session.setLunchBreakDeducted(false);
-        session.setWorkdayCompleted(false);
-        session.setTemporaryStopCount(0);
-        session.setTotalTemporaryStopMinutes(0);
-        session.setTemporaryStops(new ArrayList<>());
-        session.setLastTemporaryStopTime(null);
-        session.setLastActivity(LocalDateTime.now());
-        return session;
-    }
-
-    private void saveSession(String username, WorkUsersSessionsStates session) {
+    //Session State Management
+    public void saveSession(String username, WorkUsersSessionsStates session) {
         try {
             // Use DataAccessService to write session file
             dataAccess.writeLocalSessionFile(session);
@@ -190,23 +305,11 @@ public class UserSessionService {
             throw new RuntimeException("Session persistence failed", e);
         }
     }
-
-    private void createWorktimeEntry(String username, Integer userId, WorkUsersSessionsStates session) {
-        LocalDate today = LocalDate.now();
-        WorkTimeTable entry = new WorkTimeTable();
-        entry.setUserId(userId);
-        entry.setWorkDate(today);
-        entry.setDayStartTime(session.getDayStartTime());
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setLunchBreakDeducted(false);
-        entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
-        userWorkTimeService.saveWorkTimeEntry(username, entry, today.getYear(), today.getMonthValue());
+    private boolean isValidSessionForOperation(WorkUsersSessionsStates session, String expectedStatus) {
+        return session != null && expectedStatus.equals(session.getSessionStatus());
     }
 
-    //temporary stop and resume
+    //Temporary Stop Operations
     public void startTemporaryStop(String username, Integer userId) {
         executeWithLock(() -> {
             LoggerUtil.info(this.getClass(),
@@ -229,7 +332,19 @@ public class UserSessionService {
             return null;
         });
     }
+    public void resumeFromTemporaryStop(String username, Integer userId) {
+        executeWithLock(() -> {
+            WorkUsersSessionsStates session = getCurrentSession(username, userId);
+            if (isValidSessionForOperation(session, WorkCode.WORK_TEMPORARY_STOP)) {
+                LocalDateTime now = LocalDateTime.now();
+                updateSessionForResume(session, now);
+                saveSession(username, session);
 
+                LoggerUtil.info(this.getClass(), String.format("Resumed session for user %s after temporary stop", username));
+            }
+            return null;
+        });
+    }
     private void updateSessionForTemporaryStop(WorkUsersSessionsStates session, LocalDateTime now) {
         // Calculate work minutes from last start to now
         int workedMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(session.getCurrentStartTime(), now);
@@ -254,21 +369,6 @@ public class UserSessionService {
         session.setLastActivity(now);
 
     }
-
-    public void resumeFromTemporaryStop(String username, Integer userId) {
-        executeWithLock(() -> {
-            WorkUsersSessionsStates session = getCurrentSession(username, userId);
-            if (isValidSessionForOperation(session, WorkCode.WORK_TEMPORARY_STOP)) {
-                LocalDateTime now = LocalDateTime.now();
-                updateSessionForResume(session, now);
-                saveSession(username, session);
-
-                LoggerUtil.info(this.getClass(), String.format("Resumed session for user %s after temporary stop", username));
-            }
-            return null;
-        });
-    }
-
     private void updateSessionForResume(WorkUsersSessionsStates session, LocalDateTime now) {
         int stopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
                 session.getLastTemporaryStopTime(), now);
@@ -296,52 +396,7 @@ public class UserSessionService {
         session.setLastActivity(now);
     }
 
-    public void startDay(String username, Integer userId) {
-        executeWithLock(() -> {
-            // Clear any existing session
-            userSessions.remove(username);
-            activeSessions.remove(userId);
-
-            // Create fresh session
-            LocalDateTime startTime = LocalDateTime.now().minusMinutes(WorkCode.BUFFER_MINUTES);
-            WorkUsersSessionsStates newSession = initializeSession(username, userId, startTime);
-            saveSession(username, newSession);
-            createWorktimeEntry(username, userId, newSession);
-
-            // Start monitoring this session
-            sessionMonitorService.startMonitoring(newSession);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Started new session for user %s (start time set to %s)",
-                            username, startTime));
-
-            return newSession;
-        });
-    }
-
-    public void resumeSession(WorkUsersSessionsStates session) {
-        executeWithLock(() -> {
-            if (session != null && (
-                    WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
-                            WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()))) {
-
-                // Just update last activity without changing status
-                session.setLastActivity(LocalDateTime.now());
-
-                // Save the session with its current status
-                saveSession(session.getUsername(), session);
-
-                // Start appropriate monitoring based on current status
-                sessionMonitorService.startMonitoring(session);
-
-                LoggerUtil.info(this.getClass(),
-                        String.format("Resumed existing session for user %s with status %s",
-                                session.getUsername(), session.getSessionStatus()));
-            }
-            return null;
-        });
-    }
-    //end day
+    //End Session Operations
     public void endDay(String username, Integer userId, Integer finalMinutes) {
         executeWithLock(() -> {
             try {
@@ -358,7 +413,6 @@ public class UserSessionService {
             return null;
         });
     }
-
     private WorkUsersSessionsStates loadAndValidateSession(String username, Integer userId) {
         try {
             // Read local session file
@@ -379,16 +433,26 @@ public class UserSessionService {
             return null;
         }
     }
-
     private void processSessionEnd(WorkUsersSessionsStates session, Integer finalMinutes) {
         LocalDateTime now = LocalDateTime.now();
+
+        // Get current values before modifying session
+        int currentWorkedMinutes = session.getTotalWorkedMinutes();
+        int currentOvertimeMinutes = session.getTotalOvertimeMinutes() != null ? session.getTotalOvertimeMinutes() : 0;
+
+        // Update session state
         session.setSessionStatus(WorkCode.WORK_OFFLINE);
         session.setDayEndTime(now);
-        session.setFinalWorkedMinutes(finalMinutes);
+        session.setTotalWorkedMinutes(currentWorkedMinutes);  // Preserve total worked minutes
+        session.setFinalWorkedMinutes(finalMinutes);          // Set final minutes as provided
+        session.setTotalOvertimeMinutes(currentOvertimeMinutes);  // Preserve overtime minutes
         session.setWorkdayCompleted(true);
         session.setLastActivity(now);
-    }
 
+        LoggerUtil.debug(this.getClass(),
+                String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d",
+                        currentWorkedMinutes, finalMinutes, currentOvertimeMinutes));
+    }
     private void updateWorkTimeAndPersist(WorkUsersSessionsStates session) {
         try {
             // Update worktime entry
@@ -397,15 +461,9 @@ public class UserSessionService {
             // Persist session using DataAccessService
             dataAccess.writeLocalSessionFile(session);
 
-            // Stop session monitoring
-            sessionMonitorService.stopMonitoring(
-                    session.getUsername(),
-                    session.getUserId()
-            );
-
             LoggerUtil.info(this.getClass(),
-                    String.format("Successfully persisted session for user %s",
-                            session.getUsername()));
+                    String.format("Successfully persisted session for user %s with total minutes: %d",
+                            session.getUsername(), session.getTotalWorkedMinutes()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Failed to update and persist session for user %s: %s",
@@ -413,25 +471,38 @@ public class UserSessionService {
             throw new RuntimeException("Session update and persistence failed", e);
         }
     }
-
     private void cleanupSession(String username, Integer userId) {
         userSessions.remove(username);
         activeSessions.remove(userId);
+        sessionMonitorService.stopMonitoring(username);  // Stop monitoring when session ends
     }
-
     private void logSessionEnd(String username, Integer finalMinutes) {
         LoggerUtil.info(this.getClass(),
                 String.format("Successfully ended session for user %s with %d minutes",
                         username, finalMinutes));
     }
-
     private void handleEndDayError(String username, Exception e) {
         LoggerUtil.error(this.getClass(),
                 String.format("Failed to end session for user %s: %s",
                         username, e.getMessage()));
         throw new RuntimeException("Failed to end session", e);
     }
-    //end day.
+
+    //Work Time Entry Management
+    private void createWorktimeEntry(String username, Integer userId, WorkUsersSessionsStates session) {
+        LocalDate today = LocalDate.now();
+        WorkTimeTable entry = new WorkTimeTable();
+        entry.setUserId(userId);
+        entry.setWorkDate(today);
+        entry.setDayStartTime(session.getDayStartTime());
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setLunchBreakDeducted(false);
+        entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
+        userWorkTimeService.saveWorkTimeEntry(username, entry, today.getYear(), today.getMonthValue());
+    }
     private void updateWorktimeEntry(String username, WorkUsersSessionsStates session) {
         LocalDateTime now = LocalDateTime.now();
         WorkTimeTable entry = createWorkTimeEntryFromSession(session, now);
@@ -446,7 +517,6 @@ public class UserSessionService {
                 String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
                         username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
     }
-
     private WorkTimeTable createWorkTimeEntryFromSession(WorkUsersSessionsStates session, LocalDateTime endTime) {
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(session.getUserId());
@@ -463,22 +533,19 @@ public class UserSessionService {
         return entry;
     }
 
-    private <T> T executeWithLock(SessionOperation<T> operation) {
+    //Utility Methods
+    private <T> void executeWithLock(SessionOperation<T> operation) {
         sessionLock.lock();
         try {
-            return operation.execute();
+            operation.execute();
         } finally {
             sessionLock.unlock();
         }
     }
-
     // Functional interface for lock operations
     @FunctionalInterface
     private interface SessionOperation<T> {
         T execute();
     }
 
-    private boolean isValidSessionForOperation(WorkUsersSessionsStates session, String expectedStatus) {
-        return session != null && expectedStatus.equals(session.getSessionStatus());
-    }
 }

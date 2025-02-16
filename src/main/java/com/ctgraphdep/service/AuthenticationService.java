@@ -27,20 +27,17 @@ public class AuthenticationService {
     private final PathConfig pathConfig;
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
-    private final SessionRecoveryService sessionRecoveryService;
     private final CustomUserDetailsService userDetailsService;
 
     public AuthenticationService(
             DataAccessService dataAccess,
             PathConfig pathConfig, UserService userService,
             PasswordEncoder passwordEncoder,
-            SessionRecoveryService sessionRecoveryService,
             CustomUserDetailsService userDetailsService) {
         this.dataAccess = dataAccess;
         this.pathConfig = pathConfig;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
-        this.sessionRecoveryService = sessionRecoveryService;
         this.userDetailsService = userDetailsService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -117,16 +114,16 @@ public class AuthenticationService {
                     }
                 }
 
-                // Session recovery should still happen regardless of rememberMe
-                if (!user.isAdmin()) {
-                    try {
-                        sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(),
-                                "Failed to recover session: " + e.getMessage() +
-                                        " - continuing with login");
-                    }
-                }
+//                // Session recovery should still happen regardless of rememberMe
+//                if (!user.isAdmin()) {
+//                    try {
+//                        sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
+//                    } catch (Exception e) {
+//                        LoggerUtil.warn(this.getClass(),
+//                                "Failed to recover session: " + e.getMessage() +
+//                                        " - continuing with login");
+//                    }
+//                }
 
                 LoggerUtil.info(this.getClass(),
                         String.format("Successfully handled login for user: %s (rememberMe: %s)",

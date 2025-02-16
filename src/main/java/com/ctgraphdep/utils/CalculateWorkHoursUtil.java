@@ -15,13 +15,42 @@ import java.util.stream.IntStream;
 
 public class CalculateWorkHoursUtil {
 
-    public static boolean shouldDeductLunch(int inputMinutes, int schedule) {
+    private static boolean shouldDeductLunch(int inputMinutes, int schedule) {
         if (schedule < WorkCode.INTERVAL_HOURS_C) {
             return true; // Lunch break is true for schedules less than 8 hours, but we don't deduct time
         } else if (schedule == WorkCode.INTERVAL_HOURS_C) {
             int hours = inputMinutes / WorkCode.HOUR_DURATION;
             return hours > WorkCode.INTERVAL_HOURS_A && hours <= WorkCode.INTERVAL_HOURS_B;
         } else {
+            return true;
+        }
+    }
+
+    public static boolean isLunchBreakDeducted(int inputMinutes, int schedule) {
+        int hours = inputMinutes / WorkCode.HOUR_DURATION;
+
+        // If schedule is less than 8 hours (INTERVAL_HOURS_C)
+        if (schedule < WorkCode.INTERVAL_HOURS_C) {
+            return true;
+        }
+        // For 8 hour schedule
+        else if (schedule == WorkCode.INTERVAL_HOURS_C) {
+            // For hours between 4-11, check if enough time worked to have lunch deducted
+            if (hours > WorkCode.INTERVAL_HOURS_A && hours <= WorkCode.INTERVAL_HOURS_B) {
+                // Check if worked at least 4 hours and 30 minutes (270 minutes)
+                return inputMinutes >= (WorkCode.INTERVAL_HOURS_A * WorkCode.HOUR_DURATION + WorkCode.HALF_HOUR_DURATION);
+            }
+            // For hours > 11
+            else if (hours > WorkCode.INTERVAL_HOURS_B) {
+                return true;
+            }
+            // For hours <= 4
+            else {
+                return true;
+            }
+        }
+        // For schedules > 8 hours
+        else {
             return true;
         }
     }
@@ -48,18 +77,21 @@ public class CalculateWorkHoursUtil {
     }
 
     public static WorkTimeCalculationResult calculateWorkTime(int inputMinutes, int schedule) {
-        boolean lunchDeducted = shouldDeductLunch(inputMinutes, schedule);
+        // Calculate lunch break first
+        boolean lunchDeducted = isLunchBreakDeducted(inputMinutes, schedule);
+        // Adjust minutes based on lunch break
         int adjustedMinutes = calculateAdjustedMinutes(inputMinutes, schedule);
 
         // Round down to the nearest hour for schedules less than 8 hours
         if (schedule < WorkCode.INTERVAL_HOURS_C) {
             adjustedMinutes = (adjustedMinutes / WorkCode.HOUR_DURATION) * WorkCode.HOUR_DURATION;
         }
-
+        // Calculate final values
         int processedMinutes = calculateProcessedMinutes(adjustedMinutes, schedule);
         int overtimeMinutes = calculateOvertimeMinutes(adjustedMinutes, schedule);
         int finalTotalMinutes = processedMinutes + overtimeMinutes;
 
+        // Return complete result including raw minutes for session update
         return new WorkTimeCalculationResult(inputMinutes, processedMinutes, overtimeMinutes, lunchDeducted, finalTotalMinutes);
     }
 
