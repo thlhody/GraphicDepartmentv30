@@ -8,15 +8,13 @@ import lombok.*;
 @AllArgsConstructor
 @Setter
 @Getter
+
 public class TimeOffSummary {
     private int snDays;
     private int coDays;
     private int cmDays;
     private int availablePaidDays;
-
-    // Additional fields that might be useful for the view
-    private int totalRequestedDays;
-    private int totalApprovedDays;
-    private int remainingPaidDays;
+    private int paidDaysTaken;  // Total CO days taken
+    private int remainingPaidDays; // Remaing CO days
 
 }

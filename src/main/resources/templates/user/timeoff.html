@@ -124,14 +124,9 @@
                         <!-- Balance Section -->
                         <div class="summary-section">
                             <div class="summary-item d-flex justify-content-between align-items-center p-3 bg-primary bg-opacity-10 rounded mb-2">
-                                <span>Available Days</span>
+                                <span>Available Leave Paid Days</span>
                                 <span class="badge bg-primary rounded-pill"
                                       th:text="${summary.availablePaidDays}"></span>
-                            </div>
-                            <div class="summary-item d-flex justify-content-between align-items-center p-3 bg-success bg-opacity-10 rounded">
-                                <span>Remaining Days</span>
-                                <span class="badge bg-success rounded-pill"
-                                      th:text="${summary.remainingPaidDays}"></span>
                             </div>
                         </div>
                         <!-- Used Leave Section -->
@@ -152,17 +147,13 @@
                                 <span class="badge bg-danger rounded-pill" th:text="${summary.cmDays}"></span>
                             </div>
                         </div>
-                        <!-- Request Status -->
+                        <!-- Time Off Status -->
                         <h6 class="d-flex align-items-center mb-3">
-                            <i class="bi bi-clock-history me-2"></i>Request Status
+                            <i class="bi bi-clock-history me-2"></i>Days Taken
                         </h6>
                         <div class="summary-item d-flex justify-content-between align-items-center p-3 bg-warning bg-opacity-10 rounded mb-2">
-                            <span>Requested</span>
-                            <span class="badge bg-warning rounded-pill" th:text="${summary.totalRequestedDays}"></span>
-                        </div>
-                        <div class="summary-item d-flex justify-content-between align-items-center p-3 bg-success bg-opacity-10 rounded">
-                            <span>Approved</span>
-                            <span class="badge bg-success rounded-pill" th:text="${summary.totalApprovedDays}"></span>
+                            <span>Days Paid Leave</span>
+                            <span class="badge bg-warning rounded-pill" th:text="${summary.paidDaysTaken}"></span>
                         </div>
                     </div>
                 </div>

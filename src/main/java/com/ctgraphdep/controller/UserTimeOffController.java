@@ -227,8 +227,7 @@ public class UserTimeOffController extends BaseController {
                 .coDays(coDays)
                 .cmDays(cmDays)
                 .availablePaidDays(availablePaidDays)
-                .totalRequestedDays(coDays + cmDays)
-                .totalApprovedDays(coDays + cmDays)
+                .paidDaysTaken(coDays)
                 .remainingPaidDays(availablePaidDays - coDays)
                 .build();
     }
