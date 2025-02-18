@@ -7,6 +7,7 @@ import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -69,6 +70,8 @@ public class PathConfig {
     private String usersFilename;
     @Value("${dbj.users.local.filename}")
     private String localUsersFilename;
+//    @Value("${dbj.users.local.filename.team.lead}")
+//    private String teamJsonFilename;
     @Value("${dbj.users.holiday}")
     private String holidayFilename;
 
@@ -81,14 +84,23 @@ public class PathConfig {
     @Value("${app.lock.users}")
     private String usersLockFile;   // users.lock
 
+    // Return the base network path for use by other services
+    @Getter
     private Path networkPath;
     private Path localPath;
     private final AtomicBoolean networkAvailable = new AtomicBoolean(false);
+    private final AtomicBoolean localAvailable = new AtomicBoolean(false); // Add this
     private final Object networkStatusLock = new Object();
 
     @PostConstruct
     public void init() {
+        // Add at beginning of init() in PathConfig
+        LoggerUtil.info(this.getClass(), "Raw network path: " + networkBasePath);
         try {
+            // Fix network path format - ensure proper UNC path format
+            networkBasePath = normalizeNetworkPath(networkBasePath);
+            LoggerUtil.info(this.getClass(), "Using normalized network path: " + networkBasePath);
+
             // Initialize paths
             networkPath = Paths.get(networkBasePath);
             localPath = Paths.get(localBasePath, appTitle);
@@ -96,17 +108,37 @@ public class PathConfig {
             // Create local directories
             initializeLocalDirectories();
 
-            // Check network availability
+            // Check network availability (this will be updated by NetworkMonitorService)
             updateNetworkStatus();
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Initialized paths - Network: %s, Local: %s, Network Available: %b",
-                    networkPath, localPath, networkAvailable.get()));
-
+                    "Initialized paths - Network: %s, Local: %s, Network Available: %b, Local Available: %b",
+                    networkPath, localPath, networkAvailable.get(), localAvailable.get()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during initialization: " + e.getMessage());
             networkAvailable.set(false);
         }
+    }
+
+    private String normalizeNetworkPath(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return path;
+        }
+
+        // Remove any quotes, brackets or parentheses
+        path = path.replaceAll("[\"'()]", "");
+
+        // Fix UNC path format - must start with \\
+        if (path.startsWith("\\") && !path.startsWith("\\\\")) {
+            path = "\\" + path;
+        }
+
+        // Normalize excessive backslashes
+        if (path.matches("^\\\\\\\\+.*")) {
+            path = "\\\\" + path.replaceAll("^\\\\+", "");
+        }
+
+        return path;
     }
 
     // Network-only paths
@@ -183,6 +215,16 @@ public class PathConfig {
                 .resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
+//    public Path getTeamJsonPath(String teamLeadUsername) {
+//        return localPath.resolve(loginPath).resolve(teamJsonFilename.replace(".json",
+//                String.format("_%s.json", teamLeadUsername)));
+//    }
+//
+//    public Path getTeamBackupPath(String teamLeadUsername) {
+//        return networkPath.resolve(loginPath).resolve(teamJsonFilename.replace(".json",
+//                String.format("_%s.json", teamLeadUsername)));
+//    }
+
     public Path getHolidayCachePath() {
         return networkPath.resolve(loginPath).resolve(holidayCacheFile);
     }
@@ -216,39 +258,97 @@ public class PathConfig {
 
     private boolean checkNetworkAccess() {
         try {
-            if (!Files.exists(networkPath) || !Files.isDirectory(networkPath)) {
+            // Validate network path
+            if (networkPath == null || !networkPath.toString().startsWith("\\\\")) {
+                LoggerUtil.warn(this.getClass(), "Invalid network path format");
                 return false;
             }
 
-            // Test write access
-            Path testFile = networkPath.resolve(".test_" + System.currentTimeMillis());
-            Files.createFile(testFile);
-            Files.delete(testFile);
+            if (!Files.exists(networkPath) || !Files.isDirectory(networkPath)) {
+                LoggerUtil.debug(this.getClass(), "Network path not available or not a directory");
+                return false;
+            }
 
-            return true;
+            // Test write access with retry
+            for (int i = 0; i <= 2; i++) {
+                try {
+                    Path testFile = networkPath.resolve(".test_" + System.currentTimeMillis());
+                    Files.createFile(testFile);
+                    Files.delete(testFile);
+                    return true;
+                } catch (IOException e) {
+                    if (i < 2) {
+                        Thread.sleep(1000);
+                        continue;
+                    }
+                    LoggerUtil.debug(this.getClass(), "Network write test failed: " + e.getMessage());
+                    return false;
+                }
+            }
+            return false;
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), "Network check failed: " + e.getMessage());
+            LoggerUtil.debug(this.getClass(), "Network check failed: " + e.getMessage());
             return false;
         }
     }
 
-    private void initializeLocalDirectories() throws IOException {
-        // Create all required local directories
-        List<String> directories = Arrays.asList(
-                loginPath,
-                userSession,
-                userWorktime,
-                userRegister,
-                adminWorktime,
-                adminRegister,
-                adminBonus
-        );
+    // Add periodic network status checker
+    @Scheduled(fixedDelay = 60000) // Check every minute
+    public void scheduledNetworkCheck() {
+        try {
+            boolean previous = networkAvailable.get();
+            boolean current = checkNetworkAccess();
 
-        for (String dir : directories) {
-            Path dirPath = localPath.resolve(dir);
-            Files.createDirectories(dirPath);
+            if (previous != current) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Network status changed from %b to %b", previous, current));
+                networkAvailable.set(current);
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Scheduled network check failed: " + e.getMessage());
         }
+    }
 
-        LoggerUtil.info(this.getClass(), "Initialized local directories");
+    private void initializeLocalDirectories() {
+        try {
+            // Ensure local path exists
+            if (!Files.exists(localPath)) {
+                Files.createDirectories(localPath);
+            }
+
+            // Create all required local directories
+            List<String> directories = Arrays.asList(
+                    loginPath,
+                    userSession,
+                    userWorktime,
+                    userRegister,
+                    adminWorktime,
+                    adminRegister,
+                    adminBonus
+            );
+
+            for (String dir : directories) {
+                Path dirPath = localPath.resolve(dir);
+                Files.createDirectories(dirPath);
+            }
+
+            localAvailable.set(true);
+            LoggerUtil.info(this.getClass(), "Initialized local directories");
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Failed to initialize local directories: " + e.getMessage());
+            localAvailable.set(false);
+        }
+    }
+
+    public boolean isLocalAvailable() {
+        return localAvailable.get();
+    }
+
+    public void revalidateLocalAccess() {
+        try {
+            initializeLocalDirectories();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to revalidate local access: " + e.getMessage());
+        }
     }
 }
