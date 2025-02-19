@@ -195,10 +195,7 @@ public class DataAccessService {
             try {
                 List<User> networkUsers = readNetwork(networkPath, new TypeReference<>() {});
                 if (networkUsers != null && !networkUsers.isEmpty()) {
-                    // Cache network users locally
-                    for (User user : networkUsers) {
-                        writeLocalUsers(user);
-                    }
+                    // Don't cache network users automatically - only store when "Remember Me" is selected
                     return networkUsers;
                 }
             } catch (Exception e) {
@@ -286,7 +283,35 @@ public class DataAccessService {
 
     // Add this helper method for single user write
     public void writeLocalUsers(User user) {
-        writeLocalUsers(Collections.singletonList(user));
+        try {
+            // Get current local users
+            List<User> existingUsers = readLocalUsers();
+
+            // Check if user already exists
+            boolean userExists = false;
+            for (int i = 0; i < existingUsers.size(); i++) {
+                if (existingUsers.get(i).getUsername().equals(user.getUsername())) {
+                    // Replace existing user with updated one
+                    existingUsers.set(i, user);
+                    userExists = true;
+                    break;
+                }
+            }
+
+            // If user doesn't exist, add them
+            if (!userExists) {
+                existingUsers.add(user);
+            }
+
+            // Write the updated list
+            writeLocalUsers(existingUsers);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Updated local user: %s", user.getUsername()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error updating local user %s: %s", user.getUsername(), e.getMessage()));
+            throw new RuntimeException("Failed to write local user", e);
+        }
     }
 
     // Single read method for holiday entries

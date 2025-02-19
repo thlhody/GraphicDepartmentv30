@@ -266,10 +266,7 @@ public class AdminBonusExcelExporter {
 
         // Create header row
         Row headerRow = sheet.createRow(startRow++);
-        String[] headers = {
-                "Name", "User ID", "Entries", "Articles", "Complexity", "Misc",
-                "Worked Days", "Worked %", "Bonus %", "Calc Date"
-        };
+        String[] headers = {"Name", "User ID", "Entries", "Articles", "Complexity", "Misc", "Worked Days", "Worked %", "Bonus %", "Calc Date"};
 
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);

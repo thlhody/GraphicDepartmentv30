@@ -12,9 +12,7 @@ public class DashboardService {
     private final OnlineMetricsService onlineMetricsService;
     private final FolderStatusService folderStatusService;
 
-    public DashboardService(
-            OnlineMetricsService onlineMetricsService,
-            FolderStatusService folderStatusService) {
+    public DashboardService(OnlineMetricsService onlineMetricsService, FolderStatusService folderStatusService) {
         this.onlineMetricsService = onlineMetricsService;
         this.folderStatusService = folderStatusService;
         LoggerUtil.initialize(this.getClass(), null);

@@ -1,4 +1,3 @@
-// src/main/java/com/ctgraphdep/enums/PrintPrepType.java
 package com.ctgraphdep.enums;
 
 import lombok.Getter;
@@ -25,8 +24,6 @@ public enum PrintPrepType {
     }
 
     public static List<String> getValues() {
-        return Arrays.stream(values())
-                .map(PrintPrepType::getValue)
-                .toList();
+        return Arrays.stream(values()).map(PrintPrepType::getValue).toList();
     }
 }

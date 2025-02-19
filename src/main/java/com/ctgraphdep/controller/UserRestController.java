@@ -35,8 +35,7 @@ public class UserRestController {
     public ResponseEntity<User> getUser(@PathVariable Integer userId) {
         LoggerUtil.info(this.getClass(), "Fetching user with ID: " + userId);
         Optional<User> user = userService.getUserById(userId);
-        return user.map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{userId}")

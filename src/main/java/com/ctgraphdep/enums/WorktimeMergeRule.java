@@ -92,9 +92,7 @@ public enum WorktimeMergeRule {
 
     public static WorkTimeTable apply(WorkTimeTable user, WorkTimeTable admin) {
         LoggerUtil.debug(WorktimeMergeRule.class,
-                String.format("Merging - User: %s, Admin: %s",
-                        user != null ? user.getAdminSync() : "null",
-                        admin != null ? admin.getAdminSync() : "null"));
+                String.format("Merging - User: %s, Admin: %s", user != null ? user.getAdminSync() : "null", admin != null ? admin.getAdminSync() : "null"));
 
         // If both entries are null, return null
         if (user == null && admin == null) {

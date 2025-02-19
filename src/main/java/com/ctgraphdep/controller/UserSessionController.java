@@ -184,11 +184,9 @@ public class UserSessionController extends BaseController {
             // Persist session using the SessionPersistenceService
             persistenceService.persistSession(session);
 
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Updated active session for user %s", session.getUsername()));
+            LoggerUtil.debug(this.getClass(), String.format("Updated active session for user %s", session.getUsername()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error updating active session: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error updating active session: %s", e.getMessage()));
         }
     }
 
@@ -231,8 +229,7 @@ public class UserSessionController extends BaseController {
     }
     private String getFormattedStatus(String status) {
         if (status == null) return "Offline";
-        LoggerUtil.debug(this.getClass(),
-                String.format("Converting status from '%s' to formatted status", status));
+        LoggerUtil.debug(this.getClass(), String.format("Converting status from '%s' to formatted status", status));
 
         return switch (status) {
             case WorkCode.WORK_ONLINE -> "Online";
@@ -242,7 +239,6 @@ public class UserSessionController extends BaseController {
     }
 
     private User getUserOrThrow(UserDetails userDetails) {
-        return userService.getUserByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        return userService.getUserByUsername(userDetails.getUsername()).orElseThrow(() -> new RuntimeException("User not found"));
     }
 }

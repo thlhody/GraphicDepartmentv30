@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.base;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dashboard.*;
 import com.ctgraphdep.service.DashboardService;
@@ -10,9 +11,11 @@ import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.ui.Model;
-import org.springframework.security.access.AccessDeniedException;
 
+import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 public abstract class BaseDashboardController {
     protected final UserService userService;
@@ -34,25 +37,43 @@ public abstract class BaseDashboardController {
 
     protected DashboardViewModel prepareDashboardViewModel() {
         User currentUser = getCurrentUser();
-        validateUserRole(currentUser);
-        // Filter cards based on permissions
-        List<DashboardCard> filteredCards = permissionFilterService.filterCardsByPermission(
-                dashboardConfig.getCards(),
-                currentUser
-        );
+        if (currentUser == null) {
+            LoggerUtil.error(this.getClass(), "Failed to prepare dashboard: current user is null");
+            // Return empty dashboard model
+            return createEmptyDashboardModel();
+        }
 
-        // Create a new configuration with filtered cards
-        DashboardConfiguration filteredConfig = DashboardConfiguration.builder()
-                .title(dashboardConfig.getTitle())
-                .description(dashboardConfig.getDescription())
-                .role(dashboardConfig.getRole())
-                .refreshEnabled(dashboardConfig.isRefreshEnabled())
-                .refreshInterval(dashboardConfig.getRefreshInterval())
-                .cards(filteredCards)
-                .build();
+        if (!isUserRoleValid(currentUser)) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("User %s with role %s does not have required role: %s",
+                            currentUser.getUsername(), currentUser.getRole(), dashboardConfig.getRole()));
+            // Return empty dashboard model
+            return createEmptyDashboardModel();
+        }
 
-        // Build view model with filtered configuration
-        return dashboardService.buildDashboardViewModel(currentUser, filteredConfig);
+        try {
+            // Filter cards based on permissions
+            List<DashboardCard> filteredCards = permissionFilterService.filterCardsByPermission(
+                    dashboardConfig.getCards(),
+                    currentUser
+            );
+
+            // Create a new configuration with filtered cards
+            DashboardConfiguration filteredConfig = DashboardConfiguration.builder()
+                    .title(dashboardConfig.getTitle())
+                    .description(dashboardConfig.getDescription())
+                    .role(dashboardConfig.getRole())
+                    .refreshEnabled(dashboardConfig.isRefreshEnabled())
+                    .refreshInterval(dashboardConfig.getRefreshInterval())
+                    .cards(filteredCards)
+                    .build();
+
+            // Build view model with filtered configuration
+            return dashboardService.buildDashboardViewModel(currentUser, filteredConfig);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error filtering dashboard cards: " + e.getMessage(), e);
+            return createEmptyDashboardModel();
+        }
     }
 
     protected String renderDashboard(Model model) {
@@ -61,8 +82,9 @@ public abstract class BaseDashboardController {
             populateModel(model, viewModel);
             return "dashboard/" + getTemplateType() + "/dashboard";
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error preparing dashboard: " + e.getMessage());
-            throw new RuntimeException("Failed to prepare dashboard", e);
+            LoggerUtil.error(this.getClass(), "Error preparing dashboard: " + e.getMessage(), e);
+            model.addAttribute("error", "Failed to load dashboard. See logs for details.");
+            return "error/dashboard-error"; // Fallback error template
         }
     }
 
@@ -76,26 +98,58 @@ public abstract class BaseDashboardController {
     }
 
     protected User getCurrentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getName() == null) {
-            throw new AccessDeniedException("No authenticated user found");
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getName() == null) {
+                LoggerUtil.error(this.getClass(), "No authenticated user found in security context");
+                return null;
+            }
+
+            Optional<User> userOptional = userService.getUserByUsername(auth.getName());
+            if (userOptional.isEmpty()) {
+                LoggerUtil.error(this.getClass(), "User not found for username: " + auth.getName());
+                return null;
+            }
+
+            User user = userOptional.get();
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Current user: %s, Role: %s, Required role: %s",
+                            user.getUsername(),
+                            user.getRole(),
+                            dashboardConfig.getRole()));
+
+            return user;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error retrieving current user: " + e.getMessage(), e);
+            return null;
         }
-        User user = userService.getUserByUsername(auth.getName())
-                .orElseThrow(() -> new AccessDeniedException("User not found"));
-
-        LoggerUtil.debug(this.getClass(),
-                String.format("Current user: %s, Role: %s, Required role: %s",
-                        user.getUsername(),
-                        user.getRole(),
-                        dashboardConfig.getRole()));
-
-        return user;
     }
 
-    private void validateUserRole(User user) {
-        if (!user.getRole().equals(dashboardConfig.getRole())) {
-            throw new AccessDeniedException("User does not have required role: " + dashboardConfig.getRole());
-        }
+    private boolean isUserRoleValid(User user) {
+        return user != null && user.getRole() != null &&
+                user.getRole().equals(dashboardConfig.getRole());
+    }
+
+    private DashboardViewModel createEmptyDashboardModel() {
+        return DashboardViewModel.builder()
+                .pageTitle("Dashboard Unavailable")
+                .username("Unknown")
+                .userFullName("Unknown User")
+                .userRole("NONE")
+                .currentDateTime(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
+                .cards(Collections.emptyList())
+                .metrics(buildEmptyMetrics())
+                .build();
+    }
+
+    private DashboardMetrics buildEmptyMetrics() {
+        return DashboardMetrics.builder()
+                .onlineUsers(0)
+                .activeUsers(0)
+                .pendingTasks(0)
+                .systemStatus("UNAVAILABLE")
+                .lastUpdate(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
+                .build();
     }
 
     protected abstract String getTemplateType();

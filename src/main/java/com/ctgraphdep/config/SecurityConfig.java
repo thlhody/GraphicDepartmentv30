@@ -33,15 +33,12 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(
-            HttpSecurity http,
-            AuthenticationProvider authenticationProvider,
-            AuthenticationService authService) {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider, AuthenticationService authService) {
         try {
             http
                     .authenticationProvider(authenticationProvider)
                     .authorizeHttpRequests(authorize -> authorize
-                            .requestMatchers("/", "/about", "/css/**", "/images/**", "/icons/**", "/api/system/status").permitAll()
+                            .requestMatchers("/", "/about", "/css/**", "/images/**", "/icons/**", "/api/system/status", "/autologin").permitAll()
                             .requestMatchers("/admin/**").hasRole("ADMIN")
                             .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
                             .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")
@@ -101,6 +98,7 @@ public class SecurityConfig {
                             .permitAll()
                     )
                     .csrf(AbstractHttpConfigurer::disable);
+
 
             return http.build();
         } catch (Exception e) {

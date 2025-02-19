@@ -2,7 +2,6 @@ package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeCalculationResult;
-import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.UserWorkTimeService;
 
 import java.time.DayOfWeek;
@@ -10,7 +9,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Objects;
 import java.util.stream.IntStream;
 
 public class CalculateWorkHoursUtil {
@@ -117,8 +115,7 @@ public class CalculateWorkHoursUtil {
     }
 
     // New method that also considers national holidays
-    public static int calculateWorkDays(LocalDate startDate, LocalDate endDate,
-                                        UserWorkTimeService workTimeService) {
+    public static int calculateWorkDays(LocalDate startDate, LocalDate endDate, UserWorkTimeService workTimeService) {
         return (int) startDate.datesUntil(endDate.plusDays(1))
                 .filter(date -> date.getDayOfWeek() != DayOfWeek.SATURDAY &&
                         date.getDayOfWeek() != DayOfWeek.SUNDAY)
@@ -137,12 +134,6 @@ public class CalculateWorkHoursUtil {
 
     public static String formatDateTime(LocalDateTime dateTime) {
         return dateTime != null ? dateTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy :: HH:mm")) : "--/--/---- :: --:--";
-    }
-
-    // New method to convert hours to minutes with lunch break addition
-    public static int hoursToMinutes(int hours) {
-        int baseMinutes = hours * WorkCode.HOUR_DURATION;
-        return baseMinutes + WorkCode.HALF_HOUR_DURATION; // Add 30 minutes for lunch
     }
 
 }

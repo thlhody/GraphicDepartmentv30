@@ -27,6 +27,7 @@ import java.time.Year;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 @Controller
 @PreAuthorize("isAuthenticated()")
@@ -57,8 +58,7 @@ public class UserTimeOffController extends BaseController {
             User user = getUser(userDetails);
 
             // Determine dashboard URL based on user role
-            String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" :
-                    user.hasRole("ADMIN") ? "/admin" : "/user";
+            String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" : user.hasRole("ADMIN") ? "/admin" : "/user";
 
             model.addAttribute("dashboardUrl", dashboardUrl);
 
@@ -128,8 +128,7 @@ public class UserTimeOffController extends BaseController {
                 int availableDays = holidayService.getRemainingHolidayDays(user.getUsername(), user.getUserId());
                 if (availableDays < daysNeeded) {
                     redirectAttributes.addFlashAttribute("errorMessage",
-                            String.format("Insufficient paid holiday days. Needed: %d, Available: %d",
-                                    daysNeeded, availableDays));
+                            String.format("Insufficient paid holiday days. Needed: %d, Available: %d", daysNeeded, availableDays));
                     return "redirect:/user/timeoff?error=insufficient_days";
                 }
             }
@@ -146,21 +145,26 @@ public class UserTimeOffController extends BaseController {
             return "redirect:/user/timeoff?error=submit_failed";
         }
     }
-
     @GetMapping("/upcoming")
-    public ResponseEntity<List<WorkTimeTable>> getUpcomingTimeOff(
-            @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<List<WorkTimeTable>> getUpcomingTimeOff(@AuthenticationPrincipal UserDetails userDetails) {
         try {
-            User user = userService.getUserByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new IllegalStateException("User not found"));
+            if (userDetails == null) {
+                LoggerUtil.error(this.getClass(), "User details are null in upcoming time off request");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
+            Optional<User> userOptional = userService.getUserByUsername(userDetails.getUsername());
+            if (userOptional.isEmpty()) {
+                LoggerUtil.error(this.getClass(), String.format("User not found for username: %s", userDetails.getUsername()));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
+
+            User user = userOptional.get();
             List<WorkTimeTable> upcomingTimeOff = timeOffService.getUpcomingTimeOff(user);
-
             return ResponseEntity.ok(upcomingTimeOff);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error getting upcoming time off: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error getting upcoming time off: " + e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -174,8 +178,7 @@ public class UserTimeOffController extends BaseController {
 
         String typeLabel = "CO".equals(timeOffType) ? "vacation" : "medical leave";
 
-        return String.format("Successfully requested %s for %s (%d working day%s)",
-                typeLabel, dateInfo, daysCount, daysCount > 1 ? "s" : "");
+        return String.format("Successfully requested %s for %s (%d working day%s)", typeLabel, dateInfo, daysCount, daysCount > 1 ? "s" : "");
     }
 
     private void prepareTimeOffPageModel(Model model, User user) {

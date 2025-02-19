@@ -70,8 +70,8 @@ public class PathConfig {
     private String usersFilename;
     @Value("${dbj.users.local.filename}")
     private String localUsersFilename;
-//    @Value("${dbj.users.local.filename.team.lead}")
-//    private String teamJsonFilename;
+    @Value("${dbj.users.local.filename.team.lead}")
+    private String teamJsonFilename;
     @Value("${dbj.users.holiday}")
     private String holidayFilename;
 
@@ -259,10 +259,16 @@ public class PathConfig {
     private boolean checkNetworkAccess() {
         try {
             // Validate network path
-            if (networkPath == null || !networkPath.toString().startsWith("\\\\")) {
-                LoggerUtil.warn(this.getClass(), "Invalid network path format");
+            // For development, allow local paths
+            if (networkPath == null) {
                 return false;
             }
+
+            // Skip UNC path check for development
+            // if (!networkPath.toString().startsWith("\\\\")) {
+            //    LoggerUtil.warn(this.getClass(), "Invalid network path format");
+            //    return false;
+            // }
 
             if (!Files.exists(networkPath) || !Files.isDirectory(networkPath)) {
                 LoggerUtil.debug(this.getClass(), "Network path not available or not a directory");
@@ -270,7 +276,7 @@ public class PathConfig {
             }
 
             // Test write access with retry
-            for (int i = 0; i <= 2; i++) {
+            for (int i = 0; !(i > 2); i++) {
                 try {
                     Path testFile = networkPath.resolve(".test_" + System.currentTimeMillis());
                     Files.createFile(testFile);

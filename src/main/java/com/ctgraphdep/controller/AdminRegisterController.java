@@ -36,8 +36,8 @@ public class AdminRegisterController {
     private final AdminRegisterExcelExporter adminRegisterExcelExporter;
 
     @Autowired
-    public AdminRegisterController(AdminRegisterService adminRegisterService,
-                                   UserService userService, WorkTimeManagementService workTimeManagementService, AdminRegisterExcelExporter adminRegisterExcelExporter) {
+    public AdminRegisterController(AdminRegisterService adminRegisterService, UserService userService,
+                                   WorkTimeManagementService workTimeManagementService, AdminRegisterExcelExporter adminRegisterExcelExporter) {
         this.adminRegisterService = adminRegisterService;
         this.userService = userService;
         this.workTimeManagementService = workTimeManagementService;

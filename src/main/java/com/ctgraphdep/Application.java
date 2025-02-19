@@ -43,10 +43,8 @@ public class Application {
     @EventListener(ApplicationReadyEvent.class)
     public void initializeSystemTray() {
         // Log headless mode status
-        LoggerUtil.info(this.getClass(),
-                String.format("Headless mode check - GraphicsEnvironment: %s, System property: %s",
-                        GraphicsEnvironment.isHeadless(),
-                        System.getProperty("java.awt.headless")));
+        LoggerUtil.debug(this.getClass(), String.format("Headless mode check - GraphicsEnvironment: %s, System property: %s",
+                        GraphicsEnvironment.isHeadless(), System.getProperty("java.awt.headless")));
 
         if (!GraphicsEnvironment.isHeadless()) {
             SwingUtilities.invokeLater(() -> {
@@ -54,8 +52,7 @@ public class Application {
                     Thread.sleep(1000);
                     systemTray.initialize();
                 } catch (Exception e) {
-                    LoggerUtil.error(Application.class,
-                            "Failed to initialize system tray: " + e.getMessage());
+                    LoggerUtil.error(Application.class, "Failed to initialize system tray: " + e.getMessage());
                 }
             });
         } else {
@@ -64,6 +61,7 @@ public class Application {
                             "System tray will be disabled. Please check your environment configuration.");
         }
     }
+
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
         if (!GraphicsEnvironment.isHeadless()) {
@@ -73,8 +71,7 @@ public class Application {
                     systemTray.initialize();
                     LoggerUtil.info(this.getClass(), "System Tray initialization completed");
                 } catch (Exception e) {
-                    LoggerUtil.error(Application.class,
-                            "Failed to initialize system tray: " + e.getMessage());
+                    LoggerUtil.error(Application.class, "Failed to initialize system tray: " + e.getMessage());
                 }
             });
         }

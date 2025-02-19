@@ -28,11 +28,8 @@ public class UserWorktimeController extends BaseController {
     private final WorkTimeEntrySyncService entrySyncService;
     private final UserWorktimeExcelExporter excelExporter;
 
-    public UserWorktimeController(
-            UserService userService,
-            FolderStatusService folderStatusService,
-            UserWorkTimeDisplayService displayService, UserWorkTimeService userWorkTimeService,
-            WorkTimeEntrySyncService entrySyncService, UserWorktimeExcelExporter excelExporter) {
+    public UserWorktimeController(UserService userService, FolderStatusService folderStatusService, UserWorkTimeDisplayService displayService,
+                                  UserWorkTimeService userWorkTimeService, WorkTimeEntrySyncService entrySyncService, UserWorktimeExcelExporter excelExporter) {
         super(userService, folderStatusService);
         this.displayService = displayService;
         this.userWorkTimeService = userWorkTimeService;
@@ -91,31 +88,16 @@ public class UserWorktimeController extends BaseController {
             List<WorkTimeTable> worktimeData = null;
 
             if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                worktimeData = userWorkTimeService.loadViewOnlyWorktime(
-                        targetUser.getUsername(),
-                        year,
-                        month
-                );
+                worktimeData = userWorkTimeService.loadViewOnlyWorktime(targetUser.getUsername(), year, month);
             } else {
-                worktimeData = entrySyncService.synchronizeEntries(
-                        targetUser.getUsername(),
-                        targetUser.getUserId(),
-                        year,
-                        month
-                );
+                worktimeData = entrySyncService.synchronizeEntries(targetUser.getUsername(), targetUser.getUserId(), year, month);
             }
 
             // Prepare display data
-            Map<String, Object> displayData = displayService.prepareDisplayData(
-                    targetUser,
-                    worktimeData,
-                    year,
-                    month
-            );
+            Map<String, Object> displayData = displayService.prepareDisplayData(targetUser, worktimeData, year, month);
 
             // Add role-based view data
-            if (currentUser.getRole().equals("ADMIN") ||
-                    currentUser.getRole().equals("TEAM_LEADER")) {
+            if (currentUser.getRole().equals("ADMIN") || currentUser.getRole().equals("TEAM_LEADER")) {
                 model.addAttribute("isAdminView", true);
                 model.addAttribute("targetUser", targetUser);
 
@@ -131,8 +113,7 @@ public class UserWorktimeController extends BaseController {
             return "user/worktime";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error processing worktime: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error processing worktime: %s", e.getMessage()));
             model.addAttribute("error", "Error loading worktime data");
             return "user/worktime";
         }
@@ -152,35 +133,20 @@ public class UserWorktimeController extends BaseController {
             month = Optional.ofNullable(month).orElse(now.getMonthValue());
 
             // Get worktime data
-            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(
-                    user.getUsername(),
-                    user.getUserId(),
-                    year,
-                    month
-            );
+            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(user.getUsername(), user.getUserId(), year, month);
 
             // Log the dates to verify data
-            LoggerUtil.info(this.getClass(),
-                    String.format("Exporting worktime data for %d/%d. Total entries: %d",
-                            month, year, worktimeData.size()));
-            worktimeData.forEach(entry ->
-                    LoggerUtil.debug(this.getClass(),
-                            "Entry date: " + entry.getWorkDate()));
+            LoggerUtil.info(this.getClass(), String.format("Exporting worktime data for %d/%d. Total entries: %d", month, year, worktimeData.size()));
+            worktimeData.forEach(entry -> LoggerUtil.debug(this.getClass(), "Entry date: " + entry.getWorkDate()));
 
             // Get display data which includes the summary
-            Map<String, Object> displayData = displayService.prepareDisplayData(
-                    user,
-                    worktimeData,
-                    year,
-                    month
-            );
+            Map<String, Object> displayData = displayService.prepareDisplayData(user, worktimeData, year, month);
             WorkTimeSummary summary = (WorkTimeSummary) displayData.get("summary");
 
             byte[] excelData = excelExporter.exportToExcel(user, worktimeData, summary, year, month);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
-                                    user.getUsername(), year, month))
+                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"", user.getUsername(), year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 

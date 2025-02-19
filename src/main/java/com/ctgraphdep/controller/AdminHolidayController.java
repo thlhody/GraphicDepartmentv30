@@ -36,7 +36,7 @@ public class AdminHolidayController {
         LoggerUtil.info(this.getClass(), "Loading holiday list");
 
         List<PaidHolidayEntry> entries = holidayService.loadHolidayList();
-        LoggerUtil.info(this.getClass(), "Found " + entries.size() + " entries");
+        LoggerUtil.debug(this.getClass(), "Found " + entries.size() + " entries");
 
         model.addAttribute("entries", entries);
 
@@ -51,9 +51,7 @@ public class AdminHolidayController {
     @PostMapping("/update")
     public String updateHolidays(@RequestParam Integer userId, @RequestParam Integer days, RedirectAttributes redirectAttributes) {
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Updating holiday days - User: %d, Days: %d",
-                        userId, days));
+        LoggerUtil.info(this.getClass(), String.format("Updating holiday days - User: %d, Days: %d", userId, days));
 
         try {
             holidayService.updateUserHolidayDays(userId, days);

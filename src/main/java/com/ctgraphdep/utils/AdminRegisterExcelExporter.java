@@ -106,8 +106,7 @@ public class AdminRegisterExcelExporter {
 
         // Headers row
         Row headerRow = sheet.createRow(startRow++);
-        String[] headers = {"Entries", "Art Nr.", "CG", "Misc", "Worked D", "Worked%", "Bonus%", "Bonus$",
-                "1M Ago", "2M Ago", "3M Ago"};
+        String[] headers = {"Entries", "Art Nr.", "CG", "Misc", "Worked D", "Worked%", "Bonus%", "Bonus$", "1M Ago", "2M Ago", "3M Ago"};
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);

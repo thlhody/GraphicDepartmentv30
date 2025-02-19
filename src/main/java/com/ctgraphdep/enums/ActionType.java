@@ -1,4 +1,3 @@
-// src/main/java/com/ctgraphdep/enums/ActionType.java
 package com.ctgraphdep.enums;
 
 import lombok.Getter;
@@ -27,15 +26,10 @@ public enum ActionType {
     }
 
     public static List<String> getValues() {
-        return Arrays.stream(values())
-                .map(ActionType::getValue)
-                .toList();
+        return Arrays.stream(values()).map(ActionType::getValue).toList();
     }
 
     public static List<String> getBonusEligibleValues() {
-        return Arrays.stream(values())
-                .filter(type -> type != IMPOSTARE)
-                .map(ActionType::getValue)
-                .toList();
+        return Arrays.stream(values()).filter(type -> type != IMPOSTARE).map(ActionType::getValue).toList();
     }
 }

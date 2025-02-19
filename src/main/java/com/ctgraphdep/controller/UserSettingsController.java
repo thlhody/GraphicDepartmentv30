@@ -30,8 +30,7 @@ public class UserSettingsController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" :
-                user.hasRole("ADMIN") ? "/admin" :
-                        "/user";
+                user.hasRole("ADMIN") ? "/admin" : "/user";
 
         model.addAttribute("dashboardUrl", dashboardUrl);
         model.addAttribute("user", user);
@@ -45,9 +44,7 @@ public class UserSettingsController {
                                  RedirectAttributes redirectAttributes) {
         try {
             // Get user by username instead of trying to parse it as Long
-            User user = userService.getUserByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-
+            User user = userService.getUserByUsername(userDetails.getUsername()).orElseThrow(() -> new RuntimeException("User not found"));
             boolean success = userService.changePassword(user.getUserId(), currentPassword, newPassword);
 
             if (success) {

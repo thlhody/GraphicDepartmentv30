@@ -4,14 +4,15 @@ import com.ctgraphdep.model.SyncFolderStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.service.FolderStatusService;
 import com.ctgraphdep.service.UserService;
-import lombok.extern.slf4j.Slf4j;
+import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
-@Slf4j
+import java.util.Optional;
+
 @ControllerAdvice
 public abstract class BaseController {
     private final UserService userService;
@@ -20,6 +21,7 @@ public abstract class BaseController {
     protected BaseController(UserService userService, FolderStatusService folderStatusService) {
         this.userService = userService;
         this.folderStatusService = folderStatusService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @ModelAttribute("syncStatus")
@@ -28,17 +30,35 @@ public abstract class BaseController {
     }
 
     protected User getUser(UserDetails userDetails) {
-        return userService.getUserByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (userDetails == null) {
+            LoggerUtil.error(this.getClass(), "Attempt to get user with null userDetails");
+            return null;
+        }
+
+        Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
+        if (userOpt.isEmpty()) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("User not found for username: %s", userDetails.getUsername()));
+            return null;
+        }
+        return userOpt.get();
     }
 
-    protected User getCurrentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof UserDetails userDetails) {
-            return getUser(userDetails);
-        }
-        throw new RuntimeException("No authenticated user found");
-    }
+//    protected User getCurrentUser() {
+//        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+//        if (auth == null) {
+//            LoggerUtil.error(this.getClass(), "No authentication found in security context");
+//            return null;
+//        }
+//
+//        if (!(auth.getPrincipal() instanceof UserDetails userDetails)) {
+//            LoggerUtil.error(this.getClass(),
+//                    String.format("Principal is not UserDetails: %s", auth.getPrincipal().getClass().getName()));
+//            return null;
+//        }
+//
+//        return getUser(userDetails);
+//    }
 
     protected UserService getUserService() {
         return userService;

@@ -42,15 +42,11 @@ public class StatusController extends BaseController {
         String dashboardUrl = currentUser.hasRole("TEAM_LEADER") ? "/team-lead" :
                 currentUser.hasRole("ADMIN") ? "/admin" : "/user";
 
-        LoggerUtil.debug(this.getClass(),
-                String.format("Determined Dashboard URL for %s: %s",
-                        currentUser.getUsername(), dashboardUrl));
+        LoggerUtil.debug(this.getClass(), String.format("Determined Dashboard URL for %s: %s", currentUser.getUsername(), dashboardUrl));
 
         // Get filtered status list for non-admin users
         List<UserStatusDTO> userStatuses = onlineMetricsService.getUserStatuses();
-        long onlineCount = userStatuses.stream()
-                .filter(status -> "Online".equals(status.getStatus()))
-                .count();
+        long onlineCount = userStatuses.stream().filter(status -> "Online".equals(status.getStatus())).count();
 
         // Add model attributes
         model.addAttribute("userStatuses", userStatuses);

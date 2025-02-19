@@ -27,10 +27,7 @@ import java.util.Map;
 public class AdminBonusController extends BaseController {
     private final AdminBonusService adminBonusService;
 
-    public AdminBonusController(
-            UserService userService,
-            FolderStatusService folderStatusService,
-            AdminBonusService adminBonusService) {
+    public AdminBonusController(UserService userService, FolderStatusService folderStatusService, AdminBonusService adminBonusService) {
         super(userService, folderStatusService);
         this.adminBonusService = adminBonusService;
         LoggerUtil.initialize(this.getClass(), null);

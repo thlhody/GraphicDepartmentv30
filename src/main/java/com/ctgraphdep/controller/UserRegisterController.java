@@ -211,8 +211,7 @@ public class UserRegisterController extends BaseController {
             redirectAttributes.addFlashAttribute("successMessage", "Entry added successfully");
 
         } catch (RegisterValidationException e) {
-            return String.format("redirect:/user/register?error=%s&year=%d&month=%d",
-                    e.getErrorCode(), year, month);
+            return String.format("redirect:/user/register?error=%s&year=%d&month=%d", e.getErrorCode(), year, month);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error saving register entry: " + e.getMessage());
             return String.format("redirect:/user/register?error=save_failed&year=%d&month=%d", year, month);
@@ -264,13 +263,10 @@ public class UserRegisterController extends BaseController {
             redirectAttributes.addFlashAttribute("successMessage", "Entry updated successfully");
 
         } catch (RegisterValidationException e) {
-            LoggerUtil.warn(this.getClass(),
-                    "Validation error while updating entry: " + e.getMessage());
-            return String.format("redirect:/user/register?error=%s&year=%d&month=%d",
-                    e.getErrorCode(), year, month);
+            LoggerUtil.warn(this.getClass(), "Validation error while updating entry: " + e.getMessage());
+            return String.format("redirect:/user/register?error=%s&year=%d&month=%d", e.getErrorCode(), year, month);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error updating register entry: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error updating register entry: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", "Failed to update entry: " + e.getMessage());
         }
 
@@ -310,10 +306,8 @@ public class UserRegisterController extends BaseController {
             byte[] excelData = userRegisterExcelExporter.exportToExcel(user, entries, year, month);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"register_%d_%02d.xlsx\"", year, month))
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(excelData);
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"register_%d_%02d.xlsx\"", year, month))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM).body(excelData);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());
             return ResponseEntity.internalServerError().build();

@@ -46,8 +46,8 @@ public class UserRegisterExcelExporter {
 
             return writeToByteArray(workbook);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error creating Excel file", e);
-            throw new RuntimeException("Failed to export Excel file", e);
+            LoggerUtil.logAndThrow(this.getClass(), "Error creating Excel file", e);
+            return null;
         }
     }
 

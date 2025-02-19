@@ -114,8 +114,7 @@ public class AdminWorkTimeController {
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"",
-                                    year, month))
+                            String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
         } catch (Exception e) {
@@ -159,8 +158,7 @@ public class AdminWorkTimeController {
             // Trigger consolidation after adding holiday
             workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
 
-            redirectAttributes.addFlashAttribute("successMessage",
-                    String.format("National holiday added for %s", holidayDate));
+            redirectAttributes.addFlashAttribute("successMessage", String.format("National holiday added for %s", holidayDate));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error adding holiday: " + e.getMessage());
@@ -170,21 +168,11 @@ public class AdminWorkTimeController {
         return String.format("redirect:/admin/worktime?year=%d&month=%d", year, month);
     }
 
-    private void prepareWorkTimeModel(
-            Model model,
-            int year,
-            int month,
-            Integer selectedUserId,
-            List<User> nonAdminUsers,
-            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
+    private void prepareWorkTimeModel(Model model, int year, int month, Integer selectedUserId,
+                                      List<User> nonAdminUsers, Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
 
         // Calculate summaries
-        Map<Integer, WorkTimeSummary> summaries = displayService.calculateUserSummaries(
-                userEntriesMap,
-                nonAdminUsers,
-                year,
-                month
-        );
+        Map<Integer, WorkTimeSummary> summaries = displayService.calculateUserSummaries(userEntriesMap, nonAdminUsers, year, month);
 
         // Add model attributes
         model.addAttribute("currentYear", year);
@@ -257,26 +245,14 @@ public class AdminWorkTimeController {
                 .toList();
 
         // Count time off types
-        counts.put("snCount", allEntries.stream()
-                .filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType()))
-                .count());
-        counts.put("coCount", allEntries.stream()
-                .filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType()))
-                .count());
-        counts.put("cmCount", allEntries.stream()
-                .filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType()))
-                .count());
+        counts.put("snCount", allEntries.stream().filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType())).count());
+        counts.put("coCount", allEntries.stream().filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType())).count());
+        counts.put("cmCount", allEntries.stream().filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType())).count());
 
         // Count by status
-        counts.put("adminEditedCount", allEntries.stream()
-                .filter(e -> SyncStatus.ADMIN_EDITED.equals(e.getAdminSync()))
-                .count());
-        counts.put("userInputCount", allEntries.stream()
-                .filter(e -> SyncStatus.USER_INPUT.equals(e.getAdminSync()))
-                .count());
-        counts.put("syncedCount", allEntries.stream()
-                .filter(e -> SyncStatus.USER_DONE.equals(e.getAdminSync()))
-                .count());
+        counts.put("adminEditedCount", allEntries.stream().filter(e -> SyncStatus.ADMIN_EDITED.equals(e.getAdminSync())).count());
+        counts.put("userInputCount", allEntries.stream().filter(e -> SyncStatus.USER_INPUT.equals(e.getAdminSync())).count());
+        counts.put("syncedCount", allEntries.stream().filter(e -> SyncStatus.USER_DONE.equals(e.getAdminSync())).count());
 
         return counts;
     }
