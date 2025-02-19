@@ -61,8 +61,8 @@ public class DataAccessService {
 
             return objectMapper.readValue(content, typeRef);
         } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Error reading file: " + path);
-            throw new RuntimeException("Failed to read file", e);
+            LoggerUtil.logAndThrow(this.getClass(), "Error reading file: " + path, e);
+            return null; // Unreachable but helps with compiler
         } finally {
             readLock.unlock();
         }
@@ -94,8 +94,7 @@ public class DataAccessService {
                 LoggerUtil.logAndThrow(this.getClass(), "Successfully restored from backup ", e);
             }
         } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Error writing file: " + path);
-            throw new RuntimeException("Failed to write file", e);
+            LoggerUtil.logAndThrow(this.getClass(), "Error writing file: " + path, e);
         } finally {
             writeLock.unlock();
         }
@@ -216,8 +215,7 @@ public class DataAccessService {
             }
             return localUsers;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Failed to read local users: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Failed to read local users: " + e.getMessage());
             return new ArrayList<>();
         }
     }
@@ -231,9 +229,7 @@ public class DataAccessService {
             writeNetwork(networkPath, users);
             LoggerUtil.info(this.getClass(), "Successfully wrote users to network");
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error writing network users: %s", e.getMessage()));
-            throw new RuntimeException("Failed to write network users", e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing network users: %s", e.getMessage()), e);
         } finally {
             releaseLock(lockPath);
         }
@@ -273,9 +269,7 @@ public class DataAccessService {
             LoggerUtil.info(this.getClass(),
                     String.format("Successfully wrote %d local users", users.size()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error writing local users: " + e.getMessage());
-            throw new RuntimeException("Failed to write local users", e);
+            LoggerUtil.logAndThrow(this.getClass(), "Error writing local users: " + e.getMessage(), e);
         } finally {
             releaseLock(lockPath);
         }
@@ -308,9 +302,7 @@ public class DataAccessService {
             LoggerUtil.info(this.getClass(),
                     String.format("Updated local user: %s", user.getUsername()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error updating local user %s: %s", user.getUsername(), e.getMessage()));
-            throw new RuntimeException("Failed to write local user", e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error updating local user %s", user.getUsername()), e);
         }
     }
 
@@ -337,8 +329,7 @@ public class DataAccessService {
             return cacheEntries != null ? cacheEntries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading holiday entries: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading holiday entries: %s", e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -364,9 +355,7 @@ public class DataAccessService {
             }
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error writing holiday entries: %s", e.getMessage()));
-            throw new RuntimeException("Failed to write holiday entries", e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing holiday entries: %s", e.getMessage()), e);
         } finally {
             releaseLock(lockPath);
         }
@@ -379,9 +368,8 @@ public class DataAccessService {
             });
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading network worktime for user %s - %d/%d: %s",
-                            username, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading network worktime for user %s - %d/%d: %s",
+                    username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -394,8 +382,7 @@ public class DataAccessService {
 
             // If user is accessing their own data (including team leaders), use local path
             if (currentUsername.equals(username)) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Reading local worktime for user %s", username));
+                LoggerUtil.info(this.getClass(), String.format("Reading local worktime for user %s", username));
                 Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
                 List<WorkTimeTable> entries = readLocal(localPath, new TypeReference<>() {
                 });
@@ -404,17 +391,13 @@ public class DataAccessService {
 
             // If accessing other user's data, use network path
             if (pathConfig.isNetworkAvailable()) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Reading network worktime for user %s by %s",
-                                username, currentUsername));
+                LoggerUtil.info(this.getClass(), String.format("Reading network worktime for user %s by %s", username, currentUsername));
                 return readNetworkUserWorktime(username, year, month);
             }
 
             throw new RuntimeException("Network access required but not available");
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading worktime for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading worktime for user %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -472,9 +455,7 @@ public class DataAccessService {
                 throw new SecurityException("Username mismatch with session file");
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error writing worktime for user %s: %s", username, e.getMessage()));
-            throw new RuntimeException("Failed to write worktime", e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing worktime for user %s", username), e);
         }
     }
 
@@ -497,8 +478,7 @@ public class DataAccessService {
 
             // If accessing own data, use local path
             if (currentUsername.equals(username)) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Reading local register for user %s", username));
+                LoggerUtil.info(this.getClass(), String.format("Reading local register for user %s", username));
                 Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
                 List<RegisterEntry> entries = readLocal(localPath, new TypeReference<>() {
                 });
@@ -507,9 +487,7 @@ public class DataAccessService {
 
             // If accessing other user's data, try network path (removing security validation)
             if (pathConfig.isNetworkAvailable()) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Reading network register for user %s by %s",
-                                username, currentUsername));
+                LoggerUtil.info(this.getClass(), String.format("Reading network register for user %s by %s", username, currentUsername));
                 Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
                 List<RegisterEntry> entries = readNetwork(networkPath, new TypeReference<>() {
                 });
@@ -518,9 +496,7 @@ public class DataAccessService {
 
             throw new RuntimeException("Network access required but not available");
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading register for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading register for user %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -540,9 +516,7 @@ public class DataAccessService {
         Path localPath = pathConfig.getLocalAdminWorktimePath(year, month);
         try {
             if (!Files.exists(localPath)) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("No local admin worktime file exists for %d/%d, returning empty list",
-                                year, month));
+                LoggerUtil.debug(this.getClass(), String.format("No local admin worktime file exists for %d/%d, returning empty list", year, month));
                 return new ArrayList<>();
             }
 
@@ -551,9 +525,7 @@ public class DataAccessService {
             return entries != null ? entries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading local admin worktime for %d/%d: %s",
-                            year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading local admin worktime for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -562,31 +534,26 @@ public class DataAccessService {
     public List<WorkTimeTable> readNetworkAdminWorktime(int year, int month) {
         try {
             if (!pathConfig.isNetworkAvailable()) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Network not available for admin worktime %d/%d", year, month));
+                LoggerUtil.debug(this.getClass(), String.format("Network not available for admin worktime %d/%d", year, month));
                 return new ArrayList<>();
             }
 
             Path networkPath = pathConfig.getNetworkAdminWorktimePath(year, month);
             if (!Files.exists(networkPath)) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("No network admin worktime file exists for %d/%d", year, month));
+                LoggerUtil.debug(this.getClass(), String.format("No network admin worktime file exists for %d/%d", year, month));
                 return new ArrayList<>();
             }
 
             List<WorkTimeTable> entries = readNetwork(networkPath, new TypeReference<>() {
             });
             if (entries == null) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Empty or invalid network admin worktime for %d/%d", year, month));
+                LoggerUtil.debug(this.getClass(), String.format("Empty or invalid network admin worktime for %d/%d", year, month));
                 return new ArrayList<>();
             }
             return entries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading network admin worktime for %d/%d: %s",
-                            year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading network admin worktime for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -604,9 +571,7 @@ public class DataAccessService {
             });
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading admin bonus data for %d/%d: %s",
-                            year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading admin bonus data for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -657,19 +622,14 @@ public class DataAccessService {
     // Generic lock handling methods
     private void acquireLock(Path lockFile) throws InterruptedException {
         while (Files.exists(lockFile)) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Waiting for lock to be released: %s",
-                            lockFile.getFileName()));
+            LoggerUtil.info(this.getClass(), String.format("Waiting for lock to be released: %s", lockFile.getFileName()));
             Thread.sleep(1000);
         }
 
         try {
             Files.createFile(lockFile);
         } catch (IOException e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error creating lock file %s: %s",
-                            lockFile.getFileName(), e.getMessage()));
-            throw new RuntimeException("Failed to create lock file", e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error creating lock file %s", lockFile.getFileName()), e);
         }
     }
 
@@ -677,9 +637,7 @@ public class DataAccessService {
         try {
             Files.deleteIfExists(lockFile);
         } catch (IOException e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error removing lock file %s: %s",
-                            lockFile.getFileName(), e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error removing lock file %s: %s", lockFile.getFileName(), e.getMessage()));
         }
     }
 

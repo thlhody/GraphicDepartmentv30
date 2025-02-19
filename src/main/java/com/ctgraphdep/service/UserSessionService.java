@@ -106,7 +106,6 @@ public class UserSessionService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error handling previous day session: %s", e.getMessage()));
-            throw new RuntimeException("Failed to handle previous day session", e);
         }
     }
     private SessionCalculationResult calculateDefaultSessionValues(WorkUsersSessionsStates session) {
@@ -299,10 +298,7 @@ public class UserSessionService {
             LoggerUtil.debug(this.getClass(),
                     String.format("Saved session for user %s", username));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Failed to save session for user %s: %s",
-                            username, e.getMessage()));
-            throw new RuntimeException("Session persistence failed", e);
+            LoggerUtil.logAndThrow(this.getClass(), "Session persistence failed", e);
         }
     }
     private boolean isValidSessionForOperation(WorkUsersSessionsStates session, String expectedStatus) {
@@ -427,9 +423,7 @@ public class UserSessionService {
 
             return session;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading session for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading session for user %s: %s", username, e.getMessage()));
             return null;
         }
     }
@@ -449,8 +443,7 @@ public class UserSessionService {
         session.setWorkdayCompleted(true);
         session.setLastActivity(now);
 
-        LoggerUtil.debug(this.getClass(),
-                String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d",
+        LoggerUtil.debug(this.getClass(), String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d",
                         currentWorkedMinutes, finalMinutes, currentOvertimeMinutes));
     }
     private void updateWorkTimeAndPersist(WorkUsersSessionsStates session) {
@@ -461,14 +454,10 @@ public class UserSessionService {
             // Persist session using DataAccessService
             dataAccess.writeLocalSessionFile(session);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully persisted session for user %s with total minutes: %d",
+            LoggerUtil.info(this.getClass(), String.format("Successfully persisted session for user %s with total minutes: %d",
                             session.getUsername(), session.getTotalWorkedMinutes()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Failed to update and persist session for user %s: %s",
-                            session.getUsername(), e.getMessage()));
-            throw new RuntimeException("Session update and persistence failed", e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Failed to update and persist session for user %s", session.getUsername()), e);
         }
     }
     private void cleanupSession(String username, Integer userId) {
@@ -477,15 +466,10 @@ public class UserSessionService {
         sessionMonitorService.stopMonitoring(username);  // Stop monitoring when session ends
     }
     private void logSessionEnd(String username, Integer finalMinutes) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Successfully ended session for user %s with %d minutes",
-                        username, finalMinutes));
+        LoggerUtil.info(this.getClass(), String.format("Successfully ended session for user %s with %d minutes", username, finalMinutes));
     }
     private void handleEndDayError(String username, Exception e) {
-        LoggerUtil.error(this.getClass(),
-                String.format("Failed to end session for user %s: %s",
-                        username, e.getMessage()));
-        throw new RuntimeException("Failed to end session", e);
+        LoggerUtil.logAndThrow(this.getClass(), String.format("Failed to end session for user %s", username), e);
     }
 
     //Work Time Entry Management
@@ -513,8 +497,7 @@ public class UserSessionService {
         userWorkTimeService.saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), session.getUsername()  // Pass the username from session
         );
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
+        LoggerUtil.info(this.getClass(), String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
                         username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
     }
     private WorkTimeTable createWorkTimeEntryFromSession(WorkUsersSessionsStates session, LocalDateTime endTime) {

@@ -165,8 +165,7 @@ public class SessionMonitorService {
                     session.getFinalWorkedMinutes()
             );
             notificationShown.put(session.getUsername(), true);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Schedule completion notification shown for user %s (worked: %d minutes)",
+            LoggerUtil.info(this.getClass(), String.format("Schedule completion notification shown for user %s (worked: %d minutes)",
                             session.getUsername(), workedMinutes));
         }
     }
@@ -186,8 +185,7 @@ public class SessionMonitorService {
     public void activateHourlyMonitoring(String username) {
         continuedAfterSchedule.put(username, true);
         lastHourlyWarning.put(username, LocalDateTime.now());
-        LoggerUtil.info(this.getClass(),
-                String.format("Activated hourly monitoring for user %s", username));
+        LoggerUtil.info(this.getClass(), String.format("Activated hourly monitoring for user %s", username));
     }
 
     public void resumeFromTempStop(String username, Integer userId) {
@@ -197,21 +195,16 @@ public class SessionMonitorService {
             LoggerUtil.info(this.getClass(),
                     String.format("Resumed work for user %s from temporary stop", username));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error resuming from temp stop for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error resuming from temp stop for %s: %s", username, e.getMessage()));
         }
     }
 
     public void continueTempStop(String username, Integer userId) {
         try {
             // Just log that user chose to continue temp stop
-            LoggerUtil.info(this.getClass(),
-                    String.format("User %s chose to continue temporary stop", username));
+            LoggerUtil.info(this.getClass(), String.format("User %s chose to continue temporary stop", username));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error continuing temp stop for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error continuing temp stop for %s: %s", username, e.getMessage()));
         }
     }
 
@@ -248,8 +241,7 @@ public class SessionMonitorService {
     private String extractUsernameFromSession(Path sessionPath) {
         try {
             String filename = sessionPath.getFileName().toString();
-            String[] parts = filename.replace("session_", "")
-                    .replace(".json", "").split("_");
+            String[] parts = filename.replace("session_", "").replace(".json", "").split("_");
             return parts.length >= 2 ? parts[0] : null;
         } catch (Exception e) {
             return null;
@@ -265,8 +257,7 @@ public class SessionMonitorService {
                 LoggerUtil.info(this.getClass(), "Session ended for user: " + username);
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error ending session for %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error ending session for %s: %s", username, e.getMessage()));
         }
     }
 
@@ -274,8 +265,7 @@ public class SessionMonitorService {
         notificationShown.remove(username);
         continuedAfterSchedule.remove(username);
         lastHourlyWarning.remove(username);
-        LoggerUtil.info(this.getClass(),
-                String.format("Cleared monitoring for user %s", username));
+        LoggerUtil.info(this.getClass(), String.format("Cleared monitoring for user %s", username));
     }
 
     public void startMonitoring(String username) {

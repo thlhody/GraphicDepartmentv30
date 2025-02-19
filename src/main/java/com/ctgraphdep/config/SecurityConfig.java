@@ -102,8 +102,8 @@ public class SecurityConfig {
 
             return http.build();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to configure security: " + e.getMessage());
-            throw new SecurityException("Failed to configure security", e);
+            LoggerUtil.logAndThrow(this.getClass(), "Failed to configure security", e);
+            return null; // This line won't be reached but helps with compiler warnings
         }
     }
 
