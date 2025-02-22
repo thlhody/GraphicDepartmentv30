@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -620,10 +619,10 @@ public class DataAccessService {
     }
 
     // Generic lock handling methods
-    private void acquireLock(Path lockFile) throws InterruptedException {
+    private void acquireLock(Path lockFile){
         while (Files.exists(lockFile)) {
             LoggerUtil.info(this.getClass(), String.format("Waiting for lock to be released: %s", lockFile.getFileName()));
-            Thread.sleep(1000);
+
         }
 
         try {

@@ -220,6 +220,8 @@ public class UserWorkTimeDisplayService {
 
     private WorkTimeCounts calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
         WorkTimeCounts counts = new WorkTimeCounts();
+        int totalRegularMinutes = 0;
+        int totalOvertimeMinutes = 0;
 
         for (WorkTimeTable entry : worktimeData) {
             // Skip in-process entries
@@ -235,10 +237,15 @@ public class UserWorkTimeDisplayService {
                 }
             } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
                 counts.incrementDaysWorked();
-                counts.setRegularMinutes(entry.getTotalWorkedMinutes());
-                counts.setOvertimeMinutes(entry.getTotalOvertimeMinutes());
+                // Add this day's regular minutes to total
+                totalRegularMinutes += entry.getTotalWorkedMinutes();
+                if (entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
+                    totalOvertimeMinutes += entry.getTotalOvertimeMinutes();
+                }
             }
         }
+        counts.setRegularMinutes(totalRegularMinutes);
+        counts.setOvertimeMinutes(totalOvertimeMinutes);
 
         return counts;
     }

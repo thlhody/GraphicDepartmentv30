@@ -31,4 +31,5 @@ public class WorkTimeCounts {
     public void incrementCmDays() {
         this.cmDays++;
     }
+
 }
