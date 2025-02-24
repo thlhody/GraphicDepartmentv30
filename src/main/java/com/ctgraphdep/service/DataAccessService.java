@@ -2,6 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.team.TeamMember;
 import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -602,6 +603,36 @@ public class DataAccessService {
         Path localAdminPath = pathConfig.getLocalAdminRegisterPath(username, userId, year, month);
         Path networkAdminPath = pathConfig.getNetworkAdminRegisterPath(username, userId, year, month);
         fileSyncService.syncToNetwork(localAdminPath, networkAdminPath);
+    }
+
+    // Add new methods for team members operations
+
+    public List<TeamMember> readTeamMembers(String teamLeadUsername, int year, int month) {
+        try {
+            Path teamPath = pathConfig.getTeamJsonPath(teamLeadUsername, year, month);
+            List<TeamMember> members = readLocal(teamPath, new TypeReference<>() {});
+            return members != null ? members : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading team members for %s (%d/%d): %s",
+                            teamLeadUsername, year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    public void writeTeamMembers(List<TeamMember> teamMembers, String teamLeadUsername, int year, int month) {
+        try {
+            Path teamPath = pathConfig.getTeamJsonPath(teamLeadUsername, year, month);
+            writeLocal(teamPath, teamMembers);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Successfully wrote %d team members for %s (%d/%d)",
+                            teamMembers.size(), teamLeadUsername, year, month));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error writing team members for %s (%d/%d): %s",
+                            teamLeadUsername, year, month, e.getMessage()));
+            throw new RuntimeException("Failed to write team members", e);
+        }
     }
 
     // Utility methods

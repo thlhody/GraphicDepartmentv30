@@ -49,12 +49,9 @@ public class DashboardConfigurationManager {
                         createTeamLeadRegisterCard(),
                         createTeamLeadWorktimeCard(),
                         createTeamLeadTimeOffCard(),
-                        createTeamStatusCard(),
-                        createTeamWorkTimeCard(),
-                        createTeamTimeOffCard(),
-                        createTeamStatisticsCard(),
                         createOMSSystemCard(),
-                        createUserSettingsCard()
+                        createUserSettingsCard(),
+                        createTeamStatisticsCard()
                 ))
                 .build();
     }
@@ -201,52 +198,6 @@ public class DashboardConfigurationManager {
                 .build();
     }
 
-    // Team Leader Cards
-    private DashboardCard createTeamStatusCard() {
-        return DashboardCard.builder()
-                .title("Team Status")
-                .subtitle("Monitor team members")
-                .color("success")
-                .icon("people-fill")
-                .badge("Team")
-                .badgeColor("success")
-                .actionText("View Team")
-                .actionUrl("/team-lead/team")
-                .external(false)
-                .permission("MANAGE_TEAM")
-                .build();
-    }
-
-    private DashboardCard createTeamWorkTimeCard() {
-        return DashboardCard.builder()
-                .title("Team Work Hours")
-                .subtitle("View team working hours")
-                .color("warning")
-                .icon("clock-history")
-                .badge("View")
-                .badgeColor("warning")
-                .actionText("View Hours")
-                .actionUrl("/team-lead/worktime")
-                .external(false)
-                .permission("VIEW_TEAM_WORKTIME")
-                .build();
-    }
-
-    private DashboardCard createTeamTimeOffCard() {
-        return DashboardCard.builder()
-                .title("Team Time Off")
-                .subtitle("Manage leave requests")
-                .color("info")
-                .icon("calendar-check")
-                .badge("Manage")
-                .badgeColor("info")
-                .actionText("View Requests")
-                .actionUrl("/team-lead/timeoff")
-                .external(false)
-                .permission("APPROVE_TIMEOFF")
-                .build();
-    }
-
     private DashboardCard createTeamStatisticsCard() {
         return DashboardCard.builder()
                 .title("Team Statistics")
@@ -256,7 +207,7 @@ public class DashboardConfigurationManager {
                 .badge("Stats")
                 .badgeColor("primary")
                 .actionText("View Stats")
-                .actionUrl("/team-lead/statistics")
+                .actionUrl("/user/stats")
                 .external(false)
                 .permission("VIEW_TEAM_STATS")
                 .build();
@@ -270,8 +221,8 @@ public class DashboardConfigurationManager {
                 .icon("play-circle-fill")
                 .badge("Active")
                 .badgeColor("success")
-                .actionText("Start Work")
-                .actionUrl("/team-lead/session")
+                .actionText("Work Session")
+                .actionUrl("/user/session")
                 .external(false)
                 .permission("MANAGE_SESSION")
                 .build();
@@ -331,7 +282,7 @@ public class DashboardConfigurationManager {
                 .icon("play-circle-fill")
                 .badge("Active")
                 .badgeColor("success")
-                .actionText("Start Work")
+                .actionText("Work Session")
                 .actionUrl("/user/session")
                 .external(false)
                 .permission("MANAGE_SESSION")

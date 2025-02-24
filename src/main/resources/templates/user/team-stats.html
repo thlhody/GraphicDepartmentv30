@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Team Statistics</title>
+    <style>
+        /* Header and card styles - matching other pages */
+        .card {
+            transition: all 0.3s ease;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+        }
+
+        /* Member section styling */
+        .member-section {
+            margin-bottom: 1.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .member-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Client table styling - clean look like worktime records */
+        .client-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .client-table th, .client-table td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .client-table th {
+            background-color: #f8f9fa;
+            font-weight: 500;
+        }
+
+        /* Status badge styles - matching session page */
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: normal;
+        }
+
+        .status-badge.online {
+            background-color: #198754;
+            color: white;
+        }
+
+        .status-badge.offline {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .status-badge.break {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        /* Member summary styles - clean and simple */
+        .member-summary {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        /* Form selection styles - similar to register page */
+        .form-select-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Empty state like register page */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #dee2e6;
+        }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Alert System -->
+        <div class="mb-4">
+            <div th:replace="~{alerts/alerts :: alerts}"></div>
+        </div>
+
+        <!-- Header Section - Like other pages -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-graph-up me-2"></i>Team Statistics
+                </h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
+                    <span th:text="${teamLead.name}">Team Lead</span>
+                </div>
+            </div>
+            <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
+                <i class="bi bi-grid me-2"></i>Dashboard
+            </a>
+        </div>
+
+        <!-- Period Selection Card - Similar to register/worktime -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Period Selection</h5>
+            </div>
+            <div class="card-body">
+                <form class="d-flex gap-3 align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="yearSelect" class="form-label mb-0">Year:</label>
+                        <select id="yearSelect" name="year" class="form-select form-select-sm" style="width: auto;">
+                            <option th:each="y : ${#numbers.sequence(2020, 2030)}"
+                                    th:value="${y}" th:text="${y}"
+                                    th:selected="${y == currentYear}">2024</option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <a th:each="m : ${#numbers.sequence(1, 12)}"
+                           th:href="@{/user/stats(year=${currentYear},month=${m})}"
+                           th:text="${T(java.time.Month).of(m)}"
+                           th:data-month="${m}"
+                           th:class="${'btn btn-outline-primary' + (m == currentMonth ? ' active' : '')}">
+                            Month
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Team Members Selection Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Team Members</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="flex-grow-1">
+                        <label for="teamMemberSelect" class="form-label">Select Team Members:</label>
+                        <select id="teamMemberSelect" name="selectedUsers" multiple
+                                class="form-select select2-users" style="width: 100%;">
+                            <option th:each="user : ${availableUsers}"
+                                    th:value="${user.userId}"
+                                    th:text="${user.name}">User Name</option>
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" onclick="initializeMembers()">
+                            <i class="bi bi-plus-circle me-2"></i>Initialize
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" onclick="updateStats()">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Update
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team Members Statistics -->
+        <div th:if="${teamMembers != null and !teamMembers.empty}">
+            <div th:each="member : ${teamMembers}" class="member-section">
+                <!-- Member Header -->
+                <div class="member-header">
+                    <div class="d-flex align-items-center gap-3">
+                        <h5 class="mb-0" th:text="${member.name ?: member.username}">Member Name</h5>
+                        <div th:class="${'status-badge ' +
+                            (member.sessionDetails?.status == 'WORK_ONLINE' ? 'online' :
+                             member.sessionDetails?.status == 'WORK_TEMPORARY_STOP' ? 'break' : 'offline')}">
+                            <span th:text="${
+                                member.sessionDetails?.status == 'WORK_ONLINE' ? 'Online' :
+                                member.sessionDetails?.status == 'WORK_TEMPORARY_STOP' ? 'Break' : 'Offline'}">
+                                Status
+                            </span>
+                            <span class="ms-2" th:if="${member.sessionDetails?.dayStartTime != null}"
+                                  th:text="${'Since: ' + #temporals.format(member.sessionDetails.dayStartTime, 'HH:mm')}">
+                                Since: 00:00
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" type="button"
+                                data-bs-toggle="collapse"
+                                th:attr="data-bs-target='#clientDetails' + ${member.userId}">
+                            <i class="bi bi-eye me-1"></i> Client Details
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Member Summary - First, before client details -->
+                <div class="member-summary">
+                    <div class="row g-3">
+                        <div class="col-md-4 col-lg-3">
+                            <div class="d-flex flex-column">
+                                <span class="text-muted mb-1">Processed Orders</span>
+                                <span class="fw-bold" th:text="${member.registerStats?.monthSummary?.processedOrders ?: 0}">0</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-lg-3">
+                            <div class="d-flex flex-column">
+                                <span class="text-muted mb-1">Unique Clients</span>
+                                <span class="fw-bold" th:text="${member.registerStats?.monthSummary?.uniqueClients ?: 0}">0</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-lg-3">
+                            <div class="d-flex flex-column">
+                                <span class="text-muted mb-1">Work Days</span>
+                                <span class="fw-bold" th:text="${member.registerStats?.monthSummary?.totalWorkDays ?: 0}">0</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-lg-3">
+                            <div class="d-flex flex-column">
+                                <span class="text-muted mb-1">Avg Complexity</span>
+                                <span class="fw-bold" th:text="${#numbers.formatDecimal(member.registerStats?.monthSummary?.averageComplexity ?: 0, 1, 2)}">0.00</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-lg-3">
+                            <div class="d-flex flex-column">
+                                <span class="text-muted mb-1">Avg Articles</span>
+                                <span class="fw-bold" th:text="${#numbers.formatDecimal(member.registerStats?.monthSummary?.averageArticleNumbers ?: 0, 1, 2)}">0.00</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-lg-3" th:if="${member.currentMonthWorkStats?.averageStartTime != null}">
+                            <div class="d-flex flex-column">
+                                <span class="text-muted mb-1">Avg Start Time</span>
+                                <span class="fw-bold" th:text="${#temporals.format(member.currentMonthWorkStats.averageStartTime, 'HH:mm')}">00:00</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-lg-3" th:if="${member.currentMonthWorkStats?.averageEndTime != null}">
+                            <div class="d-flex flex-column">
+                                <span class="text-muted mb-1">Avg End Time</span>
+                                <span class="fw-bold" th:text="${#temporals.format(member.currentMonthWorkStats.averageEndTime, 'HH:mm')}">00:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Statistics Table (collapsible) -->
+                <div class="collapse" th:id="'clientDetails' + ${member.userId}">
+                    <div class="p-3">
+                        <div class="table-responsive">
+                            <table class="client-table">
+                                <thead class="bg-light">
+                                <tr>
+                                    <th>Client</th>
+                                    <th>Orders</th>
+                                    <th>Avg Complexity</th>
+                                    <th>Avg Articles</th>
+                                    <th>Action Types</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="entry : ${member.registerStats?.clientSpecificStats}">
+                                    <td th:text="${entry.key}">Client Name</td>
+                                    <td th:text="${entry.value.totalOrders}">0</td>
+                                    <td th:text="${#numbers.formatDecimal(entry.value.averageComplexity, 1, 2)}">0.00</td>
+                                    <td th:text="${#numbers.formatDecimal(entry.value.averageArticleNumbers, 1, 2)}">0.00</td>
+                                    <td>
+                                            <span th:each="actionStat : ${entry.value.actionTypeStats}" class="badge bg-secondary me-1">
+                                                <span th:text="${actionStat.key + ': ' + actionStat.value.count}">Type: 0</span>
+                                            </span>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State - Like register page -->
+        <div th:if="${teamMembers == null or teamMembers.empty}" class="empty-state card shadow-sm">
+            <div class="card-body text-center">
+                <i class="bi bi-people mb-3"></i>
+                <h5>No Team Members Selected</h5>
+                <p class="text-muted">Select team members above and click Initialize to view statistics</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        // Initialize Select2
+        document.addEventListener('DOMContentLoaded', function() {
+            $('.select2-users').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: 'Select team members',
+                allowClear: true
+            });
+            // For debugging - log when selection changes
+            $('.select2-users').on('change', function() {
+                console.log('Selected users:', $(this).val());
+            });
+        });
+
+        // Initialize Team Members
+        function initializeMembers() {
+            const selectedUsers = $('.select2-users').val();
+
+            // Check if users are selected
+            if (!selectedUsers || selectedUsers.length === 0) {
+                // Show an alert or notification that users must be selected
+                alert('Please select at least one team member before initializing.');
+                return;
+            }
+
+            const form = createForm('/user/stats/initialize');
+            submitForm(form);
+        }
+
+        // Update Statistics
+        function updateStats() {
+            const form = createForm('/user/stats/update');
+            submitForm(form);
+        }
+
+        // Helper to create and submit form
+        // Helper to create and submit form
+        function createForm(action) {
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = action;
+
+            // Add year and month
+            const year = document.getElementById('yearSelect').value;
+
+            // Get month as a number (1-12)
+            let month;
+            // If using a month select dropdown
+            const monthSelect = document.getElementById('monthSelect');
+            if (monthSelect) {
+                month = monthSelect.value;
+            }
+            // If using button group, find the active button and extract its month number
+            else {
+                const activeButton = document.querySelector('.btn-group .active');
+                if (activeButton) {
+                    month = activeButton.getAttribute('data-month');
+                    // Extract the month number from the href attribute which should contain month={number}
+                    const href = activeButton.getAttribute('href');
+                    const monthMatch = href.match(/month=(\d+)/);
+                    if (monthMatch && monthMatch[1]) {
+                        month = monthMatch[1];
+                    } else {
+                        // Fallback to current month
+                        month = new Date().getMonth() + 1;
+                    }
+                } else {
+                    // Fallback to current month
+                    month = new Date().getMonth() + 1;
+                }
+            }
+
+            appendInput(form, 'year', year);
+            appendInput(form, 'month', month);
+
+            // Add selected users if initializing
+            if (action.includes('initialize')) {
+                const selectedUsers = $('.select2-users').val();
+                selectedUsers.forEach(userId => {
+                    appendInput(form, 'selectedUsers', userId);
+                });
+            }
+
+            // Add CSRF token
+            const token = document.querySelector("meta[name='_csrf']")?.getAttribute("content");
+            const header = document.querySelector("meta[name='_csrf_header']")?.getAttribute("content");
+            if (token && header) {
+                appendInput(form, header, token);
+            }
+
+            return form;
+        }
+
+        function appendInput(form, name, value) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+        }
+
+        function submitForm(form) {
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
+</th:block>
+</body>
+</html>

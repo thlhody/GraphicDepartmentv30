@@ -71,7 +71,7 @@
                     <span th:text="${sessionStatus}">Offline</span>
                 </div>
             </div>
-            <a class="btn btn-outline-primary" th:href="@{/user}">
+            <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
                 <i class="bi bi-grid me-2"></i>Dashboard
             </a>
         </div>
@@ -109,7 +109,7 @@
             </form>
 
             <!-- Refresh Button -->
-            <a th:href="@{/user/session}" class="btn btn-outline-secondary">
+            <a th:href="@{/user/session}"  class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh
             </a>
         </div>

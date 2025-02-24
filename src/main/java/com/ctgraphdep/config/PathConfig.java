@@ -70,8 +70,8 @@ public class PathConfig {
     private String usersFilename;
     @Value("${dbj.users.local.filename}")
     private String localUsersFilename;
-    @Value("${dbj.users.local.filename.team.lead}")
-    private String teamJsonFilename;
+    @Value("${dbj.dir.format.team}")
+    private String teamFileFormat;
     @Value("${dbj.users.holiday}")
     private String holidayFilename;
 
@@ -215,15 +215,9 @@ public class PathConfig {
                 .resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
-//    public Path getTeamJsonPath(String teamLeadUsername) {
-//        return localPath.resolve(loginPath).resolve(teamJsonFilename.replace(".json",
-//                String.format("_%s.json", teamLeadUsername)));
-//    }
-//
-//    public Path getTeamBackupPath(String teamLeadUsername) {
-//        return networkPath.resolve(loginPath).resolve(teamJsonFilename.replace(".json",
-//                String.format("_%s.json", teamLeadUsername)));
-//    }
+    public Path getTeamJsonPath(String teamLeadUsername, int year, int month) {
+        return localPath.resolve(loginPath).resolve(String.format(teamFileFormat, teamLeadUsername, year, month));
+    }
 
     public Path getHolidayCachePath() {
         return networkPath.resolve(loginPath).resolve(holidayCacheFile);

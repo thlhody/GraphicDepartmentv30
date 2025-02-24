@@ -26,7 +26,7 @@ public class HomeController extends BaseController {
             }
             if (authentication.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_TEAM_LEADER"))) {
-                return "redirect:/team-lead/session";  // Changed from /team-lead
+                return "redirect:/user/session";  // Changed from /team-lead
             }
             return "redirect:/user/session";  // Changed from /user
         }

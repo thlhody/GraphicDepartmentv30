@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 
 @Controller
 @PreAuthorize("isAuthenticated()")
-@RequestMapping({"/user/session", "/team-lead/session"})
+@RequestMapping({"/user/session"})
 public class UserSessionController extends BaseController {
 
     private final UserSessionService userSessionService;
@@ -43,53 +43,110 @@ public class UserSessionController extends BaseController {
 
     @GetMapping
     public String getSessionPage(@AuthenticationPrincipal UserDetails userDetails, Model model) {
-        User user = getUser(userDetails);
-        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
+        // Validate user authentication and retrieve user
+        User user = validateAndGetUser(userDetails);
+
+        // Determine dashboard URL based on user role
+        if (user.hasRole("TEAM_LEADER")) {
+            model.addAttribute("isTeamLeaderView", true);
+            model.addAttribute("dashboardUrl", "/team-lead");
+        } else {
+            model.addAttribute("dashboardUrl", "/user");
+        }
+
+        // Handle admin users
         if (user.isAdmin()) {
             return "redirect:/admin/dashboard";
         }
 
         try {
-            // Get or create session through service
-            WorkUsersSessionsStates session = userSessionService.getCurrentSession(
-                    user.getUsername(),
-                    user.getUserId()
-            );
-            LoggerUtil.info(this.getClass(), "Session data: " + session);
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Session status before formatting: %s", session.getSessionStatus()));
+            // Retrieve and process user session
+            WorkUsersSessionsStates session = retrieveAndValidateSession(user);
 
-            String formattedStatus = getFormattedStatus(session.getSessionStatus());
-
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Formatted session status: %s", formattedStatus));
-
-            model.addAttribute("sessionStatus", formattedStatus);
-
-            // Verify session ownership
-            if (!session.getUsername().equals(user.getUsername())) {
-                LoggerUtil.warn(this.getClass(),
-                        "Session ownership mismatch for user: " + user.getUsername());
-                session = null;
-            }
-
-            // Calculate work time if active
+            // Update session if active
             if (isActiveSession(session)) {
-                updateActiveSession(session);  // Remove the schedule parameter
+                updateActiveSession(session);
             }
 
-            // Populate model
-            assert session != null;
-            populateSessionModel(model, session);
+            // Prepare model with session information
+            prepareSessionModel(model, session);
 
-            return basePath.substring(1) + "/session";
+            // Always return the user session view
+            return "user/session";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error loading session page: " + e.getMessage());
-            model.addAttribute("error", "Error loading session data");
-            return basePath.substring(1) + "/session";
+            // Log error and prepare error model
+            LoggerUtil.error(this.getClass(), "Error loading session page: " + e.getMessage(), e);
+            model.addAttribute("error", "Error loading session data: " + e.getMessage());
+            return "user/session";
         }
     }
+
+    private User validateAndGetUser(UserDetails userDetails) {
+        if (userDetails == null) {
+            LoggerUtil.error(this.getClass(), "Null UserDetails during session page access");
+            throw new IllegalStateException("User authentication is required");
+        }
+
+        User user = getUser(userDetails);
+        if (user == null) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("No user found for username: %s", userDetails.getUsername()));
+            throw new IllegalStateException("User not found");
+        }
+
+        return user;
+    }
+
+    private WorkUsersSessionsStates retrieveAndValidateSession(User user) {
+        WorkUsersSessionsStates session = userSessionService.getCurrentSession(
+                user.getUsername(),
+                user.getUserId()
+        );
+
+        LoggerUtil.info(this.getClass(), "Session data: " + session);
+
+        // Verify session ownership
+        if (session != null && !session.getUsername().equals(user.getUsername())) {
+            LoggerUtil.warn(this.getClass(),
+                    "Session ownership mismatch for user: " + user.getUsername());
+            throw new SecurityException("Session ownership mismatch");
+        }
+
+        return session;
+    }
+
+    private void prepareSessionModel(Model model, WorkUsersSessionsStates session) {
+        if (session == null) {
+            model.addAttribute("sessionStatus", "Offline");
+            return;
+        }
+
+        String formattedStatus = getFormattedStatus(session.getSessionStatus());
+
+        LoggerUtil.debug(this.getClass(),
+                String.format("Session status: %s, Formatted status: %s",
+                        session.getSessionStatus(), formattedStatus));
+
+        model.addAttribute("sessionStatus", formattedStatus);
+        populateSessionModel(model, session);
+    }
+
+    private String determineSessionView(String basePath) {
+        // Ensure consistent view name based on base path
+        return "user/session";
+    }
+
+    private String handleSessionPageError(Model model, Exception e, String basePath) {
+        LoggerUtil.error(this.getClass(),
+                "Error loading session page: " + e.getMessage(), e);
+
+        model.addAttribute("error", "Error loading session data: " + e.getMessage());
+
+        // Return a view that matches the base path
+        return determineSessionView(basePath);
+    }
+
     private boolean verifySessionOwnership(String username, WorkUsersSessionsStates session) {
         return session != null && session.getUsername().equals(username);
     }
@@ -97,7 +154,6 @@ public class UserSessionController extends BaseController {
     @PostMapping("/start")
     public String startSession(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
-        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
 
         // Clear any existing session first
         WorkUsersSessionsStates existingSession = userSessionService.getCurrentSession(
@@ -106,7 +162,7 @@ public class UserSessionController extends BaseController {
         );
 
         if (existingSession != null && !verifySessionOwnership(user.getUsername(), existingSession)) {
-            return "redirect:" + basePath + "/session";
+            return "redirect:/user/session";
         }
 
         userSessionService.startDay(
@@ -114,13 +170,12 @@ public class UserSessionController extends BaseController {
                 user.getUserId()
         );
 
-        return "redirect:" + basePath + "/session?action=start";
+        return "redirect:/user/session?action=start";
     }
 
     @PostMapping("/temp-stop")
     public String toggleTemporaryStop(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
-        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
         WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(
                 user.getUsername(),
                 user.getUserId()
@@ -129,21 +184,20 @@ public class UserSessionController extends BaseController {
         if (currentSession != null) {
             if (WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
                 userSessionService.startTemporaryStop(user.getUsername(), user.getUserId());
-                return "redirect:" + basePath + "/session?action=pause";
+                return "redirect:/user/session?action=pause";
             } else if (WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
                 userSessionService.resumeFromTemporaryStop(user.getUsername(), user.getUserId());
-                return "redirect:" + basePath + "/session?action=resume";
+                return "redirect:/user/session?action=resume";
             }
 
-            return "redirect:" + basePath + "/session";
+            return "redirect:/user/session";
         }
-        return "redirect:" + basePath + "/session";
+        return "redirect:/user/session";
     }
 
     @PostMapping("/end")
     public String endSession(@AuthenticationPrincipal UserDetails userDetails) {
         User user = getUserOrThrow(userDetails);
-        String basePath = user.getRole().equals("TEAM_LEADER") ? "/team-lead" : "/user";
         WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(
                 user.getUsername(),
                 user.getUserId()
@@ -151,7 +205,7 @@ public class UserSessionController extends BaseController {
 
         // First check if session is already offline
         if (currentSession == null || WorkCode.WORK_OFFLINE.equals(currentSession.getSessionStatus())) {
-            return "redirect:" + basePath + "/session";
+            return "redirect:/user/session";
         }
 
         if (WorkCode.WORK_ONLINE.equals(currentSession.getSessionStatus())) {
@@ -160,10 +214,10 @@ public class UserSessionController extends BaseController {
                     user.getUserId(),
                     currentSession.getFinalWorkedMinutes()
             );
-            return "redirect:" + basePath + "/session?action=end";
+            return "redirect:/user/session?action=end";
         }
 
-        return "redirect:" + basePath + "/session";
+        return "redirect:/user/session";
     }
 
     private boolean isActiveSession(WorkUsersSessionsStates session) {
@@ -175,9 +229,6 @@ public class UserSessionController extends BaseController {
 
     private void updateActiveSession(WorkUsersSessionsStates session) {
         try {
-            // Get user schedule
-            User user = userService.getUserById(session.getUserId())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
             // Calculate and update session values
             calculatorService.updateSessionCalculations(session);
 

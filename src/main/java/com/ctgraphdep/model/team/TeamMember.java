@@ -1,25 +1,44 @@
 package com.ctgraphdep.model.team;
 
-import com.ctgraphdep.model.statistics.RegisterStatistics;
-import com.ctgraphdep.model.statistics.UserWorktimeStats;
-import lombok.Builder;
-import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
 
-import java.time.LocalDateTime;
-
-
+/**
+ * Represents a detailed Team Member model with comprehensive information
+ */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class TeamMember {
+    @JsonProperty("userId")
     private Integer userId;
-    private String name;
-    private String employeeId;
-    private Integer schedule;
-    private String username;
-    private LocalDateTime lastActive;
-    private String currentStatus;
 
-    // Work statistics
-    private UserWorktimeStats workStats;
-    private RegisterStatistics registerStats;
+    @JsonProperty("username")
+    private String username;
+
+    // Added for display
+    @JsonProperty("name")
+    private String name;
+
+    @JsonProperty("employeeId")
+    private Integer employeeId;
+
+    @JsonProperty("schedule")
+    private Integer schedule;
+
+    @JsonProperty("role")
+    private String role;
+
+    @JsonProperty("currentMonthWorkStats")
+    private CurrentMonthWorkStats currentMonthWorkStats;
+
+    @JsonProperty("timeOffList")
+    private TimeOffList timeOffList;
+
+    @JsonProperty("sessionDetails")
+    private SessionDetails sessionDetails;
+
+    @JsonProperty("registerStats")
+    private TeamMemberRegisterStats registerStats;
 }
