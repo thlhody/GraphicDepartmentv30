@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.TimeOffSummary;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.enums.SyncStatus;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -19,14 +21,15 @@ public class UserTimeOffService {
     private final DataAccessService dataAccessService;
     private final HolidayManagementService holidayService;
     private final UserWorkTimeService userWorkTimeService;
-    private static final TypeReference<List<WorkTimeTable>> WORKTIME_LIST_TYPE = new TypeReference<>() {};
+    private final UserService userService;
 
     public UserTimeOffService(DataAccessService dataAccessService,
                               HolidayManagementService holidayService,
-                              UserWorkTimeService userWorkTimeService) {
+                              UserWorkTimeService userWorkTimeService, UserService userService) {
         this.dataAccessService = dataAccessService;
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
+        this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -52,6 +55,107 @@ public class UserTimeOffService {
 
         LoggerUtil.info(this.getClass(),
                 String.format("Processed %d time off entries for user %s", entries.size(), user.getUsername()));
+    }
+
+    /**
+     * Gets all time off records for a specific user for the entire year
+     * @param username Username of the user
+     * @param year The year for which to fetch time off records
+     * @return List of time off records (WorkTimeTable entries with timeOffType not null)
+     */
+    public List<WorkTimeTable> getUserTimeOffHistory(String username, Integer year) {
+        LoggerUtil.info(this.getClass(),
+                String.format("Fetching time off history for user %s for year %d", username, year));
+
+        List<WorkTimeTable> allEntries = new ArrayList<>();
+
+        // Load entries for all months in the specified year
+        for (int month = 1; month <= 12; month++) {
+            try {
+                List<WorkTimeTable> monthEntries = userWorkTimeService.loadMonthWorktime(username, year, month);
+                if (monthEntries != null) {
+                    allEntries.addAll(monthEntries);
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Error loading entries for %s - %d/%d: %s",
+                                username, year, month, e.getMessage()));
+                // Continue with next month even if one fails
+            }
+        }
+
+        // Filter only time off entries (where timeOffType is not null)
+        return allEntries.stream()
+                .filter(entry -> entry.getTimeOffType() != null)
+                .sorted((a, b) -> b.getWorkDate().compareTo(a.getWorkDate())) // Sort descending by date
+                .collect(Collectors.toList());
+    }
+
+    public TimeOffSummary calculateTimeOffSummary(String username, Integer year) {
+        List<WorkTimeTable> timeOffEntries = getUserTimeOffHistory(username, year);
+
+        // Count different time off types
+        int snDays = 0, coDays = 0, cmDays = 0;
+
+        for (WorkTimeTable entry : timeOffEntries) {
+            if (entry.getTimeOffType() != null) {
+                switch (entry.getTimeOffType()) {
+                    case "SN" -> snDays++;
+                    case "CO" -> coDays++;
+                    case "CM" -> cmDays++;
+                }
+            }
+        }
+
+        // Get available paid days and calculate remaining days
+        int availablePaidDays;
+        int remainingPaidDays;
+
+        try {
+            // Get the user ID from username
+            Optional<User> userOpt = userService.getUserByUsername(username);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                availablePaidDays = holidayService.getRemainingHolidayDays(username, user.getUserId());
+
+                // For historical years, just show the used days
+                if (year < Year.now().getValue()) {
+                    // For past years, the remaining days would be total - used
+                    // Since we don't know the original allocation, just set the remaining to 0
+                    // and available to the used amount for display purposes
+                    remainingPaidDays = 0;
+                    availablePaidDays = coDays;
+                } else {
+                    // For current year, use the actual remaining days
+                    remainingPaidDays = availablePaidDays - coDays;
+                    if (remainingPaidDays < 0) {
+                        remainingPaidDays = 0;
+                    }
+                }
+            } else {
+                // If user not found, default values
+                availablePaidDays = coDays;
+                remainingPaidDays = 0;
+                LoggerUtil.warn(this.getClass(), "User not found for username: " + username);
+            }
+        } catch (Exception e) {
+            // Handle errors in fetching holiday data
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error getting paid holiday days for %s: %s",
+                            username, e.getMessage()));
+            availablePaidDays = coDays;
+            remainingPaidDays = 0;
+        }
+
+        // Build and return the summary
+        return TimeOffSummary.builder()
+                .snDays(snDays)
+                .coDays(coDays)
+                .cmDays(cmDays)
+                .availablePaidDays(availablePaidDays)
+                .paidDaysTaken(coDays)
+                .remainingPaidDays(remainingPaidDays)
+                .build();
     }
 
     private void validateTimeOffRequest(LocalDate startDate, LocalDate endDate, String timeOffType) {

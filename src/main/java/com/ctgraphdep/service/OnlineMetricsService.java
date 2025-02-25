@@ -27,15 +27,11 @@ public class OnlineMetricsService {
     }
 
     public int getOnlineUserCount() {
-        return (int) getUserStatuses().stream()
-                .filter(status -> WorkCode.WORK_ONLINE.equals(status.getStatus()))
-                .count();
+        return (int) getUserStatuses().stream().filter(status -> WorkCode.WORK_ONLINE.equals(status.getStatus())).count();
     }
 
     public int getActiveUserCount() {
-        return (int) getUserStatuses().stream()
-                .filter(status -> !WorkCode.WORK_OFFLINE.equals(status.getStatus()))
-                .count();
+        return (int) getUserStatuses().stream().filter(status -> !WorkCode.WORK_OFFLINE.equals(status.getStatus())).count();
     }
 
     public List<UserStatusDTO> getUserStatuses() {
@@ -76,6 +72,7 @@ public class OnlineMetricsService {
     private UserStatusDTO buildUserStatusDTO(User user, WorkUsersSessionsStates session) {
         return UserStatusDTO.builder()
                 .username(user.getUsername())
+                .userId(user.getUserId()) // Make sure to include the userId
                 .name(user.getName())
                 .status(determineStatus(session.getSessionStatus()))
                 .lastActive(formatDateTime(session.getLastActivity()))
@@ -85,6 +82,7 @@ public class OnlineMetricsService {
     private UserStatusDTO createOfflineStatus(User user) {
         return UserStatusDTO.builder()
                 .username(user.getUsername())
+                .userId(user.getUserId()) // Make sure to include the userId
                 .name(user.getName())
                 .status(WorkCode.WORK_OFFLINE)
                 .lastActive(WorkCode.LAST_ACTIVE_NEVER)

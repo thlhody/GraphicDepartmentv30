@@ -42,7 +42,6 @@ public class CTTTSystemTray {
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();
     private TrayIcon trayIcon;
-    private String lastAutoLoginUsername = null;
 
 
     public synchronized void initialize() {
@@ -91,12 +90,12 @@ public class CTTTSystemTray {
             trayIcon = new TrayIcon(iconImage, appTitle, defaultPopupMenu);
             trayIcon.setImageAutoSize(true);
 
-            // Add double-click behavior
+            // Add double-click behavior to open login page
             trayIcon.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseClicked(java.awt.event.MouseEvent e) {
                     if (e.getClickCount() == 2) {
-                        openDashboardWithAutoLogin();
+                        openApplication();
                     }
                 }
             });
@@ -112,15 +111,15 @@ public class CTTTSystemTray {
     private PopupMenu createPopupMenu() {
         PopupMenu popup = new PopupMenu();
 
-        // Open item
+        // Open item - opens the login page
         MenuItem openItem = new MenuItem("Open");
         openItem.addActionListener(e -> openApplication());
         popup.add(openItem);
 
-        // Auto Login Dashboard Item
-        MenuItem dashboardItem = new MenuItem("Open Dashboard");
-        dashboardItem.addActionListener(e -> openDashboardWithAutoLogin());
-        popup.add(dashboardItem);
+        // About item
+        MenuItem aboutItem = new MenuItem("About");
+        aboutItem.addActionListener(e -> openAboutPage());
+        popup.add(aboutItem);
 
         popup.addSeparator();
 
@@ -163,77 +162,26 @@ public class CTTTSystemTray {
 
     private void openApplication() {
         String urlToOpen = appUrl != null ? appUrl : appUrlBackup;
-        openUrl(urlToOpen);
+        openUrl(urlToOpen + "/login");
     }
 
-    private void openDashboardWithAutoLogin() {
-        try {
-            Optional<User> autoLoginUser = findAutoLoginUser();
-
-            if (autoLoginUser.isPresent()) {
-                User user = autoLoginUser.get();
-                lastAutoLoginUsername = user.getUsername();
-                String autoLoginToken = autoLoginService.generateAutoLoginToken(user);
-                String url = (dashboardUrl != null ? dashboardUrl : appUrl) +
-                        "/autologin?token=" + autoLoginToken;
-
-                openUrl(url);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Auto-login initiated for user: %s", user.getUsername()));
-            } else {
-                // Fallback to normal login if no suitable user found
-                openApplication();
-                LoggerUtil.info(this.getClass(), "No suitable user for auto-login, opening standard login page");
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error during auto-login attempt: " + e.getMessage());
-            // Fallback to normal application open
-            openApplication();
-        }
-    }
-
-    private Optional<User> findAutoLoginUser() {
-        try {
-            List<User> localUsers = dataAccessService.readLocalUsers();
-
-            // First try to find the last successful user
-            if (lastAutoLoginUsername != null) {
-                Optional<User> lastUser = localUsers.stream()
-                        .filter(user -> lastAutoLoginUsername.equals(user.getUsername())
-                                && !user.isAdmin() && user.getPassword() != null)
-                        .findFirst();
-
-                if (lastUser.isPresent()) {
-                    return lastUser;
-                }
-            }
-
-            // Filter: non-admin users with stored credentials
-            return localUsers.stream()
-                    .filter(user -> !user.isAdmin() && user.getPassword() != null)
-                    .findFirst();
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error finding auto-login user: " + e.getMessage());
-            return Optional.empty();
-        }
+    private void openAboutPage() {
+        String urlToOpen = appUrl != null ? appUrl : appUrlBackup;
+        openUrl(urlToOpen + "/about");
     }
 
     private void openUrl(String url) {
         try {
+            // Make sure the URL starts with http or https
+            if (!url.startsWith("http")) {
+                url = "http://" + url;
+            }
+
             URI uri = new URI(url);
 
             // If no port is specified and it's localhost, add the correct port
             if (uri.getPort() == -1 && "localhost".equals(uri.getHost())) {
                 url = url.replace("localhost", "localhost:8443");
-                uri = new URI(url);
-            }
-
-            // Add trailing slash to ensure proper redirection
-            if (!url.endsWith("/") && !url.contains("?")) {
-                url += "/";
                 uri = new URI(url);
             }
 

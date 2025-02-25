@@ -80,10 +80,31 @@
         /* Table styles */
         .table-actions {
             width: 100px;
+            min-width: 80px; /* Ensure minimum width for action buttons */
         }
 
         .table-actions .btn {
             padding: 0.25rem 0.5rem;
+        }
+
+        /* Make sure the table doesn't expand beyond its container */
+        .table {
+            width: 100%;
+            table-layout: auto;
+        }
+
+        /* Make action columns have a fixed width */
+        .table th:last-child,
+        .table td:last-child {
+            width: 90px;
+            min-width: 90px;
+            white-space: nowrap;
+        }
+
+        /* Ensure the table cells wrap content appropriately */
+        .table td {
+            word-break: break-word;
+            vertical-align: middle;
         }
 
         /* Period selector */
@@ -162,6 +183,24 @@
             background-color: #ffc107 !important;
             color: #000 !important;
         }
+
+        /* Enhanced table responsive styling */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        /* Make sure action buttons stay visible */
+        .btn-group {
+            display: flex;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+            white-space: nowrap;
+        }
+
         /* Mobile optimizations */
         @media (max-width: 768px) {
             .register-form .col-auto {
@@ -175,6 +214,25 @@
             .period-selector .btn-group {
                 width: 100%;
             }
+        }
+
+        /* Custom scrollbar for table */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
     </style>
 </head>
@@ -233,9 +291,9 @@
                     <div class="card">
                         <div class="card-body">
                             <!-- Action Types - Single line -->
-                            <div class="d-flex align-items-center gap-2 mb-3">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                                 <h6 class="card-subtitle mb-0 me-3">Action Types:</h6>
-                                <div class="d-flex gap-2">
+                                <div class="d-flex flex-wrap gap-2">
                                     <span class="badge bg-order">ORDIN: <span id="count-ordin">0</span></span>
                                     <span class="badge bg-reorder">REORDIN: <span id="count-reordin">0</span></span>
                                     <span class="badge bg-sample">CAMPION: <span id="count-campion">0</span></span>
@@ -248,9 +306,9 @@
                             </div>
 
                             <!-- Key Metrics - Single line -->
-                            <div class="d-flex align-items-center gap-4">
+                            <div class="d-flex flex-wrap align-items-center gap-4">
                                 <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
-                                <div class="d-flex gap-4">
+                                <div class="d-flex flex-wrap gap-4">
                                     <span>Total Entries: <strong id="total-entries">0</strong></span>
                                     <span>Total (No Impostare): <strong
                                             id="total-entries-no-impostare">0</strong></span>
@@ -419,20 +477,20 @@
                     <table class="table table-hover table-striped mb-0">
                         <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Date</th>
-                            <th>Order ID</th>
-                            <th>Production ID</th>
-                            <th>OMS ID</th>
+                            <th style="width: 40px;">ID</th>
+                            <th style="width: 100px;">Date</th>
+                            <th style="width: 120px;">Order ID</th>
+                            <th style="width: 120px;">Production ID</th>
+                            <th style="width: 120px;">OMS ID</th>
                             <th>Client</th>
-                            <th>Action</th>
+                            <th style="width: 100px;">Action</th>
                             <th>Print Type</th>
-                            <th>Colors</th>
-                            <th>Articles</th>
-                            <th>Complexity</th>
+                            <th style="width: 70px;">Colors</th>
+                            <th style="width: 70px;">Articles</th>
+                            <th style="width: 90px;">Complexity</th>
                             <th>Observations</th>
-                            <th>Admin Sync</th>
-                            <th>Actions</th>
+                            <th style="width: 90px;">Admin Sync</th>
+                            <th style="width: 90px; min-width: 90px;">Actions</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -459,7 +517,7 @@
                                           class="badge bg-success">Synced</span>
                                 </span>
                             </td>
-                            <td>
+                            <td class="text-nowrap">
                                 <div class="btn-group">
                                     <!-- Edit button -->
                                     <a href="#"

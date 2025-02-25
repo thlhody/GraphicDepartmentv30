@@ -30,11 +30,13 @@ public class AutoLoginController {
     @GetMapping
     public String handleAutoLogin(
             @RequestParam("token") String token,
+            @RequestParam(value = "redirect", required = false) String redirectPath,
             HttpServletRequest request,
             HttpServletResponse response) {
 
         try {
-            LoggerUtil.info(this.getClass(), "Auto-login request received");
+            LoggerUtil.info(this.getClass(), "Auto-login request received" +
+                    (redirectPath != null ? " with redirect to: " + redirectPath : ""));
 
             // Validate token and get authentication
             Authentication authentication = autoLoginService.validateToken(token);
@@ -51,7 +53,18 @@ public class AutoLoginController {
                         String.format("Auto-login successful for user: %s, redirecting with base URL: %s",
                                 authentication.getName(), baseUrl));
 
-                // Redirect based on role with absolute URLs
+                // If a specific redirect path was provided, use it
+                if (redirectPath != null && !redirectPath.isEmpty()) {
+                    // Ensure the path starts with a /
+                    if (!redirectPath.startsWith("/")) {
+                        redirectPath = "/" + redirectPath;
+                    }
+
+                    LoggerUtil.debug(this.getClass(), "Redirecting to specified path: " + redirectPath);
+                    return "redirect:" + baseUrl + redirectPath;
+                }
+
+                // Otherwise redirect based on role with absolute URLs
                 var authorities = authentication.getAuthorities();
                 var roles = authorities.stream()
                         .map(GrantedAuthority::getAuthority)

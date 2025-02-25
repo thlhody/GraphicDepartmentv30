@@ -145,6 +145,7 @@ public class UserTimeOffController extends BaseController {
             return "redirect:/user/timeoff?error=submit_failed";
         }
     }
+
     @GetMapping("/upcoming")
     public ResponseEntity<List<WorkTimeTable>> getUpcomingTimeOff(@AuthenticationPrincipal UserDetails userDetails) {
         try {
