@@ -52,9 +52,7 @@ public class TeamStatisticsController extends BaseController {
             month = month != null ? month : now.getMonthValue();
 
             // Get all non-admin users for selection
-            List<User> availableUsers = getUserService().getAllUsers().stream()
-                    .filter(user -> !user.isAdmin()) // Only filter out admins
-                    .collect(Collectors.toList());
+            List<User> availableUsers = getUserService().getAllUsers().stream().filter(user -> !user.isAdmin()).collect(Collectors.toList()); // Only filter out admins
 
             // Load existing team members if any
             List<TeamMember> teamMembers = teamStatisticsService.getTeamMembers(teamLead.getUsername(), year, month);

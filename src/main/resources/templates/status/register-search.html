@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Register Search</title>
+    <style>
+        /* Card styles */
+        .card {
+            transition: all 0.3s ease;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+        }
+
+        /* Table styles */
+        .table-actions {
+            width: 100px;
+            min-width: 80px;
+        }
+
+        .table-actions .btn {
+            padding: 0.25rem 0.5rem;
+        }
+
+        .table {
+            width: 100%;
+            table-layout: auto;
+        }
+
+        .table td {
+            word-break: break-word;
+            vertical-align: middle;
+        }
+
+        /* Period selector */
+        .period-selector {
+            border-radius: 0.5rem;
+            background: #f8f9fa;
+        }
+
+        .period-selector .btn-group {
+            flex-wrap: wrap;
+        }
+
+        .period-selector .btn {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            padding: 3rem 1.5rem;
+            text-align: center;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        /* General Badge Style */
+        .badge {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.875em;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 0.25rem;
+            color: #fff;
+        }
+
+        /* Action-Specific Colors */
+        .bg-order {
+            background-color: #007bff; /* Blue */
+        }
+
+        .bg-reorder {
+            background-color: #6c757d; /* Gray */
+        }
+
+        .bg-sample {
+            background-color: #28a745; /* Green */
+        }
+
+        .bg-strikeoff {
+            background-color: #ffc107; /* Yellow */
+            color: #212529; /* Dark text for contrast */
+        }
+
+        .bg-designs {
+            background-color: #dc3545; /* Red */
+        }
+
+        .bg-other {
+            background-color: #6f42c1; /* Purple */
+        }
+
+        .bg-layout {
+            background-color: #17a2b8; /* Teal */
+        }
+
+        /* Admin Sync Status Badges */
+        .badge.bg-success {
+            background-color: #198754 !important;
+        }
+
+        .badge.bg-warning {
+            background-color: #ffc107 !important;
+            color: #000 !important;
+        }
+
+        /* Enhanced table responsive styling */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        /* Custom scrollbar for table */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Select2 small size */
+        .select2-container--bootstrap-5.select2-container--form-select-sm .select2-selection {
+            min-height: calc(1.5em + 0.5rem + 2px) !important;
+            padding: 0.25rem 0.5rem !important;
+            font-size: 0.875rem !important;
+            border-radius: 0.25rem !important;
+        }
+
+        /* Search form specific styles */
+        .search-form {
+            transition: all 0.3s ease;
+        }
+
+        .search-form:hover {
+            transform: translateY(-2px);
+        }
+
+        .search-options {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-options .form-group {
+            margin-bottom: 10px;
+        }
+
+        .search-options label {
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Date range styles */
+        .date-range {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .search-options {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-options .form-group {
+                width: 100%;
+            }
+
+            .date-range {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Alert System -->
+        <div class="mb-4">
+            <div th:replace="~{alerts/alerts :: alerts}"></div>
+        </div>
+
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-search me-2"></i>Register Search
+                </h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
+                    <span th:text="${user != null ? user.name : 'User'}">User</span>
+                </div>
+            </div>
+            <a class="btn btn-outline-primary" th:href="@{/status}">
+                <i class="bi bi-arrow-left me-2"></i>Back to Status
+            </a>
+        </div>
+
+        <!-- Search Form -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Search Options</h5>
+            </div>
+            <div class="card-body">
+                <form id="searchForm" th:action="@{/status/register-search}" method="get" class="search-form">
+                    <!-- Search term -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="searchTerm" name="searchTerm"
+                                       placeholder="Search by order ID, client, production ID..."
+                                       th:value="${param.searchTerm}">
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="bi bi-search me-1"></i>Search
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="float-end">
+                                <button type="button" class="btn btn-outline-secondary" id="toggleAdvanced">
+                                    <i class="bi bi-sliders me-1"></i>Advanced Options
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced search options (initially hidden) -->
+                    <div id="advancedOptions" class="mb-3" style="display: none;">
+                        <div class="row">
+                            <!-- Date range -->
+                            <div class="col-md-6 mb-3">
+                                <label for="startDate" class="form-label">Date Range</label>
+                                <div class="input-group">
+                                    <input type="date" class="form-control form-control-sm" id="startDate" name="startDate"
+                                           th:value="${param.startDate}">
+                                    <span class="input-group-text">to</span>
+                                    <input type="date" class="form-control form-control-sm" id="endDate" name="endDate"
+                                           th:value="${param.endDate}">
+                                </div>
+                            </div>
+
+                            <!-- Action Type filter -->
+                            <div class="col-md-3 mb-3">
+                                <label for="actionType" class="form-label">Action Type</label>
+                                <select id="actionType" name="actionType" class="form-select form-select-sm">
+                                    <option value="">All Action Types</option>
+                                    <option th:each="type : ${actionTypes}"
+                                            th:value="${type}"
+                                            th:text="${type}"
+                                            th:selected="${param.actionType != null && param.actionType[0] == type}">
+                                        Action Type
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Print Prep Type filter -->
+                            <div class="col-md-3 mb-3">
+                                <label for="printPrepType" class="form-label">Print Prep Type</label>
+                                <select id="printPrepType" name="printPrepType" class="form-select form-select-sm select2-input">
+                                    <option value="">All Print Prep Types</option>
+                                    <option th:each="type : ${printPrepTypes}"
+                                            th:value="${type}"
+                                            th:text="${type}"
+                                            th:selected="${param.printPrepType != null && param.printPrepType[0] == type}">
+                                        Print Prep Type
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Client filter -->
+                            <div class="col-md-4 mb-3">
+                                <label for="clientName" class="form-label">Client</label>
+                                <select id="clientName" name="clientName" class="form-select form-select-sm select2-input">
+                                    <option value="">All Clients</option>
+                                    <option th:each="client : ${clients}"
+                                            th:value="${client}"
+                                            th:text="${client}"
+                                            th:selected="${param.clientName != null && param.clientName[0] == client}">
+                                        Client Name
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Year and Month selector -->
+                            <div class="col-md-4 mb-3">
+                                <label for="year" class="form-label">Year</label>
+                                <select id="year" name="year" class="form-select form-select-sm">
+                                    <option value="">All Years</option>
+                                    <option th:each="y : ${#numbers.sequence(2020, 2030)}"
+                                            th:value="${y}"
+                                            th:text="${y}"
+                                            th:selected="${param.year != null && param.year[0] == y}">
+                                        2023
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="month" class="form-label">Month</label>
+                                <select id="month" name="month" class="form-select form-select-sm">
+                                    <option value="">All Months</option>
+                                    <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                            th:value="${m}"
+                                            th:text="${T(java.time.Month).of(m)}"
+                                            th:selected="${param.month != null && param.month[0] == m}">
+                                        January
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-search me-1"></i>Apply Filters
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetFilters()">
+                                    <i class="bi bi-x-circle me-1"></i>Clear Filters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Summary Statistics (similar to register page) -->
+                <div class="mt-4" th:if="${entries != null && !entries.empty}">
+                    <h5 class="mb-3">Search Results Summary</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Action Types - Single line -->
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                                <h6 class="card-subtitle mb-0 me-3">Action Types:</h6>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="badge bg-order">ORDIN: <span id="count-ordin">0</span></span>
+                                    <span class="badge bg-reorder">REORDIN: <span id="count-reordin">0</span></span>
+                                    <span class="badge bg-sample">CAMPION: <span id="count-campion">0</span></span>
+                                    <span class="badge bg-strikeoff">PROBA STAMPA: <span id="count-proba-stampa">0</span></span>
+                                    <span class="badge bg-designs">DESIGN: <span id="count-design">0</span></span>
+                                    <span class="badge bg-other">ALTELE: <span id="count-others">0</span></span>
+                                    <span class="badge bg-layout">IMPOSTARE: <span id="count-impostare">0</span></span>
+                                </div>
+                            </div>
+
+                            <!-- Key Metrics - Single line -->
+                            <div class="d-flex flex-wrap align-items-center gap-4">
+                                <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
+                                <div class="d-flex flex-wrap gap-4">
+                                    <span>Total Results: <strong id="total-entries">0</strong></span>
+                                    <span>Total (No Impostare): <strong id="total-entries-no-impostare">0</strong></span>
+                                    <span>Avg Articles (No Impostare): <strong id="avg-articles">0.00</strong></span>
+                                    <span>Avg Complexity (No Impostare): <strong id="avg-complexity">0.00</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <h5 class="card-title mb-0">Search Results</h5>
+                        <span class="badge bg-primary ms-2" th:if="${entries != null}">
+                            <span th:text="${entries.size()}">0</span> entries found
+                        </span>
+                    </div>
+                    <div>
+                        <a th:if="${entries != null && !entries.empty}"
+                           th:href="@{/status/register-search/export(searchTerm=${param.searchTerm},startDate=${param.startDate},endDate=${param.endDate},actionType=${param.actionType},printPrepType=${param.printPrepType},clientName=${param.clientName},year=${param.year},month=${param.month})}"
+                           class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-file-excel me-1"></i>Export Results
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0" th:if="${entries != null && !entries.empty}">
+                        <thead>
+                        <tr>
+                            <th style="width: 100px;">Date</th>
+                            <th style="width: 120px;">Order ID</th>
+                            <th style="width: 120px;">Production ID</th>
+                            <th style="width: 120px;">OMS ID</th>
+                            <th>Client</th>
+                            <th style="width: 100px;">Action</th>
+                            <th>Print Type</th>
+                            <th style="width: 70px;">Colors</th>
+                            <th style="width: 70px;">Articles</th>
+                            <th style="width: 90px;">Complexity</th>
+                            <th>Observations</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="entry : ${entries}">
+                            <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
+                            <td th:text="${entry.orderId}"></td>
+                            <td th:text="${entry.productionId}"></td>
+                            <td th:text="${entry.omsId}"></td>
+                            <td th:text="${entry.clientName}"></td>
+                            <td>
+                                <span th:class="${'badge ' +
+                                    (entry.actionType == 'ORDIN' ? 'bg-order' :
+                                     entry.actionType == 'REORDIN' ? 'bg-reorder' :
+                                     entry.actionType == 'CAMPION' ? 'bg-sample' :
+                                     entry.actionType == 'PROBA STAMPA' ? 'bg-strikeoff' :
+                                     entry.actionType == 'DESIGN' ? 'bg-designs' :
+                                     entry.actionType == 'IMPOSTARE' ? 'bg-layout' : 'bg-other')}"
+                                      th:text="${entry.actionType}">
+                                </span>
+                            </td>
+                            <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
+                            <td th:text="${entry.colorsProfile}"></td>
+                            <td th:text="${entry.articleNumbers}"></td>
+                            <td th:text="${entry.graphicComplexity}"></td>
+                            <td th:text="${entry.observations}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Empty State for search results -->
+                    <div th:if="${entries == null || entries.empty}" class="empty-state">
+                        <div class="text-muted">
+                            <i class="bi bi-search"></i>
+                            <h5 class="mt-3">No Results Found</h5>
+                            <p>Try adjusting your search criteria or try a different search term.</p>
+                        </div>
+                    </div>
+
+                    <!-- Default state before any search -->
+                    <div th:if="${entries == null}" class="empty-state">
+                        <div class="text-muted">
+                            <i class="bi bi-search"></i>
+                            <h5 class="mt-3">Enter Search Criteria</h5>
+                            <p>Use the search form above to find register entries.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Select2 for searchable dropdowns
+            $('.select2-input').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: 'Select...',
+                allowClear: true
+            });
+
+            // Toggle advanced options
+            document.getElementById('toggleAdvanced').addEventListener('click', function() {
+                const advancedOptions = document.getElementById('advancedOptions');
+                if (advancedOptions.style.display === 'none') {
+                    advancedOptions.style.display = 'block';
+                    this.innerHTML = '<i class="bi bi-x me-1"></i>Hide Advanced Options';
+                } else {
+                    advancedOptions.style.display = 'none';
+                    this.innerHTML = '<i class="bi bi-sliders me-1"></i>Advanced Options';
+                }
+            });
+
+            // Show advanced options if any of them are filled
+            if (hasAdvancedFilters()) {
+                document.getElementById('advancedOptions').style.display = 'block';
+                document.getElementById('toggleAdvanced').innerHTML = '<i class="bi bi-x me-1"></i>Hide Advanced Options';
+            }
+
+            // Initialize summary statistics calculation
+            calculateStats();
+        });
+
+        function hasAdvancedFilters() {
+            // Check if any of the advanced search fields have values
+            return (
+            hasValue('startDate') ||
+            hasValue('endDate') ||
+            hasValue('actionType') ||
+            hasValue('printPrepType') ||
+            hasValue('clientName') ||
+            hasValue('year') ||
+            hasValue('month')
+            );
+        }
+
+        function hasValue(paramName) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.has(paramName) && urlParams.get(paramName) !== '';
+        }
+
+        function resetFilters() {
+            // Clear all form fields except the search term
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            document.getElementById('actionType').value = '';
+            document.getElementById('year').value = '';
+            document.getElementById('month').value = '';
+
+            // Reset Select2 fields
+            $('#printPrepType').val(null).trigger('change');
+            $('#clientName').val(null).trigger('change');
+
+            // Submit the form with just the search term
+            document.getElementById('searchForm').submit();
+        }
+
+        function calculateStats() {
+            try {
+                // Action counts object
+                const actionCounts = {
+                    ordin: 0,
+                    reordin: 0,
+                    campion: 0,
+                    probaStampa: 0,
+                    design: 0,
+                    others: 0,
+                    impostare: 0
+                };
+
+                // Metrics object
+                const metrics = {
+                    totalEntries: 0,
+                    totalNoImpostare: 0,
+                    totalArticles: 0,
+                    totalComplexity: 0
+                };
+
+                // Get all valid entries from the table
+                const entries = Array.from(document.querySelectorAll('.table tbody tr'));
+                if (!entries.length) return;
+
+                // Process each entry
+                entries.forEach(row => {
+                    const cells = row.cells;
+                    if (!cells || cells.length < 9) return;
+
+                    const actionType = cells[5]?.textContent?.trim();
+                    const articles = parseInt(cells[8]?.textContent || '0');
+                    const complexity = parseFloat(cells[9]?.textContent || '0');
+
+                    // Count action types
+                    if (actionType) {
+                        if (actionType.includes('ORDIN')) actionCounts.ordin++;
+                        else if (actionType.includes('REORDIN')) actionCounts.reordin++;
+                        else if (actionType.includes('CAMPION')) actionCounts.campion++;
+                        else if (actionType.includes('PROBA STAMPA')) actionCounts.probaStampa++;
+                        else if (actionType.includes('DESIGN')) actionCounts.design++;
+                        else if (actionType.includes('IMPOSTARE')) actionCounts.impostare++;
+                        else actionCounts.others++;
+                    }
+
+                    // Calculate metrics
+                    metrics.totalEntries++;
+
+                    if (!actionType.includes('IMPOSTARE')) {
+                        metrics.totalNoImpostare++;
+                        metrics.totalArticles += articles;
+                        metrics.totalComplexity += complexity;
+                    }
+                });
+
+                // Calculate averages
+                const avgArticles = metrics.totalNoImpostare ?
+                (metrics.totalArticles / metrics.totalNoImpostare).toFixed(2) : '0.00';
+                const avgComplexity = metrics.totalNoImpostare ?
+                (metrics.totalComplexity / metrics.totalNoImpostare).toFixed(2) : '0.00';
+
+                // Update UI
+                document.getElementById('count-ordin').textContent = actionCounts.ordin;
+                document.getElementById('count-reordin').textContent = actionCounts.reordin;
+                document.getElementById('count-campion').textContent = actionCounts.campion;
+                document.getElementById('count-proba-stampa').textContent = actionCounts.probaStampa;
+                document.getElementById('count-design').textContent = actionCounts.design;
+                document.getElementById('count-others').textContent = actionCounts.others;
+                document.getElementById('count-impostare').textContent = actionCounts.impostare;
+
+                document.getElementById('total-entries').textContent = metrics.totalEntries;
+                document.getElementById('total-entries-no-impostare').textContent = metrics.totalNoImpostare;
+                document.getElementById('avg-articles').textContent = avgArticles;
+                document.getElementById('avg-complexity').textContent = avgComplexity;
+
+            } catch (error) {
+                console.error('Error calculating stats:', error);
+            }
+        }
+    </script>
+</th:block>
+</body>
+</html>

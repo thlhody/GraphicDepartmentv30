@@ -328,9 +328,25 @@ public class TeamStatisticsService {
         WorkUsersSessionsStates session = dataAccessService.readNetworkSessionFile(
                 member.getUsername(), member.getUserId());
 
-        if (session != null) {
+        if (session != null && session.getSessionStatus() != null) {
+            // Normalize status based on exact statuses
+            String normalizedStatus;
+            String originalStatus = session.getSessionStatus();
+
+            if (originalStatus.equals("Online")) {
+                normalizedStatus = "WORK_ONLINE";
+            } else if (originalStatus.equals("Temporary Stop")) {
+                normalizedStatus = "WORK_TEMPORARY_STOP";
+            } else {
+                normalizedStatus = "WORK_OFFLINE";
+            }
+
+            LoggerUtil.info(this.getClass(),
+                    "Original session status for " + member.getUsername() + ": " + originalStatus +
+                            ", Normalized status: " + normalizedStatus);
+
             member.setSessionDetails(SessionDetails.builder()
-                    .status(session.getSessionStatus())
+                    .status(normalizedStatus)
                     .dayStartTime(session.getDayStartTime())
                     .dayEndTime(session.getDayEndTime())
                     .build());

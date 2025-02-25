@@ -128,29 +128,18 @@
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
 
-                                    <!-- Register & Work Hours - Admin/Team Lead can view all, regular users only their own -->
-                                    <div sec:authorize="hasAnyRole('ADMIN', 'TEAM_LEADER')">
-                                        <a th:href="@{/user/register(username=${status.username})}"
-                                           class="btn btn-sm btn-outline-warning">
-                                            <i class="bi bi-journal-text me-1"></i>Register
-                                        </a>
-                                        <a th:href="@{/user/worktime(username=${status.username})}"
-                                           class="btn btn-sm btn-outline-warning">
-                                            <i class="bi bi-clock me-1"></i>Work Hours
-                                        </a>
-                                    </div>
-                                    <div sec:authorize="hasRole('USER')">
-                                        <a th:href="@{/user/register}"
-                                           class="btn btn-sm btn-outline-warning"
-                                           th:classappend="${status.username != currentUsername ? 'disabled opacity-50 pe-none' : ''}">
-                                            <i class="bi bi-journal-text me-1"></i>Register
-                                        </a>
-                                        <a th:href="@{/user/worktime}"
-                                           class="btn btn-sm btn-outline-warning"
-                                           th:classappend="${status.username != currentUsername ? 'disabled opacity-50 pe-none' : ''}">
-                                            <i class="bi bi-clock me-1"></i>Work Hours
-                                        </a>
-                                    </div>
+                                    <!-- Register Search - Visible to all authenticated users -->
+                                    <a th:href="@{/status/register-search(username=${status.username})}"
+                                       class="btn btn-sm btn-outline-warning">
+                                        <i class="bi bi-search me-1"></i>Register
+                                    </a>
+
+                                    <!-- Work Hours - Visible based on roles or current user -->
+                                    <a th:href="@{/user/worktime(username=${status.username})}"
+                                       class="btn btn-sm btn-outline-warning"
+                                       th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
+                                        <i class="bi bi-clock me-1"></i>Work Hours
+                                    </a>
                                 </div>
                             </td>
                         </tr>
