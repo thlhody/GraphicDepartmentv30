@@ -62,6 +62,10 @@ public class WorkCode {
 
     public static Integer MAX_TEMP_STOP_HOURS = 15;                 // 24 - MAX_WORK_HOURS
 
+    // Constants for timing start notice
+    public static final int WORK_START_HOUR = 5;  // 5:00 AM
+    public static final int WORK_END_HOUR = 17;   // 5:00 PM
+
     //date format
     public static final DateTimeFormatter INPUT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
@@ -93,6 +97,7 @@ public class WorkCode {
 
     //work messages
     public static final String NOTICE_TITLE = "END SCHEDULE NOTICE";
+    public static final String START_DAY_TITLE = "WORK DAY START REMINDER";
     public static final String SESSION_WARNING_MESSAGE = """
             Your work session has reached 8 hours and 30 minutes.
             
@@ -123,6 +128,16 @@ public class WorkCode {
             
             Note: If no selection is made within 5 minutes, temporary stop will continue.
             Maximum allowed temporary stop is 15 hours.""";
+
+    public static final String START_DAY_MESSAGE = """
+            It's time to start your work day.
+            
+            Would you like to start tracking your work time now?
+            
+            Note: If you choose to skip, this reminder will not appear
+            again until tomorrow.""";
+
+
 }
 
 

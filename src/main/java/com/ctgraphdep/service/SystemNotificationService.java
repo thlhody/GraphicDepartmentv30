@@ -98,10 +98,6 @@ public class SystemNotificationService {
         }
     }
 
-    public void clearNotificationHistory(String username) {
-        lastNotificationTimes.keySet().removeIf(key -> key.startsWith(username + "_"));
-    }
-
     public void showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
             int timeoutPeriod, boolean isHourly, boolean isTempStop) {
         LoggerUtil.debug(this.getClass(), String.format("Showing notification - isHourly: %b, isTempStop: %b", isHourly, isTempStop));
@@ -360,5 +356,64 @@ public class SystemNotificationService {
         }
 
         return false;
+    }
+
+    public void showStartDayReminder(String username, Integer userId) {
+        if (checkTrayIcon()) return;
+
+        // Only show start day reminder once per day
+        if (canShowNotification(username, "START_DAY", 24 * 60)) { // Once per day
+            showStartDayDialog(username, userId,
+                    WorkCode.START_DAY_TITLE,
+                    WorkCode.START_DAY_MESSAGE,
+                    WorkCode.ON_FOR_TEN_MINUTES);
+        }
+    }
+
+    private void showStartDayDialog(String username, Integer userId, String title, String message, int timeoutPeriod) {
+        LoggerUtil.debug(this.getClass(), "Showing start day notification");
+
+        userResponded.set(false);
+        SwingUtilities.invokeLater(() -> {
+            DialogComponents components = createDialog(title, message);
+            addStartDayButtons(components, username, userId);
+            showDialog(components.dialog);
+            startAutoCloseTimer(components.dialog, username, userId, null, timeoutPeriod, false);
+        });
+    }
+
+    private void addStartDayButtons(DialogComponents components, String username, Integer userId) {
+        JPanel buttonsPanel = components.buttonsPanel;
+
+        // Start Work Button
+        JButton startButton = createButton("Start Work", new Color(0, 153, 51));
+        startButton.addActionListener(e -> {
+            userResponded.set(true);
+            components.dialog.dispose();
+            startWorkDay(username, userId);
+            LoggerUtil.info(this.getClass(), "User chose to start work day");
+        });
+
+        // Skip Button
+        JButton skipButton = createButton("Skip", new Color(204, 51, 0));
+        skipButton.addActionListener(e -> {
+            userResponded.set(true);
+            components.dialog.dispose();
+            LoggerUtil.info(this.getClass(), "User chose to skip start day reminder");
+        });
+
+        buttonsPanel.add(startButton);
+        buttonsPanel.add(skipButton);
+    }
+
+    private void startWorkDay(String username, Integer userId) {
+        try {
+            userSessionService.startDay(username, userId);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Started work day for user %s through start day notification", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Failed to start work day through notification: " + e.getMessage());
+        }
     }
 }

@@ -179,7 +179,7 @@ public class UserSessionService {
             LocalDateTime startTime = LocalDateTime.now().minusMinutes(WorkCode.BUFFER_MINUTES);
             WorkUsersSessionsStates newSession = initializeSession(username, userId, startTime);
             saveSession(username, newSession);
-            createWorktimeEntry(username, userId, newSession);
+            createWorktimeEntry(username, userId, newSession, username);
 
             // Start session monitoring
             sessionMonitorService.startMonitoring(username);
@@ -473,7 +473,7 @@ public class UserSessionService {
     }
 
     //Work Time Entry Management
-    private void createWorktimeEntry(String username, Integer userId, WorkUsersSessionsStates session) {
+    private void createWorktimeEntry(String username, Integer userId, WorkUsersSessionsStates session, String operatingUsername) {
         LocalDate today = LocalDate.now();
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(userId);
@@ -485,8 +485,9 @@ public class UserSessionService {
         entry.setTotalTemporaryStopMinutes(0);
         entry.setLunchBreakDeducted(false);
         entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
-        userWorkTimeService.saveWorkTimeEntry(username, entry, today.getYear(), today.getMonthValue());
+        userWorkTimeService.saveWorkTimeEntry(username, entry, today.getYear(), today.getMonthValue(), operatingUsername);
     }
+
     private void updateWorktimeEntry(String username, WorkUsersSessionsStates session) {
         LocalDateTime now = LocalDateTime.now();
         WorkTimeTable entry = createWorkTimeEntryFromSession(session, now);

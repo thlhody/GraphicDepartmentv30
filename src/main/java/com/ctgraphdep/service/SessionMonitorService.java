@@ -14,9 +14,7 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +33,7 @@ public class SessionMonitorService {
     private final Map<String, Boolean> notificationShown = new ConcurrentHashMap<>();
     private final Map<String, LocalDateTime> lastHourlyWarning = new ConcurrentHashMap<>();
     private final Map<String, Boolean> continuedAfterSchedule = new ConcurrentHashMap<>();
+    private final Map<String, LocalDate> lastStartDayCheck = new ConcurrentHashMap<>();
     private ScheduledFuture<?> monitoringTask;
     private volatile boolean isInitialized = false;
 
@@ -74,6 +73,8 @@ public class SessionMonitorService {
         }
     }
 
+
+
     private void startScheduledMonitoring() {
         // Cancel any existing task
         if (monitoringTask != null && !monitoringTask.isCancelled()) {
@@ -91,6 +92,7 @@ public class SessionMonitorService {
         }
 
         try {
+            checkStartDayReminder();
             String username = getCurrentActiveUser();
             if (username == null) {
                 return;
@@ -182,6 +184,51 @@ public class SessionMonitorService {
         }
     }
 
+    public void checkStartDayReminder() {
+        if (!isInitialized) {
+            return;
+        }
+
+        try {
+            // Only check during working hours on weekdays
+            if (!isWeekday() || !isWorkingHours()) {
+                return;
+            }
+
+            // Get current user
+            String username = getCurrentActiveUser();
+            if (username == null) {
+                return;
+            }
+
+            // Check if we already showed notification today
+            LocalDate today = LocalDate.now();
+            if (lastStartDayCheck.containsKey(username) &&
+                    lastStartDayCheck.get(username).equals(today)) {
+                return;
+            }
+
+            User user = userService.getUserByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + username));
+            WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, user.getUserId());
+
+            // Only show if status is Offline and no active session for today
+            if (session != null &&
+                    WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
+                    !hasActiveSessionToday(session)) {
+
+                // Show notification
+                notificationService.showStartDayReminder(username, user.getUserId());
+
+                // Update last check date
+                lastStartDayCheck.put(username, today);
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking start day reminder: " + e.getMessage());
+        }
+    }
+
     public void activateHourlyMonitoring(String username) {
         continuedAfterSchedule.put(username, true);
         lastHourlyWarning.put(username, LocalDateTime.now());
@@ -265,6 +312,7 @@ public class SessionMonitorService {
         notificationShown.remove(username);
         continuedAfterSchedule.remove(username);
         lastHourlyWarning.remove(username);
+        lastStartDayCheck.remove(username);  // Add this line
         LoggerUtil.info(this.getClass(), String.format("Cleared monitoring for user %s", username));
     }
 
@@ -276,5 +324,29 @@ public class SessionMonitorService {
     public void stopMonitoring(String username) {
         clearMonitoring(username);
         LoggerUtil.info(this.getClass(), "Stopped monitoring for user: " + username);
+    }
+
+
+    // Add helper methods
+    private boolean isWorkingHours() {
+        LocalDateTime now = LocalDateTime.now();
+        int hour = now.getHour();
+        return hour >= WorkCode.WORK_START_HOUR && hour < WorkCode.WORK_END_HOUR;
+    }
+
+    private boolean isWeekday() {
+        LocalDateTime now = LocalDateTime.now();
+        DayOfWeek day = now.getDayOfWeek();
+        return day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
+    }
+
+    private boolean hasActiveSessionToday(WorkUsersSessionsStates session) {
+        if (session == null || session.getDayStartTime() == null) {
+            return false;
+        }
+
+        LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+        LocalDate today = LocalDate.now();
+        return sessionDate.equals(today);
     }
 }

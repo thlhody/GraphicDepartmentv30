@@ -191,7 +191,7 @@ public class UserWorkTimeService {
         }
     }
 
-    @PreAuthorize("#username == authentication.name")
+
     public void saveWorkTimeEntry(String username, WorkTimeTable entry, int year, int month) {
         lock.writeLock().lock();
         try {
@@ -245,14 +245,10 @@ public class UserWorkTimeService {
             }
 
             // Remove existing entry if present
-            entries.removeIf(e ->
-                    e.getUserId().equals(entry.getUserId()) &&
-                            e.getWorkDate().equals(entry.getWorkDate()));
+            entries.removeIf(e -> e.getUserId().equals(entry.getUserId()) && e.getWorkDate().equals(entry.getWorkDate()));
 
             entries.add(entry);
-            entries.sort(Comparator
-                    .comparing(WorkTimeTable::getWorkDate)
-                    .thenComparing(WorkTimeTable::getUserId));
+            entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparing(WorkTimeTable::getUserId));
 
             try {
                 // Use the new overloaded method
