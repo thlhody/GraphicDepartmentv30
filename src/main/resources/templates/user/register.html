@@ -5,235 +5,244 @@
       lang="en">
 <head>
     <title>User Work Registry</title>
-    <style>
-        /* Validation Messages */
-        .invalid-feedback {
-            display: block;
-            margin-top: 0.25rem;
-            font-size: 0.875rem;
-            color: #dc3545;
+    <style>/* Reset and Base Styles */
+    * {
+        box-sizing: border-box;
+    }
+    .th {
+        text-align: center; /* Horizontally centers text */
+        vertical-align: middle; /* Vertically centers text */
+        padding: 8px; /* Adjust spacing inside the cell */
+        white-space: nowrap; /* Prevents text wrapping */
+    }
+
+
+    /* Form Validation Styles */
+    .invalid-feedback {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.875rem;
+        color: #dc3545;
+    }
+
+    .is-invalid {
+        border-color: #dc3545;
+    }
+
+    .is-invalid:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+    }
+
+    /* Form Element Styles */
+    .form-control-sm {
+        height: calc(1.5em + 0.5rem + 2px);
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* Select2 Customization */
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: calc(1.5em + 0.5rem + 2px) !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+        padding: 2px 6px !important;
+        margin: 2px !important;
+        font-size: 0.875rem !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-search__field {
+        margin-top: 2px !important;
+        height: calc(1.5em + 0.25rem) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-dropdown {
+        font-size: 0.875rem !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option {
+        padding: 0.25rem 0.5rem !important;
+    }
+
+    /* Table Styles */
+    .table {
+        width: 100%;
+        font-size: 0.9em;
+        table-layout: auto;
+    }
+
+    .table th:last-child,
+    .table td:last-child {
+        width: 90px;
+        min-width: 90px;
+        white-space: nowrap;
+    }
+
+    .table td {
+        word-break: break-word;
+        vertical-align: middle;
+    }
+
+    /* Action Button Styles */
+    .table-actions {
+        width: 60px;
+        text-align: center;
+    }
+
+    .table-actions .btn {
+        width: 35px;  /* Set width */
+        height: 35px; /* Set height */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border-radius: 4px; /* Remove rounded edges */
+        border: 1px solid #ccc; /* Adjust border thickness */
+        font-size: 16px; /* Adjust icon size */
+    }
+
+    /* Updated Action Buttons Layout */
+    .table-actions .btn-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .btn-group {
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        white-space: nowrap;
+    }
+
+    .btn-outline-primary.btn-custom-outline {
+        border-width: 1px;
+    }
+    .btn-outline-secondary.btn-custom-outline {
+        border-width: 1px;
+    }
+    .btn-outline-danger.btn-custom-outline {
+        border-width: 1px;
+    }
+
+    /* Specific Entry Action Buttons */
+    .table-actions .btn-group .btn {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.25rem;
+    }
+
+    .table-actions .btn-group .btn:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Badges */
+    .badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.875em;
+        font-weight: 700;
+        text-align: center;
+        border-radius: 0.25rem;
+        color: #fff;
+    }
+
+    /* Modal Styles */
+    .search-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .search-modal.show {
+        display: flex;
+    }
+
+    .search-modal-content {
+        background: white;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .search-input-container {
+        padding: 1rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .search-results {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    .search-result-item {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .search-result-item:hover {
+        background-color: #f0f0f0;
+    }
+
+    .search-result-header {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        font-weight: bold;
+        background-color: #f8f9fa;
+        padding: 0.5rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .search-result-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        padding: 0.5rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    /* Action Type Badges */
+    .bg-order { background-color: #007bff; }
+    .bg-reorder { background-color: #6c757d; }
+    .bg-sample { background-color: #28a745; }
+    .bg-strikeoff {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .bg-designs { background-color: #dc3545; }
+    .bg-other { background-color: #6f42c1; }
+    .bg-layout { background-color: #17a2b8; }
+
+    /* Admin Sync Badges */
+    .badge.bg-success { background-color: #198754 !important; }
+    .badge.bg-warning {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 768px) {
+        .register-form .col-auto {
+            width: 100% !important;
         }
 
-        .is-invalid {
-            border-color: #dc3545;
-        }
-
-        .is-invalid:focus {
-            border-color: #dc3545;
-            box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
-        }
-
-        .select2-container--bootstrap-5 .select2-selection--multiple.is-invalid {
-            border-color: #dc3545;
-        }
-        /* Register form styles */
-        .register-form {
-            transition: all 0.3s ease;
-        }
-
-        .register-form:hover {
-            transform: translateY(-2px);
-        }
-        /* Set Select2 container height to match other inputs */
-        .select2-container--bootstrap-5 .select2-selection {
-            min-height: calc(1.5em + 0.5rem + 2px) !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-        }
-
-        /* Fix token/tag size */
-        .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
-            padding: 2px 6px !important;
-            margin: 2px !important;
-            font-size: 0.875rem !important;
-        }
-
-        /* Adjust search box */
-        .select2-container--bootstrap-5 .select2-search__field {
-            margin-top: 2px !important;
-            height: calc(1.5em + 0.25rem) !important;
-        }
-
-        /* Fix dropdown size */
-        .select2-container--bootstrap-5 .select2-dropdown {
-            font-size: 0.875rem !important;
-        }
-
-        /* Fix dropdown items padding */
-        .select2-container--bootstrap-5 .select2-results__option {
-            padding: 0.25rem 0.5rem !important;
-        }
-
-        /* Make select2 match form-select-sm */
-        .select2-container--bootstrap-5.select2-container--form-select-sm .select2-selection {
-            min-height: calc(1.5em + 0.5rem + 2px) !important;
-            padding: 0.25rem 0.5rem !important;
-            font-size: 0.875rem !important;
-            border-radius: 0.25rem !important;
-        }
-        .form-control-sm {
-            height: calc(1.5em + 0.5rem + 2px);
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-        }
-
-        /* Table styles */
-        .table-actions {
-            width: 100px;
-            min-width: 80px; /* Ensure minimum width for action buttons */
-        }
-
-        .table-actions .btn {
-            padding: 0.25rem 0.5rem;
-        }
-
-        /* Make sure the table doesn't expand beyond its container */
-        .table {
-            width: 100%;
-            table-layout: auto;
-        }
-
-        /* Make action columns have a fixed width */
-        .table th:last-child,
-        .table td:last-child {
-            width: 90px;
-            min-width: 90px;
-            white-space: nowrap;
-        }
-
-        /* Ensure the table cells wrap content appropriately */
-        .table td {
-            word-break: break-word;
-            vertical-align: middle;
-        }
-
-        /* Period selector */
-        .period-selector {
-            border-radius: 0.5rem;
-            background: #f8f9fa;
-        }
-
-        .period-selector .btn-group {
-            flex-wrap: wrap;
-        }
-
-        .period-selector .btn {
-            padding: 0.375rem 0.75rem;
-            font-size: 0.875rem;
-        }
-
-        /* Empty state */
-        .empty-state {
-            padding: 3rem 1.5rem;
-            text-align: center;
-            color: #6c757d;
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        /* General Badge Style */
-        .badge {
-            display: inline-block;
-            padding: 0.35em 0.65em;
-            font-size: 0.875em;
-            font-weight: 700;
-            text-align: center;
-            border-radius: 0.25rem;
-            color: #fff;
-        }
-
-        /* Action-Specific Colors */
-        .bg-order {
-            background-color: #007bff; /* Blue */
-        }
-
-        .bg-reorder {
-            background-color: #6c757d; /* Gray */
-        }
-
-        .bg-sample {
-            background-color: #28a745; /* Green */
-        }
-
-        .bg-strikeoff {
-            background-color: #ffc107; /* Yellow */
-            color: #212529; /* Dark text for contrast */
-        }
-
-        .bg-designs {
-            background-color: #dc3545; /* Red */
-        }
-
-        .bg-other {
-            background-color: #6f42c1; /* Purple */
-        }
-
-        .bg-layout {
-            background-color: #17a2b8; /* Teal */
-        }
-        /* Admin Sync Status Badges */
-        .badge.bg-success {
-            background-color: #198754 !important;
-        }
-
-        .badge.bg-warning {
-            background-color: #ffc107 !important;
-            color: #000 !important;
-        }
-
-        /* Enhanced table responsive styling */
         .table-responsive {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin: 0;
-            padding: 0;
-            width: 100%;
+            margin: 0 -1rem;
         }
-
-        /* Make sure action buttons stay visible */
-        .btn-group {
-            display: flex;
-            flex-wrap: nowrap;
-            justify-content: flex-start;
-            white-space: nowrap;
-        }
-
-        /* Mobile optimizations */
-        @media (max-width: 768px) {
-            .register-form .col-auto {
-                width: 100% !important;
-            }
-
-            .table-responsive {
-                margin: 0 -1rem;
-            }
-
-            .period-selector .btn-group {
-                width: 100%;
-            }
-        }
-
-        /* Custom scrollbar for table */
-        .table-responsive::-webkit-scrollbar {
-            height: 8px;
-        }
-
-        .table-responsive::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
+    }
     </style>
 </head>
 <body>
@@ -318,6 +327,31 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Modal -->
+        <div id="searchModal" class="search-modal">
+            <div class="search-modal-content">
+                <div class="search-input-container">
+                    <label for="searchInput" class="form-label visually-hidden">Search Entries</label>
+                    <input type="text" id="searchInput" class="form-control"
+                           placeholder="Search by Order ID or Client Name"
+                           aria-describedby="searchHelp">
+                    <small id="searchHelp" class="form-text text-muted visually-hidden">
+                        Search through register entries by Order ID or Client Name
+                    </small>
+                </div>
+                <div class="search-results">
+                    <div class="search-result-header">
+                        <div>Date</div>
+                        <div>Order ID</div>
+                        <div>Client</div>
+                        <div>Action</div>
+                        <div>Mod</div>
+                    </div>
+                    <div id="searchResultsContainer"></div>
                 </div>
             </div>
         </div>
@@ -469,6 +503,9 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center">
                         <h5 class="card-title mb-0">Register Entries</h5>
+                        <span class="header-info ms-2">
+                            <i class="bi bi-info-circle me-1 align-items-right"></i>Ctrl+F - Find by Name/Order ID
+                        </span>
                     </div>
                 </div>
             </div>
@@ -477,25 +514,26 @@
                     <table class="table table-hover table-striped mb-0">
                         <thead>
                         <tr>
-                            <th style="width: 40px;">ID</th>
-                            <th style="width: 100px;">Date</th>
+                            <th class="text-center" style="width: 40px;">ID</th>
+                            <th style="width: 90px;">Date</th>
                             <th style="width: 120px;">Order ID</th>
-                            <th style="width: 120px;">Production ID</th>
-                            <th style="width: 120px;">OMS ID</th>
+                            <th style="width: 100px;">Prod. ID</th>
+                            <th style="width: 100px;">OMS ID</th>
                             <th>Client</th>
                             <th style="width: 100px;">Action</th>
                             <th>Print Type</th>
                             <th style="width: 70px;">Colors</th>
-                            <th style="width: 70px;">Articles</th>
-                            <th style="width: 90px;">Complexity</th>
-                            <th>Observations</th>
-                            <th style="width: 90px;">Admin Sync</th>
-                            <th style="width: 90px; min-width: 90px;">Actions</th>
+                            <th style="width: 40px;">Art</th>
+                            <th style="width: 40px;">CG</th>
+                            <th>Obs</th>
+                            <th style="width: 90px;">A.Sync</th>
+                            <th style="width: 60px;">Mod</th>
                         </tr>
+
                         </thead>
                         <tbody>
                         <tr th:each="entry : ${entries}">
-                            <td th:text="${entry.entryId}"></td>
+                            <td class="text-center" th:text="${entry.entryId}"></td>
                             <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
                             <td th:text="${entry.orderId}"></td>
                             <td th:text="${entry.productionId}"></td>
@@ -508,46 +546,60 @@
                             <td th:text="${entry.graphicComplexity}"></td>
                             <td th:text="${entry.observations}"></td>
                             <td>
-                                <span th:switch="${entry.adminSync}">
-                                    <span th:case="'ADMIN_EDITED'"
-                                          class="badge bg-info">Edited</span>
-                                    <span th:case="'USER_INPUT'"
-                                          class="badge bg-secondary">In Process</span>
-                                    <span th:case="'USER_DONE'"
-                                          class="badge bg-success">Synced</span>
-                                </span>
+                                    <span th:switch="${entry.adminSync}">
+                                        <span th:case="'ADMIN_EDITED'" class="badge bg-info">Edited</span>
+                                        <span th:case="'USER_INPUT'" class="badge bg-secondary">In Process</span>
+                                        <span th:case="'USER_DONE'" class="badge bg-success">Synced</span>
+                                    </span>
                             </td>
                             <td class="text-nowrap">
-                                <div class="btn-group">
-                                    <!-- Edit button -->
-                                    <a href="#"
-                                       class="btn btn-sm btn-outline-primary edit-entry"
-                                       th:data-entry-id="${entry.entryId}"
-                                       th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
-                                       th:data-order-id="${entry.orderId}"
-                                       th:data-production-id="${entry.productionId}"
-                                       th:data-oms-id="${entry.omsId}"
-                                       th:data-client-name="${entry.clientName}"
-                                       th:data-action-type="${entry.actionType}"
-                                       th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
-                                       th:data-colors-profile="${entry.colorsProfile}"
-                                       th:data-article-numbers="${entry.articleNumbers}"
-                                       th:data-graphic-complexity="${entry.graphicComplexity}"
-                                       th:data-observations="${entry.observations}">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
-                                    <!-- Delete button  -->
-                                    <form th:action="@{/user/register/delete}"
-                                          method="post"
-                                          style="display: inline;">
-                                        <input type="hidden" name="entryId" th:value="${entry.entryId}"/>
-                                        <input type="hidden" name="year" th:value="${currentYear}"/>
-                                        <input type="hidden" name="month" th:value="${currentMonth}"/>
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('Are you sure you want to delete this entry?')">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+                                <div class="d-flex flex-column align-items-center">
+                                    <div class="btn-group-vertical mb-1">
+                                        <a href="#"
+                                           class="btn btn-sm btn-outline-primary edit-entry btn-custom-outline d-flex align-items-center justify-content-center"
+                                           th:data-entry-id="${entry.entryId}"
+                                           th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                           th:data-order-id="${entry.orderId}"
+                                           th:data-production-id="${entry.productionId}"
+                                           th:data-oms-id="${entry.omsId}"
+                                           th:data-client-name="${entry.clientName}"
+                                           th:data-action-type="${entry.actionType}"
+                                           th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
+                                           th:data-colors-profile="${entry.colorsProfile}"
+                                           th:data-article-numbers="${entry.articleNumbers}"
+                                           th:data-graphic-complexity="${entry.graphicComplexity}"
+                                           th:data-observations="${entry.observations}">
+                                            <i class="bi bi-pencil me-1"></i>
+                                        </a>
+                                        <a href="#"
+                                           class="btn btn-sm btn-outline-secondary copy-entry btn-custom-outline d-flex align-items-center justify-content-center"
+                                           th:data-entry-id="${entry.entryId}"
+                                           th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                           th:data-order-id="${entry.orderId}"
+                                           th:data-production-id="${entry.productionId}"
+                                           th:data-oms-id="${entry.omsId}"
+                                           th:data-client-name="${entry.clientName}"
+                                           th:data-action-type="${entry.actionType}"
+                                           th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
+                                           th:data-colors-profile="${entry.colorsProfile}"
+                                           th:data-article-numbers="${entry.articleNumbers}"
+                                           th:data-graphic-complexity="${entry.graphicComplexity}"
+                                           th:data-observations="${entry.observations}">
+                                            <i class="bi bi-copy me-1"></i>
+                                        </a>
+                                        <form th:action="@{/user/register/delete}"
+                                              method="post"
+                                              class="w-100">
+                                            <input type="hidden" name="entryId" th:value="${entry.entryId}"/>
+                                            <input type="hidden" name="year" th:value="${currentYear}"/>
+                                            <input type="hidden" name="month" th:value="${currentMonth}"/>
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-danger w-100 btn-custom-outline d-flex align-items-center justify-content-center"
+                                                    onclick="return confirm('Are you sure you want to delete this entry?')">
+                                                <i class="bi bi-trash me-1"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -663,6 +715,51 @@
                         }
                     }
 
+                    copyEntry(button) {
+                        // Clear the form first
+                        this.resetForm();
+
+                        // Populate form with original entry's data
+                        const fields = [
+                            'date', 'orderId', 'productionId', 'omsId', 'clientName',
+                            'actionType', 'colorsProfile', 'articleNumbers',
+                            'graphicComplexity', 'observations'
+                        ];
+
+                        fields.forEach(field => {
+                            const input = this.form.querySelector(`[name="${field}"]`);
+                            if (input) {
+                                const value = button.getAttribute(`data-${field.replace(/([A-Z])/g, '-$1').toLowerCase()}`) || '';
+                                input.value = value;
+                            }
+                        });
+
+                        // Handle print prep types
+                        const printPrepTypesStr = button.getAttribute('data-print-prep-types');
+                        if (printPrepTypesStr) {
+                            const printPrepTypes = [...new Set(
+                                printPrepTypesStr.split(', ')
+                                    .map(type => type.trim())
+                                    .filter(type => type)
+                            )];
+                            $(this.printPrepSelect).val(printPrepTypes).trigger('change');
+                        }
+
+                        // Optionally modify some fields for a new entry
+                        // For example, reset the date to today or change action type
+                        const dateInput = this.form.querySelector('input[name="date"]');
+                        if (dateInput) {
+                            dateInput.value = new Date().toISOString().split('T')[0];
+                        }
+
+                        // Update calculated fields
+                        this.autoFillColors();
+                        this.updateComplexityField();
+
+                        // Scroll to form
+                        this.scrollToForm();
+                    }
+
                     setupEventListeners() {
                         // Form submission
                         this.form.addEventListener('submit', (e) => this.handleSubmit(e));
@@ -676,6 +773,14 @@
                         // Print prep type changes
                         $(this.printPrepSelect).on('change', () => {
                             this.updateComplexityField();
+                        });
+
+                        // Copy button handlers
+                        document.querySelectorAll('.copy-entry').forEach(button => {
+                            button.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                this.copyEntry(button);
+                            });
                         });
 
                         // Edit button handlers
@@ -1114,10 +1219,157 @@
                     }
                 }
 
+                class RegisterSearchHandler {
+                    constructor() {
+                        this.modal = document.getElementById('searchModal');
+                        this.searchInput = document.getElementById('searchInput');
+                        this.resultsContainer = document.getElementById('searchResultsContainer');
+                        this.allEntries = this.extractEntriesFromTable();
+                        this.setupEventListeners();
+                    }
+
+                    extractEntriesFromTable() {
+                        const entries = [];
+                        document.querySelectorAll('.table tbody tr').forEach(row => {
+                            // Skip the empty state row
+                            if (row.querySelector('.text-muted')) return;
+
+                            const cells = row.cells;
+                            if (cells.length < 10) return;
+
+                            const entry = {
+                                date: cells[1].textContent.trim(),
+                                orderId: cells[2].textContent.trim(),
+                                productionId: cells[3].textContent.trim(),
+                                omsId: cells[4].textContent.trim(),
+                                clientName: cells[5].textContent.trim(),
+                                actionType: cells[6].textContent.trim(),
+                                printPrepTypes: cells[7].textContent.trim(),
+                                colorsProfile: cells[8].textContent.trim(),
+                                articleNumbers: cells[9].textContent.trim(),
+                                graphicComplexity: cells[10].textContent.trim(),
+                                observations: cells[11].textContent.trim(),
+                                entryId: row.querySelector('.copy-entry')?.getAttribute('data-entry-id'),
+                                rawRow: row
+                            };
+
+                            entries.push(entry);
+                        });
+                        return entries;
+                    }
+
+                    setupEventListeners() {
+                        // Add global keydown listener for search modal
+                        document.addEventListener('keydown', (e) => {
+                            if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+                                e.preventDefault();
+                                this.openSearchModal();
+                            }
+                            if (e.key === 'Escape') {
+                                this.closeSearchModal();
+                            }
+                        });
+
+                        // Search input listener
+                        this.searchInput.addEventListener('input', () => this.performSearch());
+
+                        // Close modal when clicking outside
+                        this.modal.addEventListener('click', (e) => {
+                            if (e.target === this.modal) {
+                                this.closeSearchModal();
+                            }
+                        });
+                    }
+
+                    openSearchModal() {
+                        this.modal.classList.add('show');
+                        this.searchInput.focus();
+                    }
+
+                    closeSearchModal() {
+                        this.modal.classList.remove('show');
+                        this.searchInput.value = '';
+                        this.resultsContainer.innerHTML = '';
+                    }
+
+                    performSearch() {
+                        const query = this.searchInput.value.toLowerCase().trim();
+
+                        // If query is empty, clear results
+                        if (!query) {
+                            this.resultsContainer.innerHTML = '';
+                            return;
+                        }
+
+                        // Filter entries based on order ID or client name
+                        const matchingEntries = this.allEntries.filter(entry =>
+                        entry.orderId.toLowerCase().includes(query) ||
+                        entry.clientName.toLowerCase().includes(query)
+                        );
+
+                        // Display results
+                        this.displaySearchResults(matchingEntries);
+                    }
+
+                    displaySearchResults(entries) {
+                        // Clear previous results
+                        this.resultsContainer.innerHTML = '';
+
+                        // If no results
+                        if (entries.length === 0) {
+                            this.resultsContainer.innerHTML = `
+                            <div class="p-3 text-center text-muted">
+                                No entries found matching your search.
+                            </div>
+                        `;
+                            return;
+                        }
+
+                        // Render results
+                        entries.forEach(entry => {
+                            const resultRow = document.createElement('div');
+                            resultRow.classList.add('search-result-row');
+                            resultRow.innerHTML = `
+                            <div>${entry.date}</div>
+                            <div>${entry.orderId}</div>
+                            <div>${entry.clientName}</div>
+                            <div>${entry.actionType}</div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary copy-search-entry"
+                                    data-entry-id="${entry.entryId}"
+                                    data-date="${entry.date}"
+                                    data-order-id="${entry.orderId}"
+                                    data-production-id="${entry.productionId}"
+                                    data-oms-id="${entry.omsId}"
+                                    data-client-name="${entry.clientName}"
+                                    data-action-type="${entry.actionType}"
+                                    data-print-prep-types="${entry.printPrepTypes}"
+                                    data-colors-profile="${entry.colorsProfile}"
+                                    data-article-numbers="${entry.articleNumbers}"
+                                    data-graphic-complexity="${entry.graphicComplexity}"
+                                    data-observations="${entry.observations}">
+                                    <i class="bi bi-copy"></i> Copy
+                                </button>
+                            </div>
+                        `;
+
+                            // Add click event to copy entry
+                            resultRow.querySelector('.copy-search-entry').addEventListener('click', (e) => {
+                                e.preventDefault();
+                                window.registerFormHandler.copyEntry(e.currentTarget);
+                                this.closeSearchModal();
+                            });
+
+                            this.resultsContainer.appendChild(resultRow);
+                        });
+                    }
+                }
+
                 // Initialize on DOM load
                 document.addEventListener('DOMContentLoaded', () => {
                     window.registerFormHandler = new RegisterFormHandler();
                     window.registerSummaryHandler = new RegisterSummaryHandler();
+                    window.registerSearchHandler = new RegisterSearchHandler();
                 });
             </script>
         </th:block>
