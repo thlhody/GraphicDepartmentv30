@@ -10,7 +10,6 @@ import java.nio.file.Path;
 @Service
 public class FileBackupService {
 
-
     public void createBackup(Path originalPath) {
         if (!Files.exists(originalPath)) {
             LoggerUtil.warn(this.getClass(), "Cannot create backup - original file does not exist: " + originalPath);
@@ -58,7 +57,7 @@ public class FileBackupService {
         }
     }
 
-    private Path getBackupPath(Path originalPath) {
+    public Path getBackupPath(Path originalPath) {
         return originalPath.resolveSibling(originalPath.getFileName() + WorkCode.BACKUP_EXTENSION);
     }
 }

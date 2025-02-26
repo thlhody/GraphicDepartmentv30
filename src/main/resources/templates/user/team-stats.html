@@ -99,6 +99,56 @@
             margin-bottom: 1rem;
             color: #dee2e6;
         }
+        /* Action-Specific Colors - matching the register.html styles */
+        .bg-order {
+            background-color: #007bff; /* Blue */
+        }
+
+        .bg-reorder {
+            background-color: #6c757d; /* Gray */
+        }
+
+        .bg-sample {
+            background-color: #28a745; /* Green */
+        }
+
+        .bg-strikeoff {
+            background-color: #ffc107; /* Yellow */
+            color: #212529; /* Dark text for contrast */
+        }
+
+        .bg-designs {
+            background-color: #dc3545; /* Red */
+        }
+
+        .bg-other {
+            background-color: #6f42c1; /* Purple */
+        }
+
+        .bg-layout {
+            background-color: #17a2b8; /* Teal */
+        }
+
+        /* Additional action type colors you need */
+        .bg-spized {
+            background-color: #20c997; /* Teal-green */
+        }
+
+        .bg-color-sample {
+            background-color: #fd7e14; /* Orange */
+        }
+
+        .bg-color-palette {
+            background-color: #e83e8c; /* Pink */
+        }
+
+        .bg-designs-3d {
+            background-color: #b02a37; /* Darker red */
+        }
+
+        .bg-pattern {
+            background-color: #0dcaf0; /* Light blue */
+        }
     </style>
 </head>
 <body>
@@ -134,7 +184,7 @@
                 <form class="d-flex gap-3 align-items-center">
                     <div class="d-flex align-items-center gap-2">
                         <label for="yearSelect" class="form-label mb-0">Year:</label>
-                        <select id="yearSelect" name="year" class="form-select form-select-sm" style="width: auto;">
+                        <select id="yearSelect" name="year" class="form-select form-select-sm" style="width: 72px;">
                             <option th:each="y : ${#numbers.sequence(2020, 2030)}"
                                     th:value="${y}" th:text="${y}"
                                     th:selected="${y == currentYear}">2024</option>
@@ -256,6 +306,26 @@
                                 <span class="fw-bold" th:text="${#temporals.format(member.currentMonthWorkStats.averageEndTime, 'HH:mm')}">00:00</span>
                             </div>
                         </div>
+                        <!-- Time Off Types -->
+                        <div class="col-12">
+                            <div class="d-flex gap-3 mt-2">
+                                <span class="text-muted">Time Off Types:</span>
+                                <span th:if="${member.timeOffList?.timeOffCO != null && !member.timeOffList.timeOffCO.empty}"
+                                      class="badge bg-info me-2"
+                                      th:text="${'CO: ' + member.timeOffList.timeOffCO[0]?.days?.size() + ' days'}">CO: 2 days</span>
+                                <span th:if="${member.timeOffList?.timeOffCM != null && !member.timeOffList.timeOffCM.empty}"
+                                      class="badge bg-danger me-2"
+                                      th:text="${'CM: ' + member.timeOffList.timeOffCM[0]?.days?.size() + ' days'}">CM: 1 day</span>
+                                <span th:if="${member.timeOffList?.timeOffSN != null && !member.timeOffList.timeOffSN.empty}"
+                                      class="badge bg-warning me-2"
+                                      th:text="${'SN: ' + member.timeOffList.timeOffSN[0]?.days?.size() + ' days'}">SN: 1 day</span>
+                                <span th:if="${(member.timeOffList == null) ||
+                                             (member.timeOffList.timeOffCO == null || member.timeOffList.timeOffCO.empty) &&
+                                             (member.timeOffList.timeOffCM == null || member.timeOffList.timeOffCM.empty) &&
+                                             (member.timeOffList.timeOffSN == null || member.timeOffList.timeOffSN.empty)}"
+                                      class="text-muted">No time off</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -280,7 +350,19 @@
                                     <td th:text="${#numbers.formatDecimal(entry.value.averageComplexity, 1, 2)}">0.00</td>
                                     <td th:text="${#numbers.formatDecimal(entry.value.averageArticleNumbers, 1, 2)}">0.00</td>
                                     <td>
-                                            <span th:each="actionStat : ${entry.value.actionTypeStats}" class="badge bg-secondary me-1">
+                                            <span th:each="actionStat : ${entry.value.actionTypeStats}"
+                                                  th:class="${'badge me-1 ' +
+                                                  (actionStat.key == 'ORDIN' ? 'bg-order' :
+                                                   actionStat.key == 'REORDIN' ? 'bg-reorder' :
+                                                   actionStat.key == 'CAMPION' ? 'bg-sample' :
+                                                   actionStat.key == 'PROBA STAMPA' ? 'bg-strikeoff' :
+                                                   actionStat.key == 'ORD SPIZED' ? 'bg-spized' :
+                                                   actionStat.key == 'PROBA CULOARE' ? 'bg-color-sample' :
+                                                   actionStat.key == 'CARTELA CULORI' ? 'bg-color-palette' :
+                                                   actionStat.key == 'DESIGN' ? 'bg-designs' :
+                                                   actionStat.key == 'DESIGN 3D' ? 'bg-designs-3d' :
+                                                   actionStat.key == 'PATTERN PREP' ? 'bg-pattern' :
+                                                   actionStat.key == 'IMPOSTARE' ? 'bg-layout' : 'bg-other')}">
                                                 <span th:text="${actionStat.key + ': ' + actionStat.value.count}">Type: 0</span>
                                             </span>
                                     </td>

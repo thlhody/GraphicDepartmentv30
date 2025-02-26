@@ -151,11 +151,6 @@ public class NetworkMonitorService {
         }
     }
 
-    @PreDestroy
-    public void shutdown() {
-        stopMonitoring();
-    }
-
     public void startMonitoring() {
         if (!isRunning) {
             isRunning = true;
@@ -182,7 +177,6 @@ public class NetworkMonitorService {
         }
         LoggerUtil.info(this.getClass(), "Network monitoring stopped");
     }
-
 
     @Scheduled(fixedDelayString = "${app.sync.interval:300000}")
     public void checkNetworkStatus() {
@@ -267,18 +261,9 @@ public class NetworkMonitorService {
             }
         }
     }
-    public void registerNetworkStatusListener(NetworkStatusListener listener) {
-        if (!statusListeners.contains(listener)) {
-            statusListeners.add(listener);
-            LoggerUtil.debug(this.getClass(), "Registered new network status listener");
-        }
-    }
 
-    public void unregisterNetworkStatusListener(NetworkStatusListener listener) {
-        statusListeners.remove(listener);
-    }
-
-    public boolean isNetworkAvailable() {
-        return lastKnownNetworkStatus;
+    @PreDestroy
+    public void shutdown() {
+        stopMonitoring();
     }
 }

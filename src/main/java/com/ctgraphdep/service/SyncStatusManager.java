@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.SyncStatus;
 import com.ctgraphdep.utils.LoggerUtil;
+import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,9 +18,6 @@ import java.util.stream.Collectors;
 @Service
 public class SyncStatusManager {
 
-    @Value("${app.sync.retry.max:3}")
-    private int maxRetries;
-
     @Value("${app.sync.retry.delay:3600000}")
     private long retryDelay;
 
@@ -31,55 +29,6 @@ public class SyncStatusManager {
         this.pathConfig = pathConfig;
         this.fileSyncService = fileSyncService;
         LoggerUtil.initialize(this.getClass(), null);
-    }
-
-    public void trackSync(String filename, Path localPath, Path networkPath) {
-        SyncStatus status = new SyncStatus(localPath, networkPath);
-        status.setLastAttempt(LocalDateTime.now());
-        status.setSyncPending(true);
-        syncStatusMap.put(filename, status);
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Started tracking sync for file: %s", filename));
-    }
-
-    public void markSyncSuccess(String filename) {
-        SyncStatus status = syncStatusMap.get(filename);
-        if (status != null) {
-            status.setLastSuccessfulSync(LocalDateTime.now());
-            status.setSyncPending(false);
-            status.resetRetryCount();
-            status.setErrorMessage(null);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Sync successful for file: %s", filename));
-        }
-    }
-
-    public void markSyncFailure(String filename, String errorMessage) {
-        SyncStatus status = syncStatusMap.get(filename);
-        if (status != null) {
-            status.incrementRetryCount();
-            status.setErrorMessage(errorMessage);
-
-            LoggerUtil.error(this.getClass(),
-                    String.format("Sync failed for file %s: %s (Attempt %d/%d)",
-                            filename, errorMessage, status.getRetryCount(), maxRetries));
-
-            if (status.getRetryCount() >= maxRetries) {
-                scheduleRetryAfterDelay(filename);
-            }
-        }
-    }
-
-    private void scheduleRetryAfterDelay(String filename) {
-        SyncStatus status = syncStatusMap.get(filename);
-        if (status != null) {
-            status.resetRetryCount();
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Scheduling retry after delay for file: %s", filename));
-        }
     }
 
     @Scheduled(fixedRate = 300000) // Run every 5 minutes
@@ -124,31 +73,7 @@ public class SyncStatusManager {
                 .collect(Collectors.toSet());
     }
 
-    public boolean isSyncPending(String filename) {
-        SyncStatus status = syncStatusMap.get(filename);
-        return status != null && status.isSyncPending();
-    }
-
-    public String getSyncError(String filename) {
-        SyncStatus status = syncStatusMap.get(filename);
-        return status != null ? status.getErrorMessage() : null;
-    }
-
-    public LocalDateTime getLastSuccessfulSync(String filename) {
-        SyncStatus status = syncStatusMap.get(filename);
-        return status != null ? status.getLastSuccessfulSync() : null;
-    }
-
-    public void clearSyncStatus(String filename) {
-        syncStatusMap.remove(filename);
-        LoggerUtil.info(this.getClass(),
-                String.format("Cleared sync status for file: %s", filename));
-    }
-
-    public Map<String, SyncStatus> getSyncStatusSnapshot() {
-        return new ConcurrentHashMap<>(syncStatusMap);
-    }
-
+    @PreDestroy
     public void clearAll() {
         syncStatusMap.clear();
         LoggerUtil.info(this.getClass(), "Cleared all sync statuses");

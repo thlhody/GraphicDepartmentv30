@@ -20,8 +20,10 @@ public class FileSyncService {
     private long retryDelay; // Default 1 hour
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private final FileBackupService backupService;
 
-    public FileSyncService() {
+    public FileSyncService(FileBackupService backupService) {
+        this.backupService = backupService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -33,18 +35,27 @@ public class FileSyncService {
         try {
             // Ensure network parent directory exists
             Files.createDirectories(networkPath.getParent());
-            LoggerUtil.debug(this.getClass(), "Created network directories");
 
-            // Copy file with replace option
+            // Step 1: First write the local file as a backup on the network
+            Path backupPath = backupService.getBackupPath(networkPath);
+            Files.copy(localPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
+            LoggerUtil.debug(this.getClass(), "Created backup on network: " + backupPath);
+
+            // Step 2: Then replace the actual network file
             Files.copy(localPath, networkPath, StandardCopyOption.REPLACE_EXISTING);
+            LoggerUtil.debug(this.getClass(), "Updated main file on network: " + networkPath);
+
+            // Step 3: If all went well, delete the backup file
+            Files.deleteIfExists(backupPath);
             LoggerUtil.info(this.getClass(), "File sync completed successfully");
 
         } catch (Exception e) {
+            // If any part fails, log the error but don't delete backup
             LoggerUtil.error(this.getClass(),
                     String.format("Failed to sync file: %s", e.getMessage()), e);
-            throw new RuntimeException("Failed to sync file: " + e.getMessage(), e);
         }
     }
+
 
     @PreDestroy
     public void shutdown() {

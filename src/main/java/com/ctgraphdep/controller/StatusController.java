@@ -15,6 +15,7 @@ import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.UserTimeOffService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserRegisterExcelExporter;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -97,8 +98,8 @@ public class StatusController extends BaseController {
     public String registerSearch(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) String searchTerm,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false) String printPrepType,
             @RequestParam(required = false) String clientName,
@@ -108,68 +109,63 @@ public class StatusController extends BaseController {
             Model model) {
 
         try {
+            // Get the current user and determine the target user
             User currentUser = getUser(userDetails);
-            User targetUser;
-
-            // Determine which user's register to search
-            if (username != null && !username.isEmpty()) {
-                // For admin/team leader - can search any user's register
-                if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                    targetUser = getUserService().getUserByUsername(username)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
-                } else {
-                    // Regular users can only search their own register
-                    if (!username.equals(currentUser.getUsername())) {
-                        return "redirect:/status/register-search";
-                    }
-                    targetUser = currentUser;
-                }
-            } else {
-                // Default to current user
-                targetUser = currentUser;
-            }
+            User targetUser = determineTargetUser(currentUser, username);
 
             // Add user info to model
             model.addAttribute("user", targetUser);
 
-            // Add available action types and print prep types to model
+            // Add reference data for dropdowns
             model.addAttribute("actionTypes", ActionType.getValues());
             model.addAttribute("printPrepTypes", PrintPrepType.getValues());
 
-            // Don't search if no search parameters provided
-            if (isSearchRequest(searchTerm, startDate, endDate, actionType, printPrepType, clientName, year, month)) {
-                // Load all relevant entries first
-                List<RegisterEntry> allEntries = loadAllRelevantEntries(targetUser, year, month, startDate, endDate);
+            // Get current date for defaults
+            LocalDate now = LocalDate.now();
 
-                // Apply filters
-                List<RegisterEntry> filteredEntries = filterEntries(allEntries, searchTerm, startDate, endDate,
-                        actionType, printPrepType, clientName);
+            // Determine the requested period
+            int displayYear = (year != null) ? year : now.getYear();
+            int displayMonth = (month != null) ? month : now.getMonthValue();
 
-                // Add results to model
-                model.addAttribute("entries", filteredEntries);
+            // Set current period for the UI
+            model.addAttribute("currentYear", displayYear);
+            model.addAttribute("currentMonth", displayMonth);
 
-                // Add unique client names for dropdown
-                Set<String> clients = extractUniqueClients(allEntries);
-                model.addAttribute("clients", clients);
+            // Load appropriate entries based on search parameters
+            List<RegisterEntry> entries;
+            boolean isSearching = hasSearchCriteria(searchTerm, startDate, endDate, actionType, printPrepType, clientName);
+
+            if (isSearching) {
+                // Load entries based on search criteria
+                entries = loadEntriesForSearch(targetUser, searchTerm, startDate, endDate,
+                        actionType, printPrepType, clientName, year, month, displayYear, displayMonth);
 
                 LoggerUtil.info(this.getClass(),
                         String.format("Register search completed for user %s: found %d entries",
-                                targetUser.getUsername(), filteredEntries.size()));
+                                targetUser.getUsername(), entries.size()));
             } else {
-                // Load a small set of entries to extract client names for dropdown
-                List<RegisterEntry> recentEntries = loadRecentEntries(targetUser);
-                Set<String> clients = extractUniqueClients(recentEntries);
-                model.addAttribute("clients", clients);
+                // No search criteria - just load the current display period
+                entries = loadEntriesForPeriod(targetUser, displayYear, displayMonth);
 
                 LoggerUtil.info(this.getClass(),
-                        String.format("Register search page accessed by user %s", targetUser.getUsername()));
+                        String.format("Displaying register entries for user %s (%d/%d): %d entries",
+                                targetUser.getUsername(), displayYear, displayMonth, entries.size()));
             }
+
+            // Add entries to model
+            model.addAttribute("entries", entries);
+
+            // Extract unique clients for dropdown (from current period if not searching)
+            List<RegisterEntry> clientSourceEntries = isSearching ? entries : loadEntriesForPeriod(targetUser, displayYear, displayMonth);
+            Set<String> clients = extractUniqueClients(clientSourceEntries);
+            model.addAttribute("clients", clients);
 
             return "status/register-search";
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in register search: " + e.getMessage(), e);
             model.addAttribute("errorMessage", "Error processing register search: " + e.getMessage());
+            model.addAttribute("entries", new ArrayList<>());
             return "status/register-search";
         }
     }
@@ -193,15 +189,8 @@ public class StatusController extends BaseController {
 
             // Determine which user's register to export
             if (username != null && !username.isEmpty()) {
-                if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                    targetUser = getUserService().getUserByUsername(username)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
-                } else {
-                    if (!username.equals(currentUser.getUsername())) {
-                        return ResponseEntity.badRequest().build();
-                    }
-                    targetUser = currentUser;
-                }
+                targetUser = getUserService().getUserByUsername(username)
+                        .orElseThrow(() -> new RuntimeException("User not found"));
             } else {
                 targetUser = currentUser;
             }
@@ -291,13 +280,79 @@ public class StatusController extends BaseController {
 
     // Helper methods
 
-    private boolean isSearchRequest(String searchTerm, LocalDate startDate, LocalDate endDate,
-                                    String actionType, String printPrepType, String clientName,
-                                    Integer year, Integer month) {
-        return searchTerm != null || startDate != null || endDate != null ||
-                actionType != null || printPrepType != null || clientName != null ||
-                year != null || month != null;
+    // Helper to determine target user based on permissions
+    private User determineTargetUser(User currentUser, String requestedUsername) {
+        if (requestedUsername == null || requestedUsername.isEmpty()) {
+            return currentUser;
+        }
+
+        // Admin/team leader can view other users
+        if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
+            return getUserService().getUserByUsername(requestedUsername)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+        }
+        // Regular users can only see their own data
+        else if (requestedUsername.equals(currentUser.getUsername())) {
+            return currentUser;
+        }
+        // Attempted to access unauthorized data
+        else {
+            throw new SecurityException("Not authorized to view this user's register");
+        }
     }
+
+    // Helper to check if any search criteria are present
+    private boolean hasSearchCriteria(String searchTerm, LocalDate startDate, LocalDate endDate,
+                                      String actionType, String printPrepType, String clientName) {
+        return (searchTerm != null && !searchTerm.trim().isEmpty()) ||
+                startDate != null || endDate != null ||
+                (actionType != null && !actionType.trim().isEmpty()) ||
+                (printPrepType != null && !printPrepType.trim().isEmpty()) ||
+                (clientName != null && !clientName.trim().isEmpty());
+    }
+
+    // Helper to load entries for a specific period
+    private List<RegisterEntry> loadEntriesForPeriod(User user, int year, int month) {
+        List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
+                user.getUsername(), user.getUserId(), year, month);
+
+        return entries != null ? entries : new ArrayList<>();
+    }
+
+    // Helper to load and filter entries based on search criteria
+    private List<RegisterEntry> loadEntriesForSearch(User user, String searchTerm, LocalDate startDate,
+                                                     LocalDate endDate, String actionType, String printPrepType,
+                                                     String clientName, Integer requestedYear, Integer requestedMonth,
+                                                     int displayYear, int displayMonth) {
+
+        List<RegisterEntry> entriesToSearch;
+
+        // Case 1: Date range specified that spans multiple months
+        if (startDate != null && endDate != null && !YearMonth.from(startDate).equals(YearMonth.from(endDate))) {
+            entriesToSearch = loadEntriesForDateRange(user, startDate, endDate);
+        }
+        // Case 2: Specific year/month requested different from display defaults
+        else if (requestedYear != null || requestedMonth != null) {
+            int searchYear = requestedYear != null ? requestedYear : displayYear;
+            int searchMonth = requestedMonth != null ? requestedMonth : displayMonth;
+            entriesToSearch = loadEntriesForPeriod(user, searchYear, searchMonth);
+        }
+        // Case 3: Use the current display period
+        else {
+            entriesToSearch = loadEntriesForPeriod(user, displayYear, displayMonth);
+        }
+
+        // Apply all filters
+        return filterEntries(
+                entriesToSearch,
+                searchTerm,
+                startDate,
+                endDate,
+                actionType,
+                printPrepType,
+                clientName);
+    }
+
 
     private List<RegisterEntry> loadAllRelevantEntries(User user, Integer year, Integer month,
                                                        LocalDate startDate, LocalDate endDate) {
@@ -402,33 +457,34 @@ public class StatusController extends BaseController {
         return allEntries;
     }
 
-    private List<RegisterEntry> loadRecentEntries(User user) {
-        List<RegisterEntry> recentEntries = new ArrayList<>();
-        LocalDate now = LocalDate.now();
+    // Helper method to load entries for a specific date range (might span multiple months)
+    private List<RegisterEntry> loadEntriesForDateRange(User user, LocalDate startDate, LocalDate endDate) {
+        List<RegisterEntry> allEntries = new ArrayList<>();
 
-        try {
-            // Current month
-            List<RegisterEntry> currentMonthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), now.getYear(), now.getMonthValue());
-            if (currentMonthEntries != null) {
-                recentEntries.addAll(currentMonthEntries);
+        YearMonth start = YearMonth.from(startDate);
+        YearMonth end = YearMonth.from(endDate);
+
+        YearMonth current = start;
+        while (!current.isAfter(end)) {
+            try {
+                List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
+                        user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+
+                if (monthEntries != null) {
+                    allEntries.addAll(monthEntries);
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Error loading entries for %s - %d/%d: %s",
+                                user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
             }
 
-            // Previous month
-            LocalDate prevMonth = now.minusMonths(1);
-            List<RegisterEntry> prevMonthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), prevMonth.getYear(), prevMonth.getMonthValue());
-            if (prevMonthEntries != null) {
-                recentEntries.addAll(prevMonthEntries);
-            }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("Error loading recent entries for %s: %s",
-                            user.getUsername(), e.getMessage()));
+            current = current.plusMonths(1);
         }
 
-        return recentEntries;
+        return allEntries;
     }
+
 
     private List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
                                               String searchTerm,

@@ -225,7 +225,7 @@
             </a>
         </div>
 
-        <!-- Search Form -->
+        <!-- Search Form - CORRECTED -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h5 class="card-title mb-0">Search Options</h5>
@@ -235,12 +235,16 @@
                     <!-- Search term -->
                     <div class="row mb-3">
                         <div class="col-md-6">
+                            <label for="searchTerm" class="form-label">Search terms</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="searchTerm" name="searchTerm"
                                        placeholder="Search by order ID, client, production ID..."
                                        th:value="${param.searchTerm}">
                                 <button class="btn btn-primary" type="submit">
                                     <i class="bi bi-search me-1"></i>Search
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="resetSearchBtn" onclick="resetSearch()">
+                                    <i class="bi bi-x-circle me-1"></i>Reset
                                 </button>
                             </div>
                         </div>
@@ -253,16 +257,21 @@
                         </div>
                     </div>
 
+                    <!-- Hidden fields for current period -->
+                    <input type="hidden" id="currentYear" name="currentYear" th:value="${currentYear}">
+                    <input type="hidden" id="currentMonth" name="currentMonth" th:value="${currentMonth}">
+
                     <!-- Advanced search options (initially hidden) -->
                     <div id="advancedOptions" class="mb-3" style="display: none;">
                         <div class="row">
                             <!-- Date range -->
                             <div class="col-md-6 mb-3">
-                                <label for="startDate" class="form-label">Date Range</label>
+                                <label for="startDate" class="form-label">From</label>
                                 <div class="input-group">
                                     <input type="date" class="form-control form-control-sm" id="startDate" name="startDate"
                                            th:value="${param.startDate}">
                                     <span class="input-group-text">to</span>
+                                    <label for="endDate" class="visually-hidden">To</label>
                                     <input type="date" class="form-control form-control-sm" id="endDate" name="endDate"
                                            th:value="${param.endDate}">
                                 </div>
@@ -320,7 +329,7 @@
                                     <option th:each="y : ${#numbers.sequence(2020, 2030)}"
                                             th:value="${y}"
                                             th:text="${y}"
-                                            th:selected="${param.year != null && param.year[0] == y}">
+                                            th:selected="${param.year != null && param.year[0] == y || (param.year == null && y == currentYear)}">
                                         2023
                                     </option>
                                 </select>
@@ -333,7 +342,7 @@
                                     <option th:each="m : ${#numbers.sequence(1, 12)}"
                                             th:value="${m}"
                                             th:text="${T(java.time.Month).of(m)}"
-                                            th:selected="${param.month != null && param.month[0] == m}">
+                                            th:selected="${param.month != null && param.month[0] == m || (param.month == null && m == currentMonth)}">
                                         January
                                     </option>
                                 </select>
@@ -352,48 +361,48 @@
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
 
-                <!-- Summary Statistics (similar to register page) -->
-                <div class="mt-4" th:if="${entries != null && !entries.empty}">
-                    <h5 class="mb-3">Search Results Summary</h5>
-                    <div class="card">
-                        <div class="card-body">
-                            <!-- Action Types - Single line -->
-                            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                                <h6 class="card-subtitle mb-0 me-3">Action Types:</h6>
-                                <div class="d-flex flex-wrap gap-2">
-                                    <span class="badge bg-order">ORDIN: <span id="count-ordin">0</span></span>
-                                    <span class="badge bg-reorder">REORDIN: <span id="count-reordin">0</span></span>
-                                    <span class="badge bg-sample">CAMPION: <span id="count-campion">0</span></span>
-                                    <span class="badge bg-strikeoff">PROBA STAMPA: <span id="count-proba-stampa">0</span></span>
-                                    <span class="badge bg-designs">DESIGN: <span id="count-design">0</span></span>
-                                    <span class="badge bg-other">ALTELE: <span id="count-others">0</span></span>
-                                    <span class="badge bg-layout">IMPOSTARE: <span id="count-impostare">0</span></span>
-                                </div>
-                            </div>
+        <!-- Summary Statistics Card -->
+        <div class="card shadow-sm mb-4" th:if="${entries != null && !entries.empty}">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Search Results Summary</h5>
+            </div>
+            <div class="card-body">
+                <!-- Action Types - Single line -->
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <h6 class="card-subtitle mb-0 me-3">Action Types:</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge bg-order">ORDIN: <span id="count-ordin">0</span></span>
+                        <span class="badge bg-reorder">REORDIN: <span id="count-reordin">0</span></span>
+                        <span class="badge bg-sample">CAMPION: <span id="count-campion">0</span></span>
+                        <span class="badge bg-strikeoff">PROBA STAMPA: <span id="count-proba-stampa">0</span></span>
+                        <span class="badge bg-designs">DESIGN: <span id="count-design">0</span></span>
+                        <span class="badge bg-other">ALTELE: <span id="count-others">0</span></span>
+                        <span class="badge bg-layout">IMPOSTARE: <span id="count-impostare">0</span></span>
+                    </div>
+                </div>
 
-                            <!-- Key Metrics - Single line -->
-                            <div class="d-flex flex-wrap align-items-center gap-4">
-                                <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
-                                <div class="d-flex flex-wrap gap-4">
-                                    <span>Total Results: <strong id="total-entries">0</strong></span>
-                                    <span>Total (No Impostare): <strong id="total-entries-no-impostare">0</strong></span>
-                                    <span>Avg Articles (No Impostare): <strong id="avg-articles">0.00</strong></span>
-                                    <span>Avg Complexity (No Impostare): <strong id="avg-complexity">0.00</strong></span>
-                                </div>
-                            </div>
-                        </div>
+                <!-- Key Metrics - Single line -->
+                <div class="d-flex flex-wrap align-items-center gap-4">
+                    <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
+                    <div class="d-flex flex-wrap gap-4">
+                        <span>Total Results: <strong id="total-entries">0</strong></span>
+                        <span>Total (No Impostare): <strong id="total-entries-no-impostare">0</strong></span>
+                        <span>Avg Articles (No Impostare): <strong id="avg-articles">0.00</strong></span>
+                        <span>Avg Complexity (No Impostare): <strong id="avg-complexity">0.00</strong></span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Results Table -->
+        <!-- Results Table - CORRECTED -->
         <div class="card shadow-sm">
             <div class="card-header bg-transparent">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center">
-                        <h5 class="card-title mb-0">Search Results</h5>
+                        <h5 class="card-title mb-0">Register Entries</h5>
                         <span class="badge bg-primary ms-2" th:if="${entries != null}">
                             <span th:text="${entries.size()}">0</span> entries found
                         </span>
@@ -453,7 +462,7 @@
                     </table>
 
                     <!-- Empty State for search results -->
-                    <div th:if="${entries == null || entries.empty}" class="empty-state">
+                    <div th:if="${entries != null && entries.empty}" class="empty-state">
                         <div class="text-muted">
                             <i class="bi bi-search"></i>
                             <h5 class="mt-3">No Results Found</h5>
@@ -461,12 +470,12 @@
                         </div>
                     </div>
 
-                    <!-- Default state before any search -->
+                    <!-- Loading state -->
                     <div th:if="${entries == null}" class="empty-state">
                         <div class="text-muted">
-                            <i class="bi bi-search"></i>
-                            <h5 class="mt-3">Enter Search Criteria</h5>
-                            <p>Use the search form above to find register entries.</p>
+                            <i class="bi bi-hourglass-split"></i>
+                            <h5 class="mt-3">Loading Register Entries</h5>
+                            <p>Please wait while we load your register entries...</p>
                         </div>
                     </div>
                 </div>
@@ -509,6 +518,38 @@
             calculateStats();
         });
 
+        // Function to load all entries for the current month/year
+        function loadAllEntries() {
+            // Get the current year and month from the hidden fields
+            const year = document.getElementById('currentYear').value;
+            const month = document.getElementById('currentMonth').value;
+
+            // Redirect to the same page with only year and month parameters
+            window.location.href = `/status/register-search?year=${year}&month=${month}`;
+        }
+
+        // Function to reset search
+        function resetSearch() {
+            // Get the current year and month from the hidden fields
+            const year = document.getElementById('currentYear').value;
+            const month = document.getElementById('currentMonth').value;
+
+            // Get the current URL parameters to preserve username
+            const urlParams = new URLSearchParams(window.location.search);
+            const username = urlParams.get('username');
+
+            // Construct the redirect URL
+            let redirectUrl = `/status/register-search?year=${year}&month=${month}`;
+
+            // Add username if present
+            if (username) {
+                redirectUrl += `&username=${username}`;
+            }
+
+            // Redirect to load entries with preserved username
+            window.location.href = redirectUrl;
+        }
+
         function hasAdvancedFilters() {
             // Check if any of the advanced search fields have values
             return (
@@ -517,8 +558,7 @@
             hasValue('actionType') ||
             hasValue('printPrepType') ||
             hasValue('clientName') ||
-            hasValue('year') ||
-            hasValue('month')
+            hasValue('searchTerm')
             );
         }
 
@@ -532,15 +572,32 @@
             document.getElementById('startDate').value = '';
             document.getElementById('endDate').value = '';
             document.getElementById('actionType').value = '';
-            document.getElementById('year').value = '';
-            document.getElementById('month').value = '';
+            document.getElementById('printPrepType').value = '';
+            document.getElementById('clientName').value = '';
+
+            // Get the current selected year and month from the dropdowns
+            const year = document.getElementById('year').value;
+            const month = document.getElementById('month').value;
 
             // Reset Select2 fields
-            $('#printPrepType').val(null).trigger('change');
-            $('#clientName').val(null).trigger('change');
+            if (typeof $ !== 'undefined' && $('.select2-input').length) {
+                $('.select2-input').val(null).trigger('change');
+            }
 
-            // Submit the form with just the search term
-            document.getElementById('searchForm').submit();
+            // Get username from current URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const username = urlParams.get('username');
+
+            // Construct the redirect URL
+            let redirectUrl = `/status/register-search?year=${year}&month=${month}`;
+
+            // Add username if present
+            if (username) {
+                redirectUrl += `&username=${username}`;
+            }
+
+            // Redirect with preserved username
+            window.location.href = redirectUrl;
         }
 
         function calculateStats() {
@@ -622,6 +679,22 @@
                 console.error('Error calculating stats:', error);
             }
         }
+
+        // Add event listener for the search form to handle submission
+        document.getElementById('searchForm').addEventListener('submit', function(event) {
+            // Validate date range if provided
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if ((startDate && !endDate) || (!startDate && endDate)) {
+                alert('Please provide both start and end dates for date range filtering');
+                event.preventDefault();
+                return false;
+            }
+
+            // Continue with form submission
+            return true;
+        });
     </script>
 </th:block>
 </body>

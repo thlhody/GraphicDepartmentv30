@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.team.TeamMember;
 import com.ctgraphdep.security.FileAccessSecurityRules;
@@ -49,17 +50,38 @@ public class DataAccessService {
         ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();
         readLock.lock();
         try {
-            if (!Files.exists(path) || Files.size(path) < 3) {
-                return null;
+            // Try to read the main file first
+            if (Files.exists(path) && Files.size(path) >= 3) {
+                try {
+                    byte[] content = Files.readAllBytes(path);
+//                    if (!skipSerialization) {
+//                        content = obfuscationService.deobfuscate(content);
+//                    }
+                    return objectMapper.readValue(content, typeRef);
+                } catch (Exception e) {
+                    // If main file read fails, try backup file
+                    LoggerUtil.warn(this.getClass(), "Error reading main file: " + e.getMessage());
+                }
             }
 
-            byte[] content = Files.readAllBytes(path);
+            // If main file doesn't exist or couldn't be read, try the backup
+            Path backupPath = path.resolveSibling(path.getFileName() + WorkCode.BACKUP_EXTENSION);
+            if (Files.exists(backupPath) && Files.size(backupPath) >= 3) {
+                try {
+                    LoggerUtil.info(this.getClass(), "Attempting to read from backup file: " + backupPath);
+                    byte[] content = Files.readAllBytes(backupPath);
+//                    if (!skipSerialization) {
+//                        content = obfuscationService.deobfuscate(content);
+//                    }
+                    return objectMapper.readValue(content, typeRef);
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), "Error reading backup file: " + e.getMessage());
+                }
+            }
 
-//            if (!skipSerialization) {
-//                content = obfuscationService.deobfuscate(content);
-//            }
+            // If we get here, neither main nor backup file could be read
+            return null;
 
-            return objectMapper.readValue(content, typeRef);
         } catch (IOException e) {
             LoggerUtil.logAndThrow(this.getClass(), "Error reading file: " + path, e);
             return null; // Unreachable but helps with compiler
@@ -119,10 +141,44 @@ public class DataAccessService {
         if (!pathConfig.isNetworkAvailable()) {
             throw new RuntimeException("Network not available");
         }
+
         String filename = path.getFileName().toString();
         boolean skipSerialization = filename.equals("users.json") ||
                 filename.equals("local_users.json");
-        return readFile(path, typeRef, skipSerialization);
+
+        try {
+            // Try to read the main file first
+            if (Files.exists(path) && Files.size(path) >= 3) {
+                try {
+                    byte[] content = Files.readAllBytes(path);
+//                    if (!skipSerialization) {
+//                        content = obfuscationService.deobfuscate(content);
+//                    }
+                    return objectMapper.readValue(content, typeRef);
+                } catch (Exception e) {
+                    // If main file read fails, log and continue to back up
+                    LoggerUtil.warn(this.getClass(), "Error reading network file: " + e.getMessage());
+                }
+            }
+
+            // If main file doesn't exist or couldn't be read, try the backup
+            Path backupPath = path.resolveSibling(path.getFileName() + WorkCode.BACKUP_EXTENSION);
+            if (Files.exists(backupPath) && Files.size(backupPath) >= 3) {
+                LoggerUtil.info(this.getClass(), "Reading from backup network file: " + backupPath);
+                byte[] content = Files.readAllBytes(backupPath);
+//                if (!skipSerialization) {
+//                    content = obfuscationService.deobfuscate(content);
+//                }
+                return objectMapper.readValue(content, typeRef);
+            }
+
+            // If we get here, neither main nor backup could be read
+            return null;
+
+        } catch (IOException e) {
+            LoggerUtil.logAndThrow(this.getClass(), "Error reading network file: " + path, e);
+            return null; // Unreachable but helps with compiler
+        }
     }
 
     private <T> void writeNetwork(Path path, T data) {
@@ -161,9 +217,7 @@ public class DataAccessService {
             return readNetwork(networkPath, new TypeReference<WorkUsersSessionsStates>() {
             });
         } catch (RuntimeException e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading network session for user status %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading network session for user status %s: %s", username, e.getMessage()));
             return null;
         }
     }
