@@ -8,8 +8,13 @@ import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,9 +48,22 @@ public class OnlineMetricsService {
                         !user.getUsername().equalsIgnoreCase("admin"))
                 .toList();
 
-        return regularUsers.stream()
-                .map(this::getUserStatus)
-                .collect(Collectors.toList());
+        // Get user statuses
+        List<UserStatusDTO> statuses = regularUsers.stream()
+                .map(this::getUserStatus).sorted(Comparator
+                        .comparing((UserStatusDTO dto) -> {
+                            // First level sorting - by status with custom order
+                            if (WorkCode.WORK_ONLINE.equals(dto.getStatus())) return 1;
+                            if (WorkCode.WORK_TEMPORARY_STOP.equals(dto.getStatus())) return 2;
+                            return 3; // All other statuses
+                        })
+                        .thenComparing(UserStatusDTO::getName, String.CASE_INSENSITIVE_ORDER)).collect(Collectors.toList());
+
+        // Custom sorting: First by status (Online, Temporary Stop, Others), then alphabetically by name
+
+        LoggerUtil.debug(this.getClass(), "Sorted user statuses by status and name");
+
+        return statuses;
     }
 
     private UserStatusDTO getUserStatus(User user) {
