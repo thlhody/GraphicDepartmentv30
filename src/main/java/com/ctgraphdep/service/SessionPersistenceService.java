@@ -25,11 +25,9 @@ public class SessionPersistenceService {
             // Write serialized session using DataAccessService
             dataAccess.writeLocalSessionFile(session);
 
-            LoggerUtil.info(this.getClass(),
-                    "Session persisted for user: " + session.getUsername());
+            LoggerUtil.info(this.getClass(), "Session persisted for user: " + session.getUsername());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Unexpected error persisting session for user " +
+            LoggerUtil.error(this.getClass(), "Unexpected error persisting session for user " +
                             (session != null ? session.getUsername() : "unknown"), e);
         }
     }

@@ -73,17 +73,75 @@ public class SessionMonitorService {
         }
     }
 
-
-
     private void startScheduledMonitoring() {
         // Cancel any existing task
         if (monitoringTask != null && !monitoringTask.isCancelled()) {
             monitoringTask.cancel(false);
         }
 
-        // Schedule new monitoring task
-        monitoringTask = taskScheduler.scheduleWithFixedDelay(this::checkActiveSessions, Duration.ofMinutes(WorkCode.CHECK_INTERVAL));
-        LoggerUtil.info(this.getClass(), "Scheduled monitoring task started");
+        // Calculate initial delay to align with the next half-hour mark
+        Duration initialDelay = calculateTimeToNextHalfHour();
+
+        // Schedule the first check
+        monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(initialDelay));
+
+        LoggerUtil.info(this.getClass(), String.format("Scheduled monitoring task to start in %d minutes and %d seconds",
+                        initialDelay.toMinutes(), initialDelay.toSecondsPart()));
+    }
+
+    private void runAndRescheduleMonitoring() {
+        try {
+            // Run the actual check
+            checkActiveSessions();
+
+            // Always reschedule for the next half-hour mark
+            Duration nextDelay = calculateTimeToNextHalfHour();
+            monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(nextDelay)
+            );
+
+            LoggerUtil.info(this.getClass(), String.format("Next monitoring check scheduled in %d minutes and %d seconds",
+                            nextDelay.toMinutes(), nextDelay.toSecondsPart()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error in monitoring task: " + e.getMessage());
+            // Reschedule anyway to keep the service running even after errors
+            Duration retryDelay = Duration.ofMinutes(5); // Shorter retry interval
+            monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(retryDelay)
+            );
+            LoggerUtil.info(this.getClass(), String.format("Rescheduled after error with %d minute retry delay", retryDelay.toMinutes()));
+        }
+    }
+
+    /**
+     * Calculates time to the next half-hour mark (either XX:00 or XX:30)
+     */
+    private Duration calculateTimeToNextHalfHour() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime nextHalfHour;
+
+        // If current minute is less than 30, go to XX:30
+        // Otherwise, go to the next hour (XX+1:00)
+        if (now.getMinute() < 30) {
+            nextHalfHour = now.withMinute(30).withSecond(0).withNano(0);
+        } else {
+            nextHalfHour = now.plusHours(1).withMinute(0).withSecond(0).withNano(0);
+        }
+
+        // Handle special cases for 5:00 AM and 5:00 PM resets
+        LocalDateTime morningReset = now.toLocalDate().atTime(5, 0, 0);
+        LocalDateTime eveningReset = now.toLocalDate().atTime(17, 0, 0);
+
+        // If it's past midnight but before 5:00 AM, check if 5:00 AM is before the next half-hour mark
+        if (now.getHour() < 5 && morningReset.isAfter(now) && morningReset.isBefore(nextHalfHour)) {
+            nextHalfHour = morningReset;
+        }
+
+        // If it's between 5:00 AM and 5:00 PM, check if 5:00 PM is before the next half-hour mark
+        if (now.getHour() >= 5 && now.getHour() < 17 &&
+                eveningReset.isAfter(now) && eveningReset.isBefore(nextHalfHour)) {
+            nextHalfHour = eveningReset;
+        }
+
+        return Duration.between(now, nextHalfHour);
     }
 
     private void checkActiveSessions() {
