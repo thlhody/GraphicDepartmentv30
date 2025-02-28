@@ -57,8 +57,11 @@ public class WorkCode {
     public static final Integer HOURLY_INTERVAL = 60; //for hourly checks
     private static final Integer five_minutes = 5 * 60 * 1000;
     private static final Integer ten_minutes = 10 * 60 * 1000;
+    private static final Integer twelve_hours = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+
     public static final Integer ON_FOR_FIVE_MINUTES = five_minutes; // Auto-timer set for 5 minutes (WorkCode.CHECK_EVERY_FIVE_MINUTES)
-    public static final Integer ON_FOR_TEN_MINUTES = ten_minutes;   // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
+    public static final Integer ON_FOR_TEN_MINUTES = ten_minutes;  // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
+    public static final Integer ON_FOR_TWELVE_HOURS = twelve_hours;   // Auto-timer set for 12 hours
 
     public static Integer MAX_TEMP_STOP_HOURS = 15;                 // 24 - MAX_WORK_HOURS
 

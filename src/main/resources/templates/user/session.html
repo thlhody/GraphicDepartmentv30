@@ -77,16 +77,23 @@
         </div>
         <!-- Action Controls -->
         <div class="session-controls d-flex mb-4">
-            <!-- Start Button -->
+            <!-- Start Button - Disabled if session status isn't Offline or if there's a completed session today -->
             <form th:action="@{/user/session/start}" method="post">
                 <button type="submit"
                         class="btn btn-success"
-                        th:disabled="${sessionStatus != 'Offline'}">
+                        th:disabled="${sessionStatus != 'Offline' || completedSessionToday}">
                     <i class="bi bi-play-circle me-2"></i>Start Work
                 </button>
             </form>
-
-            <!-- Pause/Resume Button -->
+            <!-- Resume Button - Only enabled if there's a completed session today -->
+            <form th:action="@{/user/session/resume-previous}" method="post">
+                <button type="submit"
+                        class="btn btn-info"
+                        th:disabled="${!completedSessionToday}">
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Resume Work
+                </button>
+            </form>
+            <!-- Pause/Resume Button - Only enabled during active session -->
             <form th:action="@{/user/session/temp-stop}" method="post">
                 <button type="submit"
                         class="btn"
@@ -98,8 +105,7 @@
                     <span th:text="${isTemporaryStop ? 'Resume' : 'Pause'}">Pause</span>
                 </button>
             </form>
-
-            <!-- End Button -->
+            <!-- End Button - Only enabled during active session -->
             <form th:action="@{/user/session/end}" method="post">
                 <button type="submit"
                         class="btn btn-danger"
@@ -107,7 +113,6 @@
                     <i class="bi bi-stop-circle me-2"></i>End Work
                 </button>
             </form>
-
             <!-- Refresh Button -->
             <a th:href="@{/user/session}"  class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh
@@ -179,6 +184,38 @@
             </div>
         </div>
     </div>
+    <!-- Resume Confirmation Modal -->
+    <div class="modal fade" id="resumeConfirmationModal" tabindex="-1" aria-labelledby="resumeConfirmationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="resumeConfirmationModalLabel">Resume Previous Session</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>You are about to resume your previous work session. The time between ending and now will be recorded as a break.</p>
+                    <p>Do you want to continue?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form th:action="@{/user/session/confirm-resume}" method="post">
+                        <button type="submit" class="btn btn-primary">Resume Session</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <th:block layout:fragment="scripts">
+        <!-- Replace the existing script with this -->
+        <script th:if="${param.showResumeConfirmation}">
+            document.addEventListener('DOMContentLoaded', function() {
+                // Create a new Bootstrap modal instance
+                var resumeModal = new bootstrap.Modal(document.getElementById('resumeConfirmationModal'));
+                // Show the modal
+                resumeModal.show();
+            });
+        </script>
+    </th:block>
 </div>
 </body>
 </html>

@@ -365,6 +365,143 @@ public class UserSessionService {
         session.setLastActivity(now);
 
     }
+
+    public boolean hasCompletedSessionForToday(String username, Integer userId) {
+        WorkUsersSessionsStates existingSession = dataAccess.readLocalSessionFile(username, userId);
+
+        return existingSession != null &&
+                existingSession.getDayStartTime() != null &&
+                existingSession.getDayStartTime().toLocalDate().equals(LocalDate.now()) &&
+                WorkCode.WORK_OFFLINE.equals(existingSession.getSessionStatus()) &&
+                existingSession.getWorkdayCompleted();
+    }
+
+    public void resumePreviousSession(String username, Integer userId) {
+        executeWithLock(() -> {
+            // Get the existing session
+            WorkUsersSessionsStates existingSession = dataAccess.readLocalSessionFile(username, userId);
+
+            if (existingSession == null ||
+                    !WorkCode.WORK_OFFLINE.equals(existingSession.getSessionStatus()) ||
+                    !existingSession.getWorkdayCompleted()) {
+                throw new IllegalStateException("No completed session found to resume");
+            }
+
+            // Record the total time worked before resuming
+            int previousWorkedMinutes = existingSession.getTotalWorkedMinutes();
+            LocalDateTime previousEndTime = existingSession.getDayEndTime();
+
+            // Create a temporary stop to account for the break between end and resume
+            if (previousEndTime != null) {
+                // Create a new temporary stop entry for the break
+                TemporaryStop breakStop = new TemporaryStop();
+                breakStop.setStartTime(previousEndTime);
+                breakStop.setEndTime(LocalDateTime.now());
+                breakStop.setDuration(CalculateWorkHoursUtil.calculateMinutesBetween(
+                        previousEndTime, LocalDateTime.now()));
+
+                // Add this break to the temporary stops list
+                if (existingSession.getTemporaryStops() == null) {
+                    existingSession.setTemporaryStops(new ArrayList<>());
+                }
+                existingSession.getTemporaryStops().add(breakStop);
+
+                // Update temporary stop count and total stop minutes
+                existingSession.setTemporaryStopCount(
+                        existingSession.getTemporaryStopCount() != null ?
+                                existingSession.getTemporaryStopCount() + 1 : 1);
+
+                int totalStopMinutes = existingSession.getTemporaryStops().stream()
+                        .mapToInt(stop -> stop.getDuration() != null ? stop.getDuration() : 0)
+                        .sum();
+                existingSession.setTotalTemporaryStopMinutes(totalStopMinutes);
+            }
+
+            // Set session status back to active
+            existingSession.setSessionStatus(WorkCode.WORK_ONLINE);
+
+            // Set the current start time to now
+            existingSession.setCurrentStartTime(LocalDateTime.now());
+
+            // Clear day end time since we're still working
+            existingSession.setDayEndTime(null);
+
+            // Session is no longer completed
+            existingSession.setWorkdayCompleted(false);
+
+            // Update the activity time
+            existingSession.setLastActivity(LocalDateTime.now());
+
+            // Save the updated session
+            saveSession(username, existingSession);
+
+            // Update the worktime entry to IN_PROCESS again
+            updateWorktimeEntryForResume(username, existingSession);
+
+            // Start monitoring again
+            sessionMonitorService.startMonitoring(username);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Resumed previous session for user %s", username));
+
+            return existingSession;
+        });
+    }
+
+    private void updateWorktimeEntryForResume(String username, WorkUsersSessionsStates session) {
+        LocalDate workDate = session.getDayStartTime().toLocalDate();
+
+        try {
+            // Get existing entries for this day
+            List<WorkTimeTable> entries = loadUserEntries(username, workDate.getYear(), workDate.getMonthValue());
+
+            // Find the entry for this specific day
+            WorkTimeTable existingEntry = entries.stream().filter(e -> e.getWorkDate().equals(workDate))
+                    .findFirst().orElse(null);
+
+            if (existingEntry != null) {
+                // Update status to in-process
+                existingEntry.setAdminSync(SyncStatus.USER_IN_PROCESS);
+
+                // Clear end time to match session
+                existingEntry.setDayEndTime(null);
+
+                // Copy temporary stop info from session
+                existingEntry.setTemporaryStopCount(session.getTemporaryStopCount());
+                existingEntry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+
+                // Save the updated entry
+                userWorkTimeService.saveWorkTimeEntry(
+                        username,
+                        existingEntry,
+                        workDate.getYear(),
+                        workDate.getMonthValue(),
+                        username);
+
+                LoggerUtil.info(this.getClass(),
+                        String.format("Updated worktime entry for resumed session: %s", username));
+            } else {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("No existing worktime entry found for user %s on %s",
+                                username, workDate));
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Failed to update worktime entry for resumed session: %s", e.getMessage()));
+        }
+    }
+
+    // Add this method to UserSessionService
+    private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
+        try {
+            return userWorkTimeService.loadUserEntries(username, year, month, username);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading user entries for %s: %s", username, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
     private void updateSessionForResume(WorkUsersSessionsStates session, LocalDateTime now) {
         int stopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
                 session.getLastTemporaryStopTime(), now);

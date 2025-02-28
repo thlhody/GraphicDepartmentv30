@@ -366,7 +366,7 @@ public class SystemNotificationService {
             showStartDayDialog(username, userId,
                     WorkCode.START_DAY_TITLE,
                     WorkCode.START_DAY_MESSAGE,
-                    WorkCode.ON_FOR_TEN_MINUTES);
+                    WorkCode.ON_FOR_TWELVE_HOURS);
         }
     }
 

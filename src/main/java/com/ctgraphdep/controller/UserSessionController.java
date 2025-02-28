@@ -46,6 +46,10 @@ public class UserSessionController extends BaseController {
         // Validate user authentication and retrieve user
         User user = validateAndGetUser(userDetails);
 
+        // Check if there's a completed session for today
+        boolean completedSessionToday = userSessionService.hasCompletedSessionForToday(user.getUsername(), user.getUserId());
+        model.addAttribute("completedSessionToday", completedSessionToday);
+
         // Determine dashboard URL based on user role
         if (user.hasRole("TEAM_LEADER")) {
             model.addAttribute("isTeamLeaderView", true);
@@ -171,6 +175,25 @@ public class UserSessionController extends BaseController {
         );
 
         return "redirect:/user/session?action=start";
+    }
+
+    @PostMapping("/resume-previous")
+    public String resumePreviousSession(@AuthenticationPrincipal UserDetails userDetails) {
+        User user = getUserOrThrow(userDetails);
+        // Just redirect to a page that shows a confirmation dialog
+        return "redirect:/user/session?showResumeConfirmation=true";
+    }
+
+    @PostMapping("/confirm-resume")
+    public String confirmResumeSession(@AuthenticationPrincipal UserDetails userDetails) {
+        User user = getUserOrThrow(userDetails);
+
+        try {
+            userSessionService.resumePreviousSession(user.getUsername(), user.getUserId());
+            return "redirect:/user/session?action=resume";
+        } catch (Exception e) {
+            return "redirect:/user/session?error=" + e.getMessage();
+        }
     }
 
     @PostMapping("/temp-stop")

@@ -631,7 +631,7 @@
                     'PROBA CULOARE': 2.5,
                     'CARTELA CULORI': 2.5,
                     'DESIGN': 2.5,
-                    'DESIGN 3D': 2.5,
+                    'DESIGN 3D': 3.0,
                     'PATTERN PREP': 2.5,
                     'IMPOSTARE': 0.0,
                     'OTHER': 2.5
@@ -816,11 +816,12 @@
                         if (actionType === 'IMPOSTARE') return 0.0;
                         if (actionType === 'REORDIN') return 1.0;
                         if (actionType === 'ORD SPIZED') return 2.0;
+                        if (actionType === 'DESIGN 3D') return 3.0;
 
                         // Fixed value actions
                         const fixedValueActions = [
                             'PROBA CULOARE', 'PROBA STAMPA', 'CARTELA CULORI',
-                            'DESIGN', 'DESIGN 3D', 'PATTERN PREP', 'OTHER'
+                            'DESIGN', 'PATTERN PREP', 'OTHER'
                         ];
 
                         if (fixedValueActions.includes(actionType)) {
