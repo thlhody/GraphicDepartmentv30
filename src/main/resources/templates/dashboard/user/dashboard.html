@@ -5,38 +5,7 @@
       lang="en">
 <head>
     <title th:text="${dashboard.pageTitle}">User Dashboard</title>
-    <style>
-        .dashboard-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            border: none;
-            background: white;
-        }
-        .dashboard-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-        }
-        .metric-container {
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            background: white;
-        }
-        .metric-icon {
-            width: 48px;
-            height: 48px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 12px;
-        }
-        .header-date {
-            font-size: 0.9rem;
-            opacity: 0.7;
-        }
-        .header-username {
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -61,9 +30,9 @@
         <!-- Metrics Section -->
         <div class="row g-4 mb-4" th:if="${dashboardMetrics}">
             <div class="col-md-4">
-                <div class="metric-container border-start border-4 border-info ps-3">
-                    <div class="text-muted mb-1">Last Update</div>
-                    <div class="h5 mb-0" th:text="${dashboardMetrics.lastUpdate}">00:00:00</div>
+                <div class="metric-container border-start border-4 border-primary ps-3">
+                    <div class="text-muted mb-1">Online Users</div>
+                    <div class="h5 mb-0" th:text="${dashboardMetrics.onlineUsers}">0</div>
                 </div>
             </div>
             <div class="col-md-4">
@@ -74,8 +43,8 @@
             </div>
             <div class="col-md-4">
                 <div class="metric-container border-start border-4 border-info ps-3">
-                    <div class="text-muted mb-1">Pending Tasks</div>
-                    <div class="h5 mb-0" th:text="${dashboardMetrics.pendingTasks}">0</div>
+                    <div class="text-muted mb-1">Last Update</div>
+                    <div class="h5 mb-0" th:text="${dashboardMetrics.lastUpdate}">00:00:00</div>
                 </div>
             </div>
         </div>
@@ -108,17 +77,9 @@
         </div>
     </div>
 </div>
+<!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto refresh for metrics if needed
-            if (document.querySelector('[data-refresh="true"]')) {
-                setInterval(function() {
-                    location.reload();
-                }, 45000);
-            }
-        });
-    </script>
+    <script th:src="@{/js/dashboard.js}"></script>
 </th:block>
 </body>
 </html>

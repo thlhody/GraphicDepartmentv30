@@ -34,7 +34,6 @@ public class DashboardService {
         return DashboardMetrics.builder()
                 .onlineUsers(onlineMetricsService.getOnlineUserCount())
                 .activeUsers(onlineMetricsService.getActiveUserCount())
-                .pendingTasks(0) // TODO: Implement task tracking
                 .systemStatus(folderStatusService.getStatus().toString())
                 .lastUpdate(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
                 .build();

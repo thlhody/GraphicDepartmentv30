@@ -5,38 +5,7 @@
       lang="en">
 <head>
     <title th:text="${dashboard.pageTitle}">Admin Dashboard</title>
-    <style>
-        .dashboard-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            border: none;
-            background: white;
-        }
-        .dashboard-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-        }
-        .metric-container {
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            background: white;
-        }
-        .metric-icon {
-            width: 48px;
-            height: 48px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 12px;
-        }
-        .header-date {
-            font-size: 0.9rem;
-            opacity: 0.7;
-        }
-        .header-username {
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -108,17 +77,9 @@
         </div>
     </div>
 </div>
+<!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto refresh for metrics
-            if (document.querySelector('[data-refresh="true"]')) {
-                setInterval(function() {
-                    location.reload();
-                }, 300000); // 5 minutes
-            }
-        });
-    </script>
+    <script th:src="@{/js/dashboard.js}"></script>
 </th:block>
 </body>
 </html>

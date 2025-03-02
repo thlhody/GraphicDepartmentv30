@@ -5,54 +5,7 @@
       lang="en">
 <head>
     <title>Time Off History</title>
-    <style>
-        .table {
-            width: 100%;
-            margin-bottom: 0;
-        }
-
-        .table td, .table th {
-            padding: 1rem 0.75rem;
-            vertical-align: middle;
-        }
-
-        .badge {
-            font-weight: 500;
-            padding: 0.5rem 1rem;
-        }
-
-        .badge i {
-            font-size: 0.875em;
-        }
-
-        .card-header {
-            background-color: transparent;
-            border-bottom: none;
-        }
-
-        .table-hover tbody tr:hover {
-            background-color: rgba(0,0,0,.02);
-        }
-
-        .empty-state {
-            padding: 3rem 0;
-            text-align: center;
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            color: #6c757d;
-        }
-
-        .time-off-badge {
-            padding: 0.5rem 1rem;
-            border-radius: 50rem;
-        }
-
-        .time-off-badge i {
-            margin-right: 0.25rem;
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/holiday.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -90,26 +43,20 @@
                         <tr>
                             <th>Date</th>
                             <th>Type</th>
-                            <th>Start Time</th>
-                            <th>End Time</th>
-                            <th>Duration</th>
                         </tr>
                         </thead>
                         <tbody>
                         <tr th:each="entry : ${timeOffs}">
                             <td th:text="${#temporals.format(entry.workDate, 'dd/MM/yyyy')}"></td>
                             <td>
-                                        <span th:class="${'badge rounded-pill ' +
-                                            (entry.timeOffType == 'CO' ? 'bg-info' :
-                                             entry.timeOffType == 'CM' ? 'bg-danger' :
-                                             entry.timeOffType == 'SN' ? 'bg-warning' : 'bg-secondary')}">
-                                            <i class="bi bi-calendar2-check"></i>
-                                            <span th:text="${entry.timeOffType}"></span>
-                                        </span>
+                                <span th:class="${'badge rounded-pill ' +
+                                    (entry.timeOffType == 'CO' ? 'bg-info' :
+                                     entry.timeOffType == 'CM' ? 'bg-danger' :
+                                     entry.timeOffType == 'SN' ? 'bg-warning' : 'bg-secondary')}">
+                                    <i class="bi bi-calendar2-check"></i>
+                                    <span th:text="${entry.timeOffType}"></span>
+                                </span>
                             </td>
-                            <td th:text="${entry.dayStartTime != null ? #temporals.format(entry.dayStartTime, 'HH:mm') : '-'}"></td>
-                            <td th:text="${entry.dayEndTime != null ? #temporals.format(entry.dayEndTime, 'HH:mm') : '-'}"></td>
-                            <td th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(entry.totalWorkedMinutes)}"></td>
                         </tr>
                         </tbody>
                     </table>

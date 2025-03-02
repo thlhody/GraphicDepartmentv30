@@ -1,0 +1,143 @@
+   /* Header and card styles - matching other pages */
+        .card {
+            transition: all 0.3s ease;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+        }
+
+        /* Member section styling */
+        .member-section {
+            margin-bottom: 1.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .member-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Client table styling - clean look like worktime records */
+        .client-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .client-table th, .client-table td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .client-table th {
+            background-color: #f8f9fa;
+            font-weight: 500;
+        }
+
+        /* Status badge styles - matching session page */
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: normal;
+        }
+
+        .status-badge.online {
+            background-color: #198754;
+            color: white;
+        }
+
+        .status-badge.offline {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .status-badge.break {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        /* Member summary styles - clean and simple */
+        .member-summary {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        /* Form selection styles - similar to register page */
+        .form-select-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Empty state like register page */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #dee2e6;
+        }
+        /* Action-Specific Colors - matching the register.html styles */
+        .bg-order {
+            background-color: #007bff; /* Blue */
+        }
+
+        .bg-reorder {
+            background-color: #6c757d; /* Gray */
+        }
+
+        .bg-sample {
+            background-color: #28a745; /* Green */
+        }
+
+        .bg-strikeoff {
+            background-color: #ffc107; /* Yellow */
+            color: #212529; /* Dark text for contrast */
+        }
+
+        .bg-designs {
+            background-color: #dc3545; /* Red */
+        }
+
+        .bg-other {
+            background-color: #6f42c1; /* Purple */
+        }
+
+        .bg-layout {
+            background-color: #17a2b8; /* Teal */
+        }
+
+        /* Additional action type colors you need */
+        .bg-spized {
+            background-color: #20c997; /* Teal-green */
+        }
+
+        .bg-color-sample {
+            background-color: #fd7e14; /* Orange */
+        }
+
+        .bg-color-palette {
+            background-color: #e83e8c; /* Pink */
+        }
+
+        .bg-designs-3d {
+            background-color: #b02a37; /* Darker red */
+        }
+
+        .bg-pattern {
+            background-color: #0dcaf0; /* Light blue */
+        }

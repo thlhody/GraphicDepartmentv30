@@ -286,19 +286,9 @@ public class StatusController extends BaseController {
             return currentUser;
         }
 
-        // Admin/team leader can view other users
-        if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-            return getUserService().getUserByUsername(requestedUsername)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-        }
-        // Regular users can only see their own data
-        else if (requestedUsername.equals(currentUser.getUsername())) {
-            return currentUser;
-        }
-        // Attempted to access unauthorized data
-        else {
-            throw new SecurityException("Not authorized to view this user's register");
-        }
+        // Anyone can view register search for any user
+        return getUserService().getUserByUsername(requestedUsername)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     // Helper to check if any search criteria are present

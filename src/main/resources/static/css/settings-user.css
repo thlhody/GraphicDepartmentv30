@@ -1,0 +1,33 @@
+        /* Profile info styles */
+        .profile-stat {
+            transition: transform 0.2s ease;
+        }
+
+        .profile-stat:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Password form styles */
+        .password-form .input-group-text {
+            width: 42px;
+        }
+
+        .password-form .form-control::placeholder {
+            color: #adb5bd;
+            font-size: 0.875rem;
+        }
+
+        /* Card transitions */
+        .settings-card {
+            transition: all 0.3s ease;
+        }
+
+        .settings-card:hover {
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .settings-card {
+                margin-bottom: 1rem;
+            }
+        }

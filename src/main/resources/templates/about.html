@@ -5,95 +5,7 @@
       lang="en">
 <head>
     <title>About - CT3</title>
-    <style>
-        .about-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .logo-container {
-            max-width: 300px;
-            margin: 0 auto;
-            padding: 2rem 0;
-        }
-
-        .logo-container img {
-            width: 100%;
-            height: auto;
-            transition: transform 0.3s ease-in-out;
-        }
-
-        .logo-container:hover img {
-            transform: scale(1.05);
-        }
-
-        .app-title {
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin-bottom: 2rem;
-            animation: fadeInUp 0.5s ease-out;
-        }
-
-        .version-card {
-            background: #fff;
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 2rem;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        .version-info {
-            font-size: 1.25rem;
-            color: #2c3e50;
-            margin-bottom: 0;
-        }
-
-        .copyright-section {
-            text-align: center;
-            color: #6c757d;
-            padding: 2rem 0;
-            animation: fadeIn 1s ease-out;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @media (max-width: 768px) {
-            .about-container {
-                padding: 1rem;
-            }
-
-            .logo-container {
-                max-width: 200px;
-            }
-
-            .app-title {
-                font-size: 2rem;
-            }
-
-            .version-card {
-                padding: 1.5rem;
-            }
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/about.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -107,7 +19,7 @@
                     Creative Time And Task Tracker
                 </h1>
                 <div class="version-card">
-                    <p class="version-info">Version 5.0</p>
+                    <p class="version-info">Version 6.5.5</p>
                 </div>
                 <div class="copyright-section">
                     <p class="mb-0">© 2024 thlhody. All rights reserved.</p>

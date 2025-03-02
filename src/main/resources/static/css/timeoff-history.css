@@ -1,0 +1,71 @@
+.table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.table td, .table th {
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+}
+
+.badge {
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+}
+
+.badge i {
+    font-size: 0.875em;
+}
+
+.card-header {
+    background-color: transparent;
+    border-bottom: none;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0,0,0,.02);
+}
+
+.empty-state {
+    padding: 3rem 0;
+    text-align: center;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: #6c757d;
+}
+
+.time-off-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 50rem;
+}
+
+.time-off-badge i {
+    margin-right: 0.25rem;
+}
+
+.summary-card {
+    transition: all 0.3s;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-item {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+}
+
+.stat-item:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+/* Time status badge styles */
+.time-status .badge {
+    min-width: 100px;
+    display: inline-block;
+    text-align: center;
+}

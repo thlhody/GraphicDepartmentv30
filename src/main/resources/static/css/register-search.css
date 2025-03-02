@@ -1,0 +1,201 @@
+/* Card styles */
+.card {
+    transition: all 0.3s ease;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.th {
+    text-align: center; /* Horizontally centers text */
+    vertical-align: middle; /* Vertically centers text */
+    padding: 8px; /* Adjust spacing inside the cell */
+    white-space: nowrap; /* Prevents text wrapping */
+}
+
+
+/* Table styles */
+.table-actions {
+    width: 100px;
+    min-width: 80px;
+}
+
+.table-actions .btn {
+    padding: 0.25rem 0.5rem;
+}
+
+.table {
+    width: 100%;
+    table-layout: auto;
+}
+
+.table td {
+    word-break: break-word;
+    vertical-align: middle;
+}
+
+/* Period selector */
+.period-selector {
+    border-radius: 0.5rem;
+    background: #f8f9fa;
+}
+
+.period-selector .btn-group {
+    flex-wrap: wrap;
+}
+
+.period-selector .btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Empty state */
+.empty-state {
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+/* General Badge Style */
+.badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.875em;
+    font-weight: 700;
+    text-align: center;
+    border-radius: 0.25rem;
+    color: #fff;
+}
+
+/* Action-Specific Colors */
+.bg-order {
+    background-color: #007bff; /* Blue */
+}
+
+.bg-reorder {
+    background-color: #6c757d; /* Gray */
+}
+
+.bg-sample {
+    background-color: #28a745; /* Green */
+}
+
+.bg-strikeoff {
+    background-color: #ffc107; /* Yellow */
+    color: #212529; /* Dark text for contrast */
+}
+
+.bg-designs {
+    background-color: #dc3545; /* Red */
+}
+
+.bg-other {
+    background-color: #6f42c1; /* Purple */
+}
+
+.bg-layout {
+    background-color: #17a2b8; /* Teal */
+}
+
+/* Admin Sync Status Badges */
+.badge.bg-success {
+    background-color: #198754 !important;
+}
+
+.badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+/* Enhanced table responsive styling */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+/* Custom scrollbar for table */
+.table-responsive::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Select2 small size */
+.select2-container--bootstrap-5.select2-container--form-select-sm .select2-selection {
+    min-height: calc(1.5em + 0.5rem + 2px) !important;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.875rem !important;
+    border-radius: 0.25rem !important;
+}
+
+/* Search form specific styles */
+.search-form {
+    transition: all 0.3s ease;
+}
+
+.search-form:hover {
+    transform: translateY(-2px);
+}
+
+.search-options {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-options .form-group {
+    margin-bottom: 10px;
+}
+
+.search-options label {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Date range styles */
+.date-range {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .search-options {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-options .form-group {
+        width: 100%;
+    }
+
+    .date-range {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

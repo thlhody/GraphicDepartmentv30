@@ -5,151 +5,8 @@
       lang="en">
 <head>
     <title>Team Statistics</title>
-    <style>
-        /* Header and card styles - matching other pages */
-        .card {
-            transition: all 0.3s ease;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
-        }
-
-        /* Member section styling */
-        .member-section {
-            margin-bottom: 1.5rem;
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            overflow: hidden;
-        }
-
-        .member-header {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-bottom: 1px solid #dee2e6;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        /* Client table styling - clean look like worktime records */
-        .client-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .client-table th, .client-table td {
-            padding: 0.5rem;
-            text-align: left;
-            border-bottom: 1px solid #e9ecef;
-        }
-
-        .client-table th {
-            background-color: #f8f9fa;
-            font-weight: 500;
-        }
-
-        /* Status badge styles - matching session page */
-        .status-badge {
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.25rem;
-            font-size: 0.875rem;
-            font-weight: normal;
-        }
-
-        .status-badge.online {
-            background-color: #198754;
-            color: white;
-        }
-
-        .status-badge.offline {
-            background-color: #6c757d;
-            color: white;
-        }
-
-        .status-badge.break {
-            background-color: #ffc107;
-            color: black;
-        }
-
-        /* Member summary styles - clean and simple */
-        .member-summary {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-top: 1px solid #dee2e6;
-        }
-
-        /* Form selection styles - similar to register page */
-        .form-select-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-        }
-
-        /* Empty state like register page */
-        .empty-state {
-            text-align: center;
-            padding: 3rem 1rem;
-            color: #6c757d;
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: #dee2e6;
-        }
-        /* Action-Specific Colors - matching the register.html styles */
-        .bg-order {
-            background-color: #007bff; /* Blue */
-        }
-
-        .bg-reorder {
-            background-color: #6c757d; /* Gray */
-        }
-
-        .bg-sample {
-            background-color: #28a745; /* Green */
-        }
-
-        .bg-strikeoff {
-            background-color: #ffc107; /* Yellow */
-            color: #212529; /* Dark text for contrast */
-        }
-
-        .bg-designs {
-            background-color: #dc3545; /* Red */
-        }
-
-        .bg-other {
-            background-color: #6f42c1; /* Purple */
-        }
-
-        .bg-layout {
-            background-color: #17a2b8; /* Teal */
-        }
-
-        /* Additional action type colors you need */
-        .bg-spized {
-            background-color: #20c997; /* Teal-green */
-        }
-
-        .bg-color-sample {
-            background-color: #fd7e14; /* Orange */
-        }
-
-        .bg-color-palette {
-            background-color: #e83e8c; /* Pink */
-        }
-
-        .bg-designs-3d {
-            background-color: #b02a37; /* Darker red */
-        }
-
-        .bg-pattern {
-            background-color: #0dcaf0; /* Light blue */
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/team-stats.css}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -158,7 +15,6 @@
         <div class="mb-4">
             <div th:replace="~{alerts/alerts :: alerts}"></div>
         </div>
-
         <!-- Header Section - Like other pages -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
@@ -174,7 +30,6 @@
                 <i class="bi bi-grid me-2"></i>Dashboard
             </a>
         </div>
-
         <!-- Period Selection Card - Similar to register/worktime -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
@@ -202,7 +57,6 @@
                 </form>
             </div>
         </div>
-
         <!-- Team Members Selection Card -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
@@ -230,7 +84,6 @@
                 </div>
             </div>
         </div>
-
         <!-- Team Members Statistics -->
         <div th:if="${teamMembers != null and !teamMembers.empty}">
             <div th:each="member : ${teamMembers}" class="member-section">
@@ -374,7 +227,6 @@
                 </div>
             </div>
         </div>
-
         <!-- Empty State - Like register page -->
         <div th:if="${teamMembers == null or teamMembers.empty}" class="empty-state card shadow-sm">
             <div class="card-body text-center">
@@ -385,115 +237,9 @@
         </div>
     </div>
 </div>
-
+<!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script>
-        // Initialize Select2
-        document.addEventListener('DOMContentLoaded', function() {
-            $('.select2-users').select2({
-                theme: 'bootstrap-5',
-                width: '100%',
-                placeholder: 'Select team members',
-                allowClear: true
-            });
-            // For debugging - log when selection changes
-            $('.select2-users').on('change', function() {
-                console.log('Selected users:', $(this).val());
-            });
-        });
-
-        // Initialize Team Members
-        function initializeMembers() {
-            const selectedUsers = $('.select2-users').val();
-
-            // Check if users are selected
-            if (!selectedUsers || selectedUsers.length === 0) {
-                // Show an alert or notification that users must be selected
-                alert('Please select at least one team member before initializing.');
-                return;
-            }
-
-            const form = createForm('/user/stats/initialize');
-            submitForm(form);
-        }
-
-        // Update Statistics
-        function updateStats() {
-            const form = createForm('/user/stats/update');
-            submitForm(form);
-        }
-
-        // Helper to create and submit form
-        // Helper to create and submit form
-        function createForm(action) {
-            const form = document.createElement('form');
-            form.method = 'post';
-            form.action = action;
-
-            // Add year and month
-            const year = document.getElementById('yearSelect').value;
-
-            // Get month as a number (1-12)
-            let month;
-            // If using a month select dropdown
-            const monthSelect = document.getElementById('monthSelect');
-            if (monthSelect) {
-                month = monthSelect.value;
-            }
-            // If using button group, find the active button and extract its month number
-            else {
-                const activeButton = document.querySelector('.btn-group .active');
-                if (activeButton) {
-                    month = activeButton.getAttribute('data-month');
-                    // Extract the month number from the href attribute which should contain month={number}
-                    const href = activeButton.getAttribute('href');
-                    const monthMatch = href.match(/month=(\d+)/);
-                    if (monthMatch && monthMatch[1]) {
-                        month = monthMatch[1];
-                    } else {
-                        // Fallback to current month
-                        month = new Date().getMonth() + 1;
-                    }
-                } else {
-                    // Fallback to current month
-                    month = new Date().getMonth() + 1;
-                }
-            }
-
-            appendInput(form, 'year', year);
-            appendInput(form, 'month', month);
-
-            // Add selected users if initializing
-            if (action.includes('initialize')) {
-                const selectedUsers = $('.select2-users').val();
-                selectedUsers.forEach(userId => {
-                    appendInput(form, 'selectedUsers', userId);
-                });
-            }
-
-            // Add CSRF token
-            const token = document.querySelector("meta[name='_csrf']")?.getAttribute("content");
-            const header = document.querySelector("meta[name='_csrf_header']")?.getAttribute("content");
-            if (token && header) {
-                appendInput(form, header, token);
-            }
-
-            return form;
-        }
-
-        function appendInput(form, name, value) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value;
-            form.appendChild(input);
-        }
-
-        function submitForm(form) {
-            document.body.appendChild(form);
-            form.submit();
-        }
-    </script>
+    <script th:src="@{/js/team-stats.js}"></script>
 </th:block>
 </body>
 </html>

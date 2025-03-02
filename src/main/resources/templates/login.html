@@ -5,72 +5,7 @@
       lang="en">
 <head>
     <title>Login - CT3</title>
-    <style>
-        .login-container {
-            min-height: calc(100vh - var(--navbar-height) - 100px);
-            display: flex;
-            align-items: center;
-        }
-
-        .login-card {
-            background: #fff;
-            border-radius: 1rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-            animation: fadeIn 0.3s ease-in;
-        }
-
-        .login-card:hover {
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .hero-section {
-            background: #fff;
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .welcome-text {
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 2rem;
-            margin-bottom: 1rem;
-        }
-
-        .main-image {
-            max-width: 200px;
-            width: 100%;
-            height: auto;
-            margin-bottom: 2rem;
-            transition: transform 0.3s ease;
-        }
-
-        .main-image:hover {
-            transform: scale(1.05);
-        }
-
-        .status-card {
-            border: none;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1rem;
-        }
-
-        .sync-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/login.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -214,41 +149,7 @@
 
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:inline="javascript">
-        function togglePassword() {
-            const passwordInput = document.getElementById('password');
-            const toggleButton = passwordInput.nextElementSibling;
-            const toggleIcon = toggleButton.querySelector('i');
-
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleIcon.classList.replace('bi-eye', 'bi-eye-slash');
-            } else {
-                passwordInput.type = 'password';
-                toggleIcon.classList.replace('bi-eye-slash', 'bi-eye');
-            }
-        }
-
-        const networkAvailable = /*[[${networkAvailable}]]*/ false;
-
-        function handleLogin(event) {
-            const form = event.target;
-            if (!form.checkValidity()) {
-                event.preventDefault();
-                event.stopPropagation();
-                form.classList.add('was-validated');
-                return false;
-            }
-
-            if (networkAvailable) {
-                const overlay = document.getElementById('syncOverlay');
-                overlay.style.opacity = '1';
-                overlay.style.display = 'flex';
-            }
-
-            return true;
-        }
-    </script>
+    <script th:src="@{/js/login.js}"></script>
 </th:block>
 </body>
 </html>

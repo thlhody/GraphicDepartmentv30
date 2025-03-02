@@ -7,7 +7,7 @@
     <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="63">
+          <list size="64">
             <item index="0" class="java.lang.String" itemvalue="sec:authentication" />
             <item index="1" class="java.lang.String" itemvalue="th:text" />
             <item index="2" class="java.lang.String" itemvalue="layout:decorate" />
@@ -71,6 +71,7 @@
             <item index="60" class="java.lang.String" itemvalue="th:data-user-id" />
             <item index="61" class="java.lang.String" itemvalue="th:data-month" />
             <item index="62" class="java.lang.String" itemvalue="th:utext" />
+            <item index="63" class="java.lang.String" itemvalue="xsi:schemaLocation" />
           </list>
         </value>
       </option>
@@ -79,7 +80,7 @@
     <inspection_tool class="HtmlUnknownTag" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="13">
+          <list size="14">
             <item index="0" class="java.lang.String" itemvalue="nobr" />
             <item index="1" class="java.lang.String" itemvalue="noembed" />
             <item index="2" class="java.lang.String" itemvalue="comment" />
@@ -93,6 +94,7 @@
             <item index="10" class="java.lang.String" itemvalue="AlertTriangle" />
             <item index="11" class="java.lang.String" itemvalue="AlertTitle" />
             <item index="12" class="java.lang.String" itemvalue="AlertDescription" />
+            <item index="13" class="java.lang.String" itemvalue="head" />
           </list>
         </value>
       </option>

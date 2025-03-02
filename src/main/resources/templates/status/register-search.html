@@ -5,209 +5,8 @@
       lang="en">
 <head>
     <title>Register Search</title>
-    <style>
-        /* Card styles */
-        .card {
-            transition: all 0.3s ease;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
-        }
-
-        .th {
-            text-align: center; /* Horizontally centers text */
-            vertical-align: middle; /* Vertically centers text */
-            padding: 8px; /* Adjust spacing inside the cell */
-            white-space: nowrap; /* Prevents text wrapping */
-        }
-
-
-        /* Table styles */
-        .table-actions {
-            width: 100px;
-            min-width: 80px;
-        }
-
-        .table-actions .btn {
-            padding: 0.25rem 0.5rem;
-        }
-
-        .table {
-            width: 100%;
-            table-layout: auto;
-        }
-
-        .table td {
-            word-break: break-word;
-            vertical-align: middle;
-        }
-
-        /* Period selector */
-        .period-selector {
-            border-radius: 0.5rem;
-            background: #f8f9fa;
-        }
-
-        .period-selector .btn-group {
-            flex-wrap: wrap;
-        }
-
-        .period-selector .btn {
-            padding: 0.375rem 0.75rem;
-            font-size: 0.875rem;
-        }
-
-        /* Empty state */
-        .empty-state {
-            padding: 3rem 1.5rem;
-            text-align: center;
-            color: #6c757d;
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        /* General Badge Style */
-        .badge {
-            display: inline-block;
-            padding: 0.35em 0.65em;
-            font-size: 0.875em;
-            font-weight: 700;
-            text-align: center;
-            border-radius: 0.25rem;
-            color: #fff;
-        }
-
-        /* Action-Specific Colors */
-        .bg-order {
-            background-color: #007bff; /* Blue */
-        }
-
-        .bg-reorder {
-            background-color: #6c757d; /* Gray */
-        }
-
-        .bg-sample {
-            background-color: #28a745; /* Green */
-        }
-
-        .bg-strikeoff {
-            background-color: #ffc107; /* Yellow */
-            color: #212529; /* Dark text for contrast */
-        }
-
-        .bg-designs {
-            background-color: #dc3545; /* Red */
-        }
-
-        .bg-other {
-            background-color: #6f42c1; /* Purple */
-        }
-
-        .bg-layout {
-            background-color: #17a2b8; /* Teal */
-        }
-
-        /* Admin Sync Status Badges */
-        .badge.bg-success {
-            background-color: #198754 !important;
-        }
-
-        .badge.bg-warning {
-            background-color: #ffc107 !important;
-            color: #000 !important;
-        }
-
-        /* Enhanced table responsive styling */
-        .table-responsive {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin: 0;
-            padding: 0;
-            width: 100%;
-        }
-
-        /* Custom scrollbar for table */
-        .table-responsive::-webkit-scrollbar {
-            height: 8px;
-        }
-
-        .table-responsive::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        /* Select2 small size */
-        .select2-container--bootstrap-5.select2-container--form-select-sm .select2-selection {
-            min-height: calc(1.5em + 0.5rem + 2px) !important;
-            padding: 0.25rem 0.5rem !important;
-            font-size: 0.875rem !important;
-            border-radius: 0.25rem !important;
-        }
-
-        /* Search form specific styles */
-        .search-form {
-            transition: all 0.3s ease;
-        }
-
-        .search-form:hover {
-            transform: translateY(-2px);
-        }
-
-        .search-options {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .search-options .form-group {
-            margin-bottom: 10px;
-        }
-
-        .search-options label {
-            font-size: 0.875rem;
-            margin-bottom: 0.25rem;
-        }
-
-        /* Date range styles */
-        .date-range {
-            display: flex;
-            gap: 5px;
-            align-items: center;
-        }
-
-        /* Mobile responsiveness */
-        @media (max-width: 768px) {
-            .search-options {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .search-options .form-group {
-                width: 100%;
-            }
-
-            .date-range {
-                flex-direction: column;
-                align-items: stretch;
-            }
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/register-search.css}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -216,7 +15,19 @@
         <div class="mb-4">
             <div th:replace="~{alerts/alerts :: alerts}"></div>
         </div>
-
+        <!-- Current Period Indicator -->
+        <div class="alert alert-info mb-4">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <div>
+                    <strong>Current Period:</strong>
+                    <span th:text="${T(java.time.Month).of(currentMonth)} + ' ' + ${currentYear}">March 2024</span>
+                    <span class="ms-2 text-muted">
+                        <small>Use the period selector at the top to change period.</small>
+                    </span>
+                </div>
+            </div>
+        </div>
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
@@ -232,18 +43,58 @@
                 <i class="bi bi-arrow-left me-2"></i>Back to Status
             </a>
         </div>
-
-        <!-- Search Form - CORRECTED -->
+        <!-- Period and Search Section -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">Search Options</h5>
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calendar-search me-2"></i>Select Period and Search Options
+                </h5>
             </div>
             <div class="card-body">
                 <form id="searchForm" th:action="@{/status/register-search}" method="get" class="search-form">
-                    <!-- Search term -->
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="searchTerm" class="form-label">Search terms</label>
+                    <!-- Hidden fields for preserving context -->
+                    <input type="hidden" id="usernameInput" name="username" th:value="${param.username}">
+                    <input type="hidden" id="currentYear" name="currentYear" th:value="${currentYear}">
+                    <input type="hidden" id="currentMonth" name="currentMonth" th:value="${currentMonth}">
+
+                    <div class="row g-3 align-items-end">
+                        <!-- Year Selection -->
+                        <div class="col-md-2">
+                            <label for="yearSelect" class="form-label">Year</label>
+                            <select id="yearSelect" name="year" class="form-select">
+                                <option th:each="y : ${#numbers.sequence(2020, 2030)}"
+                                        th:value="${y}"
+                                        th:text="${y}"
+                                        th:selected="${y == currentYear}">
+                                    2025
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Month Selection -->
+                        <div class="col-md-2">
+                            <label for="monthSelect" class="form-label">Month</label>
+                            <select id="monthSelect" name="month" class="form-select">
+                                <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                        th:value="${m}"
+                                        th:text="${T(java.time.Month).of(m)}"
+                                        th:selected="${m == currentMonth}">
+                                    February
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Load Period Button -->
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Load Period
+                            </button>
+                        </div>
+
+                        <!-- Search Terms -->
+                        <div class="col-md-4">
+                            <label for="searchTerm" class="form-label">Search Terms</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="searchTerm" name="searchTerm"
                                        placeholder="Search by order ID, client, production ID..."
@@ -251,26 +102,25 @@
                                 <button class="btn btn-primary" type="submit">
                                     <i class="bi bi-search me-1"></i>Search
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary" id="resetSearchBtn" onclick="resetSearch()">
-                                    <i class="bi bi-x-circle me-1"></i>Reset
-                                </button>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="float-end">
-                                <button type="button" class="btn btn-outline-secondary" id="toggleAdvanced">
-                                    <i class="bi bi-sliders me-1"></i>Advanced Options
+
+                        <!-- Reset and Advanced Options -->
+                        <div class="col-md-2">
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary w-50" id="resetSearchBtn" onclick="resetSearch()">
+                                    <i class="bi bi-x-circle me-1"></i>Reset
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary w-50" id="toggleAdvanced">
+                                    <i class="bi bi-sliders me-1"></i>Options
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Hidden fields for current period -->
-                    <input type="hidden" id="currentYear" name="currentYear" th:value="${currentYear}">
-                    <input type="hidden" id="currentMonth" name="currentMonth" th:value="${currentMonth}">
-
-                    <!-- Advanced search options (initially hidden) -->
-                    <div id="advancedOptions" class="mb-3" style="display: none;">
+                    <!-- Advanced Options (remains in current location) -->
+                    <div id="advancedOptions" class="mt-3" style="display: none;">
+                        <!-- Keep the existing advanced options content -->
                         <div class="row">
                             <!-- Date range -->
                             <div class="col-md-6 mb-3">
@@ -329,49 +179,21 @@
                                 </select>
                             </div>
 
-                            <!-- Year and Month selector -->
-                            <div class="col-md-4 mb-3">
-                                <label for="year" class="form-label">Year</label>
-                                <select id="year" name="year" class="form-select form-select-sm">
-                                    <option value="">All Years</option>
-                                    <option th:each="y : ${#numbers.sequence(2020, 2030)}"
-                                            th:value="${y}"
-                                            th:text="${y}"
-                                            th:selected="${param.year != null && param.year[0] == y || (param.year == null && y == currentYear)}">
-                                        2023
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label for="month" class="form-label">Month</label>
-                                <select id="month" name="month" class="form-select form-select-sm">
-                                    <option value="">All Months</option>
-                                    <option th:each="m : ${#numbers.sequence(1, 12)}"
-                                            th:value="${m}"
-                                            th:text="${T(java.time.Month).of(m)}"
-                                            th:selected="${param.month != null && param.month[0] == m || (param.month == null && m == currentMonth)}">
-                                        January
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-primary btn-sm">
-                                    <i class="bi bi-search me-1"></i>Apply Filters
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetFilters()">
-                                    <i class="bi bi-x-circle me-1"></i>Clear Filters
-                                </button>
+                            <div class="col-md-8 mb-3">
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-search me-1"></i>Apply Filters
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetFilters()">
+                                        <i class="bi bi-x-circle me-1"></i>Clear Filters
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
-
         <!-- Summary Statistics Card -->
         <div class="card shadow-sm mb-4" th:if="${entries != null && !entries.empty}">
             <div class="card-header">
@@ -404,8 +226,7 @@
                 </div>
             </div>
         </div>
-
-        <!-- Results Table - CORRECTED -->
+        <!-- Results Table -->
         <div class="card shadow-sm">
             <div class="card-header bg-transparent">
                 <div class="d-flex justify-content-between align-items-center">
@@ -417,7 +238,7 @@
                     </div>
                     <div>
                         <a th:if="${entries != null && !entries.empty}"
-                           th:href="@{/status/register-search/export(searchTerm=${param.searchTerm},startDate=${param.startDate},endDate=${param.endDate},actionType=${param.actionType},printPrepType=${param.printPrepType},clientName=${param.clientName},year=${param.year},month=${param.month})}"
+                           th:href="@{/status/register-search/export(searchTerm=${param.searchTerm},startDate=${param.startDate},endDate=${param.endDate},actionType=${param.actionType},printPrepType=${param.printPrepType},clientName=${param.clientName},year=${currentYear},month=${currentMonth},username=${param.username})}"
                            class="btn btn-sm btn-outline-success">
                             <i class="bi bi-file-excel me-1"></i>Export Results
                         </a>
@@ -509,44 +330,48 @@
                 const advancedOptions = document.getElementById('advancedOptions');
                 if (advancedOptions.style.display === 'none') {
                     advancedOptions.style.display = 'block';
-                    this.innerHTML = '<i class="bi bi-x me-1"></i>Hide Advanced Options';
+                    this.innerHTML = '<i class="bi bi-x me-1"></i>Hide';
                 } else {
                     advancedOptions.style.display = 'none';
-                    this.innerHTML = '<i class="bi bi-sliders me-1"></i>Advanced Options';
+                    this.innerHTML = '<i class="bi bi-sliders me-1"></i>';
                 }
             });
 
             // Show advanced options if any of them are filled
             if (hasAdvancedFilters()) {
                 document.getElementById('advancedOptions').style.display = 'block';
-                document.getElementById('toggleAdvanced').innerHTML = '<i class="bi bi-x me-1"></i>Hide Advanced Options';
+                document.getElementById('toggleAdvanced').innerHTML = '<i class="bi bi-x me-1"></i>Hide';
             }
+
+            // Synchronize hidden year and month fields with the period selectors
+            document.getElementById('periodYearSelect').addEventListener('change', function() {
+                document.getElementById('yearInput').value = this.value;
+            });
+
+            document.getElementById('periodMonthSelect').addEventListener('change', function() {
+                document.getElementById('monthInput').value = this.value;
+            });
 
             // Initialize summary statistics calculation
             calculateStats();
         });
 
-        // Function to load all entries for the current month/year
-        function loadAllEntries() {
-            // Get the current year and month from the hidden fields
-            const year = document.getElementById('currentYear').value;
-            const month = document.getElementById('currentMonth').value;
-
-            // Redirect to the same page with only year and month parameters
-            window.location.href = `/status/register-search?year=${year}&month=${month}`;
+        // Function to get the current username from URL parameters
+        function getCurrentUsername() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('username') || '';
         }
 
-        // Function to reset search
+        // Function to reset search while preserving username and period
         function resetSearch() {
             // Get the current year and month from the hidden fields
             const year = document.getElementById('currentYear').value;
             const month = document.getElementById('currentMonth').value;
 
-            // Get the current URL parameters to preserve username
-            const urlParams = new URLSearchParams(window.location.search);
-            const username = urlParams.get('username');
+            // Get username from hidden field or URL
+            const username = document.getElementById('usernameInput').value || getCurrentUsername();
 
-            // Construct the redirect URL
+            // Construct the redirect URL with preserved username and period
             let redirectUrl = `/status/register-search?year=${year}&month=${month}`;
 
             // Add username if present
@@ -554,7 +379,7 @@
                 redirectUrl += `&username=${username}`;
             }
 
-            // Redirect to load entries with preserved username
+            // Redirect with preserved username and period
             window.location.href = redirectUrl;
         }
 
@@ -583,20 +408,19 @@
             document.getElementById('printPrepType').value = '';
             document.getElementById('clientName').value = '';
 
-            // Get the current selected year and month from the dropdowns
-            const year = document.getElementById('year').value;
-            const month = document.getElementById('month').value;
+            // Get the current period values
+            const year = document.getElementById('currentYear').value;
+            const month = document.getElementById('currentMonth').value;
+
+            // Get username from hidden field or URL
+            const username = document.getElementById('usernameInput').value || getCurrentUsername();
 
             // Reset Select2 fields
             if (typeof $ !== 'undefined' && $('.select2-input').length) {
                 $('.select2-input').val(null).trigger('change');
             }
 
-            // Get username from current URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const username = urlParams.get('username');
-
-            // Construct the redirect URL
+            // Construct the redirect URL preserving username and period
             let redirectUrl = `/status/register-search?year=${year}&month=${month}`;
 
             // Add username if present
@@ -604,9 +428,56 @@
                 redirectUrl += `&username=${username}`;
             }
 
-            // Redirect with preserved username
+            // Redirect with preserved username and period
             window.location.href = redirectUrl;
         }
+
+        // Intercept the search form submission to ensure username and period are preserved
+        document.getElementById('searchForm').addEventListener('submit', function(event) {
+            // Get username from hidden field or URL
+            const username = document.getElementById('usernameInput').value || getCurrentUsername();
+
+            // Set the username in the form's hidden input
+            if (username) {
+                document.getElementById('usernameInput').value = username;
+            }
+
+            // Get year and month from the current period
+            const year = document.getElementById('currentYear').value;
+            const month = document.getElementById('currentMonth').value;
+
+            // Update the form's year and month values
+            document.getElementById('yearInput').value = year;
+            document.getElementById('monthInput').value = month;
+
+            // Validate date range if provided
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if ((startDate && !endDate) || (!startDate && endDate)) {
+                alert('Please provide both start and end dates for date range filtering');
+                event.preventDefault();
+                return false;
+            }
+
+            // Continue with form submission
+            return true;
+        });
+
+        // Also intercept the period form to ensure username is preserved
+        document.getElementById('periodForm').addEventListener('submit', function(event) {
+            // Get username from URL if not already in the hidden field
+            const hiddenUsername = this.elements['username'].value;
+            if (!hiddenUsername) {
+                const urlUsername = getCurrentUsername();
+                if (urlUsername) {
+                    this.elements['username'].value = urlUsername;
+                }
+            }
+
+            // Continue with form submission
+            return true;
+        });
 
         function calculateStats() {
             try {
@@ -687,22 +558,6 @@
                 console.error('Error calculating stats:', error);
             }
         }
-
-        // Add event listener for the search form to handle submission
-        document.getElementById('searchForm').addEventListener('submit', function(event) {
-            // Validate date range if provided
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-
-            if ((startDate && !endDate) || (!startDate && endDate)) {
-                alert('Please provide both start and end dates for date range filtering');
-                event.preventDefault();
-                return false;
-            }
-
-            // Continue with form submission
-            return true;
-        });
     </script>
 </th:block>
 </body>

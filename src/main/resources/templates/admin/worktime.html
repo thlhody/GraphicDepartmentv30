@@ -5,128 +5,8 @@
       lang="en">
 <head>
     <title>Work Time Management</title>
-    <style>
-        .weekend { background-color: #f8f9fa !important; }
-        .admin-edit { background-color: #fff3cd !important; }
-        .user-input { background-color: #d1e7dd !important; }
-        .user-synced { background-color: #e2e3e5 !important; }
-        .holiday { color: #dc3545 !important; }
-        .vacation { color: #0dcaf0 !important; }
-        .medical { color: #ffc107 !important; }
-
-
-        .quick-actions button {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-        }
-
-        .summary-col {
-            background-color: #f8f9fa;
-            font-weight: 500;
-        }
-        /* New/modified styles */
-        .worktime-table {
-            font-size: 0.875rem; /* Slightly smaller font */
-            table-layout: fixed; /* Fixed table layout for better control */
-            width: 100%;
-        }
-
-        .worktime-table th,
-        .worktime-table td {
-            padding: 0.4rem !important; /* Reduced padding */
-            white-space: nowrap; /* Prevent text wrapping */
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* Column widths */
-        .worktime-table th:first-child,
-        .worktime-table td:first-child {
-            width: 140px; /* Fixed width for names */
-            position: sticky;
-            left: 0;
-            background: white;
-            z-index: 2;
-        }
-
-        .worktime-table th:nth-child(2),
-        .worktime-table td:nth-child(2) {
-            width: 90px; /* Fixed width for employee ID */
-            position: sticky;
-            left: 140px;
-            background: white;
-            z-index: 1;
-        }
-
-        /* Day columns */
-        .day-column {
-            width: 35px; /* Compact width for day columns */
-            text-align: center;
-        }
-
-        /* Summary columns */
-        .summary-col {
-            width: 70px;
-            background-color: #f8f9fa;
-            font-weight: 500;
-        }
-        /* Update the worktime-cell and editor styles */
-        .worktime-cell {
-            position: relative !important;
-            cursor: pointer;
-            min-height: 30px;  /* Ensure minimum height for cell */
-        }
-
-        .worktime-editor {
-            position: fixed;  /* Change to fixed positioning */
-            z-index: 9999;
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 0.25rem;
-            padding: 0.5rem;
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-            display: none;
-            width: 240px;
-        }
-
-        .worktime-editor.show {
-            display: block;
-        }
-
-        /* Add to your existing styles */
-        .worktime-editor .btn-outline-secondary:hover {
-            background-color: #dc3545;
-            border-color: #dc3545;
-            color: white;
-        }
-
-        .worktime-editor .bi-trash {
-            font-size: 0.875rem;
-        }
-
-
-
-        .quick-actions button {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-        }
-
-        /* Header day styling */
-        .day-header {
-            text-align: center;
-            line-height: 1;
-        }
-
-        .day-header .day-initial {
-            font-size: 0.75rem;
-            opacity: 0.7;
-        }
-
-        .day-header .day-number {
-            font-weight: 500;
-        }
-
-    </style>
+    <link rel="stylesheet" th:href="@{/css/worktime-admin.css}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -141,10 +21,8 @@
                 <i class="bi bi-grid"></i> Dashboard
             </a>
         </div>
-
         <!-- Alert System -->
         <div class="mb-4" th:replace="~{alerts/alerts :: alerts}"></div>
-
         <!-- Management Card -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-light">
@@ -206,7 +84,6 @@
                 </div>
             </div>
         </div>
-
         <!-- Work Time Records Card -->
         <div class="card shadow-sm">
             <div class="card-header bg-light">
@@ -310,105 +187,9 @@
             </div>
         </div>
     </div>
+    <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <script th:inline="javascript">
-            function showEditor(cell) {
-                // Hide any other open editors
-                document.querySelectorAll('.worktime-editor.show').forEach(editor => {
-                    editor.classList.remove('show');
-                });
-
-                const editor = cell.querySelector('.worktime-editor');
-                if (editor) {
-                    // Get cell position
-                    const rect = cell.getBoundingClientRect();
-                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                    // Position editor below the cell
-                    editor.style.top = (rect.bottom + scrollTop) + 'px';
-                    editor.style.left = (rect.left + scrollLeft) + 'px';
-
-                    // Show the editor
-                    editor.classList.add('show');
-
-                    // Ensure editor stays in viewport
-                    const editorRect = editor.getBoundingClientRect();
-                    const viewportWidth = window.innerWidth;
-                    const viewportHeight = window.innerHeight;
-
-                    // Adjust horizontal position if needed
-                    if (editorRect.right > viewportWidth) {
-                        editor.style.left = (viewportWidth - editorRect.width - 10) + 'px';
-                    }
-
-                    // Adjust vertical position if needed
-                    if (editorRect.bottom > viewportHeight) {
-                        editor.style.top = (rect.top + scrollTop - editorRect.height) + 'px';
-                    }
-                }
-            }
-
-            function setWorktime(btn, value) {
-                event.stopPropagation(); // Prevent event bubbling
-                const cell = btn.closest('.worktime-cell');
-                submitWorktimeUpdate(cell, value);
-            }
-
-            function saveWorktime(btn) {
-                event.stopPropagation(); // Prevent event bubbling
-                const input = btn.previousElementSibling;
-                const value = input.value.trim();
-                if (value) {
-                    const cell = btn.closest('.worktime-cell');
-                    submitWorktimeUpdate(cell, value);
-                }
-            }
-
-            function submitWorktimeUpdate(cell, value) {
-                const userId = cell.dataset.userId;
-                const [year, month, day] = cell.dataset.date.split('-');
-
-                console.log('Submitting update:', { userId, year, month, day, value });
-
-                fetch('/admin/worktime/update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: new URLSearchParams({
-                        userId: userId,
-                        year: year,
-                        month: month,
-                        day: day,
-                        value: value
-                    })
-                })
-                    .then(response => {
-                    if (response.ok) {
-                        console.log('Update successful');
-                        location.reload();
-                    } else {
-                        console.error('Update failed');
-                        response.text().then(text => {
-                            alert('Failed to update worktime: ' + text);
-                        });
-                    }
-                })
-                    .catch(error => {
-                    console.error('Error:', error);
-                    alert('Failed to update worktime');
-                });
-            }
-            // Close editor when clicking outside
-            document.addEventListener('click', function(event) {
-                if (!event.target.closest('.worktime-cell')) {
-                    document.querySelectorAll('.worktime-editor.show').forEach(editor => {
-                        editor.classList.remove('show');
-                    });
-                }
-            });
-        </script>
+        <script th:src="@{/js/worktime-admin.js}"></script>
     </th:block>
 </div>
 </body>

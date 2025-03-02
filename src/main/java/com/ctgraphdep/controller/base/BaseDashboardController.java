@@ -146,7 +146,6 @@ public abstract class BaseDashboardController {
         return DashboardMetrics.builder()
                 .onlineUsers(0)
                 .activeUsers(0)
-                .pendingTasks(0)
                 .systemStatus("UNAVAILABLE")
                 .lastUpdate(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
                 .build();

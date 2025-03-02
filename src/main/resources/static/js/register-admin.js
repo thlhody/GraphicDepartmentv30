@@ -1,309 +1,3 @@
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml"
-      xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}" lang="en">
-<head>
-    <title>Admin Register Management</title>
-    <link rel="stylesheet" th:href="@{/css/timeoff.css}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css}">
-</head>
-<body>
-<div layout:fragment="content">
-    <div class="container py-4">
-        <!-- Alert System -->
-        <div class="mb-4">
-            <div th:replace="~{alerts/alerts :: alerts}"></div>
-        </div>
-        <!-- Header Section -->
-        <div class="page-header d-flex justify-content-between align-items-center mb-4">
-            <div class="d-flex align-items-center gap-3">
-                <h1 class="header-title">
-                    <i class="bi bi-journal-text me-2"></i>Admin Register Management
-                </h1>
-                <div class="badge bg-primary rounded-pill">
-                    <i class="bi bi-shield me-2"></i>Admin Panel
-                </div>
-            </div>
-            <a class="btn btn-outline-primary" th:href="@{/admin}">
-                <i class="bi bi-grid me-2"></i>Dashboard
-            </a>
-        </div>
-        <!-- Period & User Selection -->
-        <div class="card shadow-sm mb-4 register-form">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Period & User Select</h5>
-            </div>
-            <div class="card-body period-selector">
-                <div class="row g-3 align-items-end">
-                    <div class="col">
-                        <label class="form-label" for="yearSelect">Year</label>
-                        <select name="year" id="yearSelect" class="form-select" th:value="${currentYear}">
-                            <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
-                                    th:value="${y}" th:text="${y}" th:selected="${y == currentYear}">2024
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <label class="form-label" for="monthSelect">Month</label>
-                        <select name="month" id="monthSelect" class="form-select" th:value="${currentMonth}">
-                            <option th:each="m : ${#numbers.sequence(1, 12)}" th:value="${m}"
-                                    th:text="${T(java.time.Month).of(m).toString().toLowerCase().substring(0,1).toUpperCase() + T(java.time.Month).of(m).toString().toLowerCase().substring(1)}"
-                                    th:selected="${m == currentMonth}">January
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <label class="form-label" for="userSelect">User</label>
-                        <select name="userId" id="userSelect" class="form-select">
-                            <option value="">Select User</option>
-                            <option th:each="user : ${users}" th:value="${user.userId}" th:text="${user.name}"
-                                    th:selected="${selectedUser != null && selectedUser.userId == user.userId}">User
-                                Name
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <button type="submit" class="btn btn-primary w-100">Load Data</button>
-                    </div>
-                    <div class="col">
-                        <button id="clearTable" class="btn btn-secondary w-100">Clear Table</button>
-                    </div>
-                    <div class="col">
-                        <button id="saveChanges" class="btn btn-success w-100">Save</button>
-                    </div>
-                    <div class="col">
-                        <button id="exportExcel" class="btn btn-info w-100">
-                            <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Bonus Configuration -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Bonus Configuration</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col">
-                        <label for="bonusSum" class="form-label">Bonus Sum</label>
-                        <input type="number" class="form-control" id="bonusSum" th:value="${bonusConfig.sumValue}">
-                    </div>
-                    <div class="col">
-                        <label for="entriesPercentage" class="form-label">%Entries</label>
-                        <input type="number" class="form-control" id="entriesPercentage"
-                               th:value="${bonusConfig.entriesPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="articlesPercentage" class="form-label">%Art</label>
-                        <input type="number" class="form-control" id="articlesPercentage"
-                               th:value="${bonusConfig.articlesPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="complexityPercentage" class="form-label">%CG</label>
-                        <input type="number" class="form-control" id="complexityPercentage"
-                               th:value="${bonusConfig.complexityPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="miscPercentage" class="form-label">%Misc</label>
-                        <input type="number" class="form-control" id="miscPercentage"
-                               th:value="${bonusConfig.miscPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="normValue" class="form-label">Norm</label>
-                        <input type="number" class="form-control" id="normValue" th:value="${bonusConfig.normValue}"
-                               step="0.10">
-                    </div>
-                    <div class="col">
-                        <label for="totalEntries" class="form-label">Total Entries</label>
-                        <input type="number" class="form-control" id="totalEntries" readonly>
-                    </div>
-                    <div class="col">
-                        <label for="averageArticles" class="form-label">Art. Nr.</label>
-                        <input type="number" class="form-control" id="averageArticles" readonly>
-                    </div>
-                    <div class="col">
-                        <label for="averageComplexity" class="form-label">CG</label>
-                        <input type="number" class="form-control" id="averageComplexity" readonly>
-                    </div>
-                    <div class="col">
-                        <label for="miscValue" class="form-label">Misc</label>
-                        <input type="number" class="form-control" id="miscValue" th:value="${bonusConfig.miscValue}"
-                               step="0.50">
-                    </div>
-                    <div class="col">
-                        <label for="workedDays" class="form-label">Worked D</label>
-                        <input class="form-control" id="workedDays" readonly>
-                    </div>
-                    <div class="col">
-                        <button class="btn btn-primary w-150" id="calculateBonusBtn">Bonus</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Bonus Calculation Results -->
-        <div class="card shadow-sm mb-4" id="bonusResults" style="display: none;">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Bonus Calculation Results</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered mb-0">
-                        <thead class="bg-light">
-                        <tr>
-                            <th>Name</th>
-                            <th>Entries</th>
-                            <th>Art Nr.</th>
-                            <th>CG</th>
-                            <th>Misc</th>
-                            <th>Worked D</th>
-                            <th>Worked%</th>
-                            <th>Bonus%</th>
-                            <th>Bonus$</th>
-                            <th>1MAgo</th>
-                            <th>2MAgo</th>
-                            <th>3MAgo</th>
-                        </tr>
-                        </thead>
-                        <tbody id="bonusResultsBody">
-                        <!-- Populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <!-- Filter and Search -->
-        <div class="card shadow-sm mb-4 register-form">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Filter and Search</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col">
-                        <label for="actionType" class="form-label">Action Type</label>
-                        <select class="form-select form-control-sm" id="actionType">
-                            <option value="">Select Action Type</option>
-                            <option th:each="type : ${actionTypes}" th:value="${type}" th:text="${type}">Action Type
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <label for="printPrepType" class="form-label">Print Prep Types</label>
-                        <select class="form-select form-control-sm" id="printPrepType">
-                            <option value="">Select Print Prep Type</option>
-                            <option th:each="type : ${printPrepTypes}"
-                                    th:value="${type}"
-                                    th:text="${type}">
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <button class="btn btn-primary w-100" id="filterBtn">Filter</button>
-                    </div>
-                    <div class="col">
-                        <label for="searchInput" class="form-label">Search</label>
-                        <input type="text" class="form-control form-control-sm" id="searchInput"
-                               placeholder="Search...">
-                    </div>
-                    <div class="col">
-                        <button class="btn btn-primary w-100" id="searchBtn">Search</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Bulk Update -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Graphic Complexity Update</h5>
-            </div>
-            <div class="card-body">
-                <div class="row justify-content-center g-3 align-items-end">
-                    <div class="col-md-4">
-                        <label for="bulkUpdateValue" class="form-label">Update Value</label>
-                        <input type="number"
-                               class="form-control"
-                               id="bulkUpdateValue"
-                               placeholder="Graphic complexity value"
-                               step="0.5"
-                               min="0.0"
-                               max="10.0"
-                               pattern="\d*\.?\d*">
-                    </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-primary w-100" id="bulkUpdateBtn">Update Selected</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Register Entries Table -->
-        <div class="card shadow-sm mb-4 register-form">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Register Entries</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table id="registerTable" class="table table-hover table-striped mb-0">
-                        <thead class="bg-light">
-                        <tr>
-                            <th><input type="checkbox" id="selectAll" aria-label="Select all entries"></th>
-                            <th>Date</th>
-                            <th>Order ID</th>
-                            <th>Production ID</th>
-                            <th>OMS ID/Email</th>
-                            <th>Client</th>
-                            <th>Action Type</th>
-                            <th>Print Preps Types</th>
-                            <th>Colors</th>
-                            <th>Art Nr.</th>
-                            <th>CG</th>
-                            <th>Notes</th>
-                            <th>Status</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr th:each="entry : ${entries}">
-                            <td>
-                                <div class="form-check">
-                                    <input type="checkbox"
-                                           class="form-check-input entry-select"
-                                           th:id="${'entry-' + entry.entryId}"
-                                           th:value="${entry.entryId}"
-                                           id="entry-select-${entry.entryId}">
-                                    <label class="form-check-label"
-                                           th:for="${'entry-' + entry.entryId}"
-                                           for="entry-select-${entry.entryId}"
-                                           th:text="${'SE-' + entry.entryId}">Select entry</label>
-                                </div>
-                            </td>
-                            <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">29/11/2024</td>
-                            <td th:text="${entry.orderId}">1234/25/AB</td>
-                            <td th:text="${entry.productionId}">CVEX25-12345</td>
-                            <td th:text="${entry.omsId}">OMS/SampleID</td>
-                            <td th:text="${entry.clientName}">Client</td>
-                            <td th:text="${entry.actionType}">ORDIN</td>
-                            <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
-                            <td th:text="${entry.colorsProfile}">A</td>
-                            <td th:text="${entry.articleNumbers}">5</td>
-                            <td th:text="${entry.graphicComplexity}">2.5</td>
-                            <td th:text="${entry.observations}">Notes</td>
-                            <td>
-                        <span class="badge" th:text="${entry.adminSync}"
-                              th:classappend="${entry.adminSync == 'ADMIN_EDITED' ? 'bg-primary' : entry.adminSync == 'USER_INPUT' ? 'bg-success' : 'bg-secondary'}">
-                            USER_INPUT
-                        </span>
-                            </td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<th:block layout:fragment="scripts">
-    <script th:inline="javascript">
 
         // Initialize state management
         const state = {
@@ -347,7 +41,6 @@
                 placeholder: 'Select types...',
                 allowClear: true
             });
-            initializeInlineEditing();
         });
 
         // Add separate event listener for export button
@@ -367,73 +60,6 @@
             // Trigger the download
             window.location.href = exportUrl;
         });
-
-
-        function initializeInlineEditing() {
-            const registerTable = document.getElementById('registerTable');
-            if (!registerTable) return;
-
-            registerTable.addEventListener('dblclick', function(event) {
-                const cell = event.target.closest('td');
-
-                // Only allow editing of the CG (Graphic Complexity) column (11th column)
-                if (!cell || cell.cellIndex !== 10) return;
-
-                // Create an input for editing
-                const originalValue = cell.textContent.trim();
-                const input = document.createElement('input');
-                input.type = 'number';
-                input.value = originalValue;
-                input.step = '0.5';
-                input.min = '0.0';
-                input.max = '5.0';
-                input.classList.add('form-control', 'form-control-sm');
-
-                // Replace cell content with input
-                cell.innerHTML = '';
-                cell.appendChild(input);
-                input.focus();
-
-                // Handle save/cancel events
-                input.addEventListener('blur', function() {
-                    const newValue = input.value.trim();
-
-                    // Validate input
-                    if (newValue === originalValue) {
-                        // No change, revert to original
-                        cell.textContent = originalValue;
-                        return;
-                    }
-
-                    // Validate numeric input
-                    const numValue = parseFloat(newValue);
-                    if (isNaN(numValue) || numValue < 0 || numValue > 10) {
-                        showError('Please enter a valid number between 0 and 10');
-                        cell.textContent = originalValue;
-                        return;
-                    }
-
-                    // Update cell with formatted value
-                    cell.textContent = numValue.toFixed(1);
-
-                    // Mark the corresponding checkbox as checked
-                    const row = cell.closest('tr');
-                    const checkbox = row.querySelector('.entry-select');
-                    if (checkbox) {
-                        checkbox.checked = true;
-                    }
-                });
-
-                // Allow saving with Enter key
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        input.blur();
-                    } else if (e.key === 'Escape') {
-                        cell.textContent = originalValue;
-                    }
-                });
-            });
-        }
 
         // Form handling
         function initializeFormHandling() {
@@ -758,6 +384,7 @@
 
             updateSummaryFromEntries(state.filteredEntries);
         }
+
         //saveChanges to use state and async/await pattern
         async function saveChanges() {
             if (!state.currentUser) {
@@ -768,11 +395,7 @@
             try {
                 // Get all entries from the table
                 const entries = Array.from(document.querySelectorAll('#registerTable tbody tr'))
-                    .filter(row => {
-                    // Only include rows that are visible or have their checkbox checked
-                    const checkbox = row.querySelector('.entry-select');
-                    return row.style.display !== 'none' && checkbox.checked;
-                })
+                    .filter(row => row.style.display !== 'none')
                     .map(row => {
                     // Convert date from dd/MM/yyyy to yyyy-MM-dd format
                     const dateText = row.querySelector('td:nth-child(2)').textContent;
@@ -819,10 +442,10 @@
                 const alertsContainer = document.querySelector('.alerts');
                 if (alertsContainer) {
                     alertsContainer.innerHTML = `
-            <div class="alert alert-success">
-                Changes saved successfully. Reloading page...
-            </div>
-        `;
+                <div class="alert alert-success">
+                    Changes saved successfully. Reloading page...
+                </div>
+            `;
                 }
 
                 // Reload after successful save
@@ -1012,7 +635,3 @@
                 updateSummaryDisplay();
             }
         }
-    </script>
-</th:block>
-</body>
-</html>

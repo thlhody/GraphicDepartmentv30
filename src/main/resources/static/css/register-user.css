@@ -1,0 +1,238 @@
+/* Reset and Base Styles */
+    * {
+        box-sizing: border-box;
+    }
+    .th {
+        text-align: center; /* Horizontally centers text */
+        vertical-align: middle; /* Vertically centers text */
+        padding: 8px; /* Adjust spacing inside the cell */
+        white-space: nowrap; /* Prevents text wrapping */
+    }
+
+
+    /* Form Validation Styles */
+    .invalid-feedback {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.875rem;
+        color: #dc3545;
+    }
+
+    .is-invalid {
+        border-color: #dc3545;
+    }
+
+    .is-invalid:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+    }
+
+    /* Form Element Styles */
+    .form-control-sm {
+        height: calc(1.5em + 0.5rem + 2px);
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* Select2 Customization */
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: calc(1.5em + 0.5rem + 2px) !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+        padding: 2px 6px !important;
+        margin: 2px !important;
+        font-size: 0.875rem !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-search__field {
+        margin-top: 2px !important;
+        height: calc(1.5em + 0.25rem) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-dropdown {
+        font-size: 0.875rem !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option {
+        padding: 0.25rem 0.5rem !important;
+    }
+
+    /* Table Styles */
+    .table {
+        width: 100%;
+        font-size: 0.9em;
+        table-layout: auto;
+    }
+
+    .table th:last-child,
+    .table td:last-child {
+        width: 90px;
+        min-width: 90px;
+        white-space: nowrap;
+    }
+
+    .table td {
+        word-break: break-word;
+        vertical-align: middle;
+    }
+
+    /* Action Button Styles */
+    .table-actions {
+        width: 60px;
+        text-align: center;
+    }
+
+    .table-actions .btn {
+        width: 35px;  /* Set width */
+        height: 35px; /* Set height */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border-radius: 4px; /* Remove rounded edges */
+        border: 1px solid #ccc; /* Adjust border thickness */
+        font-size: 16px; /* Adjust icon size */
+    }
+
+    /* Updated Action Buttons Layout */
+    .table-actions .btn-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .btn-group {
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        white-space: nowrap;
+    }
+
+    .btn-outline-primary.btn-custom-outline {
+        border-width: 1px;
+    }
+    .btn-outline-secondary.btn-custom-outline {
+        border-width: 1px;
+    }
+    .btn-outline-danger.btn-custom-outline {
+        border-width: 1px;
+    }
+
+    /* Specific Entry Action Buttons */
+    .table-actions .btn-group .btn {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.25rem;
+    }
+
+    .table-actions .btn-group .btn:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Badges */
+    .badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.875em;
+        font-weight: 700;
+        text-align: center;
+        border-radius: 0.25rem;
+        color: #fff;
+    }
+
+    /* Modal Styles */
+    .search-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .search-modal.show {
+        display: flex;
+    }
+
+    .search-modal-content {
+        background: white;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .search-input-container {
+        padding: 1rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .search-results {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    .search-result-item {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .search-result-item:hover {
+        background-color: #f0f0f0;
+    }
+
+    .search-result-header {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        font-weight: bold;
+        background-color: #f8f9fa;
+        padding: 0.5rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .search-result-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        padding: 0.5rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    /* Action Type Badges */
+    .bg-order { background-color: #007bff; }
+    .bg-reorder { background-color: #6c757d; }
+    .bg-sample { background-color: #28a745; }
+    .bg-strikeoff {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .bg-designs { background-color: #dc3545; }
+    .bg-other { background-color: #6f42c1; }
+    .bg-layout { background-color: #17a2b8; }
+
+    /* Admin Sync Badges */
+    .badge.bg-success { background-color: #198754 !important; }
+    .badge.bg-warning {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 768px) {
+        .register-form .col-auto {
+            width: 100% !important;
+        }
+
+        .table-responsive {
+            margin: 0 -1rem;
+        }
+    }

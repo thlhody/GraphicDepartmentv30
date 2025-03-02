@@ -5,39 +5,8 @@
       lang="en">
 <head>
     <title>Work Session Management</title>
-    <style>
-        /* Custom styles for session stats */
-        .stat-container {
-            transition: transform 0.2s ease;
-        }
-
-        .stat-container:hover {
-            transform: translateY(-2px);
-        }
-
-        .time-display {
-            font-size: 2rem;
-            font-weight: 500;
-        }
-
-        .session-controls {
-            gap: 1rem;
-        }
-
-        @media (max-width: 768px) {
-            .session-controls {
-                flex-direction: column;
-            }
-
-            .session-controls form {
-                width: 100%;
-            }
-
-            .session-controls button {
-                width: 100%;
-            }
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/session.css}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -205,16 +174,9 @@
             </div>
         </div>
     </div>
+    <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <!-- Replace the existing script with this -->
-        <script th:if="${param.showResumeConfirmation}">
-            document.addEventListener('DOMContentLoaded', function() {
-                // Create a new Bootstrap modal instance
-                var resumeModal = new bootstrap.Modal(document.getElementById('resumeConfirmationModal'));
-                // Show the modal
-                resumeModal.show();
-            });
-        </script>
+        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js}"></script>
     </th:block>
 </div>
 </body>

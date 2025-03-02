@@ -1,0 +1,87 @@
+  /* Update the sorting icons CSS */
+        .sortable {
+            cursor: pointer;
+            white-space: nowrap;
+            padding-right: 20px !important;  /* Space for the arrow */
+            position: relative;
+        }
+
+        .sort-icon {
+            display: inline-block;
+            width: 0;
+            height: 0;
+            margin-left: 6px;  /* Space between text and arrow */
+            border-right: 4px solid transparent;
+            border-left: 4px solid transparent;
+            position: relative;  /* Changed from absolute */
+            top: -2px;          /* Slight vertical alignment */
+        }
+
+        .sort-asc .sort-icon {
+            border-bottom: 4px solid #333;
+        }
+        .sort-desc .sort-icon {
+            border-top: 4px solid #333;
+        }
+        #monthSelect {
+            text-transform: capitalize;
+        }
+        /* Add these new styles */
+        #bonusTable th {
+            text-align: right !important;
+            vertical-align: middle !important;
+            padding: 8px !important;
+        }
+
+        #bonusTable td {
+            text-align: right !important;
+            vertical-align: middle !important;
+        }
+
+        /* Left align first column (Name) */
+        #bonusTable th:first-child,
+        #bonusTable td:first-child {
+            text-align: left !important;
+        }
+
+        /* Previous months columns alignment */
+        #bonusTable th:nth-child(n+10),
+        #bonusTable td:nth-child(n+10) {
+            text-align: right !important;
+        }
+
+        /* Add padding */
+        #bonusTable th,
+        #bonusTable td {
+            padding: 8px !important;
+        }
+        /* Override Bootstrap table variables */
+        #bonusTable {
+            --bs-table-bg: transparent;
+            --bs-table-accent-bg: transparent;
+            --bs-table-striped-bg: transparent;
+            --bs-table-active-bg: transparent;
+            --bs-table-hover-bg: transparent;
+        }
+
+        /* Direct table styling with max specificity */
+        html body .container #bonusTable tbody tr {
+            background-color: transparent;
+        }
+
+        html body .container #bonusTable tbody tr[data-entries="high"] {
+            background-color: #e3f2fd !important;
+        }
+
+        html body .container #bonusTable tbody tr[data-entries="medium"] {
+            background-color: #fff3e0 !important;
+        }
+
+        html body .container #bonusTable tbody tr[data-entries="low"] {
+            background-color: #ffebee !important;
+        }
+
+        /* Hover effect */
+        html body .container #bonusTable tbody tr:hover {
+            filter: brightness(95%) !important;
+        }
