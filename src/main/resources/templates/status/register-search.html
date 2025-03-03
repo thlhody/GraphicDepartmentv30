@@ -151,13 +151,13 @@
 
                             <!-- Print Prep Type filter -->
                             <div class="col-md-3 mb-3">
-                                <label for="printPrepType" class="form-label">Print Prep Type</label>
-                                <select id="printPrepType" name="printPrepType" class="form-select form-select-sm select2-input">
+                                <label for="printPrepTypes" class="form-label">Print Prep Type</label>
+                                <select id="printPrepTypes" name="printPrepTypes" class="form-select form-select-sm select2-input">
                                     <option value="">All Print Prep Types</option>
                                     <option th:each="type : ${printPrepTypes}"
                                             th:value="${type}"
                                             th:text="${type}"
-                                            th:selected="${param.printPrepType != null && param.printPrepType[0] == type}">
+                                            th:selected="${param.printPrepTypes != null && param.printPrepTypes[0] == type}">
                                         Print Prep Type
                                     </option>
                                 </select>
@@ -238,7 +238,7 @@
                     </div>
                     <div>
                         <a th:if="${entries != null && !entries.empty}"
-                           th:href="@{/status/register-search/export(searchTerm=${param.searchTerm},startDate=${param.startDate},endDate=${param.endDate},actionType=${param.actionType},printPrepType=${param.printPrepType},clientName=${param.clientName},year=${currentYear},month=${currentMonth},username=${param.username})}"
+                           th:href="@{/status/register-search/export(searchTerm=${param.searchTerm},startDate=${param.startDate},endDate=${param.endDate},actionType=${param.actionType},printPrepTypes=${param.printPrepTypes},clientName=${param.clientName},year=${currentYear},month=${currentMonth},username=${param.username})}"
                            class="btn btn-sm btn-outline-success">
                             <i class="bi bi-file-excel me-1"></i>Export Results
                         </a>
@@ -389,7 +389,7 @@
             hasValue('startDate') ||
             hasValue('endDate') ||
             hasValue('actionType') ||
-            hasValue('printPrepType') ||
+            hasValue('printPrepTypes') ||
             hasValue('clientName') ||
             hasValue('searchTerm')
             );
@@ -405,7 +405,7 @@
             document.getElementById('startDate').value = '';
             document.getElementById('endDate').value = '';
             document.getElementById('actionType').value = '';
-            document.getElementById('printPrepType').value = '';
+            document.getElementById('printPrepTypes').value = '';
             document.getElementById('clientName').value = '';
 
             // Get the current period values

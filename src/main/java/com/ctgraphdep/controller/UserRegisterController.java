@@ -2,7 +2,7 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ActionType;
-import com.ctgraphdep.enums.PrintPrepType;
+import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
@@ -68,7 +68,7 @@ public class UserRegisterController extends BaseController {
 
             // Always set these basic attributes regardless of potential errors
             model.addAttribute("actionTypes", ActionType.getValues());
-            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
+            model.addAttribute("printPrepTypes", PrintPrepTypes.getValues());
             model.addAttribute("currentYear", year);
             model.addAttribute("currentMonth", month);
 
@@ -128,7 +128,7 @@ public class UserRegisterController extends BaseController {
             model.addAttribute("error", "Error loading register data: " + e.getMessage());
             model.addAttribute("entries", new ArrayList<>());
             model.addAttribute("actionTypes", ActionType.getValues());
-            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
+            model.addAttribute("printPrepTypes", PrintPrepTypes.getValues());
             model.addAttribute("currentYear", year);
             model.addAttribute("currentMonth", month);
 

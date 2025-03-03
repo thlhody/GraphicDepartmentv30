@@ -5,9 +5,8 @@ import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
 import com.ctgraphdep.enums.ActionType;
-import com.ctgraphdep.enums.PrintPrepType;
+import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -201,27 +200,27 @@ public class AdminRegisterService {
 
     public List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
                                              ActionType actionType,
-                                             PrintPrepType printPrepType) {
+                                             PrintPrepTypes printPrepTypes) {
         return entries.stream()
                 .filter(entry -> {
                     // If neither filter is selected, return all entries
-                    if (actionType == null && printPrepType == null) {
+                    if (actionType == null && printPrepTypes == null) {
                         return true;
                     }
 
                     // If only action type filter is selected
-                    if (printPrepType == null) {
+                    if (printPrepTypes == null) {
                         return entry.getActionType().equals(actionType.getValue());
                     }
 
                     // If only print prep type filter is selected
                     if (actionType == null) {
-                        return entry.getPrintPrepTypes().contains(printPrepType.getValue());
+                        return entry.getPrintPrepTypes().contains(printPrepTypes.getValue());
                     }
 
                     // If both filters are selected
                     return entry.getActionType().equals(actionType.getValue()) &&
-                            entry.getPrintPrepTypes().contains(printPrepType.getValue());
+                            entry.getPrintPrepTypes().contains(printPrepTypes.getValue());
                 })
                 .collect(Collectors.toList());
     }

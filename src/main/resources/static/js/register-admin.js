@@ -189,7 +189,7 @@
                         omsId: row.querySelector('td:nth-child(5)').textContent,
                         clientName: row.querySelector('td:nth-child(6)').textContent,
                         actionType: row.querySelector('td:nth-child(7)').textContent,
-                        printPrepType: row.querySelector('td:nth-child(8)').textContent,
+                        printPrepTypes: row.querySelector('td:nth-child(8)').textContent,
                         colorsProfile: row.querySelector('td:nth-child(9)').textContent,
                         articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
                         graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),
@@ -342,7 +342,7 @@
             console.log("Applying filters");
 
             const actionType = document.getElementById('actionType').value;
-            const printPrepType = document.getElementById('printPrepType').value;
+            const printPrepType = document.getElementById('printPrepTypes').value;
             const rows = document.querySelectorAll('#registerTable tbody tr');
 
             rows.forEach(row => {
@@ -356,7 +356,7 @@
                 }
 
                 if (printPrepType && showRow) {
-                    showRow = rowPrintPrepTypes.includes(printPrepType);
+                    showRow = rowPrintPrepTypes.includes(printPrepTypes);
                 }
 
                 row.style.display = showRow ? '' : 'none';
@@ -411,7 +411,7 @@
                         omsId: row.querySelector('td:nth-child(5)').textContent,
                         clientName: row.querySelector('td:nth-child(6)').textContent,
                         actionType: row.querySelector('td:nth-child(7)').textContent,
-                        printPrepType: row.querySelector('td:nth-child(8)').textContent,
+                        printPrepTypes: row.querySelector('td:nth-child(8)').textContent,
                         colorsProfile: row.querySelector('td:nth-child(9)').textContent,
                         articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
                         graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),

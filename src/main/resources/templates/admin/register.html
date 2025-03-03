@@ -2,11 +2,31 @@
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}" lang="en">
+      layout:decorate="~{layout/default}"
+      lang="en">
 <head>
     <title>Admin Register Management</title>
-    <link rel="stylesheet" th:href="@{/css/timeoff.css}">
+    <link rel="stylesheet" th:href="@{/css/register-admin.css}">
     <link rel="stylesheet" th:href="@{/css/alerts.css}">
+    <style>
+
+        /* Field State Styling */
+        .field-editable {
+            background-color: rgba(200, 255, 200, 0.2) !important;
+        }
+        .field-noneditable {
+            background-color: rgba(200, 200, 255, 0.2) !important;
+        }
+        .field-empty {
+            background-color: rgba(255, 200, 200, 0.2) !important;
+        }
+        .field-filled {
+            background-color: rgba(200, 255, 200, 0.2) !important;
+        }
+        .field-edited {
+            background-color: #ffffcc !important;
+        }
+    </style>
 </head>
 <body>
 <div layout:fragment="content">
@@ -29,120 +49,127 @@
                 <i class="bi bi-grid me-2"></i>Dashboard
             </a>
         </div>
-        <!-- Period & User Selection -->
-        <div class="card shadow-sm mb-4 register-form">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Period & User Select</h5>
+
+        <!-- Two-column Layout for Configuration -->
+        <div class="row-flex mb-4">
+            <!-- Period & User Selection -->
+            <div class="col-flex-6">
+                <div class="card shadow-sm h-100 register-form">
+                    <div class="card-header bg-light">
+                        <h5 class="card-title mb-0">Period & User Select</h5>
+                    </div>
+                    <div class="card-body period-selector">
+                        <!-- Single line with all fields and buttons -->
+                        <div class="d-flex align-items-end gap-2">
+                            <div class="flex-grow-1">
+                                <label class="form-label" for="yearSelect">Year</label>
+                                <select name="year" id="yearSelect" class="form-select field-empty" th:value="${currentYear}">
+                                    <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
+                                            th:value="${y}" th:text="${y}" th:selected="${y == currentYear}">2024
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="flex-grow-1">
+                                <label class="form-label" for="monthSelect">Month</label>
+                                <select name="month" id="monthSelect" class="form-select field-empty" th:value="${currentMonth}">
+                                    <option th:each="m : ${#numbers.sequence(1, 12)}" th:value="${m}"
+                                            th:text="${T(java.time.Month).of(m).toString().toLowerCase().substring(0,1).toUpperCase() + T(java.time.Month).of(m).toString().toLowerCase().substring(1)}"
+                                            th:selected="${m == currentMonth}">January
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="flex-grow-1">
+                                <label class="form-label" for="userSelect">User</label>
+                                <select name="userId" id="userSelect" class="form-select field-empty">
+                                    <option value="">Select User</option>
+                                    <option th:each="user : ${users}" th:value="${user.userId}" th:text="${user.name}"
+                                            th:selected="${selectedUser != null && selectedUser.userId == user.userId}">User Name
+                                    </option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Load</button>
+                            <button id="clearTable" class="btn btn-secondary">Clear</button>
+                            <button id="saveChanges" class="btn btn-success">Save</button>
+                            <button id="exportExcel" class="btn btn-info">
+                                <i class="bi bi-file-earmark-excel me-2"></i>Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body period-selector">
-                <div class="row g-3 align-items-end">
-                    <div class="col">
-                        <label class="form-label" for="yearSelect">Year</label>
-                        <select name="year" id="yearSelect" class="form-select" th:value="${currentYear}">
-                            <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
-                                    th:value="${y}" th:text="${y}" th:selected="${y == currentYear}">2024
-                            </option>
-                        </select>
+
+            <!-- Bonus Configuration -->
+            <div class="col-flex-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-light">
+                        <h5 class="card-title mb-0">Bonus Configuration</h5>
                     </div>
-                    <div class="col">
-                        <label class="form-label" for="monthSelect">Month</label>
-                        <select name="month" id="monthSelect" class="form-select" th:value="${currentMonth}">
-                            <option th:each="m : ${#numbers.sequence(1, 12)}" th:value="${m}"
-                                    th:text="${T(java.time.Month).of(m).toString().toLowerCase().substring(0,1).toUpperCase() + T(java.time.Month).of(m).toString().toLowerCase().substring(1)}"
-                                    th:selected="${m == currentMonth}">January
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <label class="form-label" for="userSelect">User</label>
-                        <select name="userId" id="userSelect" class="form-select">
-                            <option value="">Select User</option>
-                            <option th:each="user : ${users}" th:value="${user.userId}" th:text="${user.name}"
-                                    th:selected="${selectedUser != null && selectedUser.userId == user.userId}">User
-                                Name
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <button type="submit" class="btn btn-primary w-100">Load Data</button>
-                    </div>
-                    <div class="col">
-                        <button id="clearTable" class="btn btn-secondary w-100">Clear Table</button>
-                    </div>
-                    <div class="col">
-                        <button id="saveChanges" class="btn btn-success w-100">Save</button>
-                    </div>
-                    <div class="col">
-                        <button id="exportExcel" class="btn btn-info w-100">
-                            <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
-                        </button>
+                    <div class="card-body">
+                        <!-- Two rows of fields -->
+                        <div class="row g-2">
+                            <!-- First row of 6 fields -->
+                            <div class="col-2">
+                                <label for="bonusSum" class="form-label">Bonus Sum</label>
+                                <input type="number" class="form-control field-editable" id="bonusSum" th:value="${bonusConfig.sumValue}">
+                            </div>
+                            <div class="col-2">
+                                <label for="entriesPercentage" class="form-label">%Entries</label>
+                                <input type="number" class="form-control field-editable" id="entriesPercentage"
+                                       th:value="${bonusConfig.entriesPercentage}" step="0.01">
+                            </div>
+                            <div class="col-2">
+                                <label for="articlesPercentage" class="form-label">%Art</label>
+                                <input type="number" class="form-control field-editable" id="articlesPercentage"
+                                       th:value="${bonusConfig.articlesPercentage}" step="0.01">
+                            </div>
+                            <div class="col-2">
+                                <label for="complexityPercentage" class="form-label">%CG</label>
+                                <input type="number" class="form-control field-editable" id="complexityPercentage"
+                                       th:value="${bonusConfig.complexityPercentage}" step="0.01">
+                            </div>
+                            <div class="col-2">
+                                <label for="miscPercentage" class="form-label">%Misc</label>
+                                <input type="number" class="form-control field-editable" id="miscPercentage"
+                                       th:value="${bonusConfig.miscPercentage}" step="0.01">
+                            </div>
+                            <div class="col-2">
+                                <label for="normValue" class="form-label">Norm</label>
+                                <input type="number" class="form-control field-editable" id="normValue" th:value="${bonusConfig.normValue}"
+                                       step="0.10">
+                            </div>
+
+                            <!-- Second row of 6 fields -->
+                            <div class="col-2">
+                                <label for="totalEntries" class="form-label">Total Entries</label>
+                                <input type="number" class="form-control field-noneditable" id="totalEntries" readonly>
+                            </div>
+                            <div class="col-2">
+                                <label for="averageArticles" class="form-label">Art. Nr.</label>
+                                <input type="number" class="form-control field-noneditable" id="averageArticles" readonly>
+                            </div>
+                            <div class="col-2">
+                                <label for="averageComplexity" class="form-label">CG</label>
+                                <input type="number" class="form-control field-noneditable" id="averageComplexity" readonly>
+                            </div>
+                            <div class="col-2">
+                                <label for="workedDays" class="form-label">Worked D</label>
+                                <input class="form-control field-noneditable" id="workedDays" readonly>
+                            </div>
+                            <div class="col-2">
+                                <label for="miscValue" class="form-label">Misc</label>
+                                <input type="number" class="form-control field-editable" id="miscValue" th:value="${bonusConfig.miscValue}"
+                                       step="0.50">
+                            </div>
+                            <div class="col-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-primary w-100" id="calculateBonusBtn">Bonus</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- Bonus Configuration -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Bonus Configuration</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col">
-                        <label for="bonusSum" class="form-label">Bonus Sum</label>
-                        <input type="number" class="form-control" id="bonusSum" th:value="${bonusConfig.sumValue}">
-                    </div>
-                    <div class="col">
-                        <label for="entriesPercentage" class="form-label">%Entries</label>
-                        <input type="number" class="form-control" id="entriesPercentage"
-                               th:value="${bonusConfig.entriesPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="articlesPercentage" class="form-label">%Art</label>
-                        <input type="number" class="form-control" id="articlesPercentage"
-                               th:value="${bonusConfig.articlesPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="complexityPercentage" class="form-label">%CG</label>
-                        <input type="number" class="form-control" id="complexityPercentage"
-                               th:value="${bonusConfig.complexityPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="miscPercentage" class="form-label">%Misc</label>
-                        <input type="number" class="form-control" id="miscPercentage"
-                               th:value="${bonusConfig.miscPercentage}" step="0.01">
-                    </div>
-                    <div class="col">
-                        <label for="normValue" class="form-label">Norm</label>
-                        <input type="number" class="form-control" id="normValue" th:value="${bonusConfig.normValue}"
-                               step="0.10">
-                    </div>
-                    <div class="col">
-                        <label for="totalEntries" class="form-label">Total Entries</label>
-                        <input type="number" class="form-control" id="totalEntries" readonly>
-                    </div>
-                    <div class="col">
-                        <label for="averageArticles" class="form-label">Art. Nr.</label>
-                        <input type="number" class="form-control" id="averageArticles" readonly>
-                    </div>
-                    <div class="col">
-                        <label for="averageComplexity" class="form-label">CG</label>
-                        <input type="number" class="form-control" id="averageComplexity" readonly>
-                    </div>
-                    <div class="col">
-                        <label for="miscValue" class="form-label">Misc</label>
-                        <input type="number" class="form-control" id="miscValue" th:value="${bonusConfig.miscValue}"
-                               step="0.50">
-                    </div>
-                    <div class="col">
-                        <label for="workedDays" class="form-label">Worked D</label>
-                        <input class="form-control" id="workedDays" readonly>
-                    </div>
-                    <div class="col">
-                        <button class="btn btn-primary w-150" id="calculateBonusBtn">Bonus</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+
         <!-- Bonus Calculation Results -->
         <div class="card shadow-sm mb-4" id="bonusResults" style="display: none;">
             <div class="card-header bg-light">
@@ -174,69 +201,7 @@
                 </div>
             </div>
         </div>
-        <!-- Filter and Search -->
-        <div class="card shadow-sm mb-4 register-form">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Filter and Search</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col">
-                        <label for="actionType" class="form-label">Action Type</label>
-                        <select class="form-select form-control-sm" id="actionType">
-                            <option value="">Select Action Type</option>
-                            <option th:each="type : ${actionTypes}" th:value="${type}" th:text="${type}">Action Type
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <label for="printPrepType" class="form-label">Print Prep Types</label>
-                        <select class="form-select form-control-sm" id="printPrepType">
-                            <option value="">Select Print Prep Type</option>
-                            <option th:each="type : ${printPrepTypes}"
-                                    th:value="${type}"
-                                    th:text="${type}">
-                            </option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <button class="btn btn-primary w-100" id="filterBtn">Filter</button>
-                    </div>
-                    <div class="col">
-                        <label for="searchInput" class="form-label">Search</label>
-                        <input type="text" class="form-control form-control-sm" id="searchInput"
-                               placeholder="Search...">
-                    </div>
-                    <div class="col">
-                        <button class="btn btn-primary w-100" id="searchBtn">Search</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Bulk Update -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Graphic Complexity Update</h5>
-            </div>
-            <div class="card-body">
-                <div class="row justify-content-center g-3 align-items-end">
-                    <div class="col-md-4">
-                        <label for="bulkUpdateValue" class="form-label">Update Value</label>
-                        <input type="number"
-                               class="form-control"
-                               id="bulkUpdateValue"
-                               placeholder="Graphic complexity value"
-                               step="0.5"
-                               min="0.0"
-                               max="10.0"
-                               pattern="\d*\.?\d*">
-                    </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-primary w-100" id="bulkUpdateBtn">Update Selected</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+
         <!-- Register Entries Table -->
         <div class="card shadow-sm mb-4 register-form">
             <div class="card-header bg-light">
@@ -286,13 +251,13 @@
                             <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
                             <td th:text="${entry.colorsProfile}">A</td>
                             <td th:text="${entry.articleNumbers}">5</td>
-                            <td th:text="${entry.graphicComplexity}">2.5</td>
+                            <td class="cg-editable" th:text="${entry.graphicComplexity}">2.5</td>
                             <td th:text="${entry.observations}">Notes</td>
                             <td>
-                        <span class="badge" th:text="${entry.adminSync}"
-                              th:classappend="${entry.adminSync == 'ADMIN_EDITED' ? 'bg-primary' : entry.adminSync == 'USER_INPUT' ? 'bg-success' : 'bg-secondary'}">
-                            USER_INPUT
-                        </span>
+                                <span class="badge" th:text="${entry.adminSync}"
+                                      th:classappend="${entry.adminSync == 'ADMIN_EDITED' ? 'bg-primary' : entry.adminSync == 'USER_INPUT' ? 'bg-success' : 'bg-secondary'}">
+                                    USER_INPUT
+                                </span>
                             </td>
                         </tr>
                         </tbody>
@@ -321,9 +286,32 @@
         };
 
         // Initialize the page
-        // Initialize the page
+        // Add this right after your state declaration to debug the initial state
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Initializing Admin Register Management");
+            console.log("Initial state:", JSON.stringify(state, null, 2));
+            // Initialize filtered entries
+            state.filteredEntries = Array.isArray(state.entries) ? [...state.entries] : [];
+
+            // Add warning for no user selection
+            if (!state.currentUser) {
+                console.warn("No user selected - awaiting user selection");
+
+                // Pre-select first user if available
+                const userSelect = document.getElementById('userSelect');
+                if (userSelect && userSelect.options.length > 1 && !userSelect.value) {
+                    // Show a suggestion to select a user
+                    const alertsContainer = document.querySelector('.alerts');
+                    if (alertsContainer) {
+                        alertsContainer.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Please select a user and period to view register entries.
+                    </div>
+                `;
+                    }
+                }
+            }
 
             // Initialize state
             state.filteredEntries = Array.isArray(state.entries) ? [...state.entries] : [];
@@ -332,23 +320,191 @@
                 initializeFormHandling();
                 initializeControllers();
                 initializeEventListeners();
+                initializeFormValidation();
+                initializeEditableCG();
 
                 if (state.currentUser?.userId) {
                     console.log("Loading register summary for user:", state.currentUser);
                     loadRegisterSummary();
+                    markFormFieldsAsFilled();
+                } else {
+                    // Ensure form fields are properly initialized even without a user
+                    markDefaultFormFields();
                 }
             } catch (error) {
                 console.error("Initialization error:", error);
                 showError("Failed to initialize page. Please refresh and try again.");
             }
-            $('.select2').select2({
-                theme: 'bootstrap-5',
-                width: '100%',
-                placeholder: 'Select types...',
-                allowClear: true
-            });
-            initializeInlineEditing();
+            syncFormWithUrlParams();
+            updateTablePlaceholder();
+            debugThymeleafData();
+            debugFormStructure();
+            setTimeout(() => {debugPrintPrepTypesDisplay();}, 1000);
+
         });
+
+        // Add this new function to ensure year and month are marked as filled
+        function markDefaultFormFields() {
+            const yearSelect = document.getElementById('yearSelect');
+            const monthSelect = document.getElementById('monthSelect');
+
+            if (yearSelect && yearSelect.value) {
+                yearSelect.classList.remove('field-empty');
+                yearSelect.classList.add('field-filled');
+            }
+
+            if (monthSelect && monthSelect.value) {
+                monthSelect.classList.remove('field-empty');
+                monthSelect.classList.add('field-filled');
+            }
+
+            // Highlight the user select to encourage selection
+            const userSelect = document.getElementById('userSelect');
+            if (userSelect) {
+                userSelect.classList.add('field-empty');
+            }
+        }
+
+        // Form field validation and styling
+        function initializeFormValidation() {
+            const selects = document.querySelectorAll('#yearSelect, #monthSelect, #userSelect');
+
+            selects.forEach(select => {
+                select.addEventListener('change', function() {
+                    if (this.value) {
+                        this.classList.remove('field-empty');
+                        this.classList.add('field-filled');
+                    } else {
+                        this.classList.remove('field-filled');
+                        this.classList.add('field-empty');
+                    }
+                });
+
+                // Initialize on page load
+                if (select.value) {
+                    select.classList.remove('field-empty');
+                    select.classList.add('field-filled');
+                }
+            });
+        }
+
+        function markFormFieldsAsFilled() {
+            const selects = document.querySelectorAll('#yearSelect, #monthSelect, #userSelect');
+            selects.forEach(select => {
+                if (select.value) {
+                    select.classList.remove('field-empty');
+                    select.classList.add('field-filled');
+                }
+            });
+        }
+
+        // Initialize CG editable fields
+        function initializeEditableCG() {
+            const cgCells = document.querySelectorAll('.cg-editable');
+
+            cgCells.forEach(cell => {
+                cell.setAttribute('tabindex', '0');
+                cell.style.cursor = 'pointer';
+
+                // Click handler
+                cell.addEventListener('click', function() {
+                    createCGEditor(this);
+                });
+
+                // Key handler for accessibility
+                cell.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        createCGEditor(this);
+                    }
+                });
+            });
+        }
+
+        function createCGEditor(cell) {
+            const originalValue = parseFloat(cell.textContent.trim());
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.value = originalValue;
+            input.min = '0.0';
+            input.max = '9.0';
+            input.step = '0.5';
+            input.classList.add('form-control', 'form-control-sm');
+
+            // Replace cell content with input
+            cell.innerHTML = '';
+            cell.appendChild(input);
+
+            input.focus();
+            // Select all text
+            input.select();
+
+            // Handle save on blur
+            input.addEventListener('blur', function() {
+                saveCGValue(cell, input, originalValue);
+            });
+
+            // Handle keyboard navigation
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveCGValue(cell, input, originalValue);
+
+                    // Find next CG cell for tabbing
+                    const currentRow = cell.closest('tr');
+                    const nextRow = currentRow.nextElementSibling;
+
+                    if (nextRow) {
+                        const nextCG = nextRow.querySelector('.cg-editable');
+                        if (nextCG) {
+                            nextCG.focus();
+                            setTimeout(() => createCGEditor(nextCG), 50);
+                        }
+                    }
+
+                } else if (e.key === 'Escape') {
+                    cell.textContent = originalValue.toFixed(1);
+                    cell.focus();
+                } else if (e.key === 'Tab') {
+                    // Natural tab navigation will happen after blur
+                    saveCGValue(cell, input, originalValue);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    const newVal = Math.min(parseFloat(input.value) + 0.5, 9.0);
+                    input.value = newVal.toFixed(1);
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    const newVal = Math.max(parseFloat(input.value) - 0.5, 0.0);
+                    input.value = newVal.toFixed(1);
+                }
+            });
+        }
+
+        function saveCGValue(cell, input, originalValue) {
+            const newValue = parseFloat(input.value.trim());
+
+            // Validate input
+            if (isNaN(newValue) || newValue < 0 || newValue > 9) {
+                cell.textContent = originalValue.toFixed(1);
+                return;
+            }
+
+            // Only mark as changed if value actually changed
+            if (newValue !== originalValue) {
+                cell.textContent = newValue.toFixed(1);
+                cell.classList.add('field-edited');
+
+                // Mark the row as selected (check its checkbox)
+                const row = cell.closest('tr');
+                const checkbox = row.querySelector('.entry-select');
+
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            } else {
+                cell.textContent = originalValue.toFixed(1);
+            }
+        }
 
         // Add separate event listener for export button
         document.getElementById('exportExcel')?.addEventListener('click', function() {
@@ -368,93 +524,142 @@
             window.location.href = exportUrl;
         });
 
-
-        function initializeInlineEditing() {
-            const registerTable = document.getElementById('registerTable');
-            if (!registerTable) return;
-
-            registerTable.addEventListener('dblclick', function(event) {
-                const cell = event.target.closest('td');
-
-                // Only allow editing of the CG (Graphic Complexity) column (11th column)
-                if (!cell || cell.cellIndex !== 10) return;
-
-                // Create an input for editing
-                const originalValue = cell.textContent.trim();
-                const input = document.createElement('input');
-                input.type = 'number';
-                input.value = originalValue;
-                input.step = '0.5';
-                input.min = '0.0';
-                input.max = '5.0';
-                input.classList.add('form-control', 'form-control-sm');
-
-                // Replace cell content with input
-                cell.innerHTML = '';
-                cell.appendChild(input);
-                input.focus();
-
-                // Handle save/cancel events
-                input.addEventListener('blur', function() {
-                    const newValue = input.value.trim();
-
-                    // Validate input
-                    if (newValue === originalValue) {
-                        // No change, revert to original
-                        cell.textContent = originalValue;
-                        return;
-                    }
-
-                    // Validate numeric input
-                    const numValue = parseFloat(newValue);
-                    if (isNaN(numValue) || numValue < 0 || numValue > 10) {
-                        showError('Please enter a valid number between 0 and 10');
-                        cell.textContent = originalValue;
-                        return;
-                    }
-
-                    // Update cell with formatted value
-                    cell.textContent = numValue.toFixed(1);
-
-                    // Mark the corresponding checkbox as checked
-                    const row = cell.closest('tr');
-                    const checkbox = row.querySelector('.entry-select');
-                    if (checkbox) {
-                        checkbox.checked = true;
-                    }
-                });
-
-                // Allow saving with Enter key
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        input.blur();
-                    } else if (e.key === 'Escape') {
-                        cell.textContent = originalValue;
-                    }
-                });
-            });
-        }
-
         // Form handling
+        // Update initializeFormHandling function to use different selectors
         function initializeFormHandling() {
-            const form = document.querySelector('.card.shadow-sm.mb-4 .card-body');
-            if (!form) return;
+            // Try different selectors to find the load button
+            const loadDataBtn = document.querySelector('.period-selector button[type="submit"]') ||
+            document.querySelector('.period-selector .btn-primary:first-child');
 
-            const loadDataBtn = form.querySelector('button[type="submit"]');
             if (loadDataBtn) {
+                console.log("Load data button found:", loadDataBtn);
+
                 loadDataBtn.addEventListener('click', function(e) {
                     e.preventDefault();
-                    const userId = document.getElementById('userSelect')?.value;
-                    const year = document.getElementById('yearSelect')?.value;
-                    const month = document.getElementById('monthSelect')?.value;
+                    const userSelect = document.getElementById('userSelect');
+                    const yearSelect = document.getElementById('yearSelect');
+                    const monthSelect = document.getElementById('monthSelect');
+
+                    const userId = userSelect?.value;
+                    const year = yearSelect?.value;
+                    const month = monthSelect?.value;
+
+                    console.log("Load data clicked with:", {userId, year, month});
 
                     if (!userId) {
                         showError("Please select a user");
+                        if (userSelect) {
+                            userSelect.classList.remove('field-filled');
+                            userSelect.classList.add('field-empty');
+                            // Add a subtle animation to draw attention
+                            userSelect.animate([
+                                { transform: 'translateX(0)' },
+                                { transform: 'translateX(-5px)' },
+                                { transform: 'translateX(5px)' },
+                                { transform: 'translateX(0)' }
+                            ], {
+                                duration: 300,
+                                iterations: 2
+                            });
+                        }
                         return;
                     }
 
+                    // All fields look good, proceed with loading data
+                    console.log(`Navigating to /admin/register?userId=${userId}&year=${year}&month=${month}`);
                     window.location.href = `/admin/register?userId=${userId}&year=${year}&month=${month}`;
                 });
+            } else {
+                console.error("Load data button not found using primary selectors");
+
+                // Try finding any button in the period selector area
+                const firstButton = document.querySelector('.period-selector button');
+                if (firstButton) {
+                    console.log("Using first button in period selector as fallback:", firstButton);
+
+                    firstButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const userId = document.getElementById('userSelect')?.value;
+                        const year = document.getElementById('yearSelect')?.value;
+                        const month = document.getElementById('monthSelect')?.value;
+
+                        if (!userId) {
+                            showError("Please select a user");
+                            return;
+                        }
+
+                        window.location.href = `/admin/register?userId=${userId}&year=${year}&month=${month}`;
+                    });
+                } else {
+                    showError("UI initialization error: Unable to find Load button");
+                }
+            }
+        }
+
+        // Add this function to your script
+        function updateTablePlaceholder() {
+            const table = document.getElementById('registerTable');
+            if (!table) return;
+
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            // Check if the tbody is empty or only has placeholder content
+            if (tbody.children.length === 0 || (tbody.children.length === 1 && tbody.children[0].classList.contains('placeholder-row'))) {
+                tbody.innerHTML = `
+            <tr class="placeholder-row">
+                <td colspan="13" class="text-center p-5">
+                    <div class="d-flex flex-column align-items-center">
+                        <i class="bi bi-table text-muted mb-3" style="font-size: 3rem;"></i>
+                        <h4 class="text-muted">No Register Entries</h4>
+                        <p class="mb-3">Please select a user from the dropdown and click "Load Data" to view register entries.</p>
+                        <div class="d-flex gap-2">
+                            <i class="bi bi-arrow-up text-primary"></i>
+                            <span class="text-primary">Select user above</span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+            }
+        }
+
+        // Add this function to synchronize form values with URL parameters
+        function syncFormWithUrlParams() {
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlUserId = urlParams.get('userId');
+            const urlYear = urlParams.get('year');
+            const urlMonth = urlParams.get('month');
+
+            console.log("URL params:", {urlUserId, urlYear, urlMonth});
+
+            // Set select values if parameters exist
+            if (urlUserId) {
+                const userSelect = document.getElementById('userSelect');
+                if (userSelect) {
+                    userSelect.value = urlUserId;
+                    userSelect.classList.remove('field-empty');
+                    userSelect.classList.add('field-filled');
+                }
+            }
+
+            if (urlYear) {
+                const yearSelect = document.getElementById('yearSelect');
+                if (yearSelect) {
+                    yearSelect.value = urlYear;
+                    yearSelect.classList.remove('field-empty');
+                    yearSelect.classList.add('field-filled');
+                }
+            }
+
+            if (urlMonth) {
+                const monthSelect = document.getElementById('monthSelect');
+                if (monthSelect) {
+                    monthSelect.value = urlMonth;
+                    monthSelect.classList.remove('field-empty');
+                    monthSelect.classList.add('field-filled');
+                }
             }
         }
 
@@ -474,9 +679,6 @@
         // Event Listeners
         function initializeEventListeners() {
             const listeners = {
-                'filterBtn': applyFilters,
-                'searchBtn': performSearch,
-                'bulkUpdateBtn': performBulkUpdate,
                 'calculateBonusBtn': calculateBonus,
                 'saveChanges': saveChanges,
                 'clearTable': clearTable
@@ -489,18 +691,28 @@
 
         // API Interactions
         async function loadRegisterSummary() {
-            if (!validateUserContext()) return;
+            if (!validateUserContext()) {
+                showWarning('Missing user information. Please select a user and period.');
+                return;
+            }
 
             try {
                 // Load register summary
+                console.log('Loading summary for:', state.currentUser.username, state.currentUser.userId, state.currentYear, state.currentMonth);
+
                 const summaryResponse = await fetch(
                     `/admin/register/summary?username=${encodeURIComponent(state.currentUser.username)}` +
                     `&userId=${state.currentUser.userId}&year=${state.currentYear}&month=${state.currentMonth}`
                 );
 
-                if (!summaryResponse.ok) throw new Error(`HTTP error! status: ${summaryResponse.status}`);
+                if (!summaryResponse.ok) {
+                    const errorText = await summaryResponse.text();
+                    console.error('Summary response:', summaryResponse.status, errorText);
+                    throw new Error(`HTTP error! status: ${summaryResponse.status} - ${errorText || summaryResponse.statusText}`);
+                }
 
                 const summary = await summaryResponse.json();
+                console.log('Summary data:', summary);
 
                 // Load worked days
                 const workedDaysResponse = await fetch(
@@ -508,9 +720,14 @@
                     `&year=${state.currentYear}&month=${state.currentMonth}`
                 );
 
-                if (!workedDaysResponse.ok) throw new Error('Failed to load worked days');
+                if (!workedDaysResponse.ok) {
+                    const errorText = await workedDaysResponse.text();
+                    console.error('Worked days response:', workedDaysResponse.status, errorText);
+                    throw new Error(`Failed to load worked days: ${errorText || workedDaysResponse.statusText}`);
+                }
 
                 const workedDays = await workedDaysResponse.json();
+                console.log('Worked days:', workedDays);
 
                 // Update state with both summary and worked days
                 state.bonusCalculationData = {
@@ -522,94 +739,17 @@
 
             } catch (error) {
                 console.error('Summary loading error:', error);
-                showError('Failed to load register summary');
-            }
-        }
-
-        // Bulk Update Operations
-        async function performBulkUpdate() {
-            const selectedCheckboxes = document.querySelectorAll('.entry-select:checked');
-            if (selectedCheckboxes.length === 0) {
-                showError('Please select entries to update');
-                return;
-            }
-
-            const updateValue = parseFloat(document.getElementById('bulkUpdateValue').value);
-            if (isNaN(updateValue) || updateValue < 0) {
-                showError('Please enter a valid number (0.0 format)');
-                return;
-            }
-
-            const formattedValue = updateValue.toFixed(1);
-
-            try {
-                const selectedIds = Array.from(selectedCheckboxes).map(checkbox =>
-                parseInt(checkbox.value)
-                );
-
-                // Convert date from dd/MM/yyyy to yyyy-MM-dd format
-                const selectedEntries = Array.from(selectedCheckboxes).map(checkbox => {
-                    const row = checkbox.closest('tr');
-                    const dateText = row.querySelector('td:nth-child(2)').textContent; // "dd/MM/yyyy"
-                    const [day, month, year] = dateText.split('/');
-                    const isoDate = `${year}-${month}-${day}`; // Convert to "yyyy-MM-dd"
-
-                    return {
-                        entryId: parseInt(checkbox.value),
-                        userId: state.currentUser?.userId,
-                        date: isoDate,
-                        orderId: row.querySelector('td:nth-child(3)').textContent,
-                        productionId: row.querySelector('td:nth-child(4)').textContent,
-                        omsId: row.querySelector('td:nth-child(5)').textContent,
-                        clientName: row.querySelector('td:nth-child(6)').textContent,
-                        actionType: row.querySelector('td:nth-child(7)').textContent,
-                        printPrepType: row.querySelector('td:nth-child(8)').textContent,
-                        colorsProfile: row.querySelector('td:nth-child(9)').textContent,
-                        articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
-                        graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),
-                        observations: row.querySelector('td:nth-child(12)').textContent,
-                        adminSync: 'ADMIN_EDITED'
-                    };
-                });
-
-                const response = await fetch('/admin/register/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        entries: selectedEntries,
-                        selectedIds: selectedIds,
-                        fieldName: 'graphicComplexity',
-                        newValue: formattedValue
-                    })
-                });
-
-                if (!response.ok) throw new Error('Update failed');
-
-                // Update the UI
-                selectedCheckboxes.forEach(checkbox => {
-                    const row = checkbox.closest('tr');
-                    const complexityCell = row.querySelector('td:nth-child(11)');
-                    complexityCell.textContent = formattedValue;
-                });
-
-                // Show success message
-                const alertsContainer = document.querySelector('.alerts');
-                if (alertsContainer) {
-                    alertsContainer.innerHTML = `
-                <div class="alert alert-success">
-                    Successfully updated ${selectedIds.length} entries
-                </div>
-            `;
-                }
-
-            } catch (error) {
-                console.error('Update error:', error);
-                showError(`Failed to update entries: ${error.message}`);
+                showError('Failed to load register summary: ' + error.message);
             }
         }
 
         // Bonus Calculations
         async function calculateBonus() {
+            if (!validateUserContext()) {
+                showWarning('Please select a user and period before calculating bonus.');
+                return;
+            }
+
             const config = getBonusConfig();
             if (!validateBonusConfig(config)) return;
 
@@ -623,28 +763,28 @@
                 const visibleEntries = Array.from(document.querySelectorAll('#registerTable tbody tr'))
                     .filter(row => row.style.display !== 'none')
                     .map(row => {
-                    // Convert date from dd/MM/yyyy to yyyy-MM-dd format
-                    const dateText = row.querySelector('td:nth-child(2)').textContent;
-                    const [day, month, year] = dateText.split('/');
-                    const isoDate = `${year}-${month}-${day}`;
-                    const printPrepTypesText = row.querySelector('td:nth-child(8)').textContent;
-
                     return {
-                        entryId: parseInt(row.querySelector('.entry-select').value),
-                        userId: state.currentUser.userId,
-                        date: isoDate,
-                        orderId: row.querySelector('td:nth-child(3)').textContent,
-                        productionId: row.querySelector('td:nth-child(4)').textContent,
-                        omsId: row.querySelector('td:nth-child(5)').textContent,
-                        clientName: row.querySelector('td:nth-child(6)').textContent,
-                        actionType: row.querySelector('td:nth-child(7)').textContent,
-                        printPrepTypes: printPrepTypesText.split(',').map(t => t.trim()), // Convert to array
-                        colorsProfile: row.querySelector('td:nth-child(9)').textContent,
-                        articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
-                        graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),
-                        observations: row.querySelector('td:nth-child(12)').textContent || "",
-                        adminSync: row.querySelector('td:nth-child(13)').textContent
+                        articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent) || 0,
+                        graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent) || 0,
+                        actionType: row.querySelector('td:nth-child(7)').textContent
                     };
+                })
+                // Filter out only IMPOSTARE
+                    .filter(entry => entry.actionType !== 'IMPOSTARE');
+
+                // Add error handling for empty entries
+                if (visibleEntries.length === 0) {
+                    showWarning('No entries found to calculate bonus. Please load data first.');
+                    return;
+                }
+
+                // Log the payload for debugging
+                console.log('Sending bonus calculation request with:', {
+                    entries: visibleEntries,
+                    userId: state.currentUser?.userId,
+                    year: state.currentYear,
+                    month: state.currentMonth,
+                    bonusConfig: config
                 });
 
                 const response = await fetch('/admin/register/calculate-bonus', {
@@ -659,9 +799,11 @@
                     })
                 });
 
+                // More detailed error handling
                 if (!response.ok) {
-                    const errorData = await response.text();
-                    throw new Error(`Bonus calculation failed: ${errorData}`);
+                    const errorText = await response.text();
+                    console.error('Server response:', response.status, errorText);
+                    throw new Error(`Bonus calculation failed: ${errorText || response.statusText}`);
                 }
 
                 const result = await response.json();
@@ -679,7 +821,6 @@
         }
 
         // Utility Functions
-        //updateSummaryDisplay to use state
         function updateSummaryDisplay() {
             try {
                 const totalEntries = document.getElementById('totalEntries');
@@ -697,7 +838,6 @@
             }
         }
 
-        //updateSummaryFromEntries to use state
         function updateSummaryFromEntries(entries) {
             const workedDays = state.bonusCalculationData.workedDays; // Preserve worked days
 
@@ -711,54 +851,6 @@
             updateSummaryDisplay();
         }
 
-        //applyFilters to use state
-        function applyFilters() {
-            console.log("Applying filters");
-
-            const actionType = document.getElementById('actionType').value;
-            const printPrepType = document.getElementById('printPrepType').value;
-            const rows = document.querySelectorAll('#registerTable tbody tr');
-
-            rows.forEach(row => {
-                const rowActionType = row.querySelector('td:nth-child(7)').textContent;
-                const rowPrintPrepTypes = row.querySelector('td:nth-child(8)').textContent.split(',').map(t => t.trim());
-
-                let showRow = true;
-
-                if (actionType) {
-                    showRow = rowActionType === actionType;
-                }
-
-                if (printPrepType && showRow) {
-                    showRow = rowPrintPrepTypes.includes(printPrepType);
-                }
-
-                row.style.display = showRow ? '' : 'none';
-            });
-
-            // Update filtered entries in state by getting visible rows
-            state.filteredEntries = Array.from(rows)
-                .filter(row => row.style.display !== 'none')
-                .map(row => ({
-                entryId: parseInt(row.querySelector('.entry-select').value),
-                userId: state.currentUser?.userId,
-                date: row.querySelector('td:nth-child(2)').textContent,
-                orderId: row.querySelector('td:nth-child(3)').textContent,
-                productionId: row.querySelector('td:nth-child(4)').textContent,
-                omsId: row.querySelector('td:nth-child(5)').textContent,
-                clientName: row.querySelector('td:nth-child(6)').textContent,
-                actionType: row.querySelector('td:nth-child(7)').textContent,
-                printPrepTypes: row.querySelector('td:nth-child(8)').textContent.split(',').map(t => t.trim()),
-                colorsProfile: row.querySelector('td:nth-child(9)').textContent,
-                articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
-                graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),
-                observations: row.querySelector('td:nth-child(12)').textContent || "",
-                adminSync: row.querySelector('td:nth-child(13)').textContent
-            }));
-
-            updateSummaryFromEntries(state.filteredEntries);
-        }
-        //saveChanges to use state and async/await pattern
         async function saveChanges() {
             if (!state.currentUser) {
                 showError('No user selected');
@@ -766,18 +858,47 @@
             }
 
             try {
-                // Get all entries from the table
+                // Get all entries from the table that have been edited
                 const entries = Array.from(document.querySelectorAll('#registerTable tbody tr'))
                     .filter(row => {
-                    // Only include rows that are visible or have their checkbox checked
+                    // Only include rows with checked checkboxes or edited fields
                     const checkbox = row.querySelector('.entry-select');
-                    return row.style.display !== 'none' && checkbox.checked;
+                    const editedCG = row.querySelector('.cg-editable.field-edited');
+                    return checkbox && checkbox.checked || editedCG;
                 })
                     .map(row => {
                     // Convert date from dd/MM/yyyy to yyyy-MM-dd format
                     const dateText = row.querySelector('td:nth-child(2)').textContent;
                     const [day, month, year] = dateText.split('/');
                     const isoDate = `${year}-${month}-${day}`;
+
+                    // Get print prep types text
+                    const printPrepTypesCell = row.querySelector('td:nth-child(8)');
+                    const printPrepTypesText = printPrepTypesCell ? printPrepTypesCell.textContent.trim() : '';
+
+                    // IMPROVED print prep types handling
+                    let printPrepTypes;
+                    if (!printPrepTypesText || printPrepTypesText.trim() === '' || printPrepTypesText.toLowerCase() === 'null') {
+                        // Default to DIGITAL if empty or null
+                        printPrepTypes = ['DIGITAL'];
+                    } else {
+                        // Handle case where text might contain 'null' string
+                        printPrepTypes = printPrepTypesText
+                            .split(',')
+                            .map(type => type.trim())
+                            .filter(type => type && type.toLowerCase() !== 'null');
+
+                        // If we filtered everything out, use default
+                        if (printPrepTypes.length === 0) {
+                            printPrepTypes = ['DIGITAL'];
+                        }
+                    }
+
+                    // Detailed logging to help debug
+                    console.log('Processing printPrepTypes for entry', row.querySelector('.entry-select').value, {
+                        rawText: printPrepTypesText,
+                        processedArray: printPrepTypes
+                    });
 
                     return {
                         entryId: parseInt(row.querySelector('.entry-select').value),
@@ -788,14 +909,22 @@
                         omsId: row.querySelector('td:nth-child(5)').textContent,
                         clientName: row.querySelector('td:nth-child(6)').textContent,
                         actionType: row.querySelector('td:nth-child(7)').textContent,
-                        printPrepType: row.querySelector('td:nth-child(8)').textContent,
+                        printPrepTypes: printPrepTypes,
                         colorsProfile: row.querySelector('td:nth-child(9)').textContent,
-                        articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent),
-                        graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent),
+                        articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent) || 0,
+                        graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent) || 0,
                         observations: row.querySelector('td:nth-child(12)').textContent || "",
                         adminSync: "ADMIN_EDITED"
                     };
                 });
+
+                if (entries.length === 0) {
+                    showWarning('No changes detected. Nothing to save.');
+                    return;
+                }
+
+                // Log the payload for debugging
+                console.log('Saving entries:', JSON.stringify(entries, null, 2));
 
                 const response = await fetch('/admin/register/save', {
                     method: 'POST',
@@ -812,17 +941,20 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Save failed');
+                    const errorText = await response.text();
+                    console.error('Server response:', response.status, errorText);
+                    throw new Error(`Save failed: ${errorText || response.statusText}`);
                 }
 
                 // Show success message
                 const alertsContainer = document.querySelector('.alerts');
                 if (alertsContainer) {
                     alertsContainer.innerHTML = `
-            <div class="alert alert-success">
-                Changes saved successfully. Reloading page...
-            </div>
-        `;
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle me-2"></i>
+                    Changes saved successfully. Reloading page...
+                </div>
+            `;
                 }
 
                 // Reload after successful save
@@ -836,7 +968,28 @@
             }
         }
 
-        // Update validation to include miscValue check
+        function clearTable() {
+            if (confirm('Are you sure you want to clear all entries?')) {
+                document.querySelectorAll('#registerTable tbody tr').forEach(row => {
+                    row.style.display = 'none';
+                });
+
+                // Reset filtered entries and update summary
+                state.filteredEntries = [];
+                state.bonusCalculationData.totalEntries = 0;
+                state.bonusCalculationData.averageArticleNumbers = 0;
+                state.bonusCalculationData.averageGraphicComplexity = 0;
+                updateSummaryDisplay();
+
+                // Hide bonus results if visible
+                const bonusResults = document.getElementById('bonusResults');
+                if (bonusResults) {
+                    bonusResults.style.display = 'none';
+                }
+            }
+        }
+
+        // Bonus calculation functions
         function validateBonusConfig(config) {
             const totalPercentage = config.entriesPercentage +
             config.articlesPercentage +
@@ -855,7 +1008,20 @@
 
             return true;
         }
-        //displayBonusResults to use state
+
+        function getBonusConfig() {
+            return {
+                sumValue: parseFloat(document.getElementById('bonusSum').value) || 0.0,
+                entriesPercentage: parseFloat(document.getElementById('entriesPercentage').value) || 0.0,
+                articlesPercentage: parseFloat(document.getElementById('articlesPercentage').value) || 0.0,
+                complexityPercentage: parseFloat(document.getElementById('complexityPercentage').value) || 0.0,
+                miscPercentage: parseFloat(document.getElementById('miscPercentage').value) || 0.0,
+                normValue: parseFloat(document.getElementById('normValue').value) || 1.20,
+                miscValue: parseFloat(document.getElementById('miscValue').value) || 1.50
+            };
+        }
+
+        // Modify your displayBonusResults function to handle null or missing data safely
         function displayBonusResults(result) {
             const bonusResults = document.getElementById('bonusResults');
             const tbody = document.getElementById('bonusResultsBody');
@@ -864,6 +1030,15 @@
                 console.error('Bonus results elements not found');
                 return;
             }
+
+            // Safely handle result in case it's null or undefined
+            if (!result) {
+                console.error('No result data received');
+                showWarning('No bonus calculation result received from server.');
+                return;
+            }
+
+            console.log('Received bonus result:', result);
 
             // Get previous months
             const currentDate = new Date(state.currentYear, state.currentMonth - 1);
@@ -899,17 +1074,18 @@
         `;
             }
 
+            // Safely access properties with optional chaining and defaults
             tbody.innerHTML = `
         <tr class="${rowClass}">
             <td>${state.currentUser?.name || ''}</td>
-            <td>${result.entries}</td>
-            <td>${result.articleNumbers.toFixed(2)}</td>
-            <td>${result.graphicComplexity.toFixed(2)}</td>
-            <td>${result.misc.toFixed(2)}</td>
-            <td>${result.workedDays}</td>
-            <td>${result.workedPercentage.toFixed(2)}</td>
-            <td>${result.bonusPercentage.toFixed(2)}</td>
-            <td>${result.bonusAmount.toFixed(2)}</td>
+            <td>${result.entries || 0}</td>
+            <td>${(result.articleNumbers || 0).toFixed(2)}</td>
+            <td>${(result.graphicComplexity || 0).toFixed(2)}</td>
+            <td>${(result.misc || 0).toFixed(2)}</td>
+            <td>${result.workedDays || 0}</td>
+            <td>${(result.workedPercentage || 0).toFixed(2)}</td>
+            <td>${(result.bonusPercentage || 0).toFixed(2)}</td>
+            <td>${(result.bonusAmount || 0).toFixed(2)}</td>
             <td>${(result.previousMonths?.month1 || 0).toFixed(2)}</td>
             <td>${(result.previousMonths?.month2 || 0).toFixed(2)}</td>
             <td>${(result.previousMonths?.month3 || 0).toFixed(2)}</td>
@@ -931,36 +1107,34 @@
         }
 
         function validateUserContext() {
-            return !!(state.currentUser?.userId && state.currentYear && state.currentMonth);
-        }
-
-        function getSelectedEntryIds() {
-            return Array.from(document.querySelectorAll('.entry-select:checked'))
-                .map(checkbox => checkbox.value);
-        }
-
-        function getBonusConfig() {
-            return {
-                sumValue: parseFloat(document.getElementById('bonusSum').value) || 0.0,
-                entriesPercentage: parseFloat(document.getElementById('entriesPercentage').value) || 0.0,
-                articlesPercentage: parseFloat(document.getElementById('articlesPercentage').value) || 0.0,
-                complexityPercentage: parseFloat(document.getElementById('complexityPercentage').value) || 0.0,
-                miscPercentage: parseFloat(document.getElementById('miscPercentage').value) || 0.0,
-                normValue: parseFloat(document.getElementById('normValue').value) || 1.20,    // Use form value
-                miscValue: parseFloat(document.getElementById('miscValue').value) || 1.50     // Use form value
-            };
-        }
-
-        function validateBonusConfig(config) {
-            const totalPercentage = config.entriesPercentage +
-            config.articlesPercentage +
-            config.complexityPercentage +
-            config.miscPercentage;
-
-            if (Math.abs(totalPercentage - 1.0) > 0.0001) {
-                showError('Percentages must sum to 1.0');
+            // Detailed validation
+            if (!state.currentUser) {
+                console.warn("No user selected");
                 return false;
             }
+
+            if (!state.currentUser.userId) {
+                console.warn("Selected user has no ID");
+                return false;
+            }
+
+            if (!state.currentYear) {
+                console.warn("No year selected");
+                return false;
+            }
+
+            if (!state.currentMonth) {
+                console.warn("No month selected");
+                return false;
+            }
+
+            console.log('User context validation successful:', {
+                userId: state.currentUser.userId,
+                name: state.currentUser.name,
+                year: state.currentYear,
+                month: state.currentMonth
+            });
+
             return true;
         }
 
@@ -977,7 +1151,6 @@
             alertsContainer.appendChild(alertDiv);
         }
 
-        // Add a warning function that shows an orange warning instead of a red error
         function showWarning(message) {
             const alertsContainer = document.querySelector('.alerts');
             if (!alertsContainer) return;
@@ -991,27 +1164,73 @@
             alertsContainer.appendChild(alertDiv);
         }
 
-        function performSearch() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const rows = document.querySelectorAll('#registerTable tbody tr');
+        function debugThymeleafData() {
+            console.log("Thymeleaf data check:");
+            console.log("currentYear:", /*[[${currentYear}]]*/ null);
+            console.log("currentMonth:", /*[[${currentMonth}]]*/ null);
+            console.log("selectedUser:", /*[[${selectedUser}]]*/ null);
+            console.log("entries:", /*[[${entries}]]*/ []);
+            console.log("bonusConfig:", /*[[${bonusConfig}]]*/ null);
+        }
 
-            rows.forEach(row => {
-                const textContent = row.textContent.toLowerCase();
-                row.style.display = textContent.includes(searchTerm) ? '' : 'none';
+        function debugFormStructure() {
+            console.log("Debugging form structure:");
+
+            // Find all important elements
+            const periodSelector = document.querySelector('.period-selector');
+            console.log("Period selector found:", !!periodSelector);
+
+            const buttonRow = document.querySelector('.button-row');
+            console.log("Button row found:", !!buttonRow);
+
+            if (buttonRow) {
+                const buttons = buttonRow.querySelectorAll('button');
+                console.log("Buttons in button row:", buttons.length);
+                buttons.forEach((btn, i) => {
+                    console.log(`Button ${i+1}:`, btn.textContent.trim(), "Class:", btn.className);
+                });
+            }
+
+            // Try various selectors for the load button
+            const loadBtnSelectors = [
+                'button[type="submit"]',
+                '.button-row .btn-primary',
+                '.btn-primary',
+                'button:contains("Load Data")'
+            ];
+
+            loadBtnSelectors.forEach(selector => {
+                try {
+                    const elements = document.querySelectorAll(selector);
+                    console.log(`Selector "${selector}" found ${elements.length} elements`);
+                } catch (e) {
+                    console.log(`Selector "${selector}" error:`, e.message);
+                }
             });
         }
 
-        function clearTable() {
-            if (confirm('Are you sure you want to clear all entries?')) {
-                document.querySelectorAll('#registerTable tbody tr').forEach(row => {
-                    row.style.display = 'none';
+        function debugPrintPrepTypesDisplay() {
+            console.log("Debugging Print Prep Types Display:");
+
+            const rows = document.querySelectorAll('#registerTable tbody tr');
+            rows.forEach((row, index) => {
+                const printPrepCell = row.querySelector('td:nth-child(8)');
+                const entryIdCell = row.querySelector('.entry-select');
+                const entryId = entryIdCell ? entryIdCell.value : 'unknown';
+
+                console.log(`Row ${index} (Entry ID: ${entryId}):`, {
+                    rawContent: printPrepCell ? printPrepCell.innerHTML : 'cell not found',
+                    trimmedContent: printPrepCell ? printPrepCell.textContent.trim() : 'cell not found',
+                    isEmpty: printPrepCell ? (printPrepCell.textContent.trim() === '') : 'cell not found',
+                    parsedArray: printPrepCell ?
+                    printPrepCell.textContent.split(',')
+                        .map(type => type.trim())
+                        .filter(type => type.length > 0) :
+                    'cell not found'
                 });
-                // Reset filtered entries
-                filteredEntries = [];
-                // Clear summary display
-                updateSummaryDisplay();
-            }
+            });
         }
+
     </script>
 </th:block>
 </body>

@@ -2,7 +2,7 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ActionType;
-import com.ctgraphdep.enums.PrintPrepType;
+import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.TimeOffSummary;
 import com.ctgraphdep.model.User;
@@ -101,7 +101,7 @@ public class StatusController extends BaseController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
             @RequestParam(required = false) String actionType,
-            @RequestParam(required = false) String printPrepType,
+            @RequestParam(required = false) String printPrepTypes,
             @RequestParam(required = false) String clientName,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
@@ -118,7 +118,7 @@ public class StatusController extends BaseController {
 
             // Add reference data for dropdowns
             model.addAttribute("actionTypes", ActionType.getValues());
-            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
+            model.addAttribute("printPrepTypes", PrintPrepTypes.getValues());
 
             // Get current date for defaults
             LocalDate now = LocalDate.now();
@@ -133,12 +133,12 @@ public class StatusController extends BaseController {
 
             // Load appropriate entries based on search parameters
             List<RegisterEntry> entries;
-            boolean isSearching = hasSearchCriteria(searchTerm, startDate, endDate, actionType, printPrepType, clientName);
+            boolean isSearching = hasSearchCriteria(searchTerm, startDate, endDate, actionType, printPrepTypes, clientName);
 
             if (isSearching) {
                 // Load entries based on search criteria
                 entries = loadEntriesForSearch(targetUser, searchTerm, startDate, endDate,
-                        actionType, printPrepType, clientName, year, month, displayYear, displayMonth);
+                        actionType, printPrepTypes, clientName, year, month, displayYear, displayMonth);
 
                 LoggerUtil.info(this.getClass(),
                         String.format("Register search completed for user %s: found %d entries",
@@ -177,7 +177,7 @@ public class StatusController extends BaseController {
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
             @RequestParam(required = false) String actionType,
-            @RequestParam(required = false) String printPrepType,
+            @RequestParam(required = false) String printPrepTypes,
             @RequestParam(required = false) String clientName,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
@@ -200,7 +200,7 @@ public class StatusController extends BaseController {
 
             // Apply filters
             List<RegisterEntry> filteredEntries = filterEntries(allEntries, searchTerm, startDate, endDate,
-                    actionType, printPrepType, clientName);
+                    actionType, printPrepTypes, clientName);
 
             // Generate Excel file
             byte[] excelData = excelExporter.exportToExcel(targetUser, filteredEntries,
@@ -293,11 +293,11 @@ public class StatusController extends BaseController {
 
     // Helper to check if any search criteria are present
     private boolean hasSearchCriteria(String searchTerm, LocalDate startDate, LocalDate endDate,
-                                      String actionType, String printPrepType, String clientName) {
+                                      String actionType, String printPrepTypes, String clientName) {
         return (searchTerm != null && !searchTerm.trim().isEmpty()) ||
                 startDate != null || endDate != null ||
                 (actionType != null && !actionType.trim().isEmpty()) ||
-                (printPrepType != null && !printPrepType.trim().isEmpty()) ||
+                (printPrepTypes != null && !printPrepTypes.trim().isEmpty()) ||
                 (clientName != null && !clientName.trim().isEmpty());
     }
 
@@ -311,7 +311,7 @@ public class StatusController extends BaseController {
 
     // Helper to load and filter entries based on search criteria
     private List<RegisterEntry> loadEntriesForSearch(User user, String searchTerm, LocalDate startDate,
-                                                     LocalDate endDate, String actionType, String printPrepType,
+                                                     LocalDate endDate, String actionType, String printPrepTypes,
                                                      String clientName, Integer requestedYear, Integer requestedMonth,
                                                      int displayYear, int displayMonth) {
 
@@ -339,7 +339,7 @@ public class StatusController extends BaseController {
                 startDate,
                 endDate,
                 actionType,
-                printPrepType,
+                printPrepTypes,
                 clientName);
     }
 
@@ -481,7 +481,7 @@ public class StatusController extends BaseController {
                                               LocalDate startDate,
                                               LocalDate endDate,
                                               String actionType,
-                                              String printPrepType,
+                                              String printPrepTypes,
                                               String clientName) {
         List<RegisterEntry> filteredEntries = new ArrayList<>(entries);
 
@@ -521,10 +521,10 @@ public class StatusController extends BaseController {
         }
 
         // Filter by print prep type
-        if (printPrepType != null && !printPrepType.isEmpty()) {
+        if (printPrepTypes != null && !printPrepTypes.isEmpty()) {
             filteredEntries = filteredEntries.stream()
                     .filter(entry -> entry.getPrintPrepTypes() != null &&
-                            entry.getPrintPrepTypes().contains(printPrepType))
+                            entry.getPrintPrepTypes().contains(printPrepTypes))
                     .collect(Collectors.toList());
         }
 

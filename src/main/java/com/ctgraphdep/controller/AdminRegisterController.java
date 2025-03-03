@@ -5,7 +5,7 @@ import com.ctgraphdep.model.*;
 import com.ctgraphdep.service.AdminRegisterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.enums.ActionType;
-import com.ctgraphdep.enums.PrintPrepType;
+import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.service.WorkTimeManagementService;
 import com.ctgraphdep.utils.AdminRegisterExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -65,7 +65,7 @@ public class AdminRegisterController {
 
             // Add action types and print prep types for filters
             model.addAttribute("actionTypes", ActionType.getValues());
-            model.addAttribute("printPrepTypes", PrintPrepType.getValues());
+            model.addAttribute("printPrepTypes", PrintPrepTypes.getValues());
 
             // If userId is provided, look up user and load entries
             if (userId != null) {
@@ -86,6 +86,14 @@ public class AdminRegisterController {
                 LoggerUtil.info(this.getClass(),
                         String.format("Loaded %d entries and %d worked days for user %s",
                                 entries.size(), workedDays, selectedUser.getUsername()));
+                // Add this to your AdminRegisterController's getRegisterPage method
+                LoggerUtil.info(this.getClass(),
+                        String.format("Loading page with model attributes: userId=%d, year=%d, month=%d, selectedUser=%s, entries=%d",
+                                userId,
+                                year,
+                                month,
+                                (selectedUser != null) ? selectedUser.getName() : "null",
+                                (entries != null) ? entries.size() : 0));
             } else {
                 LoggerUtil.info(this.getClass(), "No user selected, adding empty entries list");
                 model.addAttribute("entries", new ArrayList<>());
@@ -97,6 +105,8 @@ public class AdminRegisterController {
 
             // Add bonus configuration defaults
             model.addAttribute("bonusConfig", BonusConfiguration.getDefaultConfig());
+
+
 
             return "admin/register";
 
@@ -121,15 +131,15 @@ public class AdminRegisterController {
     public ResponseEntity<List<RegisterEntry>> filterEntries(
             @RequestBody List<RegisterEntry> entries,
             @RequestParam(required = false) String actionType,
-            @RequestParam(required = false) String printPrepType) {
+            @RequestParam(required = false) String printPrepTypes) {
 
         ActionType selectedActionType = actionType != null ?
                 ActionType.valueOf(actionType) : null;
-        PrintPrepType selectedPrintType = printPrepType != null ?
-                PrintPrepType.valueOf(printPrepType) : null;
+        PrintPrepTypes selectedPrintTypes = printPrepTypes != null ?
+                PrintPrepTypes.valueOf(printPrepTypes) : null;
 
         List<RegisterEntry> filteredEntries = adminRegisterService.filterEntries(
-                entries, selectedActionType, selectedPrintType);
+                entries, selectedActionType, selectedPrintTypes);
 
         return ResponseEntity.ok(filteredEntries);
     }
@@ -159,7 +169,7 @@ public class AdminRegisterController {
             List<RegisterEntry> entries = entriesData.stream()
                     .map(data -> {
                         // Handle printPrepTypes conversion
-                        String printPrepTypesStr = String.valueOf(data.get("printPrepType"));
+                        String printPrepTypesStr = String.valueOf(data.get("printPrepTypes"));
                         List<String> printPrepTypes = new ArrayList<>();
                         if (printPrepTypesStr != null && !printPrepTypesStr.isEmpty()) {
                             printPrepTypes = Arrays.asList(printPrepTypesStr.split("\\s*,\\s*"));
@@ -208,11 +218,33 @@ public class AdminRegisterController {
 
             List<RegisterEntry> entries = entriesData.stream()
                     .map(data -> {
+                        LoggerUtil.info(this.getClass(), "Processing entry ID: " + data.get("entryId") +
+                                ", printPrepTypes: " + data.get("printPrepTypes") +
+                                ", class: " + (data.get("printPrepTypes") != null ? data.get("printPrepTypes").getClass().getName() : "null"));
+
                         // Handle printPrepTypes conversion
-                        String printPrepTypesStr = String.valueOf(data.get("printPrepType"));
                         List<String> printPrepTypes = new ArrayList<>();
-                        if (printPrepTypesStr != null && !printPrepTypesStr.isEmpty()) {
-                            printPrepTypes = Arrays.asList(printPrepTypesStr.split("\\s*,\\s*"));
+                        Object printPrepTypesObj = data.get("printPrepTypes");
+
+                        if (printPrepTypesObj instanceof List<?> typesList) {
+                            // Handle list case
+                            typesList.forEach(type -> {
+                                if (type != null && !type.toString().equalsIgnoreCase("null") && !type.toString().isEmpty()) {
+                                    printPrepTypes.add(type.toString().trim());
+                                }
+                            });
+                        } else if (printPrepTypesObj instanceof String typesStr) {
+                            // Handle string case
+                            if (!typesStr.isEmpty()) {
+                                Arrays.stream(typesStr.split("\\s*,\\s*"))
+                                        .filter(type -> !type.equalsIgnoreCase("null") && !type.isEmpty())
+                                        .forEach(type -> printPrepTypes.add(type.trim()));
+                            }
+                        }
+
+                        // If no valid types were found, add default
+                        if (printPrepTypes.isEmpty()) {
+                            printPrepTypes.add("DIGITAL");
                         }
 
                         return RegisterEntry.builder()

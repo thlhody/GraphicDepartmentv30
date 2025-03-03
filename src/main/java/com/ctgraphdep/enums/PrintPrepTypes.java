@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Getter
-public enum PrintPrepType {
+public enum PrintPrepTypes {
     DIGITAL("DIGITAL"),
     SBS("SBS"),
     GPT("GPT"),
@@ -19,11 +19,11 @@ public enum PrintPrepType {
 
     private final String value;
 
-    PrintPrepType(String value) {
+    PrintPrepTypes(String value) {
         this.value = value;
     }
 
     public static List<String> getValues() {
-        return Arrays.stream(values()).map(PrintPrepType::getValue).toList();
+        return Arrays.stream(values()).map(PrintPrepTypes::getValue).toList();
     }
 }
