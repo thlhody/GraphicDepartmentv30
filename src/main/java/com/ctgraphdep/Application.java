@@ -23,7 +23,6 @@ public class Application {
     }
 
     public static void main(String[] args) {
-
         // Disable headless mode
         System.setProperty("java.awt.headless", "false");
 
@@ -41,39 +40,35 @@ public class Application {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    public void initializeSystemTray() {
-        // Log headless mode status
-        LoggerUtil.debug(this.getClass(), String.format("Headless mode check - GraphicsEnvironment: %s, System property: %s",
-                        GraphicsEnvironment.isHeadless(), System.getProperty("java.awt.headless")));
-
-        if (!GraphicsEnvironment.isHeadless()) {
-            SwingUtilities.invokeLater(() -> {
-                try {
-                    Thread.sleep(1000);
-                    systemTray.initialize();
-                } catch (Exception e) {
-                    LoggerUtil.error(Application.class, "Failed to initialize system tray: " + e.getMessage());
-                }
-            });
-        } else {
-            LoggerUtil.error(Application.class,
-                    "Still running in headless mode despite configuration! " +
-                            "System tray will be disabled. Please check your environment configuration.");
-        }
-    }
-
-    @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        if (!GraphicsEnvironment.isHeadless()) {
+        LoggerUtil.info(this.getClass(), "Application ready event received");
+        LoggerUtil.info(this.getClass(), "Headless mode: " + GraphicsEnvironment.isHeadless());
+        LoggerUtil.info(this.getClass(), "java.awt.headless property: " + System.getProperty("java.awt.headless"));
+
+        if (SystemTray.isSupported()) {
             SwingUtilities.invokeLater(() -> {
                 try {
                     LoggerUtil.info(this.getClass(), "Initializing System Tray");
                     systemTray.initialize();
-                    LoggerUtil.info(this.getClass(), "System Tray initialization completed");
+
+                    // Add validation check
+                    if (systemTray.getTrayIcon() == null) {
+                        LoggerUtil.error(this.getClass(), "System tray initialization failed - tray icon is null");
+                    } else {
+                        LoggerUtil.info(this.getClass(), "System Tray successfully initialized with icon");
+
+                        // We'll let SystemNotificationService handle the notifications
+                        // It will decide whether to show dialog or tray notification
+                        // No need to send a direct tray notification here
+                    }
                 } catch (Exception e) {
-                    LoggerUtil.error(Application.class, "Failed to initialize system tray: " + e.getMessage());
+                    LoggerUtil.error(this.getClass(), "Failed to initialize system tray: " + e.getMessage(), e);
                 }
             });
+        } else {
+            LoggerUtil.error(this.getClass(),
+                    "System tray not supported on this platform. Headless: " +
+                            GraphicsEnvironment.isHeadless() + ", Tray supported: " + SystemTray.isSupported());
         }
     }
 }

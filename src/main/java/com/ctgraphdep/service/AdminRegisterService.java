@@ -92,21 +92,63 @@ public class AdminRegisterService {
 
     public void saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month,
                                          List<RegisterEntry> entries) {
-        // Update statuses before saving
-        List<RegisterEntry> updatedEntries = entries.stream()
-                .map(entry -> {
-                    RegisterEntry updated = copyEntry(entry);
-                    // If status is USER_INPUT, change to USER_DONE
-                    if (updated.getAdminSync().equals(SyncStatus.USER_INPUT.name())) {
-                        updated.setAdminSync(SyncStatus.USER_DONE.name());
-                    }
-                    // ADMIN_EDITED entries remain unchanged
-                    return updated;
-                })
-                .collect(Collectors.toList());
+        try {
+            // First, get any existing entries - this is critical for preserving all previous edits
+            List<RegisterEntry> existingEntries;
+            try {
+                existingEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
+                LoggerUtil.info(this.getClass(),
+                        String.format("Found %d existing entries in admin register", existingEntries.size()));
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("No existing admin register found, creating new one: %s", e.getMessage()));
+                existingEntries = new ArrayList<>();
+            }
 
-        // Save to admin file
-        dataAccessService.writeLocalAdminRegister(username, userId, updatedEntries, year, month);
+            // Create a map of existing entries by ID for quick lookup
+            Map<Integer, RegisterEntry> existingEntriesMap = existingEntries.stream()
+                    .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry, (e1, e2) -> e1));
+
+            // Create the final list of entries to save
+            List<RegisterEntry> updatedEntries = new ArrayList<>();
+
+            // Process each entry from the incoming request
+            for (RegisterEntry entry : entries) {
+                RegisterEntry entryToSave = copyEntry(entry); // Create a copy to avoid reference issues
+
+                // Check if there's an existing entry with this ID
+                RegisterEntry existingEntry = existingEntriesMap.get(entry.getEntryId());
+
+                if (existingEntry != null) {
+                    // If existing entry is already ADMIN_EDITED and new entry is not, preserve the ADMIN_EDITED status
+                    if (existingEntry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name()) &&
+                            !entry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name())) {
+                        entryToSave.setAdminSync(SyncStatus.ADMIN_EDITED.name());
+                        LoggerUtil.debug(this.getClass(),
+                                String.format("Preserving ADMIN_EDITED status for entry %d", entry.getEntryId()));
+                    }
+                }
+
+                // Apply entry status updates based on sync state
+                if (entryToSave.getAdminSync().equals(SyncStatus.USER_INPUT.name())) {
+                    entryToSave.setAdminSync(SyncStatus.USER_DONE.name());
+                    LoggerUtil.debug(this.getClass(),
+                            String.format("Updated entry %d status from USER_INPUT to USER_DONE", entry.getEntryId()));
+                }
+
+                updatedEntries.add(entryToSave);
+            }
+
+            // Save to admin file with the complete updated list
+            dataAccessService.writeLocalAdminRegister(username, userId, updatedEntries, year, month);
+            LoggerUtil.info(this.getClass(),
+                    String.format("Saved %d entries to admin register for user %s", updatedEntries.size(), username));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error saving admin register entries: %s", e.getMessage()), e);
+            throw new RuntimeException("Failed to save admin register entries", e);
+        }
     }
 
     private RegisterEntry copyEntry(RegisterEntry source) {

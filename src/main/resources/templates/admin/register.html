@@ -858,14 +858,9 @@
             }
 
             try {
-                // Get all entries from the table that have been edited
-                const entries = Array.from(document.querySelectorAll('#registerTable tbody tr'))
-                    .filter(row => {
-                    // Only include rows with checked checkboxes or edited fields
-                    const checkbox = row.querySelector('.entry-select');
-                    const editedCG = row.querySelector('.cg-editable.field-edited');
-                    return checkbox && checkbox.checked || editedCG;
-                })
+                // Get ALL entries from the table, not just the edited ones
+                const allEntries = Array.from(document.querySelectorAll('#registerTable tbody tr'))
+                    .filter(row => row.style.display !== 'none') // Only include visible rows
                     .map(row => {
                     // Convert date from dd/MM/yyyy to yyyy-MM-dd format
                     const dateText = row.querySelector('td:nth-child(2)').textContent;
@@ -876,7 +871,7 @@
                     const printPrepTypesCell = row.querySelector('td:nth-child(8)');
                     const printPrepTypesText = printPrepTypesCell ? printPrepTypesCell.textContent.trim() : '';
 
-                    // IMPROVED print prep types handling
+                    // Improved print prep types handling
                     let printPrepTypes;
                     if (!printPrepTypesText || printPrepTypesText.trim() === '' || printPrepTypesText.toLowerCase() === 'null') {
                         // Default to DIGITAL if empty or null
@@ -894,11 +889,18 @@
                         }
                     }
 
-                    // Detailed logging to help debug
-                    console.log('Processing printPrepTypes for entry', row.querySelector('.entry-select').value, {
-                        rawText: printPrepTypesText,
-                        processedArray: printPrepTypes
-                    });
+                    // Important: Get the current syncStatus from the badge
+                    const statusBadge = row.querySelector('td:nth-child(13) .badge');
+                    let adminSync = statusBadge ? statusBadge.textContent.trim() : "USER_DONE";
+
+                    // Check if this row was just edited
+                    const checkbox = row.querySelector('.entry-select');
+                    const editedCG = row.querySelector('.cg-editable.field-edited');
+
+                    // If currently edited, mark as ADMIN_EDITED
+                    if ((checkbox && checkbox.checked) || editedCG) {
+                        adminSync = "ADMIN_EDITED";
+                    }
 
                     return {
                         entryId: parseInt(row.querySelector('.entry-select').value),
@@ -914,17 +916,20 @@
                         articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent) || 0,
                         graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent) || 0,
                         observations: row.querySelector('td:nth-child(12)').textContent || "",
-                        adminSync: "ADMIN_EDITED"
+                        adminSync: adminSync // Use the current or updated status
                     };
                 });
 
-                if (entries.length === 0) {
+                // Check if anything has been edited in this session
+                const hasEdits = allEntries.some(entry => entry.adminSync === "ADMIN_EDITED");
+
+                if (!hasEdits) {
                     showWarning('No changes detected. Nothing to save.');
                     return;
                 }
 
                 // Log the payload for debugging
-                console.log('Saving entries:', JSON.stringify(entries, null, 2));
+                console.log('Saving all entries with their current status:', allEntries);
 
                 const response = await fetch('/admin/register/save', {
                     method: 'POST',
@@ -936,7 +941,7 @@
                         userId: state.currentUser.userId,
                         year: state.currentYear,
                         month: state.currentMonth,
-                        entries: entries
+                        entries: allEntries
                     })
                 });
 
@@ -956,6 +961,16 @@
                 </div>
             `;
                 }
+
+                // Clear all "field-edited" classes to reset edit state
+                document.querySelectorAll('.field-edited').forEach(element => {
+                    element.classList.remove('field-edited');
+                });
+
+                // Uncheck all checkboxes
+                document.querySelectorAll('.entry-select').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
 
                 // Reload after successful save
                 setTimeout(() => {

@@ -18,4 +18,15 @@ public class SchedulerConfig {
         scheduler.initialize();
         return scheduler;
     }
+
+    // Add a scheduled task to check for stalled notifications
+    @Bean(name = "stalledNotificationChecker")
+    public TaskScheduler stalledNotificationChecker() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("stalled-notification-");
+        scheduler.setAwaitTerminationSeconds(30);
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        return scheduler;
+    }
 }

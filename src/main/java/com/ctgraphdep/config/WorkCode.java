@@ -1,5 +1,6 @@
 package com.ctgraphdep.config;
 
+import javax.swing.plaf.PanelUI;
 import java.time.DayOfWeek;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -31,12 +32,12 @@ public class WorkCode {
     public static final Integer HOUR_DURATION = 60;           // Minutes in an hour
     public static final Integer BUFFER_MINUTES = 10;          // Buffer time in minutes
     public static final Integer START_HOUR = 7;               // Start hour
-    public static final Integer HALF_HOUR_DURATION = 30;      // Half hour duration
+    public static final Integer HALF_HOUR_DURATION = 5;      // Half hour duration
     public static final Integer INTERVAL_HOURS_A = 4;         // Interval working hours 4 hours
     public static final Integer INTERVAL_HOURS_B = 11;        // Interval working hours 11 hours
     public static final Integer INTERVAL_HOURS_C = 8;         // Interval working hours 8 hours
-
-
+    public static final Integer ON_FOR_TEN_SECONDS = 10000; // 10 seconds in milliseconds
+    public static final Integer ONCE_PER_DAY_TIMER = 24 * 60;
     //Notification Timer timers and
     public static int calculateFullDayDuration(Integer schedule) {
         // If schedule is null or invalid, default to 8 hours
@@ -101,6 +102,7 @@ public class WorkCode {
     //work messages
     public static final String NOTICE_TITLE = "END SCHEDULE NOTICE";
     public static final String START_DAY_TITLE = "WORK DAY START REMINDER";
+    public static final String TEST_NOTICE = "SESSION MONITORING ACTIVE";
     public static final String SESSION_WARNING_MESSAGE = """
             Your work session has reached 8 hours and 30 minutes.
             
@@ -140,6 +142,29 @@ public class WorkCode {
             Note: If you choose to skip, this reminder will not appear
             again until tomorrow.""";
 
+    public static final String TEST_MESSAGE = """
+            The session monitoring system is now active and will track your work time.
+            You will be notified when your scheduled work time is complete.""";
+
+    public static final String TEST_MESSAGE_TRAY = "Session monitoring active. Click to open application.";
+    public static final String SESSION_WARNING_TRAY = "Your work session has reached the scheduled time. Click to open app.";
+    public static final String HOURLY_WARNING_TRAY = "You've completed another hour of overtime. Click to open app.";
+    public static final String LONG_TEMP_STOP_WARNING_TRAY = "Temporary stop in progress for %d hours %d minutes. Click to open app.";
+    public static final String START_DAY_MESSAGE_TRAY = "It's time to start your work day. Click to open app.";
+
+    public static final String START_WORK = "Start Work";
+    public static final String SKIP_BUTTON = "Skip";
+    public static final String DISMISS_BUTTON = "Dismiss";
+    public static final String CONTINUE_WORKING = "Continue Working";
+    public static final String END_SESSION = "End Session" ;
+    public static final String CONTINUE_BREAK = "Continue Break";
+    public static final String RESUME_WORK = "Resume Work";
+    public static final String OPEN_WEBSITE = "Open Website";
+
+    public static final String SCHEDULE_END_TYPE = "SCHEDULE_END";
+    public static final String OVERTIME_TYPE = "OVERTIME";
+    public static final String TEMP_STOP_TYPE = "TEMP_STOP";
+    public static final String START_DAY_TYPE = "START_DAY";
 
 }
 

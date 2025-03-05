@@ -67,9 +67,30 @@ public class SessionMonitorService {
             LoggerUtil.info(this.getClass(), "Starting delayed initialization of session monitoring...");
             startScheduledMonitoring();
             isInitialized = true;
+            showTestNotification();
             LoggerUtil.info(this.getClass(), "Session monitoring initialized successfully");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in initialization: " + e.getMessage());
+        }
+    }
+
+    private void showTestNotification() {
+        try {
+            // Find a currently active user, if any
+            String username = getCurrentActiveUser();
+            if (username != null) {
+                User user = userService.getUserByUsername(username).orElse(null);
+                if (user != null) {
+                    LoggerUtil.info(this.getClass(), "Showing test notification for user: " + username);
+
+                    // Use a special test method to avoid unwanted side effects
+                    notificationService.showTestNotificationDialog();
+                }
+            } else {
+                LoggerUtil.info(this.getClass(), "No active user found for test notification");
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error showing test notification: " + e.getMessage());
         }
     }
 

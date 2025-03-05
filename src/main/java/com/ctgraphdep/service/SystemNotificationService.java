@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.DialogComponents;
+import com.ctgraphdep.model.NotificationButton;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
 import java.awt.geom.RoundRectangle2D;
 import java.nio.file.Path;
@@ -20,6 +22,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Service for displaying system notifications to users
+ * Handles both dialog and system tray notifications with fallback mechanisms
+ */
 @Service
 public class SystemNotificationService {
     private final CTTTSystemTray systemTray;
@@ -27,110 +33,278 @@ public class SystemNotificationService {
     private final AtomicBoolean userResponded;
     private final PathConfig pathConfig;
     private final SessionMonitorService sessionMonitorService;
+    private final SystemNotificationBackupService backupService;
 
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
     private static final int BUTTONS_PANEL_HEIGHT = 50;
-    private static final Dimension BUTTON_SIZE = new Dimension(160, 35);
     private static final int BUTTON_SPACING = 20;
     private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
 
-    public SystemNotificationService(CTTTSystemTray systemTray, UserSessionService userSessionService, PathConfig pathConfig, SessionMonitorService sessionMonitorService) {
+    public SystemNotificationService(CTTTSystemTray systemTray, UserSessionService userSessionService, PathConfig pathConfig,
+                                     SessionMonitorService sessionMonitorService, SystemNotificationBackupService backupService) {
         this.systemTray = systemTray;
         this.userSessionService = userSessionService;
         this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
+        this.backupService = backupService;
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    //Shows schedule completion warning to the user
     public void showSessionWarning(String username, Integer userId, Integer finalMinutes) {
-        if (checkTrayIcon()) return;
-
         // Only show schedule end warning once
-        if (canShowNotification(username, "SCHEDULE_END", 24 * 60)) { // Once per day
-            showNotificationDialog(username, userId, finalMinutes,
+        if (canShowNotification(username, WorkCode.SCHEDULE_END_TYPE, 24 * 60)) { // Once per day
+            // Register with backup service first
+            backupService.registerScheduleEndNotification(username, userId, finalMinutes);
+            showNotificationWithFallback(
+                    username, userId,
                     WorkCode.NOTICE_TITLE,
                     WorkCode.SESSION_WARNING_MESSAGE,
+                    WorkCode.SESSION_WARNING_TRAY,
                     WorkCode.ON_FOR_TEN_MINUTES,
-                    false, false
+                    false, false, finalMinutes,
+                    (components, u, id, minutes) -> addStandardButtons(components, u, id, minutes, false),
+                    TrayIcon.MessageType.WARNING
             );
         }
     }
 
+    //Shows hourly overtime warning to the user
     public void showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
-        if (checkTrayIcon()) return;
         // Show overtime warning hourly
-        if (canShowNotification(username, "OVERTIME", WorkCode.CHECK_INTERVAL)) { // Every hour
-            showNotificationDialog(username, userId, finalMinutes,
+        if (canShowNotification(username,WorkCode.OVERTIME_TYPE, WorkCode.CHECK_INTERVAL)) { // Every hour
+            // Register with backup service first
+            backupService.registerHourlyWarningNotification(username, userId, finalMinutes);
+            showNotificationWithFallback(
+                    username, userId,
                     WorkCode.NOTICE_TITLE,
                     WorkCode.HOURLY_WARNING_MESSAGE,
+                    WorkCode.HOURLY_WARNING_TRAY,
                     WorkCode.ON_FOR_FIVE_MINUTES,
-                    true, false);
+                    true, false, finalMinutes,
+                    (components, u, id, minutes) -> addStandardButtons(components, u, id, minutes, true),
+                    TrayIcon.MessageType.WARNING
+            );
         }
     }
 
+    //Shows temporary stop duration warning to the user
     public void showLongTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
-        if (checkTrayIcon()) return;
-
         // Show temp stop warning hourly
-        if (canShowNotification(username, "TEMP_STOP", 60)) { // Every hour
-            int stopMinutes = (int) java.time.Duration.between(tempStopStart, LocalDateTime.now()).toMinutes();
-            int hours = stopMinutes / 60;
-            int minutes = stopMinutes % 60;
+        if (canShowNotification(username, WorkCode.TEMP_STOP_TYPE, WorkCode.HOURLY_INTERVAL)) { // Every hour
+            try {
+                int stopMinutes = (int) java.time.Duration.between(tempStopStart, LocalDateTime.now()).toMinutes();
+                int hours = stopMinutes / 60;
+                int minutes = stopMinutes % 60;
 
-            String formattedMessage = String.format(
-                    WorkCode.LONG_TEMP_STOP_WARNING,
-                    hours,
-                    minutes
-            );
+                String formattedMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING, hours, minutes);
+                String trayMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING_TRAY, hours, minutes);
+                // Register with backup service first
+                backupService.registerTempStopNotification(username, userId, tempStopStart);
+                showNotificationWithFallback(
+                        username, userId,
+                        WorkCode.NOTICE_TITLE,
+                        formattedMessage,
+                        trayMessage,
+                        WorkCode.ON_FOR_FIVE_MINUTES,
+                        false, true, null,
+                        (components, u, id, min) -> addTempStopButtons(components, u, id),
+                        TrayIcon.MessageType.WARNING
+                );
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error showing temporary stop notification: " + e.getMessage());
+            }
+        }
+    }
 
-            showNotificationDialog(
-                    username,
-                    userId,
-                    null,
-                    WorkCode.NOTICE_TITLE,
-                    formattedMessage,
-                    WorkCode.ON_FOR_FIVE_MINUTES,
-                    false,
-                    true
+    //Shows work day start reminder to the user
+    public void showStartDayReminder(String username, Integer userId) {
+        // Only show start day reminder once per day
+        if (canShowNotification(username, WorkCode.START_DAY_TYPE, WorkCode.ONCE_PER_DAY_TIMER)) { // Once per day
+            showNotificationWithFallback(
+                    username, userId,
+                    WorkCode.START_DAY_TITLE,
+                    WorkCode.START_DAY_MESSAGE,
+                    WorkCode.START_DAY_MESSAGE_TRAY,
+                    WorkCode.ON_FOR_TWELVE_HOURS,
+                    false, false, null,
+                    (components, u, id, min) -> addStartDayButtons(components, u, id),
+                    TrayIcon.MessageType.INFO
             );
         }
     }
 
-    public void showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
-            int timeoutPeriod, boolean isHourly, boolean isTempStop) {
+    //Shows a test notification dialog for system verification
+    public void showTestNotificationDialog() {
+        LoggerUtil.debug(this.getClass(), "Showing test notification dialog");
+
+        // Create atomic boolean for tracking user response and dialog display
+        final AtomicBoolean testResponded = new AtomicBoolean(false);
+        final AtomicBoolean dialogDisplayed = new AtomicBoolean(false);
+
+        SwingUtilities.invokeLater(() -> {
+            try {
+                // Check if system tray is available
+                if (systemTray.getTrayIcon() == null) {
+                    LoggerUtil.error(this.getClass(), "System tray icon not available for notifications");
+                    return;
+                }
+
+                // Only show dialog if system is not headless
+                if (!GraphicsEnvironment.isHeadless()) {
+                    DialogComponents components = createDialog(
+                            WorkCode.TEST_NOTICE,
+                            WorkCode.TEST_MESSAGE
+                    );
+
+                    // Add test-specific buttons
+                    JPanel buttonsPanel = components.buttonsPanel;
+
+                    class OpenWebsiteButton extends NotificationButton {
+                        public OpenWebsiteButton() {
+                            super(WorkCode.OPEN_WEBSITE, new Color(51, 122, 183), testResponded);
+                        }
+
+                        @Override
+                        protected void handleAction(ActionEvent e) {
+                            components.dialog.dispose();
+                            systemTray.openApplication();
+                            LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to open website from test notification");
+                        }
+                    }
+
+                    class DismissButton extends NotificationButton {
+                        public DismissButton() {
+                            super(WorkCode.DISMISS_BUTTON, new Color(108, 117, 125), testResponded);
+                        }
+
+                        @Override
+                        protected void handleAction(ActionEvent e) {
+                            components.dialog.dispose();
+                            LoggerUtil.info(SystemNotificationService.this.getClass(), "User dismissed test notification");
+                        }
+                    }
+
+                    buttonsPanel.add(new OpenWebsiteButton().create());
+                    buttonsPanel.add(new DismissButton().create());
+
+                    try {
+                        showDialog(components.dialog);
+                        dialogDisplayed.set(true);
+
+                        // Auto-close timer (10 seconds)
+                        Timer timer = new Timer(WorkCode.ON_FOR_TEN_SECONDS, e -> {
+                            if (!testResponded.get()) {
+                                components.dialog.dispose();
+                                LoggerUtil.info(this.getClass(), "Test notification auto-dismissed after timeout");
+                            }
+                        });
+                        timer.setRepeats(false);
+                        timer.start();
+                    } catch (Exception e) {
+                        LoggerUtil.error(this.getClass(), "Failed to display dialog notification: " + e.getMessage());
+                        dialogDisplayed.set(false);
+                    }
+                } else {
+                    LoggerUtil.info(this.getClass(), "Running in headless mode, skipping dialog notification");
+                }
+
+                // Fall back to tray notification if dialog wasn't displayed
+                if (!dialogDisplayed.get() && systemTray.getTrayIcon() != null) {
+                    systemTray.getTrayIcon().addActionListener(e -> {
+                        systemTray.openApplication();
+                        LoggerUtil.info(this.getClass(), "User clicked on tray notification to open application");
+                    });
+
+                    systemTray.getTrayIcon().displayMessage(WorkCode.TEST_NOTICE, WorkCode.TEST_MESSAGE_TRAY, TrayIcon.MessageType.INFO);
+
+                    LoggerUtil.info(this.getClass(), "Displayed tray notification since dialog couldn't be shown");
+                }
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error showing test notification dialog: " + e.getMessage(), e);
+            }
+        });
+    }
+
+// =========================================================================
+// NOTIFICATION DISPLAY HELPER METHODS
+// =========================================================================
+
+    // Shows notification with fallback to tray if dialog can't be shown
+    private void showNotificationWithFallback(String username, Integer userId, String title, String message, String trayMessage,
+            int timeoutPeriod, boolean isHourly, boolean isTempStop, Integer finalMinutes, ButtonsProvider buttonsProvider, TrayIcon.MessageType messageType) {
+
+        try {
+            // Try showing dialog first
+            boolean dialogDisplayed = showNotificationDialog(
+                    username, userId, finalMinutes, title, message,
+                    timeoutPeriod, isHourly, isTempStop, buttonsProvider);
+
+            // Fall back to taskbar notification if dialog fails
+            if (!dialogDisplayed && systemTray.getTrayIcon() != null) {
+                systemTray.getTrayIcon().displayMessage(title, trayMessage, messageType);
+                LoggerUtil.info(this.getClass(), "Displayed tray notification for: " + title);
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error showing notification: " + e.getMessage());
+        }
+    }
+
+    // Shows a notification dialog with customizable buttons
+    private boolean showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
+                                           Integer timeoutPeriod, boolean isHourly, boolean isTempStop, ButtonsProvider buttonsProvider) {
+
         LoggerUtil.debug(this.getClass(), String.format("Showing notification - isHourly: %b, isTempStop: %b", isHourly, isTempStop));
 
-        // Add session status check
-        WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(username, userId);
+        // Guard clauses
+        if (systemTray.getTrayIcon() == null) {
+            LoggerUtil.error(this.getClass(), "System tray icon not available");
+            return false;
+        }
+
+        if (GraphicsEnvironment.isHeadless()) {
+            LoggerUtil.info(this.getClass(), "Running in headless mode, can't display dialog");
+            return false;
+        }
 
         // Don't show regular notifications during temp stop
-        if (!isTempStop && WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
-            LoggerUtil.debug(this.getClass(), "Skipping regular notification during temp stop");
-            return;
+        if (!isTempStop) {
+            WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(username, userId);
+            if (WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
+                LoggerUtil.debug(this.getClass(), "Skipping regular notification during temp stop");
+                return false;
+            }
         }
 
         userResponded.set(false);
-        SwingUtilities.invokeLater(() -> {
-            DialogComponents components = createDialog(title, message);
-            if (isTempStop) {
-                addTempStopButtons(components, username, userId);
-            } else {
-                addButtons(components, username, userId, finalMinutes, isHourly);
-            }
-            showDialog(components.dialog);
-            startAutoCloseTimer(components.dialog, username, userId, finalMinutes, timeoutPeriod, isTempStop);
-        });
+        final AtomicBoolean dialogDisplayed = new AtomicBoolean(false);
 
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                try {
+                    DialogComponents components = createDialog(title, message);
+                    buttonsProvider.addButtons(components, username, userId, finalMinutes);
+                    showDialog(components.dialog);
+                    dialogDisplayed.set(true);
+                    startAutoCloseTimer(components.dialog, username, userId, finalMinutes, timeoutPeriod, isTempStop);
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), "Failed to display notification dialog: " + e.getMessage());
+                    dialogDisplayed.set(false);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error invoking dialog on EDT: " + e.getMessage());
+            return false;
+        }
 
+        return dialogDisplayed.get();
     }
 
+    //Creates a dialog with the specified title and message
     private DialogComponents createDialog(String title, String message) {
-        BufferedImage notificationImage = NotificationBackgroundUtility.createNotificationBackground(
-                title,
-                message
-        );
+        BufferedImage notificationImage = NotificationBackgroundUtility.createNotificationBackground(title, message);
 
         JDialog dialog = new JDialog();
         dialog.setUndecorated(true);
@@ -144,6 +318,7 @@ public class SystemNotificationService {
             protected void paintComponent(Graphics g) {
                 g.drawImage(notificationImage, 0, 0, this);
             }
+
             @Override
             public boolean isOpaque() {
                 return false;
@@ -165,106 +340,7 @@ public class SystemNotificationService {
         return new DialogComponents(dialog, buttonsPanel);
     }
 
-    private void addTempStopButtons(DialogComponents components, String username, Integer userId) {
-        JPanel buttonsPanel = components.buttonsPanel;
-
-        // Continue Break Button
-        JButton continueButton = createButton("Continue Break", new Color(0, 153, 51));
-        continueButton.addActionListener(e -> {
-            userResponded.set(true);
-            components.dialog.dispose();
-            sessionMonitorService.continueTempStop(username, userId);
-            LoggerUtil.info(this.getClass(), "User chose to continue temporary stop");
-        });
-
-        // Resume Work Button
-        JButton resumeButton = createButton("Resume Work", new Color(51, 122, 183));
-        resumeButton.addActionListener(e -> {
-            userResponded.set(true);
-            components.dialog.dispose();
-            sessionMonitorService.resumeFromTempStop(username, userId);
-            LoggerUtil.info(this.getClass(), "User chose to resume work from temporary stop");
-        });
-
-        // End Session Button
-        JButton endButton = createButton("End Session", new Color(204, 51, 0));
-        endButton.addActionListener(e -> {
-            userResponded.set(true);
-            components.dialog.dispose();
-            // First resume from temp stop, then end session
-            sessionMonitorService.resumeFromTempStop(username, userId);
-            sessionMonitorService.endSession(username, userId);
-            LoggerUtil.info(this.getClass(), "User chose to end session from temporary stop");
-        });
-
-
-        buttonsPanel.add(continueButton);
-        buttonsPanel.add(resumeButton);
-        buttonsPanel.add(endButton);
-    }
-
-    private void addButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes, boolean isHourly) {
-        JPanel buttonsPanel = components.buttonsPanel;
-
-        // Continue Working Button
-        JButton continueButton = createButton("Continue Working", new Color(0, 153, 51));
-        continueButton.addActionListener(e -> {
-            userResponded.set(true);
-            components.dialog.dispose();
-            if (!isHourly) {
-                sessionMonitorService.activateHourlyMonitoring(username);
-            }
-            LoggerUtil.info(this.getClass(), "User chose to continue working");
-        });
-
-        // End Session Button
-        JButton endButton = createButton("End Session", new Color(204, 51, 0));
-        endButton.addActionListener(e -> {
-            userResponded.set(true);
-            publishEndSession(username, userId, finalMinutes);
-            components.dialog.dispose();
-            LoggerUtil.info(this.getClass(), "User chose to end session");
-        });
-
-        buttonsPanel.add(continueButton);
-        buttonsPanel.add(endButton);
-    }
-
-    private JButton createButton(String text, Color color) {
-        JButton button = new JButton(text);
-        button.setPreferredSize(BUTTON_SIZE);
-        button.setForeground(Color.WHITE);
-        button.setBackground(color);
-        button.setFont(new Font("Arial", Font.BOLD, 14));
-        button.setFocusPainted(false);
-        button.setBorderPainted(true);
-        button.setOpaque(true);
-
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(color.darker(), 2, true),
-                BorderFactory.createEmptyBorder(5, 15, 5, 15)
-        ));
-
-        button.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseEntered(java.awt.event.MouseEvent evt) {
-                button.setBackground(color.darker());
-            }
-            public void mouseExited(java.awt.event.MouseEvent evt) {
-                button.setBackground(color);
-            }
-        });
-
-        return button;
-    }
-
-    private boolean checkTrayIcon() {
-        if (systemTray.getTrayIcon() == null) {
-            LoggerUtil.error(this.getClass(), "System tray icon not available");
-            return true;
-        }
-        return false;
-    }
-
+    // Positions and displays the dialog on screen
     private void showDialog(JDialog dialog) {
         dialog.setBackground(new Color(0, 0, 0, 0));
 
@@ -278,7 +354,8 @@ public class SystemNotificationService {
         dialog.toFront();
     }
 
-    private void startAutoCloseTimer(JDialog dialog, String username, Integer userId, Integer finalMinutes, int timeoutPeriod, boolean isTempStop) {
+    // Starts an auto-close timer for the notification dialog
+    private void startAutoCloseTimer(JDialog dialog, String username, Integer userId, Integer finalMinutes, Integer timeoutPeriod, boolean isTempStop) {
         Timer timer = new Timer(timeoutPeriod, e -> {
             if (!userResponded.get()) {
                 dialog.dispose();
@@ -296,6 +373,163 @@ public class SystemNotificationService {
         timer.start();
     }
 
+// =========================================================================
+// BUTTON CONFIGURATION METHODS
+// =========================================================================
+
+    // Adds standard notification buttons (Continue Working and End Session)
+    private void addStandardButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes, boolean isHourly) {
+        JPanel buttonsPanel = components.buttonsPanel;
+        JDialog dialog = components.dialog;
+
+        // Continue Working Button
+        class ContinueWorkingButton extends NotificationButton {
+            ContinueWorkingButton() {
+                super(WorkCode.CONTINUE_WORKING, new Color(0, 153, 51), SystemNotificationService.this.userResponded);
+            }
+
+            @Override
+            protected void handleAction(ActionEvent e) {
+                dialog.dispose();
+                if (!isHourly) {
+                    sessionMonitorService.activateHourlyMonitoring(username);
+                }
+                // Cancel any pending backup tasks since user has responded
+                backupService.cancelBackupTask(username);
+                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue working");
+            }
+        }
+
+        // End Session Button
+        class EndSessionButton extends NotificationButton {
+            EndSessionButton() {
+                super(WorkCode.END_SESSION, new Color(204, 51, 0), SystemNotificationService.this.userResponded);
+            }
+
+            @Override
+            protected void handleAction(ActionEvent e) {
+                publishEndSession(username, userId, finalMinutes);
+                dialog.dispose();
+                // Cancel any pending backup tasks since user has responded
+                backupService.cancelBackupTask(username);
+                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session");
+            }
+        }
+
+        buttonsPanel.add(new ContinueWorkingButton().create());
+        buttonsPanel.add(new EndSessionButton().create());
+    }
+
+    // Adds temporary stop specific buttons
+    private void addTempStopButtons(DialogComponents components, String username, Integer userId) {
+        JPanel buttonsPanel = components.buttonsPanel;
+        JDialog dialog = components.dialog;
+
+        // Continue Break Button
+        class ContinueBreakButton extends NotificationButton {
+            ContinueBreakButton() {
+                super(WorkCode.CONTINUE_BREAK, new Color(0, 153, 51), SystemNotificationService.this.userResponded);
+            }
+
+            @Override
+            protected void handleAction(ActionEvent e) {
+                dialog.dispose();
+                sessionMonitorService.continueTempStop(username, userId);
+                backupService.cancelBackupTask(username);
+                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue temporary stop");
+            }
+        }
+
+        // Resume Work Button
+        class ResumeWorkButton extends NotificationButton {
+            ResumeWorkButton() {
+                super(WorkCode.RESUME_WORK, new Color(51, 122, 183), SystemNotificationService.this.userResponded);
+            }
+
+            @Override
+            protected void handleAction(ActionEvent e) {
+                dialog.dispose();
+                sessionMonitorService.resumeFromTempStop(username, userId);
+                backupService.cancelBackupTask(username);
+
+                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to resume work from temporary stop");
+            }
+        }
+
+        // End Session Button
+        class EndSessionButton extends NotificationButton {
+            EndSessionButton() {
+                super(WorkCode.END_SESSION, new Color(204, 51, 0), SystemNotificationService.this.userResponded);
+            }
+
+            @Override
+            protected void handleAction(ActionEvent e) {
+                dialog.dispose();
+                // First resume from temp stop, then end session
+                sessionMonitorService.resumeFromTempStop(username, userId);
+                sessionMonitorService.endSession(username, userId);
+                backupService.cancelBackupTask(username);
+                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session from temporary stop");
+            }
+        }
+
+        buttonsPanel.add(new ContinueBreakButton().create());
+        buttonsPanel.add(new ResumeWorkButton().create());
+        buttonsPanel.add(new EndSessionButton().create());
+    }
+
+    // Adds start day dialog specific buttons
+    private void addStartDayButtons(DialogComponents components, String username, Integer userId) {
+        JPanel buttonsPanel = components.buttonsPanel;
+        JDialog dialog = components.dialog;
+
+        // Start Work Button
+        class StartWorkButton extends NotificationButton {
+            StartWorkButton() {
+                super(WorkCode.START_WORK, new Color(0, 153, 51), SystemNotificationService.this.userResponded);
+            }
+
+            @Override
+            protected void handleAction(ActionEvent e) {
+                dialog.dispose();
+                startWorkDay(username, userId);
+                backupService.cancelBackupTask(username);
+                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to start work day");
+            }
+        }
+
+        // Skip Button
+        class SkipButton extends NotificationButton {
+            SkipButton() {
+                super(WorkCode.SKIP_BUTTON, new Color(204, 51, 0), SystemNotificationService.this.userResponded);
+            }
+
+            @Override
+            protected void handleAction(ActionEvent e) {
+                dialog.dispose();
+                backupService.cancelBackupTask(username);
+                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to skip start day reminder");
+            }
+        }
+        buttonsPanel.add(new StartWorkButton().create());
+        buttonsPanel.add(new SkipButton().create());
+    }
+
+// =========================================================================
+// UTILITY METHODS
+// =========================================================================
+
+    //Starts the work day for the specified user
+    private void startWorkDay(String username, Integer userId) {
+        try {
+            userSessionService.startDay(username, userId);
+            LoggerUtil.info(this.getClass(), String.format("Started work day for user %s through start day notification", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to start work day through notification: " + e.getMessage());
+        }
+    }
+
+    //Publishes the end session event to user session service
     private void publishEndSession(String username, Integer userId, Integer finalMinutes) {
         try {
             // Get username from session file
@@ -304,41 +538,37 @@ public class SystemNotificationService {
             String extractedUsername = extractUsernameFromSessionFile(sessionFilename);
 
             if (extractedUsername != null) {
-                userSessionService.endDay(extractedUsername, userId, finalMinutes );
+                userSessionService.endDay(extractedUsername, userId, finalMinutes);
                 sessionMonitorService.clearMonitoring(username);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Successfully ended session through notification for user %s", extractedUsername));
+                LoggerUtil.info(this.getClass(), String.format("Successfully ended session through notification for user %s", extractedUsername));
             } else {
-                LoggerUtil.error(this.getClass(),
-                        "Failed to extract username from session file: " + sessionFilename);
+                LoggerUtil.error(this.getClass(), "Failed to extract username from session file: " + sessionFilename);
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Failed to end session through notification: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Failed to end session through notification: " + e.getMessage());
         }
     }
 
+    //Extracts username from session filename
     private String extractUsernameFromSessionFile(String filename) {
-        // Expects filename format: session_username_userId.json
         try {
-            String[] parts = filename.replace("session_", "")
-                    .replace(".json", "")
-                    .split("_");
+            String[] parts = filename.replace("session_", "").replace(".json", "").split("_");
             if (parts.length >= 2) {
                 return parts[0];
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error extracting username from filename: " + filename);
+            LoggerUtil.error(this.getClass(), "Error extracting username from filename: " + filename);
         }
         return null;
     }
 
+    // Creates a unique notification key for rate limiting
     private String getNotificationKey(String username, String notificationType) {
         return username + "_" + notificationType;
     }
 
-    private boolean canShowNotification(String username, String notificationType, int intervalMinutes) {
+    // Checks if a notification can be shown based on time interval
+    private boolean canShowNotification(String username, String notificationType, Integer intervalMinutes) {
         String key = getNotificationKey(username, notificationType);
         LocalDateTime lastTime = lastNotificationTimes.get(key);
 
@@ -354,66 +584,12 @@ public class SystemNotificationService {
             lastNotificationTimes.put(key, now);
             return true;
         }
-
         return false;
     }
 
-    public void showStartDayReminder(String username, Integer userId) {
-        if (checkTrayIcon()) return;
-
-        // Only show start day reminder once per day
-        if (canShowNotification(username, "START_DAY", 24 * 60)) { // Once per day
-            showStartDayDialog(username, userId,
-                    WorkCode.START_DAY_TITLE,
-                    WorkCode.START_DAY_MESSAGE,
-                    WorkCode.ON_FOR_TWELVE_HOURS);
-        }
-    }
-
-    private void showStartDayDialog(String username, Integer userId, String title, String message, int timeoutPeriod) {
-        LoggerUtil.debug(this.getClass(), "Showing start day notification");
-
-        userResponded.set(false);
-        SwingUtilities.invokeLater(() -> {
-            DialogComponents components = createDialog(title, message);
-            addStartDayButtons(components, username, userId);
-            showDialog(components.dialog);
-            startAutoCloseTimer(components.dialog, username, userId, null, timeoutPeriod, false);
-        });
-    }
-
-    private void addStartDayButtons(DialogComponents components, String username, Integer userId) {
-        JPanel buttonsPanel = components.buttonsPanel;
-
-        // Start Work Button
-        JButton startButton = createButton("Start Work", new Color(0, 153, 51));
-        startButton.addActionListener(e -> {
-            userResponded.set(true);
-            components.dialog.dispose();
-            startWorkDay(username, userId);
-            LoggerUtil.info(this.getClass(), "User chose to start work day");
-        });
-
-        // Skip Button
-        JButton skipButton = createButton("Skip", new Color(204, 51, 0));
-        skipButton.addActionListener(e -> {
-            userResponded.set(true);
-            components.dialog.dispose();
-            LoggerUtil.info(this.getClass(), "User chose to skip start day reminder");
-        });
-
-        buttonsPanel.add(startButton);
-        buttonsPanel.add(skipButton);
-    }
-
-    private void startWorkDay(String username, Integer userId) {
-        try {
-            userSessionService.startDay(username, userId);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Started work day for user %s through start day notification", username));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Failed to start work day through notification: " + e.getMessage());
-        }
+    //Functional interface for providing buttons to dialogs
+    @FunctionalInterface
+    private interface ButtonsProvider {
+        void addButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes);
     }
 }

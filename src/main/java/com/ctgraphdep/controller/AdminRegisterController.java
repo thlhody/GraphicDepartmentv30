@@ -92,8 +92,8 @@ public class AdminRegisterController {
                                 userId,
                                 year,
                                 month,
-                                (selectedUser != null) ? selectedUser.getName() : "null",
-                                (entries != null) ? entries.size() : 0));
+                                selectedUser.getName(),
+                                entries.size()));
             } else {
                 LoggerUtil.info(this.getClass(), "No user selected, adding empty entries list");
                 model.addAttribute("entries", new ArrayList<>());
@@ -127,81 +127,6 @@ public class AdminRegisterController {
         return ResponseEntity.ok(workedDays);
     }
 
-    @PostMapping("/filter")
-    public ResponseEntity<List<RegisterEntry>> filterEntries(
-            @RequestBody List<RegisterEntry> entries,
-            @RequestParam(required = false) String actionType,
-            @RequestParam(required = false) String printPrepTypes) {
-
-        ActionType selectedActionType = actionType != null ?
-                ActionType.valueOf(actionType) : null;
-        PrintPrepTypes selectedPrintTypes = printPrepTypes != null ?
-                PrintPrepTypes.valueOf(printPrepTypes) : null;
-
-        List<RegisterEntry> filteredEntries = adminRegisterService.filterEntries(
-                entries, selectedActionType, selectedPrintTypes);
-
-        return ResponseEntity.ok(filteredEntries);
-    }
-
-    @PostMapping("/search")
-    public ResponseEntity<List<RegisterEntry>> searchEntries(
-            @RequestBody List<RegisterEntry> entries,
-            @RequestParam String searchTerm) {
-
-        List<RegisterEntry> searchResults = adminRegisterService.searchEntries(
-                entries, searchTerm);
-
-        return ResponseEntity.ok(searchResults);
-    }
-
-    @PostMapping("/update")
-    public ResponseEntity<?> bulkUpdateEntries(@RequestBody Map<String, Object> request) {
-        try {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> entriesData = (List<Map<String, Object>>) request.get("entries");
-            @SuppressWarnings("unchecked")
-            List<Integer> selectedIds = (List<Integer>) request.get("selectedIds");
-            Double newValue = Double.parseDouble(request.get("newValue").toString());
-
-            DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE;
-
-            List<RegisterEntry> entries = entriesData.stream()
-                    .map(data -> {
-                        // Handle printPrepTypes conversion
-                        String printPrepTypesStr = String.valueOf(data.get("printPrepTypes"));
-                        List<String> printPrepTypes = new ArrayList<>();
-                        if (printPrepTypesStr != null && !printPrepTypesStr.isEmpty()) {
-                            printPrepTypes = Arrays.asList(printPrepTypesStr.split("\\s*,\\s*"));
-                        }
-
-                        return RegisterEntry.builder()
-                                .entryId(Integer.parseInt(data.get("entryId").toString()))
-                                .userId(Integer.parseInt(data.get("userId").toString()))
-                                .date(LocalDate.parse(data.get("date").toString(), formatter))
-                                .orderId(data.get("orderId").toString())
-                                .productionId(data.get("productionId").toString())
-                                .omsId(data.get("omsId").toString())
-                                .clientName(data.get("clientName").toString())
-                                .actionType(data.get("actionType").toString())
-                                .printPrepTypes(printPrepTypes)  // Updated to use the list
-                                .colorsProfile(data.get("colorsProfile").toString())
-                                .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
-                                .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
-                                .observations(data.get("observations") != null ? data.get("observations").toString() : "")
-                                .adminSync(data.get("adminSync").toString())
-                                .build();
-                    })
-                    .collect(Collectors.toList());
-
-            adminRegisterService.bulkUpdateEntries(entries, selectedIds, "graphicComplexity", newValue.toString());
-            return ResponseEntity.ok().build();
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error updating entries: " + e.getMessage());
-            return ResponseEntity.badRequest().body("Error updating entries: " + e.getMessage());
-        }
-    }
 
     @PostMapping("/save")
     public ResponseEntity<?> saveEntries(@RequestBody Map<String, Object> request) {
@@ -218,9 +143,9 @@ public class AdminRegisterController {
 
             List<RegisterEntry> entries = entriesData.stream()
                     .map(data -> {
-                        LoggerUtil.info(this.getClass(), "Processing entry ID: " + data.get("entryId") +
+                        LoggerUtil.debug(this.getClass(), "Processing entry ID: " + data.get("entryId") +
                                 ", printPrepTypes: " + data.get("printPrepTypes") +
-                                ", class: " + (data.get("printPrepTypes") != null ? data.get("printPrepTypes").getClass().getName() : "null"));
+                                ", adminSync: " + data.get("adminSync"));
 
                         // Handle printPrepTypes conversion
                         List<String> printPrepTypes = new ArrayList<>();
@@ -247,6 +172,10 @@ public class AdminRegisterController {
                             printPrepTypes.add("DIGITAL");
                         }
 
+                        // IMPORTANT: Preserve the original adminSync status from the client
+                        String adminSync = data.get("adminSync") != null ?
+                                data.get("adminSync").toString() : SyncStatus.USER_DONE.name();
+
                         return RegisterEntry.builder()
                                 .entryId(Integer.parseInt(data.get("entryId").toString()))
                                 .userId(Integer.parseInt(data.get("userId").toString()))
@@ -256,28 +185,27 @@ public class AdminRegisterController {
                                 .omsId(data.get("omsId").toString())
                                 .clientName(data.get("clientName").toString())
                                 .actionType(data.get("actionType").toString())
-                                .printPrepTypes(printPrepTypes)  // Updated to use the list
+                                .printPrepTypes(printPrepTypes)
                                 .colorsProfile(data.get("colorsProfile").toString())
                                 .articleNumbers(Integer.parseInt(data.get("articleNumbers").toString()))
                                 .graphicComplexity(Double.parseDouble(data.get("graphicComplexity").toString()))
                                 .observations(data.get("observations") != null ? data.get("observations").toString() : "")
-                                .adminSync(data.get("adminSync").toString())
+                                .adminSync(adminSync) // Use the status from the client
                                 .build();
                     })
                     .collect(Collectors.toList());
 
-            // Update USER_INPUT statuses to USER_DONE before saving
-            entries.forEach(entry -> {
-                if (entry.getAdminSync().equals(SyncStatus.USER_INPUT.name())) {
-                    entry.setAdminSync(SyncStatus.USER_DONE.name());
-                }
-            });
+            // Log the number of entries before saving
+            LoggerUtil.info(this.getClass(),
+                    String.format("Saving %d entries for user %s (year: %d, month: %d)",
+                            entries.size(), username, year, month));
 
+            // Don't modify the status here, let the service handle it
             adminRegisterService.saveAdminRegisterEntries(username, userId, year, month, entries);
             return ResponseEntity.ok().build();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error saving entries: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error saving entries: " + e.getMessage(), e);
             return ResponseEntity.badRequest().body("Error saving entries: " + e.getMessage());
         }
     }

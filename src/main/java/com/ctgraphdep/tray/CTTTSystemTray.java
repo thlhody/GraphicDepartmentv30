@@ -100,6 +100,12 @@ public class CTTTSystemTray {
                 }
             });
 
+            // Add action listener for notification clicks
+            trayIcon.addActionListener(e -> {
+                openApplication();
+                LoggerUtil.info(this.getClass(), "Tray notification clicked, opening application");
+            });
+
             SystemTray.getSystemTray().add(trayIcon);
             LoggerUtil.info(this.getClass(), "System tray icon created successfully");
 
@@ -160,7 +166,7 @@ public class CTTTSystemTray {
         return image;
     }
 
-    private void openApplication() {
+    public void openApplication() {
         String urlToOpen = appUrl != null ? appUrl : appUrlBackup;
         openUrl(urlToOpen + "/login");
     }
