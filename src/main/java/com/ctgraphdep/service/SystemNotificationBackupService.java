@@ -25,7 +25,6 @@ public class SystemNotificationBackupService {
 
     private final UserSessionService userSessionService;
     private final UserService userService;
-    private final SessionMonitorService sessionMonitorService;
     private final TaskScheduler taskScheduler;
 
     // Track scheduled tasks for users
@@ -37,11 +36,9 @@ public class SystemNotificationBackupService {
     public SystemNotificationBackupService(
             UserSessionService userSessionService,
             UserService userService,
-            SessionMonitorService sessionMonitorService,
             @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler) {
         this.userSessionService = userSessionService;
         this.userService = userService;
-        this.sessionMonitorService = sessionMonitorService;
         this.taskScheduler = taskScheduler;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -117,6 +114,11 @@ public class SystemNotificationBackupService {
      */
     public void cancelBackupTask(String username) {
         cancelExistingTask(username);
+        // Remove notification records
+        scheduleEndNotificationTimes.remove(username);
+        hourlyNotificationTimes.remove(username);
+        tempStopNotificationTimes.remove(username);
+
         LoggerUtil.info(this.getClass(),
                 String.format("Cancelled backup notification for user %s (user responded)", username));
     }
@@ -140,12 +142,24 @@ public class SystemNotificationBackupService {
 
                 // End the session as if user didn't respond to notification
                 userSessionService.endDay(username, userId, finalMinutes);
-                sessionMonitorService.clearMonitoring(username);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error in schedule end backup handler for %s: %s",
                             username, e.getMessage()));
+
+            // Attempt recovery by making a direct call with default values
+            try {
+                User user = userService.getUserByUsername(username).orElse(null);
+                if (user != null) {
+                    LoggerUtil.warn(this.getClass(),
+                            String.format("Attempting emergency session end for user %s after backup failure", username));
+                    userSessionService.endDay(username, userId, finalMinutes != null ? finalMinutes : 0);
+                }
+            } catch (Exception recoveryEx) {
+                LoggerUtil.error(this.getClass(),
+                        String.format("Recovery attempt also failed for %s: %s", username, recoveryEx.getMessage()));
+            }
         } finally {
             // Remove notification record
             scheduleEndNotificationTimes.remove(username);
@@ -169,12 +183,24 @@ public class SystemNotificationBackupService {
 
                 // End the session as if user didn't respond to notification
                 userSessionService.endDay(username, userId, finalMinutes);
-                sessionMonitorService.clearMonitoring(username);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error in hourly warning backup handler for %s: %s",
                             username, e.getMessage()));
+
+            // Attempt recovery with direct call
+            try {
+                User user = userService.getUserByUsername(username).orElse(null);
+                if (user != null) {
+                    LoggerUtil.warn(this.getClass(),
+                            String.format("Attempting emergency session end for user %s after hourly backup failure", username));
+                    userSessionService.endDay(username, userId, finalMinutes != null ? finalMinutes : 0);
+                }
+            } catch (Exception recoveryEx) {
+                LoggerUtil.error(this.getClass(),
+                        String.format("Recovery attempt also failed for %s: %s", username, recoveryEx.getMessage()));
+            }
         } finally {
             // Remove notification record
             hourlyNotificationTimes.remove(username);
@@ -197,7 +223,16 @@ public class SystemNotificationBackupService {
                                 username));
 
                 // Continue temp stop as if user didn't respond
-                sessionMonitorService.continueTempStop(username, userId);
+                try {
+                    // Directly inform session monitor service to continue temp stop
+                    userSessionService.saveSession(username, session);
+                    LoggerUtil.info(this.getClass(),
+                            String.format("Continued temporary stop through backup for user %s", username));
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(),
+                            String.format("Failed to save session during temp stop continuation for %s: %s",
+                                    username, e.getMessage()));
+                }
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
@@ -237,7 +272,6 @@ public class SystemNotificationBackupService {
                                     String.format("Detected stalled schedule end notification for user %s, forcing session end", username));
 
                             userSessionService.endDay(username, user.getUserId(), session.getFinalWorkedMinutes());
-                            sessionMonitorService.clearMonitoring(username);
 
                             // Remove after handling
                             scheduleEndNotificationTimes.remove(username);
@@ -250,6 +284,55 @@ public class SystemNotificationBackupService {
             }
         });
 
-        // Similar cleanup could be implemented for hourly and temp stop notifications
+        // Handle hourly warning notifications
+        hourlyNotificationTimes.forEach((username, time) -> {
+            if (ChronoUnit.MINUTES.between(time, LocalDateTime.now()) >= 10) {
+                try {
+                    User user = userService.getUserByUsername(username).orElse(null);
+                    if (user != null) {
+                        WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, user.getUserId());
+
+                        if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
+                            LoggerUtil.warn(this.getClass(),
+                                    String.format("Detected stalled hourly warning notification for user %s, forcing session end", username));
+
+                            userSessionService.endDay(username, user.getUserId(), session.getFinalWorkedMinutes());
+
+                            // Remove after handling
+                            hourlyNotificationTimes.remove(username);
+                        }
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(),
+                            String.format("Error handling stalled hourly notification for %s: %s", username, e.getMessage()));
+                }
+            }
+        });
+
+        // Handle temporary stop notifications
+        tempStopNotificationTimes.forEach((username, time) -> {
+            if (ChronoUnit.MINUTES.between(time, LocalDateTime.now()) >= 10) {
+                try {
+                    User user = userService.getUserByUsername(username).orElse(null);
+                    if (user != null) {
+                        WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, user.getUserId());
+
+                        if (session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                            LoggerUtil.warn(this.getClass(),
+                                    String.format("Detected stalled temporary stop notification for user %s, continuing temp stop", username));
+
+                            // Save session to update the last activity time
+                            userSessionService.saveSession(username, session);
+
+                            // Remove after handling
+                            tempStopNotificationTimes.remove(username);
+                        }
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(),
+                            String.format("Error handling stalled temp stop notification for %s: %s", username, e.getMessage()));
+                }
+            }
+        });
     }
 }

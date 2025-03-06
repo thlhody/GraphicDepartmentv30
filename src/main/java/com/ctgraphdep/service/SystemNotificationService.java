@@ -33,7 +33,6 @@ public class SystemNotificationService {
     private final AtomicBoolean userResponded;
     private final PathConfig pathConfig;
     private final SessionMonitorService sessionMonitorService;
-    private final SystemNotificationBackupService backupService;
 
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
@@ -42,12 +41,12 @@ public class SystemNotificationService {
     private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
 
     public SystemNotificationService(CTTTSystemTray systemTray, UserSessionService userSessionService, PathConfig pathConfig,
-                                     SessionMonitorService sessionMonitorService, SystemNotificationBackupService backupService) {
+                                     SessionMonitorService sessionMonitorService) {
         this.systemTray = systemTray;
         this.userSessionService = userSessionService;
         this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
-        this.backupService = backupService;
+
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -56,8 +55,6 @@ public class SystemNotificationService {
     public void showSessionWarning(String username, Integer userId, Integer finalMinutes) {
         // Only show schedule end warning once
         if (canShowNotification(username, WorkCode.SCHEDULE_END_TYPE, 24 * 60)) { // Once per day
-            // Register with backup service first
-            backupService.registerScheduleEndNotification(username, userId, finalMinutes);
             showNotificationWithFallback(
                     username, userId,
                     WorkCode.NOTICE_TITLE,
@@ -74,9 +71,7 @@ public class SystemNotificationService {
     //Shows hourly overtime warning to the user
     public void showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
         // Show overtime warning hourly
-        if (canShowNotification(username,WorkCode.OVERTIME_TYPE, WorkCode.CHECK_INTERVAL)) { // Every hour
-            // Register with backup service first
-            backupService.registerHourlyWarningNotification(username, userId, finalMinutes);
+        if (canShowNotification(username, WorkCode.OVERTIME_TYPE, WorkCode.CHECK_INTERVAL)) { // Every hour
             showNotificationWithFallback(
                     username, userId,
                     WorkCode.NOTICE_TITLE,
@@ -101,8 +96,6 @@ public class SystemNotificationService {
 
                 String formattedMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING, hours, minutes);
                 String trayMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING_TRAY, hours, minutes);
-                // Register with backup service first
-                backupService.registerTempStopNotification(username, userId, tempStopStart);
                 showNotificationWithFallback(
                         username, userId,
                         WorkCode.NOTICE_TITLE,
@@ -234,7 +227,7 @@ public class SystemNotificationService {
 
     // Shows notification with fallback to tray if dialog can't be shown
     private void showNotificationWithFallback(String username, Integer userId, String title, String message, String trayMessage,
-            int timeoutPeriod, boolean isHourly, boolean isTempStop, Integer finalMinutes, ButtonsProvider buttonsProvider, TrayIcon.MessageType messageType) {
+                                              int timeoutPeriod, boolean isHourly, boolean isTempStop, Integer finalMinutes, ButtonsProvider buttonsProvider, TrayIcon.MessageType messageType) {
 
         try {
             // Try showing dialog first
@@ -249,6 +242,10 @@ public class SystemNotificationService {
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error showing notification: " + e.getMessage());
+
+            // Even if both notification methods fail, the backup service will still execute
+            // the appropriate action after its timeout
+            LoggerUtil.info(this.getClass(), "Backup service will handle notification failure");
         }
     }
 
@@ -394,8 +391,6 @@ public class SystemNotificationService {
                 if (!isHourly) {
                     sessionMonitorService.activateHourlyMonitoring(username);
                 }
-                // Cancel any pending backup tasks since user has responded
-                backupService.cancelBackupTask(username);
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue working");
             }
         }
@@ -410,8 +405,6 @@ public class SystemNotificationService {
             protected void handleAction(ActionEvent e) {
                 publishEndSession(username, userId, finalMinutes);
                 dialog.dispose();
-                // Cancel any pending backup tasks since user has responded
-                backupService.cancelBackupTask(username);
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session");
             }
         }
@@ -435,7 +428,6 @@ public class SystemNotificationService {
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
                 sessionMonitorService.continueTempStop(username, userId);
-                backupService.cancelBackupTask(username);
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue temporary stop");
             }
         }
@@ -450,8 +442,6 @@ public class SystemNotificationService {
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
                 sessionMonitorService.resumeFromTempStop(username, userId);
-                backupService.cancelBackupTask(username);
-
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to resume work from temporary stop");
             }
         }
@@ -468,7 +458,6 @@ public class SystemNotificationService {
                 // First resume from temp stop, then end session
                 sessionMonitorService.resumeFromTempStop(username, userId);
                 sessionMonitorService.endSession(username, userId);
-                backupService.cancelBackupTask(username);
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session from temporary stop");
             }
         }
@@ -493,7 +482,6 @@ public class SystemNotificationService {
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
                 startWorkDay(username, userId);
-                backupService.cancelBackupTask(username);
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to start work day");
             }
         }
@@ -507,7 +495,6 @@ public class SystemNotificationService {
             @Override
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
-                backupService.cancelBackupTask(username);
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to skip start day reminder");
             }
         }
@@ -568,7 +555,7 @@ public class SystemNotificationService {
     }
 
     // Checks if a notification can be shown based on time interval
-    private boolean canShowNotification(String username, String notificationType, Integer intervalMinutes) {
+    public boolean canShowNotification(String username, String notificationType, Integer intervalMinutes) {
         String key = getNotificationKey(username, notificationType);
         LocalDateTime lastTime = lastNotificationTimes.get(key);
 
