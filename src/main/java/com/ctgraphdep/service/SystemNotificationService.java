@@ -15,6 +15,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
 import java.awt.geom.RoundRectangle2D;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -33,6 +34,7 @@ public class SystemNotificationService {
     private final AtomicBoolean userResponded;
     private final PathConfig pathConfig;
     private final SessionMonitorService sessionMonitorService;
+    private final ContinuationTrackingService continuationTrackingService;
 
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
@@ -41,11 +43,13 @@ public class SystemNotificationService {
     private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
 
     public SystemNotificationService(CTTTSystemTray systemTray, UserSessionService userSessionService, PathConfig pathConfig,
-                                     SessionMonitorService sessionMonitorService) {
+                                     SessionMonitorService sessionMonitorService,
+                                     ContinuationTrackingService continuationTrackingService) {
         this.systemTray = systemTray;
         this.userSessionService = userSessionService;
         this.pathConfig = pathConfig;
         this.sessionMonitorService = sessionMonitorService;
+        this.continuationTrackingService = continuationTrackingService;
 
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
@@ -235,17 +239,38 @@ public class SystemNotificationService {
                     username, userId, finalMinutes, title, message,
                     timeoutPeriod, isHourly, isTempStop, buttonsProvider);
 
+            // Add logging to debug notification display state
+            LoggerUtil.info(this.getClass(), String.format("Notification dialog display attempt for %s: %b", username, dialogDisplayed));
+
             // Fall back to taskbar notification if dialog fails
             if (!dialogDisplayed && systemTray.getTrayIcon() != null) {
                 systemTray.getTrayIcon().displayMessage(title, trayMessage, messageType);
-                LoggerUtil.info(this.getClass(), "Displayed tray notification for: " + title);
+                LoggerUtil.info(this.getClass(), "Displayed tray notification for: " + title + " (dialog display failed)");
+
+                // Add a fallback mechanism to ensure user response tracking
+                userResponded.set(false);
+                startFallbackResponseTimer(username, userId, timeoutPeriod, isTempStop);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error showing notification: " + e.getMessage());
 
-            // Even if both notification methods fail, the backup service will still execute
-            // the appropriate action after its timeout
-            LoggerUtil.info(this.getClass(), "Backup service will handle notification failure");
+            // Even on exception, ensure we have a fallback tracking mechanism
+            LoggerUtil.info(this.getClass(), "Setting up emergency fallback for notification response tracking");
+            startFallbackResponseTimer(username, userId, timeoutPeriod, isTempStop);
+        }
+    }
+
+    // New method to add an additional response tracking mechanism
+    private void startFallbackResponseTimer(String username, Integer userId, int timeoutPeriod, boolean isTempStop) {
+        try {
+            // Create a file-based tracking mechanism
+            Path trackingFile = pathConfig.getLocalPath().resolve("notifications").resolve(username + "_notification.lock");
+            Files.createDirectories(trackingFile.getParent());
+            Files.write(trackingFile, LocalDateTime.now().toString().getBytes());
+
+            LoggerUtil.info(this.getClass(), String.format("Created notification tracking file for %s", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to create notification tracking: " + e.getMessage());
         }
     }
 
@@ -285,7 +310,9 @@ public class SystemNotificationService {
                     buttonsProvider.addButtons(components, username, userId, finalMinutes);
                     showDialog(components.dialog);
                     dialogDisplayed.set(true);
-                    startAutoCloseTimer(components.dialog, username, userId, finalMinutes, timeoutPeriod, isTempStop);
+
+                    // Modified: No auto-closing, just track notification display
+                    trackNotificationDisplay(username, userId, timeoutPeriod, isTempStop);
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Failed to display notification dialog: " + e.getMessage());
                     dialogDisplayed.set(false);
@@ -297,6 +324,13 @@ public class SystemNotificationService {
         }
 
         return dialogDisplayed.get();
+    }
+
+    // New method to track notification display without auto-closing
+    private void trackNotificationDisplay(String username, Integer userId, int timeoutPeriod, boolean isTempStop) {
+        // Log that notification was displayed
+        LoggerUtil.info(this.getClass(),
+                String.format("Notification displayed for user %s - will remain visible until user responds", username));
     }
 
     //Creates a dialog with the specified title and message
@@ -349,25 +383,17 @@ public class SystemNotificationService {
 
         dialog.setVisible(true);
         dialog.toFront();
-    }
+        // Force dialog to be on top of all windows
+        dialog.setAlwaysOnTop(true);
+        // Add visual confirmation of dialog display
+        LoggerUtil.info(this.getClass(), String.format("Dialog shown at position X: %d, Y: %d",
+                screenSize.width - dialog.getWidth() - 20,
+                screenSize.height - dialog.getHeight() - 50));
 
-    // Starts an auto-close timer for the notification dialog
-    private void startAutoCloseTimer(JDialog dialog, String username, Integer userId, Integer finalMinutes, Integer timeoutPeriod, boolean isTempStop) {
-        Timer timer = new Timer(timeoutPeriod, e -> {
-            if (!userResponded.get()) {
-                dialog.dispose();
-                if (!isTempStop) {
-                    publishEndSession(username, userId, finalMinutes);
-                    sessionMonitorService.clearMonitoring(username);
-                    LoggerUtil.info(this.getClass(), "Auto-ending session due to no response");
-                } else {
-                    sessionMonitorService.continueTempStop(username, userId);
-                    LoggerUtil.info(this.getClass(), "Auto-continuing temporary stop due to no response");
-                }
-            }
-        });
-        timer.setRepeats(false);
-        timer.start();
+        // Add check to verify dialog is visible on screen
+        if (!dialog.isShowing()) {
+            LoggerUtil.error(this.getClass(), "Dialog set to visible but not showing on screen");
+        }
     }
 
 // =========================================================================
@@ -391,7 +417,12 @@ public class SystemNotificationService {
                 if (!isHourly) {
                     sessionMonitorService.activateHourlyMonitoring(username);
                 }
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue working");
+
+                // Record continuation point
+                continuationTrackingService.recordContinuationPoint(username, userId, LocalDateTime.now(), isHourly);
+
+                LoggerUtil.info(SystemNotificationService.this.getClass(),
+                        String.format("User %s chose to continue working - continuation point recorded", username));
             }
         }
 

@@ -46,7 +46,7 @@ public class WorkCode {
         }
         // For 8-hour schedule: 8.5 hours (510 minutes)
         // For others: schedule hours + lunch break if applicable
-        if (schedule.equals(INTERVAL_HOURS_C)) {
+        if (schedule.intValue() == INTERVAL_HOURS_C) {
             return (schedule * HOUR_DURATION) + HALF_HOUR_DURATION;
         } else {
             return schedule * HOUR_DURATION;
@@ -165,6 +165,17 @@ public class WorkCode {
     public static final String OVERTIME_TYPE = "OVERTIME";
     public static final String TEMP_STOP_TYPE = "TEMP_STOP";
     public static final String START_DAY_TYPE = "START_DAY";
+
+
+    public static final Integer NORMAL_WORK_TIME = 510;
+    public static final Integer OVERTIME_ONE = 570;
+    public static final Integer OVERTIME_TWO = 630;
+    public static final Integer OVERTIME_THREE = 690;
+    public static final Integer OVERTIME_FOUR = 720;
+    public static final Integer OVERTIME_FIVE = 780;
+    public static final Integer OVERTIME_SIX = 840;
+    public static final Integer OVERTIME_SEVEN = 900;
+    public static final Integer OVERTIME_EIGHT = 960;
 
 }
 

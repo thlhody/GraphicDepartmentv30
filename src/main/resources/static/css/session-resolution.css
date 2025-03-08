@@ -1,0 +1,33 @@
+.custom-radio-card {
+    position: relative;
+    padding: 0;
+    margin-bottom: 0;
+}
+
+.custom-radio-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.custom-radio-card-label {
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    width: 100%;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.custom-radio-card input[type="radio"]:checked + .custom-radio-card-label {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+}

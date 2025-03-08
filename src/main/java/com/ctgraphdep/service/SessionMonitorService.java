@@ -22,7 +22,7 @@ import java.util.concurrent.ScheduledFuture;
 
 /**
  * Service responsible for monitoring active user sessions and triggering
- * appropriate notifications and actions based on session state.
+ * appropriate notifications based on session state.
  */
 @Service
 public class SessionMonitorService {
@@ -33,6 +33,7 @@ public class SessionMonitorService {
     private final TaskScheduler taskScheduler;
     private final PathConfig pathConfig;
     private final SystemNotificationBackupService backupService;
+    private final ContinuationTrackingService continuationTrackingService;
 
     // Track monitored sessions
     private final Map<String, Boolean> notificationShown = new ConcurrentHashMap<>();
@@ -49,7 +50,8 @@ public class SessionMonitorService {
             UserService userService,
             @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             PathConfig pathConfig,
-            SystemNotificationBackupService backupService) {
+            SystemNotificationBackupService backupService,
+            ContinuationTrackingService continuationTrackingService) {
         this.userSessionCalcService = userSessionCalcService;
         this.userSessionService = userSessionService;
         this.notificationService = notificationService;
@@ -57,6 +59,7 @@ public class SessionMonitorService {
         this.taskScheduler = taskScheduler;
         this.pathConfig = pathConfig;
         this.backupService = backupService;
+        this.continuationTrackingService = continuationTrackingService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -245,8 +248,8 @@ public class SessionMonitorService {
             if (session.getTotalTemporaryStopMinutes() != null &&
                     session.getTotalTemporaryStopMinutes() >= WorkCode.MAX_TEMP_STOP_HOURS * WorkCode.HOUR_DURATION) {
 
-                // End session through UserSessionService
-                userSessionService.endDay(username, session.getUserId(), session.getTotalWorkedMinutes());
+                // Record this as a temp stop continuation rather than ending the session
+                continuationTrackingService.recordTempStopContinuation(username, session.getUserId(), now);
                 return;
             }
 
@@ -268,6 +271,11 @@ public class SessionMonitorService {
     private void checkScheduleCompletion(WorkUsersSessionsStates session, User user) {
         int scheduleMinutes = WorkCode.calculateFullDayDuration(user.getSchedule());
         int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
+
+        // Add this debug logging
+        LoggerUtil.debug(this.getClass(),
+                String.format("Schedule check - User: %s, Schedule: %d, Required minutes: %d, Worked: %d",
+                        session.getUsername(), user.getSchedule(), scheduleMinutes, workedMinutes));
 
         // Only show notification if not already shown for this session
         if (workedMinutes >= scheduleMinutes && !notificationShown.getOrDefault(session.getUsername(), false)) {
@@ -294,13 +302,20 @@ public class SessionMonitorService {
     /**
      * Shows hourly warnings for users continuing to work after schedule completion
      */
-    private void checkHourlyWarning(WorkUsersSessionsStates session) {
+    public void checkHourlyWarning(WorkUsersSessionsStates session) {
         String username = session.getUsername();
         LocalDateTime lastWarning = lastHourlyWarning.get(username);
         LocalDateTime now = LocalDateTime.now();
 
         // Check if an hour has passed since last warning
         if (lastWarning == null || ChronoUnit.MINUTES.between(lastWarning, now) >= WorkCode.HOURLY_INTERVAL) {
+            // Add detailed logging
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Preparing hourly warning for %s - Last warning: %s, Minutes since: %d",
+                    username,
+                    lastWarning != null ? lastWarning.toString() : "never",
+                    lastWarning != null ? ChronoUnit.MINUTES.between(lastWarning, now) : 0));
+
             // First register backup action
             backupService.registerHourlyWarningNotification(
                     username,
@@ -349,6 +364,16 @@ public class SessionMonitorService {
             User user = userService.getUserByUsername(username)
                     .orElseThrow(() -> new RuntimeException("User not found: " + username));
             WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, user.getUserId());
+
+            // Check for unresolved continuation points from yesterday
+            boolean hasUnresolvedContinuations = continuationTrackingService.hasUnresolvedMidnightEnd(username);
+
+            // If there are unresolved continuations, don't show start day reminder
+            if (hasUnresolvedContinuations) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("User %s has unresolved continuation points - skipping start day reminder", username));
+                return;
+            }
 
             // Only show if status is Offline and no active session for today
             if (session != null &&
@@ -399,9 +424,12 @@ public class SessionMonitorService {
      */
     public void continueTempStop(String username, Integer userId) {
         try {
-            // Just log that user chose to continue temp stop
+            // Record a continuation point
+            continuationTrackingService.recordTempStopContinuation(username, userId, LocalDateTime.now());
+
             // Cancel any backup tasks since user responded
             backupService.cancelBackupTask(username);
+
             LoggerUtil.info(this.getClass(), String.format("User %s chose to continue temporary stop", username));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error continuing temp stop for %s: %s", username, e.getMessage()), e);

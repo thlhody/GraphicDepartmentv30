@@ -29,18 +29,22 @@ public class UserSessionService {
     private final SessionMonitorService sessionMonitorService;
     private final UserService userService;
     private final PathConfig pathConfig;
+    private final SessionStatusService sessionStatusService;
+    private final ContinuationTrackingService continuationTrackingService;
     private final ReentrantLock sessionLock = new ReentrantLock();
     private final Map<String, WorkUsersSessionsStates> userSessions = new ConcurrentHashMap<>();
     private final Map<Integer, WorkUsersSessionsStates> activeSessions = new ConcurrentHashMap<>();
 
     //Core service methods
     public UserSessionService(DataAccessService dataAccess, UserWorkTimeService userWorkTimeService,
-                              @Lazy SessionMonitorService sessionMonitorService, UserService userService, PathConfig pathConfig) {
+                              @Lazy SessionMonitorService sessionMonitorService, UserService userService, PathConfig pathConfig, SessionStatusService sessionStatusService, ContinuationTrackingService continuationTrackingService) {
         this.dataAccess = dataAccess;
         this.userWorkTimeService = userWorkTimeService;
         this.sessionMonitorService = sessionMonitorService;
         this.userService = userService;
         this.pathConfig = pathConfig;
+        this.sessionStatusService = sessionStatusService;
+        this.continuationTrackingService = continuationTrackingService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -76,6 +80,9 @@ public class UserSessionService {
             return session;
         }
     }
+    /**
+     * Checks if a session is from a previous day
+     */
     private boolean isPreviousDaySession(WorkUsersSessionsStates session) {
         if (session == null || session.getDayStartTime() == null || WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
             return false;
@@ -86,6 +93,11 @@ public class UserSessionService {
 
         return sessionDate.isBefore(today);
     }
+
+    /**
+     * Handles sessions from a previous day by creating a continuation point
+     * instead of automatic resolution
+     */
     private void handlePreviousDaySession(WorkUsersSessionsStates session) {
         try {
             LoggerUtil.info(this.getClass(),
@@ -93,14 +105,19 @@ public class UserSessionService {
                             session.getUsername(),
                             session.getDayStartTime().format(DateTimeFormatter.ISO_LOCAL_DATE)));
 
-            // Calculate default values for the session
-            SessionCalculationResult calculationResult = calculateDefaultSessionValues(session);
+            // Mark the session as offline but don't calculate any default values
+            session.setSessionStatus(WorkCode.WORK_OFFLINE);
 
-            // Update and persist the session
-            updateAndPersistSession(session, calculationResult);
+            // Record midnight termination for this session date
+            continuationTrackingService.recordMidnightSessionEnd(
+                    session.getUsername(),
+                    session.getUserId());
+
+            // Update the session file
+            saveSession(session.getUsername(), session);
 
             LoggerUtil.info(this.getClass(),
-                    String.format("Successfully handled previous day session for user %s",
+                    String.format("Created continuation point for previous day session for user %s",
                             session.getUsername()));
 
         } catch (Exception e) {
@@ -184,9 +201,7 @@ public class UserSessionService {
             // Start session monitoring
             sessionMonitorService.startMonitoring(username);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Started new session for user %s (start time set to %s)",
-                            username, startTime));
+            LoggerUtil.info(this.getClass(), String.format("Started new session for user %s (start time set to %s)", username, startTime));
 
             return newSession;
         });
@@ -295,6 +310,9 @@ public class UserSessionService {
             // Update in-memory session map
             userSessions.put(username, session);
 
+            // NEW: Update session status in database
+            sessionStatusService.updateSessionStatus(session);
+
             LoggerUtil.debug(this.getClass(),
                     String.format("Saved session for user %s", username));
         } catch (Exception e) {
@@ -388,7 +406,6 @@ public class UserSessionService {
             }
 
             // Record the total time worked before resuming
-            int previousWorkedMinutes = existingSession.getTotalWorkedMinutes();
             LocalDateTime previousEndTime = existingSession.getDayEndTime();
 
             // Create a temporary stop to account for the break between end and resume
@@ -537,6 +554,8 @@ public class UserSessionService {
                 if (session != null) {
                     processSessionEnd(session, finalMinutes);
                     updateWorkTimeAndPersist(session);
+                    // Add this explicit call to update the database status
+                    sessionStatusService.updateSessionStatus(username, userId, WorkCode.WORK_OFFLINE, LocalDateTime.now());
                     cleanupSession(username, userId);
                     logSessionEnd(username, finalMinutes);
                 }

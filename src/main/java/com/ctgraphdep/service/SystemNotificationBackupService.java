@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -8,6 +9,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -18,7 +21,7 @@ import java.util.concurrent.ScheduledFuture;
 
 /**
  * Backup service for handling session notifications in case the primary notification system fails.
- * This service provides a safety net to ensure critical actions are taken even if UI notifications fail.
+ * This service provides monitoring of notifications but no longer automatically ends sessions.
  */
 @Service
 public class SystemNotificationBackupService {
@@ -26,6 +29,8 @@ public class SystemNotificationBackupService {
     private final UserSessionService userSessionService;
     private final UserService userService;
     private final TaskScheduler taskScheduler;
+    private final PathConfig pathConfig;
+    private final ContinuationTrackingService continuationTrackingService;
 
     // Track scheduled tasks for users
     private final Map<String, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
@@ -36,16 +41,20 @@ public class SystemNotificationBackupService {
     public SystemNotificationBackupService(
             UserSessionService userSessionService,
             UserService userService,
-            @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler) {
+            @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
+            PathConfig pathConfig,
+            ContinuationTrackingService continuationTrackingService) {
         this.userSessionService = userSessionService;
         this.userService = userService;
         this.taskScheduler = taskScheduler;
+        this.pathConfig = pathConfig;
+        this.continuationTrackingService = continuationTrackingService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**
      * Registers a scheduled end notification backup for a user.
-     * Will automatically end session if notification handling fails.
+     * Will track the notification but not automatically end session.
      */
     public void registerScheduleEndNotification(String username, Integer userId, Integer finalMinutes) {
         // Cancel any existing task
@@ -54,7 +63,7 @@ public class SystemNotificationBackupService {
         // Record notification time
         scheduleEndNotificationTimes.put(username, LocalDateTime.now());
 
-        // Schedule backup task for 11 minutes later (1 minute after primary notification would auto-close)
+        // Schedule backup task for monitoring purposes
         ScheduledFuture<?> task = taskScheduler.schedule(
                 () -> handleScheduleEndBackup(username, userId, finalMinutes),
                 Instant.now().plus(Duration.ofMinutes(11))
@@ -67,7 +76,7 @@ public class SystemNotificationBackupService {
 
     /**
      * Registers an hourly warning notification backup.
-     * Will automatically end session if notification handling fails.
+     * Will track the notification but not automatically end session.
      */
     public void registerHourlyWarningNotification(String username, Integer userId, Integer finalMinutes) {
         // Cancel any existing task
@@ -76,7 +85,7 @@ public class SystemNotificationBackupService {
         // Record notification time
         hourlyNotificationTimes.put(username, LocalDateTime.now());
 
-        // Schedule backup task for 6 minutes later (1 minute after primary notification would auto-close)
+        // Schedule backup task for monitoring purposes
         ScheduledFuture<?> task = taskScheduler.schedule(
                 () -> handleHourlyWarningBackup(username, userId, finalMinutes),
                 Instant.now().plus(Duration.ofMinutes(6))
@@ -89,7 +98,7 @@ public class SystemNotificationBackupService {
 
     /**
      * Registers a temporary stop notification backup.
-     * Will automatically continue temp stop if notification handling fails.
+     * Will track notification status for temporary stops.
      */
     public void registerTempStopNotification(String username, Integer userId, LocalDateTime tempStopStart) {
         // Cancel any existing task
@@ -98,7 +107,7 @@ public class SystemNotificationBackupService {
         // Record notification time
         tempStopNotificationTimes.put(username, LocalDateTime.now());
 
-        // Schedule backup task for 6 minutes later (1 minute after primary notification would auto-close)
+        // Schedule backup task for monitoring purposes
         ScheduledFuture<?> task = taskScheduler.schedule(
                 () -> handleTempStopBackup(username, userId),
                 Instant.now().plus(Duration.ofMinutes(6))
@@ -125,41 +134,25 @@ public class SystemNotificationBackupService {
 
     /**
      * Handles backup for schedule end notification in case UI fails
+     * Now records a continuation point instead of ending the session
      */
     private void handleScheduleEndBackup(String username, Integer userId, Integer finalMinutes) {
         try {
             WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, userId);
 
-            // Only proceed if:
-            // 1. Session is still online (user hasn't already ended it through UI)
-            // 2. We're not in temp stop mode
-            if (session != null &&
-                    WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-
+            // Only proceed if session is still online (user hasn't already ended it through UI)
+            if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                 LoggerUtil.warn(this.getClass(),
-                        String.format("BACKUP: Ending session for user %s due to no response to schedule end notification",
+                        String.format("BACKUP: User %s did not respond to schedule end notification - recording continuation point",
                                 username));
 
-                // End the session as if user didn't respond to notification
-                userSessionService.endDay(username, userId, finalMinutes);
+                // Record a continuation point instead of ending the session
+                continuationTrackingService.recordContinuationPoint(username, userId, LocalDateTime.now(), false);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error in schedule end backup handler for %s: %s",
                             username, e.getMessage()));
-
-            // Attempt recovery by making a direct call with default values
-            try {
-                User user = userService.getUserByUsername(username).orElse(null);
-                if (user != null) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Attempting emergency session end for user %s after backup failure", username));
-                    userSessionService.endDay(username, userId, finalMinutes != null ? finalMinutes : 0);
-                }
-            } catch (Exception recoveryEx) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Recovery attempt also failed for %s: %s", username, recoveryEx.getMessage()));
-            }
         } finally {
             // Remove notification record
             scheduleEndNotificationTimes.remove(username);
@@ -168,39 +161,50 @@ public class SystemNotificationBackupService {
 
     /**
      * Handles backup for hourly warning notification in case UI fails
+     * Now records a continuation point instead of ending the session
      */
     private void handleHourlyWarningBackup(String username, Integer userId, Integer finalMinutes) {
         try {
+            // Check for alternative notification tracking mechanism
+            Path trackingFile = pathConfig.getLocalPath().resolve("notifications").resolve(username + "_notification.lock");
+            boolean trackingExists = Files.exists(trackingFile);
+
+            if (trackingExists) {
+                // Read tracking file to see when notification was shown
+                String content = new String(Files.readAllBytes(trackingFile));
+                LocalDateTime notificationTime = LocalDateTime.parse(content);
+
+                // If notification was shown less than 3 minutes ago, defer backup action
+                if (ChronoUnit.MINUTES.between(notificationTime, LocalDateTime.now()) < 3) {
+                    LoggerUtil.info(this.getClass(), String.format("Deferring backup action for %s - notification still active", username));
+
+                    // Reschedule for another 2 minutes
+                    taskScheduler.schedule(
+                            () -> handleHourlyWarningBackup(username, userId, finalMinutes),
+                            Instant.now().plus(Duration.ofMinutes(2))
+                    );
+                    return;
+                }
+
+                // Clean up tracking file
+                Files.deleteIfExists(trackingFile);
+            }
+
             WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, userId);
 
             // Only proceed if session is still online
-            if (session != null &&
-                    WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-
+            if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                 LoggerUtil.warn(this.getClass(),
-                        String.format("BACKUP: Ending session for user %s due to no response to hourly warning",
+                        String.format("BACKUP: User %s did not respond to hourly warning - recording continuation point",
                                 username));
 
-                // End the session as if user didn't respond to notification
-                userSessionService.endDay(username, userId, finalMinutes);
+                // Record a continuation point instead of ending the session
+                continuationTrackingService.recordContinuationPoint(username, userId, LocalDateTime.now(), true);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error in hourly warning backup handler for %s: %s",
                             username, e.getMessage()));
-
-            // Attempt recovery with direct call
-            try {
-                User user = userService.getUserByUsername(username).orElse(null);
-                if (user != null) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Attempting emergency session end for user %s after hourly backup failure", username));
-                    userSessionService.endDay(username, userId, finalMinutes != null ? finalMinutes : 0);
-                }
-            } catch (Exception recoveryEx) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Recovery attempt also failed for %s: %s", username, recoveryEx.getMessage()));
-            }
         } finally {
             // Remove notification record
             hourlyNotificationTimes.remove(username);
@@ -209,23 +213,26 @@ public class SystemNotificationBackupService {
 
     /**
      * Handles backup for temp stop notification in case UI fails
+     * Will continue to track temporary stop status
      */
     private void handleTempStopBackup(String username, Integer userId) {
         try {
             WorkUsersSessionsStates session = userSessionService.getCurrentSession(username, userId);
 
             // Only proceed if session is still in temp stop
-            if (session != null &&
-                    WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-
+            if (session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
                 LoggerUtil.warn(this.getClass(),
                         String.format("BACKUP: Continuing temporary stop for user %s (notification backup)",
                                 username));
 
-                // Continue temp stop as if user didn't respond
+                // Continue temp stop tracking
                 try {
-                    // Directly inform session monitor service to continue temp stop
+                    // Update the session timestamp without ending it
                     userSessionService.saveSession(username, session);
+
+                    // Record a temp stop continuation
+                    continuationTrackingService.recordTempStopContinuation(username, userId, LocalDateTime.now());
+
                     LoggerUtil.info(this.getClass(),
                             String.format("Continued temporary stop through backup for user %s", username));
                 } catch (Exception e) {
@@ -256,7 +263,7 @@ public class SystemNotificationBackupService {
 
     /**
      * Checks if any sessions have active notifications that haven't received responses
-     * and might have failed to auto-close properly
+     * Now logs these sessions but doesn't automatically end them
      */
     public void checkForStalledNotifications() {
         // Handle schedule end notifications
@@ -269,9 +276,10 @@ public class SystemNotificationBackupService {
 
                         if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                             LoggerUtil.warn(this.getClass(),
-                                    String.format("Detected stalled schedule end notification for user %s, forcing session end", username));
+                                    String.format("Detected stalled schedule end notification for user %s, recording continuation point", username));
 
-                            userSessionService.endDay(username, user.getUserId(), session.getFinalWorkedMinutes());
+                            // Record a continuation point instead of ending the session
+                            continuationTrackingService.recordContinuationPoint(username, user.getUserId(), LocalDateTime.now(), false);
 
                             // Remove after handling
                             scheduleEndNotificationTimes.remove(username);
@@ -294,9 +302,10 @@ public class SystemNotificationBackupService {
 
                         if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                             LoggerUtil.warn(this.getClass(),
-                                    String.format("Detected stalled hourly warning notification for user %s, forcing session end", username));
+                                    String.format("Detected stalled hourly warning notification for user %s, recording continuation point", username));
 
-                            userSessionService.endDay(username, user.getUserId(), session.getFinalWorkedMinutes());
+                            // Record a continuation point instead of ending the session
+                            continuationTrackingService.recordContinuationPoint(username, user.getUserId(), LocalDateTime.now(), true);
 
                             // Remove after handling
                             hourlyNotificationTimes.remove(username);
@@ -323,6 +332,9 @@ public class SystemNotificationBackupService {
 
                             // Save session to update the last activity time
                             userSessionService.saveSession(username, session);
+
+                            // Record the temp stop continuation
+                            continuationTrackingService.recordTempStopContinuation(username, user.getUserId(), LocalDateTime.now());
 
                             // Remove after handling
                             tempStopNotificationTimes.remove(username);

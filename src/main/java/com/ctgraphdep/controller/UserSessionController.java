@@ -14,7 +14,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Controller
@@ -26,28 +28,95 @@ public class UserSessionController extends BaseController {
     private final SessionPersistenceService persistenceService;
     private final UserService userService;
     private final UserSessionCalcService calculatorService;
+    private final ContinuationTrackingService continuationTrackingService;
 
     @Autowired
     public UserSessionController(
             UserSessionService userSessionService,
             UserService userService,
             FolderStatusService folderStatusService,
-            SessionPersistenceService persistenceService,UserSessionCalcService calculatorService) {
+            SessionPersistenceService persistenceService,
+            UserSessionCalcService calculatorService,
+            ContinuationTrackingService continuationTrackingService) {
         super(userService, folderStatusService);
         this.userSessionService = userSessionService;
         this.userService = userService;
         this.calculatorService = calculatorService;
         this.persistenceService = persistenceService;
+        this.continuationTrackingService = continuationTrackingService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
-    public String getSessionPage(@AuthenticationPrincipal UserDetails userDetails, Model model) {
-        // Validate user authentication and retrieve user
-        User user = validateAndGetUser(userDetails);
+    public String getSessionPage(@AuthenticationPrincipal UserDetails userDetails, Model model, RedirectAttributes redirectAttributes) {
+        try {
+            // Step 1: Validate authentication and get user
+            User user = validateAndGetUser(userDetails);
 
+            // Step 3: Check for unresolved sessions from previous days
+            if (hasUnresolvedSessions(user, redirectAttributes)) {
+                return "redirect:/user/session/resolve";
+            }
+
+            // Step 4: Set up navigation context
+            configureNavigationContext(user, model);
+
+            // Step 5: Process current session
+            WorkUsersSessionsStates session = processCurrentSession(user);
+
+            // Step 6: Prepare view model
+            prepareViewModel(model, session, user);
+
+            // Step 7: Return view
+            return "user/session";
+        } catch (Exception e) {
+            // Centralized error handling
+            LoggerUtil.error(this.getClass(), "Error loading session page: " + e.getMessage(), e);
+            model.addAttribute("error", "Error loading session data: " + e.getMessage());
+            return "user/session";
+        }
+    }
+
+    /**
+     * Checks if user has any unresolved sessions from previous days
+     */
+    private boolean hasUnresolvedSessions(User user, RedirectAttributes redirectAttributes) {
+        // Check for unresolved continuation points
+        boolean hasUnresolvedContinuations = continuationTrackingService.hasUnresolvedMidnightEnd(user.getUsername());
+
+        // Check for incomplete sessions from previous days
+        WorkUsersSessionsStates session = userSessionService.getCurrentSession(user.getUsername(), user.getUserId());
+        boolean hasPreviousDaySession = false;
+
+        if (session != null && session.getDayStartTime() != null) {
+            LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+            LocalDate today = LocalDate.now();
+
+            hasPreviousDaySession = sessionDate.isBefore(today) &&
+                    (session.getDayEndTime() == null || !session.getWorkdayCompleted());
+        }
+
+        // If any unresolved sessions are found, add a warning message
+        if (hasUnresolvedContinuations || hasPreviousDaySession) {
+            LoggerUtil.info(this.getClass(),
+                    String.format("User %s has unresolved session - redirecting to resolution page", user.getUsername()));
+
+            redirectAttributes.addFlashAttribute("warningMessage",
+                    "Your previous work session needs to be resolved before starting a new day.");
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Sets up navigation context based on user role
+     */
+    private void configureNavigationContext(User user, Model model) {
         // Check if there's a completed session for today
-        boolean completedSessionToday = userSessionService.hasCompletedSessionForToday(user.getUsername(), user.getUserId());
+        boolean completedSessionToday = userSessionService.hasCompletedSessionForToday(
+                user.getUsername(), user.getUserId());
         model.addAttribute("completedSessionToday", completedSessionToday);
 
         // Determine dashboard URL based on user role
@@ -57,33 +126,36 @@ public class UserSessionController extends BaseController {
         } else {
             model.addAttribute("dashboardUrl", "/user");
         }
+    }
 
-        // Handle admin users
-        if (user.isAdmin()) {
-            return "redirect:/admin/dashboard";
+    /**
+     * Processes the current session and updates if active
+     */
+    private WorkUsersSessionsStates processCurrentSession(User user) {
+        // Retrieve session
+        WorkUsersSessionsStates session = retrieveAndValidateSession(user);
+
+        // Update session if active
+        if (isActiveSession(session)) {
+            updateActiveSession(session);
         }
 
-        try {
-            // Retrieve and process user session
-            WorkUsersSessionsStates session = retrieveAndValidateSession(user);
+        return session;
+    }
 
-            // Update session if active
-            if (isActiveSession(session)) {
-                updateActiveSession(session);
-            }
+    /**
+     * Prepares the view model with session information
+     */
+    private void prepareViewModel(Model model, WorkUsersSessionsStates session, User user) {
+        // Add session information to model
+        prepareSessionModel(model, session);
 
-            // Prepare model with session information
-            prepareSessionModel(model, session);
+        // Add user information
+        model.addAttribute("username", user.getUsername());
+        model.addAttribute("userFullName", user.getName());
 
-            // Always return the user session view
-            return "user/session";
-
-        } catch (Exception e) {
-            // Log error and prepare error model
-            LoggerUtil.error(this.getClass(), "Error loading session page: " + e.getMessage(), e);
-            model.addAttribute("error", "Error loading session data: " + e.getMessage());
-            return "user/session";
-        }
+        // Add current date/time
+        model.addAttribute("currentDate", LocalDate.now());
     }
 
     private User validateAndGetUser(UserDetails userDetails) {
@@ -156,8 +228,17 @@ public class UserSessionController extends BaseController {
     }
 
     @PostMapping("/start")
-    public String startSession(@AuthenticationPrincipal UserDetails userDetails) {
+    public String startSession(@AuthenticationPrincipal UserDetails userDetails, RedirectAttributes redirectAttributes) {
         User user = getUserOrThrow(userDetails);
+
+        // Check for unresolved continuation points before allowing a start
+        boolean hasUnresolvedContinuations = continuationTrackingService.hasUnresolvedMidnightEnd(user.getUsername());
+
+        if (hasUnresolvedContinuations) {
+            redirectAttributes.addFlashAttribute("warningMessage",
+                    "Your previous work session needs to be resolved before starting a new day.");
+            return "redirect:/user/session/resolve";
+        }
 
         // Clear any existing session first
         WorkUsersSessionsStates existingSession = userSessionService.getCurrentSession(

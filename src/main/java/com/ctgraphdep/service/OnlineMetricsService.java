@@ -21,51 +21,34 @@ import java.util.stream.Collectors;
 public class OnlineMetricsService {
     private final UserService userService;
     private final DataAccessService dataAccess;
-    private static final TypeReference<WorkUsersSessionsStates> SESSION_TYPE = new TypeReference<>() {};
+    private final SessionStatusService sessionStatusService;
 
     public OnlineMetricsService(
             UserService userService,
-            DataAccessService dataAccess) {
+            DataAccessService dataAccess, SessionStatusService sessionStatusService) {
         this.userService = userService;
         this.dataAccess = dataAccess;
+        this.sessionStatusService = sessionStatusService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     public int getOnlineUserCount() {
-        return (int) getUserStatuses().stream().filter(status -> WorkCode.WORK_ONLINE.equals(status.getStatus())).count();
+        return sessionStatusService.getOnlineUserCount();
     }
 
     public int getActiveUserCount() {
-        return (int) getUserStatuses().stream().filter(status -> !WorkCode.WORK_OFFLINE.equals(status.getStatus())).count();
+        return sessionStatusService.getActiveUserCount();
     }
 
     public List<UserStatusDTO> getUserStatuses() {
-        // Filter out administrators using multiple criteria
-        List<User> regularUsers = userService.getAllUsers().stream()
-                .filter(user -> !user.isAdmin() &&
-                        !user.getRole().equals("ADMIN") &&
-                        !user.getRole().equals("ADMINISTRATOR") &&
-                        !user.getUsername().equalsIgnoreCase("admin"))
-                .toList();
-
-        // Get user statuses
-        List<UserStatusDTO> statuses = regularUsers.stream()
-                .map(this::getUserStatus).sorted(Comparator
-                        .comparing((UserStatusDTO dto) -> {
-                            // First level sorting - by status with custom order
-                            if (WorkCode.WORK_ONLINE.equals(dto.getStatus())) return 1;
-                            if (WorkCode.WORK_TEMPORARY_STOP.equals(dto.getStatus())) return 2;
-                            return 3; // All other statuses
-                        })
-                        .thenComparing(UserStatusDTO::getName, String.CASE_INSENSITIVE_ORDER)).collect(Collectors.toList());
-
-        // Custom sorting: First by status (Online, Temporary Stop, Others), then alphabetically by name
-
-        LoggerUtil.debug(this.getClass(), "Sorted user statuses by status and name");
-
-        return statuses;
+        // Use SessionStatusService to get user statuses from DB
+        return sessionStatusService.getAllUserStatuses();
     }
 
+    /**
+     * 4. Keep original methods for backward compatibility
+     * and to support existing implementations, but modify to update database
+     */
     private UserStatusDTO getUserStatus(User user) {
         try {
             if (dataAccess.networkSessionExists(user.getUsername(), user.getUserId())) {
@@ -75,6 +58,9 @@ public class OnlineMetricsService {
                 );
 
                 if (session != null) {
+                    // NEW: Update database with session status
+                    sessionStatusService.updateSessionStatus(session);
+
                     return buildUserStatusDTO(user, session);
                 }
             }
@@ -126,4 +112,61 @@ public class OnlineMetricsService {
         }
         return dateTime.format(WorkCode.INPUT_FORMATTER);
     }
+
+
+//    public int getOnlineUserCount() {
+//        return (int) getUserStatuses().stream().filter(status -> WorkCode.WORK_ONLINE.equals(status.getStatus())).count();
+//    }
+//
+//    public int getActiveUserCount() {
+//        return (int) getUserStatuses().stream().filter(status -> !WorkCode.WORK_OFFLINE.equals(status.getStatus())).count();
+//    }
+//
+//    public List<UserStatusDTO> getUserStatuses() {
+//        // Filter out administrators using multiple criteria
+//        List<User> regularUsers = userService.getAllUsers().stream()
+//                .filter(user -> !user.isAdmin() &&
+//                        !user.getRole().equals("ADMIN") &&
+//                        !user.getRole().equals("ADMINISTRATOR") &&
+//                        !user.getUsername().equalsIgnoreCase("admin"))
+//                .toList();
+//
+//        // Get user statuses
+//        List<UserStatusDTO> statuses = regularUsers.stream()
+//                .map(this::getUserStatus).sorted(Comparator
+//                        .comparing((UserStatusDTO dto) -> {
+//                            // First level sorting - by status with custom order
+//                            if (WorkCode.WORK_ONLINE.equals(dto.getStatus())) return 1;
+//                            if (WorkCode.WORK_TEMPORARY_STOP.equals(dto.getStatus())) return 2;
+//                            return 3; // All other statuses
+//                        })
+//                        .thenComparing(UserStatusDTO::getName, String.CASE_INSENSITIVE_ORDER)).collect(Collectors.toList());
+//
+//        // Custom sorting: First by status (Online, Temporary Stop, Others), then alphabetically by name
+//
+//        LoggerUtil.debug(this.getClass(), "Sorted user statuses by status and name");
+//
+//        return statuses;
+//    }
+//
+//    private UserStatusDTO getUserStatus(User user) {
+//        try {
+//            if (dataAccess.networkSessionExists(user.getUsername(), user.getUserId())) {
+//                WorkUsersSessionsStates session = dataAccess.readNetworkSessionFile(
+//                        user.getUsername(),
+//                        user.getUserId()
+//                );
+//
+//                if (session != null) {
+//                    return buildUserStatusDTO(user, session);
+//                }
+//            }
+//        } catch (Exception e) {
+//            LoggerUtil.error(this.getClass(),
+//                    String.format("Error reading network session for user %s: %s",
+//                            user.getUsername(), e.getMessage()));
+//        }
+//
+//        return createOfflineStatus(user);
+//    }
 }
