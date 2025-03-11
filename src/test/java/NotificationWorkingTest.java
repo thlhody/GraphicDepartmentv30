@@ -95,7 +95,7 @@
 //
 //    @Test
 //    @Order(1)
-//    @DisplayName("Test 1: Display all three types of notifications")
+//    @DisplayName("Test 1: Display all three types of notification")
 //    void testAllNotificationTypes() throws InterruptedException {
 //        notificationLatch = new CountDownLatch(3);
 //
@@ -113,9 +113,9 @@
 //        Thread.sleep(100);
 //
 //        assertTrue(notificationLatch.await(1, TimeUnit.SECONDS),
-//                "All notifications should be displayed");
+//                "All notification should be displayed");
 //        assertEquals(3, displayedNotifications.size(),
-//                "Should have shown 3 notifications");
+//                "Should have shown 3 notification");
 //
 //        // Verify notification content
 //        assertTrue(displayedNotifications.stream()
@@ -177,9 +177,9 @@
 //        Thread.sleep(1000);
 //
 //        assertTrue(notificationLatch.await(1, TimeUnit.SECONDS),
-//                "All notifications should be displayed");
+//                "All notification should be displayed");
 //        assertEquals(4, displayedNotifications.size(),
-//                "Should have shown 4 notifications");
+//                "Should have shown 4 notification");
 //
 //        // Verify the notification sequence
 //        verify(sessionMonitorService, times(2)).continueTempStop("tudor", 2);

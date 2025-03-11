@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Service for managing user session status in the database.
@@ -46,9 +45,7 @@ public class SessionStatusService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Scheduled method to invalidate cache periodically
-     */
+    // Scheduled method to invalidate cache periodically
     @Scheduled(fixedRate = 10000) // Every 10 seconds
     public void invalidateCache() {
         cachedStatuses = null;
@@ -56,12 +53,10 @@ public class SessionStatusService {
         cachedOnlineCount = 0;
         cachedActiveCount = 0;
         countCacheTimestamp = null;
-        LoggerUtil.debug(this.getClass(), "Session status cache invalidated");
+        //LoggerUtil.debug(this.getClass(), "Session status cache invalidated");
     }
 
-    /**
-     * Updates a user's session status in the database
-     */
+    // Updates a user's session status in the database
     @Transactional
     public void updateSessionStatus(String username, Integer userId, String status, LocalDateTime lastActive) {
         try {
@@ -101,9 +96,7 @@ public class SessionStatusService {
         }
     }
 
-    /**
-     * Updates a user's session status from a WorkUsersSessionsStates object
-     */
+    // Updates a user's session status from a WorkUsersSessionsStates object
     @Transactional
     public void updateSessionStatus(WorkUsersSessionsStates session) {
         if (session == null) return;
@@ -206,9 +199,8 @@ public class SessionStatusService {
         }
     }
 
-    /**
-     * Updates the count cache based on the status results
-     */
+    //Updates the count cache based on the status results
+
     private void updateCountCache(List<UserStatusDTO> statuses) {
         cachedOnlineCount = (int) statuses.stream()
                 .filter(s -> WorkCode.WORK_ONLINE.equals(s.getStatus()))
@@ -222,9 +214,7 @@ public class SessionStatusService {
         countCacheTimestamp = LocalDateTime.now();
     }
 
-    /**
-     * Get the number of online users with caching
-     */
+    //Get the number of online users with caching
     public int getOnlineUserCount() {
         try {
             // Check if we have a valid count cache
@@ -256,9 +246,7 @@ public class SessionStatusService {
         }
     }
 
-    /**
-     * Get the number of active users (online or temporary stop) with caching
-     */
+    // Get the number of active users (online or temporary stop) with caching
     public int getActiveUserCount() {
         try {
             // Check if we have a valid count cache
@@ -291,9 +279,7 @@ public class SessionStatusService {
         }
     }
 
-    /**
-     * Helper method to determine status string from work code
-     */
+    // Helper method to determine status string from work code
     private String determineStatus(String workCode) {
         if (workCode == null) {
             return WorkCode.WORK_OFFLINE;
@@ -307,9 +293,7 @@ public class SessionStatusService {
         };
     }
 
-    /**
-     * Format date/time for display
-     */
+    // Format date/time for display
     private String formatDateTime(LocalDateTime dateTime) {
         if (dateTime == null) {
             return WorkCode.LAST_ACTIVE_NEVER;

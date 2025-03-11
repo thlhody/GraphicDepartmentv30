@@ -32,7 +32,7 @@ public class WorkCode {
     public static final Integer HOUR_DURATION = 60;           // Minutes in an hour
     public static final Integer BUFFER_MINUTES = 10;          // Buffer time in minutes
     public static final Integer START_HOUR = 7;               // Start hour
-    public static final Integer HALF_HOUR_DURATION = 5;      // Half hour duration
+    public static final Integer HALF_HOUR_DURATION = 30;      // Half hour duration
     public static final Integer INTERVAL_HOURS_A = 4;         // Interval working hours 4 hours
     public static final Integer INTERVAL_HOURS_B = 11;        // Interval working hours 11 hours
     public static final Integer INTERVAL_HOURS_C = 8;         // Interval working hours 8 hours

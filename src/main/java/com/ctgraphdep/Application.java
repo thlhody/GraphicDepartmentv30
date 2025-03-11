@@ -57,7 +57,7 @@ public class Application {
                     } else {
                         LoggerUtil.info(this.getClass(), "System Tray successfully initialized with icon");
 
-                        // We'll let SystemNotificationService handle the notifications
+                        // We'll let SystemNotificationService handle the notification
                         // It will decide whether to show dialog or tray notification
                         // No need to send a direct tray notification here
                     }

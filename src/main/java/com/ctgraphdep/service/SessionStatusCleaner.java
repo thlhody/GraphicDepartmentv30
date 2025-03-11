@@ -35,10 +35,7 @@ public class SessionStatusCleaner {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Run every 15 minutes to clean up stale session statuses
-     */
-    // In SessionStatusCleaner.java
+    // Run every 15 minutes to clean up stale session statuses
     @Scheduled(fixedRate = 900000) // 15 minutes
     @Transactional
     public void cleanupStaleSessions() {

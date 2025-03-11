@@ -1,20 +1,20 @@
 package com.ctgraphdep.controller;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.enums.SyncStatus;
-import com.ctgraphdep.model.*;
-import com.ctgraphdep.service.ContinuationTrackingService;
-import com.ctgraphdep.service.FolderStatusService;
+import com.ctgraphdep.model.ContinuationPoint;
+import com.ctgraphdep.model.User;
+import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.UserSessionService;
-import com.ctgraphdep.service.UserWorkTimeService;
+import com.ctgraphdep.session.SessionCommandFactory;
+import com.ctgraphdep.session.SessionCommandService;
+import com.ctgraphdep.session.commands.EndDayCommand;
+import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
+import com.ctgraphdep.session.query.GetCurrentSessionQuery;
+import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.utils.LoggerUtil;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -23,564 +23,336 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
-/**
- * Controller for handling session resolution.
- * This allows users to resolve previous sessions that ended at midnight
- * or continued beyond schedule without proper ending.
- */
 @Controller
 @PreAuthorize("isAuthenticated()")
 @RequestMapping("/user/session/resolve")
 public class SessionResolutionController extends BaseController {
 
-    private final UserSessionService userSessionService;
-    private final ContinuationTrackingService continuationTrackingService;
-    private final UserWorkTimeService userWorkTimeService;
+    private final SessionCommandService commandService;
+    private final SessionCommandFactory commandFactory;
+    private final UserService userService;
 
-    public SessionResolutionController(
-            UserService userService,
-            FolderStatusService folderStatusService,
-            UserSessionService userSessionService,
-            ContinuationTrackingService continuationTrackingService,
-            UserWorkTimeService userWorkTimeService) {
-        super(userService, folderStatusService);
-        this.userSessionService = userSessionService;
-        this.continuationTrackingService = continuationTrackingService;
-        this.userWorkTimeService = userWorkTimeService;
+    public SessionResolutionController(SessionCommandService commandService, SessionCommandFactory commandFactory, UserService userService) {
+        super(commandService.getContext().getUserService(), commandService.getContext().getFolderStatusService());
+        this.commandService = commandService;
+        this.commandFactory = commandFactory;
+        this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Show the session resolution page for the previous day's session
-     */
     @GetMapping
     public String showResolutionPage(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) LocalDate date,
-            Model model) {
+            Authentication authentication,
+            Model model,
+            RedirectAttributes redirectAttributes) {
 
-        // Default to yesterday if no date provided
-        if (date == null) {
-            date = LocalDate.now().minusDays(1);
-        }
+        try {
+            // Ensure authentication is not null
+            if (authentication == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
+                return "redirect:/login";
+            }
 
-        User user = getUser(userDetails);
-        int scheduleHours = user.getSchedule();
+            // Get username from authentication
+            String username = authentication.getName();
 
-        // Get continuation points for the date
-        List<ContinuationPoint> continuationPoints =
-                continuationTrackingService.getActiveContinuationPoints(user.getUsername(), date);
+            // Get user from UserService
+            User user = userService.getUserByUsername(username)
+                    .orElseThrow(() -> new IllegalStateException("User not found"));
 
-        // Check if there's a midnight end that needs resolution
-        boolean hasMidnightEnd = continuationTrackingService.hasUnresolvedMidnightEnd(user.getUsername());
+            // Get the current session
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
+            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
-        // Calculate actual minutes worked based on continuation points
-        int actualMinutesWorked = calculateActualMinutesFromContinuationPoints(user.getUsername(), date);
+            // Check if session has start time
+            if (session == null || session.getDayStartTime() == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "No valid session found");
+                return "redirect:/user/session";
+            }
 
-        // Determine appropriate overtime based on actual minutes
-        int recommendedOvertime = 0;
-        if (actualMinutesWorked > 0) {
-            recommendedOvertime = determineOvertimeFromActualMinutes(actualMinutesWorked, scheduleHours);
-        } else {
-            // Fall back to existing recommendation if no actual minutes calculated
-            recommendedOvertime = continuationTrackingService.getRecommendedOvertime(user.getUsername(), date);
-        }
+            // Check if session needs resolution
+            // A session needs resolution if:
+            // 1. It has no end time (this captures both midnight handler sessions and forgotten sessions)
+            // 2. OR it's marked as not completed (for safety)
+            boolean needsResolution = session.getDayEndTime() == null || !session.getWorkdayCompleted();
 
-        // Make sure recommended overtime is in multiples of 60 (full hours)
-        if (recommendedOvertime > 0) {
-            // Round up to the nearest hour
-            recommendedOvertime = ((recommendedOvertime + 59) / 60) * 60;
-            // Cap at 8 hours (480 minutes) maximum overtime
-            recommendedOvertime = Math.min(recommendedOvertime, 480);
-        }
+            if (!needsResolution) {
+                redirectAttributes.addFlashAttribute("infoMessage", "This session is already resolved");
+                return "redirect:/user/session";
+            }
 
-        // Calculate standard duration based on schedule
-        int standardMinutes = calculateStandardDuration(scheduleHours);
+            // Get the date from the session
+            LocalDate sessionDate = session.getDayStartTime().toLocalDate();
 
-        // Generate overtime options
-        List<OvertimeOption> overtimeOptions = generateOvertimeOptions(scheduleHours, recommendedOvertime);
+            // Calculate default end time using continuation points or default
+            LocalTime defaultEndTime = calculateDefaultEndTime(username, sessionDate);
 
-        // Add actual minutes worked to model for display
-        model.addAttribute("actualMinutesWorked", actualMinutesWorked);
-        model.addAttribute("actualHoursWorked", actualMinutesWorked / 60.0);
+            // Format date for display - KEEP THE ORIGINAL DATE TOO
+            DateTimeFormatter displayFormatter = DateTimeFormatter.ofPattern("EEEE dd - MMMM - yyyy");
+            String formattedDate = sessionDate.format(displayFormatter);
 
-        // Add data to model
-        model.addAttribute("user", user);
-        model.addAttribute("userScheduleHours", scheduleHours);
-        model.addAttribute("date", date);
-        model.addAttribute("continuationPoints", continuationPoints);
-        model.addAttribute("hasMidnightEnd", hasMidnightEnd);
-        model.addAttribute("recommendedOvertime", recommendedOvertime);
-        model.addAttribute("standardMinutes", standardMinutes);
-        model.addAttribute("needsLunchBreak", scheduleHours == WorkCode.INTERVAL_HOURS_C);
-        model.addAttribute("overtimeOptions", overtimeOptions);
+            // Add data to model
+            model.addAttribute("user", username);
+            model.addAttribute("date", sessionDate);
+            model.addAttribute("formattedDate", formattedDate); // Add formatted version
+            model.addAttribute("startTimeFormatted", session.getDayStartTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+            model.addAttribute("session", session);
+            model.addAttribute("isTemporaryStop", WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
+            model.addAttribute("defaultHour", defaultEndTime.getHour());
+            model.addAttribute("defaultMinute", defaultEndTime.getMinute());
 
-        return "user/session-resolution";
-    }
+            // Add hours and minutes options for dropdown
+            model.addAttribute("hours", getHoursOptions());
+            model.addAttribute("minutes", getMinutesOptions());
 
-    /**
-     * Calculates standard duration in minutes based on schedule hours
-     */
-    private int calculateStandardDuration(int scheduleHours) {
-        // For 8-hour schedule: 8.5 hours (510 minutes)
-        // For others: schedule hours only
-        if (scheduleHours == WorkCode.INTERVAL_HOURS_C) {
-            return (scheduleHours * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION;
-        } else {
-            return scheduleHours * WorkCode.HOUR_DURATION;
+            return "user/session-resolution";
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error preparing session resolution page: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage",
+                    "Error loading session resolution data: " + e.getMessage());
+            return "redirect:/user/session";
         }
     }
 
-    /**
-     * Generate overtime options based on schedule
-     */
-    private List<OvertimeOption> generateOvertimeOptions(int scheduleHours, int recommendedOvertime) {
-        List<OvertimeOption> options = new ArrayList<>();
-        boolean needsLunchBreak = scheduleHours == WorkCode.INTERVAL_HOURS_C;
-        int standardMinutes = calculateStandardDuration(scheduleHours);
+    private LocalTime calculateDefaultEndTime(String username, LocalDate sessionDate) {
+        try {
+            // First try to get from continuation points
+            List<ContinuationPoint> continuationPoints = commandService.getContext()
+                    .getContinuationTrackingService()
+                    .getActiveContinuationPoints(username, sessionDate);
 
-        // Always include standard option (0 overtime)
-        options.add(new OvertimeOption(0, "Standard Schedule Only", standardMinutes, needsLunchBreak));
+            if (!continuationPoints.isEmpty()) {
+                Optional<ContinuationPoint> latestPoint = continuationPoints.stream()
+                        .max(Comparator.comparing(ContinuationPoint::getTimestamp));
 
-        // Add overtime options for 1-8 hours
-        int[] overtimeValues = {60, 120, 180, 240, 300, 360, 420, 480};
-        for (int i = 0; i < overtimeValues.length; i++) {
-            int overtime = overtimeValues[i];
-            // Skip if this is the recommended value (added separately)
-            if (overtime == recommendedOvertime) continue;
+                if (latestPoint.isPresent() && latestPoint.get().getTimestamp() != null) {
+                    LocalTime pointTime = latestPoint.get().getTimestamp().toLocalTime();
+                    LoggerUtil.info(this.getClass(),
+                            String.format("Using continuation point time for default: %s", pointTime));
+                    return pointTime;
+                }
+            }
 
-            options.add(new OvertimeOption(
-                    overtime,
-                    (i+1) + " Hour" + (i > 0 ? "s" : "") + " Overtime",
-                    standardMinutes + overtime,
-                    needsLunchBreak
-            ));
+            // If no continuation point, use schedule-based default
+            User user = userService.getUserByUsername(username)
+                    .orElseThrow(() -> new IllegalStateException("User not found"));
 
-            // Limit to 4 options to avoid cluttering the UI
-            if (i >= 3 && overtime > recommendedOvertime) break;
+            int scheduleHours = user.getSchedule();
+            // For 8-hour schedule add lunch break
+            int endHour = sessionDate.getDayOfWeek().getValue() >= 6 ? 13 : (scheduleHours == 8 ? 17 : scheduleHours + 9);
+            int endMinute = 0;
+
+            return LocalTime.of(endHour, endMinute);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), "Error calculating default end time: " + e.getMessage());
+            return LocalTime.of(17, 0); // Fallback to 5:00 PM
         }
-
-        // If recommended overtime is different from standard options, add it
-        if (recommendedOvertime > 0) {
-            OvertimeOption recommended = new OvertimeOption(
-                    recommendedOvertime,
-                    "Recommended (" + (recommendedOvertime / 60) + " hours overtime)",
-                    standardMinutes + recommendedOvertime,
-                    needsLunchBreak
-            );
-
-            // Insert the recommended option at the top of the list
-            options.add(0, recommended);
-        }
-
-        return options;
     }
 
-
-    /**
-     * Handle the resolution of a session
-     */
     @PostMapping
     public String resolveSession(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam LocalDate date,
-            @RequestParam int overtime,
+            Authentication authentication,
+            @RequestParam int endHour,
+            @RequestParam int endMinute,
             RedirectAttributes redirectAttributes) {
 
-        User user = getUser(userDetails);
-
         try {
-            // Calculate total minutes based on schedule and overtime
-            int scheduleHours = user.getSchedule();
-            int standardMinutes = calculateStandardDuration(scheduleHours);
-            int totalMinutes = standardMinutes + overtime;
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Resolving session - Received Hour: %d, Minute: %d", endHour, endMinute));
 
-            // Create resolved session with appropriate values
-            createResolvedSession(user, date, overtime, totalMinutes);
+            // Ensure authentication is not null
+            if (authentication == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
+                return "redirect:/login";
+            }
 
-            // Then resolve continuation points
-            continuationTrackingService.resolveContinuationPoints(
-                    user.getUsername(), date, user.getUsername(), overtime);
+            // Get username from authentication
+            String username = authentication.getName();
 
-            // Add confirmation message
-            String overtimeMsg = overtime > 0 ? " and " + (overtime / 60) + " hour(s) of overtime" : "";
-            redirectAttributes.addFlashAttribute("successMessage",
-                    "Previous session resolved successfully with standard schedule" + overtimeMsg);
+            // Get user from UserService
+            User user = userService.getUserByUsername(username)
+                    .orElseThrow(() -> new IllegalStateException("User not found"));
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("User %s resolved session for %s with %d minutes overtime",
-                            user.getUsername(), date, overtime));
+            // Get the current session
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
+            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
-            // Redirect to session page to start new day
+            if (session == null || session.getDayStartTime() == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "No valid session to resolve");
+                return "redirect:/user/session";
+            }
+
+            // Get session date
+            LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+
+            // Create end time from user input
+            LocalDateTime endTime = LocalDateTime.of(sessionDate, LocalTime.of(endHour, endMinute));
+            LoggerUtil.debug(this.getClass(), String.format("Resolving session - User selected time: %s from session date %s", endTime, sessionDate));
+
+            // Update session end time
+            session.setDayEndTime(endTime);
+
+            // If session was in temporary stop, resume first
+            if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                // Simulate resume by updating the last temporary stop
+                commandService.getContext().updateLastTemporaryStop(session, endTime);
+            }
+
+            // Ensure session is in a state that can be processed
+            // For Offline sessions from midnight handler, set to Online temporarily for calculation
+            boolean wasOffline = false;
+            if (WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
+                wasOffline = true;
+                session.setSessionStatus(WorkCode.WORK_ONLINE);
+                LoggerUtil.info(this.getClass(), "Temporarily setting Offline session to Online for calculation");
+            }
+
+            // Update calculations based on the new end time
+            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session,endTime);
+            session = commandService.executeCommand(updateCommand);
+
+            // Calculate worked minutes based on session
+            int workedMinutes = commandService.getContext().calculateRawWorkMinutes(session, endTime);
+            session.setTotalWorkedMinutes(workedMinutes);
+
+            // Get final worked minutes from user's schedule
+            int userSchedule = user.getSchedule();
+            WorkTimeCalculationResult result = commandService.getContext().calculateWorkTime(
+                    workedMinutes, userSchedule);
+
+            // If we temporarily changed to Online, set back to Offline for consistency
+            if (wasOffline) {
+                session.setSessionStatus(WorkCode.WORK_OFFLINE);
+            }
+
+            // End the session using command with explicit end time and calculated results
+            EndDayCommand endCommand = commandFactory.createEndDayCommand(
+                    username,
+                    user.getUserId(),
+                    result.getProcessedMinutes(),
+                    endTime);  // Pass the explicit end time
+
+            commandService.executeCommand(endCommand);
+
+            // Mark continuation points as resolved
+            commandService.getContext().getContinuationTrackingService()
+                    .resolveContinuationPoints(
+                            username,
+                            sessionDate,
+                            username,
+                            result.getOvertimeMinutes());
+
+            redirectAttributes.addFlashAttribute("successMessage", "Previous session resolved successfully");
+            LoggerUtil.debug(this.getClass(), "Session resolved successfully. Redirecting to /user/session");
             return "redirect:/user/session";
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    String.format("Error resolving session for user %s: %s",
-                            user.getUsername(), e.getMessage()), e);
-
+                    "Error resolving session: " + e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage",
                     "Failed to resolve session: " + e.getMessage());
-
-            return "redirect:/user/session/resolve?date=" + date;
+            return "redirect:/user/session/resolve";
         }
     }
 
-    private void createResolvedSession(User user, LocalDate date, int overtime, int totalMinutes) {
-        try {
-            // First retrieve the session for the specified date (don't create new if it exists)
-            WorkUsersSessionsStates session = userSessionService.getCurrentSession(user.getUsername(), user.getUserId());
-
-            // If session doesn't exist or is for a different date, then create a new one
-            if (session == null || session.getDayStartTime() == null ||
-                    !session.getDayStartTime().toLocalDate().equals(date)) {
-
-                // Create a new session with default 5 AM start time
-                LocalDateTime startTime = LocalDateTime.of(date, LocalTime.of(5, 0));
-                session = new WorkUsersSessionsStates();
-                session.setUserId(user.getUserId());
-                session.setUsername(user.getUsername());
-                session.setDayStartTime(startTime);
-                session.setCurrentStartTime(startTime);
-                session.setTemporaryStopCount(0);
-                session.setTotalTemporaryStopMinutes(0);
-                session.setTemporaryStops(new ArrayList<>());
-            }
-
-            // Calculate times and values based on user's schedule
-            int scheduleHours = user.getSchedule();
-            boolean is8HourSchedule = (scheduleHours == WorkCode.INTERVAL_HOURS_C);
-
-            // Determine appropriate total minutes based on schedule and overtime
-            int totalWorkMinutes;
-            if (is8HourSchedule) {
-                // Use the special constants for 8-hour schedule
-                if (overtime == 0) {
-                    totalWorkMinutes = WorkCode.NORMAL_WORK_TIME;
-                } else if (overtime == 60) {
-                    totalWorkMinutes = WorkCode.OVERTIME_ONE;
-                } else if (overtime == 120) {
-                    totalWorkMinutes = WorkCode.OVERTIME_TWO;
-                } else if (overtime == 180) {
-                    totalWorkMinutes = WorkCode.OVERTIME_THREE;
-                } else if (overtime == 240) {
-                    totalWorkMinutes = WorkCode.OVERTIME_FOUR;
-                } else if (overtime == 300) {
-                    totalWorkMinutes = WorkCode.OVERTIME_FIVE;
-                } else if (overtime == 360) {
-                    totalWorkMinutes = WorkCode.OVERTIME_SIX;
-                } else if (overtime == 420) {
-                    totalWorkMinutes = WorkCode.OVERTIME_SEVEN;
-                } else if (overtime == 480) {
-                    totalWorkMinutes = WorkCode.OVERTIME_EIGHT;
-                } else {
-                    totalWorkMinutes = WorkCode.NORMAL_WORK_TIME + overtime;
-                }
-            } else {
-                // For non-8-hour schedules
-                totalWorkMinutes = scheduleHours * 60 + overtime;
-            }
-
-            // Calculate end time based on start time and the total minutes
-            LocalDateTime endTime = session.getDayStartTime().plusMinutes(totalWorkMinutes);
-
-            // Update session values
-            session.setSessionStatus(WorkCode.WORK_OFFLINE);
-            session.setDayEndTime(endTime);
-            session.setTotalWorkedMinutes(totalWorkMinutes);
-            session.setFinalWorkedMinutes(scheduleHours * 60);  // Standard hours without lunch
-            session.setTotalOvertimeMinutes(overtime);
-            session.setLunchBreakDeducted(is8HourSchedule);
-            session.setWorkdayCompleted(true);
-            session.setLastActivity(LocalDateTime.now());
-
-            // Save the updated session
-            userSessionService.saveSession(user.getUsername(), session);
-
-            // Update worktime entry
-            updateWorkTimeEntry(user, date, session, overtime, totalWorkMinutes);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Created resolved session for user %s on %s with %d minutes overtime",
-                            user.getUsername(), date, overtime));
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error creating resolved session for user %s: %s",
-                            user.getUsername(), e.getMessage()), e);
-            throw new RuntimeException("Failed to create resolved session: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Skip session resolution and just start a new day
-     */
     @PostMapping("/skip")
     public String skipResolution(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam LocalDate date,
+            Authentication authentication,
             RedirectAttributes redirectAttributes) {
 
-        User user = getUser(userDetails);
-
         try {
-            // Use standard schedule with zero overtime when skipping
-            createResolvedSession(user, date, 0);
+            // Ensure authentication is not null
+            if (authentication == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
+                return "redirect:/login";
+            }
 
-            // Mark continuation points as resolved with 0 overtime
-            continuationTrackingService.resolveContinuationPoints(
-                    user.getUsername(), date, user.getUsername(), 0);
+            // Get username from authentication
+            String username = authentication.getName();
 
-            // Add confirmation message
-            redirectAttributes.addFlashAttribute("infoMessage",
-                    "Session resolution skipped. Standard schedule recorded with no overtime.");
+            // Get user from UserService
+            User user = userService.getUserByUsername(username)
+                    .orElseThrow(() -> new IllegalStateException("User not found"));
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("User %s skipped session resolution for %s",
-                            user.getUsername(), date));
+            // Get the current session
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
+            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
-            // Redirect to session page to start new day
+            // Get session date
+            LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+
+            // Use default end time (17:00)
+            LocalDateTime endTime = LocalDateTime.of(sessionDate, LocalTime.of(17, 0));
+
+            // Update session end time
+            session.setDayEndTime(endTime);
+
+            // If session was in temporary stop, resume first
+            if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                // Simulate resume by updating the last temporary stop with standard end time
+                commandService.getContext().updateLastTemporaryStop(session, endTime);
+            }
+
+            // Handle offline sessions from midnight handler
+            boolean wasOffline = false;
+            if (WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
+                wasOffline = true;
+                session.setSessionStatus(WorkCode.WORK_ONLINE);
+                LoggerUtil.info(this.getClass(),
+                        "Temporarily setting Offline session to Online for skip resolution");
+            }
+
+            // End the session using command with standard hours and explicit end time
+            int standardMinutes = user.getSchedule() * 60; // Standard schedule in minutes
+
+            // If we temporarily changed to Online, set back to Offline for consistency
+            if (wasOffline) {
+                session.setSessionStatus(WorkCode.WORK_OFFLINE);
+            }
+
+            EndDayCommand endCommand = commandFactory.createEndDayCommand(
+                    username,
+                    user.getUserId(),
+                    standardMinutes,
+                    endTime);  // Pass the explicit end time
+
+            commandService.executeCommand(endCommand);
+
+            // Mark continuation points as resolved (no overtime)
+            commandService.getContext().getContinuationTrackingService()
+                    .resolveContinuationPoints(
+                            username,
+                            sessionDate,
+                            username,
+                            0);
+
+            redirectAttributes.addFlashAttribute("infoMessage", "Session resolution skipped. Standard schedule recorded.");
+
             return "redirect:/user/session";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error skipping session resolution for user %s: %s",
-                            user.getUsername(), e.getMessage()), e);
-
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "Failed to skip session resolution: " + e.getMessage());
-
-            return "redirect:/user/session/resolve?date=" + date;
+            LoggerUtil.error(this.getClass(), "Error skipping session resolution: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "Failed to skip session resolution: " + e.getMessage());
+            return "redirect:/user/session/resolve";
         }
     }
 
-    /**
-     * Creates a properly resolved session for the given date and updates worktime
-     * Uses the existing UserSessionService methods where possible
-     */
-    private void createResolvedSession(User user, LocalDate date, int overtime) {
-        try {
-            // First retrieve or create a session for the specified date
-            WorkUsersSessionsStates session = retrieveOrCreateSessionForDay(user, date);
-
-            // Set session status and mark as completed
-            session.setSessionStatus(WorkCode.WORK_OFFLINE);
-            session.setWorkdayCompleted(true);
-
-            // Calculate times and values based on user's schedule
-            int scheduleHours = user.getSchedule();
-            boolean is8HourSchedule = (scheduleHours == WorkCode.INTERVAL_HOURS_C);
-
-            // Start time at 9 AM on the specified date (or keep existing start time)
-            LocalDateTime startTime = session.getDayStartTime();
-            if (startTime == null || !startTime.toLocalDate().equals(date)) {
-                startTime = LocalDateTime.of(date, LocalTime.of(9, 0));
-                session.setDayStartTime(startTime);
-            }
-
-            // Determine end time based on schedule and overtime
-            int scheduleMinutes = scheduleHours * WorkCode.HOUR_DURATION;
-            int totalWorkMinutes = scheduleMinutes;
-
-            // For 8-hour schedule, add lunch break to total work minutes
-            if (is8HourSchedule) {
-                totalWorkMinutes += WorkCode.HALF_HOUR_DURATION;
-            }
-
-            // Calculate end time
-            LocalDateTime endTime = startTime.plusMinutes(totalWorkMinutes + overtime);
-            session.setDayEndTime(endTime);
-
-            // Set lunch break flag based on schedule
-            session.setLunchBreakDeducted(is8HourSchedule);
-
-            // Set work minutes
-            session.setTotalWorkedMinutes(totalWorkMinutes);
-            session.setFinalWorkedMinutes(scheduleMinutes);
-            session.setTotalOvertimeMinutes(overtime);
-
-            // Update last activity time
-            session.setLastActivity(LocalDateTime.now());
-
-            // Save the updated session
-            userSessionService.saveSession(user.getUsername(), session);
-
-            // Instead of using endDay (which might not update the worktime correctly),
-            // Directly create/update the worktime entry
-            updateWorkTimeEntry(user, date, session, overtime, totalWorkMinutes+overtime);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Created resolved session for user %s on %s with %d minutes overtime",
-                            user.getUsername(), date, overtime));
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error creating resolved session for user %s: %s",
-                            user.getUsername(), e.getMessage()), e);
-            throw new RuntimeException("Failed to create resolved session: " + e.getMessage(), e);
+    private int[] getHoursOptions() {
+        int[] hours = new int[24];
+        for (int i = 0; i < 24; i++) {
+            hours[i] = i;
         }
+        return hours;
     }
 
-    /**
-     * Directly updates the worktime entry for the resolved session
-     */
-    private void updateWorkTimeEntry(User user, LocalDate date, WorkUsersSessionsStates session, int overtime, int totalWorkedMinutes) {
-        try {
-            // Create a worktime entry that matches the session values
-            WorkTimeTable entry = new WorkTimeTable();
-            entry.setUserId(user.getUserId());
-            entry.setWorkDate(date);
-            entry.setDayStartTime(session.getDayStartTime());
-            entry.setDayEndTime(session.getDayEndTime());
-            entry.setTotalWorkedMinutes(totalWorkedMinutes);
-            entry.setTotalOvertimeMinutes(overtime);
-
-            // Preserve any existing temporary stop information
-            entry.setTemporaryStopCount(session.getTemporaryStopCount() != null ? session.getTemporaryStopCount() : 0);
-            entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0);
-
-            // Set lunch break status
-            entry.setLunchBreakDeducted(session.getLunchBreakDeducted());
-
-            // Set as completed
-            entry.setAdminSync(SyncStatus.USER_INPUT);
-            entry.setTimeOffType(null);
-
-            // Save the worktime entry
-            userWorkTimeService.saveWorkTimeEntry(
-                    user.getUsername(),
-                    entry,
-                    date.getYear(),
-                    date.getMonthValue(),
-                    user.getUsername()
-            );
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Updated worktime entry for user %s on %s", user.getUsername(), date));
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error updating worktime entry: %s", e.getMessage()));
-            throw new RuntimeException("Failed to update worktime entry: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Retrieves existing session for the day or creates a new one if none exists
-     */
-    private WorkUsersSessionsStates retrieveOrCreateSessionForDay(User user, LocalDate date) {
-        // Try to get existing session
-        WorkUsersSessionsStates session = userSessionService.getCurrentSession(user.getUsername(), user.getUserId());
-
-        // If no session or if session is for a different day, create a new one
-        if (session == null || session.getDayStartTime() == null ||
-                !session.getDayStartTime().toLocalDate().equals(date)) {
-
-            // Create a new session for the specified date
-            LocalDateTime startTime = LocalDateTime.of(date, LocalTime.of(7, 0));
-            session = new WorkUsersSessionsStates();
-            session.setUserId(user.getUserId());
-            session.setUsername(user.getUsername());
-            session.setSessionStatus(WorkCode.WORK_OFFLINE);
-            session.setDayStartTime(startTime);
-            session.setCurrentStartTime(startTime);
-            session.setTemporaryStopCount(0);
-            session.setTotalTemporaryStopMinutes(0);
-            session.setTemporaryStops(new java.util.ArrayList<>());
-            session.setLastActivity(LocalDateTime.now());
-        }
-
-        return session;
-    }
-
-
-    /**
-     * Determines the appropriate overtime in minutes based on the actual worked minutes
-     */
-    private int determineOvertimeFromActualMinutes(int actualMinutes, int scheduleHours) {
-        // Convert schedule hours to minutes (including lunch break for 8-hour schedule)
-        int scheduleMinutes;
-        if (scheduleHours == WorkCode.INTERVAL_HOURS_C) { // 8 hours
-            scheduleMinutes = WorkCode.NORMAL_WORK_TIME; // 8.5 hours including break
-        } else {
-            scheduleMinutes = scheduleHours * 60; // Other schedules
-        }
-
-        // If worked less than schedule, no overtime
-        if (actualMinutes <= scheduleMinutes) {
-            return 0;
-        }
-
-        // Calculate how many full hours of overtime based on thresholds
-        if (actualMinutes <= WorkCode.OVERTIME_ONE) {
-            return 60; // 1 hour overtime
-        } else if (actualMinutes <= WorkCode.OVERTIME_TWO) {
-            return 120; // 2 hours overtime
-        } else if (actualMinutes <= WorkCode.OVERTIME_THREE) {
-            return 180; // 3 hours overtime
-        } else if (actualMinutes <= WorkCode.OVERTIME_FOUR) {
-            return 240; // 4 hours overtime
-        } else if (actualMinutes <= WorkCode.OVERTIME_FIVE) {
-            return 300; // 5 hours overtime
-        } else if (actualMinutes <= WorkCode.OVERTIME_SIX) {
-            return 360; // 6 hours overtime
-        } else if (actualMinutes <= WorkCode.OVERTIME_SEVEN) {
-            return 420; // 7 hours overtime
-        } else {
-            return 480; // 8 hours overtime (maximum)
-        }
-    }
-
-    /**
-     * Calculate actual worked minutes from continuation points
-     */
-    private int calculateActualMinutesFromContinuationPoints(String username, LocalDate date) {
-        List<ContinuationPoint> points = continuationTrackingService.getActiveContinuationPoints(username, date);
-
-        // If no continuation points, use 0 (will default to standard schedule)
-        if (points.isEmpty()) {
-            return 0;
-        }
-
-        // Find the latest timestamp among all continuation points
-        LocalDateTime latestPoint = points.stream()
-                .map(ContinuationPoint::getTimestamp)
-                .max(LocalDateTime::compareTo)
-                .orElse(null);
-
-        if (latestPoint == null) {
-            return 0;
-        }
-
-        // Assume work started at 9 AM
-        LocalDateTime startTime = LocalDateTime.of(date, LocalTime.of(9, 0));
-
-        // Calculate minutes between start and latest continuation point
-        return (int) ChronoUnit.MINUTES.between(startTime, latestPoint);
-    }
-
-
-    /**
-     * Inner class to represent overtime options
-     */
-    @Data
-    @AllArgsConstructor
-    public static class OvertimeOption {
-        private int overtimeMinutes;
-        private String label;
-        private int totalMinutes; // Standard + overtime
-        private boolean needsLunchBreak;
-
-        public String getFormattedDuration() {
-            int hours = totalMinutes / 60;
-            int minutes = totalMinutes % 60;
-            return minutes > 0 ?
-                    String.format("%d hours %d minutes", hours, minutes) :
-                    String.format("%d hours", hours);
-        }
+    private int[] getMinutesOptions() {
+        return new int[]{0, 15, 30, 45};
     }
 }

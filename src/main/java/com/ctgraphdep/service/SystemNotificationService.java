@@ -4,10 +4,16 @@ import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.DialogComponents;
 import com.ctgraphdep.model.NotificationButton;
-import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.session.SessionCommandFactory;
+import com.ctgraphdep.session.SessionCommandService;
+import com.ctgraphdep.session.commands.notification.*;
+import com.ctgraphdep.session.query.CanShowNotificationQuery;
+import com.ctgraphdep.session.query.IsInTemporaryStopQuery;
 import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.NotificationBackgroundUtility;
+import lombok.Getter;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.swing.*;
@@ -18,7 +24,6 @@ import java.awt.geom.RoundRectangle2D;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,245 +34,306 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Service
 public class SystemNotificationService {
+    // Add a getter for systemTray
+    @Getter
     private final CTTTSystemTray systemTray;
-    private final UserSessionService userSessionService;
     private final AtomicBoolean userResponded;
     private final PathConfig pathConfig;
-    private final SessionMonitorService sessionMonitorService;
-    private final ContinuationTrackingService continuationTrackingService;
+    private final SessionCommandService sessionCommandService;
+    private final SessionCommandFactory commandFactory;
+    /**
+     * -- GETTER --
+     *  Gets the map of last notification times
+     *  This is used by queries to determine if a notification can be shown
+     *
+     * @return The map of last notification times
+     */
+    @Getter
+    private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
 
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
     private static final int BUTTONS_PANEL_HEIGHT = 50;
     private static final int BUTTON_SPACING = 20;
-    private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
 
-    public SystemNotificationService(CTTTSystemTray systemTray, UserSessionService userSessionService, PathConfig pathConfig,
-                                     SessionMonitorService sessionMonitorService,
-                                     ContinuationTrackingService continuationTrackingService) {
+    public SystemNotificationService(CTTTSystemTray systemTray, PathConfig pathConfig,
+                                     @Lazy SessionCommandService sessionCommandService,
+                                     @Lazy SessionCommandFactory commandFactory) {
         this.systemTray = systemTray;
-        this.userSessionService = userSessionService;
         this.pathConfig = pathConfig;
-        this.sessionMonitorService = sessionMonitorService;
-        this.continuationTrackingService = continuationTrackingService;
-
+        this.sessionCommandService = sessionCommandService;
+        this.commandFactory = commandFactory;
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    //Shows schedule completion warning to the user
-    public void showSessionWarning(String username, Integer userId, Integer finalMinutes) {
-        // Only show schedule end warning once
-        if (canShowNotification(username, WorkCode.SCHEDULE_END_TYPE, 24 * 60)) { // Once per day
-            showNotificationWithFallback(
-                    username, userId,
-                    WorkCode.NOTICE_TITLE,
-                    WorkCode.SESSION_WARNING_MESSAGE,
-                    WorkCode.SESSION_WARNING_TRAY,
-                    WorkCode.ON_FOR_TEN_MINUTES,
-                    false, false, finalMinutes,
-                    (components, u, id, minutes) -> addStandardButtons(components, u, id, minutes, false),
-                    TrayIcon.MessageType.WARNING
-            );
+    /**
+     * Shows schedule completion warning to the user
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param finalMinutes The final worked minutes
+     * @return true if notification was shown, false otherwise
+     */
+    public boolean showSessionWarning(String username, Integer userId, Integer finalMinutes) {
+        // Create and execute the command instead of direct implementation
+        ShowSessionWarningCommand command = commandFactory.createShowSessionWarningCommand(username, userId, finalMinutes);
+        return sessionCommandService.executeCommand(command);
+    }
+
+    /**
+     * Shows hourly overtime warning to the user
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param finalMinutes The final worked minutes
+     * @return true if notification was shown, false otherwise
+     */
+    public boolean showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
+        ShowHourlyWarningCommand command = commandFactory.createShowHourlyWarningCommand(username, userId, finalMinutes);
+        return sessionCommandService.executeCommand(command);
+    }
+
+    /**
+     * Shows temporary stop duration warning to the user
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param tempStopStart The time when temporary stop started
+     * @return true if notification was shown, false otherwise
+     */
+    public boolean showLongTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
+        ShowTempStopWarningCommand command = commandFactory.createShowTempStopWarningCommand(username, userId, tempStopStart);
+        return sessionCommandService.executeCommand(command);
+    }
+
+    /**
+     * Shows work day start reminder to the user
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @return true if notification was shown, false otherwise
+     */
+    public boolean showStartDayReminder(String username, Integer userId) {
+        ShowStartDayReminderCommand command = commandFactory.createShowStartDayReminderCommand(username, userId);
+        return sessionCommandService.executeCommand(command);
+    }
+
+    /**
+     * Shows a test dialog with buttons (used by the test notification command)
+     */
+    public void showTestDialogWithButtons(String username, Integer userId,
+                                          AtomicBoolean testResponded,
+                                          AtomicBoolean dialogDisplayed) {
+        // Must be called on EDT
+        if (!SwingUtilities.isEventDispatchThread()) {
+            LoggerUtil.error(this.getClass(), "showTestDialogWithButtons must be called on EDT");
+            return;
         }
-    }
-
-    //Shows hourly overtime warning to the user
-    public void showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
-        // Show overtime warning hourly
-        if (canShowNotification(username, WorkCode.OVERTIME_TYPE, WorkCode.CHECK_INTERVAL)) { // Every hour
-            showNotificationWithFallback(
-                    username, userId,
-                    WorkCode.NOTICE_TITLE,
-                    WorkCode.HOURLY_WARNING_MESSAGE,
-                    WorkCode.HOURLY_WARNING_TRAY,
-                    WorkCode.ON_FOR_FIVE_MINUTES,
-                    true, false, finalMinutes,
-                    (components, u, id, minutes) -> addStandardButtons(components, u, id, minutes, true),
-                    TrayIcon.MessageType.WARNING
-            );
-        }
-    }
-
-    //Shows temporary stop duration warning to the user
-    public void showLongTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
-        // Show temp stop warning hourly
-        if (canShowNotification(username, WorkCode.TEMP_STOP_TYPE, WorkCode.HOURLY_INTERVAL)) { // Every hour
-            try {
-                int stopMinutes = (int) java.time.Duration.between(tempStopStart, LocalDateTime.now()).toMinutes();
-                int hours = stopMinutes / 60;
-                int minutes = stopMinutes % 60;
-
-                String formattedMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING, hours, minutes);
-                String trayMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING_TRAY, hours, minutes);
-                showNotificationWithFallback(
-                        username, userId,
-                        WorkCode.NOTICE_TITLE,
-                        formattedMessage,
-                        trayMessage,
-                        WorkCode.ON_FOR_FIVE_MINUTES,
-                        false, true, null,
-                        (components, u, id, min) -> addTempStopButtons(components, u, id),
-                        TrayIcon.MessageType.WARNING
-                );
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), "Error showing temporary stop notification: " + e.getMessage());
-            }
-        }
-    }
-
-    //Shows work day start reminder to the user
-    public void showStartDayReminder(String username, Integer userId) {
-        // Only show start day reminder once per day
-        if (canShowNotification(username, WorkCode.START_DAY_TYPE, WorkCode.ONCE_PER_DAY_TIMER)) { // Once per day
-            showNotificationWithFallback(
-                    username, userId,
-                    WorkCode.START_DAY_TITLE,
-                    WorkCode.START_DAY_MESSAGE,
-                    WorkCode.START_DAY_MESSAGE_TRAY,
-                    WorkCode.ON_FOR_TWELVE_HOURS,
-                    false, false, null,
-                    (components, u, id, min) -> addStartDayButtons(components, u, id),
-                    TrayIcon.MessageType.INFO
-            );
-        }
-    }
-
-    //Shows a test notification dialog for system verification
-    public void showTestNotificationDialog() {
-        LoggerUtil.debug(this.getClass(), "Showing test notification dialog");
-
-        // Create atomic boolean for tracking user response and dialog display
-        final AtomicBoolean testResponded = new AtomicBoolean(false);
-        final AtomicBoolean dialogDisplayed = new AtomicBoolean(false);
-
-        SwingUtilities.invokeLater(() -> {
-            try {
-                // Check if system tray is available
-                if (systemTray.getTrayIcon() == null) {
-                    LoggerUtil.error(this.getClass(), "System tray icon not available for notifications");
-                    return;
-                }
-
-                // Only show dialog if system is not headless
-                if (!GraphicsEnvironment.isHeadless()) {
-                    DialogComponents components = createDialog(
-                            WorkCode.TEST_NOTICE,
-                            WorkCode.TEST_MESSAGE
-                    );
-
-                    // Add test-specific buttons
-                    JPanel buttonsPanel = components.buttonsPanel;
-
-                    class OpenWebsiteButton extends NotificationButton {
-                        public OpenWebsiteButton() {
-                            super(WorkCode.OPEN_WEBSITE, new Color(51, 122, 183), testResponded);
-                        }
-
-                        @Override
-                        protected void handleAction(ActionEvent e) {
-                            components.dialog.dispose();
-                            systemTray.openApplication();
-                            LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to open website from test notification");
-                        }
-                    }
-
-                    class DismissButton extends NotificationButton {
-                        public DismissButton() {
-                            super(WorkCode.DISMISS_BUTTON, new Color(108, 117, 125), testResponded);
-                        }
-
-                        @Override
-                        protected void handleAction(ActionEvent e) {
-                            components.dialog.dispose();
-                            LoggerUtil.info(SystemNotificationService.this.getClass(), "User dismissed test notification");
-                        }
-                    }
-
-                    buttonsPanel.add(new OpenWebsiteButton().create());
-                    buttonsPanel.add(new DismissButton().create());
-
-                    try {
-                        showDialog(components.dialog);
-                        dialogDisplayed.set(true);
-
-                        // Auto-close timer (10 seconds)
-                        Timer timer = new Timer(WorkCode.ON_FOR_TEN_SECONDS, e -> {
-                            if (!testResponded.get()) {
-                                components.dialog.dispose();
-                                LoggerUtil.info(this.getClass(), "Test notification auto-dismissed after timeout");
-                            }
-                        });
-                        timer.setRepeats(false);
-                        timer.start();
-                    } catch (Exception e) {
-                        LoggerUtil.error(this.getClass(), "Failed to display dialog notification: " + e.getMessage());
-                        dialogDisplayed.set(false);
-                    }
-                } else {
-                    LoggerUtil.info(this.getClass(), "Running in headless mode, skipping dialog notification");
-                }
-
-                // Fall back to tray notification if dialog wasn't displayed
-                if (!dialogDisplayed.get() && systemTray.getTrayIcon() != null) {
-                    systemTray.getTrayIcon().addActionListener(e -> {
-                        systemTray.openApplication();
-                        LoggerUtil.info(this.getClass(), "User clicked on tray notification to open application");
-                    });
-
-                    systemTray.getTrayIcon().displayMessage(WorkCode.TEST_NOTICE, WorkCode.TEST_MESSAGE_TRAY, TrayIcon.MessageType.INFO);
-
-                    LoggerUtil.info(this.getClass(), "Displayed tray notification since dialog couldn't be shown");
-                }
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), "Error showing test notification dialog: " + e.getMessage(), e);
-            }
-        });
-    }
-
-// =========================================================================
-// NOTIFICATION DISPLAY HELPER METHODS
-// =========================================================================
-
-    // Shows notification with fallback to tray if dialog can't be shown
-    private void showNotificationWithFallback(String username, Integer userId, String title, String message, String trayMessage,
-                                              int timeoutPeriod, boolean isHourly, boolean isTempStop, Integer finalMinutes, ButtonsProvider buttonsProvider, TrayIcon.MessageType messageType) {
 
         try {
-            // Try showing dialog first
-            boolean dialogDisplayed = showNotificationDialog(
-                    username, userId, finalMinutes, title, message,
-                    timeoutPeriod, isHourly, isTempStop, buttonsProvider);
+            DialogComponents components = createDialog(WorkCode.TEST_NOTICE, WorkCode.TEST_MESSAGE);
 
-            // Add logging to debug notification display state
-            LoggerUtil.info(this.getClass(), String.format("Notification dialog display attempt for %s: %b", username, dialogDisplayed));
+            // Add test-specific buttons
+            JPanel buttonsPanel = components.buttonsPanel;
 
-            // Fall back to taskbar notification if dialog fails
-            if (!dialogDisplayed && systemTray.getTrayIcon() != null) {
-                systemTray.getTrayIcon().displayMessage(title, trayMessage, messageType);
-                LoggerUtil.info(this.getClass(), "Displayed tray notification for: " + title + " (dialog display failed)");
+            class OpenWebsiteButton extends NotificationButton {
+                public OpenWebsiteButton() {
+                    super(WorkCode.OPEN_WEBSITE, new Color(51, 122, 183), testResponded);
+                }
 
-                // Add a fallback mechanism to ensure user response tracking
-                userResponded.set(false);
-                startFallbackResponseTimer(username, userId, timeoutPeriod, isTempStop);
+                @Override
+                protected void handleAction(ActionEvent e) {
+                    components.dialog.dispose();
+                    systemTray.openApplication();
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User chose to open website from test notification");
+                }
+            }
+
+            class DismissButton extends NotificationButton {
+                public DismissButton() {
+                    super(WorkCode.DISMISS_BUTTON, new Color(108, 117, 125), testResponded);
+                }
+
+                @Override
+                protected void handleAction(ActionEvent e) {
+                    components.dialog.dispose();
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User dismissed test notification");
+                }
+            }
+
+            buttonsPanel.add(new OpenWebsiteButton().create());
+            buttonsPanel.add(new DismissButton().create());
+
+            try {
+                showDialog(components.dialog);
+                dialogDisplayed.set(true);
+                LoggerUtil.info(this.getClass(), "Test dialog displayed successfully");
+
+                // Auto-close timer (10 seconds)
+                Timer timer = new Timer(WorkCode.ON_FOR_TEN_SECONDS, e -> {
+                    if (!testResponded.get()) {
+                        components.dialog.dispose();
+                        LoggerUtil.info(this.getClass(), "Test notification auto-dismissed after timeout");
+                    }
+                });
+                timer.setRepeats(false);
+                timer.start();
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Failed to display test dialog: " + e.getMessage());
+                dialogDisplayed.set(false);
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error showing notification: " + e.getMessage());
-
-            // Even on exception, ensure we have a fallback tracking mechanism
-            LoggerUtil.info(this.getClass(), "Setting up emergency fallback for notification response tracking");
-            startFallbackResponseTimer(username, userId, timeoutPeriod, isTempStop);
+            LoggerUtil.error(this.getClass(), "Error preparing test dialog: " + e.getMessage());
         }
     }
 
-    // New method to add an additional response tracking mechanism
-    private void startFallbackResponseTimer(String username, Integer userId, int timeoutPeriod, boolean isTempStop) {
+    /**
+     * Checks if a notification can be shown based on rate limiting
+     *
+     * @param username The username
+     * @param notificationType The type of notification
+     * @param intervalMinutes The interval in minutes between notifications
+     * @return true if notification can be shown, false otherwise
+     */
+    public boolean canShowNotification(String username, String notificationType, Integer intervalMinutes) {
+        CanShowNotificationQuery query = commandFactory.createCanShowNotificationQuery(username, notificationType, intervalMinutes, lastNotificationTimes);
+        return sessionCommandService.executeQuery(query);
+    }
+
+    /**
+     * Shows notification with fallback to tray if dialog can't be shown
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param title The notification title
+     * @param message The notification message
+     * @param trayMessage The tray notification message
+     * @param timeoutPeriod The timeout period in milliseconds
+     * @param isHourly Whether this is an hourly notification
+     * @param isTempStop Whether this is a temporary stop notification
+     * @param finalMinutes The final worked minutes
+     * @param buttonsProvider The buttons provider for the dialog
+     * @param messageType The message type for the tray notification
+     * @return true if dialog or tray notification was shown, false otherwise
+     */
+    public boolean showNotificationWithFallback(String username, Integer userId, String title,
+                                                String message, String trayMessage, int timeoutPeriod,
+                                                boolean isHourly, boolean isTempStop, Integer finalMinutes,
+                                                ButtonsProvider buttonsProvider, TrayIcon.MessageType messageType) {
+        try {
+            LoggerUtil.info(this.getClass(), "Attempting to display notification for user: " + username);
+            LoggerUtil.info(this.getClass(), "Current thread: " + Thread.currentThread().getName());
+
+            // Always use invokeLater instead of invokeAndWait to avoid potential deadlocks
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    // Check if we're on the EDT now
+                    LoggerUtil.info(this.getClass(), "UI thread: " + Thread.currentThread().getName() +
+                            ", is EDT: " + SwingUtilities.isEventDispatchThread());
+
+                    // Try showing dialog first
+                    boolean dialogDisplayed = showNotificationDialogOnEDT(
+                            username, userId, finalMinutes, title, message,
+                            timeoutPeriod, isHourly, isTempStop, buttonsProvider);
+
+                    // Log result
+                    LoggerUtil.info(this.getClass(), String.format("Notification dialog display attempt for %s: %b",
+                            username, dialogDisplayed));
+
+                    // Fall back to taskbar notification if dialog fails
+                    if (!dialogDisplayed && systemTray.getTrayIcon() != null) {
+                        LoggerUtil.info(this.getClass(), "Attempting to display tray notification for user: " + username);
+                        systemTray.getTrayIcon().displayMessage(title, trayMessage, messageType);
+                        LoggerUtil.info(this.getClass(), "Tray notification displayed for: " + title);
+
+                        // Add a fallback mechanism to ensure user response tracking
+                        userResponded.set(false);
+                        startFallbackResponseTimer(username);
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), "Error in EDT showing notification: " + e.getMessage());
+                    // Create fallback mechanism
+                    startFallbackResponseTimer(username);
+                }
+            });
+
+            // Return true since we've dispatched the notification request
+            // The actual result will be handled asynchronously
+            return true;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error in showNotificationWithFallback: " + e.getMessage());
+            // Even on exception, ensure we have a fallback tracking mechanism
+            LoggerUtil.info(this.getClass(), "Setting up emergency fallback for notification response tracking");
+            startFallbackResponseTimer(username);
+            return false;
+        }
+    }
+
+    // Modified version that expects to be run directly on EDT
+    private boolean showNotificationDialogOnEDT(String username, Integer userId, Integer finalMinutes,
+                                                String title, String message, Integer timeoutPeriod,
+                                                boolean isHourly, boolean isTempStop, ButtonsProvider buttonsProvider) {
+        LoggerUtil.debug(this.getClass(), String.format("Showing notification on EDT - isHourly: %b, isTempStop: %b",
+                isHourly, isTempStop));
+
+        // Sanity check - make sure we're on EDT
+        if (!SwingUtilities.isEventDispatchThread()) {
+            LoggerUtil.error(this.getClass(), "showNotificationDialogOnEDT called from non-EDT thread!");
+            return false;
+        }
+
+        // Guard clauses
+        if (systemTray.getTrayIcon() == null) {
+            LoggerUtil.error(this.getClass(), "System tray icon not available");
+            return false;
+        }
+
+        if (GraphicsEnvironment.isHeadless()) {
+            LoggerUtil.info(this.getClass(), "Running in headless mode, can't display dialog");
+            return false;
+        }
+
+        // Don't show regular notification during temp stop - use command pattern to check
+        if (!isTempStop) {
+            IsInTemporaryStopQuery query = commandFactory.createIsInTemporaryStopQuery(username, userId);
+            boolean isInTempStop = sessionCommandService.executeQuery(query);
+
+            if (isInTempStop) {
+                LoggerUtil.debug(this.getClass(), "Skipping regular notification during temp stop");
+                return false;
+            }
+        }
+
+        userResponded.set(false);
+        boolean dialogDisplayed = false;
+
+        try {
+            // Now we're already on EDT, so we don't need invokeAndWait
+            DialogComponents components = createDialog(title, message);
+            buttonsProvider.addButtons(components, username, userId, finalMinutes);
+            showDialog(components.dialog);
+            dialogDisplayed = true;
+
+            // Track notification display
+            trackNotificationDisplay(username, userId, timeoutPeriod, isTempStop);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to display notification dialog on EDT: " + e.getMessage());
+            dialogDisplayed = false;
+        }
+
+        return dialogDisplayed;
+    }
+
+    // Method to add an additional response tracking mechanism
+    private void startFallbackResponseTimer(String username) {
         try {
             // Create a file-based tracking mechanism
-            Path trackingFile = pathConfig.getLocalPath().resolve("notifications").resolve(username + "_notification.lock");
+            Path trackingFile = pathConfig.getLocalPath().resolve("notification").resolve(username + "_notification.lock");
             Files.createDirectories(trackingFile.getParent());
             Files.write(trackingFile, LocalDateTime.now().toString().getBytes());
-
             LoggerUtil.info(this.getClass(), String.format("Created notification tracking file for %s", username));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to create notification tracking: " + e.getMessage());
@@ -277,7 +343,6 @@ public class SystemNotificationService {
     // Shows a notification dialog with customizable buttons
     private boolean showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
                                            Integer timeoutPeriod, boolean isHourly, boolean isTempStop, ButtonsProvider buttonsProvider) {
-
         LoggerUtil.debug(this.getClass(), String.format("Showing notification - isHourly: %b, isTempStop: %b", isHourly, isTempStop));
 
         // Guard clauses
@@ -291,10 +356,12 @@ public class SystemNotificationService {
             return false;
         }
 
-        // Don't show regular notifications during temp stop
+        // Don't show regular notification during temp stop - use command pattern to check
         if (!isTempStop) {
-            WorkUsersSessionsStates currentSession = userSessionService.getCurrentSession(username, userId);
-            if (WorkCode.WORK_TEMPORARY_STOP.equals(currentSession.getSessionStatus())) {
+            IsInTemporaryStopQuery query = commandFactory.createIsInTemporaryStopQuery(username, userId);
+            boolean isInTempStop = sessionCommandService.executeQuery(query);
+
+            if (isInTempStop) {
                 LoggerUtil.debug(this.getClass(), "Skipping regular notification during temp stop");
                 return false;
             }
@@ -310,8 +377,7 @@ public class SystemNotificationService {
                     buttonsProvider.addButtons(components, username, userId, finalMinutes);
                     showDialog(components.dialog);
                     dialogDisplayed.set(true);
-
-                    // Modified: No auto-closing, just track notification display
+                    // Track notification display
                     trackNotificationDisplay(username, userId, timeoutPeriod, isTempStop);
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Failed to display notification dialog: " + e.getMessage());
@@ -326,14 +392,16 @@ public class SystemNotificationService {
         return dialogDisplayed.get();
     }
 
-    // New method to track notification display without auto-closing
+    // Method to track notification display without auto-closing
     private void trackNotificationDisplay(String username, Integer userId, int timeoutPeriod, boolean isTempStop) {
+        // Create and execute notification tracking command
+        TrackNotificationDisplayCommand command = commandFactory.createTrackNotificationDisplayCommand(username, userId, timeoutPeriod, isTempStop);
+        sessionCommandService.executeCommand(command);
         // Log that notification was displayed
-        LoggerUtil.info(this.getClass(),
-                String.format("Notification displayed for user %s - will remain visible until user responds", username));
+        LoggerUtil.info(this.getClass(), String.format("Notification displayed for user %s - will remain visible until user responds", username));
     }
 
-    //Creates a dialog with the specified title and message
+    // Creates a dialog with the specified title and message
     private DialogComponents createDialog(String title, String message) {
         BufferedImage notificationImage = NotificationBackgroundUtility.createNotificationBackground(title, message);
 
@@ -396,12 +464,8 @@ public class SystemNotificationService {
         }
     }
 
-// =========================================================================
-// BUTTON CONFIGURATION METHODS
-// =========================================================================
-
     // Adds standard notification buttons (Continue Working and End Session)
-    private void addStandardButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes, boolean isHourly) {
+    public void addStandardButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes, boolean isHourly) {
         JPanel buttonsPanel = components.buttonsPanel;
         JDialog dialog = components.dialog;
 
@@ -414,12 +478,11 @@ public class SystemNotificationService {
             @Override
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
-                if (!isHourly) {
-                    sessionMonitorService.activateHourlyMonitoring(username);
-                }
 
-                // Record continuation point
-                continuationTrackingService.recordContinuationPoint(username, userId, LocalDateTime.now(), isHourly);
+                // Create and execute continue working command
+                ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(
+                        username, userId, isHourly);
+                sessionCommandService.executeCommand(command);
 
                 LoggerUtil.info(SystemNotificationService.this.getClass(),
                         String.format("User %s chose to continue working - continuation point recorded", username));
@@ -434,9 +497,27 @@ public class SystemNotificationService {
 
             @Override
             protected void handleAction(ActionEvent e) {
-                publishEndSession(username, userId, finalMinutes);
                 dialog.dispose();
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session");
+
+                try {
+                    // Use the command factory to create the command
+                    EndSessionFromNotificationCommand command = commandFactory
+                            .createEndSessionFromNotificationCommand(username, userId, finalMinutes);
+
+                    // Execute the command through the command service
+                    boolean success = sessionCommandService.executeCommand(command);
+
+                    if (success) {
+                        LoggerUtil.info(SystemNotificationService.this.getClass(),
+                                String.format("User chose to end session for user %s", username));
+                    } else {
+                        LoggerUtil.warn(SystemNotificationService.this.getClass(),
+                                "Failed to end session from notification");
+                    }
+                } catch (Exception ex) {
+                    LoggerUtil.error(SystemNotificationService.this.getClass(),
+                            "Error ending session from notification: " + ex.getMessage());
+                }
             }
         }
 
@@ -445,7 +526,7 @@ public class SystemNotificationService {
     }
 
     // Adds temporary stop specific buttons
-    private void addTempStopButtons(DialogComponents components, String username, Integer userId) {
+    public void addTempStopButtons(DialogComponents components, String username, Integer userId) {
         JPanel buttonsPanel = components.buttonsPanel;
         JDialog dialog = components.dialog;
 
@@ -458,7 +539,12 @@ public class SystemNotificationService {
             @Override
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
-                sessionMonitorService.continueTempStop(username, userId);
+
+                // Create and execute continue temp stop command
+                ContinueTempStopCommand command = commandFactory.createContinueTempStopCommand(
+                        username, userId);
+                sessionCommandService.executeCommand(command);
+
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue temporary stop");
             }
         }
@@ -472,7 +558,12 @@ public class SystemNotificationService {
             @Override
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
-                sessionMonitorService.resumeFromTempStop(username, userId);
+
+                // Create and execute resume from temp stop command
+                ResumeFromTempStopCommand command = commandFactory.createResumeFromTempStopCommand(
+                        username, userId);
+                sessionCommandService.executeCommand(command);
+
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to resume work from temporary stop");
             }
         }
@@ -486,9 +577,16 @@ public class SystemNotificationService {
             @Override
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
-                // First resume from temp stop, then end session
-                sessionMonitorService.resumeFromTempStop(username, userId);
-                sessionMonitorService.endSession(username, userId);
+
+                // First resume from temp stop, then end session - use commands for both
+                ResumeFromTempStopCommand resumeCommand = commandFactory.createResumeFromTempStopCommand(
+                        username, userId);
+                sessionCommandService.executeCommand(resumeCommand);
+
+                EndSessionFromNotificationCommand endCommand = commandFactory.createEndSessionFromNotificationCommand(
+                        username, userId, null);
+                sessionCommandService.executeCommand(endCommand);
+
                 LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session from temporary stop");
             }
         }
@@ -499,7 +597,7 @@ public class SystemNotificationService {
     }
 
     // Adds start day dialog specific buttons
-    private void addStartDayButtons(DialogComponents components, String username, Integer userId) {
+    public void addStartDayButtons(DialogComponents components, String username, Integer userId) {
         JPanel buttonsPanel = components.buttonsPanel;
         JDialog dialog = components.dialog;
 
@@ -512,8 +610,14 @@ public class SystemNotificationService {
             @Override
             protected void handleAction(ActionEvent e) {
                 dialog.dispose();
-                startWorkDay(username, userId);
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to start work day");
+
+                // Use command factory to create the command
+                StartWorkDayCommand command = commandFactory.createStartWorkDayCommand(username, userId);
+                // Execute the command through the command service
+                sessionCommandService.executeCommand(command);
+
+                LoggerUtil.info(SystemNotificationService.this.getClass(),
+                        "User chose to start work day through notification");
             }
         }
 
@@ -533,81 +637,35 @@ public class SystemNotificationService {
         buttonsPanel.add(new SkipButton().create());
     }
 
-// =========================================================================
-// UTILITY METHODS
-// =========================================================================
 
-    //Starts the work day for the specified user
-    private void startWorkDay(String username, Integer userId) {
-        try {
-            userSessionService.startDay(username, userId);
-            LoggerUtil.info(this.getClass(), String.format("Started work day for user %s through start day notification", username));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to start work day through notification: " + e.getMessage());
-        }
-    }
 
-    //Publishes the end session event to user session service
-    private void publishEndSession(String username, Integer userId, Integer finalMinutes) {
-        try {
-            // Get username from session file
-            Path sessionPath = pathConfig.getLocalSessionPath(username, userId);
-            String sessionFilename = sessionPath.getFileName().toString();
-            String extractedUsername = extractUsernameFromSessionFile(sessionFilename);
-
-            if (extractedUsername != null) {
-                userSessionService.endDay(extractedUsername, userId, finalMinutes);
-                sessionMonitorService.clearMonitoring(username);
-                LoggerUtil.info(this.getClass(), String.format("Successfully ended session through notification for user %s", extractedUsername));
-            } else {
-                LoggerUtil.error(this.getClass(), "Failed to extract username from session file: " + sessionFilename);
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to end session through notification: " + e.getMessage());
-        }
-    }
-
-    //Extracts username from session filename
-    private String extractUsernameFromSessionFile(String filename) {
-        try {
-            String[] parts = filename.replace("session_", "").replace(".json", "").split("_");
-            if (parts.length >= 2) {
-                return parts[0];
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error extracting username from filename: " + filename);
-        }
-        return null;
-    }
-
-    // Creates a unique notification key for rate limiting
-    private String getNotificationKey(String username, String notificationType) {
-        return username + "_" + notificationType;
-    }
-
-    // Checks if a notification can be shown based on time interval
-    public boolean canShowNotification(String username, String notificationType, Integer intervalMinutes) {
+    /**
+     * Records the time a notification was shown
+     * This is used for rate limiting notifications
+     *
+     * @param username The username
+     * @param notificationType The type of notification
+     */
+    public void recordNotificationTime(String username, String notificationType) {
         String key = getNotificationKey(username, notificationType);
-        LocalDateTime lastTime = lastNotificationTimes.get(key);
-
-        if (lastTime == null) {
-            lastNotificationTimes.put(key, LocalDateTime.now());
-            return true;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        long minutesSinceLastNotification = ChronoUnit.MINUTES.between(lastTime, now);
-
-        if (minutesSinceLastNotification >= intervalMinutes) {
-            lastNotificationTimes.put(key, now);
-            return true;
-        }
-        return false;
+        lastNotificationTimes.put(key, LocalDateTime.now());
+        LoggerUtil.debug(this.getClass(), String.format("Recorded notification time for %s - %s", username, notificationType));
     }
 
-    //Functional interface for providing buttons to dialogs
+    /**
+     * Gets a unique key for a notification based on username and type
+     *
+     * @param username The username
+     * @param notificationType The type of notification
+     * @return A unique key for the notification
+     */
+    private String getNotificationKey(String username, String notificationType) {
+        return username + ":" + notificationType;
+    }
+
+    // Functional interface for providing buttons to dialogs
     @FunctionalInterface
-    private interface ButtonsProvider {
+    public interface ButtonsProvider {
         void addButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes);
     }
 }
