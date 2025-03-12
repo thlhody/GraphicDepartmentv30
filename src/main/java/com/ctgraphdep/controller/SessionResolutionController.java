@@ -2,17 +2,13 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.ContinuationPoint;
+import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeCalculationResult;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
-import com.ctgraphdep.session.commands.EndDayCommand;
-import com.ctgraphdep.session.commands.ResolveContinuationPointsCommand;
-import com.ctgraphdep.session.commands.ResolveSessionCommand;
-import com.ctgraphdep.session.commands.UpdateLastTemporaryStopCommand;
-import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
+import com.ctgraphdep.session.commands.*;
 import com.ctgraphdep.session.query.*;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -29,6 +25,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Controller
@@ -78,7 +75,7 @@ public class SessionResolutionController extends BaseController {
                 return "redirect:/user/session";
             }
 
-            // Check if session needs resolution using the new query
+            // Check if session needs resolution using the query
             NeedsResolutionQuery needsResolutionQuery = commandFactory.createNeedsResolutionQuery(session);
             boolean needsResolution = commandService.executeQuery(needsResolutionQuery);
 
@@ -93,23 +90,89 @@ public class SessionResolutionController extends BaseController {
             // Calculate default end time using continuation points or default
             LocalTime defaultEndTime = calculateDefaultEndTime(username, sessionDate);
 
-            // Format date for display - KEEP THE ORIGINAL DATE TOO
+            // Create a simulated end time for initial display
+            LocalDateTime simulatedEndTime = LocalDateTime.of(sessionDate, defaultEndTime);
+
+            // Format date for display
             DateTimeFormatter displayFormatter = DateTimeFormatter.ofPattern("EEEE dd - MMMM - yyyy");
             String formattedDate = sessionDate.format(displayFormatter);
 
-            // Add data to model
+            // Use the commands to ensure temporary stops are correctly processed
+            if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                // This ensures any temporary stops are properly finalized for display
+                UpdateLastTemporaryStopCommand updateCommand =
+                        commandFactory.createUpdateLastTemporaryStopCommand(session, simulatedEndTime);
+                commandService.executeCommand(updateCommand);
+            }
+
+            // Update session calculations with the simulated end time
+            UpdateSessionCalculationsCommand updateCommand =
+                    commandFactory.createUpdateSessionCalculationsCommand(session, simulatedEndTime);
+            session = commandService.executeCommand(updateCommand);
+
+            // Make sure each temporary stop is properly formatted for display
+            if (session.getTemporaryStops() != null && !session.getTemporaryStops().isEmpty()) {
+                for (TemporaryStop stop : session.getTemporaryStops()) {
+                    // Ensure end time is set
+                    if (stop.getEndTime() == null && session.getLastTemporaryStopTime() != null) {
+                        stop.setEndTime(session.getLastTemporaryStopTime());
+                    }
+
+                    // Ensure duration is calculated
+                    if (stop.getDuration() == null && stop.getStartTime() != null && stop.getEndTime() != null) {
+                        long minutes = java.time.Duration.between(stop.getStartTime(), stop.getEndTime()).toMinutes();
+                        stop.setDuration((int) minutes);
+                    }
+                }
+            }
+
+            // Debug code to check temporary stops
+            if (session.getTemporaryStops() != null) {
+                LoggerUtil.info(this.getClass(), "Number of temporary stops: " + session.getTemporaryStops().size());
+                for (TemporaryStop stop : session.getTemporaryStops()) {
+                    LoggerUtil.info(this.getClass(),
+                            String.format("Stop: Start=%s, End=%s, Duration=%d",
+                                    stop.getStartTime(), stop.getEndTime(), stop.getDuration()));
+                }
+            } else {
+                LoggerUtil.info(this.getClass(), "Temporary stops list is null");
+            }
+
+            // IMPORTANT: Format break time explicitly for display
+            int totalTempStopMinutes = session.getTotalTemporaryStopMinutes() != null
+                    ? session.getTotalTemporaryStopMinutes() : 0;
+
+            int tempStopHours = totalTempStopMinutes / 60;
+            int tempStopMinutes = totalTempStopMinutes % 60;
+            String formattedBreakTime = String.format("%02d:%02d", tempStopHours, tempStopMinutes);
+
+            LoggerUtil.info(this.getClass(), "Total temporary stop minutes from session: " + totalTempStopMinutes);
+            LoggerUtil.info(this.getClass(), "Formatted break time: " + formattedBreakTime);
+
+            // Explicitly add to model for JavaScript and display
+            model.addAttribute("totalTempStopMinutes", totalTempStopMinutes);
+            model.addAttribute("formattedBreakTime", formattedBreakTime);
+
+            // Use the PrepareSessionViewModelCommand to ensure consistent formatting
+            PrepareSessionViewModelCommand viewModelCommand =
+                    commandFactory.createPrepareSessionViewModelCommand(model, session, user);
+            commandService.executeCommand(viewModelCommand);
+
+            // Add additional data specific to the resolution page
             model.addAttribute("user", username);
             model.addAttribute("date", sessionDate);
-            model.addAttribute("formattedDate", formattedDate); // Add formatted version
+            model.addAttribute("formattedDate", formattedDate);
             model.addAttribute("startTimeFormatted", session.getDayStartTime().format(DateTimeFormatter.ofPattern("HH:mm")));
-            model.addAttribute("session", session);
             model.addAttribute("isTemporaryStop", WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
             model.addAttribute("defaultHour", defaultEndTime.getHour());
             model.addAttribute("defaultMinute", defaultEndTime.getMinute());
-
-            // Add hours and minutes options for dropdown
             model.addAttribute("hours", getHoursOptions());
             model.addAttribute("minutes", getMinutesOptions());
+            // Add this after the PrepareSessionViewModelCommand execution
+            model.addAttribute("temporaryStops", session.getTemporaryStops());
+
+            // Log temporary stops for debugging
+            logTemporaryStopsInfo(session);
 
             return "user/session-resolution";
 
@@ -122,17 +185,44 @@ public class SessionResolutionController extends BaseController {
         }
     }
 
+    /**
+     * Log temporary stops information for debugging
+     */
+    private void logTemporaryStopsInfo(WorkUsersSessionsStates session) {
+        if (session.getTemporaryStops() != null && !session.getTemporaryStops().isEmpty()) {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Session has %d temporary stops totaling %d minutes",
+                            session.getTemporaryStopCount(),
+                            session.getTotalTemporaryStopMinutes()));
+
+            session.getTemporaryStops().forEach(stop -> {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Temporary stop: %s to %s (duration: %d minutes)",
+                                stop.getStartTime(),
+                                stop.getEndTime(),
+                                stop.getDuration()));
+            });
+        } else {
+            LoggerUtil.info(this.getClass(), "Session has no temporary stops");
+        }
+    }
+
+    /**
+     * Calculate default end time based on continuation points or schedule
+     */
     private LocalTime calculateDefaultEndTime(String username, LocalDate sessionDate) {
         try {
-            // Use the new query to get continuation points
+            // Use the query to get continuation points
             GetActiveContinuationPointsQuery pointsQuery = commandFactory.createGetActiveContinuationPointsQuery(username, sessionDate);
             List<ContinuationPoint> continuationPoints = commandService.executeQuery(pointsQuery);
 
             if (!continuationPoints.isEmpty()) {
+                // Find the continuation point with the latest timestamp
                 Optional<ContinuationPoint> latestPoint = continuationPoints.stream()
                         .max(Comparator.comparing(ContinuationPoint::getTimestamp));
 
-                if (latestPoint.isPresent() && latestPoint.get().getTimestamp() != null) {
+                // Since we checked the list isn't empty, we know latestPoint will have a value
+                if (latestPoint.get().getTimestamp() != null) {
                     LocalTime pointTime = latestPoint.get().getTimestamp().toLocalTime();
                     LoggerUtil.info(this.getClass(),
                             String.format("Using continuation point time for default: %s", pointTime));
@@ -150,9 +240,10 @@ public class SessionResolutionController extends BaseController {
             return scheduleInfo.getExpectedEndTime();
         } catch (Exception e) {
             LoggerUtil.warn(this.getClass(), "Error calculating default end time: " + e.getMessage());
-            return LocalTime.of(15, 30); // Fallback to 3:30 PM
+            return LocalTime.of(17, 0); // Fallback to 5:00 PM
         }
     }
+
     @PostMapping
     public String resolveSession(
             Authentication authentication,

@@ -1,33 +1,189 @@
-.custom-radio-card {
-    position: relative;
-    padding: 0;
-    margin-bottom: 0;
+/* session-resolution.css */
+
+/* Page header styling */
+.page-header {
+    border-bottom: 1px solid #e9ecef;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
 }
 
-.custom-radio-card input[type="radio"] {
-    position: absolute;
-    opacity: 0;
+.header-title {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.25rem;
 }
 
-.custom-radio-card-label {
-    padding: 1rem;
-    border: 1px solid #dee2e6;
+/* Form controls */
+.form-select:focus, .form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Card styling */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     border-radius: 0.5rem;
-    width: 100%;
-    transition: all 0.2s ease;
-    cursor: pointer;
+    margin-bottom: 1.5rem;
 }
 
-.custom-radio-card input[type="radio"]:checked + .custom-radio-card-label {
+.card-header {
+    background-color: #f8f9fa;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.card-title {
+    margin-bottom: 0;
+    color: #343a40;
+}
+
+/* Time display */
+.time-display {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+/* Session information styling */
+.temp-stop-list {
+    border-left: 3px solid #ffc107;
+    padding-left: 1rem;
+    margin-top: 0.5rem;
+}
+.temp-stop-item {
+    padding: 0.5rem;
+    margin-bottom: 0.25rem;
+    border-radius: 0.25rem;
+    background-color: rgba(255, 248, 230, 0.3);
+}
+.temp-stop-item:hover {
+    background-color: rgba(255, 248, 230, 0.6);
+}
+
+/* Calculation output styling */
+#totalWorkTime {
+    font-weight: 700;
+    font-size: 1.25rem;
+}
+
+#calculationExplanation {
+    font-style: italic;
+    margin-top: 0.25rem;
+}
+
+.temp-stop-list {
+    border-left: 3px solid #ffc107;
+    padding-left: 1rem;
+    margin-top: 0.5rem;
+}
+.temp-stop-item {
+    padding: 0.5rem;
+    margin-bottom: 0.25rem;
+    border-radius: 0.25rem;
+    background-color: rgba(255, 248, 230, 0.3);
+}
+.temp-stop-item:hover {
+    background-color: rgba(255, 248, 230, 0.6);
+}
+
+/* Button styling */
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    transition: all 0.15s ease;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
     border-color: #0d6efd;
-    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
-    background-color: rgba(13, 110, 253, 0.05);
 }
 
-.icon-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Form layout improvements */
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+/* Alert styling */
+.alert {
+    border-radius: 0.375rem;
+}
+
+.alert-info {
+    background-color: #cff4fc;
+    border-color: #b6effb;
+    color: #055160;
+}
+
+.alert-light {
+    background-color: #f8f9fa;
+    border-color: #e9ecef;
+}
+
+/* Session information card */
+.bg-light {
+    background-color: #f8f9fa !important;
+}
+
+/* Improved dropdown styling */
+select.form-select {
+    min-width: 80px;
+    background-position: right 0.75rem center;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 768px) {
+    .session-controls {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .form-group {
+        width: calc(50% - 0.5rem);
+    }
+}
+
+/* Animation for calculation updates */
+#totalWorkTime {
+    transition: color 0.3s ease;
+}
+
+#totalWorkTime.text-danger {
+    animation: shake 0.5s;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+/* Temporary stop styling enhancement */
+.temp-stop-item:hover {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-radius: 0.25rem;
+}
+
+/* Calculation explanation styling */
+#calculationExplanation {
+    padding: 0.375rem 0;
+    border-top: 1px dashed #dee2e6;
+    margin-top: 0.5rem;
 }

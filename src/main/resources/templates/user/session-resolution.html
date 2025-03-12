@@ -50,7 +50,7 @@
                                         <option th:each="hour : ${hours}"
                                                 th:value="${hour}"
                                                 th:text="${hour < 10 ? '0' + hour : hour}"
-                                                th:selected="${hour == defaultHour}">09</option>
+                                                th:selected="${hour == defaultHour}">08</option>
                                     </select>
                                 </div>
 
@@ -72,19 +72,66 @@
                         <div class="col-md-6">
                             <div class="card h-100 bg-light">
                                 <div class="card-body">
-                                    <h6 class="card-title">Session Information</h6>
+                                    <h6 class="card-title mb-3">Session Information</h6>
+                                    <!-- Session date -->
                                     <div class="mb-2">
-                                        <strong>Start Time:</strong>
-                                        <span th:text="${startTimeFormatted}">07:00</span>
+                                        <strong>Resolving Session for:</strong>
+                                        <span th:text="${#temporals.format(date, 'EEEE, d MMMM, yyyy')}">Monday, 10 March, 2025</span>
                                     </div>
-                                    <div th:if="${isTemporaryStop}" class="mb-2">
-                                        <strong>Temporary Stop Started:</strong>
-                                        <span th:text="${session.lastTemporaryStopTime != null ? #temporals.format(session.lastTemporaryStopTime, 'HH:mm') : 'N/A'}">15:30</span>
-                                    </div>
+                                    <!-- Start Time -->
                                     <div class="mb-2">
-                                        <strong>Date:</strong>
-                                        <span th:text="${#temporals.format(date, 'EEEE, MMMM d, yyyy')}">Friday 07 - March - 2025</span>
+                                        <strong>Work Started:</strong>
+                                        <span id="startTimeDisplay" th:text="${startTimeFormatted}">08:30</span>
                                     </div>
+
+                                    <!-- Total Break Time -->
+                                    <div class="mb-2">
+                                        <strong>Total Break Time:</strong>
+                                        <span th:with="hours=${totalTempStopMinutes / 60},
+                                                      minutes=${totalTempStopMinutes % 60}">
+                                            <span th:text="${(hours < 10 ? '0' : '') + hours}">01</span>:<span th:text="${(minutes < 10 ? '0' : '') + minutes}">40</span>
+                                        </span>
+                                        <!-- Hidden input for JavaScript -->
+                                        <input type="hidden" id="totalTempStopMinutes" th:value="${totalTempStopMinutes}"/>
+                                    </div>
+
+                                    <!-- Temporary Stop Intervals - Explicit Debug Version -->
+                                    <div class="mt-3">
+                                        <strong>Temporary Stop Intervals:</strong>
+                                        <div class="small text-muted mb-2">
+                                            Debug: Session has <span th:text="${session.temporaryStops != null ? session.temporaryStops.size() : 0}">0</span> stops
+                                        </div>
+                                        <div th:if="${temporaryStops == null || temporaryStops.isEmpty()}" class="alert alert-light">
+                                            No temporary stops recorded for this session.
+                                        </div>
+                                        <div th:if="${temporaryStops != null && !temporaryStops.isEmpty()}" class="temp-stop-list mt-2">
+                                            <div th:each="stop, stat : ${temporaryStops}" class="temp-stop-item small p-2 mb-1 border-bottom">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                <span>
+                                                    <i class="bi bi-pause-circle text-warning me-1"></i>
+                                                    Stop #<span th:text="${stat.count}">1</span>:
+                                                    <span th:text="${#temporals.format(stop.startTime, 'HH:mm')}">10:30</span> →
+                                                    <span th:text="${#temporals.format(stop.endTime != null ? stop.endTime : session.lastTemporaryStopTime, 'HH:mm')}">11:07</span>
+                                                </span>
+                                                    <span class="badge bg-warning text-dark ms-2">
+                                                    <span th:with="stopHours=${stop.duration / 60}, stopMinutes=${stop.duration % 60}">
+                                                        <span th:text="${stopHours}">0</span>h
+                                                        <span th:text="${stopMinutes}">37</span>m
+                                                    </span>
+                                                </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Calculation Result Section -->
+                                    <div class="mt-3 pt-2">
+                                        <strong>Calculated Work Time:</strong>
+                                        <span id="totalWorkTime" class="text-primary fw-bold">00:00</span>
+                                    </div>
+
+                                    <!-- Calculation explanation -->
+                                    <div class="mt-2 small text-muted" id="calculationExplanation"></div>
                                 </div>
                             </div>
                         </div>
@@ -92,7 +139,7 @@
 
                     <div class="alert alert-light border p-3 mb-4">
                         <i class="bi bi-lightbulb me-2 text-warning"></i>
-                        <strong>Tip:</strong> The system will automatically calculate your working hours, breaks, and overtime based on the end time you specify.
+                        <strong>Tip:</strong> The system will automatically calculate your working hours based on your selected end time, subtracting your breaks. Review the temporary stop intervals to ensure they're correct.
                     </div>
 
                     <div class="d-flex justify-content-between mt-4">
@@ -112,29 +159,95 @@
     </div>
 </div>
 <th:block layout:fragment="scripts">
-    <script>
+    <script th:inline="javascript">
         document.addEventListener('DOMContentLoaded', function() {
-            // Use getElementById with explicit element selection
-            const form = document.querySelector('form');
+            // Get session data from backend
+            const startTimeStr = document.getElementById('startTimeDisplay').textContent;
+            const [startHour, startMinute] = startTimeStr.split(':').map(Number);
             const hourSelect = document.getElementById('endHourSelect');
             const minuteSelect = document.getElementById('endMinuteSelect');
+            const totalWorkTimeDisplay = document.getElementById('totalWorkTime');
+            const calculationExplanation = document.getElementById('calculationExplanation');
 
-            // Only add event listener if all elements exist
-            if (form && hourSelect && minuteSelect) {
-                form.addEventListener('submit', function(event) {
-                    // Ensure both hour and minute are selected
-                    if (!hourSelect.value || !minuteSelect.value) {
+            // Get values from the model (these will match the session page format)
+            const totalTempStopMinutes = /*[[${totalTempStopMinutes}]]*/ 0;
+
+            // Log for debugging
+            console.log("Total temporary stop minutes:", totalTempStopMinutes);
+
+            // Format time in HH:MM format
+            function formatTime(minutes) {
+                const hours = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+            }
+
+            // Calculate work time based on selected end time
+            function calculateWorkTime() {
+                if (!hourSelect.value || !minuteSelect.value) return;
+
+                // Convert times to minutes
+                const startTotalMinutes = startHour * 60 + startMinute;
+                const endTotalMinutes = parseInt(hourSelect.value) * 60 + parseInt(minuteSelect.value);
+
+                // Calculate raw time difference
+                let totalWorkMinutes = endTotalMinutes - startTotalMinutes;
+
+                // Validate end time
+                if (totalWorkMinutes <= 0) {
+                    totalWorkTimeDisplay.textContent = "Invalid time selection";
+                    totalWorkTimeDisplay.classList.add('text-danger');
+                    calculationExplanation.textContent = "End time must be after start time";
+                    return;
+                } else {
+                    totalWorkTimeDisplay.classList.remove('text-danger');
+                }
+
+                // Subtract breaks
+                const actualWorkMinutes = Math.max(0, totalWorkMinutes - totalTempStopMinutes);
+
+                // Format for display - use the same calculation as the server
+                const formattedTotalTime = formatTime(totalWorkMinutes);
+                const formattedBreakTime = formatTime(totalTempStopMinutes);
+                const formattedWorkTime = formatTime(actualWorkMinutes);
+
+                // Display calculated work time
+                totalWorkTimeDisplay.textContent = formattedWorkTime;
+
+                // Add calculation explanation
+                calculationExplanation.textContent =
+                `Total time (${formatTime(startTotalMinutes)} to ${formatTime(endTotalMinutes)}): ${formattedTotalTime} - ` +
+                `Breaks: ${formattedBreakTime} = ${formattedWorkTime}`;
+
+                // Store raw minutes for validation
+                totalWorkTimeDisplay.dataset.rawMinutes = actualWorkMinutes;
+            }
+
+            // Add event listeners
+            hourSelect.addEventListener('change', calculateWorkTime);
+            minuteSelect.addEventListener('change', calculateWorkTime);
+
+            // Calculate initial value
+            calculateWorkTime();
+
+            // Form validation
+            const form = document.querySelector('form');
+            form.addEventListener('submit', function(event) {
+                if (!hourSelect.value || !minuteSelect.value) {
+                    event.preventDefault();
+                    alert('Please select both hour and minute');
+                    return false;
+                }
+
+                // Warn if less than minimum work time (4 hours)
+                const calculatedMinutes = parseInt(totalWorkTimeDisplay.dataset.rawMinutes || 0);
+                if (calculatedMinutes < 240) {
+                    if (!confirm('The calculated work time is less than 4 hours. Are you sure this is correct?')) {
                         event.preventDefault();
-                        alert('Please select both hour and minute');
                         return false;
                     }
-
-                    // Optional: Add console logging for debugging
-                    console.log('Form submitted with Hour:', hourSelect.value, 'Minute:', minuteSelect.value);
-                });
-            } else {
-                console.error('One or more form elements not found');
-            }
+                }
+            });
         });
     </script>
 </th:block>
