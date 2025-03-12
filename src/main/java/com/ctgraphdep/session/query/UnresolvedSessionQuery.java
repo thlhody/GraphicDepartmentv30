@@ -24,7 +24,7 @@ public class UnresolvedSessionQuery implements SessionQuery<Boolean> {
         boolean hasUnresolvedContinuations = context.getContinuationTrackingService().hasUnresolvedMidnightEnd(username);
 
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         // Check for incomplete sessions from previous days

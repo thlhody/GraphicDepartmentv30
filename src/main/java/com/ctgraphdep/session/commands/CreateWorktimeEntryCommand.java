@@ -4,7 +4,6 @@ import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 
@@ -29,23 +28,20 @@ public class CreateWorktimeEntryCommand implements SessionCommand<WorkTimeTable>
     @Override
     public WorkTimeTable execute(SessionContext context) {
         try {
-            // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+            // Use session date (this is correct)
+            LocalDate sessionDate = session.getDayStartTime().toLocalDate();
 
-            LocalDate today = LocalDate.from(timeValues.getCurrentTime());
+            // CHANGE HERE - Use createWorktimeEntryFromSession instead of createWorktimeEntry
+            WorkTimeTable entry = SessionEntityBuilder.createWorktimeEntryFromSession(session);
 
-            // Create worktime entry using builder
-            WorkTimeTable entry = SessionEntityBuilder.createWorktimeEntry(userId, session.getDayStartTime());
+            // Save the entry using session date (this is correct)
+            context.getWorkTimeService().saveWorkTimeEntry(username, entry, sessionDate.getYear(), sessionDate.getMonthValue(), operatingUsername);
 
-            // Save the entry
-            context.getWorkTimeService().saveWorkTimeEntry(username, entry, today.getYear(), today.getMonthValue(), operatingUsername);
-
-            LoggerUtil.info(this.getClass(), String.format("Created worktime entry for user %s", username));
+            LoggerUtil.info(this.getClass(), String.format("Created worktime entry for user %s for date %s", username, sessionDate));
 
             return entry;
         } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(), "Failed to create worktime entry: %s",e);
+            LoggerUtil.logAndThrow(this.getClass(), "Failed to create worktime entry: %s", e);
         }
         return null;
     }

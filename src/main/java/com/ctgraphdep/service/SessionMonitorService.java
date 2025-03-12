@@ -10,6 +10,10 @@ import com.ctgraphdep.session.commands.SaveSessionCommand;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
 import com.ctgraphdep.session.commands.notification.ShowTestNotificationCommand;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
+import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
+import com.ctgraphdep.session.query.HasCompletedSessionForTodayQuery;
+import com.ctgraphdep.session.query.WorkScheduleQuery;
+import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
@@ -45,8 +49,8 @@ public class SessionMonitorService {
 
     // Track monitored sessions
     private final Map<String, Boolean> notificationShown = new ConcurrentHashMap<>();
-    private final Map<String, LocalDateTime> lastHourlyWarning = new ConcurrentHashMap<>();
-    private final Map<String, Boolean> continuedAfterSchedule = new ConcurrentHashMap<>();
+    public final Map<String, LocalDateTime> lastHourlyWarning = new ConcurrentHashMap<>();
+    public final Map<String, Boolean> continuedAfterSchedule = new ConcurrentHashMap<>();
     private final Map<String, LocalDate> lastStartDayCheck = new ConcurrentHashMap<>();
     private ScheduledFuture<?> monitoringTask;
     private volatile boolean isInitialized = false;
@@ -176,7 +180,8 @@ public class SessionMonitorService {
 //     * Calculates time to the next half-hour mark (either XX:00 or XX:30)
 //     */
 //    private Duration calculateTimeToNextHalfHour() {
-//        LocalDateTime now = LocalDateTime.now();
+//        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+//        LocalDateTime now = timeValues.getCurrentTime();
 //        LocalDateTime nextHalfHour;
 //
 //        // If current minute is less than 30, go to XX:30
@@ -209,7 +214,8 @@ public class SessionMonitorService {
      * Calculates time to the next monitoring check (every 10 minutes)
      */
     private Duration calculateTimeToNextHalfHour() {
-        LocalDateTime now = LocalDateTime.now();
+        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+        LocalDateTime now = timeValues.getCurrentTime();
         LocalDateTime nextCheck;
 
         // Calculate next 10-minute mark (XX:00, XX:10, XX:20, XX:30, XX:40, XX:50)
@@ -298,7 +304,8 @@ public class SessionMonitorService {
         LocalDateTime tempStopStart = session.getLastTemporaryStopTime();
 
         if (tempStopStart != null) {
-            LocalDateTime now = LocalDateTime.now();
+            GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+            LocalDateTime now = timeValues.getCurrentTime();
 
             // Check if total temporary stop minutes exceed 15 hours
             if (session.getTotalTemporaryStopMinutes() != null &&
@@ -326,31 +333,34 @@ public class SessionMonitorService {
      */
     private void checkScheduleCompletion(WorkUsersSessionsStates session, User user) {
         LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-        LocalDate today = LocalDate.now();
+        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+        LocalDate today = timeValues.getCurrentDate();
 
         if (!sessionDate.equals(today)) {
             LoggerUtil.info(this.getClass(),
                     String.format("Skipping schedule notice for past session from %s", sessionDate));
             return;
         }
-        int scheduleMinutes = WorkCode.calculateFullDayDuration(user.getSchedule());
-        LoggerUtil.debug(this.getClass(), String.format("Full day duration for schedule %d: %d minutes",
-                user.getSchedule(), scheduleMinutes));
+
+        // Use WorkScheduleQuery to get schedule info
+        WorkScheduleQuery query = commandFactory.createWorkScheduleQuery(sessionDate, user.getSchedule());
+        WorkScheduleQuery.ScheduleInfo scheduleInfo = commandService.executeQuery(query);
+
         int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
-        boolean isEightHourSchedule = Objects.equals(user.getSchedule(), WorkCode.INTERVAL_HOURS_C);
 
         // Add this debug logging
         LoggerUtil.debug(this.getClass(),
                 String.format("Schedule check - User: %s, Schedule: %d hours, " +
                                 "Is 8-hour schedule: %b, Required minutes: %d, " +
                                 "Current worked minutes: %d, Notified already: %b",
-                        session.getUsername(), user.getSchedule(),
-                        isEightHourSchedule, scheduleMinutes,
+                        session.getUsername(), scheduleInfo.getScheduleHours(),
+                        scheduleInfo.isStandardEightHourSchedule(), scheduleInfo.getFullDayDuration(),
                         workedMinutes, notificationShown.getOrDefault(session.getUsername(), false)));
 
+        // Only show notification if not already shown for this session and schedule is completed
+        if (scheduleInfo.isScheduleCompleted(workedMinutes) &&
+                !notificationShown.getOrDefault(session.getUsername(), false)) {
 
-        // Only show notification if not already shown for this session
-        if (workedMinutes >= scheduleMinutes && !notificationShown.getOrDefault(session.getUsername(), false)) {
             // First register backup action
             backupService.registerScheduleEndNotification(
                     session.getUsername(),
@@ -366,7 +376,9 @@ public class SessionMonitorService {
             );
 
             notificationShown.put(session.getUsername(), true);
-            LoggerUtil.info(this.getClass(), String.format("Schedule completion notification shown for user %s (worked: %d minutes)", session.getUsername(), workedMinutes));
+            LoggerUtil.info(this.getClass(),
+                    String.format("Schedule completion notification shown for user %s (worked: %d minutes)",
+                            session.getUsername(), workedMinutes));
         }
     }
 
@@ -376,16 +388,20 @@ public class SessionMonitorService {
     public void checkHourlyWarning(WorkUsersSessionsStates session) {
         String username = session.getUsername();
         LocalDateTime lastWarning = lastHourlyWarning.get(username);
-        LocalDateTime now = LocalDateTime.now();
 
-        // Check if an hour has passed since last warning
-        if (lastWarning == null || ChronoUnit.MINUTES.between(lastWarning, now) >= WorkCode.HOURLY_INTERVAL) {
+        // Get standardized time values
+        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+        LocalDateTime now = timeValues.getCurrentTime();
+        LocalDateTime nextHourlyCheckTime = timeValues.getNextHourlyCheckTime();
+
+        // Check if it's time for the next hourly warning
+        if (lastWarning == null || lastWarning.isBefore(nextHourlyCheckTime)) {
             // Add detailed logging
             LoggerUtil.info(this.getClass(), String.format(
-                    "Preparing hourly warning for %s - Last warning: %s, Minutes since: %d",
+                    "Preparing hourly warning for %s - Last warning: %s, Next check: %s",
                     username,
                     lastWarning != null ? lastWarning.toString() : "never",
-                    lastWarning != null ? ChronoUnit.MINUTES.between(lastWarning, now) : 0));
+                    nextHourlyCheckTime));
 
             // First register backup action
             backupService.registerHourlyWarningNotification(
@@ -401,6 +417,7 @@ public class SessionMonitorService {
                     session.getFinalWorkedMinutes()
             );
 
+            // Update the last warning time to current time
             lastHourlyWarning.put(username, now);
         }
     }
@@ -426,7 +443,8 @@ public class SessionMonitorService {
             }
 
             // Check if we already showed notification today
-            LocalDate today = LocalDate.now();
+            GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+            LocalDate today = timeValues.getCurrentDate();
             if (lastStartDayCheck.containsKey(username) &&
                     lastStartDayCheck.get(username).equals(today)) {
                 return;
@@ -435,25 +453,35 @@ public class SessionMonitorService {
             User user = userService.getUserByUsername(username)
                     .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
-            // Get current session using command pattern
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
-            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
+            // Check if user has completed a session for today
+            HasCompletedSessionForTodayQuery completedQuery = commandFactory.createHasCompletedSessionForTodayQuery(username, user.getUserId());
+            boolean completedSessionToday = commandService.executeQuery(completedQuery);
+
+            // If they already completed a session today, don't show reminder
+            if (completedSessionToday) {
+                return;
+            }
 
             // Check for unresolved continuation points from yesterday
             boolean hasUnresolvedContinuations = continuationTrackingService.hasUnresolvedMidnightEnd(username);
 
             // If there are unresolved continuations, don't show start day reminder
             if (hasUnresolvedContinuations) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("User %s has unresolved continuation points - skipping start day reminder", username));
+                LoggerUtil.info(this.getClass(), String.format("User %s has unresolved continuation points - skipping start day reminder", username));
                 return;
             }
 
-            // Only show if status is Offline and no active session for today
-            if (session != null &&
-                    WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
-                    !hasActiveSessionToday(session)) {
+            // Get current session using command pattern
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
+            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
+            // Use SessionValidator to check if session exists
+            if (!SessionValidator.exists(session, this.getClass())) {
+                return;
+            }
+
+            // Validate that session is in offline state and no active session for today
+            if (WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && !hasActiveSessionToday(session)) {
                 // Show notification
                 notificationService.showStartDayReminder(username, user.getUserId());
 
@@ -465,19 +493,6 @@ public class SessionMonitorService {
             LoggerUtil.error(this.getClass(), "Error checking start day reminder: " + e.getMessage(), e);
         }
     }
-
-    /**
-     * Activates hourly monitoring when user chooses to continue working after schedule end
-     */
-    public void activateHourlyMonitoring(String username) {
-        continuedAfterSchedule.put(username, true);
-        lastHourlyWarning.put(username, LocalDateTime.now());
-        // Cancel any backup tasks since user responded
-        backupService.cancelBackupTask(username);
-        LoggerUtil.info(this.getClass(), String.format("Activated hourly monitoring for user %s", username));
-    }
-
-
     /**
      * Gets the currently active user by scanning session files
      */
@@ -564,10 +579,22 @@ public class SessionMonitorService {
     /* Helper methods */
 
     /**
+     * Gets standardized time values using the command pattern.
+     * This centralizes time value retrieval for consistent usage across the service.
+     *
+     * @return The standardized session time values
+     */
+    private GetSessionTimeValuesQuery.SessionTimeValues getStandardizedTimeValues() {
+        GetSessionTimeValuesQuery timeQuery = commandFactory.getSessionTimeValuesQuery();
+        return commandService.executeQuery(timeQuery);
+    }
+
+    /**
      * Checks if current time is within working hours
      */
     private boolean isWorkingHours() {
-        LocalDateTime now = LocalDateTime.now();
+        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+        LocalDateTime now = timeValues.getCurrentTime();
         int hour = now.getHour();
         return hour >= WorkCode.WORK_START_HOUR && hour < WorkCode.WORK_END_HOUR;
     }
@@ -576,11 +603,17 @@ public class SessionMonitorService {
      * Checks if today is a weekday
      */
     private boolean isWeekday() {
-        LocalDateTime now = LocalDateTime.now();
-        DayOfWeek day = now.getDayOfWeek();
-        return day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
-    }
+        try {
+            // Create and execute the query with default schedule (we only need the weekend check)
+            WorkScheduleQuery query = commandFactory.createWorkScheduleQuery(WorkCode.INTERVAL_HOURS_C);
+            WorkScheduleQuery.ScheduleInfo scheduleInfo = commandService.executeQuery(query);
 
+            return scheduleInfo.isWeekday();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking if today is a weekday: " + e.getMessage(), e);
+            return true; // Default to true in case of error
+        }
+    }
     /**
      * Checks if session has activity today
      */
@@ -590,7 +623,9 @@ public class SessionMonitorService {
         }
 
         LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-        LocalDate today = LocalDate.now();
+        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+        LocalDate today = timeValues.getCurrentDate();
+
         return sessionDate.equals(today);
     }
 }

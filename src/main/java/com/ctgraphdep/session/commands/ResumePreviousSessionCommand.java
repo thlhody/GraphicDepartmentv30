@@ -3,7 +3,6 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery.SessionTimeValues;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.config.WorkCode;
@@ -32,7 +31,7 @@ public class ResumePreviousSessionCommand implements SessionCommand<WorkUsersSes
         LoggerUtil.info(this.getClass(), String.format("Executing ResumePreviousSessionCommand for user %s", username));
 
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         // Get the current session
@@ -101,34 +100,30 @@ public class ResumePreviousSessionCommand implements SessionCommand<WorkUsersSes
             WorkTimeTable existingEntry = findEntryForDate(entries, workDate);
 
             if (existingEntry != null) {
-                // Update entry using builder
-                SessionEntityBuilder.updateWorktimeEntry(existingEntry, builder -> {
-                    builder.dayEndTime(null)
-                            .adminSync(SyncStatus.USER_IN_PROCESS)
-                            .temporaryStopCount(session.getTemporaryStopCount())
-                            .totalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
-                });
+                // Update existing entry - set end time to null to indicate resumed session
+                existingEntry.setDayEndTime(null);
+                existingEntry.setAdminSync(SyncStatus.USER_IN_PROCESS);
+                existingEntry.setTemporaryStopCount(session.getTemporaryStopCount());
+                existingEntry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
 
                 // Save the updated entry
                 saveWorkTimeEntry(existingEntry, workDate, context);
             } else {
-                LoggerUtil.warn(this.getClass(), String.format("No existing worktime entry found for user %s on %s", username, workDate));
+                // Create a new worktime entry using the command
+                CreateWorktimeEntryCommand createCommand = context.getCommandFactory()
+                        .createWorktimeEntryCommand(username, userId, session, username);
+
+                WorkTimeTable newEntry = context.executeCommand(createCommand);
+
+                // Save the new entry
+                saveWorkTimeEntry(newEntry, workDate, context);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Failed to update worktime entry: %s", e.getMessage()));
         }
     }
 
-
-    // Finds the entry for a specific date
-    private WorkTimeTable findEntryForDate(List<WorkTimeTable> entries, LocalDate date) {
-        return entries.stream()
-                .filter(e -> e.getWorkDate().equals(date))
-                .findFirst()
-                .orElse(null);
-    }
-
-    //Saves the worktime entry
+    // Helper method to save worktime entry
     private void saveWorkTimeEntry(WorkTimeTable entry, LocalDate workDate, SessionContext context) {
         context.getWorkTimeService().saveWorkTimeEntry(
                 username,
@@ -148,5 +143,13 @@ public class ResumePreviousSessionCommand implements SessionCommand<WorkUsersSes
             LoggerUtil.error(this.getClass(), String.format("Error loading user entries: %s", e.getMessage()));
             return new ArrayList<>();
         }
+    }
+
+    // Finds the entry for a specific date
+    private WorkTimeTable findEntryForDate(List<WorkTimeTable> entries, LocalDate date) {
+        return entries.stream()
+                .filter(e -> e.getWorkDate().equals(date))
+                .findFirst()
+                .orElse(null);
     }
 }

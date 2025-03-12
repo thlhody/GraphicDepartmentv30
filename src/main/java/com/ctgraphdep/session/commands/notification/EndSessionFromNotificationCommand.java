@@ -37,7 +37,7 @@ public class EndSessionFromNotificationCommand implements SessionCommand<Boolean
         try {
             LoggerUtil.info(this.getClass(), String.format("Ending session from notification for user %s", username));
             // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
             GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
             // Get current session to validate it's still active

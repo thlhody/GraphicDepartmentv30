@@ -38,7 +38,7 @@ public class CanShowNotificationQuery implements SessionQuery<Boolean> {
     @Override
     public Boolean execute(SessionContext context) {
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         // First get the notification key

@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.ui.Model;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -104,6 +105,22 @@ public class SessionCommandFactory {
         return new UpdateSessionActivityCommand(username, userId);
     }
 
+    // For updating last temporary stop
+    public UpdateLastTemporaryStopCommand createUpdateLastTemporaryStopCommand(WorkUsersSessionsStates session, LocalDateTime endTime) {
+        return new UpdateLastTemporaryStopCommand(session, endTime);
+    }
+
+    // For resolving a session
+    public ResolveSessionCommand createResolveSessionCommand(String username, Integer userId, LocalDateTime endTime) {
+        return new ResolveSessionCommand(username, userId, endTime);
+    }
+
+    // For resolving continuation points
+    public ResolveContinuationPointsCommand createResolveContinuationPointsCommand(
+            String username, LocalDate sessionDate, String operatingUsername, Integer overtimeMinutes) {
+        return new ResolveContinuationPointsCommand(username, sessionDate, operatingUsername, overtimeMinutes);
+    }
+
     //========
     // Notification Commands
     //========
@@ -153,6 +170,11 @@ public class SessionCommandFactory {
         return new RecordContinuationPointCommand(username, userId, continuationTime, isHourly);
     }
 
+    // Creates a command to check for stalled notifications
+    public CheckStalledNotificationsCommand createCheckStalledNotificationsCommand() {
+        return new CheckStalledNotificationsCommand();
+    }
+
     //========
     // UI/View Commands
     //========
@@ -165,6 +187,17 @@ public class SessionCommandFactory {
     //========
     // Query Methods
     //========
+
+    // For active continuation points
+    public GetActiveContinuationPointsQuery createGetActiveContinuationPointsQuery(String username, LocalDate sessionDate) {
+        return new GetActiveContinuationPointsQuery(username, sessionDate);
+    }
+
+
+    // For calculating raw work minutes
+    public CalculateRawWorkMinutesQuery createCalculateRawWorkMinutesQuery(WorkUsersSessionsStates session, LocalDateTime endTime) {
+        return new CalculateRawWorkMinutesQuery(session, endTime);
+    }
 
     // Creates a query to get standardized time values (central source of time values for all commands)
     public GetSessionTimeValuesQuery getSessionTimeValuesQuery() {
@@ -229,5 +262,20 @@ public class SessionCommandFactory {
     // Creates a query to check if a user has any unresolved sessions
     public HasUnresolvedSessionQuery createHasUnresolvedSessionQuery(String username, Integer userId) {
         return new HasUnresolvedSessionQuery(username, userId);
+    }
+
+    // Creates a query to check if a session needs resolution
+    public NeedsResolutionQuery createNeedsResolutionQuery(WorkUsersSessionsStates session) {
+        return new NeedsResolutionQuery(session);
+    }
+
+    // Creates a query to get work schedule information
+    public WorkScheduleQuery createWorkScheduleQuery(LocalDate date, Integer userSchedule) {
+        return new WorkScheduleQuery(date, userSchedule);
+    }
+
+    // Creates a query to get work schedule information for the current date
+    public WorkScheduleQuery createWorkScheduleQuery(Integer userSchedule) {
+        return new WorkScheduleQuery(userSchedule);
     }
 }

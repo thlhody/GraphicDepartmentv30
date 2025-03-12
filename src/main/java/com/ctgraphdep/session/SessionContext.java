@@ -84,11 +84,11 @@ public class SessionContext {
         return CalculateWorkHoursUtil.calculateMinutesBetween(start, end);
     }
 
-    // Update calculations on a session
+    // Update the updateSessionCalculations method in SessionContext.java
     public WorkUsersSessionsStates updateSessionCalculations(WorkUsersSessionsStates session,
                                                              LocalDateTime currentTime,
                                                              int userSchedule) {
-        return calculationService.updateSessionCalculations(session, currentTime, userSchedule);
+        return calculationService.updateSessionCalculations(session, currentTime, userSchedule, this);
     }
 
     // Calculate raw work minutes

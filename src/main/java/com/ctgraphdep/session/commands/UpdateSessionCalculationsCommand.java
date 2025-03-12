@@ -36,7 +36,7 @@ public class UpdateSessionCalculationsCommand implements SessionCommand<WorkUser
             // Use the explicit end time if provided, otherwise use current time
             LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : LocalDateTime.now();
 
-            // Use centralized calculation service with explicit end time
+            // Use centralized calculation service with explicit end time and context
             WorkUsersSessionsStates updatedSession = context.updateSessionCalculations(session, endTime, userSchedule);
 
             // Save updated session

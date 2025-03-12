@@ -9,8 +9,11 @@ import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.EndDayCommand;
+import com.ctgraphdep.session.commands.ResolveContinuationPointsCommand;
+import com.ctgraphdep.session.commands.ResolveSessionCommand;
+import com.ctgraphdep.session.commands.UpdateLastTemporaryStopCommand;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
-import com.ctgraphdep.session.query.GetCurrentSessionQuery;
+import com.ctgraphdep.session.query.*;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -75,11 +78,9 @@ public class SessionResolutionController extends BaseController {
                 return "redirect:/user/session";
             }
 
-            // Check if session needs resolution
-            // A session needs resolution if:
-            // 1. It has no end time (this captures both midnight handler sessions and forgotten sessions)
-            // 2. OR it's marked as not completed (for safety)
-            boolean needsResolution = session.getDayEndTime() == null || !session.getWorkdayCompleted();
+            // Check if session needs resolution using the new query
+            NeedsResolutionQuery needsResolutionQuery = commandFactory.createNeedsResolutionQuery(session);
+            boolean needsResolution = commandService.executeQuery(needsResolutionQuery);
 
             if (!needsResolution) {
                 redirectAttributes.addFlashAttribute("infoMessage", "This session is already resolved");
@@ -123,10 +124,9 @@ public class SessionResolutionController extends BaseController {
 
     private LocalTime calculateDefaultEndTime(String username, LocalDate sessionDate) {
         try {
-            // First try to get from continuation points
-            List<ContinuationPoint> continuationPoints = commandService.getContext()
-                    .getContinuationTrackingService()
-                    .getActiveContinuationPoints(username, sessionDate);
+            // Use the new query to get continuation points
+            GetActiveContinuationPointsQuery pointsQuery = commandFactory.createGetActiveContinuationPointsQuery(username, sessionDate);
+            List<ContinuationPoint> continuationPoints = commandService.executeQuery(pointsQuery);
 
             if (!continuationPoints.isEmpty()) {
                 Optional<ContinuationPoint> latestPoint = continuationPoints.stream()
@@ -140,22 +140,19 @@ public class SessionResolutionController extends BaseController {
                 }
             }
 
-            // If no continuation point, use schedule-based default
+            // If no continuation point, use WorkScheduleQuery to get expected end time
             User user = userService.getUserByUsername(username)
                     .orElseThrow(() -> new IllegalStateException("User not found"));
 
-            int scheduleHours = user.getSchedule();
-            // For 8-hour schedule add lunch break
-            int endHour = sessionDate.getDayOfWeek().getValue() >= 6 ? 13 : (scheduleHours == 8 ? 17 : scheduleHours + 9);
-            int endMinute = 0;
+            WorkScheduleQuery query = commandFactory.createWorkScheduleQuery(sessionDate, user.getSchedule());
+            WorkScheduleQuery.ScheduleInfo scheduleInfo = commandService.executeQuery(query);
 
-            return LocalTime.of(endHour, endMinute);
+            return scheduleInfo.getExpectedEndTime();
         } catch (Exception e) {
             LoggerUtil.warn(this.getClass(), "Error calculating default end time: " + e.getMessage());
-            return LocalTime.of(17, 0); // Fallback to 5:00 PM
+            return LocalTime.of(15, 30); // Fallback to 3:30 PM
         }
     }
-
     @PostMapping
     public String resolveSession(
             Authentication authentication,
@@ -196,58 +193,10 @@ public class SessionResolutionController extends BaseController {
             LocalDateTime endTime = LocalDateTime.of(sessionDate, LocalTime.of(endHour, endMinute));
             LoggerUtil.debug(this.getClass(), String.format("Resolving session - User selected time: %s from session date %s", endTime, sessionDate));
 
-            // Update session end time
-            session.setDayEndTime(endTime);
-
-            // If session was in temporary stop, resume first
-            if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                // Simulate resume by updating the last temporary stop
-                commandService.getContext().updateLastTemporaryStop(session, endTime);
-            }
-
-            // Ensure session is in a state that can be processed
-            // For Offline sessions from midnight handler, set to Online temporarily for calculation
-            boolean wasOffline = false;
-            if (WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
-                wasOffline = true;
-                session.setSessionStatus(WorkCode.WORK_ONLINE);
-                LoggerUtil.info(this.getClass(), "Temporarily setting Offline session to Online for calculation");
-            }
-
-            // Update calculations based on the new end time
-            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session,endTime);
-            session = commandService.executeCommand(updateCommand);
-
-            // Calculate worked minutes based on session
-            int workedMinutes = commandService.getContext().calculateRawWorkMinutes(session, endTime);
-            session.setTotalWorkedMinutes(workedMinutes);
-
-            // Get final worked minutes from user's schedule
-            int userSchedule = user.getSchedule();
-            WorkTimeCalculationResult result = commandService.getContext().calculateWorkTime(
-                    workedMinutes, userSchedule);
-
-            // If we temporarily changed to Online, set back to Offline for consistency
-            if (wasOffline) {
-                session.setSessionStatus(WorkCode.WORK_OFFLINE);
-            }
-
-            // End the session using command with explicit end time and calculated results
-            EndDayCommand endCommand = commandFactory.createEndDayCommand(
-                    username,
-                    user.getUserId(),
-                    result.getProcessedMinutes(),
-                    endTime);  // Pass the explicit end time
-
-            commandService.executeCommand(endCommand);
-
-            // Mark continuation points as resolved
-            commandService.getContext().getContinuationTrackingService()
-                    .resolveContinuationPoints(
-                            username,
-                            sessionDate,
-                            username,
-                            result.getOvertimeMinutes());
+            // Use the ResolveSessionCommand to handle the resolution logic
+            ResolveSessionCommand resolveCommand = commandFactory.createResolveSessionCommand(
+                    username, user.getUserId(), endTime);
+            commandService.executeCommand(resolveCommand);
 
             redirectAttributes.addFlashAttribute("successMessage", "Previous session resolved successfully");
             LoggerUtil.debug(this.getClass(), "Session resolved successfully. Redirecting to /user/session");
@@ -285,38 +234,28 @@ public class SessionResolutionController extends BaseController {
             GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
+            if (session == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "No valid session to skip");
+                return "redirect:/user/session";
+            }
+
             // Get session date
             LocalDate sessionDate = session.getDayStartTime().toLocalDate();
 
             // Use default end time (17:00)
             LocalDateTime endTime = LocalDateTime.of(sessionDate, LocalTime.of(17, 0));
 
-            // Update session end time
-            session.setDayEndTime(endTime);
-
             // If session was in temporary stop, resume first
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                // Simulate resume by updating the last temporary stop with standard end time
-                commandService.getContext().updateLastTemporaryStop(session, endTime);
+                // Use the command to update temporary stop
+                UpdateLastTemporaryStopCommand tempStopCommand = commandFactory.createUpdateLastTemporaryStopCommand(session, endTime);
+                commandService.executeCommand(tempStopCommand);
             }
 
-            // Handle offline sessions from midnight handler
-            boolean wasOffline = false;
-            if (WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
-                wasOffline = true;
-                session.setSessionStatus(WorkCode.WORK_ONLINE);
-                LoggerUtil.info(this.getClass(),
-                        "Temporarily setting Offline session to Online for skip resolution");
-            }
-
-            // End the session using command with standard hours and explicit end time
+            // End the session using standard schedule hours
             int standardMinutes = user.getSchedule() * 60; // Standard schedule in minutes
 
-            // If we temporarily changed to Online, set back to Offline for consistency
-            if (wasOffline) {
-                session.setSessionStatus(WorkCode.WORK_OFFLINE);
-            }
-
+            // End the session
             EndDayCommand endCommand = commandFactory.createEndDayCommand(
                     username,
                     user.getUserId(),
@@ -326,12 +265,9 @@ public class SessionResolutionController extends BaseController {
             commandService.executeCommand(endCommand);
 
             // Mark continuation points as resolved (no overtime)
-            commandService.getContext().getContinuationTrackingService()
-                    .resolveContinuationPoints(
-                            username,
-                            sessionDate,
-                            username,
-                            0);
+            ResolveContinuationPointsCommand resolvePointsCommand = commandFactory.createResolveContinuationPointsCommand(
+                    username, sessionDate, username, 0);
+            commandService.executeCommand(resolvePointsCommand);
 
             redirectAttributes.addFlashAttribute("infoMessage", "Session resolution skipped. Standard schedule recorded.");
 

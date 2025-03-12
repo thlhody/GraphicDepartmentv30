@@ -6,7 +6,6 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * Query to check if a session is from a previous day
@@ -21,7 +20,7 @@ public class IsPreviousDaySessionQuery implements SessionQuery<Boolean> {
     @Override
     public Boolean execute(SessionContext context) {
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         if (session == null ||

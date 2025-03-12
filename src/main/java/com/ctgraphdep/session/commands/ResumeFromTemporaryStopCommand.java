@@ -3,7 +3,6 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery.SessionTimeValues;
 import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -24,7 +23,7 @@ public class ResumeFromTemporaryStopCommand implements SessionCommand<WorkUsersS
         LoggerUtil.info(this.getClass(), String.format("Resuming work for user %s after temporary stop", username));
 
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         // Get the current session

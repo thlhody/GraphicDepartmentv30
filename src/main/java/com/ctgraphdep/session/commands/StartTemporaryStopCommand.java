@@ -32,7 +32,7 @@ public class StartTemporaryStopCommand implements SessionCommand<WorkUsersSessio
         }
 
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         // Process temporary stop

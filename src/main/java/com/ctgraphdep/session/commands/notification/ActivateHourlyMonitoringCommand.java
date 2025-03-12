@@ -2,6 +2,7 @@ package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 
 /**
@@ -23,14 +24,24 @@ public class ActivateHourlyMonitoringCommand implements SessionCommand<Boolean> 
     public Boolean execute(SessionContext context) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Activating hourly monitoring for user %s", username));
-            // Set the user's session to be monitored hourly
-            context.getSessionMonitorService().activateHourlyMonitoring(username);
-            // The updateMonitoringState method doesn't exist anymore, so we'll log the state change
-            LoggerUtil.info(this.getClass(), String.format("Monitoring state set to HOURLY_MONITORING for user %s", username));
+            // Get standardized time values
+            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
+            GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+            // Direct manipulation of session monitoring state
+            context.getSessionMonitorService().continuedAfterSchedule.put(username, true);
+            context.getSessionMonitorService().lastHourlyWarning.put(username, timeValues.getCurrentTime());
+
+            // Cancel any backup tasks
+            context.getBackupService().cancelBackupTask(username);
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Successfully activated hourly monitoring for user %s", username));
 
             return true;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error activating hourly monitoring for user %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error activating hourly monitoring for user %s: %s",
+                            username, e.getMessage()));
             return false;
         }
     }

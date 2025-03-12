@@ -2,6 +2,9 @@ package com.ctgraphdep.session.util;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
+import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 
@@ -18,16 +21,17 @@ public class SessionCalculationService {
      * @param session The session to update
      * @param currentTime The current time reference
      * @param userSchedule The user's schedule in hours
+     * @param context The session context
      * @return The updated session
      */
-    public WorkUsersSessionsStates updateSessionCalculations(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
+    public WorkUsersSessionsStates updateSessionCalculations(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule, SessionContext context) {
         if (session == null) {
             return null;
         }
 
         try {
             if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-                updateOnlineCalculations(session, currentTime, userSchedule);
+                updateOnlineCalculations(session, currentTime, userSchedule, context);
             } else if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
                 updateTempStopCalculations(session, currentTime);
             }
@@ -47,8 +51,9 @@ public class SessionCalculationService {
      * @param session The session to update
      * @param currentTime The current time reference
      * @param userSchedule The user's schedule in hours
+     * @param context The session context
      */
-    private void updateOnlineCalculations(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
+    private void updateOnlineCalculations(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule, SessionContext context) {
         // Calculate raw work minutes
         int rawWorkedMinutes = calculateRawWorkMinutes(session, currentTime);
 
@@ -61,7 +66,7 @@ public class SessionCalculationService {
                     .finalWorkedMinutes(result.getProcessedMinutes())
                     .totalOvertimeMinutes(result.getOvertimeMinutes())
                     .lunchBreakDeducted(result.isLunchDeducted())
-                    .workdayCompleted(isWorkdayCompleted(result, userSchedule));
+                    .workdayCompleted(isWorkdayCompleted(result, userSchedule, context));
         });
     }
 
@@ -173,17 +178,17 @@ public class SessionCalculationService {
      * @param schedule The user's schedule in hours
      * @return True if the workday is completed, false otherwise
      */
-    public boolean isWorkdayCompleted(WorkTimeCalculationResult result, int schedule) {
-        // For 8-hour schedule, add 30 minutes lunch break
-        if (schedule == WorkCode.INTERVAL_HOURS_C) {
-            // 8 hours (480 minutes) + 30 minutes lunch break
-            return result.getRawMinutes() >= (WorkCode.INTERVAL_HOURS_C * WorkCode.HOUR_DURATION + WorkCode.HALF_HOUR_DURATION);
-        }
-        // For schedules less than 8 hours, just check against schedule hours
-        else {
-            // Plain schedule hours without lunch break
-            return result.getRawMinutes() >= (schedule * WorkCode.HOUR_DURATION);
-        }
+
+    public boolean isWorkdayCompleted(WorkTimeCalculationResult result, int schedule, SessionContext context) {
+        // Get standardized time values
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+
+        // Use the current date from timeValues
+        WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(timeValues.getCurrentDate(), schedule);
+        WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
+
+        return result.getRawMinutes() >= scheduleInfo.getFullDayDuration();
     }
 
     /**

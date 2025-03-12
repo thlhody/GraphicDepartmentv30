@@ -38,7 +38,7 @@ public class ShowTempStopWarningCommand implements SessionCommand<Boolean> {
         try {
             LoggerUtil.info(this.getClass(), String.format("Attempting to show temporary stop warning for user %s", username));
             // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
             GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
             // Check if notification can be shown based on rate limiting (hourly)

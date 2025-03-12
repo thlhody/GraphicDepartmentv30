@@ -40,7 +40,7 @@ public class TrackNotificationDisplayCommand implements SessionCommand<Void> {
             LoggerUtil.info(this.getClass(), String.format("Tracking notification display for user %s", username));
 
             // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
             GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
             // Record notification display time for rate limiting

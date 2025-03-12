@@ -15,7 +15,7 @@ public class CheckStalledNotificationsCommand implements SessionCommand<Void> {
     @Override
     public Void execute(SessionContext context) {
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         // Handle schedule end notifications

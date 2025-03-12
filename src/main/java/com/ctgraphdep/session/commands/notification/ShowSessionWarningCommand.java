@@ -45,8 +45,7 @@ public class ShowSessionWarningCommand implements SessionCommand<Boolean> {
                             WorkCode.SESSION_WARNING_TRAY,
                             WorkCode.ON_FOR_TEN_MINUTES,
                             false, false, finalMinutes,
-                            (components, u, id, minutes) ->
-                                    context.getNotificationService().addStandardButtons(components, u, id, minutes, false),
+                            (components, u, id, minutes) -> context.getNotificationService().addStandardButtons(components, u, id, minutes, false),
                             TrayIcon.MessageType.INFO
                     );
 

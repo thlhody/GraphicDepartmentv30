@@ -480,12 +480,10 @@ public class SystemNotificationService {
                 dialog.dispose();
 
                 // Create and execute continue working command
-                ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(
-                        username, userId, isHourly);
+                ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, userId, isHourly);
                 sessionCommandService.executeCommand(command);
 
-                LoggerUtil.info(SystemNotificationService.this.getClass(),
-                        String.format("User %s chose to continue working - continuation point recorded", username));
+                LoggerUtil.info(SystemNotificationService.this.getClass(), String.format("User %s chose to continue working - continuation point recorded", username));
             }
         }
 
@@ -501,22 +499,18 @@ public class SystemNotificationService {
 
                 try {
                     // Use the command factory to create the command
-                    EndSessionFromNotificationCommand command = commandFactory
-                            .createEndSessionFromNotificationCommand(username, userId, finalMinutes);
+                    EndSessionFromNotificationCommand command = commandFactory.createEndSessionFromNotificationCommand(username, userId, finalMinutes);
 
                     // Execute the command through the command service
                     boolean success = sessionCommandService.executeCommand(command);
 
                     if (success) {
-                        LoggerUtil.info(SystemNotificationService.this.getClass(),
-                                String.format("User chose to end session for user %s", username));
+                        LoggerUtil.info(SystemNotificationService.this.getClass(), String.format("User chose to end session for user %s", username));
                     } else {
-                        LoggerUtil.warn(SystemNotificationService.this.getClass(),
-                                "Failed to end session from notification");
+                        LoggerUtil.warn(SystemNotificationService.this.getClass(), "Failed to end session from notification");
                     }
                 } catch (Exception ex) {
-                    LoggerUtil.error(SystemNotificationService.this.getClass(),
-                            "Error ending session from notification: " + ex.getMessage());
+                    LoggerUtil.error(SystemNotificationService.this.getClass(), "Error ending session from notification: " + ex.getMessage());
                 }
             }
         }

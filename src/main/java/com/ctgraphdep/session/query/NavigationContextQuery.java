@@ -18,7 +18,7 @@ public class NavigationContextQuery implements SessionQuery<NavigationContext> {
     @Override
     public NavigationContext execute(SessionContext context) {
         // Check if there's a completed session for today
-        HasCompletedSessionForTodayQuery completedQuery = new HasCompletedSessionForTodayQuery(user.getUsername(), user.getUserId());
+        HasCompletedSessionForTodayQuery completedQuery = context.getCommandFactory().createHasCompletedSessionForTodayQuery(user.getUsername(), user.getUserId());
         boolean completedSessionToday = context.executeQuery(completedQuery);
 
         // Determine dashboard URL based on user role

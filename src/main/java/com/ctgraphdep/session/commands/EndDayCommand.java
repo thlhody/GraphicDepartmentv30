@@ -1,11 +1,12 @@
 package com.ctgraphdep.session.commands;
 
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
 import com.ctgraphdep.session.query.GetSessionTimeValuesQuery.SessionTimeValues;
+import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
-import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -42,7 +43,7 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
         LoggerUtil.info(this.getClass(), String.format("Executing EndDayCommand for user %s with %d minutes", username, finalMinutes));
 
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
         GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
         // Get and validate session
@@ -127,18 +128,63 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
 
     // Creates and saves a worktime entry based on session data
     private void updateWorktimeEntry(WorkUsersSessionsStates session, SessionContext context, LocalDateTime endTime, SessionTimeValues timeValues) {
-        // Use the builder to create worktime entry from session
-        WorkTimeTable entry = SessionEntityBuilder.createWorktimeEntryFromSession(session);
+        try {
+            // Get date from session entry
+            LocalDate workDate = session.getDayStartTime().toLocalDate();
 
-        // Ensure the end time is set properly
-        SessionEntityBuilder.updateWorktimeEntry(entry, builder -> {builder.dayEndTime(endTime).adminSync(SyncStatus.USER_INPUT);});
+            // Get user schedule from context
+            Integer userSchedule = context.getUserService()
+                    .getUserById(session.getUserId())
+                    .map(User::getSchedule)
+                    .orElse(WorkCode.INTERVAL_HOURS_C); // Default to 8 hours if not found
 
-        // Get date from session entry
-        LocalDate workDate = session.getDayStartTime().toLocalDate();
+            // Get schedule info using the query
+            WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
+            WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
 
-        // Save worktime entry using worktime service
-        context.getWorkTimeService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), session.getUsername());
+            // Create worktime entry using the command
+            CreateWorktimeEntryCommand createCommand = context.getCommandFactory()
+                    .createWorktimeEntryCommand(username, userId, session, username);
 
-        LoggerUtil.info(this.getClass(), String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d", username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
+            // Execute the command to get a properly created worktime entry
+            WorkTimeTable entry = context.executeCommand(createCommand);
+
+            // Set the end time on the entry
+            entry.setDayEndTime(endTime);
+            entry.setAdminSync(SyncStatus.USER_INPUT);
+
+            // Calculate overtime using schedule info if needed
+            if (scheduleInfo != null && session.getTotalWorkedMinutes() != null) {
+                int overtimeMinutes = scheduleInfo.calculateOvertimeMinutes(session.getTotalWorkedMinutes());
+                if (overtimeMinutes > 0 && (entry.getTotalOvertimeMinutes() == null || entry.getTotalOvertimeMinutes() == 0)) {
+                    entry.setTotalOvertimeMinutes(overtimeMinutes);
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Updated overtime minutes for user %s: %d minutes",
+                            username, overtimeMinutes));
+                }
+            }
+
+            // Save the worktime entry
+            context.getWorkTimeService().saveWorkTimeEntry(
+                    username,
+                    entry,
+                    workDate.getYear(),
+                    workDate.getMonthValue(),
+                    username
+            );
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
+                    username,
+                    entry.getTotalWorkedMinutes(),
+                    entry.getTotalOvertimeMinutes()
+            ));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Failed to update worktime entry for user %s: %s",
+                    username,
+                    e.getMessage()
+            ));
+        }
     }
 }

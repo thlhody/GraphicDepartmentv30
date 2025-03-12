@@ -24,7 +24,7 @@ public class HasUnresolvedSessionQuery implements SessionQuery<Boolean> {
     public Boolean execute(SessionContext context) {
         try {
             // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = new GetSessionTimeValuesQuery();
+            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
             GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
             // Check for unresolved continuation points from midnight session end
