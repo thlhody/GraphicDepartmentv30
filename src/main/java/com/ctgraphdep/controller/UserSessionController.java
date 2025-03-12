@@ -54,13 +54,11 @@ public class UserSessionController extends BaseController {
             User user = commandService.executeQuery(authQuery);
 
             // Check for unresolved sessions
-            UnresolvedSessionQuery unresolvedQuery = commandFactory.createUnresolvedSessionQuery(
-                    user.getUsername(), user.getUserId());
+            UnresolvedSessionQuery unresolvedQuery = commandFactory.createUnresolvedSessionQuery(user.getUsername(), user.getUserId());
             boolean hasUnresolved = commandService.executeQuery(unresolvedQuery);
 
             if (hasUnresolved) {
-                redirectAttributes.addFlashAttribute("warningMessage",
-                        "Your previous work session needs to be resolved before starting a new day.");
+                redirectAttributes.addFlashAttribute("warningMessage", "Your previous work session needs to be resolved before starting a new day.");
                 return "redirect:/user/session/resolve";
             }
 
@@ -72,28 +70,24 @@ public class UserSessionController extends BaseController {
             model.addAttribute("dashboardUrl", navContext.getDashboardUrl());
 
             // Get and process session
-            ResolveSessionQuery resolveQuery = commandFactory.createResolveSessionQuery(
-                    user.getUsername(), user.getUserId());
+            ResolveSessionQuery resolveQuery = commandFactory.createResolveSessionQuery(user.getUsername(), user.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(resolveQuery);
 
             // Check for previous day session
             IsPreviousDaySessionQuery isPreviousDayQuery = commandFactory.createIsPreviousDaySessionQuery(session);
             if (commandService.executeQuery(isPreviousDayQuery)) {
-                HandlePreviousDaySessionCommand handlePreviousDayCommand =
-                        commandFactory.createHandlePreviousDaySessionCommand(session);
+                HandlePreviousDaySessionCommand handlePreviousDayCommand = commandFactory.createHandlePreviousDaySessionCommand(session);
                 session = commandService.executeCommand(handlePreviousDayCommand);
             }
 
             // Update calculations if session is active
             if (isActiveSession(session)) {
-                UpdateSessionCalculationsCommand updateCommand =
-                        commandFactory.createUpdateSessionCalculationsCommand(session,session.getDayEndTime());
+                UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session,session.getDayEndTime());
                 session = commandService.executeCommand(updateCommand);
             }
 
             // Prepare view model through a dedicated command
-            PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(
-                    model, session, user);
+            PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(model, session, user);
             commandService.executeCommand(viewModelCommand);
 
             return "user/session";
@@ -114,19 +108,16 @@ public class UserSessionController extends BaseController {
             User user = commandService.executeQuery(authQuery);
 
             // Check for unresolved sessions
-            UnresolvedSessionQuery unresolvedQuery = commandFactory.createUnresolvedSessionQuery(
-                    user.getUsername(), user.getUserId());
+            UnresolvedSessionQuery unresolvedQuery = commandFactory.createUnresolvedSessionQuery(user.getUsername(), user.getUserId());
             boolean hasUnresolved = commandService.executeQuery(unresolvedQuery);
 
             if (hasUnresolved) {
-                redirectAttributes.addFlashAttribute("warningMessage",
-                        "Your previous work session needs to be resolved before starting a new day.");
+                redirectAttributes.addFlashAttribute("warningMessage", "Your previous work session needs to be resolved before starting a new day.");
                 return "redirect:/user/session/resolve";
             }
 
             // Execute start day command
-            StartDayCommand command = commandFactory.createStartDayCommand(
-                    user.getUsername(), user.getUserId());
+            StartDayCommand command = commandFactory.createStartDayCommand(user.getUsername(), user.getUserId());
             commandService.executeCommand(command);
 
             return "redirect:/user/session?action=start";
@@ -174,21 +165,18 @@ public class UserSessionController extends BaseController {
             User user = commandService.executeQuery(authQuery);
 
             // Get current session state
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(
-                    user.getUsername(), user.getUserId());
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(user.getUsername(), user.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
             if (session != null) {
                 if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                     // Start temporary stop
-                    StartTemporaryStopCommand command = commandFactory.createStartTemporaryStopCommand(
-                            user.getUsername(), user.getUserId());
+                    StartTemporaryStopCommand command = commandFactory.createStartTemporaryStopCommand(user.getUsername(), user.getUserId());
                     commandService.executeCommand(command);
                     return "redirect:/user/session?action=pause";
                 } else if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
                     // Resume from temporary stop
-                    ResumeFromTemporaryStopCommand command = commandFactory.createResumeFromTemporaryStopCommand(
-                            user.getUsername(), user.getUserId());
+                    ResumeFromTemporaryStopCommand command = commandFactory.createResumeFromTemporaryStopCommand(user.getUsername(), user.getUserId());
                     commandService.executeCommand(command);
                     return "redirect:/user/session?action=resume";
                 }
@@ -212,8 +200,7 @@ public class UserSessionController extends BaseController {
             User user = commandService.executeQuery(authQuery);
 
             // Get current session
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(
-                    user.getUsername(), user.getUserId());
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(user.getUsername(), user.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
             // Check if session is already offline
@@ -222,8 +209,10 @@ public class UserSessionController extends BaseController {
             }
 
             if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
+                GetSessionTimeValuesQuery timeQuery = commandFactory.getSessionTimeValuesQuery();
+                GetSessionTimeValuesQuery.SessionTimeValues timeValues = commandService.executeQuery(timeQuery);
                 // Use current time for normal end of day
-                LocalDateTime currentTime = LocalDateTime.now();
+                LocalDateTime currentTime = timeValues.getCurrentTime();
 
                 // End day using command with current time
                 EndDayCommand command = commandFactory.createEndDayCommand(

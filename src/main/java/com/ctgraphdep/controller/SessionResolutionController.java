@@ -62,8 +62,7 @@ public class SessionResolutionController extends BaseController {
             String username = authentication.getName();
 
             // Get user from UserService
-            User user = userService.getUserByUsername(username)
-                    .orElseThrow(() -> new IllegalStateException("User not found"));
+            User user = userService.getUserByUsername(username).orElseThrow(() -> new IllegalStateException("User not found"));
 
             // Get the current session
             GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
@@ -86,10 +85,8 @@ public class SessionResolutionController extends BaseController {
 
             // Get the date from the session
             LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-
             // Calculate default end time using continuation points or default
             LocalTime defaultEndTime = calculateDefaultEndTime(username, sessionDate);
-
             // Create a simulated end time for initial display
             LocalDateTime simulatedEndTime = LocalDateTime.of(sessionDate, defaultEndTime);
 
@@ -100,14 +97,12 @@ public class SessionResolutionController extends BaseController {
             // Use the commands to ensure temporary stops are correctly processed
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
                 // This ensures any temporary stops are properly finalized for display
-                UpdateLastTemporaryStopCommand updateCommand =
-                        commandFactory.createUpdateLastTemporaryStopCommand(session, simulatedEndTime);
+                UpdateLastTemporaryStopCommand updateCommand = commandFactory.createUpdateLastTemporaryStopCommand(session, simulatedEndTime);
                 commandService.executeCommand(updateCommand);
             }
 
             // Update session calculations with the simulated end time
-            UpdateSessionCalculationsCommand updateCommand =
-                    commandFactory.createUpdateSessionCalculationsCommand(session, simulatedEndTime);
+            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session, simulatedEndTime);
             session = commandService.executeCommand(updateCommand);
 
             // Make sure each temporary stop is properly formatted for display
@@ -130,17 +125,14 @@ public class SessionResolutionController extends BaseController {
             if (session.getTemporaryStops() != null) {
                 LoggerUtil.info(this.getClass(), "Number of temporary stops: " + session.getTemporaryStops().size());
                 for (TemporaryStop stop : session.getTemporaryStops()) {
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Stop: Start=%s, End=%s, Duration=%d",
-                                    stop.getStartTime(), stop.getEndTime(), stop.getDuration()));
+                    LoggerUtil.info(this.getClass(), String.format("Stop: Start=%s, End=%s, Duration=%d", stop.getStartTime(), stop.getEndTime(), stop.getDuration()));
                 }
             } else {
                 LoggerUtil.info(this.getClass(), "Temporary stops list is null");
             }
 
             // IMPORTANT: Format break time explicitly for display
-            int totalTempStopMinutes = session.getTotalTemporaryStopMinutes() != null
-                    ? session.getTotalTemporaryStopMinutes() : 0;
+            int totalTempStopMinutes = session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0;
 
             int tempStopHours = totalTempStopMinutes / 60;
             int tempStopMinutes = totalTempStopMinutes % 60;
@@ -154,8 +146,7 @@ public class SessionResolutionController extends BaseController {
             model.addAttribute("formattedBreakTime", formattedBreakTime);
 
             // Use the PrepareSessionViewModelCommand to ensure consistent formatting
-            PrepareSessionViewModelCommand viewModelCommand =
-                    commandFactory.createPrepareSessionViewModelCommand(model, session, user);
+            PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(model, session, user);
             commandService.executeCommand(viewModelCommand);
 
             // Add additional data specific to the resolution page
@@ -168,19 +159,15 @@ public class SessionResolutionController extends BaseController {
             model.addAttribute("defaultMinute", defaultEndTime.getMinute());
             model.addAttribute("hours", getHoursOptions());
             model.addAttribute("minutes", getMinutesOptions());
-            // Add this after the PrepareSessionViewModelCommand execution
             model.addAttribute("temporaryStops", session.getTemporaryStops());
-
             // Log temporary stops for debugging
             logTemporaryStopsInfo(session);
 
             return "user/session-resolution";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error preparing session resolution page: " + e.getMessage(), e);
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "Error loading session resolution data: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error preparing session resolution page: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "Error loading session resolution data: " + e.getMessage());
             return "redirect:/user/session";
         }
     }
@@ -190,17 +177,10 @@ public class SessionResolutionController extends BaseController {
      */
     private void logTemporaryStopsInfo(WorkUsersSessionsStates session) {
         if (session.getTemporaryStops() != null && !session.getTemporaryStops().isEmpty()) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Session has %d temporary stops totaling %d minutes",
-                            session.getTemporaryStopCount(),
-                            session.getTotalTemporaryStopMinutes()));
+            LoggerUtil.info(this.getClass(), String.format("Session has %d temporary stops totaling %d minutes", session.getTemporaryStopCount(), session.getTotalTemporaryStopMinutes()));
 
             session.getTemporaryStops().forEach(stop -> {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Temporary stop: %s to %s (duration: %d minutes)",
-                                stop.getStartTime(),
-                                stop.getEndTime(),
-                                stop.getDuration()));
+                LoggerUtil.info(this.getClass(), String.format("Temporary stop: %s to %s (duration: %d minutes)", stop.getStartTime(), stop.getEndTime(), stop.getDuration()));
             });
         } else {
             LoggerUtil.info(this.getClass(), "Session has no temporary stops");
@@ -218,21 +198,17 @@ public class SessionResolutionController extends BaseController {
 
             if (!continuationPoints.isEmpty()) {
                 // Find the continuation point with the latest timestamp
-                Optional<ContinuationPoint> latestPoint = continuationPoints.stream()
-                        .max(Comparator.comparing(ContinuationPoint::getTimestamp));
-
+                Optional<ContinuationPoint> latestPoint = continuationPoints.stream().max(Comparator.comparing(ContinuationPoint::getTimestamp));
                 // Since we checked the list isn't empty, we know latestPoint will have a value
                 if (latestPoint.get().getTimestamp() != null) {
                     LocalTime pointTime = latestPoint.get().getTimestamp().toLocalTime();
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Using continuation point time for default: %s", pointTime));
+                    LoggerUtil.info(this.getClass(), String.format("Using continuation point time for default: %s", pointTime));
                     return pointTime;
                 }
             }
 
             // If no continuation point, use WorkScheduleQuery to get expected end time
-            User user = userService.getUserByUsername(username)
-                    .orElseThrow(() -> new IllegalStateException("User not found"));
+            User user = userService.getUserByUsername(username).orElseThrow(() -> new IllegalStateException("User not found"));
 
             WorkScheduleQuery query = commandFactory.createWorkScheduleQuery(sessionDate, user.getSchedule());
             WorkScheduleQuery.ScheduleInfo scheduleInfo = commandService.executeQuery(query);
@@ -240,7 +216,7 @@ public class SessionResolutionController extends BaseController {
             return scheduleInfo.getExpectedEndTime();
         } catch (Exception e) {
             LoggerUtil.warn(this.getClass(), "Error calculating default end time: " + e.getMessage());
-            return LocalTime.of(17, 0); // Fallback to 5:00 PM
+            return LocalTime.of(15, 30); // Fallback to 3:30 PM
         }
     }
 
@@ -252,8 +228,7 @@ public class SessionResolutionController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Resolving session - Received Hour: %d, Minute: %d", endHour, endMinute));
+            LoggerUtil.debug(this.getClass(), String.format("Resolving session - Received Hour: %d, Minute: %d", endHour, endMinute));
 
             // Ensure authentication is not null
             if (authentication == null) {
@@ -265,8 +240,7 @@ public class SessionResolutionController extends BaseController {
             String username = authentication.getName();
 
             // Get user from UserService
-            User user = userService.getUserByUsername(username)
-                    .orElseThrow(() -> new IllegalStateException("User not found"));
+            User user = userService.getUserByUsername(username).orElseThrow(() -> new IllegalStateException("User not found"));
 
             // Get the current session
             GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
@@ -285,8 +259,7 @@ public class SessionResolutionController extends BaseController {
             LoggerUtil.debug(this.getClass(), String.format("Resolving session - User selected time: %s from session date %s", endTime, sessionDate));
 
             // Use the ResolveSessionCommand to handle the resolution logic
-            ResolveSessionCommand resolveCommand = commandFactory.createResolveSessionCommand(
-                    username, user.getUserId(), endTime);
+            ResolveSessionCommand resolveCommand = commandFactory.createResolveSessionCommand(username, user.getUserId(), endTime);
             commandService.executeCommand(resolveCommand);
 
             redirectAttributes.addFlashAttribute("successMessage", "Previous session resolved successfully");
@@ -294,10 +267,8 @@ public class SessionResolutionController extends BaseController {
             return "redirect:/user/session";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error resolving session: " + e.getMessage(), e);
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "Failed to resolve session: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error resolving session: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "Failed to resolve session: " + e.getMessage());
             return "redirect:/user/session/resolve";
         }
     }
@@ -318,8 +289,7 @@ public class SessionResolutionController extends BaseController {
             String username = authentication.getName();
 
             // Get user from UserService
-            User user = userService.getUserByUsername(username)
-                    .orElseThrow(() -> new IllegalStateException("User not found"));
+            User user = userService.getUserByUsername(username).orElseThrow(() -> new IllegalStateException("User not found"));
 
             // Get the current session
             GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
@@ -332,9 +302,8 @@ public class SessionResolutionController extends BaseController {
 
             // Get session date
             LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-
-            // Use default end time (17:00)
-            LocalDateTime endTime = LocalDateTime.of(sessionDate, LocalTime.of(17, 0));
+            // Use default end time (15:30)
+            LocalDateTime endTime = LocalDateTime.of(sessionDate, LocalTime.of(15, 30));
 
             // If session was in temporary stop, resume first
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
@@ -347,17 +316,11 @@ public class SessionResolutionController extends BaseController {
             int standardMinutes = user.getSchedule() * 60; // Standard schedule in minutes
 
             // End the session
-            EndDayCommand endCommand = commandFactory.createEndDayCommand(
-                    username,
-                    user.getUserId(),
-                    standardMinutes,
-                    endTime);  // Pass the explicit end time
-
+            EndDayCommand endCommand = commandFactory.createEndDayCommand(username, user.getUserId(), standardMinutes, endTime);
             commandService.executeCommand(endCommand);
 
             // Mark continuation points as resolved (no overtime)
-            ResolveContinuationPointsCommand resolvePointsCommand = commandFactory.createResolveContinuationPointsCommand(
-                    username, sessionDate, username, 0);
+            ResolveContinuationPointsCommand resolvePointsCommand = commandFactory.createResolveContinuationPointsCommand(username, sessionDate, username, 0);
             commandService.executeCommand(resolvePointsCommand);
 
             redirectAttributes.addFlashAttribute("infoMessage", "Session resolution skipped. Standard schedule recorded.");
