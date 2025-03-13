@@ -39,7 +39,7 @@ public class SecurityConfig {
             http
                     .authenticationProvider(authenticationProvider)
                     .authorizeHttpRequests(authorize -> authorize
-                            .requestMatchers("/", "/about", "/css/**", "/images/**", "/icons/**", "/api/system/status", "/autologin").permitAll()
+                            .requestMatchers("/", "/about", "/css/**", "/images/**", "/icons/**", "/api/system/status", "/autologin", "/update/**").permitAll()
                             .requestMatchers("/admin/**").hasRole("ADMIN")
                             .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
                             .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")

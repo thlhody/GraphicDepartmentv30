@@ -4,7 +4,7 @@ const ACTION_TYPE_VALUES = {
     'REORDIN': 1.0,
     'CAMPION': 2.5,
     'PROBA STAMPA': 2.5,
-    'ORD SPIZED': 2.0,
+    'ORDIN SPIZED': 2.0,
     'PROBA CULOARE': 2.5,
     'CARTELA CULORI': 2.5,
     'DESIGN': 2.5,
@@ -192,7 +192,7 @@ class RegisterFormHandler {
         // Special cases first
         if (actionType === 'IMPOSTARE') return 0.0;
         if (actionType === 'REORDIN') return 1.0;
-        if (actionType === 'ORD SPIZED') return 2.0;
+        if (actionType === 'ORDIN SPIZED') return 2.0;
         if (actionType === 'DESIGN 3D') return 3.0;
 
         // Fixed value actions

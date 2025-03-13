@@ -123,7 +123,7 @@
                                     </a>
 
                                     <!-- Work Time button renamed to WT -->
-                                    <a th:href="@{/user/worktime(username=${status.username})}"
+                                    <a th:href="@{/status/worktime-status(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning"
                                        th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
                                         <i class="bi bi-clock me-1"></i>WT
@@ -181,7 +181,7 @@
                                     </a>
 
                                     <!-- Work Time button renamed to WT -->
-                                    <a th:href="@{/user/worktime(username=${status.username})}"
+                                    <a th:href="@{/status/worktime-status(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning"
                                        th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
                                         <i class="bi bi-clock me-1"></i>WT
@@ -239,7 +239,7 @@
                                     </a>
 
                                     <!-- Work Time button renamed to WT -->
-                                    <a th:href="@{/user/worktime(username=${status.username})}"
+                                    <a th:href="@{/status/worktime-status(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning"
                                        th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
                                         <i class="bi bi-clock me-1"></i>WT

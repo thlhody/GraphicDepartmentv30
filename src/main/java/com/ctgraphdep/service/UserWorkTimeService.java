@@ -70,7 +70,6 @@ public class UserWorkTimeService {
         throw new RuntimeException("Network access required to view other users' worktime");
     }
 
-    // In UserWorkTimeService
     @PreAuthorize("hasAnyRole('ADMIN', 'TEAM_LEADER')")
     public List<WorkTimeTable> loadViewOnlyWorktime(String username, int year, int month) {
         validatePeriod(year, month);

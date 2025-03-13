@@ -21,7 +21,8 @@ public class SaveSessionCommand implements SessionCommand<WorkUsersSessionsState
             // Use DataAccessService to write session file
             context.getDataAccessService().writeLocalSessionFile(session);
 
-            // Update session status in database
+            // Also update the user's status in the centralized status system
+            // This ensures that the status is always in sync with the session file
             context.getSessionStatusService().updateSessionStatus(session);
 
             LoggerUtil.debug(this.getClass(), String.format("Saved session for user %s", session.getUsername()));

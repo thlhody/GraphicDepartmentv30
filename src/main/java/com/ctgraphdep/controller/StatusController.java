@@ -3,18 +3,11 @@ package com.ctgraphdep.controller;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepTypes;
-import com.ctgraphdep.model.RegisterEntry;
-import com.ctgraphdep.model.TimeOffSummary;
-import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.UserStatusDTO;
-import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.service.FolderStatusService;
-import com.ctgraphdep.service.OnlineMetricsService;
-import com.ctgraphdep.service.UserRegisterService;
-import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.UserTimeOffService;
+import com.ctgraphdep.model.*;
+import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserRegisterExcelExporter;
+import com.ctgraphdep.utils.UserWorktimeExcelExporter;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -31,35 +24,28 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
 import java.time.Year;
-import java.time.YearMonth;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
 @Controller
 @RequestMapping("/status")
 @PreAuthorize("isAuthenticated()")
 public class StatusController extends BaseController {
-    private final OnlineMetricsService onlineMetricsService;
+    private final StatusService statusService;
     private final UserTimeOffService userTimeOffService;
-    private final UserRegisterService userRegisterService;
     private final UserRegisterExcelExporter excelExporter;
+    private final UserWorktimeExcelExporter userWorktimeExcelExporter;
 
-    public StatusController(
-            UserService userService,
-            FolderStatusService folderStatusService,
-            OnlineMetricsService onlineMetricsService,
-            UserTimeOffService userTimeOffService,
-            UserRegisterService userRegisterService,
-            UserRegisterExcelExporter excelExporter) {
+    public StatusController(UserService userService,
+                            FolderStatusService folderStatusService,
+                            StatusService statusService,
+                            UserTimeOffService userTimeOffService,
+                            UserRegisterExcelExporter excelExporter,
+                            UserWorktimeExcelExporter userWorktimeExcelExporter) {
         super(userService, folderStatusService);
-        this.onlineMetricsService = onlineMetricsService;
+        this.statusService = statusService;
         this.userTimeOffService = userTimeOffService;
-        this.userRegisterService = userRegisterService;
         this.excelExporter = excelExporter;
+        this.userWorktimeExcelExporter = userWorktimeExcelExporter;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -75,9 +61,9 @@ public class StatusController extends BaseController {
 
         LoggerUtil.debug(this.getClass(), String.format("Determined Dashboard URL for %s: %s", currentUser.getUsername(), dashboardUrl));
 
-        // Get filtered status list for non-admin users
-        List<UserStatusDTO> userStatuses = onlineMetricsService.getUserStatuses();
-        long onlineCount = userStatuses.stream().filter(status -> "Online".equals(status.getStatus())).count();
+        // Get filtered status list using the StatusService
+        List<UserStatusDTO> userStatuses = statusService.getUserStatuses();
+        long onlineCount = statusService.getUserStatusCount("online");
 
         // Add model attributes
         model.addAttribute("userStatuses", userStatuses);
@@ -136,16 +122,18 @@ public class StatusController extends BaseController {
             boolean isSearching = hasSearchCriteria(searchTerm, startDate, endDate, actionType, printPrepTypes, clientName);
 
             if (isSearching) {
-                // Load entries based on search criteria
-                entries = loadEntriesForSearch(targetUser, searchTerm, startDate, endDate,
-                        actionType, printPrepTypes, clientName, year, month, displayYear, displayMonth);
+                // Load entries based on search criteria using StatusService
+                entries = statusService.loadRegisterEntriesForSearch(
+                        targetUser, searchTerm, startDate, endDate,
+                        actionType, printPrepTypes, clientName,
+                        year, month, displayYear, displayMonth);
 
                 LoggerUtil.info(this.getClass(),
                         String.format("Register search completed for user %s: found %d entries",
                                 targetUser.getUsername(), entries.size()));
             } else {
                 // No search criteria - just load the current display period
-                entries = loadEntriesForPeriod(targetUser, displayYear, displayMonth);
+                entries = statusService.loadRegisterEntriesForPeriod(targetUser, displayYear, displayMonth);
 
                 LoggerUtil.info(this.getClass(),
                         String.format("Displaying register entries for user %s (%d/%d): %d entries",
@@ -156,8 +144,9 @@ public class StatusController extends BaseController {
             model.addAttribute("entries", entries);
 
             // Extract unique clients for dropdown (from current period if not searching)
-            List<RegisterEntry> clientSourceEntries = isSearching ? entries : loadEntriesForPeriod(targetUser, displayYear, displayMonth);
-            Set<String> clients = extractUniqueClients(clientSourceEntries);
+            List<RegisterEntry> clientSourceEntries = isSearching ? entries :
+                    statusService.loadRegisterEntriesForPeriod(targetUser, displayYear, displayMonth);
+            Set<String> clients = statusService.extractUniqueClients(clientSourceEntries);
             model.addAttribute("clients", clients);
 
             return "status/register-search";
@@ -195,12 +184,12 @@ public class StatusController extends BaseController {
                 targetUser = currentUser;
             }
 
-            // Load entries
-            List<RegisterEntry> allEntries = loadAllRelevantEntries(targetUser, year, month, startDate, endDate);
+            // Load all relevant entries
+            List<RegisterEntry> allEntries = statusService.loadAllRelevantEntries(targetUser, year, month, startDate, endDate);
 
-            // Apply filters
-            List<RegisterEntry> filteredEntries = filterEntries(allEntries, searchTerm, startDate, endDate,
-                    actionType, printPrepTypes, clientName);
+            // Apply filters using StatusService
+            List<RegisterEntry> filteredEntries = statusService.filterRegisterEntries(
+                    allEntries, searchTerm, startDate, endDate, actionType, printPrepTypes, clientName);
 
             // Generate Excel file
             byte[] excelData = excelExporter.exportToExcel(targetUser, filteredEntries,
@@ -220,6 +209,7 @@ public class StatusController extends BaseController {
         }
     }
 
+    // In StatusController.java - update getTimeOffHistory
     @GetMapping("/timeoff-history")
     public String getTimeOffHistory(
             @RequestParam(required = false) Integer userId,
@@ -257,11 +247,11 @@ public class StatusController extends BaseController {
 
             User user = userOpt.get();
 
-            // Get time off records
-            List<WorkTimeTable> timeOffs = userTimeOffService.getUserTimeOffHistory(user.getUsername(), year);
+            // Get time off records using the read-only method
+            List<WorkTimeTable> timeOffs = userTimeOffService.getUserTimeOffHistoryReadOnly(user.getUsername(), year);
 
-            // Calculate time off summary
-            TimeOffSummary summary = userTimeOffService.calculateTimeOffSummary(user.getUsername(), year);
+            // Calculate time off summary using StatusService
+            TimeOffSummary summary = statusService.getTimeOffSummary(user.getUsername(), year);
 
             // Add data to model
             model.addAttribute("user", user);
@@ -278,9 +268,116 @@ public class StatusController extends BaseController {
         }
     }
 
-    // Helper methods
+    @GetMapping("/worktime-status")
+    public String getWorktimeStatus(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            Model model,
+            RedirectAttributes redirectAttributes) {
 
-    // Helper to determine target user based on permissions
+        try {
+            // Get current authenticated user
+            User currentUser = getUser(userDetails);
+
+            // Determine target user (user being viewed)
+            User targetUser;
+            if (username != null && !username.isEmpty()) {
+                targetUser = getUserService().getUserByUsername(username)
+                        .orElseThrow(() -> new RuntimeException("User not found"));
+            } else {
+                targetUser = currentUser;
+            }
+
+            // Set up current year and month
+            LocalDate now = LocalDate.now();
+            int currentYear = year != null ? year : now.getYear();
+            int currentMonth = month != null ? month : now.getMonthValue();
+
+            // For other users' data, only admins and team leaders can view
+            boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) &&
+                    !currentUser.hasRole("ADMIN") && !currentUser.hasRole("TEAM_LEADER");
+
+            if (canViewOtherUser) {
+                redirectAttributes.addFlashAttribute("errorMessage",
+                        "You don't have permission to view other users' worktime data");
+                return "redirect:/status";
+            }
+
+            // Load work time data using StatusService (read-only operation)
+            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(
+                    targetUser.getUsername(), targetUser.getUserId(), currentYear, currentMonth);
+
+            // Prepare display data using StatusService
+            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(
+                    targetUser, worktimeData, currentYear, currentMonth);
+
+            // Add all data to model
+            model.addAllAttributes(displayData);
+
+            return "status/worktime-status";
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting worktime status: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "Error loading worktime data: " + e.getMessage());
+            return "redirect:/status";
+        }
+    }
+
+    @GetMapping("/worktime-status/export")
+    public ResponseEntity<byte[]> exportWorktimeData(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month) {
+        try {
+            // Get current authenticated user
+            User currentUser = getUser(userDetails);
+
+            // Determine target user
+            User targetUser;
+            if (username != null && !username.isEmpty()) {
+                targetUser = getUserService().getUserByUsername(username)
+                        .orElseThrow(() -> new RuntimeException("User not found"));
+            } else {
+                targetUser = currentUser;
+            }
+
+            // Set up current year and month if not specified
+            LocalDate now = LocalDate.now();
+            int exportYear = year != null ? year : now.getYear();
+            int exportMonth = month != null ? month : now.getMonthValue();
+
+            // Load worktime data using StatusService
+            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(
+                    targetUser.getUsername(), targetUser.getUserId(), exportYear, exportMonth);
+
+            // Get display data which includes the summary
+            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(
+                    targetUser, worktimeData, exportYear, exportMonth);
+
+            // Extract the summary
+            WorkTimeSummary summary = (WorkTimeSummary) displayData.get("summary");
+
+            // Use the exporter to generate Excel data
+            byte[] excelData = userWorktimeExcelExporter.exportToExcel(
+                    targetUser, worktimeData, summary, exportYear, exportMonth);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
+                                    targetUser.getUsername(), exportYear, exportMonth))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(excelData);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    // Helper method to determine target user based on permissions
     private User determineTargetUser(User currentUser, String requestedUsername) {
         if (requestedUsername == null || requestedUsername.isEmpty()) {
             return currentUser;
@@ -299,249 +396,5 @@ public class StatusController extends BaseController {
                 (actionType != null && !actionType.trim().isEmpty()) ||
                 (printPrepTypes != null && !printPrepTypes.trim().isEmpty()) ||
                 (clientName != null && !clientName.trim().isEmpty());
-    }
-
-    // Helper to load entries for a specific period
-    private List<RegisterEntry> loadEntriesForPeriod(User user, int year, int month) {
-        List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
-                user.getUsername(), user.getUserId(), year, month);
-
-        return entries != null ? entries : new ArrayList<>();
-    }
-
-    // Helper to load and filter entries based on search criteria
-    private List<RegisterEntry> loadEntriesForSearch(User user, String searchTerm, LocalDate startDate,
-                                                     LocalDate endDate, String actionType, String printPrepTypes,
-                                                     String clientName, Integer requestedYear, Integer requestedMonth,
-                                                     int displayYear, int displayMonth) {
-
-        List<RegisterEntry> entriesToSearch;
-
-        // Case 1: Date range specified that spans multiple months
-        if (startDate != null && endDate != null && !YearMonth.from(startDate).equals(YearMonth.from(endDate))) {
-            entriesToSearch = loadEntriesForDateRange(user, startDate, endDate);
-        }
-        // Case 2: Specific year/month requested different from display defaults
-        else if (requestedYear != null || requestedMonth != null) {
-            int searchYear = requestedYear != null ? requestedYear : displayYear;
-            int searchMonth = requestedMonth != null ? requestedMonth : displayMonth;
-            entriesToSearch = loadEntriesForPeriod(user, searchYear, searchMonth);
-        }
-        // Case 3: Use the current display period
-        else {
-            entriesToSearch = loadEntriesForPeriod(user, displayYear, displayMonth);
-        }
-
-        // Apply all filters
-        return filterEntries(
-                entriesToSearch,
-                searchTerm,
-                startDate,
-                endDate,
-                actionType,
-                printPrepTypes,
-                clientName);
-    }
-
-
-    private List<RegisterEntry> loadAllRelevantEntries(User user, Integer year, Integer month,
-                                                       LocalDate startDate, LocalDate endDate) {
-        List<RegisterEntry> allEntries = new ArrayList<>();
-
-        // If specific year and month provided
-        if (year != null && month != null) {
-            List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), year, month);
-            if (monthEntries != null) {
-                allEntries.addAll(monthEntries);
-            }
-            return allEntries;
-        }
-
-        // If date range provided, load all months in range
-        if (startDate != null && endDate != null) {
-            YearMonth start = YearMonth.from(startDate);
-            YearMonth end = YearMonth.from(endDate);
-
-            YearMonth current = start;
-            while (!current.isAfter(end)) {
-                try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                            user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
-                    if (monthEntries != null) {
-                        allEntries.addAll(monthEntries);
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Error loading entries for %s - %d/%d: %s",
-                                    user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
-                }
-                current = current.plusMonths(1);
-            }
-            return allEntries;
-        }
-
-        // If only start date provided
-        if (startDate != null) {
-            YearMonth start = YearMonth.from(startDate);
-            YearMonth now = YearMonth.now();
-
-            YearMonth current = start;
-            while (!current.isAfter(now)) {
-                try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                            user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
-                    if (monthEntries != null) {
-                        allEntries.addAll(monthEntries);
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Error loading entries for %s - %d/%d: %s",
-                                    user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
-                }
-                current = current.plusMonths(1);
-            }
-            return allEntries;
-        }
-
-        // If only year provided, load all months for that year
-        if (year != null) {
-            for (int m = 1; m <= 12; m++) {
-                try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                            user.getUsername(), user.getUserId(), year, m);
-                    if (monthEntries != null) {
-                        allEntries.addAll(monthEntries);
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Error loading entries for %s - %d/%d: %s",
-                                    user.getUsername(), year, m, e.getMessage()));
-                }
-            }
-            return allEntries;
-        }
-
-        // Default: load current month and previous month
-        LocalDate now = LocalDate.now();
-        try {
-            List<RegisterEntry> currentMonthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), now.getYear(), now.getMonthValue());
-            if (currentMonthEntries != null) {
-                allEntries.addAll(currentMonthEntries);
-            }
-
-            // Previous month
-            LocalDate prevMonth = now.minusMonths(1);
-            List<RegisterEntry> prevMonthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), prevMonth.getYear(), prevMonth.getMonthValue());
-            if (prevMonthEntries != null) {
-                allEntries.addAll(prevMonthEntries);
-            }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("Error loading recent entries for %s: %s",
-                            user.getUsername(), e.getMessage()));
-        }
-
-        return allEntries;
-    }
-
-    // Helper method to load entries for a specific date range (might span multiple months)
-    private List<RegisterEntry> loadEntriesForDateRange(User user, LocalDate startDate, LocalDate endDate) {
-        List<RegisterEntry> allEntries = new ArrayList<>();
-
-        YearMonth start = YearMonth.from(startDate);
-        YearMonth end = YearMonth.from(endDate);
-
-        YearMonth current = start;
-        while (!current.isAfter(end)) {
-            try {
-                List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                        user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
-
-                if (monthEntries != null) {
-                    allEntries.addAll(monthEntries);
-                }
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Error loading entries for %s - %d/%d: %s",
-                                user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
-            }
-
-            current = current.plusMonths(1);
-        }
-
-        return allEntries;
-    }
-
-
-    private List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
-                                              String searchTerm,
-                                              LocalDate startDate,
-                                              LocalDate endDate,
-                                              String actionType,
-                                              String printPrepTypes,
-                                              String clientName) {
-        List<RegisterEntry> filteredEntries = new ArrayList<>(entries);
-
-        // Filter by search term (search across multiple fields)
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String term = searchTerm.toLowerCase();
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry ->
-                            (entry.getOrderId() != null && entry.getOrderId().toLowerCase().contains(term)) ||
-                                    (entry.getProductionId() != null && entry.getProductionId().toLowerCase().contains(term)) ||
-                                    (entry.getOmsId() != null && entry.getOmsId().toLowerCase().contains(term)) ||
-                                    (entry.getClientName() != null && entry.getClientName().toLowerCase().contains(term)) ||
-                                    (entry.getActionType() != null && entry.getActionType().toLowerCase().contains(term)) ||
-                                    (entry.getObservations() != null && entry.getObservations().toLowerCase().contains(term))
-                    )
-                    .collect(Collectors.toList());
-        }
-
-        // Filter by date range
-        if (startDate != null) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> !entry.getDate().isBefore(startDate))
-                    .collect(Collectors.toList());
-        }
-
-        if (endDate != null) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> !entry.getDate().isAfter(endDate))
-                    .collect(Collectors.toList());
-        }
-
-        // Filter by action type
-        if (actionType != null && !actionType.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> actionType.equals(entry.getActionType()))
-                    .collect(Collectors.toList());
-        }
-
-        // Filter by print prep type
-        if (printPrepTypes != null && !printPrepTypes.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> entry.getPrintPrepTypes() != null &&
-                            entry.getPrintPrepTypes().contains(printPrepTypes))
-                    .collect(Collectors.toList());
-        }
-
-        // Filter by client name
-        if (clientName != null && !clientName.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> clientName.equals(entry.getClientName()))
-                    .collect(Collectors.toList());
-        }
-
-        return filteredEntries;
-    }
-
-    private Set<String> extractUniqueClients(List<RegisterEntry> entries) {
-        return entries.stream()
-                .map(RegisterEntry::getClientName)
-                .filter(name -> name != null && !name.isEmpty())
-                .collect(Collectors.toCollection(HashSet::new));
     }
 }

@@ -102,9 +102,9 @@ public class UserRegisterExcelExporter {
 
         // Add summary rows
         addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Total Entries", String.valueOf(entries.size()));
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Total (No Impostare)", String.valueOf(nonImpostareEntries.size()));
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Average Articles (No Impostare)", String.format("%.2f", avgArticles));
-        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Average CG (No Impostare)", String.format("%.2f", avgComplexity));
+        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Total (Fara Impostare)", String.valueOf(nonImpostareEntries.size()));
+        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Average Articles (Fara Impostare)", String.format("%.2f", avgArticles));
+        addSummaryRow(sheet, styles, currentRow.getAndIncrement(), "Average CG (Fara Impostare)", String.format("%.2f", avgComplexity));
 
         currentRow.getAndIncrement(); // Add spacing
 

@@ -372,4 +372,61 @@ public class UserTimeOffService {
             throw new RuntimeException("Failed to save time off entries", e);
         }
     }
+
+    public List<WorkTimeTable> getUserTimeOffHistoryReadOnly(String username, Integer year) {
+        LoggerUtil.info(this.getClass(),
+                String.format("Fetching time off history for user %s for year %d", username, year));
+
+        // Use read-only method from DataAccessService
+        return dataAccessService.readTimeOffReadOnly(username, year);
+    }
+
+    //Gets time off records for status display using optimized read-only operations
+    public List<WorkTimeTable> getUserTimeOffHistoryReadOnly(String username, int year) {
+        LoggerUtil.info(this.getClass(),
+                String.format("Fetching time off history for user %s for year %d", username, year));
+
+        // Use read-only method from DataAccessService to get all worktime entries
+        List<WorkTimeTable> timeOffEntries = dataAccessService.readTimeOffReadOnly(username, year);
+
+        // Sort descending by date
+        return timeOffEntries.stream()
+                .sorted((a, b) -> b.getWorkDate().compareTo(a.getWorkDate()))
+                .collect(Collectors.toList());
+    }
+
+    // Calculate time off summary for status display using optimized read-only operations
+    public TimeOffSummary calculateTimeOffSummaryReadOnly(String username, int year) {
+        List<WorkTimeTable> timeOffEntries = getUserTimeOffHistoryReadOnly(username, year);
+
+        // Count different time off types
+        int snDays = 0, coDays = 0, cmDays = 0;
+
+        for (WorkTimeTable entry : timeOffEntries) {
+            if (entry.getTimeOffType() != null) {
+                switch (entry.getTimeOffType()) {
+                    case "SN" -> snDays++;
+                    case "CO" -> coDays++;
+                    case "CM" -> cmDays++;
+                }
+            }
+        }
+
+        // Get available paid days - use a simplified version without writing to holiday file
+        int availablePaidDays = 21;  // Default value
+        int remainingPaidDays = availablePaidDays - coDays;
+        if (remainingPaidDays < 0) {
+            remainingPaidDays = 0;
+        }
+
+        // Build and return the summary
+        return TimeOffSummary.builder()
+                .snDays(snDays)
+                .coDays(coDays)
+                .cmDays(cmDays)
+                .availablePaidDays(availablePaidDays)
+                .paidDaysTaken(coDays)
+                .remainingPaidDays(remainingPaidDays)
+                .build();
+    }
 }

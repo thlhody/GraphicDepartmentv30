@@ -137,15 +137,15 @@ public class AdminStatisticsService {
         for (int month = 1; month <= 12; month++) {
             List<RegisterEntry> entries = getAllEntriesForMonth(year, month);
 
-            // Count regular entries (excluding IMPOSTARE and ORD SPIZED)
+            // Count regular entries (excluding IMPOSTARE and ORDIN SPIZED)
             int regularCount = (int) entries.stream()
                     .filter(entry -> !"IMPOSTARE".equals(entry.getActionType())
-                            && !"ORD SPIZED".equals(entry.getActionType()))
+                            && !"ORDIN SPIZED".equals(entry.getActionType()))
                     .count();
 
-            // Count ORD SPIZED entries
+            // Count ORDIN SPIZED entries
             int spizedCount = (int) entries.stream()
-                    .filter(entry -> "ORD SPIZED".equals(entry.getActionType()))
+                    .filter(entry -> "ORDIN SPIZED".equals(entry.getActionType()))
                     .count();
 
             regularEntries.put(months[month - 1], regularCount);

@@ -14,11 +14,13 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 @Service
 public class DataAccessService {
@@ -722,6 +724,156 @@ public class DataAccessService {
             Files.deleteIfExists(lockFile);
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(), String.format("Error removing lock file %s: %s", lockFile.getFileName(), e.getMessage()));
+        }
+    }
+
+    // In DataAccessService.java
+    /**
+     * Reads a file without creating backups or locks (read-only operation)
+     * @param path The path to read from
+     * @param typeRef The type reference for deserialization
+     * @return The deserialized object or null if file not found/invalid
+     */
+    private <T> T readFileReadOnly(Path path, TypeReference<T> typeRef) {
+        try {
+            // Check if file exists and has content
+            if (Files.exists(path) && Files.size(path) >= 3) {
+                byte[] content = Files.readAllBytes(path);
+                return objectMapper.readValue(content, typeRef);
+            }
+
+            // Try backup if main file doesn't exist or is corrupted
+            Path backupPath = path.resolveSibling(path.getFileName() + WorkCode.BACKUP_EXTENSION);
+            if (Files.exists(backupPath) && Files.size(backupPath) >= 3) {
+                byte[] content = Files.readAllBytes(backupPath);
+                return objectMapper.readValue(content, typeRef);
+            }
+
+            return null;
+        } catch (IOException e) {
+            LoggerUtil.debug(this.getClass(), "Error in read-only file access: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Read user worktime data in read-only mode (no locks, no backups)
+     * Optimized for status display
+     */
+    public List<WorkTimeTable> readWorktimeReadOnly(String username, int year, int month) {
+        try {
+            // First try network if available
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkPath = pathConfig.getNetworkWorktimePath(username, year, month);
+                List<WorkTimeTable> entries = readFileReadOnly(networkPath, new TypeReference<>() {});
+                if (entries != null) {
+                    return entries;
+                }
+            }
+
+            // Fall back to local file
+            Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
+            List<WorkTimeTable> entries = readFileReadOnly(localPath, new TypeReference<>() {});
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Read-only worktime access failed for %s - %d/%d: %s",
+                            username, year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Read register entries in read-only mode (no locks, no backups)
+     * Optimized for status display
+     */
+    public List<RegisterEntry> readRegisterReadOnly(String username, Integer userId, int year, int month) {
+        try {
+            // Try network first if available
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
+                List<RegisterEntry> entries = readFileReadOnly(networkPath, new TypeReference<>() {});
+                if (entries != null) {
+                    return entries;
+                }
+            }
+
+            // Fall back to local file
+            Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
+            List<RegisterEntry> entries = readFileReadOnly(localPath, new TypeReference<>() {});
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Read-only register access failed for %s - %d/%d: %s",
+                            username, year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Read time off entries in read-only mode
+     * Optimized for status display
+     */
+    public List<WorkTimeTable> readTimeOffReadOnly(String username, int year) {
+        List<WorkTimeTable> allEntries = new ArrayList<>();
+
+        // Only load last 12 months to improve performance
+        int currentMonth = LocalDate.now().getMonthValue();
+        int currentYear = LocalDate.now().getYear();
+
+        // Calculate start month/year (12 months ago)
+        int startYear = year;
+
+        // Only process months for the requested year
+        for (int month = 1; month <= 12; month++) {
+            // Skip future months
+            if (year > currentYear || (year == currentYear && month > currentMonth)) {
+                continue;
+            }
+
+            try {
+                List<WorkTimeTable> monthEntries = readWorktimeReadOnly(username, year, month);
+                if (monthEntries != null) {
+                    // Filter for time off entries only
+                    List<WorkTimeTable> timeOffEntries = monthEntries.stream()
+                            .filter(entry -> entry.getTimeOffType() != null)
+                            .toList();
+                    allEntries.addAll(timeOffEntries);
+                }
+            } catch (Exception e) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Read-only time-off access failed for %s - %d/%d: %s",
+                                username, year, month, e.getMessage()));
+                // Continue with next month
+            }
+        }
+
+        return allEntries;
+    }
+
+    /**
+     * Read holiday entries in read-only mode (no updates to cache)
+     * Optimized for status display
+     */
+    public List<PaidHolidayEntry> readHolidayEntriesReadOnly() {
+        Path networkPath = pathConfig.getNetworkHolidayPath();
+        Path localCachePath = pathConfig.getHolidayCachePath();
+
+        try {
+            // Try network first
+            if (pathConfig.isNetworkAvailable()) {
+                List<PaidHolidayEntry> networkEntries = readFileReadOnly(networkPath, new TypeReference<>() {});
+                if (networkEntries != null) {
+                    return networkEntries;
+                }
+            }
+
+            // Fall back to cache if network unavailable or read failed
+            return readFileReadOnly(localCachePath, new TypeReference<>() {});
+        } catch (Exception e) {
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Read-only holiday access failed: %s", e.getMessage()));
+            return new ArrayList<>();
         }
     }
 
