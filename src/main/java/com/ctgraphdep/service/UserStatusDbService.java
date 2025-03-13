@@ -6,80 +6,46 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusDTO;
 import com.ctgraphdep.model.db.UserStatusRecord;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Stream;
-
+import java.util.Map;
 /**
  * Service for managing user session status with per-user database files.
- * Each user writes only to their own status file, eliminating concurrent write issues.
+ * Uses DataAccessService for file operations to maintain consistency with other services.
  */
 @Service
 public class UserStatusDbService {
 
-    private final PathConfig pathConfig;
     private final UserService userService;
-    private final ObjectMapper objectMapper;
+    private final DataAccessService dataAccessService;
+
+    @Value("${user.status.cache.timeout:900}")
+    private long cacheTimeoutSeconds;
 
     // Cache for status DTOs
     private volatile List<UserStatusDTO> cachedStatuses = null;
     private volatile LocalDateTime cacheTimestamp = null;
-    private static final long CACHE_TTL_SECONDS = 900; // Cache valid for 15 minutes
 
-    // Path to the status DB directory
-    private Path statusDbDir;
+    // Cache for online/active counts
+    private volatile int cachedOnlineCount = 0;
+    private volatile int cachedActiveCount = 0;
+    private volatile LocalDateTime countCacheTimestamp = null;
 
     @Autowired
-    public UserStatusDbService(PathConfig pathConfig, UserService userService, ObjectMapper objectMapper) {
-        this.pathConfig = pathConfig;
+    public UserStatusDbService(
+            UserService userService,
+            DataAccessService dataAccessService) {
         this.userService = userService;
-        this.objectMapper = objectMapper;
-        initStatusDbDirectory();
+        this.dataAccessService = dataAccessService;
         LoggerUtil.initialize(this.getClass(), null);
-    }
-
-    /**
-     * Initialize the directory for status DB files.
-     */
-    private void initStatusDbDirectory() {
-        // Status DB files will be in a status_db subdirectory of the session directory
-        statusDbDir = pathConfig.getNetworkPath().resolve(pathConfig.getUserSession()).resolve("status_db");
-
-        try {
-            // Make sure the directory exists
-            Files.createDirectories(statusDbDir);
-            LoggerUtil.info(this.getClass(), "Initialized network status DB directory: " + statusDbDir);
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Failed to initialize network status DB directory: " + e.getMessage());
-            // Use local path as fallback if network is unavailable
-            statusDbDir = pathConfig.getLocalPath().resolve(pathConfig.getUserSession()).resolve("status_db");
-
-            try {
-                Files.createDirectories(statusDbDir);
-                LoggerUtil.info(this.getClass(), "Initialized local status DB directory: " + statusDbDir);
-            } catch (IOException ex) {
-                LoggerUtil.error(this.getClass(), "Failed to initialize local status DB directory: " + ex.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Get the path to a user's status DB file.
-     */
-    private Path getUserStatusFilePath(String username, Integer userId) {
-        return statusDbDir.resolve("status_" + username + "_" + userId + ".json");
     }
 
     /**
@@ -102,16 +68,8 @@ public class UserStatusDbService {
             statusRecord.setLastActive(lastActive);
             statusRecord.setLastUpdated(LocalDateTime.now());
 
-            // Get file path for this user
-            Path statusFilePath = getUserStatusFilePath(username, userId);
-
-            // Write to temp file first (atomic write)
-            Path tempFile = statusFilePath.resolveSibling(statusFilePath.getFileName() + ".tmp");
-            byte[] content = objectMapper.writeValueAsBytes(statusRecord);
-            Files.write(tempFile, content);
-
-            // Atomically replace the actual file (prevents partial writes being seen)
-            Files.move(tempFile, statusFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            // Write status using DataAccessService
+            dataAccessService.writeUserStatus(username, userId, statusRecord);
 
             // Invalidate cache
             invalidateCache();
@@ -146,7 +104,7 @@ public class UserStatusDbService {
             if (cachedStatuses != null && cacheTimestamp != null) {
                 long secondsSinceLastCache = Duration.between(cacheTimestamp, LocalDateTime.now()).getSeconds();
 
-                if (secondsSinceLastCache < CACHE_TTL_SECONDS) {
+                if (secondsSinceLastCache < cacheTimeoutSeconds) {
                     LoggerUtil.debug(this.getClass(), "Returning cached user statuses");
                     return new ArrayList<>(cachedStatuses); // Return a copy of cached list
                 }
@@ -163,13 +121,13 @@ public class UserStatusDbService {
             // Create a result list
             List<UserStatusDTO> result = new ArrayList<>();
 
-            // Read all status files from directory
-            List<UserStatusRecord> statusRecords = readAllStatusRecords();
+            // Read all status records using DataAccessService
+            Map<String, UserStatusRecord> statusRecords = dataAccessService.readAllUserStatuses();
 
             // Convert status records to DTOs
             for (User user : allUsers) {
                 // Find corresponding status record
-                UserStatusRecord record = statusRecords.stream().filter(r -> r.getUsername().equals(user.getUsername())).findFirst().orElse(null);
+                UserStatusRecord record = statusRecords.get(user.getUsername());
 
                 // Convert to DTO
                 if (record != null) {
@@ -215,44 +173,6 @@ public class UserStatusDbService {
         }
     }
 
-    /**
-     * Read all status records from individual user status files.
-     */
-    private List<UserStatusRecord> readAllStatusRecords() {
-        List<UserStatusRecord> records = new ArrayList<>();
-
-        try {
-            if (!Files.exists(statusDbDir)) {
-                return records;
-            }
-
-            // Read all JSON files in the status directory
-            try (Stream<Path> files = Files.list(statusDbDir)) {
-                List<Path> statusFiles = files.filter(path -> path.toString().endsWith(".json")).toList();
-
-                for (Path file : statusFiles) {
-                    try {
-                        if (Files.size(file) > 0) {
-                            UserStatusRecord record = objectMapper.readValue(Files.readAllBytes(file), UserStatusRecord.class);
-                            records.add(record);
-                        }
-                    } catch (Exception e) {
-                        LoggerUtil.debug(this.getClass(), "Skipping invalid status file: " + file.getFileName() + ": " + e.getMessage());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error reading status records: " + e.getMessage(), e);
-        }
-
-        return records;
-    }
-
-    // Cache for online/active counts
-    private volatile int cachedOnlineCount = 0;
-    private volatile int cachedActiveCount = 0;
-    private volatile LocalDateTime countCacheTimestamp = null;
-
     private void updateCountCaches(List<UserStatusDTO> statuses) {
         cachedOnlineCount = (int) statuses.stream().filter(s -> WorkCode.WORK_ONLINE.equals(s.getStatus())).count();
         cachedActiveCount = (int) statuses.stream().filter(s -> WorkCode.WORK_ONLINE.equals(s.getStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(s.getStatus())).count();
@@ -268,13 +188,13 @@ public class UserStatusDbService {
             if (countCacheTimestamp != null) {
                 long secondsSinceLastCache = Duration.between(countCacheTimestamp, LocalDateTime.now()).getSeconds();
 
-                if (secondsSinceLastCache < CACHE_TTL_SECONDS) {
+                if (secondsSinceLastCache < cacheTimeoutSeconds) {
                     return cachedOnlineCount;
                 }
             }
 
             // If no cached statuses or cache is expired, force a refresh
-            if (cachedStatuses == null || cacheTimestamp == null || Duration.between(cacheTimestamp, LocalDateTime.now()).getSeconds() >= CACHE_TTL_SECONDS) {
+            if (cachedStatuses == null || cacheTimestamp == null || Duration.between(cacheTimestamp, LocalDateTime.now()).getSeconds() >= cacheTimeoutSeconds) {
                 getAllUserStatuses(); // This will update the count cache
                 return cachedOnlineCount;
             }
@@ -298,13 +218,13 @@ public class UserStatusDbService {
             if (countCacheTimestamp != null) {
                 long secondsSinceLastCache = Duration.between(countCacheTimestamp, LocalDateTime.now()).getSeconds();
 
-                if (secondsSinceLastCache < CACHE_TTL_SECONDS) {
+                if (secondsSinceLastCache < cacheTimeoutSeconds) {
                     return cachedActiveCount;
                 }
             }
 
             // If no cached statuses or cache is expired, force a refresh
-            if (cachedStatuses == null || cacheTimestamp == null || Duration.between(cacheTimestamp, LocalDateTime.now()).getSeconds() >= CACHE_TTL_SECONDS) {
+            if (cachedStatuses == null || cacheTimestamp == null || Duration.between(cacheTimestamp, LocalDateTime.now()).getSeconds() >= cacheTimeoutSeconds) {
                 getAllUserStatuses(); // This will update the count cache
                 return cachedActiveCount;
             }
@@ -343,10 +263,10 @@ public class UserStatusDbService {
             // Calculate cutoff time for stale sessions (more than 1 hour old)
             LocalDateTime cutoffTime = LocalDateTime.now().minusHours(1);
 
-            // Read all status records
-            List<UserStatusRecord> records = readAllStatusRecords();
+            // Read all status records using DataAccessService
+            Map<String, UserStatusRecord> statusRecords = dataAccessService.readAllUserStatuses();
 
-            for (UserStatusRecord record : records) {
+            for (UserStatusRecord record : statusRecords.values()) {
                 try {
                     // Skip already offline users
                     if (WorkCode.WORK_OFFLINE.equals(record.getStatus())) {
@@ -362,9 +282,7 @@ public class UserStatusDbService {
                         record.setLastUpdated(LocalDateTime.now());
 
                         // Save the updated record
-                        Path statusFilePath = getUserStatusFilePath(record.getUsername(), record.getUserId());
-                        byte[] content = objectMapper.writeValueAsBytes(record);
-                        Files.write(statusFilePath, content);
+                        dataAccessService.writeUserStatus(record.getUsername(), record.getUserId(), record);
                     }
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(),

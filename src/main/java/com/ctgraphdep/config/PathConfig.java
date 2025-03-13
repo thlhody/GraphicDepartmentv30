@@ -35,6 +35,13 @@ public class PathConfig {
     @Value("${app.title:CTTT}")
     private String appTitle;
 
+    //Status db paths
+    @Value("${dbj.user.status:dbj/user/usersession/status_db}")
+    private String userStatus;
+    @Value("${dbj.dir.format.status:status_%s_%d.json}")
+    private String statusFormat;
+
+
     // Directory paths
     @Value("${dbj.user.session}")
     private String userSession;
@@ -156,8 +163,7 @@ public class PathConfig {
     }
 
     public Path getLocalBonusPath(int year, int month) {
-        return localPath.resolve(adminBonus)
-                .resolve(String.format(adminBonusFormat, year, month));
+        return localPath.resolve(adminBonus).resolve(String.format(adminBonusFormat, year, month));
     }
 
     // Session paths - primarily local with network sync
@@ -171,48 +177,56 @@ public class PathConfig {
                 .resolve(String.format(sessionFormat, username, userId));
     }
 
+    public Path getLocalStatusDbDirectory() {
+        return localPath.resolve(userStatus);
+    }
+
+    public Path getNetworkStatusDbDirectory() {
+        return networkPath.resolve(userStatus);
+    }
+
+    public Path getLocalStatusFilePath(String username, Integer userId) {
+        return getLocalStatusDbDirectory().resolve(String.format(statusFormat, username, userId));
+    }
+
+    public Path getNetworkStatusFilePath(String username, Integer userId) {
+        return getNetworkStatusDbDirectory().resolve(String.format(statusFormat, username, userId));
+    }
+
     // Worktime paths - local and network for sync
     public Path getLocalWorktimePath(String username, int year, int month) {
-        return localPath.resolve(userWorktime)
-                .resolve(String.format(worktimeFormat, username, year, month));
+        return localPath.resolve(userWorktime).resolve(String.format(worktimeFormat, username, year, month));
     }
 
     public Path getNetworkWorktimePath(String username, int year, int month) {
-        return networkPath.resolve(userWorktime)
-                .resolve(String.format(worktimeFormat, username, year, month));
+        return networkPath.resolve(userWorktime).resolve(String.format(worktimeFormat, username, year, month));
     }
 
     // Register paths - local and network for sync
     public Path getLocalRegisterPath(String username, Integer userId, int year, int month) {
-        return localPath.resolve(userRegister)
-                .resolve(String.format(registerFormat, username, userId, year, month));
+        return localPath.resolve(userRegister).resolve(String.format(registerFormat, username, userId, year, month));
     }
 
     public Path getNetworkRegisterPath(String username, Integer userId, int year, int month) {
-        return networkPath.resolve(userRegister)
-                .resolve(String.format(registerFormat, username, userId, year, month));
+        return networkPath.resolve(userRegister).resolve(String.format(registerFormat, username, userId, year, month));
     }
 
     // Admin worktime paths - local and network for sync
     public Path getLocalAdminWorktimePath(int year, int month) {
-        return localPath.resolve(adminWorktime)
-                .resolve(String.format(adminWorktimeFormat, year, month));
+        return localPath.resolve(adminWorktime).resolve(String.format(adminWorktimeFormat, year, month));
     }
 
     public Path getNetworkAdminWorktimePath(int year, int month) {
-        return networkPath.resolve(adminWorktime)
-                .resolve(String.format(adminWorktimeFormat, year, month));
+        return networkPath.resolve(adminWorktime).resolve(String.format(adminWorktimeFormat, year, month));
     }
 
     // Admin register paths - local and network for sync
     public Path getLocalAdminRegisterPath(String username, Integer userId, int year, int month) {
-        return localPath.resolve(adminRegister)
-                .resolve(String.format(adminRegisterFormat, username, userId, year, month));
+        return localPath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
     public Path getNetworkAdminRegisterPath(String username, Integer userId, int year, int month) {
-        return networkPath.resolve(adminRegister)
-                .resolve(String.format(adminRegisterFormat, username, userId, year, month));
+        return networkPath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
     public Path getTeamJsonPath(String teamLeadUsername, int year, int month) {
@@ -293,7 +307,7 @@ public class PathConfig {
     }
 
     // Add periodic network status checker
-    @Scheduled(fixedDelay = 60000) // Check every minute
+    @Scheduled(fixedDelay = 600000) // Check every minute
     public void scheduledNetworkCheck() {
         try {
             boolean previous = networkAvailable.get();
@@ -320,6 +334,7 @@ public class PathConfig {
             List<String> directories = Arrays.asList(
                     loginPath,
                     userSession,
+                    userStatus,
                     userWorktime,
                     userRegister,
                     adminWorktime,

@@ -219,6 +219,11 @@
     .bg-other { background-color: #6f42c1; }
     .bg-layout { background-color: #17a2b8; }
 
+    .bg-spized {
+        background-color: #fd7e14;
+        color: black; /* Make sure the text is visible */
+    }
+
     /* Admin Sync Badges */
     .badge.bg-success { background-color: #198754 !important; }
     .badge.bg-warning {

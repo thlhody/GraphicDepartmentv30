@@ -1,5 +1,6 @@
 package com.ctgraphdep.config;
 
+import com.ctgraphdep.service.DataAccessService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.UserStatusDbService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -7,6 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Configuration for the user status system.
@@ -19,7 +23,9 @@ public class StatusConfig {
     private final UserService userService;
 
     @Autowired
-    public StatusConfig(UserStatusDbService userStatusDbService, UserService userService) {
+    public StatusConfig(
+            UserStatusDbService userStatusDbService,
+            UserService userService) {
         this.userStatusDbService = userStatusDbService;
         this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);

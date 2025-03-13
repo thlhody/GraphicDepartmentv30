@@ -5,6 +5,8 @@ const ACTION_TYPE_VALUES = {
     'CAMPION': 2.5,
     'PROBA STAMPA': 2.5,
     'ORDIN SPIZED': 2.0,
+    'CAMPION SPIZED': 2.0,
+    'PROBA S SPIZED': 2.0,
     'PROBA CULOARE': 2.5,
     'CARTELA CULORI': 2.5,
     'DESIGN': 2.5,
@@ -189,11 +191,34 @@ class RegisterFormHandler {
     calculateComplexity(actionType, printPrepTypes) {
         if (!actionType) return 0;
 
+        const cleanActionType = actionType.trim().toUpperCase();
+        console.log(`Calculating complexity for: "${cleanActionType}"`);
+
         // Special cases first
-        if (actionType === 'IMPOSTARE') return 0.0;
-        if (actionType === 'REORDIN') return 1.0;
-        if (actionType === 'ORDIN SPIZED') return 2.0;
-        if (actionType === 'DESIGN 3D') return 3.0;
+        if (cleanActionType === 'IMPOSTARE') {
+            console.log("Matched IMPOSTARE → 0.0");
+            return 0.0;
+        }
+        if (cleanActionType === 'REORDIN') {
+            console.log("Matched REORDIN → 1.0");
+            return 1.0;
+        }
+        if (cleanActionType === 'ORDIN SPIZED') {
+            console.log("Matched ORDIN SPIZED → 2.0");
+            return 2.0;
+        }
+        if (cleanActionType === 'CAMPION SPIZED') {
+            console.log("Matched CAMPION SPIZED → 2.0");
+            return 2.0;
+        }
+        if (cleanActionType === 'PROBA S SPIZED') {
+            console.log("Matched PROBA S SPIZED → 2.0");
+            return 2.0;
+        }
+        if (cleanActionType === 'DESIGN 3D') {
+            console.log("Matched DESIGN 3D → 3.0");
+            return 3.0;
+        }
 
         // Fixed value actions
         const fixedValueActions = [
@@ -224,7 +249,8 @@ class RegisterFormHandler {
             return baseValue;
         }
 
-        return ACTION_TYPE_VALUES[actionType] || 0;
+        console.log(`No special case match for "${cleanActionType}", using standard logic`);
+        return ACTION_TYPE_VALUES[cleanActionType] || 0;
     }
 
     updateComplexityField() {
@@ -444,7 +470,10 @@ class RegisterSummaryHandler {
             probaStampa: 0,
             design: 0,
             others: 0,
-            impostare: 0
+            impostare: 0,
+            ordinSpized: 0,
+            campionSpized: 0,
+            probaSSpized: 0
         };
 
         this.metrics = {
@@ -518,6 +547,7 @@ class RegisterSummaryHandler {
             entries.forEach(row => {
                 const cells = row.cells;
                 const actionType = cells[6]?.textContent?.trim().toUpperCase();
+                console.log("Processing entry with action type:", actionType);
                 const articles = parseInt(cells[9]?.textContent || '0');
                 const complexity = parseFloat(cells[10]?.textContent || '0');
 
@@ -530,7 +560,13 @@ class RegisterSummaryHandler {
                     case 'DESIGN':
                     case 'DESIGN 3D':this.actionCounts.design++;break;
                     case 'IMPOSTARE': this.actionCounts.impostare++; break;
-                    default: this.actionCounts.others++; break;
+                    case 'ORDIN SPIZED': this.actionCounts.ordinSpized++; break;
+                    case 'CAMPION SPIZED': this.actionCounts.campionSpized++; break;
+                    case 'PROBA S SPIZED': this.actionCounts.probaSSpized++; break;
+                    default:
+                        console.log("No match found for:", cleanActionType);
+                        this.actionCounts.others++;
+                        break;
                 }
 
                 // Calculate metrics excluding IMPOSTARE entries
@@ -548,7 +584,6 @@ class RegisterSummaryHandler {
             (totalArticles / nonImpostareCount).toFixed(2) : '0.00';
             this.metrics.avgComplexity = nonImpostareCount ?
             (totalComplexity / nonImpostareCount).toFixed(2) : '0.00';
-
             this.updateUI();
 
         } catch (error) {
@@ -579,6 +614,9 @@ class RegisterSummaryHandler {
                 'count-design': this.actionCounts.design,
                 'count-others': this.actionCounts.others,
                 'count-impostare': this.actionCounts.impostare,
+                'count-ordin-spized': this.actionCounts.ordinSpized,
+                'count-campion-spized': this.actionCounts.campionSpized,
+                'count-proba-s-spized': this.actionCounts.probaSSpized,
                 'total-entries': this.metrics.totalEntries,
                 'total-entries-no-impostare': this.metrics.totalNoImpostare,
                 'avg-articles': this.metrics.avgArticles,
@@ -745,6 +783,12 @@ class RegisterSearchHandler {
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
+    // Check if SPIZED counter elements exist
+    console.log("Checking SPIZED counter elements:");
+    console.log('count-ordin-spized element:', document.getElementById('count-ordin-spized'));
+    console.log('count-campion-spized element:', document.getElementById('count-campion-spized'));
+    console.log('count-proba-s-spized element:', document.getElementById('count-proba-s-spized'));
+
     window.registerFormHandler = new RegisterFormHandler();
     window.registerSummaryHandler = new RegisterSummaryHandler();
     window.registerSearchHandler = new RegisterSearchHandler();

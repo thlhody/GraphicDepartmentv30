@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.db.UserStatusRecord;
 import com.ctgraphdep.model.team.TeamMember;
 import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -14,13 +15,14 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class DataAccessService {
@@ -127,15 +129,13 @@ public class DataAccessService {
     // Then the local/network operations use these base operations
     private <T> T readLocal(Path path, TypeReference<T> typeRef) {
         String filename = path.getFileName().toString();
-        boolean skipSerialization = filename.equals("users.json") ||
-                filename.equals("local_users.json");
+        boolean skipSerialization = filename.equals("users.json") || filename.equals("local_users.json");
         return readFile(path, typeRef, skipSerialization);
     }
 
     private <T> void writeLocal(Path path, T data) {
         String filename = path.getFileName().toString();
-        boolean skipSerialization = filename.equals("users.json") ||
-                filename.equals("local_users.json");
+        boolean skipSerialization = filename.equals("users.json") || filename.equals("local_users.json");
         writeFile(path, data, skipSerialization);
     }
 
@@ -145,8 +145,7 @@ public class DataAccessService {
         }
 
         String filename = path.getFileName().toString();
-        boolean skipSerialization = filename.equals("users.json") ||
-                filename.equals("local_users.json");
+        boolean skipSerialization = filename.equals("users.json") || filename.equals("local_users.json");
 
         try {
             // Try to read the main file first
@@ -185,11 +184,10 @@ public class DataAccessService {
 
     private <T> void writeNetwork(Path path, T data) {
         if (!pathConfig.isNetworkAvailable()) {
-            throw new RuntimeException("Network not available");
+            LoggerUtil.error(this.getClass(),"Network not available");
         }
         String filename = path.getFileName().toString();
-        boolean skipSerialization = filename.equals("users.json") ||
-                filename.equals("local_users.json");
+        boolean skipSerialization = filename.equals("users.json") || filename.equals("local_users.json");
         writeFile(path, data, skipSerialization);
     }
 
@@ -229,14 +227,11 @@ public class DataAccessService {
         if (!pathConfig.isNetworkAvailable()) {
             return false;
         }
-
         Path networkPath = pathConfig.getNetworkSessionPath(username, userId);
         try {
             return Files.exists(networkPath) && Files.size(networkPath) > 3;
         } catch (IOException e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error checking network session existence for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error checking network session existence for %s: %s", username, e.getMessage()));
             return false;
         }
     }
@@ -254,8 +249,7 @@ public class DataAccessService {
                     return networkUsers;
                 }
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        "Network users read failed, falling back to local: " + e.getMessage());
+                LoggerUtil.warn(this.getClass(), "Network users read failed, falling back to local: " + e.getMessage());
             }
         }
 
@@ -283,7 +277,7 @@ public class DataAccessService {
         try {
             acquireLock(lockPath);
             writeNetwork(networkPath, users);
-            LoggerUtil.info(this.getClass(), "Successfully wrote users to network");
+            LoggerUtil.debug(this.getClass(), "Successfully wrote users to network");
         } catch (Exception e) {
             LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing network users: %s", e.getMessage()), e);
         } finally {
@@ -300,7 +294,6 @@ public class DataAccessService {
         Path localPath = pathConfig.getLocalUsersPath();
         try {
             // Read doesn't need lock since we have ReentrantReadWriteLock in readFile
-
             List<User> users = readLocal(localPath, new TypeReference<>() {
             });
             if (users == null) {
@@ -309,8 +302,7 @@ public class DataAccessService {
             }
             return users;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading local users: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading local users: %s", e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -322,8 +314,7 @@ public class DataAccessService {
         try {
             acquireLock(lockPath);
             writeLocal(localPath, users);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully wrote %d local users", users.size()));
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d local users", users.size()));
         } catch (Exception e) {
             LoggerUtil.logAndThrow(this.getClass(), "Error writing local users: " + e.getMessage(), e);
         } finally {
@@ -355,8 +346,7 @@ public class DataAccessService {
 
             // Write the updated list
             writeLocalUsers(existingUsers);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Updated local user: %s", user.getUsername()));
+            LoggerUtil.info(this.getClass(), String.format("Updated local user: %s", user.getUsername()));
         } catch (Exception e) {
             LoggerUtil.logAndThrow(this.getClass(), String.format("Error updating local user %s", user.getUsername()), e);
         }
@@ -371,6 +361,7 @@ public class DataAccessService {
             // Try network first
             if (pathConfig.isNetworkAvailable()) {
                 List<PaidHolidayEntry> networkEntries = readNetwork(networkPath, new TypeReference<>() {
+
                 });
                 if (networkEntries != null) {
                     // Update cache with network data
@@ -398,10 +389,8 @@ public class DataAccessService {
 
         try {
             acquireLock(lockPath);
-
             // Always update cache first
             writeLocal(localCachePath, entries);
-
             // Then try network if available
             if (pathConfig.isNetworkAvailable()) {
                 writeNetwork(networkPath, entries);
@@ -424,8 +413,7 @@ public class DataAccessService {
             });
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error reading network worktime for user %s - %d/%d: %s",
-                    username, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading network worktime for user %s - %d/%d: %s", username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -450,7 +438,6 @@ public class DataAccessService {
                 LoggerUtil.info(this.getClass(), String.format("Reading network worktime for user %s by %s", username, currentUsername));
                 return readNetworkUserWorktime(username, year, month);
             }
-
             throw new RuntimeException("Network access required but not available");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error reading worktime for user %s: %s", username, e.getMessage()));
@@ -469,13 +456,11 @@ public class DataAccessService {
                 throw new SecurityException("Username mismatch with operating user");
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading worktime for user %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading worktime for user %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
-    // In DataAccessService, modify writeUserWorktime:
     public void writeUserWorktime(String username, List<WorkTimeTable> entries, int year, int month) {
         // Get current user
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -662,31 +647,23 @@ public class DataAccessService {
     }
 
     // Add new methods for team members operations
-
     public List<TeamMember> readTeamMembers(String teamLeadUsername, int year, int month) {
         try {
             Path teamPath = pathConfig.getTeamJsonPath(teamLeadUsername, year, month);
             List<TeamMember> members = readLocal(teamPath, new TypeReference<>() {});
             return members != null ? members : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading team members for %s (%d/%d): %s",
-                            teamLeadUsername, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading team members for %s (%d/%d): %s", teamLeadUsername, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
-
     public void writeTeamMembers(List<TeamMember> teamMembers, String teamLeadUsername, int year, int month) {
         try {
             Path teamPath = pathConfig.getTeamJsonPath(teamLeadUsername, year, month);
             writeLocal(teamPath, teamMembers);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully wrote %d team members for %s (%d/%d)",
-                            teamMembers.size(), teamLeadUsername, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d team members for %s (%d/%d)", teamMembers.size(), teamLeadUsername, year, month));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error writing team members for %s (%d/%d): %s",
-                            teamLeadUsername, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error writing team members for %s (%d/%d): %s", teamLeadUsername, year, month, e.getMessage()));
             throw new RuntimeException("Failed to write team members", e);
         }
     }
@@ -727,13 +704,7 @@ public class DataAccessService {
         }
     }
 
-    // In DataAccessService.java
-    /**
-     * Reads a file without creating backups or locks (read-only operation)
-     * @param path The path to read from
-     * @param typeRef The type reference for deserialization
-     * @return The deserialized object or null if file not found/invalid
-     */
+    // Reads a file without creating backups or locks (read-only operation)
     private <T> T readFileReadOnly(Path path, TypeReference<T> typeRef) {
         try {
             // Check if file exists and has content
@@ -755,11 +726,7 @@ public class DataAccessService {
             return null;
         }
     }
-
-    /**
-     * Read user worktime data in read-only mode (no locks, no backups)
-     * Optimized for status display
-     */
+    // Read user worktime data in read-only mode (no locks, no backups)
     public List<WorkTimeTable> readWorktimeReadOnly(String username, int year, int month) {
         try {
             // First try network if available
@@ -776,17 +743,11 @@ public class DataAccessService {
             List<WorkTimeTable> entries = readFileReadOnly(localPath, new TypeReference<>() {});
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Read-only worktime access failed for %s - %d/%d: %s",
-                            username, year, month, e.getMessage()));
+            LoggerUtil.debug(this.getClass(), String.format("Read-only worktime access failed for %s - %d/%d: %s", username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
-
-    /**
-     * Read register entries in read-only mode (no locks, no backups)
-     * Optimized for status display
-     */
+    // Read register entries in read-only mode (no locks, no backups)
     public List<RegisterEntry> readRegisterReadOnly(String username, Integer userId, int year, int month) {
         try {
             // Try network first if available
@@ -803,26 +764,17 @@ public class DataAccessService {
             List<RegisterEntry> entries = readFileReadOnly(localPath, new TypeReference<>() {});
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Read-only register access failed for %s - %d/%d: %s",
-                            username, year, month, e.getMessage()));
+            LoggerUtil.debug(this.getClass(), String.format("Read-only register access failed for %s - %d/%d: %s", username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
-
-    /**
-     * Read time off entries in read-only mode
-     * Optimized for status display
-     */
+    // Read time off entries in read-only mode
     public List<WorkTimeTable> readTimeOffReadOnly(String username, int year) {
         List<WorkTimeTable> allEntries = new ArrayList<>();
 
         // Only load last 12 months to improve performance
         int currentMonth = LocalDate.now().getMonthValue();
         int currentYear = LocalDate.now().getYear();
-
-        // Calculate start month/year (12 months ago)
-        int startYear = year;
 
         // Only process months for the requested year
         for (int month = 1; month <= 12; month++) {
@@ -835,46 +787,108 @@ public class DataAccessService {
                 List<WorkTimeTable> monthEntries = readWorktimeReadOnly(username, year, month);
                 if (monthEntries != null) {
                     // Filter for time off entries only
-                    List<WorkTimeTable> timeOffEntries = monthEntries.stream()
-                            .filter(entry -> entry.getTimeOffType() != null)
-                            .toList();
+                    List<WorkTimeTable> timeOffEntries = monthEntries.stream().filter(entry -> entry.getTimeOffType() != null).toList();
                     allEntries.addAll(timeOffEntries);
                 }
             } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Read-only time-off access failed for %s - %d/%d: %s",
-                                username, year, month, e.getMessage()));
-                // Continue with next month
+                LoggerUtil.debug(this.getClass(), String.format("Read-only time-off access failed for %s - %d/%d: %s", username, year, month, e.getMessage()));
             }
         }
 
         return allEntries;
     }
 
-    /**
-     * Read holiday entries in read-only mode (no updates to cache)
-     * Optimized for status display
-     */
-    public List<PaidHolidayEntry> readHolidayEntriesReadOnly() {
-        Path networkPath = pathConfig.getNetworkHolidayPath();
-        Path localCachePath = pathConfig.getHolidayCachePath();
 
+    // Writes a user status record to its dedicated status file.
+    public void writeUserStatus(String username, Integer userId, UserStatusRecord statusRecord) {
         try {
-            // Try network first
+            // Get the path to the user's status file
+            Path statusFilePath = pathConfig.getLocalStatusFilePath(username, userId);
+
+            // Make sure parent directory exists
+            Files.createDirectories(statusFilePath.getParent());
+
+            // Write to temp file first (atomic write)
+            Path tempFile = statusFilePath.resolveSibling(statusFilePath.getFileName() + ".tmp");
+            byte[] content = objectMapper.writeValueAsBytes(statusRecord);
+            Files.write(tempFile, content);
+
+            // Atomically replace the actual file
+            Files.move(tempFile, statusFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+
+            // If network is available, sync to network
             if (pathConfig.isNetworkAvailable()) {
-                List<PaidHolidayEntry> networkEntries = readFileReadOnly(networkPath, new TypeReference<>() {});
-                if (networkEntries != null) {
-                    return networkEntries;
-                }
+                Path networkPath = pathConfig.getNetworkStatusFilePath(username, userId);
+                fileSyncService.syncToNetwork(statusFilePath, networkPath);
             }
 
-            // Fall back to cache if network unavailable or read failed
-            return readFileReadOnly(localCachePath, new TypeReference<>() {});
+            LoggerUtil.debug(this.getClass(), String.format("Successfully wrote status file for %s", username));
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Read-only holiday access failed: %s", e.getMessage()));
-            return new ArrayList<>();
+            LoggerUtil.error(this.getClass(), String.format("Error writing status file for %s: %s", username, e.getMessage()), e);
         }
     }
 
+    // Reads all user status records from the status directory.
+    public Map<String, UserStatusRecord> readAllUserStatuses() {
+        Map<String, UserStatusRecord> statusMap = new ConcurrentHashMap<>();
+        Path statusDir = pathConfig.getLocalStatusDbDirectory();
+
+        try {
+            if (!Files.exists(statusDir)) {
+                Files.createDirectories(statusDir);
+            }
+
+            // Read all status files from the local directory
+            try (Stream<Path> files = Files.list(statusDir)) {
+                List<Path> statusFiles = files.filter(path -> path.toString().endsWith(".json") && !path.toString().endsWith(".tmp")).toList();
+
+                for (Path file : statusFiles) {
+                    try {
+                        if (Files.size(file) > 0) {
+                            UserStatusRecord record = objectMapper.readValue(Files.readAllBytes(file), UserStatusRecord.class);
+                            if (record != null && record.getUsername() != null) {
+                                statusMap.put(record.getUsername(), record);
+                            }
+                        }
+                    } catch (Exception e) {
+                        LoggerUtil.debug(this.getClass(), String.format("Skipping invalid status file %s: %s", file.getFileName(), e.getMessage()));
+                    }
+                }
+            }
+
+            // If network is available, also check for network status files that might be newer
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkStatusDir = pathConfig.getNetworkStatusDbDirectory();
+                if (Files.exists(networkStatusDir)) {
+                    try (Stream<Path> files = Files.list(networkStatusDir)) {
+                        List<Path> networkStatusFiles = files.filter(path -> path.toString().endsWith(".json") && !path.toString().endsWith(".tmp")).toList();
+
+                        for (Path file : networkStatusFiles) {
+                            try {
+                                if (Files.size(file) > 0) {
+                                    UserStatusRecord record = objectMapper.readValue(Files.readAllBytes(file), UserStatusRecord.class);
+                                    if (record != null && record.getUsername() != null) {
+                                        // Check if we already have a record for this user
+                                        UserStatusRecord localRecord = statusMap.get(record.getUsername());
+
+                                        // If no local record or network record is newer, use network record
+                                        if (localRecord == null || (record.getLastUpdated() != null && localRecord.getLastUpdated() != null && record.getLastUpdated().isAfter(localRecord.getLastUpdated()))) {
+                                            statusMap.put(record.getUsername(), record);
+                                        }
+                                    }
+                                }
+                            } catch (Exception e) {
+                                LoggerUtil.debug(this.getClass(), String.format("Skipping invalid network status file %s: %s", file.getFileName(), e.getMessage()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            return statusMap;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error reading status records: " + e.getMessage(), e);
+            return statusMap;
+        }
+    }
 }
