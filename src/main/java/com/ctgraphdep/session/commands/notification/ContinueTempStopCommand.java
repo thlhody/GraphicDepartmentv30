@@ -29,15 +29,8 @@ public class ContinueTempStopCommand implements SessionCommand<Boolean> {
         try {
             LoggerUtil.info(this.getClass(), String.format("Continuing temporary stop for user %s", username));
 
-            // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
-
             // Cancel any backup tasks
             context.getBackupService().cancelBackupTask(username);
-
-            // Record continuation of temporary stop
-            context.getContinuationTrackingService().recordTempStopContinuation(username, userId, timeValues.getCurrentTime());
 
             // Update the session if needed (e.g., refresh last activity timestamp)
             UpdateSessionActivityCommand updateCommand = context.getCommandFactory().createUpdateSessionActivityCommand(username, userId);

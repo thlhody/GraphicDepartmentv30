@@ -6,7 +6,6 @@ import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -103,14 +102,7 @@ public class UserWorkTimeService {
         Map<LocalDate, WorkTimeTable> mergedMap = new HashMap<>();
 
         // Add user entries first, including USER_IN_PROCESS entries
-        userEntries.forEach(entry -> {
-            if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
-                // For in-process entries, add them with special handling
-                mergedMap.put(entry.getWorkDate(), entry);
-            } else {
-                mergedMap.put(entry.getWorkDate(), entry);
-            }
-        });
+        userEntries.forEach(entry -> mergedMap.put(entry.getWorkDate(), entry));
 
         // Process admin entries (both edits and blanks)
         adminEntries.forEach(adminEntry -> {
@@ -189,50 +181,6 @@ public class UserWorkTimeService {
             LoggerUtil.error(this.getClass(),
                     String.format("Error processing month entries for %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to process month entries", e);
-        }
-    }
-
-
-    public void saveWorkTimeEntry(String username, WorkTimeTable entry, int year, int month) {
-        lock.writeLock().lock();
-        try {
-            // Initialize entries as empty list if null
-            List<WorkTimeTable> entries = loadUserEntries(username, year, month);
-            if (entries == null) {
-                entries = new ArrayList<>();
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Initializing new entries list for user %s - %d/%d",
-                                username, year, month));
-            }
-
-            // Remove existing entry if present
-            entries.removeIf(e ->
-                    e.getUserId().equals(entry.getUserId()) &&
-                            e.getWorkDate().equals(entry.getWorkDate()));
-
-            // Add new entry
-            entries.add(entry);
-
-            // Sort entries
-            entries.sort(Comparator
-                    .comparing(WorkTimeTable::getWorkDate)
-                    .thenComparing(WorkTimeTable::getUserId));
-
-            // Save entries
-            try {
-                dataAccess.writeUserWorktime(username, entries, year, month);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Saved worktime entry for user %s - %d/%d",
-                                username, year, month));
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Failed to save worktime entry for user %s: %s",
-                                username, e.getMessage()));
-                throw new RuntimeException("Failed to save worktime entry", e);
-            }
-
-        } finally {
-            lock.writeLock().unlock();
         }
     }
 

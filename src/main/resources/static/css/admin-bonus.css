@@ -1,87 +1,90 @@
-  /* Update the sorting icons CSS */
-        .sortable {
-            cursor: pointer;
-            white-space: nowrap;
-            padding-right: 20px !important;  /* Space for the arrow */
-            position: relative;
-        }
+/* Sortable header styling */
+.sortable {
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 80% !important; /* Reduce font size by 20% */
+    position: relative;
+    padding-left: 18px !important; /* Make room for the sort icon on LEFT */
+    text-indent: 10px !important; /* Move text to the right to avoid overlap with arrow */
+}
 
-        .sort-icon {
-            display: inline-block;
-            width: 0;
-            height: 0;
-            margin-left: 6px;  /* Space between text and arrow */
-            border-right: 4px solid transparent;
-            border-left: 4px solid transparent;
-            position: relative;  /* Changed from absolute */
-            top: -2px;          /* Slight vertical alignment */
-        }
+/* Sort icon styling */
+.sort-icon {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-right: 4px solid transparent;
+    border-left: 4px solid transparent;
+    position: absolute;
+    left: 6px; /* Position on the LEFT side */
+    top: 50%;
+    transform: translateY(-50%);
+}
 
-        .sort-asc .sort-icon {
-            border-bottom: 4px solid #333;
-        }
-        .sort-desc .sort-icon {
-            border-top: 4px solid #333;
-        }
-        #monthSelect {
-            text-transform: capitalize;
-        }
-        /* Add these new styles */
-        #bonusTable th {
-            text-align: right !important;
-            vertical-align: middle !important;
-            padding: 8px !important;
-        }
+.sort-asc .sort-icon {
+    border-bottom: 4px solid #333;
+}
+.sort-desc .sort-icon {
+    border-top: 4px solid #333;
+}
 
-        #bonusTable td {
-            text-align: right !important;
-            vertical-align: middle !important;
-        }
+/* Maintain other table styling */
+#bonusTable th {
+    vertical-align: middle !important;
+    padding: 8px !important;
+}
 
-        /* Left align first column (Name) */
-        #bonusTable th:first-child,
-        #bonusTable td:first-child {
-            text-align: left !important;
-        }
+#bonusTable td {
+    vertical-align: middle !important;
+    padding: 8px !important;
+}
 
-        /* Previous months columns alignment */
-        #bonusTable th:nth-child(n+10),
-        #bonusTable td:nth-child(n+10) {
-            text-align: right !important;
-        }
+/* Column width settings */
+#bonusTable th:first-child,
+#bonusTable td:first-child {
+    text-align: left !important;
+    width: 200px !important;
+    max-width: 200px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
 
-        /* Add padding */
-        #bonusTable th,
-        #bonusTable td {
-            padding: 8px !important;
-        }
-        /* Override Bootstrap table variables */
-        #bonusTable {
-            --bs-table-bg: transparent;
-            --bs-table-accent-bg: transparent;
-            --bs-table-striped-bg: transparent;
-            --bs-table-active-bg: transparent;
-            --bs-table-hover-bg: transparent;
-        }
+/* Numeric columns alignment */
+#bonusTable th:nth-child(n+2),
+#bonusTable td:nth-child(n+2) {
+    text-align: right !important;
+    width: auto !important;
+    min-width: 80px !important;
+}
 
-        /* Direct table styling with max specificity */
-        html body .container #bonusTable tbody tr {
-            background-color: transparent;
-        }
+/* Override Bootstrap table variables */
+#bonusTable {
+    --bs-table-bg: transparent;
+    --bs-table-accent-bg: transparent;
+    --bs-table-striped-bg: transparent;
+    --bs-table-active-bg: transparent;
+    --bs-table-hover-bg: transparent;
+}
 
-        html body .container #bonusTable tbody tr[data-entries="high"] {
-            background-color: #e3f2fd !important;
-        }
+/* Direct table styling with max specificity */
+html body .container #bonusTable tbody tr {
+    background-color: transparent;
+}
 
-        html body .container #bonusTable tbody tr[data-entries="medium"] {
-            background-color: #fff3e0 !important;
-        }
+html body .container #bonusTable tbody tr[data-entries="high"] {
+    background-color: #e3f2fd !important;
+}
 
-        html body .container #bonusTable tbody tr[data-entries="low"] {
-            background-color: #ffebee !important;
-        }
+html body .container #bonusTable tbody tr[data-entries="medium"] {
+    background-color: #fff3e0 !important;
+}
 
-        /* Hover effect */
-        html body .container #bonusTable tbody tr:hover {
-            filter: brightness(95%) !important;
-        }
+html body .container #bonusTable tbody tr[data-entries="low"] {
+    background-color: #ffebee !important;
+}
+
+/* Hover effect */
+html body .container #bonusTable tbody tr:hover {
+    filter: brightness(95%) !important;
+}

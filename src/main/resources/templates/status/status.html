@@ -6,7 +6,7 @@
       lang="en">
 <head>
     <title>User Status Management</title>
-    <link rel="stylesheet" th:href="@{/css/status.css}">
+    <link rel="stylesheet" th:href="@{/css/status.css?v=20242333}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -32,8 +32,10 @@
                 </a>
             </nav>
         </header>
-        <!-- Status Cards -->
+
+        <!-- Status Card -->
         <div class="card shadow-sm">
+            <!-- Card Header -->
             <div class="card-header bg-transparent border-bottom-0">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center">
@@ -45,9 +47,13 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Card Body -->
             <div class="card-body p-0">
                 <div class="table-responsive">
+                    <!-- Users Status Table -->
                     <table class="table table-hover mb-0">
+                        <!-- Table Header -->
                         <thead class="bg-light">
                         <tr>
                             <th class="border-0">
@@ -72,9 +78,10 @@
                             </th>
                         </tr>
                         </thead>
+
+                        <!-- Table Body -->
                         <tbody>
-                        <!-- Users are displayed in this order: Online, then Temporary Stop, then Offline -->
-                        <!-- Within each status category, users are sorted alphabetically by name -->
+                        <!-- Online Users -->
                         <tr th:each="status : ${userStatuses}"
                             th:if="${status.status == 'Online'}"
                             th:class="${status.username == currentUsername ? 'bg-light' : ''}"
@@ -92,10 +99,10 @@
                                 </div>
                             </td>
                             <td>
-                                <span class="badge rounded-pill px-3 py-2 bg-success">
-                                    <i class="bi bi-broadcast"></i>
-                                    <span class="ms-1">Online</span>
-                                </span>
+                                    <span class="badge rounded-pill px-3 py-2 bg-success">
+                                        <i class="bi bi-broadcast"></i>
+                                        <span class="ms-1">Online</span>
+                                    </span>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center justify-content-center">
@@ -105,24 +112,23 @@
                             </td>
                             <td>
                                 <div class="d-flex gap-2 justify-content-center">
-                                    <!-- Time Off History Button - Available for all users -->
+                                    <!-- Time Off History Button -->
                                     <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
-                                    <!-- Fallback if userId is missing -->
                                     <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
 
-                                    <!-- Register Search - Visible to all authenticated users -->
+                                    <!-- Register Search Button -->
                                     <a th:href="@{/status/register-search(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning">
                                         <i class="bi bi-search me-1"></i>Register
                                     </a>
 
-                                    <!-- Work Time button renamed to WT -->
+                                    <!-- Work Time Button -->
                                     <a th:href="@{/status/worktime-status(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning"
                                        th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
@@ -150,37 +156,36 @@
                                 </div>
                             </td>
                             <td>
-                                <span class="badge rounded-pill px-3 py-2 bg-warning">
-                                    <i class="bi bi-pause-circle"></i>
-                                    <span class="ms-1">Temporary Stop</span>
-                                </span>
+                                    <span class="badge rounded-pill px-3 py-2 bg-warning">
+                                        <i class="bi bi-pause-circle"></i>
+                                        <span class="ms-1">Temporary Stop</span>
+                                    </span>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center justify-content-center">
                                     <i class="bi bi-clock text-muted me-2"></i>
-                                    <span th:utext="${status.lastActive}"></span>
+                                    <span class="date-display" th:text="${status.lastActive}" th:attr="data-timestamp=${status.lastActive}"></span>
                                 </div>
                             </td>
                             <td>
                                 <div class="d-flex gap-2 justify-content-center">
-                                    <!-- Time Off History Button - Available for all users -->
+                                    <!-- Time Off History Button -->
                                     <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
-                                    <!-- Fallback if userId is missing -->
                                     <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
 
-                                    <!-- Register Search - Visible to all authenticated users -->
+                                    <!-- Register Search Button -->
                                     <a th:href="@{/status/register-search(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning">
                                         <i class="bi bi-search me-1"></i>Register
                                     </a>
 
-                                    <!-- Work Time button renamed to WT -->
+                                    <!-- Work Time Button -->
                                     <a th:href="@{/status/worktime-status(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning"
                                        th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
@@ -208,10 +213,10 @@
                                 </div>
                             </td>
                             <td>
-                                <span class="badge rounded-pill px-3 py-2 bg-secondary">
-                                    <i class="bi bi-power"></i>
-                                    <span class="ms-1" th:text="${status.status}"></span>
-                                </span>
+                                    <span class="badge rounded-pill px-3 py-2 bg-secondary">
+                                        <i class="bi bi-power"></i>
+                                        <span class="ms-1" th:text="${status.status}"></span>
+                                    </span>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center justify-content-center">
@@ -221,24 +226,23 @@
                             </td>
                             <td>
                                 <div class="d-flex gap-2 justify-content-center">
-                                    <!-- Time Off History Button - Available for all users -->
+                                    <!-- Time Off History Button -->
                                     <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
-                                    <!-- Fallback if userId is missing -->
                                     <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
 
-                                    <!-- Register Search - Visible to all authenticated users -->
+                                    <!-- Register Search Button -->
                                     <a th:href="@{/status/register-search(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning">
                                         <i class="bi bi-search me-1"></i>Register
                                     </a>
 
-                                    <!-- Work Time button renamed to WT -->
+                                    <!-- Work Time Button -->
                                     <a th:href="@{/status/worktime-status(username=${status.username})}"
                                        class="btn btn-sm btn-outline-warning"
                                        th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
@@ -254,103 +258,23 @@
         </div>
     </div>
 </div>
+
+<!-- Scripts section -->
 <th:block layout:fragment="scripts">
-    <script th:inline="javascript">
-        function updateOnlineCount() {
-            const statusSpans = document.querySelectorAll('table tbody tr td span.badge span.ms-1');
-            let onlineCount = 0;
-
-            statusSpans.forEach(span => {
-                if (span.textContent.trim() === 'Online') {
-                    onlineCount++;
-                }
-            });
-
-            document.getElementById('onlineCount').textContent = onlineCount;
+    <!-- Add spinner CSS -->
+    <style>
+        .spin {
+            animation: spin 1s linear infinite;
         }
 
-        function updateLastRefresh() {
-            const now = new Date();
-
-            // Get day of week
-            const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const dayName = daysOfWeek[now.getDay()];
-
-            // Format the date as DD/MM/YYYY
-            const day = String(now.getDate()).padStart(2, '0');
-            const month = String(now.getMonth() + 1).padStart(2, '0'); // January is 0
-            const year = now.getFullYear();
-
-            // Format the time
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-
-            // Combine into Day :: DD/MM/YYYY :: HH:MM format with bold time
-            const formattedDateTime = `${dayName} :: ${day}/${month}/${year} :: <strong>${hours}:${minutes}</strong>`;
-
-            document.getElementById('lastUpdate').innerHTML = formattedDateTime;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
+    </style>
 
-        function formatDateDisplays() {
-            document.querySelectorAll('.date-display').forEach(element => {
-                const timestamp = element.textContent.trim();
-
-                // Skip if it's "Never" or other non-date value
-                if (timestamp === "Never" || !timestamp.includes('-')) {
-                    return;
-                }
-
-                try {
-                    // Parse timestamp (expected format: yyyy-MM-dd HH:mm:ss)
-                    const parts = timestamp.split(' ');
-                    if (parts.length !== 2) return;
-
-                    const dateParts = parts[0].split('-');
-                    const timeParts = parts[1].split(':');
-
-                    if (dateParts.length !== 3 || timeParts.length < 2) return;
-
-                    const year = parseInt(dateParts[0]);
-                    const month = parseInt(dateParts[1]) - 1; // Months are 0-indexed in JS
-                    const day = parseInt(dateParts[2]);
-                    const hours = parseInt(timeParts[0]);
-                    const minutes = parseInt(timeParts[1]);
-
-                    const date = new Date(year, month, day, hours, minutes);
-
-                    // Get day of week
-                    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                    const dayName = daysOfWeek[date.getDay()];
-
-                    // Format the date parts
-                    const formattedDay = String(day).padStart(2, '0');
-                    const formattedMonth = String(month + 1).padStart(2, '0');
-                    const formattedHours = String(hours).padStart(2, '0');
-                    const formattedMinutes = String(minutes).padStart(2, '0');
-
-                    // Create the formatted string: Day :: DD/MM/YYYY :: bold(HH:MM)
-                    const formattedDate = `${dayName} :: ${formattedDay}/${formattedMonth}/${year} :: <strong>${formattedHours}:${formattedMinutes}</strong>`;
-
-                    // Update the element
-                    element.innerHTML = formattedDate;
-
-                } catch (error) {
-                    console.error("Error formatting date:", error);
-                }
-            });
-        }
-
-        window.addEventListener('load', function() {
-            updateOnlineCount();
-            updateLastRefresh();
-            formatDateDisplays();
-        });
-
-        setInterval(function() {
-            updateLastRefresh();
-            updateOnlineCount();
-        }, 60000);
-    </script>
+    <!-- Reference to the external JavaScript file -->
+    <script th:src="@{/js/status.js?v=233344432}"></script>
 </th:block>
 </body>
 </html>

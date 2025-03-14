@@ -11,9 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
-public class
-FolderStatusService {
-    private static final int MAX_RETRIES = 3;
+public class FolderStatusService {
 
     private final PathConfig pathConfig;
     private final AtomicInteger retryCount;
@@ -36,19 +34,5 @@ FolderStatusService {
                 retryCount.get(),
                 lastSuccessfulSync.get()
         );
-    }
-
-    public void updateStatus(boolean success, String error) {
-        if (success) {
-            lastSuccessfulSync.set(System.currentTimeMillis());
-            retryCount.set(0);
-            lastError.set(null);
-        } else {
-            int currentRetries = retryCount.incrementAndGet();
-            lastError.set(error);
-            if (currentRetries >= MAX_RETRIES) {
-                retryCount.set(0);
-            }
-        }
     }
 }

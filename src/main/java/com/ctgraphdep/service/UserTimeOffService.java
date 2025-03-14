@@ -6,7 +6,6 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,8 +22,7 @@ public class UserTimeOffService {
     private final UserWorkTimeService userWorkTimeService;
     private final UserService userService;
 
-    public UserTimeOffService(DataAccessService dataAccessService,
-                              HolidayManagementService holidayService,
+    public UserTimeOffService(DataAccessService dataAccessService, HolidayManagementService holidayService,
                               UserWorkTimeService userWorkTimeService, UserService userService) {
         this.dataAccessService = dataAccessService;
         this.holidayService = holidayService;
@@ -57,12 +55,8 @@ public class UserTimeOffService {
                 String.format("Processed %d time off entries for user %s", entries.size(), user.getUsername()));
     }
 
-    /**
-     * Gets all time off records for a specific user for the entire year
-     * @param username Username of the user
-     * @param year The year for which to fetch time off records
-     * @return List of time off records (WorkTimeTable entries with timeOffType not null)
-     */
+    // Gets all-time off records for a specific user for the entire year
+
     public List<WorkTimeTable> getUserTimeOffHistory(String username, Integer year) {
         LoggerUtil.info(this.getClass(),
                 String.format("Fetching time off history for user %s for year %d", username, year));

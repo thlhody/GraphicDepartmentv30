@@ -10,20 +10,25 @@ import com.ctgraphdep.utils.UserRegisterExcelExporter;
 import com.ctgraphdep.utils.UserWorktimeExcelExporter;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Year;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Controller
@@ -32,18 +37,22 @@ import java.util.*;
 public class StatusController extends BaseController {
     private final StatusService statusService;
     private final UserTimeOffService userTimeOffService;
+    private final UserStatusDbService userStatusDbService;
+    private final ThymeleafService thymeleafService;
     private final UserRegisterExcelExporter excelExporter;
     private final UserWorktimeExcelExporter userWorktimeExcelExporter;
 
     public StatusController(UserService userService,
                             FolderStatusService folderStatusService,
                             StatusService statusService,
-                            UserTimeOffService userTimeOffService,
+                            UserTimeOffService userTimeOffService, UserStatusDbService userStatusDbService, ThymeleafService thymeleafService,
                             UserRegisterExcelExporter excelExporter,
                             UserWorktimeExcelExporter userWorktimeExcelExporter) {
         super(userService, folderStatusService);
         this.statusService = statusService;
         this.userTimeOffService = userTimeOffService;
+        this.userStatusDbService = userStatusDbService;
+        this.thymeleafService = thymeleafService;
         this.excelExporter = excelExporter;
         this.userWorktimeExcelExporter = userWorktimeExcelExporter;
         LoggerUtil.initialize(this.getClass(), null);
@@ -77,7 +86,55 @@ public class StatusController extends BaseController {
 
     @GetMapping("/refresh")
     public String refreshStatus() {
+        // Invalidate the cache to ensure fresh data
+        userStatusDbService.invalidateCache();
+        LoggerUtil.info(this.getClass(), "Status cache invalidated via manual refresh");
         return "redirect:/status";
+    }
+
+    @GetMapping("/ajax-refresh")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> ajaxRefreshStatus(@AuthenticationPrincipal UserDetails userDetails) {
+        LoggerUtil.info(this.getClass(), "Processing AJAX status refresh request");
+
+        try {
+            // Force invalidation of the status cache
+            userStatusDbService.invalidateCache();
+
+            User currentUser = getUser(userDetails);
+
+            // Get fresh status list after invalidating cache
+            List<UserStatusDTO> userStatuses = statusService.getUserStatuses();
+            long onlineCount = statusService.getUserStatusCount("online");
+
+            // Create a model to generate the HTML for the table body
+            Model tableModel = new ConcurrentModel();
+            tableModel.addAttribute("userStatuses", userStatuses);
+            tableModel.addAttribute("currentUsername", currentUser.getUsername());
+            tableModel.addAttribute("isAdminView", currentUser.isAdmin());
+
+            // Render the table body fragment using Thymeleaf
+            String tableHtml = "";
+            try {
+                tableHtml = thymeleafService.processTemplate("status/fragments/status-table-body", tableModel);
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error rendering status table fragment: " + e.getMessage());
+                // If rendering fails, we'll return an empty string for tableHtml
+            }
+
+            // Prepare response data
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("onlineCount", onlineCount);
+            responseData.put("tableHtml", tableHtml);
+            responseData.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
+            return ResponseEntity.ok(responseData);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error processing AJAX status refresh: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    Map.of("error", "Failed to refresh status data")
+            );
+        }
     }
 
     @GetMapping("/register-search")

@@ -14,13 +14,11 @@ import java.time.LocalDate;
  */
 public class CreateWorktimeEntryCommand implements SessionCommand<WorkTimeTable> {
     private final String username;
-    private final Integer userId;
     private final WorkUsersSessionsStates session;
     private final String operatingUsername;
 
-    public CreateWorktimeEntryCommand(String username, Integer userId, WorkUsersSessionsStates session, String operatingUsername) {
+    public CreateWorktimeEntryCommand(String username, WorkUsersSessionsStates session, String operatingUsername) {
         this.username = username;
-        this.userId = userId;
         this.session = session;
         this.operatingUsername = operatingUsername;
     }

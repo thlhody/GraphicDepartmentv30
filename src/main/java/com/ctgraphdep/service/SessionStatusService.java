@@ -2,20 +2,15 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.UserStatusDTO;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.db.SessionStatusEntity;
 import com.ctgraphdep.repository.SessionStatusRepository;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 
 /**
  * Service for managing user session status.
@@ -38,21 +33,18 @@ public class SessionStatusService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    // Scheduled method to invalidate cache periodically - delegate to userStatusDbService
-    @Scheduled(fixedRate = 10000) // Every 10 seconds
-    public void invalidateCache() {
-        userStatusDbService.invalidateCache();
-    }
-
     // Updates a user's session status
     @Transactional
     public void updateSessionStatus(String username, Integer userId, String status, LocalDateTime lastActive) {
         try {
-            // Update shared status DB file
+            // Update shared status DB file - this also invalidates the cache
             userStatusDbService.updateUserStatus(username, userId, status, lastActive);
 
             // For backward compatibility, still update the database repository
             updateDbRepository(username, userId, status, lastActive);
+
+            // Force cache invalidation to ensure status is refreshed immediately
+            userStatusDbService.invalidateCache();
 
             LoggerUtil.debug(this.getClass(),
                     String.format("Updated session status for %s to %s", username, status));
@@ -113,18 +105,13 @@ public class SessionStatusService {
                     status,
                     session.getLastActivity()
             );
+
+            // Force cache invalidation
+            userStatusDbService.invalidateCache();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error updating session status from session object: %s", e.getMessage()), e);
         }
-    }
-
-    /**
-     * Gets all user statuses for display on the status page.
-     * Delegates to UserStatusDbService
-     */
-    public List<UserStatusDTO> getAllUserStatuses() {
-        return userStatusDbService.getAllUserStatuses();
     }
 
     /**
@@ -155,13 +142,5 @@ public class SessionStatusService {
             case WorkCode.WORK_OFFLINE -> WorkCode.WORK_OFFLINE;
             default -> WorkCode.STATUS_UNKNOWN;
         };
-    }
-
-    // Format date/time for display
-    private String formatDateTime(LocalDateTime dateTime) {
-        if (dateTime == null) {
-            return WorkCode.LAST_ACTIVE_NEVER;
-        }
-        return dateTime.format(WorkCode.INPUT_FORMATTER);
     }
 }

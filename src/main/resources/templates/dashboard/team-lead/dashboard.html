@@ -5,7 +5,7 @@
       lang="en">
 <head>
     <title th:text="${dashboard.pageTitle}">Team Lead Dashboard</title>
-    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/dashboard.css?v=123456788}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -79,7 +79,7 @@
 </div>
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/dashboard.js}"></script>
+    <script th:src="@{/js/dashboard.js?v=123456788}"></script>
 </th:block>
 </body>
 </html>

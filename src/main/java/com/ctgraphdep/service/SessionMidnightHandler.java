@@ -24,17 +24,14 @@ public class SessionMidnightHandler {
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
     private final UserService userService;
-    private final ContinuationTrackingService continuationTrackingService;
 
     public SessionMidnightHandler(
             SessionCommandService commandService,
             SessionCommandFactory commandFactory,
-            UserService userService,
-            ContinuationTrackingService continuationTrackingService) {
+            UserService userService) {
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.userService = userService;
-        this.continuationTrackingService = continuationTrackingService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -51,9 +48,7 @@ public class SessionMidnightHandler {
             List<User> users = userService.getAllUsers();
 
             // Filter to only those with active sessions
-            List<User> activeUsers = users.stream()
-                    .filter(this::hasActiveSession)
-                    .toList();
+            List<User> activeUsers = users.stream().filter(this::hasActiveSession).toList();
 
             LoggerUtil.info(this.getClass(), String.format("Found %d active sessions at midnight", activeUsers.size()));
 
@@ -78,8 +73,7 @@ public class SessionMidnightHandler {
 
             return session != null && (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error checking active session for %s: %s",
-                    user.getUsername(), e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error checking active session for %s: %s", user.getUsername(), e.getMessage()));
             return false;
         }
     }
@@ -109,9 +103,6 @@ public class SessionMidnightHandler {
             // Save the session using SaveSessionCommand
             SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
             commandService.executeCommand(saveCommand);
-
-            // Record the midnight session end in the continuation tracking service
-            continuationTrackingService.recordMidnightSessionEnd(user.getUsername(), user.getUserId());
 
             LoggerUtil.info(this.getClass(), String.format("Completed midnight session end for user %s - will require resolution", user.getUsername()));
 

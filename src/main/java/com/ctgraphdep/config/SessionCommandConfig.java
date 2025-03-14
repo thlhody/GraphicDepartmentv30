@@ -7,12 +7,9 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.service.*;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.scheduling.TaskScheduler;
-import org.springframework.beans.factory.annotation.Qualifier;
 
-/**
- * Configuration for session command infrastructure
- */
+// Configuration for session command infrastructure
+
 @Configuration
 public class SessionCommandConfig {
 
@@ -25,7 +22,6 @@ public class SessionCommandConfig {
             SystemNotificationService notificationService,
             SystemNotificationBackupService backupService,
             @Lazy SessionMonitorService sessionMonitorService,
-            ContinuationTrackingService continuationTrackingService,
             PathConfig pathConfig,
             FolderStatusService folderStatusService,
             SessionCommandFactory commandFactory) {
@@ -38,7 +34,6 @@ public class SessionCommandConfig {
                 notificationService,
                 backupService,
                 sessionMonitorService,
-                continuationTrackingService,
                 pathConfig,
                 folderStatusService,
                 commandFactory);

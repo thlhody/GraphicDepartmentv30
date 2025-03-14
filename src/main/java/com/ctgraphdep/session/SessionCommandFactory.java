@@ -76,11 +76,6 @@ public class SessionCommandFactory {
         return new ContinueTempStopCommand(username, userId);
     }
 
-    // Creates a command to record a temporary stop continuation
-    public RecordTempStopContinuationCommand createRecordTempStopContinuationCommand(String username, Integer userId, LocalDateTime continuationTime) {
-        return new RecordTempStopContinuationCommand(username, userId, continuationTime);
-    }
-
     //========
     // Work Session Calculations Commands
     //========
@@ -96,8 +91,8 @@ public class SessionCommandFactory {
     }
 
     // Creates a command to create a worktime entry
-    public CreateWorktimeEntryCommand createWorktimeEntryCommand(String username, Integer userId, WorkUsersSessionsStates session, String operatingUsername) {
-        return new CreateWorktimeEntryCommand(username, userId, session, operatingUsername);
+    public CreateWorktimeEntryCommand createWorktimeEntryCommand(String username, WorkUsersSessionsStates session, String operatingUsername) {
+        return new CreateWorktimeEntryCommand(username, session, operatingUsername);
     }
 
     // Creates a command to update session activity timestamp
@@ -113,12 +108,6 @@ public class SessionCommandFactory {
     // For resolving a session
     public ResolveSessionCommand createResolveSessionCommand(String username, Integer userId, LocalDateTime endTime) {
         return new ResolveSessionCommand(username, userId, endTime);
-    }
-
-    // For resolving continuation points
-    public ResolveContinuationPointsCommand createResolveContinuationPointsCommand(
-            String username, LocalDate sessionDate, String operatingUsername, Integer overtimeMinutes) {
-        return new ResolveContinuationPointsCommand(username, sessionDate, operatingUsername, overtimeMinutes);
     }
 
     //========
@@ -151,8 +140,8 @@ public class SessionCommandFactory {
     }
 
     // Creates a command to continue working
-    public ContinueWorkingCommand createContinueWorkingCommand(String username, Integer userId, boolean isHourly) {
-        return new ContinueWorkingCommand(username, userId, isHourly);
+    public ContinueWorkingCommand createContinueWorkingCommand(String username, boolean isHourly) {
+        return new ContinueWorkingCommand(username, isHourly);
     }
 
     // Creates a command to track notification display
@@ -163,11 +152,6 @@ public class SessionCommandFactory {
     // Creates a command to activate hourly monitoring for a user
     public ActivateHourlyMonitoringCommand createActivateHourlyMonitoringCommand(String username) {
         return new ActivateHourlyMonitoringCommand(username);
-    }
-
-    // Creates a command to record a continuation point
-    public RecordContinuationPointCommand createRecordContinuationPointCommand(String username, Integer userId, LocalDateTime continuationTime, boolean isHourly) {
-        return new RecordContinuationPointCommand(username, userId, continuationTime, isHourly);
     }
 
     // Creates a command to check for stalled notifications
@@ -187,12 +171,6 @@ public class SessionCommandFactory {
     //========
     // Query Methods
     //========
-
-    // For active continuation points
-    public GetActiveContinuationPointsQuery createGetActiveContinuationPointsQuery(String username, LocalDate sessionDate) {
-        return new GetActiveContinuationPointsQuery(username, sessionDate);
-    }
-
 
     // For calculating raw work minutes
     public CalculateRawWorkMinutesQuery createCalculateRawWorkMinutesQuery(WorkUsersSessionsStates session, LocalDateTime endTime) {

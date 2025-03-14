@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      lang="en">
+<body>
+<!-- This fragment contains only the table body rows for AJAX refresh -->
+
+<!-- Online Users -->
+<tr th:each="status : ${userStatuses}"
+    th:if="${status.status == 'Online'}"
+    th:class="${status.username == currentUsername ? 'bg-light' : ''}"
+    class="align-middle">
+    <td class="user-cell">
+        <div class="d-flex align-items-center">
+            <div class="status-indicator me-3 bg-success"></div>
+            <div>
+                <div class="fw-medium" th:text="${status.name}"></div>
+                <div class="text-muted small"
+                     th:if="${status.username == currentUsername}">
+                    <i class="bi bi-star-fill text-warning me-1"></i>You
+                </div>
+            </div>
+        </div>
+    </td>
+    <td>
+        <span class="badge rounded-pill px-3 py-2 bg-success">
+            <i class="bi bi-broadcast"></i>
+            <span class="ms-1">Online</span>
+        </span>
+    </td>
+    <td>
+        <div class="d-flex align-items-center justify-content-center">
+            <i class="bi bi-clock text-muted me-2"></i>
+            <span class="date-display" th:text="${status.lastActive}" th:attr="data-timestamp=${status.lastActive}"></span>
+        </div>
+    </td>
+    <td>
+        <div class="d-flex gap-2 justify-content-center">
+            <!-- Time Off History Button -->
+            <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
+               class="btn btn-sm btn-outline-info">
+                <i class="bi bi-calendar-check me-1"></i>Time Off
+            </a>
+            <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
+               class="btn btn-sm btn-outline-info">
+                <i class="bi bi-calendar-check me-1"></i>Time Off
+            </a>
+
+            <!-- Register Search Button -->
+            <a th:href="@{/status/register-search(username=${status.username})}"
+               class="btn btn-sm btn-outline-warning">
+                <i class="bi bi-search me-1"></i>Register
+            </a>
+
+            <!-- Work Time Button -->
+            <a th:href="@{/status/worktime-status(username=${status.username})}"
+               class="btn btn-sm btn-outline-warning"
+               th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
+                <i class="bi bi-clock me-1"></i>WT
+            </a>
+        </div>
+    </td>
+</tr>
+
+<!-- Temporary Stop Users -->
+<tr th:each="status : ${userStatuses}"
+    th:if="${status.status == 'Temporary Stop'}"
+    th:class="${status.username == currentUsername ? 'bg-light' : ''}"
+    class="align-middle">
+    <td class="user-cell">
+        <div class="d-flex align-items-center">
+            <div class="status-indicator me-3 bg-warning"></div>
+            <div>
+                <div class="fw-medium" th:text="${status.name}"></div>
+                <div class="text-muted small"
+                     th:if="${status.username == currentUsername}">
+                    <i class="bi bi-star-fill text-warning me-1"></i>You
+                </div>
+            </div>
+        </div>
+    </td>
+    <td>
+        <span class="badge rounded-pill px-3 py-2 bg-warning">
+            <i class="bi bi-pause-circle"></i>
+            <span class="ms-1">Temporary Stop</span>
+        </span>
+    </td>
+    <td>
+        <div class="d-flex align-items-center justify-content-center">
+            <i class="bi bi-clock text-muted me-2"></i>
+            <span class="date-display" th:text="${status.lastActive}" th:attr="data-timestamp=${status.lastActive}"></span>
+        </div>
+    </td>
+    <td>
+        <div class="d-flex gap-2 justify-content-center">
+            <!-- Time Off History Button -->
+            <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
+               class="btn btn-sm btn-outline-info">
+                <i class="bi bi-calendar-check me-1"></i>Time Off
+            </a>
+            <!-- Fallback if userId is missing -->
+            <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
+               class="btn btn-sm btn-outline-info">
+                <i class="bi bi-calendar-check me-1"></i>Time Off
+            </a>
+
+            <!-- Register Search Button -->
+            <a th:href="@{/status/register-search(username=${status.username})}"
+               class="btn btn-sm btn-outline-warning">
+                <i class="bi bi-search me-1"></i>Register
+            </a>
+
+            <!-- Work Time Button -->
+            <a th:href="@{/status/worktime-status(username=${status.username})}"
+               class="btn btn-sm btn-outline-warning"
+               th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
+                <i class="bi bi-clock me-1"></i>WT
+            </a>
+        </div>
+    </td>
+</tr>
+
+<!-- Offline Users -->
+<tr th:each="status : ${userStatuses}"
+    th:if="${status.status != 'Online' && status.status != 'Temporary Stop'}"
+    th:class="${status.username == currentUsername ? 'bg-light' : ''}"
+    class="align-middle">
+    <td class="user-cell">
+        <div class="d-flex align-items-center">
+            <div class="status-indicator me-3 bg-secondary"></div>
+            <div>
+                <div class="fw-medium" th:text="${status.name}"></div>
+                <div class="text-muted small"
+                     th:if="${status.username == currentUsername}">
+                    <i class="bi bi-star-fill text-warning me-1"></i>You
+                </div>
+            </div>
+        </div>
+    </td>
+    <td>
+        <span class="badge rounded-pill px-3 py-2 bg-secondary">
+            <i class="bi bi-power"></i>
+            <span class="ms-1" th:text="${status.status}"></span>
+        </span>
+    </td>
+    <td>
+        <div class="d-flex align-items-center justify-content-center">
+            <i class="bi bi-clock text-muted me-2"></i>
+            <span class="date-display" th:text="${status.lastActive}" th:attr="data-timestamp=${status.lastActive}"></span>
+        </div>
+    </td>
+    <td>
+        <div class="d-flex gap-2 justify-content-center">
+            <!-- Time Off History Button -->
+            <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
+               class="btn btn-sm btn-outline-info">
+                <i class="bi bi-calendar-check me-1"></i>Time Off
+            </a>
+            <!-- Fallback if userId is missing -->
+            <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
+               class="btn btn-sm btn-outline-info">
+                <i class="bi bi-calendar-check me-1"></i>Time Off
+            </a>
+
+            <!-- Register Search Button -->
+            <a th:href="@{/status/register-search(username=${status.username})}"
+               class="btn btn-sm btn-outline-warning">
+                <i class="bi bi-search me-1"></i>Register
+            </a>
+
+            <!-- Work Time Button -->
+            <a th:href="@{/status/worktime-status(username=${status.username})}"
+               class="btn btn-sm btn-outline-warning"
+               th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
+                <i class="bi bi-clock me-1"></i>WT
+            </a>
+        </div>
+    </td>
+</tr>
+</body>
+</html>

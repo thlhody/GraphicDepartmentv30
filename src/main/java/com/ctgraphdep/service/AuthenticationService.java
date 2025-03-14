@@ -5,7 +5,6 @@ import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.security.CustomUserDetailsService;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import groovy.util.logging.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,7 +21,6 @@ import java.util.Optional;
 @Service
 public class AuthenticationService {
 
-    private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
     private final DataAccessService dataAccess;
     private final PathConfig pathConfig;
     private final UserService userService;
@@ -114,17 +112,6 @@ public class AuthenticationService {
                     }
                 }
 
-//                // Session recovery should still happen regardless of rememberMe
-//                if (!user.isAdmin()) {
-//                    try {
-//                        sessionRecoveryService.recoverSession(user.getUsername(), user.getUserId());
-//                    } catch (Exception e) {
-//                        LoggerUtil.warn(this.getClass(),
-//                                "Failed to recover session: " + e.getMessage() +
-//                                        " - continuing with login");
-//                    }
-//                }
-
                 LoggerUtil.info(this.getClass(),
                         String.format("Successfully handled login for user: %s (rememberMe: %s)",
                                 username, rememberMe));
@@ -189,7 +176,7 @@ public class AuthenticationService {
 
     private void storeUserDataLocally(User user) {
         try {
-            // Get the full, unsanitized user data
+            // Get the full, user data
             Optional<User> fullUserData = userService.getCompleteUserByUsername(user.getUsername());
 
             if (fullUserData.isPresent()) {

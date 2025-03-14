@@ -191,34 +191,13 @@ class RegisterFormHandler {
     calculateComplexity(actionType, printPrepTypes) {
         if (!actionType) return 0;
 
-        const cleanActionType = actionType.trim().toUpperCase();
-        console.log(`Calculating complexity for: "${cleanActionType}"`);
-
         // Special cases first
-        if (cleanActionType === 'IMPOSTARE') {
-            console.log("Matched IMPOSTARE → 0.0");
-            return 0.0;
-        }
-        if (cleanActionType === 'REORDIN') {
-            console.log("Matched REORDIN → 1.0");
-            return 1.0;
-        }
-        if (cleanActionType === 'ORDIN SPIZED') {
-            console.log("Matched ORDIN SPIZED → 2.0");
-            return 2.0;
-        }
-        if (cleanActionType === 'CAMPION SPIZED') {
-            console.log("Matched CAMPION SPIZED → 2.0");
-            return 2.0;
-        }
-        if (cleanActionType === 'PROBA S SPIZED') {
-            console.log("Matched PROBA S SPIZED → 2.0");
-            return 2.0;
-        }
-        if (cleanActionType === 'DESIGN 3D') {
-            console.log("Matched DESIGN 3D → 3.0");
-            return 3.0;
-        }
+        if (actionType === 'IMPOSTARE') return 0.0;
+        if (actionType === 'REORDIN') return 1.0;
+        if (actionType === 'ORDIN SPIZED') return 2.0;
+        if (actionType === 'CAMPION SPIZED') return 2.0;
+        if (actionType === 'PROBA S SPIZED') return 2.0;
+        if (actionType === 'DESIGN 3D') return 3.0;
 
         // Fixed value actions
         const fixedValueActions = [
@@ -250,7 +229,7 @@ class RegisterFormHandler {
         }
 
         console.log(`No special case match for "${cleanActionType}", using standard logic`);
-        return ACTION_TYPE_VALUES[cleanActionType] || 0;
+        return ACTION_TYPE_VALUES[actionType] || 0;
     }
 
     updateComplexityField() {
@@ -564,7 +543,7 @@ class RegisterSummaryHandler {
                     case 'CAMPION SPIZED': this.actionCounts.campionSpized++; break;
                     case 'PROBA S SPIZED': this.actionCounts.probaSSpized++; break;
                     default:
-                        console.log("No match found for:", cleanActionType);
+                        console.log("Unmatched action type:", actionType);
                         this.actionCounts.others++;
                         break;
                 }

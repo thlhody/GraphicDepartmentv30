@@ -33,10 +33,6 @@ public class CheckStalledNotificationsCommand implements SessionCommand<Void> {
                         if (isSessionActive(session)) {
                             LoggerUtil.warn(this.getClass(), "Detected stalled notification for user " + username);
 
-                            // Record continuation point using command
-                            RecordContinuationPointCommand continuationCommand = new RecordContinuationPointCommand(username, user.getUserId(), timeValues.getCurrentTime(), false);
-                            context.executeCommand(continuationCommand);
-
                             // Remove stalled notification
                             context.getBackupService().removeScheduleEndNotification(username);
                         }

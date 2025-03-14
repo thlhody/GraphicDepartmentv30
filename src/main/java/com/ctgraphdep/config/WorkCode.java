@@ -1,6 +1,5 @@
 package com.ctgraphdep.config;
 
-import javax.swing.plaf.PanelUI;
 import java.time.DayOfWeek;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -9,12 +8,12 @@ public class WorkCode {
 
     //file format
     public static final String BACKUP_EXTENSION = ".bak";
-    public static final String HOURLY = "_hourly";
 
     //time off codes
     public static final String NATIONAL_HOLIDAY_CODE = "SN";
     public static final String TIME_OFF_CODE = "CO";
     public static final String MEDICAL_LEAVE_CODE = "CM";
+    public static final String ERROR_TAG = "ER";
     public static final String NATIONAL_HOLIDAY_CODE_LONG = "National Holiday(SN)";
     public static final String TIME_OFF_CODE_LONG = "Holiday(CO)";
     public static final String MEDICAL_LEAVE_CODE_LONG = "Medical Leave(CM)";
@@ -38,20 +37,6 @@ public class WorkCode {
     public static final Integer INTERVAL_HOURS_C = 8;         // Interval working hours 8 hours
     public static final Integer ON_FOR_TEN_SECONDS = 10000; // 10 seconds in milliseconds
     public static final Integer ONCE_PER_DAY_TIMER = 24 * 60;
-    //Notification Timer timers and
-    public static int calculateFullDayDuration(Integer schedule) {
-        // If schedule is null or invalid, default to 8 hours
-        if (schedule == null || schedule <= 0) {
-            schedule = INTERVAL_HOURS_C;
-        }
-        // For 8-hour schedule: 8.5 hours (510 minutes)
-        // For others: schedule hours + lunch break if applicable
-        if (schedule.intValue() == INTERVAL_HOURS_C) {
-            return (schedule * HOUR_DURATION) + HALF_HOUR_DURATION;
-        } else {
-            return schedule * HOUR_DURATION;
-        }
-    }
 
     public static final Integer ONE_MINUTE_DELAY = 1;     // 8.5 hours in minutes (8 * 60 + 30)510
     public static final Integer CHECK_INTERVAL = 30; // checks every 30 minutes in order to see if the end time is reached
@@ -165,18 +150,6 @@ public class WorkCode {
     public static final String OVERTIME_TYPE = "OVERTIME";
     public static final String TEMP_STOP_TYPE = "TEMP_STOP";
     public static final String START_DAY_TYPE = "START_DAY";
-
-
-    public static final Integer NORMAL_WORK_TIME = 510;
-    public static final Integer OVERTIME_ONE = 570;
-    public static final Integer OVERTIME_TWO = 630;
-    public static final Integer OVERTIME_THREE = 690;
-    public static final Integer OVERTIME_FOUR = 720;
-    public static final Integer OVERTIME_FIVE = 780;
-    public static final Integer OVERTIME_SIX = 840;
-    public static final Integer OVERTIME_SEVEN = 900;
-    public static final Integer OVERTIME_EIGHT = 960;
-
 }
 
 

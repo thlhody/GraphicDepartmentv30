@@ -80,9 +80,4 @@ public class UpdateController {
             return ResponseEntity.internalServerError().build();
         }
     }
-    @GetMapping("/test")
-    @ResponseBody
-    public String testUpdate() {
-        return "Update controller is working!";
-    }
 }

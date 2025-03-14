@@ -21,7 +21,6 @@ public class SessionContext {
     private final SystemNotificationBackupService backupService;
     private final SessionMonitorService sessionMonitorService;
     private final SessionCalculationService calculationService;
-    private final ContinuationTrackingService continuationTrackingService;
     private final PathConfig pathConfig;
     private final FolderStatusService folderStatusService;
     private final SessionCommandFactory commandFactory;
@@ -35,7 +34,6 @@ public class SessionContext {
             SystemNotificationService notificationService,
             SystemNotificationBackupService backupService,
             SessionMonitorService sessionMonitorService,
-            ContinuationTrackingService continuationTrackingService,
             PathConfig pathConfig,
             FolderStatusService folderStatusService,
             SessionCommandFactory commandFactory) {
@@ -47,7 +45,6 @@ public class SessionContext {
         this.notificationService = notificationService;
         this.backupService = backupService;
         this.sessionMonitorService = sessionMonitorService;
-        this.continuationTrackingService = continuationTrackingService;
         this.pathConfig = pathConfig;
         this.folderStatusService = folderStatusService;
         this.commandFactory = commandFactory;

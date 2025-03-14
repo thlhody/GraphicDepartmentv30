@@ -27,8 +27,6 @@ public class HasUnresolvedSessionQuery implements SessionQuery<Boolean> {
             GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
             GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
-            // Check for unresolved continuation points from midnight session end
-            boolean hasUnresolvedContinuations = context.getContinuationTrackingService().hasUnresolvedMidnightEnd(username);
 
             // Check if current session needs resolution (ended at midnight or incomplete)
             WorkUsersSessionsStates session = context.getCurrentSession(username, userId);
@@ -47,11 +45,11 @@ public class HasUnresolvedSessionQuery implements SessionQuery<Boolean> {
             }
 
             // Log if session needs resolution
-            if (hasUnresolvedContinuations || needsResolution) {
+            if (needsResolution) {
                 LoggerUtil.info(this.getClass(), String.format("User %s has unresolved session that needs resolution", username));
             }
 
-            return hasUnresolvedContinuations || needsResolution;
+            return  needsResolution;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error checking for unresolved sessions for %s: %s", username, e.getMessage()), e);
             return false;

@@ -41,16 +41,10 @@ public class SystemNotificationService {
     private final PathConfig pathConfig;
     private final SessionCommandService sessionCommandService;
     private final SessionCommandFactory commandFactory;
-    /**
-     * -- GETTER --
-     *  Gets the map of last notification times
-     *  This is used by queries to determine if a notification can be shown
-     *
-     * @return The map of last notification times
-     */
+
+    //This is used by queries to determine if a notification can be shown
     @Getter
     private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
-
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
     private static final int BUTTONS_PANEL_HEIGHT = 50;
@@ -122,9 +116,7 @@ public class SystemNotificationService {
     /**
      * Shows a test dialog with buttons (used by the test notification command)
      */
-    public void showTestDialogWithButtons(String username, Integer userId,
-                                          AtomicBoolean testResponded,
-                                          AtomicBoolean dialogDisplayed) {
+    public void showTestDialogWithButtons(String username, Integer userId, AtomicBoolean testResponded, AtomicBoolean dialogDisplayed) {
         // Must be called on EDT
         if (!SwingUtilities.isEventDispatchThread()) {
             LoggerUtil.error(this.getClass(), "showTestDialogWithButtons must be called on EDT");
@@ -327,7 +319,7 @@ public class SystemNotificationService {
         return dialogDisplayed;
     }
 
-    // Method to add an additional response tracking mechanism
+    // Method to add a response tracking mechanism
     private void startFallbackResponseTimer(String username) {
         try {
             // Create a file-based tracking mechanism
@@ -338,58 +330,6 @@ public class SystemNotificationService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to create notification tracking: " + e.getMessage());
         }
-    }
-
-    // Shows a notification dialog with customizable buttons
-    private boolean showNotificationDialog(String username, Integer userId, Integer finalMinutes, String title, String message,
-                                           Integer timeoutPeriod, boolean isHourly, boolean isTempStop, ButtonsProvider buttonsProvider) {
-        LoggerUtil.debug(this.getClass(), String.format("Showing notification - isHourly: %b, isTempStop: %b", isHourly, isTempStop));
-
-        // Guard clauses
-        if (systemTray.getTrayIcon() == null) {
-            LoggerUtil.error(this.getClass(), "System tray icon not available");
-            return false;
-        }
-
-        if (GraphicsEnvironment.isHeadless()) {
-            LoggerUtil.info(this.getClass(), "Running in headless mode, can't display dialog");
-            return false;
-        }
-
-        // Don't show regular notification during temp stop - use command pattern to check
-        if (!isTempStop) {
-            IsInTemporaryStopQuery query = commandFactory.createIsInTemporaryStopQuery(username, userId);
-            boolean isInTempStop = sessionCommandService.executeQuery(query);
-
-            if (isInTempStop) {
-                LoggerUtil.debug(this.getClass(), "Skipping regular notification during temp stop");
-                return false;
-            }
-        }
-
-        userResponded.set(false);
-        final AtomicBoolean dialogDisplayed = new AtomicBoolean(false);
-
-        try {
-            SwingUtilities.invokeAndWait(() -> {
-                try {
-                    DialogComponents components = createDialog(title, message);
-                    buttonsProvider.addButtons(components, username, userId, finalMinutes);
-                    showDialog(components.dialog);
-                    dialogDisplayed.set(true);
-                    // Track notification display
-                    trackNotificationDisplay(username, userId, timeoutPeriod, isTempStop);
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), "Failed to display notification dialog: " + e.getMessage());
-                    dialogDisplayed.set(false);
-                }
-            });
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error invoking dialog on EDT: " + e.getMessage());
-            return false;
-        }
-
-        return dialogDisplayed.get();
     }
 
     // Method to track notification display without auto-closing
@@ -480,7 +420,7 @@ public class SystemNotificationService {
                 dialog.dispose();
 
                 // Create and execute continue working command
-                ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, userId, isHourly);
+                ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, isHourly);
                 sessionCommandService.executeCommand(command);
 
                 LoggerUtil.info(SystemNotificationService.this.getClass(), String.format("User %s chose to continue working - continuation point recorded", username));
@@ -631,28 +571,15 @@ public class SystemNotificationService {
         buttonsPanel.add(new SkipButton().create());
     }
 
-
-
-    /**
-     * Records the time a notification was shown
-     * This is used for rate limiting notifications
-     *
-     * @param username The username
-     * @param notificationType The type of notification
-     */
+    //  Records the time a notification was shown
+    // This is used for rate limiting notifications
     public void recordNotificationTime(String username, String notificationType) {
         String key = getNotificationKey(username, notificationType);
         lastNotificationTimes.put(key, LocalDateTime.now());
         LoggerUtil.debug(this.getClass(), String.format("Recorded notification time for %s - %s", username, notificationType));
     }
 
-    /**
-     * Gets a unique key for a notification based on username and type
-     *
-     * @param username The username
-     * @param notificationType The type of notification
-     * @return A unique key for the notification
-     */
+    // Gets a unique key for a notification based on username and type
     private String getNotificationKey(String username, String notificationType) {
         return username + ":" + notificationType;
     }

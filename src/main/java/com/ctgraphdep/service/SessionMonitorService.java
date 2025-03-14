@@ -9,10 +9,7 @@ import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
 import com.ctgraphdep.session.commands.notification.ShowTestNotificationCommand;
-import com.ctgraphdep.session.query.GetCurrentSessionQuery;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
-import com.ctgraphdep.session.query.HasCompletedSessionForTodayQuery;
-import com.ctgraphdep.session.query.WorkScheduleQuery;
+import com.ctgraphdep.session.query.*;
 import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -27,7 +24,6 @@ import java.nio.file.Path;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
@@ -45,7 +41,6 @@ public class SessionMonitorService {
     private final TaskScheduler taskScheduler;
     private final PathConfig pathConfig;
     private final SystemNotificationBackupService backupService;
-    private final ContinuationTrackingService continuationTrackingService;
 
     // Track monitored sessions
     private final Map<String, Boolean> notificationShown = new ConcurrentHashMap<>();
@@ -62,8 +57,7 @@ public class SessionMonitorService {
             UserService userService,
             @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             PathConfig pathConfig,
-            SystemNotificationBackupService backupService,
-            ContinuationTrackingService continuationTrackingService) {
+            SystemNotificationBackupService backupService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
@@ -72,7 +66,6 @@ public class SessionMonitorService {
         this.taskScheduler = taskScheduler;
         this.pathConfig = pathConfig;
         this.backupService = backupService;
-        this.continuationTrackingService = continuationTrackingService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -310,9 +303,6 @@ public class SessionMonitorService {
             // Check if total temporary stop minutes exceed 15 hours
             if (session.getTotalTemporaryStopMinutes() != null &&
                     session.getTotalTemporaryStopMinutes() >= WorkCode.MAX_TEMP_STOP_HOURS * WorkCode.HOUR_DURATION) {
-
-                // Record this as a temp stop continuation rather than ending the session
-                continuationTrackingService.recordTempStopContinuation(username, session.getUserId(), now);
                 return;
             }
 
@@ -364,8 +354,7 @@ public class SessionMonitorService {
             // First register backup action
             backupService.registerScheduleEndNotification(
                     session.getUsername(),
-                    session.getUserId(),
-                    session.getFinalWorkedMinutes()
+                    session.getUserId()
             );
 
             // Then show notification
@@ -376,6 +365,10 @@ public class SessionMonitorService {
             );
 
             notificationShown.put(session.getUsername(), true);
+
+            // Save the updated session
+            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+            commandService.executeCommand(saveCommand);
             LoggerUtil.info(this.getClass(),
                     String.format("Schedule completion notification shown for user %s (worked: %d minutes)",
                             session.getUsername(), workedMinutes));
@@ -406,8 +399,7 @@ public class SessionMonitorService {
             // First register backup action
             backupService.registerHourlyWarningNotification(
                     username,
-                    session.getUserId(),
-                    session.getFinalWorkedMinutes()
+                    session.getUserId()
             );
 
             // Then show notification
@@ -417,6 +409,9 @@ public class SessionMonitorService {
                     session.getFinalWorkedMinutes()
             );
 
+            // Save the updated session
+            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+            commandService.executeCommand(saveCommand);
             // Update the last warning time to current time
             lastHourlyWarning.put(username, now);
         }
@@ -450,8 +445,7 @@ public class SessionMonitorService {
                 return;
             }
 
-            User user = userService.getUserByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + username));
+            User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
 
             // Check if user has completed a session for today
             HasCompletedSessionForTodayQuery completedQuery = commandFactory.createHasCompletedSessionForTodayQuery(username, user.getUserId());
@@ -462,12 +456,13 @@ public class SessionMonitorService {
                 return;
             }
 
-            // Check for unresolved continuation points from yesterday
-            boolean hasUnresolvedContinuations = continuationTrackingService.hasUnresolvedMidnightEnd(username);
+            // Check for unresolved sessions from yesterday
+            HasUnresolvedSessionQuery unresolvedQuery = commandFactory.createHasUnresolvedSessionQuery(username, user.getUserId());
+            boolean hasUnresolvedSession = commandService.executeQuery(unresolvedQuery);
 
-            // If there are unresolved continuations, don't show start day reminder
-            if (hasUnresolvedContinuations) {
-                LoggerUtil.info(this.getClass(), String.format("User %s has unresolved continuation points - skipping start day reminder", username));
+            // If there are unresolved sessions, don't show start day reminder
+            if (hasUnresolvedSession) {
+                LoggerUtil.info(this.getClass(), String.format("User %s has unresolved session - skipping start day reminder", username));
                 return;
             }
 

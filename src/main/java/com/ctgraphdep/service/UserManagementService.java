@@ -11,12 +11,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
-import com.fasterxml.jackson.core.type.TypeReference;
 
 @Service
 @PreAuthorize("hasRole('ADMIN')")
 public class UserManagementService {
-    private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
     private final DataAccessService dataAccess;
     private final HolidayManagementService holidayService;
     private final PasswordEncoder passwordEncoder;

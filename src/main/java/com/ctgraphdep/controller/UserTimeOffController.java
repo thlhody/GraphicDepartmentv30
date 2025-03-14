@@ -125,7 +125,7 @@ public class UserTimeOffController extends BaseController {
 
             // Validate paid leave availability if CO type
             if ("CO".equals(timeOffType)) {
-                int availableDays = holidayService.getRemainingHolidayDays(user.getUsername(), user.getUserId());
+                int availableDays = holidayService.getRemainingHolidayDays(user.getUserId());
                 if (availableDays < daysNeeded) {
                     redirectAttributes.addFlashAttribute("errorMessage",
                             String.format("Insufficient paid holiday days. Needed: %d, Available: %d", daysNeeded, availableDays));
@@ -186,7 +186,7 @@ public class UserTimeOffController extends BaseController {
         LocalDate twoMonthsAgo = LocalDate.now().minusMonths(2).withDayOfMonth(1);
         LocalDate maxDate = LocalDate.now().plusMonths(6);
 
-        int availablePaidDays = holidayService.getRemainingHolidayDays(user.getUsername(), user.getUserId());
+        int availablePaidDays = holidayService.getRemainingHolidayDays(user.getUserId());
         List<WorkTimeTable> yearWorktime = userWorkTimeService.loadMonthWorktime(
                 user.getUsername(), Year.now().getValue(), YearMonth.now().getMonthValue());
 

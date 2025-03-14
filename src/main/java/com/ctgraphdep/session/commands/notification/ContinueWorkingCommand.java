@@ -7,12 +7,11 @@ import com.ctgraphdep.utils.LoggerUtil;
 
 public class ContinueWorkingCommand implements SessionCommand<Void> {
     private final String username;
-    private final Integer userId;
+
     private final boolean isHourly;
 
-    public ContinueWorkingCommand(String username, Integer userId, boolean isHourly) {
+    public ContinueWorkingCommand(String username, boolean isHourly) {
         this.username = username;
-        this.userId = userId;
         this.isHourly = isHourly;
     }
 
@@ -36,9 +35,6 @@ public class ContinueWorkingCommand implements SessionCommand<Void> {
                     LoggerUtil.warn(this.getClass(), String.format("Failed to activate hourly monitoring for user %s", username));
                 }
             }
-
-            // Record continuation point
-            context.getContinuationTrackingService().recordContinuationPoint(username, userId, timeValues.getCurrentTime(), isHourly);
 
             return null;
         } catch (Exception e) {

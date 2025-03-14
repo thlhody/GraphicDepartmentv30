@@ -2,7 +2,6 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,7 +16,6 @@ public class UserServiceImpl implements UserService {
     private final DataAccessService dataAccessService;
     private final PasswordEncoder passwordEncoder;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-    private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
 
     @Autowired
     public UserServiceImpl(DataAccessService dataAccessService, PasswordEncoder passwordEncoder) {
@@ -301,17 +299,5 @@ public class UserServiceImpl implements UserService {
         return getAllUsers().stream()
                 .filter(user -> employeeId.equals(user.getEmployeeId()))
                 .findFirst();
-    }
-
-    // Add this method to UserServiceImpl
-    private void validateUserData(User user) {
-        LoggerUtil.debug(this.getClass(),
-                String.format("Validating user data for '%s':", user.getUsername()));
-        LoggerUtil.debug(this.getClass(),
-                String.format("- ID: %d", user.getUserId()));
-        LoggerUtil.debug(this.getClass(),
-                String.format("- Name: %s", user.getName()));
-        LoggerUtil.debug(this.getClass(),
-                String.format("- Role: %s", user.getRole()));
     }
 }

@@ -22,13 +22,13 @@ public class HomeController extends BaseController {
         if (authentication != null && authentication.isAuthenticated()) {
             if (authentication.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
-                return "redirect:/admin/dashboard";
+                return "redirect:/admin";  // Admin dashboard
             }
             if (authentication.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_TEAM_LEADER"))) {
-                return "redirect:/user/session";  // Changed from /team-lead
+                return "redirect:/team-lead";  // Team Leader dashboard
             }
-            return "redirect:/user/session";  // Changed from /user
+            return "redirect:/user";  // Regular user dashboard
         }
         return "redirect:/login";
     }

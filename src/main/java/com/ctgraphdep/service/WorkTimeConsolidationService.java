@@ -28,23 +28,17 @@ public class WorkTimeConsolidationService {
     public void consolidateWorkTimeEntries(int year, int month) {
         consolidationLock.lock();
         try {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Starting worktime consolidation for %d/%d", month, year));
+            LoggerUtil.info(this.getClass(), String.format("Starting worktime consolidation for %d/%d", month, year));
 
             // Get all non-admin users
-            List<User> users = userService.getAllUsers().stream()
-                    .filter(user -> !user.isAdmin())
-                    .toList();
+            List<User> users = userService.getAllUsers().stream().filter(user -> !user.isAdmin()).toList();
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Found %d non-admin users to process", users.size()));
+            LoggerUtil.info(this.getClass(), String.format("Found %d non-admin users to process", users.size()));
 
             // Load existing admin entries
             List<WorkTimeTable> adminEntries = loadAdminWorktime(year, month);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Loaded %d existing admin entries",
-                            adminEntries != null ? adminEntries.size() : 0));
+            LoggerUtil.info(this.getClass(), String.format("Loaded %d existing admin entries", adminEntries != null ? adminEntries.size() : 0));
 
             // Create a map of admin entries by user and date for efficient lookup
             assert adminEntries != null;
@@ -57,13 +51,9 @@ public class WorkTimeConsolidationService {
                     List<WorkTimeTable> userProcessedEntries = processUserEntries(user, year, month, adminEntriesMap);
                     consolidatedEntries.addAll(userProcessedEntries);
 
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Processed %d entries for user %s",
-                                    userProcessedEntries.size(), user.getUsername()));
+                    LoggerUtil.info(this.getClass(), String.format("Processed %d entries for user %s", userProcessedEntries.size(), user.getUsername()));
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            String.format("Error processing user %s: %s",
-                                    user.getUsername(), e.getMessage()));
+                    LoggerUtil.error(this.getClass(), String.format("Error processing user %s: %s", user.getUsername(), e.getMessage()));
                     // Continue with next user
                 }
             }
@@ -71,8 +61,7 @@ public class WorkTimeConsolidationService {
             // Sort and save consolidated entries
             if (!consolidatedEntries.isEmpty()) {
                 saveConsolidatedEntries(consolidatedEntries, year, month);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Saved %d consolidated entries", consolidatedEntries.size()));
+                LoggerUtil.info(this.getClass(), String.format("Saved %d consolidated entries", consolidatedEntries.size()));
             } else {
                 LoggerUtil.info(this.getClass(), "No entries to save after consolidation");
             }
@@ -86,9 +75,7 @@ public class WorkTimeConsolidationService {
         try {
             return dataAccessService.readLocalAdminWorktime(year, month);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading admin worktime for %d/%d: %s",
-                            year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading admin worktime for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -105,8 +92,7 @@ public class WorkTimeConsolidationService {
     private List<WorkTimeTable> processUserEntries(User user, int year, int month, Map<String, WorkTimeTable> adminEntriesMap) {
         try {
             // Load user entries from network with null safety
-            List<WorkTimeTable> userEntries = dataAccessService.readNetworkUserWorktime(
-                    user.getUsername(), year, month);
+            List<WorkTimeTable> userEntries = dataAccessService.readNetworkUserWorktime(user.getUsername(), year, month);
 
             if (userEntries == null) {
                 userEntries = new ArrayList<>();
@@ -152,9 +138,7 @@ public class WorkTimeConsolidationService {
             return processedEntries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error processing entries for user %s: %s",
-                            user.getUsername(), e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error processing entries for user %s: %s", user.getUsername(), e.getMessage()));
             return new ArrayList<>();  // Return empty list instead of throwing
         }
     }
@@ -169,14 +153,10 @@ public class WorkTimeConsolidationService {
             // Save to admin worktime - this will handle local save and network sync
             dataAccessService.writeAdminWorktime(entries, year, month);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved %d consolidated entries for %d/%d",
-                            entries.size(), month, year));
+            LoggerUtil.info(this.getClass(), String.format("Saved %d consolidated entries for %d/%d", entries.size(), month, year));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving consolidated entries for %d/%d: %s",
-                            month, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error saving consolidated entries for %d/%d: %s", month, year, e.getMessage()));
             throw new RuntimeException("Failed to save consolidated entries", e);
         }
     }
@@ -188,8 +168,6 @@ public class WorkTimeConsolidationService {
     public List<WorkTimeTable> getViewableEntries(int year, int month) {
         List<WorkTimeTable> allEntries = loadAdminWorktime(year, month);
 
-        return allEntries.stream()
-                .filter(entry -> !SyncStatus.USER_IN_PROCESS.name().equals(entry.getAdminSync()))
-                .collect(Collectors.toList());
+        return new ArrayList<>(allEntries);
     }
 }

@@ -1,34 +1,132 @@
+/*
+ * User Status Management Styles
+ */
+
+/* Status indicator dot styles */
 .status-indicator {
-    width: 30px;
+    width: 10px;
     height: 10px;
     border-radius: 50%;
     display: inline-block;
 }
 
-/* Center column headings */
+/* Table header styles */
 .table th {
     text-align: center;
+    font-weight: 600;
+    color: #495057;
 }
 
-/* Center column content */
+/* Table cell styles */
 .table td {
     text-align: center;
     vertical-align: middle;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
 }
 
-/* Left-align user column for better readability */
+/* User cell alignment */
 .table td.user-cell {
     text-align: left;
 }
 
-/* Add some more horizontal spacing */
+/* Add horizontal spacing for better readability */
 .table th, .table td {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
 }
 
-/* Make table take up more space */
+/* Make table responsive and fill container */
 .table-responsive {
     max-width: 95%;
     margin: 0 auto;
+}
+
+/* Card shadow enhancements */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+/* Status badge styles */
+.badge {
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
+/* Table hover effect */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.04);
+    transition: background-color 0.15s ease-in-out;
+}
+
+/* Highlight current user row */
+.table tbody tr.bg-light {
+    background-color: rgba(0, 123, 255, 0.08) !important;
+}
+
+/* Button hover effects */
+.btn-outline-info:hover,
+.btn-outline-warning:hover {
+    transform: translateY(-1px);
+    transition: transform 0.2s ease;
+}
+
+/* Status colors */
+.bg-success {
+    background-color: #28a745 !important;
+}
+
+.bg-warning {
+    background-color: #ffc107 !important;
+}
+
+.bg-secondary {
+    background-color: #6c757d !important;
+}
+
+/* Animation for refresh button */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Header styling */
+.header-title {
+    font-weight: 600;
+    color: #343a40;
+}
+
+/* Badge in header */
+.badge.bg-primary {
+    background-color: #0d6efd !important;
+    font-weight: 500;
+}
+
+/* Improve dashboard button */
+.btn-outline-primary {
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+.btn-outline-primary:hover {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 768px) {
+    .table th, .table td {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .d-flex.gap-2 {
+        flex-wrap: wrap;
+    }
 }

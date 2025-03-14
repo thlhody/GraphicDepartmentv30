@@ -222,20 +222,6 @@ public class DataAccessService {
         }
     }
 
-    // Helper method to check if network session exists
-    public boolean networkSessionExists(String username, Integer userId) {
-        if (!pathConfig.isNetworkAvailable()) {
-            return false;
-        }
-        Path networkPath = pathConfig.getNetworkSessionPath(username, userId);
-        try {
-            return Files.exists(networkPath) && Files.size(networkPath) > 3;
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), String.format("Error checking network session existence for %s: %s", username, e.getMessage()));
-            return false;
-        }
-    }
-
     // Network User file - Network only
     public List<User> readUsersNetwork() {
         Path networkPath = pathConfig.getNetworkUsersPath();

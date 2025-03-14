@@ -105,6 +105,11 @@
     background-color: #17a2b8; /* Teal */
 }
 
+.bg-spized {
+    background-color: #fd7e14;
+    color: black; /* Make sure the text is visible */
+}
+
 /* Admin Sync Status Badges */
 .badge.bg-success {
     background-color: #198754 !important;

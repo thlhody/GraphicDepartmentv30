@@ -1,7 +1,6 @@
 package com.ctgraphdep.controller;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.ContinuationPoint;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -23,10 +22,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 @Controller
 @PreAuthorize("isAuthenticated()")
@@ -35,6 +30,7 @@ public class SessionResolutionController extends BaseController {
 
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
+
     private final UserService userService;
 
     public SessionResolutionController(SessionCommandService commandService, SessionCommandFactory commandFactory, UserService userService) {
@@ -70,8 +66,10 @@ public class SessionResolutionController extends BaseController {
 
             // Check if session has start time
             if (session == null || session.getDayStartTime() == null) {
-                redirectAttributes.addFlashAttribute("errorMessage", "No valid session found");
-                return "redirect:/user/session";
+                // CHANGE HERE: Don't redirect but render the session page directly
+                // to avoid potential redirect loop
+                redirectAttributes.addFlashAttribute("infoMessage", "No valid session found. Starting new session.");
+                return "user/session";
             }
 
             // Check if session needs resolution using the query
@@ -82,6 +80,7 @@ public class SessionResolutionController extends BaseController {
                 redirectAttributes.addFlashAttribute("infoMessage", "This session is already resolved");
                 return "redirect:/user/session";
             }
+
 
             // Get the date from the session
             LocalDate sessionDate = session.getDayStartTime().toLocalDate();
@@ -192,20 +191,6 @@ public class SessionResolutionController extends BaseController {
      */
     private LocalTime calculateDefaultEndTime(String username, LocalDate sessionDate) {
         try {
-            // Use the query to get continuation points
-            GetActiveContinuationPointsQuery pointsQuery = commandFactory.createGetActiveContinuationPointsQuery(username, sessionDate);
-            List<ContinuationPoint> continuationPoints = commandService.executeQuery(pointsQuery);
-
-            if (!continuationPoints.isEmpty()) {
-                // Find the continuation point with the latest timestamp
-                Optional<ContinuationPoint> latestPoint = continuationPoints.stream().max(Comparator.comparing(ContinuationPoint::getTimestamp));
-                // Since we checked the list isn't empty, we know latestPoint will have a value
-                if (latestPoint.get().getTimestamp() != null) {
-                    LocalTime pointTime = latestPoint.get().getTimestamp().toLocalTime();
-                    LoggerUtil.info(this.getClass(), String.format("Using continuation point time for default: %s", pointTime));
-                    return pointTime;
-                }
-            }
 
             // If no continuation point, use WorkScheduleQuery to get expected end time
             User user = userService.getUserByUsername(username).orElseThrow(() -> new IllegalStateException("User not found"));
@@ -318,10 +303,6 @@ public class SessionResolutionController extends BaseController {
             // End the session
             EndDayCommand endCommand = commandFactory.createEndDayCommand(username, user.getUserId(), standardMinutes, endTime);
             commandService.executeCommand(endCommand);
-
-            // Mark continuation points as resolved (no overtime)
-            ResolveContinuationPointsCommand resolvePointsCommand = commandFactory.createResolveContinuationPointsCommand(username, sessionDate, username, 0);
-            commandService.executeCommand(resolvePointsCommand);
 
             redirectAttributes.addFlashAttribute("infoMessage", "Session resolution skipped. Standard schedule recorded.");
 

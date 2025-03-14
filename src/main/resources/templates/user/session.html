@@ -7,8 +7,8 @@
 <!-- Changing -->
 <head>
     <title>Work Session Management</title>
-    <link rel="stylesheet" th:href="@{/css/session.css}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css}">
+    <link rel="stylesheet" th:href="@{/css/session.css?v=123456788}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=123456788}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -178,7 +178,9 @@
     </div>
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js}"></script>
+        <script th:if="${param.showResumeConfirmation}"
+                th:src="@{/js/session.js?v=123456788}">
+        </script>
     </th:block>
 </div>
 </body>

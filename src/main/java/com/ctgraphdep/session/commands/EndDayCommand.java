@@ -144,7 +144,7 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
 
             // Create worktime entry using the command
             CreateWorktimeEntryCommand createCommand = context.getCommandFactory()
-                    .createWorktimeEntryCommand(username, userId, session, username);
+                    .createWorktimeEntryCommand(username, session, username);
 
             // Execute the command to get a properly created worktime entry
             WorkTimeTable entry = context.executeCommand(createCommand);

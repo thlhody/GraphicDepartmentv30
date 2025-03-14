@@ -5,8 +5,8 @@
       lang="en">
 <head>
     <title>Team Statistics</title>
-    <link rel="stylesheet" th:href="@{/css/team-stats.css}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css}">
+    <link rel="stylesheet" th:href="@{/css/team-stats.css?v=123456788}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=123456788}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -239,7 +239,7 @@
 </div>
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/team-stats.js}"></script>
+    <script th:src="@{/js/team-stats.js?v=123456788}"></script>
 </th:block>
 </body>
 </html>

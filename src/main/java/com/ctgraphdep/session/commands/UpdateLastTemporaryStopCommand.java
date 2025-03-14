@@ -22,15 +22,13 @@ public class UpdateLastTemporaryStopCommand implements SessionCommand<WorkUsersS
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
         try {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Updating last temporary stop for user %s", session.getUsername()));
+            LoggerUtil.info(this.getClass(), String.format("Updating last temporary stop for user %s", session.getUsername()));
 
             context.updateLastTemporaryStop(session, endTime);
 
             return session;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error updating last temporary stop: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error updating last temporary stop: %s", e.getMessage()));
             return session;
         }
     }

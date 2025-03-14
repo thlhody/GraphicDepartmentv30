@@ -111,7 +111,7 @@ public class ResumePreviousSessionCommand implements SessionCommand<WorkUsersSes
             } else {
                 // Create a new worktime entry using the command
                 CreateWorktimeEntryCommand createCommand = context.getCommandFactory()
-                        .createWorktimeEntryCommand(username, userId, session, username);
+                        .createWorktimeEntryCommand(username,  session, username);
 
                 WorkTimeTable newEntry = context.executeCommand(createCommand);
 

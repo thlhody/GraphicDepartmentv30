@@ -30,7 +30,7 @@ public class ShowSessionWarningCommand implements SessionCommand<Boolean> {
             }
 
             // Register backup notification
-            context.getBackupService().registerScheduleEndNotification(username, userId, finalMinutes);
+            context.getBackupService().registerScheduleEndNotification(username, userId);
 
             // Show actual notification using UI service with explicit invokeLater
             final boolean[] result = {false};

@@ -31,8 +31,6 @@ public class NetworkMonitorService {
     private volatile LocalDateTime lastNetworkCheck = null;
     private volatile boolean lastKnownNetworkStatus = false;
     private int consecutiveFailures = 0;
-    private static final int MAX_RETRY_MULTIPLIER = 5;
-    private static final int INITIAL_INTERVAL = 10000; // Start with 10 seconds
 
     private final List<NetworkStatusListener> statusListeners = new CopyOnWriteArrayList<>();
 

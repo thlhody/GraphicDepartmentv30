@@ -76,7 +76,7 @@ public class AdminPaidHolidayService {
         }
     }
 
-    public int getRemainingHolidayDays(String username, Integer userId) {
+    public int getRemainingHolidayDays(Integer userId) {
         holidayLock.lock();
         try {
             return loadHolidayList().stream()

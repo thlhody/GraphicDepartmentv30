@@ -12,11 +12,9 @@ import java.nio.file.Path;
 @Service
 public class NetworkCleanupService {
     private final PathConfig pathConfig;
-    private final FileBackupService backupService;
 
-    public NetworkCleanupService(PathConfig pathConfig, FileBackupService backupService) {
+    public NetworkCleanupService(PathConfig pathConfig) {
         this.pathConfig = pathConfig;
-        this.backupService = backupService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 

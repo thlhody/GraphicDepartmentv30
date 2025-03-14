@@ -5,7 +5,6 @@ import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
 import com.ctgraphdep.enums.ActionType;
-import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -170,48 +169,6 @@ public class AdminRegisterService {
                 .build();
     }
 
-    // Search entries by any field
-    public List<RegisterEntry> searchEntries(List<RegisterEntry> entries, String searchTerm) {
-        if (searchTerm == null || searchTerm.trim().isEmpty()) {
-            return entries;
-        }
-
-        String term = searchTerm.toLowerCase();
-        return entries.stream()
-                .filter(entry -> matchesSearchTerm(entry, term))
-                .collect(Collectors.toList());
-    }
-
-    // Bulk update selected entries
-    public void bulkUpdateEntries(List<RegisterEntry> entries,
-                                  List<Integer> selectedEntryIds,
-                                  String fieldName,
-                                  String newValue) {
-        // Only update status for selected entries
-        entries.stream()
-                .filter(entry -> selectedEntryIds.contains(entry.getEntryId()))
-                .forEach(entry -> {
-                    // Store old value
-                    Object oldValue = getFieldValue(entry, fieldName);
-                    // Update field
-                    updateEntryField(entry, fieldName, newValue);
-                    // Only change status if value actually changed
-                    if (!Objects.equals(oldValue, getFieldValue(entry, fieldName))) {
-                        entry.setAdminSync(SyncStatus.ADMIN_EDITED.name());
-                    }
-                });
-    }
-
-    private Object getFieldValue(RegisterEntry entry, String fieldName) {
-        return switch (fieldName) {
-            case "graphicComplexity" -> entry.getGraphicComplexity();
-            case "articleNumbers" -> entry.getArticleNumbers();
-            case "colorsProfile" -> entry.getColorsProfile();
-            case "observations" -> entry.getObservations();
-            default -> throw new IllegalArgumentException("Invalid field name: " + fieldName);
-        };
-    }
-
     public BonusCalculationResult calculateBonusFromRequest(Map<String, Object> request) {
         try {
             // Convert and validate entries
@@ -238,51 +195,6 @@ public class AdminRegisterService {
             LoggerUtil.error(this.getClass(), "Error in bonus calculation: " + e.getMessage());
             throw new RuntimeException("Failed to calculate bonus", e);
         }
-    }
-
-    public List<RegisterEntry> filterEntries(List<RegisterEntry> entries,
-                                             ActionType actionType,
-                                             PrintPrepTypes printPrepTypes) {
-        return entries.stream()
-                .filter(entry -> {
-                    // If neither filter is selected, return all entries
-                    if (actionType == null && printPrepTypes == null) {
-                        return true;
-                    }
-
-                    // If only action type filter is selected
-                    if (printPrepTypes == null) {
-                        return entry.getActionType().equals(actionType.getValue());
-                    }
-
-                    // If only print prep type filter is selected
-                    if (actionType == null) {
-                        return entry.getPrintPrepTypes().contains(printPrepTypes.getValue());
-                    }
-
-                    // If both filters are selected
-                    return entry.getActionType().equals(actionType.getValue()) &&
-                            entry.getPrintPrepTypes().contains(printPrepTypes.getValue());
-                })
-                .collect(Collectors.toList());
-    }
-
-    private boolean matchesSearchTerm(RegisterEntry entry, String term) {
-        return String.valueOf(entry.getEntryId()).contains(term) ||
-                String.valueOf(entry.getUserId()).contains(term) ||
-                entry.getDate().toString().contains(term) ||
-                entry.getOrderId().toLowerCase().contains(term) ||
-                entry.getProductionId().toLowerCase().contains(term) ||
-                entry.getOmsId().toLowerCase().contains(term) ||
-                entry.getClientName().toLowerCase().contains(term) ||
-                entry.getActionType().toLowerCase().contains(term) ||
-                entry.getPrintPrepTypes().stream()
-                        .anyMatch(type -> type.toLowerCase().contains(term)) ||
-                entry.getColorsProfile().toLowerCase().contains(term) ||
-                String.valueOf(entry.getArticleNumbers()).contains(term) ||
-                String.valueOf(entry.getGraphicComplexity()).contains(term) ||
-                (entry.getObservations() != null &&
-                        entry.getObservations().toLowerCase().contains(term));
     }
 
     private List<RegisterEntry> convertToRegisterEntries(List<Map<String, Object>> entriesData) {
@@ -546,16 +458,6 @@ public class AdminRegisterService {
                     String.format("Error loading bonus result for user %d: %s",
                             userId, e.getMessage()));
             throw new RuntimeException("Failed to load bonus result", e);
-        }
-    }
-
-    private void updateEntryField(RegisterEntry entry, String fieldName, String value) {
-        switch (fieldName) {
-            case "graphicComplexity" -> entry.setGraphicComplexity(Double.parseDouble(value));
-            case "articleNumbers" -> entry.setArticleNumbers(Integer.parseInt(value));
-            case "colorsProfile" -> entry.setColorsProfile(value);
-            case "observations" -> entry.setObservations(value);
-            default -> throw new IllegalArgumentException("Invalid field name: " + fieldName);
         }
     }
 

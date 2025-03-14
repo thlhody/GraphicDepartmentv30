@@ -6,7 +6,7 @@
       lang="en">
 <head>
     <title>Admin Bonus Management</title>
-    <link rel="stylesheet" th:href="@{/css/admin-bonus.css}">
+    <link rel="stylesheet" th:href="@{/css/admin-bonus.css?v=123456796}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -82,18 +82,42 @@
                     <table id="bonusTable" class="table table-hover mb-0">
                         <thead class="bg-light">
                         <tr>
-                            <th class="sortable" data-sort="name">Name <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="entries">Entries <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="articleNumbers">Articles <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="graphicComplexity">Complexity <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="misc">Misc <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="workedDays">Worked Days <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="workedPercentage">Worked % <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="bonusPercentage">Bonus % <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="bonusAmount">Bonus Amount <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="previousMonth1" id="prev-month-1">Nov <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="previousMonth2" id="prev-month-2">Oct <span class="sort-icon"></span></th>
-                            <th class="sortable" data-sort="previousMonth3" id="prev-month-3">Sep <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="name">
+                                Name <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="entries">
+                                Act. <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="articleNumbers">
+                                Nr.Art. <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="graphicComplexity">
+                                C.G. <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="misc">
+                                Misc <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="workedDays">
+                                Z.L.d <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="workedPercentage">
+                                Work % <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="bonusPercentage">
+                                Bonus % <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable" data-sort="bonusAmount">
+                                Current Bonus <span class="sort-icon"></span>
+                            </th>
+                            <th id="prev-month-1" class="sortable" data-sort="previousMonth1">
+                                Previous 1 <span class="sort-icon"></span>
+                            </th>
+                            <th id="prev-month-2" class="sortable" data-sort="previousMonth2">
+                                Previous 2 <span class="sort-icon"></span>
+                            </th>
+                            <th id="prev-month-3" class="sortable" data-sort="previousMonth3">
+                                Previous 3 <span class="sort-icon"></span>
+                            </th>
                         </tr>
                         </thead>
                         <tbody id="bonusTableBody">
@@ -107,7 +131,7 @@
 </div>
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/admin-bonus.js}"></script>
+    <script th:src="@{/js/admin-bonus.js?v=123456708}"></script>
 </th:block>
 </body>
 </html>

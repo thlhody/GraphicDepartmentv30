@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.enums.WorktimeMergeRule;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -21,9 +20,7 @@ public class WorkTimeEntrySyncService {
 
     public List<WorkTimeTable> synchronizeEntries(String username, Integer userId, int year, int month) {
         try {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Starting entry synchronization for user %s (%d) - %d/%d",
-                            username, userId, month, year));
+            LoggerUtil.info(this.getClass(), String.format("Starting entry synchronization for user %s (%d) - %d/%d", username, userId, month, year));
 
             // Load both user and admin entries
             List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
@@ -42,9 +39,7 @@ public class WorkTimeEntrySyncService {
             return mergedEntries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error synchronizing entries for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error synchronizing entries for user %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to synchronize worktime entries", e);
         }
     }
@@ -85,75 +80,16 @@ public class WorkTimeEntrySyncService {
                     }
                     mergedEntries.add(mergedEntry);
 
-                    LoggerUtil.debug(this.getClass(),
-                            String.format("Processed entry for date %s, final status: %s",
-                                    date, mergedEntry.getAdminSync()));
+                    LoggerUtil.debug(this.getClass(), String.format("Processed entry for date %s, final status: %s", date, mergedEntry.getAdminSync()));
                 }
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Error merging entries for date %s: %s", date, e.getMessage()));
+                LoggerUtil.error(this.getClass(), String.format("Error merging entries for date %s: %s", date, e.getMessage()));
                 // Continue processing other entries
             }
         }
 
         mergedEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate));
         return mergedEntries;
-    }
-
-    private WorkTimeTable processSingleEntry(WorkTimeTable userEntry, WorkTimeTable adminEntry) {
-        // Handle USER_IN_PROCESS entries
-        if (userEntry != null && SyncStatus.USER_IN_PROCESS.equals(userEntry.getAdminSync())) {
-            return userEntry;
-        }
-
-        // Handle USER_EDITED entries (cannot be overwritten by ADMIN_BLANK)
-        if (userEntry != null && SyncStatus.USER_EDITED.equals(userEntry.getAdminSync())) {
-            if (adminEntry != null && !SyncStatus.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
-                // If admin entry exists and matches, convert to USER_DONE
-                if (entriesMatch(userEntry, adminEntry)) {
-                    userEntry.setAdminSync(SyncStatus.USER_DONE);
-                }
-            }
-            return userEntry;
-        }
-
-        // Admin's blank entry always removes the user entry
-        if (adminEntry != null && SyncStatus.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
-            return null; // Completely remove the entry
-        }
-
-        // Admin-edited entry takes precedence
-        if (adminEntry != null && SyncStatus.ADMIN_EDITED.equals(adminEntry.getAdminSync())) {
-            WorkTimeTable result = copyWorkTimeEntry(adminEntry);
-            result.setAdminSync(SyncStatus.USER_DONE);
-            return result;
-        }
-
-        return WorktimeMergeRule.apply(userEntry, adminEntry);
-    }  //?????
-
-    private boolean entriesMatch(WorkTimeTable entry1, WorkTimeTable entry2) {
-        if (entry1 == null || entry2 == null) return false;
-
-        return Objects.equals(entry1.getWorkDate(), entry2.getWorkDate()) &&
-                Objects.equals(entry1.getTotalWorkedMinutes(), entry2.getTotalWorkedMinutes()) &&
-                Objects.equals(entry1.getTimeOffType(), entry2.getTimeOffType());
-    }
-
-    private WorkTimeTable copyWorkTimeEntry(WorkTimeTable source) {
-        WorkTimeTable copy = new WorkTimeTable();
-        copy.setUserId(source.getUserId());
-        copy.setWorkDate(source.getWorkDate());
-        copy.setDayStartTime(source.getDayStartTime());
-        copy.setDayEndTime(source.getDayEndTime());
-        copy.setTemporaryStopCount(source.getTemporaryStopCount());
-        copy.setLunchBreakDeducted(source.isLunchBreakDeducted());
-        copy.setTimeOffType(source.getTimeOffType());
-        copy.setTotalWorkedMinutes(source.getTotalWorkedMinutes());
-        copy.setTotalTemporaryStopMinutes(source.getTotalTemporaryStopMinutes());
-        copy.setTotalOvertimeMinutes(source.getTotalOvertimeMinutes());
-        copy.setAdminSync(source.getAdminSync());
-        return copy;
     }
 
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
@@ -165,14 +101,10 @@ public class WorkTimeEntrySyncService {
                 entries = new ArrayList<>();
             }
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Loaded %d entries from user worktime file for %s",
-                            entries.size(), username));
+            LoggerUtil.info(this.getClass(), String.format("Loaded %d entries from user worktime file for %s", entries.size(), username));
             return entries;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading user entries for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading user entries for %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -182,21 +114,15 @@ public class WorkTimeEntrySyncService {
             List<WorkTimeTable> allEntries = dataAccessService.readNetworkAdminWorktime(year, month);
             // allEntries will never be null now due to changes above
 
-            List<WorkTimeTable> userEntries = allEntries.stream()
-                    .filter(entry -> entry.getUserId() != null &&
-                            entry.getUserId().equals(userId))
-                    .collect(Collectors.toList());
+            List<WorkTimeTable> userEntries = allEntries.stream().filter(entry -> entry.getUserId() != null &&
+                            entry.getUserId().equals(userId)).collect(Collectors.toList());
 
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Loaded %d admin entries for user %d from %d/%d",
-                            userEntries.size(), userId, year, month));
+            LoggerUtil.debug(this.getClass(), String.format("Loaded %d admin entries for user %d from %d/%d", userEntries.size(), userId, year, month));
 
             return userEntries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading admin entries for user %d: %s",
-                            userId, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading admin entries for user %d: %s", userId, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -206,13 +132,9 @@ public class WorkTimeEntrySyncService {
             // Use writeUserWorktime which handles local save and network sync
             dataAccessService.writeUserWorktime(username, entries, year, month);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved %d merged entries to user worktime file",
-                            entries.size()));
+            LoggerUtil.info(this.getClass(), String.format("Saved %d merged entries to user worktime file", entries.size()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving user entries for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error saving user entries for %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to save worktime entries", e);
         }
     }

@@ -87,12 +87,6 @@ public class ResolveSessionCommand implements SessionCommand<WorkUsersSessionsSt
                     username, userId, result.getProcessedMinutes(), endTime);
             context.executeCommand(endCommand);
 
-            // Resolve continuation points
-            ResolveContinuationPointsCommand resolvePointsCommand =
-                    context.getCommandFactory().createResolveContinuationPointsCommand(
-                            username, session.getDayStartTime().toLocalDate(), username, result.getOvertimeMinutes());
-            context.executeCommand(resolvePointsCommand);
-
             return session;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),

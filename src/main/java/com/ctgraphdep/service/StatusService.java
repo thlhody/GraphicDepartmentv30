@@ -88,8 +88,7 @@ public class StatusService {
             WorkTimeSummary summary = calculateMonthSummary(
                     displayableEntries,
                     year,
-                    month,
-                    user.getSchedule()
+                    month
             );
 
             // Prepare display data
@@ -420,8 +419,7 @@ public class StatusService {
     private WorkTimeSummary calculateMonthSummary(
             List<WorkTimeTable> worktimeData,
             int year,
-            int month,
-            int schedule) {
+            int month) {
 
         try {
             int totalWorkDays = calculateWorkDays(year, month);
@@ -430,8 +428,7 @@ public class StatusService {
             return WorkTimeSummary.builder()
                     .totalWorkDays(totalWorkDays)
                     .daysWorked(counts.getDaysWorked())
-                    .remainingWorkDays(totalWorkDays - (
-                            counts.getDaysWorked() + counts.getSnDays() + counts.getCoDays() + counts.getCmDays()))
+                    .remainingWorkDays(totalWorkDays - (counts.getDaysWorked() + counts.getSnDays() + counts.getCoDays() + counts.getCmDays()))
                     .snDays(counts.getSnDays())
                     .coDays(counts.getCoDays())
                     .cmDays(counts.getCmDays())

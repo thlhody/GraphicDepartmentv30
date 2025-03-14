@@ -5,11 +5,9 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.statistics.ChartData;
 import com.ctgraphdep.model.statistics.RegisterStatistics;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;

@@ -45,7 +45,7 @@ public class AutoLoginService {
 
     /**
      * Generates a secure, time-limited token for auto-login
-     * Format: base64(username:timestamp:hmac)
+     * Format: base64(username:timestamp:h mac)
      */
     public String generateAutoLoginToken(User user) {
         try {
@@ -56,10 +56,10 @@ public class AutoLoginService {
             // Payload: username:timestamp
             String payload = username + ":" + timestamp;
 
-            // Generate HMAC
+            // Generate H MAC
             String hmac = calculateHmac(payload);
 
-            // Final token: payload:hmac
+            // Final token: payload:h mac
             String token = payload + ":" + hmac;
 
             // Add to cache for validation
@@ -167,7 +167,7 @@ public class AutoLoginService {
         // Remove expired tokens
         tokenCache.entrySet().removeIf(entry -> entry.getValue().isBefore(now));
 
-        // If cache is still too large, remove oldest entries
+        // If cache is still too large, remove the oldest entries
         if (tokenCache.size() > MAX_CACHE_SIZE) {
             int tokensToRemove = tokenCache.size() - MAX_CACHE_SIZE;
             tokenCache.keySet().stream()

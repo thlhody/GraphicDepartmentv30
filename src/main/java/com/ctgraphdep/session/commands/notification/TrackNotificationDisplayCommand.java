@@ -80,7 +80,7 @@ public class TrackNotificationDisplayCommand implements SessionCommand<Void> {
                         finalMinutes = session.getFinalWorkedMinutes();
                     }
 
-                    context.getBackupService().registerScheduleEndNotification(username, userId, finalMinutes);
+                    context.getBackupService().registerScheduleEndNotification(username, userId);
                 }
             }
 

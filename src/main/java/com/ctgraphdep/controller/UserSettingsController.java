@@ -26,11 +26,9 @@ public class UserSettingsController {
 
     @GetMapping
     public String settings(@AuthenticationPrincipal UserDetails userDetails, Model model) {
-        User user = userService.getUserByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userService.getUserByUsername(userDetails.getUsername()).orElseThrow(() -> new RuntimeException("User not found"));
 
-        String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" :
-                user.hasRole("ADMIN") ? "/admin" : "/user";
+        String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" : user.hasRole("ADMIN") ? "/admin" : "/user";
 
         model.addAttribute("dashboardUrl", dashboardUrl);
         model.addAttribute("user", user);

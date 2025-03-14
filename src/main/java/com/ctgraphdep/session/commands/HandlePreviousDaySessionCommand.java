@@ -27,8 +27,6 @@ public class HandlePreviousDaySessionCommand implements SessionCommand<WorkUsers
             // Update session status to offline using the builder
             SessionEntityBuilder.updateSession(session, builder -> builder.status(WorkCode.WORK_OFFLINE));
 
-            // Record midnight termination for this session date
-            context.getContinuationTrackingService().recordMidnightSessionEnd(session.getUsername(), session.getUserId());
 
             // Update the session file
             context.getDataAccessService().writeLocalSessionFile(session);

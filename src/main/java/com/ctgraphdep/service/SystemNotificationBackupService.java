@@ -7,8 +7,6 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.UpdateSessionActivityCommand;
-import com.ctgraphdep.session.commands.notification.RecordContinuationPointCommand;
-import com.ctgraphdep.session.commands.notification.RecordTempStopContinuationCommand;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -60,13 +58,13 @@ public class SystemNotificationBackupService {
      * Registers a scheduled end notification backup for a user.
      * Will track the notification but not automatically end session.
      */
-    public void registerScheduleEndNotification(String username, Integer userId, Integer finalMinutes) {
+    public void registerScheduleEndNotification(String username, Integer userId) {
         // Cancel any existing task
         cancelExistingTask(username);
         // Record notification time
         scheduleEndNotificationTimes.put(username, LocalDateTime.now());
         // Schedule backup task for monitoring purposes
-        ScheduledFuture<?> task = taskScheduler.schedule(() -> handleScheduleEndBackup(username, userId, finalMinutes), Instant.now().plus(Duration.ofMinutes(11)));
+        ScheduledFuture<?> task = taskScheduler.schedule(() -> handleScheduleEndBackup(username, userId), Instant.now().plus(Duration.ofMinutes(11)));
         scheduledTasks.put(username, task);
         LoggerUtil.info(this.getClass(), String.format("Registered schedule end notification backup for user %s", username));
     }
@@ -75,13 +73,13 @@ public class SystemNotificationBackupService {
      * Registers an hourly warning notification backup.
      * Will track the notification but not automatically end session.
      */
-    public void registerHourlyWarningNotification(String username, Integer userId, Integer finalMinutes) {
+    public void registerHourlyWarningNotification(String username, Integer userId) {
         // Cancel any existing task
         cancelExistingTask(username);
         // Record notification time
         hourlyNotificationTimes.put(username, LocalDateTime.now());
         // Schedule backup task for monitoring purposes
-        ScheduledFuture<?> task = taskScheduler.schedule(() -> handleHourlyWarningBackup(username, userId, finalMinutes), Instant.now().plus(Duration.ofMinutes(6)));
+        ScheduledFuture<?> task = taskScheduler.schedule(() -> handleHourlyWarningBackup(username, userId), Instant.now().plus(Duration.ofMinutes(6)));
         scheduledTasks.put(username, task);
         LoggerUtil.info(this.getClass(), String.format("Registered hourly warning notification backup for user %s", username));
     }
@@ -94,7 +92,7 @@ public class SystemNotificationBackupService {
         // Cancel any existing task
         cancelExistingTask(username);
         // Record notification time
-        tempStopNotificationTimes.put(username, LocalDateTime.now());
+        tempStopNotificationTimes.put(username, tempStopStart);
         // Schedule backup task for monitoring purposes
         ScheduledFuture<?> task = taskScheduler.schedule(() -> handleTempStopBackup(username, userId), Instant.now().plus(Duration.ofMinutes(6)));
         scheduledTasks.put(username, task);
@@ -125,7 +123,7 @@ public class SystemNotificationBackupService {
      * Handles backup for schedule end notification in case UI fails
      * Now records a continuation point instead of ending the session
      */
-    private void handleScheduleEndBackup(String username, Integer userId, Integer finalMinutes) {
+    private void handleScheduleEndBackup(String username, Integer userId) {
         try {
             // Use command to get current session instead of direct service call
             GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, userId);
@@ -137,9 +135,6 @@ public class SystemNotificationBackupService {
                         String.format("BACKUP: User %s did not respond to schedule end notification - recording continuation point",
                                 username));
 
-                // Record a continuation point using command
-                RecordContinuationPointCommand command = commandFactory.createRecordContinuationPointCommand(username, userId, LocalDateTime.now(), false);
-                sessionCommandService.executeCommand(command);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error in schedule end backup handler for %s: %s", username, e.getMessage()));
@@ -153,7 +148,7 @@ public class SystemNotificationBackupService {
      * Handles backup for hourly warning notification in case UI fails
      * Now records a continuation point instead of ending the session
      */
-    private void handleHourlyWarningBackup(String username, Integer userId, Integer finalMinutes) {
+    private void handleHourlyWarningBackup(String username, Integer userId) {
         try {
             // Check for alternative notification tracking mechanism
             Path trackingFile = pathConfig.getLocalPath().resolve("notification").resolve(username + "_notification.lock");
@@ -169,7 +164,7 @@ public class SystemNotificationBackupService {
                     LoggerUtil.info(this.getClass(), String.format("Deferring backup action for %s - notification still active", username));
 
                     // Reschedule for another 2 minutes
-                    taskScheduler.schedule(() -> handleHourlyWarningBackup(username, userId, finalMinutes), Instant.now().plus(Duration.ofMinutes(2)));
+                    taskScheduler.schedule(() -> handleHourlyWarningBackup(username, userId), Instant.now().plus(Duration.ofMinutes(2)));
                     return;
                 }
 
@@ -185,9 +180,6 @@ public class SystemNotificationBackupService {
             if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                 LoggerUtil.warn(this.getClass(), String.format("BACKUP: User %s did not respond to hourly warning - recording continuation point", username));
 
-                // Record a continuation point using command
-                RecordContinuationPointCommand command = commandFactory.createRecordContinuationPointCommand(username, userId, LocalDateTime.now(), true);
-                sessionCommandService.executeCommand(command);
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error in hourly warning backup handler for %s: %s", username, e.getMessage()));
@@ -216,10 +208,6 @@ public class SystemNotificationBackupService {
                     // Use command to update the session timestamp
                     UpdateSessionActivityCommand updateCommand = commandFactory.createUpdateSessionActivityCommand(username, userId);
                     sessionCommandService.executeCommand(updateCommand);
-
-                    // Record a temp stop continuation using command
-                    RecordTempStopContinuationCommand continuationCommand = commandFactory.createRecordTempStopContinuationCommand(username, userId, LocalDateTime.now());
-                    sessionCommandService.executeCommand(continuationCommand);
 
                     LoggerUtil.info(this.getClass(), String.format("Continued temporary stop through backup for user %s", username));
                 } catch (Exception e) {
@@ -262,10 +250,6 @@ public class SystemNotificationBackupService {
                         if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                             LoggerUtil.warn(this.getClass(), String.format("Detected stalled schedule end notification for user %s, recording continuation point", username));
 
-                            // Record a continuation point using command
-                            RecordContinuationPointCommand command = commandFactory.createRecordContinuationPointCommand(username, user.getUserId(), LocalDateTime.now(), false);
-                            sessionCommandService.executeCommand(command);
-
                             // Remove after handling
                             scheduleEndNotificationTimes.remove(username);
                         }
@@ -288,10 +272,6 @@ public class SystemNotificationBackupService {
 
                         if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                             LoggerUtil.warn(this.getClass(), String.format("Detected stalled hourly warning notification for user %s, recording continuation point", username));
-
-                            // Record a continuation point using command
-                            RecordContinuationPointCommand command = commandFactory.createRecordContinuationPointCommand(username, user.getUserId(), LocalDateTime.now(), true);
-                            sessionCommandService.executeCommand(command);
 
                             // Remove after handling
                             hourlyNotificationTimes.remove(username);
@@ -319,9 +299,6 @@ public class SystemNotificationBackupService {
                             // Use commands to update session and record continuation
                             UpdateSessionActivityCommand updateCommand = commandFactory.createUpdateSessionActivityCommand(username, user.getUserId());
                             sessionCommandService.executeCommand(updateCommand);
-
-                            RecordTempStopContinuationCommand continuationCommand = commandFactory.createRecordTempStopContinuationCommand(username, user.getUserId(), LocalDateTime.now());
-                            sessionCommandService.executeCommand(continuationCommand);
 
                             // Remove after handling
                             tempStopNotificationTimes.remove(username);

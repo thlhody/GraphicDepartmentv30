@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -25,9 +27,10 @@ import java.util.Map;
 public class UserStatusDbService {
 
     private final UserService userService;
+    private final PathConfig pathConfig;
     private final DataAccessService dataAccessService;
 
-    @Value("${user.status.cache.timeout:900}")
+    @Value("${user.status.cache.timeout:30}")
     private long cacheTimeoutSeconds;
 
     // Cache for status DTOs
@@ -41,9 +44,10 @@ public class UserStatusDbService {
 
     @Autowired
     public UserStatusDbService(
-            UserService userService,
+            UserService userService, PathConfig pathConfig,
             DataAccessService dataAccessService) {
         this.userService = userService;
+        this.pathConfig = pathConfig;
         this.dataAccessService = dataAccessService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -71,7 +75,7 @@ public class UserStatusDbService {
             // Write status using DataAccessService
             dataAccessService.writeUserStatus(username, userId, statusRecord);
 
-            // Invalidate cache
+            // Invalidate cache immediately
             invalidateCache();
 
             LoggerUtil.debug(this.getClass(), String.format("Updated status file for %s to %s", username, status));
@@ -240,15 +244,23 @@ public class UserStatusDbService {
     }
 
     /**
-     * Invalidate all caches periodically
+     * Invalidate all caches to force refresh from the database files
      */
-    @Scheduled(fixedRate = 10000) // Every 10 seconds
     public void invalidateCache() {
+        LoggerUtil.debug(this.getClass(), "Invalidating status cache");
         cachedStatuses = null;
         cacheTimestamp = null;
         cachedOnlineCount = 0;
         cachedActiveCount = 0;
         countCacheTimestamp = null;
+    }
+
+    /**
+     * Scheduled method to invalidate cache periodically
+     */
+    @Scheduled(fixedRate = 10000) // Every 10 seconds
+    public void scheduledCacheInvalidation() {
+        invalidateCache();
     }
 
     /**
@@ -296,6 +308,34 @@ public class UserStatusDbService {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error cleaning up session statuses: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Check if a user's status file exists
+     * @param username The username
+     * @param userId The user ID
+     * @return true if the status file exists, false otherwise
+     */
+    public boolean userStatusExists(String username, Integer userId) {
+        try {
+            // Check local status file
+            Path localStatusPath = pathConfig.getLocalStatusFilePath(username, userId);
+            if (Files.exists(localStatusPath) && Files.size(localStatusPath) > 0) {
+                return true;
+            }
+
+            // If network is available, also check network status file
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkStatusPath = pathConfig.getNetworkStatusFilePath(username, userId);
+                return Files.exists(networkStatusPath) && Files.size(networkStatusPath) > 0;
+            }
+
+            return false;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error checking status existence for %s: %s", username, e.getMessage()));
+            return false;
         }
     }
 

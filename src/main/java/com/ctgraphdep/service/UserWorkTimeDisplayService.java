@@ -39,20 +39,14 @@ public class UserWorkTimeDisplayService {
             // Filter entries for display
             List<WorkTimeTable> displayableEntries = filterEntriesForDisplay(worktimeData);
 
-            // Process worktime calculations
-            List<WorkTimeCalculationResult> processedWorktime = processWorktimeData(
-                    displayableEntries, user.getSchedule());
-
             // Get paid holiday information
             int paidHolidayDays = getPaidHolidayDays(user.getUserId());
 
             // Calculate summary
             WorkTimeSummary summary = calculateMonthSummary(
                     displayableEntries,
-                    processedWorktime,
                     year,
                     month,
-                    user.getSchedule(),
                     paidHolidayDays
             );
 
@@ -117,36 +111,6 @@ public class UserWorkTimeDisplayService {
         return displayEntry;
     }
 
-    private List<WorkTimeCalculationResult> processWorktimeData(
-            List<WorkTimeTable> worktimeData,
-            int schedule) {
-
-        List<WorkTimeCalculationResult> processedWorktime = new ArrayList<>();
-
-        for (WorkTimeTable day : worktimeData) {
-            // Skip in-process entries and entries without worked minutes
-            if (SyncStatus.USER_IN_PROCESS.equals(day.getAdminSync()) ||
-                    day.getTotalWorkedMinutes() == null) {
-                continue;
-            }
-
-            try {
-                WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
-                        day.getTotalWorkedMinutes(),
-                        schedule
-                );
-                processedWorktime.add(result);
-
-                // Update the WorkTimeTable with processed values
-                updateWorkTimeTableWithResult(day, result);
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(),
-                        "Error processing worktime entry for date " + day.getWorkDate(), e);
-            }
-        }
-
-        return processedWorktime;
-    }
 
     private void validateInput(User user, List<WorkTimeTable> worktimeData, int year, int month) {
         if (user == null) {
@@ -168,11 +132,6 @@ public class UserWorkTimeDisplayService {
         }
     }
 
-    private void updateWorkTimeTableWithResult(WorkTimeTable day, WorkTimeCalculationResult result) {
-        day.setTotalWorkedMinutes(result.getProcessedMinutes());
-        day.setTotalOvertimeMinutes(result.getOvertimeMinutes());
-        day.setLunchBreakDeducted(result.isLunchDeducted());
-    }
 
     private int getPaidHolidayDays(Integer userId) {
         try {
@@ -191,10 +150,8 @@ public class UserWorkTimeDisplayService {
 
     private WorkTimeSummary calculateMonthSummary(
             List<WorkTimeTable> worktimeData,
-            List<WorkTimeCalculationResult> processedWorktime,
             int year,
             int month,
-            int schedule,
             int paidHolidayDays) {
 
         try {

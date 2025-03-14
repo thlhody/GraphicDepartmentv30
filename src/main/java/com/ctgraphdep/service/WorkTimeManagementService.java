@@ -36,11 +36,10 @@ public class WorkTimeManagementService {
     public void processWorktimeUpdate(Integer userId, LocalDate date, String value) {
         adminLock.lock();
         try {
-            validateUpdateRequest(userId, date, value);
+            validateUpdateRequest(userId, date);
 
             // Get existing entry for comparison
             WorkTimeTable existingEntry = getExistingEntry(userId, date);
-            boolean wasTimeOff = isTimeOffEntry(existingEntry);
 
             // Create new entry based on input value
             WorkTimeTable newEntry = createEntryFromValue(userId, date, value);
@@ -51,9 +50,7 @@ public class WorkTimeManagementService {
             // Save the entry
             saveAdminEntry(newEntry, date.getYear(), date.getMonthValue());
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Processed admin worktime update for user %d on %s: %s",
-                            userId, date, value));
+            LoggerUtil.info(this.getClass(), String.format("Processed admin worktime update for user %d on %s: %s", userId, date, value));
 
         } finally {
             adminLock.unlock();
@@ -101,7 +98,7 @@ public class WorkTimeManagementService {
             restorePaidHoliday(existingEntry.getUserId());
         } else if (!wasTimeOff && isTimeOff && WorkCode.TIME_OFF_CODE.equals(newEntry.getTimeOffType())) {
             // Deduct paid holiday day when adding CO
-            processTimeOffUpdate(newEntry.getUserId(), newEntry.getWorkDate(), newEntry.getTimeOffType());
+            processTimeOffUpdate(newEntry.getUserId(), newEntry.getTimeOffType());
         }
     }
 
@@ -123,8 +120,7 @@ public class WorkTimeManagementService {
                 entries.addAll(holidayEntries);
                 saveAdminEntry(entries, date.getYear(), date.getMonthValue());
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Added national holiday for %s with %d entries", date, holidayEntries.size()));
+                LoggerUtil.info(this.getClass(), String.format("Added national holiday for %s with %d entries", date, holidayEntries.size()));
             }
         } finally {
             adminLock.unlock();
@@ -132,9 +128,7 @@ public class WorkTimeManagementService {
     }
 
     private List<User> getNonAdminUsers() {
-        return userService.getAllUsers().stream()
-                .filter(user -> !user.isAdmin())
-                .toList();
+        return userService.getAllUsers().stream().filter(user -> !user.isAdmin()).toList();
     }
 
     private List<WorkTimeTable> createHolidayEntriesForUsers(List<User> users, LocalDate date) {
@@ -199,8 +193,7 @@ public class WorkTimeManagementService {
 
     private WorkTimeTable getExistingEntry(Integer userId, LocalDate date) {
         return loadAdminEntries(date.getYear(), date.getMonthValue()).stream()
-                .filter(entry -> entry.getUserId().equals(userId) &&
-                        entry.getWorkDate().equals(date))
+                .filter(entry -> entry.getUserId().equals(userId) && entry.getWorkDate().equals(date))
                 .findFirst()
                 .orElse(null);
     }
@@ -211,9 +204,7 @@ public class WorkTimeManagementService {
             List<WorkTimeTable> entries = dataAccess.readLocalAdminWorktime(year, month);
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading admin entries for %d/%d: %s",
-                            year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading admin entries for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -221,19 +212,14 @@ public class WorkTimeManagementService {
     private void saveAdminEntry(List<WorkTimeTable> entries, int year, int month) {
         try {
             // Sort entries before saving
-            entries.sort(Comparator
-                    .comparing(WorkTimeTable::getWorkDate)
-                    .thenComparing(WorkTimeTable::getUserId));
+            entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparing(WorkTimeTable::getUserId));
 
             // Write using DataAccessService which handles local save and network sync
             dataAccess.writeAdminWorktime(entries, year, month);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved %d entries to admin worktime", entries.size()));
+            LoggerUtil.info(this.getClass(), String.format("Saved %d entries to admin worktime", entries.size()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving admin entries for %d/%d: %s",
-                            year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error saving admin entries for %d/%d: %s", year, month, e.getMessage()));
             throw new RuntimeException("Failed to save admin entries", e);
         }
     }
@@ -242,8 +228,7 @@ public class WorkTimeManagementService {
         List<WorkTimeTable> entries = loadAdminEntries(year, month);
 
         // Remove existing entry
-        entries.removeIf(e -> e.getUserId().equals(entry.getUserId()) &&
-                e.getWorkDate().equals(entry.getWorkDate()));
+        entries.removeIf(e -> e.getUserId().equals(entry.getUserId()) && e.getWorkDate().equals(entry.getWorkDate()));
 
         // Add new entry
         entries.add(entry);
@@ -252,34 +237,29 @@ public class WorkTimeManagementService {
         saveAdminEntry(entries, year, month);
     }
 
-
-    private void processTimeOffUpdate(Integer userId, LocalDate date, String type) {
+    private void processTimeOffUpdate(Integer userId, String type) {
         if (WorkCode.TIME_OFF_CODE.equals(type)) {
-            int availableDays = holidayService.getRemainingHolidayDays(null, userId);
+            int availableDays = holidayService.getRemainingHolidayDays(userId);
             if (availableDays < 1) {
                 throw new IllegalStateException("Insufficient paid holiday days available");
             }
             holidayService.updateUserHolidayDays(userId, availableDays - 1);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Deducted 1 paid holiday day for user %d. New balance: %d",
-                            userId, availableDays - 1));
+            LoggerUtil.info(this.getClass(), String.format("Deducted 1 paid holiday day for user %d. New balance: %d", userId, availableDays - 1));
         }
     }
 
     private void restorePaidHoliday(Integer userId) {
         try {
-            int currentDays = holidayService.getRemainingHolidayDays(null, userId);
+            int currentDays = holidayService.getRemainingHolidayDays(userId);
             holidayService.updateUserHolidayDays(userId, currentDays + 1);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Restored paid holiday day for user %d. New balance: %d",
-                            userId, currentDays + 1));
+            LoggerUtil.info(this.getClass(), String.format("Restored paid holiday day for user %d. New balance: %d", userId, currentDays + 1));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error restoring paid holiday: " + e.getMessage());
             throw new RuntimeException("Failed to restore paid holiday", e);
         }
     }
 
-    private void validateUpdateRequest(Integer userId, LocalDate date, String value) {
+    private void validateUpdateRequest(Integer userId, LocalDate date) {
         if (userId == null || date == null) {
             throw new IllegalArgumentException("Invalid update parameters");
         }
