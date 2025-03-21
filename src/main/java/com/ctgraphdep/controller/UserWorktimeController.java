@@ -5,6 +5,9 @@ import com.ctgraphdep.model.*;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserWorktimeExcelExporter;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationFactory;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -27,14 +30,25 @@ public class UserWorktimeController extends BaseController {
     private final UserWorkTimeService userWorkTimeService;
     private final WorkTimeEntrySyncService entrySyncService;
     private final UserWorktimeExcelExporter excelExporter;
+    private final TimeValidationService validationService;
+    private final TimeValidationFactory validationFactory;
 
-    public UserWorktimeController(UserService userService, FolderStatusService folderStatusService, UserWorkTimeDisplayService displayService,
-                                  UserWorkTimeService userWorkTimeService, WorkTimeEntrySyncService entrySyncService, UserWorktimeExcelExporter excelExporter) {
+    public UserWorktimeController(
+            UserService userService,
+            FolderStatusService folderStatusService,
+            UserWorkTimeDisplayService displayService,
+            UserWorkTimeService userWorkTimeService,
+            WorkTimeEntrySyncService entrySyncService,
+            UserWorktimeExcelExporter excelExporter,
+            TimeValidationService validationService,
+            TimeValidationFactory validationFactory) {
         super(userService, folderStatusService);
         this.displayService = displayService;
         this.userWorkTimeService = userWorkTimeService;
         this.entrySyncService = entrySyncService;
         this.excelExporter = excelExporter;
+        this.validationService = validationService;
+        this.validationFactory = validationFactory;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -54,8 +68,7 @@ public class UserWorktimeController extends BaseController {
             if (username != null) {
                 // Check roles for access control
                 if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                    targetUser = getUserService().getUserByUsername(username)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
+                    targetUser = getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found"));
                 } else if (username.equals(currentUser.getUsername())) {
                     // Regular users can only view their own worktime
                     targetUser = currentUser;
@@ -79,13 +92,17 @@ public class UserWorktimeController extends BaseController {
                 model.addAttribute("dashboardUrl", "/user");
             }
 
+            // Get standardized time values using the validation system
+            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
             // Set default year and month if not provided
-            LocalDate now = LocalDate.now();
+            LocalDate now = timeValues.getCurrentDate();
             year = Optional.ofNullable(year).orElse(now.getYear());
             month = Optional.ofNullable(month).orElse(now.getMonthValue());
 
             // Synchronize and get worktime entries
-            List<WorkTimeTable> worktimeData = null;
+            List<WorkTimeTable> worktimeData;
 
             if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
                 worktimeData = userWorkTimeService.loadViewOnlyWorktime(targetUser.getUsername(), year, month);
@@ -127,8 +144,12 @@ public class UserWorktimeController extends BaseController {
         try {
             User user = getUser(userDetails);
 
+            // Get standardized time values using the validation system
+            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
             // Set default year and month if not provided
-            LocalDate now = LocalDate.now();
+            LocalDate now = timeValues.getCurrentDate();
             year = Optional.ofNullable(year).orElse(now.getYear());
             month = Optional.ofNullable(month).orElse(now.getMonthValue());
 
@@ -145,8 +166,7 @@ public class UserWorktimeController extends BaseController {
 
             byte[] excelData = excelExporter.exportToExcel(user, worktimeData, summary, year, month);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"", user.getUsername(), year, month))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"", user.getUsername(), year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 

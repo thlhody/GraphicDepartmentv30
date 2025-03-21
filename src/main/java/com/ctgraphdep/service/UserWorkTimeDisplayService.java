@@ -126,8 +126,7 @@ public class UserWorkTimeDisplayService {
             throw new IllegalArgumentException("Invalid month: " + month);
         }
 
-        if (worktimeData.stream()
-                .anyMatch(entry -> !entry.getUserId().equals(user.getUserId()))) {
+        if (worktimeData.stream().anyMatch(entry -> !entry.getUserId().equals(user.getUserId()))) {
             throw new SecurityException("Worktime data contains entries for other users");
         }
     }

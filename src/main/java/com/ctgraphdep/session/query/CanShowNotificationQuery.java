@@ -2,28 +2,21 @@ package com.ctgraphdep.session.query;
 
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
-/**
- * Query to check if a notification can be shown based on time interval.
- */
+
+// Query to check if a notification can be shown based on time interval.
 public class CanShowNotificationQuery implements SessionQuery<Boolean> {
     private final String username;
     private final String notificationType;
     private final Integer intervalMinutes;
     private final Map<String, LocalDateTime> lastNotificationTimes;
 
-    /**
-     * Creates a new query to check if a notification can be shown
-     *
-     * @param username The username
-     * @param notificationType The notification type
-     * @param intervalMinutes The minimum interval between notifications in minutes
-     * @param lastNotificationTimes The map of last notification times
-     */
+    // Creates a new query to check if a notification can be shown
     public CanShowNotificationQuery(
             String username,
             String notificationType,
@@ -37,13 +30,12 @@ public class CanShowNotificationQuery implements SessionQuery<Boolean> {
 
     @Override
     public Boolean execute(SessionContext context) {
-        // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+        // Get standardized time values using the new validation system
+        GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
 
-        // First get the notification key
-        GetNotificationKeyQuery keyQuery = new GetNotificationKeyQuery(username, notificationType);
-        String key = keyQuery.execute(context);
+        // First get the notification key - now using the standard underscore format
+        String key = username + "_" + notificationType;
 
         LocalDateTime lastTime = lastNotificationTimes.get(key);
 

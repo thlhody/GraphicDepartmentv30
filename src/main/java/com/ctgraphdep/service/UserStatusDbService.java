@@ -247,7 +247,7 @@ public class UserStatusDbService {
      * Invalidate all caches to force refresh from the database files
      */
     public void invalidateCache() {
-        LoggerUtil.debug(this.getClass(), "Invalidating status cache");
+        //LoggerUtil.debug(this.getClass(), "Invalidating status cache");
         cachedStatuses = null;
         cacheTimestamp = null;
         cachedOnlineCount = 0;

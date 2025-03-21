@@ -17,9 +17,11 @@ public class NavigationContextQuery implements SessionQuery<NavigationContext> {
 
     @Override
     public NavigationContext execute(SessionContext context) {
-        // Check if there's a completed session for today
-        HasCompletedSessionForTodayQuery completedQuery = context.getCommandFactory().createHasCompletedSessionForTodayQuery(user.getUsername(), user.getUserId());
-        boolean completedSessionToday = context.executeQuery(completedQuery);
+        // Use the SessionStatusQuery to check session status
+        SessionStatusQuery statusQuery = context.getCommandFactory().createSessionStatusQuery(user.getUsername(), user.getUserId());
+        SessionStatusQuery.SessionStatus status = context.executeQuery(statusQuery);
+
+        boolean completedSessionToday = status.isHasCompletedSessionToday();
 
         // Determine dashboard URL based on user role
         boolean isTeamLeaderView = user.hasRole("TEAM_LEADER");

@@ -5,7 +5,7 @@ import com.ctgraphdep.model.DialogComponents;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
-import com.ctgraphdep.session.query.IsInTemporaryStopQuery;
+import com.ctgraphdep.session.query.SessionStatusQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 
 import java.awt.*;
@@ -46,9 +46,10 @@ public class ShowHourlyWarningCommand implements SessionCommand<Boolean> {
             }
 
             // Don't show during temporary stop
-            IsInTemporaryStopQuery tempStopQuery = context.getCommandFactory().createIsInTemporaryStopQuery(username, userId);
+            SessionStatusQuery statusQuery = context.getCommandFactory().createSessionStatusQuery(username, userId);
+            SessionStatusQuery.SessionStatus status = context.executeQuery(statusQuery);
 
-            if (context.executeQuery(tempStopQuery)) {
+            if (status.isInTemporaryStop()) {
                 LoggerUtil.info(this.getClass(), String.format("Skipping hourly warning for user %s (in temporary stop)", username));
                 return false;
             }

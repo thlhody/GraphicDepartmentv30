@@ -5,8 +5,8 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.commands.EndDayCommand;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDateTime;
 
@@ -36,9 +36,10 @@ public class EndSessionFromNotificationCommand implements SessionCommand<Boolean
     public Boolean execute(SessionContext context) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Ending session from notification for user %s", username));
-            // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+
+            // Get standardized time values using the validation system
+            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
 
             // Get current session to validate it's still active
             WorkUsersSessionsStates session = context.getCurrentSession(username, userId);
@@ -53,22 +54,18 @@ public class EndSessionFromNotificationCommand implements SessionCommand<Boolean
             LocalDateTime currentTime = timeValues.getCurrentTime();
 
             // Use the core EndDayCommand to perform the actual session end with explicit time
-            EndDayCommand endDayCommand = context.getCommandFactory()
-                    .createEndDayCommand(username, userId, finalMinutes, currentTime);
+            EndDayCommand endDayCommand = context.getCommandFactory().createEndDayCommand(username, userId, finalMinutes, currentTime);
             context.executeCommand(endDayCommand);
 
             // Clear monitoring state
             context.getSessionMonitorService().clearMonitoring(username);
 
             // If we reach this point, the end was successful
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully ended session from notification for user %s", username));
+            LoggerUtil.info(this.getClass(), String.format("Successfully ended session from notification for user %s", username));
 
             return true;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error ending session from notification for user %s: %s",
-                            username, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error ending session from notification for user %s: %s", username, e.getMessage()), e);
             return false;
         }
     }

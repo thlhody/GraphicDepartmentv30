@@ -3,9 +3,8 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.utils.LoggerUtil;
-
-import java.time.LocalDateTime;
 
 /**
  * Command to update the last activity timestamp of a session
@@ -30,6 +29,10 @@ public class UpdateSessionActivityCommand implements SessionCommand<Boolean> {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Updating activity timestamp for user %s", username));
 
+            // Get standardized time values using the new validation system
+            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
+
             // Get current session
             WorkUsersSessionsStates session = context.getCurrentSession(username, userId);
             if (session == null) {
@@ -37,11 +40,12 @@ public class UpdateSessionActivityCommand implements SessionCommand<Boolean> {
                 return false;
             }
 
-            // Update last activity timestamp
-            session.setLastActivity(LocalDateTime.now());
+            // Update last activity timestamp with standardized time
+            session.setLastActivity(timeValues.getCurrentTime());
 
-            // Save the session
-            context.saveSession(session);
+            // Save the session using command factory
+            SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(session);
+            context.executeCommand(saveCommand);
 
             return true;
         } catch (Exception e) {

@@ -2,6 +2,9 @@ package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.TemporaryStop;
+import com.ctgraphdep.model.WorkTimeTable;
+import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.UserWorkTimeService;
 
 import java.time.DayOfWeek;
@@ -9,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.stream.IntStream;
 
 public class CalculateWorkHoursUtil {
@@ -136,4 +140,126 @@ public class CalculateWorkHoursUtil {
         return dateTime != null ? dateTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy :: HH:mm")) : "--/--/---- :: --:--";
     }
 
+    /**
+     * Calculates the recommended end time for a worktime entry based on user schedule
+     * @param entry The work time entry
+     * @param userSchedule The user's schedule in hours
+     * @return The recommended end time
+     */
+    public static LocalDateTime calculateRecommendedEndTime(WorkTimeTable entry, int userSchedule) {
+        if (entry == null || entry.getDayStartTime() == null) {
+            return LocalDateTime.now(); // Fallback
+        }
+
+        // 1. Start with the day start time
+        LocalDateTime startTime = entry.getDayStartTime();
+
+        // 2. Calculate schedule duration in minutes
+        int scheduleDuration = userSchedule * WorkCode.HOUR_DURATION;
+
+        // 3. Add lunch break for 8-hour schedule
+        if (userSchedule == WorkCode.INTERVAL_HOURS_C) { // 8 hours
+            scheduleDuration += WorkCode.HALF_HOUR_DURATION; // Add 30 minutes for lunch
+        }
+
+        // 4. Add schedule duration to start time
+        LocalDateTime scheduledEndTime = startTime.plusMinutes(scheduleDuration);
+
+        // 5. Add temporary stop minutes if any
+        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > 0) {
+            scheduledEndTime = scheduledEndTime.plusMinutes(entry.getTotalTemporaryStopMinutes());
+        }
+
+        return scheduledEndTime;
+    }
+
+    /**
+     * Calculates raw work minutes for a session (minutes worked excluding adjustments)
+     * This method handles all the logic for calculating raw work time from start to end,
+     * accounting for temporary stops.
+     *
+     * @param session The session containing work data
+     * @param currentTime The current time reference for ongoing sessions
+     * @return The total raw minutes worked
+     */
+    public static int calculateRawWorkMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
+        if (session == null || session.getDayStartTime() == null) {
+            return 0;
+        }
+
+        int totalMinutes = 0;
+        LocalDateTime currentStartPoint = session.getDayStartTime();
+
+        // Handle completed temporary stops
+        if (session.getTemporaryStops() != null) {
+            for (TemporaryStop stop : session.getTemporaryStops()) {
+                // Only count stops that have ended
+                if (stop.getEndTime() != null) {
+                    // Add worked minutes before each stop
+                    totalMinutes += calculateMinutesBetween(currentStartPoint, stop.getStartTime());
+                    // Move current time to after the stop
+                    currentStartPoint = stop.getEndTime();
+                }
+            }
+        }
+
+        // Add minutes from last stop (or start) until current time
+        totalMinutes += calculateMinutesBetween(currentStartPoint, currentTime);
+
+        return totalMinutes;
+    }
+
+    /**
+     * Calculates raw work minutes for a worktime entry between start and end time,
+     * subtracting temporary stops
+     *
+     * @param entry The work time entry
+     * @param endTime The end time to calculate to
+     * @return Total worked minutes
+     */
+    public static int calculateRawWorkMinutes(WorkTimeTable entry, LocalDateTime endTime) {
+        if (entry == null || entry.getDayStartTime() == null) {
+            return 0;
+        }
+
+        // Total minutes between start and end
+        int totalMinutes = (int) ChronoUnit.MINUTES.between(entry.getDayStartTime(), endTime);
+
+        // Subtract temporary stop minutes if any
+        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > 0) {
+            totalMinutes -= entry.getTotalTemporaryStopMinutes();
+        }
+
+        return Math.max(0, totalMinutes);
+    }
+
+    /**
+     * Calculates raw work minutes between two times with a list of temporary stops
+     *
+     * @param startTime The start time
+     * @param endTime The end time
+     * @param stops List of temporary stops during the period
+     * @return Total worked minutes excluding stops
+     */
+    public static int calculateRawWorkMinutes(LocalDateTime startTime, LocalDateTime endTime, List<TemporaryStop> stops) {
+        if (startTime == null || endTime == null) {
+            return 0;
+        }
+
+        // Total minutes between start and end
+        int totalMinutes = (int) ChronoUnit.MINUTES.between(startTime, endTime);
+
+        // Subtract temporary stop minutes if any
+        if (stops != null && !stops.isEmpty()) {
+            int totalStopMinutes = 0;
+            for (TemporaryStop stop : stops) {
+                if (stop.getStartTime() != null && stop.getEndTime() != null) {
+                    totalStopMinutes += calculateMinutesBetween(stop.getStartTime(), stop.getEndTime());
+                }
+            }
+            totalMinutes -= totalStopMinutes;
+        }
+
+        return Math.max(0, totalMinutes);
+    }
 }

@@ -2,7 +2,7 @@ package com.ctgraphdep.session.commands;
 
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.config.WorkCode;
@@ -13,7 +13,6 @@ import com.ctgraphdep.utils.LoggerUtil;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 // Command to resume a previously completed session
@@ -31,8 +30,10 @@ public class ResumePreviousSessionCommand implements SessionCommand<WorkUsersSes
         LoggerUtil.info(this.getClass(), String.format("Executing ResumePreviousSessionCommand for user %s", username));
 
         // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+        // Get standardized time values using the new validation system
+        GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
+        LocalDateTime resumeTime = timeValues.getCurrentTime();
 
         // Get the current session
         WorkUsersSessionsStates session = context.getCurrentSession(username, userId);
@@ -42,114 +43,93 @@ public class ResumePreviousSessionCommand implements SessionCommand<WorkUsersSes
             return session;
         }
 
-        // Process resume operation
-        processResumeSession(session, timeValues.getCurrentTime(), context);
+        // Process resume operation - update the session first
+        processResumeSession(session, resumeTime, context);
 
-        // Save session and update other entities
-        updateEntitiesAndPersist(session, context);
+        // Save the updated session
+        SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(session);
+        context.executeCommand(saveCommand);
+
+        // Then update the worktime entry using the session information
+        updateWorktimeEntryFromSession(session, context);
+
+        // Start monitoring
+        context.getSessionMonitorService().startMonitoring(username);
 
         LoggerUtil.info(this.getClass(), String.format("Resumed previous session for user %s", username));
 
         return session;
     }
 
-
     // Handles the main resume process
-    private void processResumeSession(WorkUsersSessionsStates session, LocalDateTime now, SessionContext context) {
+    private void processResumeSession(WorkUsersSessionsStates session, LocalDateTime resumeTime, SessionContext context) {
         // Create a temporary stop for the break period
         final LocalDateTime previousEndTime = session.getDayEndTime();
         if (previousEndTime != null) {
-            context.getCalculationService().addBreakAsTempStop(session, previousEndTime, now);
+            // Use the calculation command through context to add a break as temporary stop
+            context.addBreakAsTempStop(session, previousEndTime, resumeTime);
+            // Update total temporary stop minutes using the dedicated method
+            int totalStopMinutes = context.calculateTotalTempStopMinutes(session, resumeTime);
+            session.setTotalTemporaryStopMinutes(totalStopMinutes);
         }
 
         // Update session state using builder
         SessionEntityBuilder.updateSession(session, builder -> {
             builder.status(WorkCode.WORK_ONLINE)
-                    .currentStartTime(now)
+                    .currentStartTime(resumeTime)
                     .dayEndTime(null)
                     .workdayCompleted(false);
         });
     }
 
-    // Persists session changes and updates related entities
-    private void updateEntitiesAndPersist(WorkUsersSessionsStates session, SessionContext context) {
+    // Updates the worktime entry based on the session information
+    private void updateWorktimeEntryFromSession(WorkUsersSessionsStates session, SessionContext context) {
         try {
-            // Save session using SaveSessionCommand
-            SaveSessionCommand saveCommand = new SaveSessionCommand(session);
-            context.executeCommand(saveCommand);
+            if (session.getDayStartTime() == null) {
+                LoggerUtil.warn(this.getClass(), "Cannot update worktime entry: session has no start time");
+                return;
+            }
 
-            // Update the worktime entry
-            updateWorktimeEntry(session, context);
+            LocalDate workDate = session.getDayStartTime().toLocalDate();
 
-            // Start monitoring
-            context.getSessionMonitorService().startMonitoring(username);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error persisting resumed session: %s", e.getMessage()));
-        }
-    }
-
-    // Updates the worktime entry for the resumed session
-    private void updateWorktimeEntry(WorkUsersSessionsStates session, SessionContext context) {
-        final LocalDate workDate = session.getDayStartTime().toLocalDate();
-
-        try {
-            // Get existing entries for this day
-            List<WorkTimeTable> entries = loadUserEntries(workDate.getYear(), workDate.getMonthValue(), context);
+            // Find existing worktime entries for the month
+            List<WorkTimeTable> entries = context.getWorkTimeService().loadUserEntries(
+                    username,
+                    workDate.getYear(),
+                    workDate.getMonthValue(),
+                    username
+            );
 
             // Find the entry for this specific day
-            WorkTimeTable existingEntry = findEntryForDate(entries, workDate);
+            WorkTimeTable entry = entries.stream()
+                    .filter(e -> e.getWorkDate().equals(workDate))
+                    .findFirst()
+                    .orElse(null);
 
-            if (existingEntry != null) {
-                // Update existing entry - set end time to null to indicate resumed session
-                existingEntry.setDayEndTime(null);
-                existingEntry.setAdminSync(SyncStatus.USER_IN_PROCESS);
-                existingEntry.setTemporaryStopCount(session.getTemporaryStopCount());
-                existingEntry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+            if (entry != null) {
+                // Update existing entry with session values
+                entry.setDayEndTime(null); // Reset end time since we're resuming
+                entry.setTemporaryStopCount(session.getTemporaryStopCount());
+                entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
+                entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+                entry.setAdminSync(SyncStatus.USER_IN_PROCESS); // Mark as in-process
 
                 // Save the updated entry
-                saveWorkTimeEntry(existingEntry, workDate, context);
+                context.getWorkTimeService().saveWorkTimeEntry(
+                        username,
+                        entry,
+                        workDate.getYear(),
+                        workDate.getMonthValue(),
+                        username
+                );
+
+                LoggerUtil.info(this.getClass(), "Updated worktime entry for resumed session");
             } else {
-                // Create a new worktime entry using the command
-                CreateWorktimeEntryCommand createCommand = context.getCommandFactory()
-                        .createWorktimeEntryCommand(username,  session, username);
-
-                WorkTimeTable newEntry = context.executeCommand(createCommand);
-
-                // Save the new entry
-                saveWorkTimeEntry(newEntry, workDate, context);
+                LoggerUtil.warn(this.getClass(), String.format("No worktime entry found for user %s on %s, cannot update", username, workDate));
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Failed to update worktime entry: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(),
+                    String.format("Failed to update worktime entry: %s", e.getMessage()));
         }
-    }
-
-    // Helper method to save worktime entry
-    private void saveWorkTimeEntry(WorkTimeTable entry, LocalDate workDate, SessionContext context) {
-        context.getWorkTimeService().saveWorkTimeEntry(
-                username,
-                entry,
-                workDate.getYear(),
-                workDate.getMonthValue(),
-                username);
-
-        LoggerUtil.info(this.getClass(), "Updated worktime entry for resumed session");
-    }
-
-    // Loads user entries for a specific period
-    private List<WorkTimeTable> loadUserEntries(int year, int month, SessionContext context) {
-        try {
-            return context.getWorkTimeService().loadUserEntries(username, year, month, username);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error loading user entries: %s", e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    // Finds the entry for a specific date
-    private WorkTimeTable findEntryForDate(List<WorkTimeTable> entries, LocalDate date) {
-        return entries.stream()
-                .filter(e -> e.getWorkDate().equals(date))
-                .findFirst()
-                .orElse(null);
     }
 }

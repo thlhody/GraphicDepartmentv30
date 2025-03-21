@@ -11,6 +11,11 @@ import com.ctgraphdep.service.WorkTimeConsolidationService;
 import com.ctgraphdep.service.WorkTimeManagementService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.WorkTimeExcelExporter;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationFactory;
+import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.commands.ValidateHolidayDateCommand;
+import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +25,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
@@ -35,18 +39,24 @@ public class AdminWorkTimeController {
     private final UserManagementService userManagementService;
     private final AdminWorkTimeDisplayService displayService;
     private final WorkTimeExcelExporter excelExporter;
+    private final TimeValidationService validationService;
+    private final TimeValidationFactory validationFactory;
 
     public AdminWorkTimeController(
             WorkTimeManagementService workTimeManagementService,
             WorkTimeConsolidationService workTimeConsolidationService,
             UserManagementService userManagementService,
             AdminWorkTimeDisplayService displayService,
-            WorkTimeExcelExporter excelExporter) {
+            WorkTimeExcelExporter excelExporter,
+            TimeValidationService validationService,
+            TimeValidationFactory validationFactory) {
         this.workTimeManagementService = workTimeManagementService;
         this.workTimeConsolidationService = workTimeConsolidationService;
         this.userManagementService = userManagementService;
         this.displayService = displayService;
         this.excelExporter = excelExporter;
+        this.validationService = validationService;
+        this.validationFactory = validationFactory;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -59,13 +69,16 @@ public class AdminWorkTimeController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            // Set default year and month
-            LocalDate now = LocalDate.now();
+            // Set default year and month using the new validation system
+            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+            LocalDate now = timeValues.getCurrentDate();
             year = Optional.ofNullable(year).orElse(now.getYear());
             month = Optional.ofNullable(month).orElse(now.getMonthValue());
 
-            // Validate period
-            validatePeriod(year, month);
+            // Validate period using the validation command
+            ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(year, month, 4, timeValues.getCurrentDate());
+            validationService.execute(periodCommand);
 
             // Get non-admin users
             List<User> nonAdminUsers = userManagementService.getNonAdminUsers();
@@ -76,8 +89,7 @@ public class AdminWorkTimeController {
 
             // Consolidate worktime entries and organize by user and date
             workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
-            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap =
-                    convertToUserEntriesMap(workTimeConsolidationService.getViewableEntries(year, month));
+            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap = convertToUserEntriesMap(workTimeConsolidationService.getViewableEntries(year, month));
 
             // Prepare model data
             prepareWorkTimeModel(model, year, month, selectedUserId, nonAdminUsers, userEntriesMap);
@@ -112,8 +124,7 @@ public class AdminWorkTimeController {
             );
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
         } catch (Exception e) {
@@ -151,7 +162,15 @@ public class AdminWorkTimeController {
 
         try {
             LocalDate holidayDate = LocalDate.of(year, month, day);
-            validateHolidayDate(holidayDate);
+
+            // Use validation command to validate the holiday date
+            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
+            ValidateHolidayDateCommand holidayCommand = validationFactory.createValidateHolidayDateCommand(
+                    holidayDate, timeValues.getCurrentDate());
+            validationService.execute(holidayCommand);
+
             workTimeManagementService.addNationalHoliday(holidayDate);
 
             // Trigger consolidation after adding holiday
@@ -196,7 +215,6 @@ public class AdminWorkTimeController {
                         model.addAttribute("selectedUserWorktime", userEntriesMap.get(selectedUserId));
                     });
         }
-
     }
 
     private Map<Integer, Map<LocalDate, WorkTimeTable>> convertToUserEntriesMap(
@@ -204,36 +222,9 @@ public class AdminWorkTimeController {
         return entries.stream()
                 .collect(Collectors.groupingBy(
                         WorkTimeTable::getUserId,
-                        Collectors.toMap(
-                                WorkTimeTable::getWorkDate,
-                                entry -> entry,
-                                (existing, replacement) -> replacement,
-                                TreeMap::new
-                        )
+                        Collectors.toMap(WorkTimeTable::getWorkDate, entry -> entry,
+                                (existing, replacement) -> replacement, TreeMap::new)
                 ));
-    }
-
-    private void validatePeriod(int year, int month) {
-        YearMonth requested = YearMonth.of(year, month);
-        YearMonth current = YearMonth.now();
-        YearMonth maxAllowed = current.plusMonths(4);
-
-        if (requested.isAfter(maxAllowed)) {
-            throw new IllegalArgumentException("Cannot view future periods beyond next month");
-        }
-    }
-
-    private void validateHolidayDate(LocalDate date) {
-        LocalDate now = LocalDate.now();
-
-        if (date.isBefore(now.withDayOfMonth(1))) {
-            throw new IllegalArgumentException("Cannot add holidays for past months");
-        }
-
-        if (date.getDayOfWeek() == DayOfWeek.SATURDAY ||
-                date.getDayOfWeek() == DayOfWeek.SUNDAY) {
-            throw new IllegalArgumentException("Cannot add holidays on weekends");
-        }
     }
 
     private Map<String, Long> calculateEntryCounts(Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {

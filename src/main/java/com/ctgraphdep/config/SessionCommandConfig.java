@@ -1,5 +1,6 @@
 package com.ctgraphdep.config;
 
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,7 +25,8 @@ public class SessionCommandConfig {
             @Lazy SessionMonitorService sessionMonitorService,
             PathConfig pathConfig,
             FolderStatusService folderStatusService,
-            SessionCommandFactory commandFactory) {
+            SessionCommandFactory commandFactory,
+            TimeValidationService timeValidationService) {
 
         return new SessionContext(
                 dataAccessService,
@@ -36,6 +38,7 @@ public class SessionCommandConfig {
                 sessionMonitorService,
                 pathConfig,
                 folderStatusService,
-                commandFactory);
+                commandFactory,
+                timeValidationService);
     }
 }

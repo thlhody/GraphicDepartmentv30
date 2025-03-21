@@ -1,18 +1,21 @@
 package com.ctgraphdep.session;
 
-import com.ctgraphdep.session.util.SessionCalculationService;
+import com.ctgraphdep.calculations.CalculationCommandFactory;
+import com.ctgraphdep.calculations.CalculationContext;
+import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.*;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
+import com.ctgraphdep.validation.TimeValidationService;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 
 @Getter
 public class SessionContext {
-    // Properly declare all dependencies
+    // Core dependencies
     private final DataAccessService dataAccessService;
     private final UserWorkTimeService workTimeService;
     private final UserService userService;
@@ -20,12 +23,17 @@ public class SessionContext {
     private final SystemNotificationService notificationService;
     private final SystemNotificationBackupService backupService;
     private final SessionMonitorService sessionMonitorService;
-    private final SessionCalculationService calculationService;
     private final PathConfig pathConfig;
     private final FolderStatusService folderStatusService;
     private final SessionCommandFactory commandFactory;
+    private final TimeValidationService validationService;
 
-    // Proper constructor with all dependencies injected
+    // Calculation dependencies
+    private final CalculationCommandFactory calculationFactory;
+    private final CalculationContext calculationContext;
+    private final CalculationCommandService calculationService;
+
+    // Constructor with dependency injection
     public SessionContext(
             DataAccessService dataAccessService,
             UserWorkTimeService workTimeService,
@@ -36,7 +44,7 @@ public class SessionContext {
             SessionMonitorService sessionMonitorService,
             PathConfig pathConfig,
             FolderStatusService folderStatusService,
-            SessionCommandFactory commandFactory) {
+            SessionCommandFactory commandFactory, TimeValidationService validationService) {
 
         this.dataAccessService = dataAccessService;
         this.workTimeService = workTimeService;
@@ -48,7 +56,12 @@ public class SessionContext {
         this.pathConfig = pathConfig;
         this.folderStatusService = folderStatusService;
         this.commandFactory = commandFactory;
-        this.calculationService = new SessionCalculationService();
+        this.validationService = validationService;
+
+        // Initialize calculation components
+        this.calculationFactory = new CalculationCommandFactory();
+        this.calculationContext = new CalculationContext(this, calculationFactory);
+        this.calculationService = new CalculationCommandService(calculationContext);
     }
 
     // Execute command
@@ -71,58 +84,67 @@ public class SessionContext {
         dataAccessService.writeLocalSessionFile(session);
     }
 
-    // Wrapper around CalculateWorkHoursUtil
+    // Calculate work time using CalculationService
     public WorkTimeCalculationResult calculateWorkTime(int minutes, int schedule) {
-        return CalculateWorkHoursUtil.calculateWorkTime(minutes, schedule);
+        var query = calculationFactory.createCalculateWorkTimeQuery(minutes, schedule);
+        return calculationService.executeQuery(query);
     }
 
-    // Calculate minutes between two times
+    // Calculate minutes between two times using CalculationService
     public int calculateMinutesBetween(LocalDateTime start, LocalDateTime end) {
-        return CalculateWorkHoursUtil.calculateMinutesBetween(start, end);
+        var query = calculationFactory.createCalculateMinutesBetweenQuery(start, end);
+        return calculationService.executeQuery(query);
     }
 
-    // Update the updateSessionCalculations method in SessionContext.java
-    public WorkUsersSessionsStates updateSessionCalculations(WorkUsersSessionsStates session,
-                                                             LocalDateTime currentTime,
-                                                             int userSchedule) {
-        return calculationService.updateSessionCalculations(session, currentTime, userSchedule, this);
+    // Update session calculations using CalculationService
+    public WorkUsersSessionsStates updateSessionCalculations(
+            WorkUsersSessionsStates session,
+            LocalDateTime currentTime,
+            int userSchedule) {
+        var command = calculationFactory.createUpdateSessionCalculationsCommand(session, currentTime, userSchedule);
+        return calculationService.executeCommand(command);
     }
 
-    // Calculate raw work minutes
-    public int calculateRawWorkMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        return calculationService.calculateRawWorkMinutes(session, currentTime);
+    public int calculateRawWorkMinutesForEntry(WorkTimeTable entry, LocalDateTime endTime){
+        var query = calculationFactory.createCalculateRawWorkMinutesForEntryQuery(entry, endTime);
+        return calculationService.executeQuery(query);
     }
 
-    // Calculate total temporary stop minutes
+    // Calculate total temporary stop minutes using CalculationService
     public int calculateTotalTempStopMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        return calculationService.calculateTotalTempStopMinutes(session, currentTime);
+        var query = calculationFactory.createCalculateTotalTempStopMinutesQuery(session, currentTime);
+        return calculationService.executeQuery(query);
     }
 
-    // Calculate worked minutes between two times
+    // Calculate worked minutes between two times using CalculationService
     public int calculateWorkedMinutesBetween(LocalDateTime startTime, LocalDateTime endTime) {
-        return calculationService.calculateWorkedMinutesBetween(startTime, endTime);
+        var query = calculationFactory.createCalculateMinutesBetweenQuery(startTime, endTime);
+        return calculationService.executeQuery(query);
     }
 
-    // Update last temporary stop with end time
-    public void updateLastTemporaryStop(WorkUsersSessionsStates session, LocalDateTime endTime) {
-        calculationService.updateLastTemporaryStop(session, endTime);
-    }
-
-    // Add break as temporary stop
+    // Add break as temporary stop using CalculationService
     public void addBreakAsTempStop(WorkUsersSessionsStates session, LocalDateTime startTime, LocalDateTime endTime) {
-        calculationService.addBreakAsTempStop(session, startTime, endTime);
+        var command = calculationFactory.createAddBreakAsTempStopCommand(session, startTime, endTime);
+        calculationService.executeCommand(command);
     }
 
-    // Process resuming from temporary stop
+    // Process resuming from temporary stop using CalculationService
     public void processResumeFromTempStop(WorkUsersSessionsStates session, LocalDateTime resumeTime) {
-        calculationService.processResumeFromTempStop(session, resumeTime);
+        var command = calculationFactory.createProcessResumeFromTempStopCommand(session, resumeTime);
+        calculationService.executeCommand(command);
     }
 
-    // Calculate end day values
-    public WorkUsersSessionsStates calculateEndDayValues(WorkUsersSessionsStates session,
-                                                         LocalDateTime endTime,
-                                                         Integer finalMinutes) {
-        return calculationService.calculateEndDayValues(session, endTime, finalMinutes);
+    // Calculate end day values using CalculationService
+    public WorkUsersSessionsStates calculateEndDayValues(
+            WorkUsersSessionsStates session,
+            LocalDateTime endTime,
+            Integer finalMinutes) {
+        var command = calculationFactory.createCalculateEndDayValuesCommand(session, endTime, finalMinutes);
+        return calculationService.executeCommand(command);
     }
 
+    public WorkUsersSessionsStates processTemporaryStop(WorkUsersSessionsStates session, LocalDateTime stopTime) {
+        var command = calculationFactory.createProcessTemporaryStopCommand(session, stopTime);
+        return calculationService.executeCommand(command);
+    }
 }

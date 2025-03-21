@@ -2,7 +2,7 @@ package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.utils.LoggerUtil;
 
 /**
@@ -24,9 +24,9 @@ public class ActivateHourlyMonitoringCommand implements SessionCommand<Boolean> 
     public Boolean execute(SessionContext context) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Activating hourly monitoring for user %s", username));
-            // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+            // Get standardized time values using the validation system
+            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
             // Direct manipulation of session monitoring state
             context.getSessionMonitorService().continuedAfterSchedule.put(username, true);
             context.getSessionMonitorService().lastHourlyWarning.put(username, timeValues.getCurrentTime());
@@ -34,14 +34,12 @@ public class ActivateHourlyMonitoringCommand implements SessionCommand<Boolean> 
             // Cancel any backup tasks
             context.getBackupService().cancelBackupTask(username);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully activated hourly monitoring for user %s", username));
+            LoggerUtil.info(this.getClass(), String.format("Successfully activated hourly monitoring for user %s", username));
 
             return true;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error activating hourly monitoring for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error activating hourly monitoring for user %s: %s",
+                    username, e.getMessage()));
             return false;
         }
     }

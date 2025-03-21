@@ -15,8 +15,7 @@ public class SessionCommandService {
     /**
      * -- GETTER --
      *  Gets the session context providing access to services
-     *
-     * @return The session context
+     *  The session context
      */
     private final SessionContext context;
 

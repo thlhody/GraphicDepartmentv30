@@ -6,7 +6,7 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
-import com.ctgraphdep.session.query.GetCurrentSessionQuery;
+import com.ctgraphdep.session.query.GetLocalUserQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,99 +15,91 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Component responsible for handling sessions at midnight.
- * Refactored to use the command pattern for all operations.
+ * Component responsible for resetting sessions at midnight.
+ * Simply resets session file to 0 for the next day without saving to worktime.
  */
 @Component
 public class SessionMidnightHandler {
-
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
-    private final UserService userService;
 
     public SessionMidnightHandler(
             SessionCommandService commandService,
-            SessionCommandFactory commandFactory,
-            UserService userService) {
+            SessionCommandFactory commandFactory) {
         this.commandService = commandService;
         this.commandFactory = commandFactory;
-        this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
-
     /**
-     * Scheduled task that runs at 11:59 PM to check for active sessions
-     * These will be marked for midnight end and require resolution the next day
-     */
-    @Scheduled(cron = "0 59 23 * * *")
-    public void checkActiveSessions() {
-        LoggerUtil.info(this.getClass(), "Running midnight session check");
+    * The cron expression follows the pattern: second minute hour day-of-month month day-of-week
+    * So 0 59 23 * * * means:
+    * 0 - at the 0th second
+    * 59 - at the 59th minute
+    * 23 - at the 23rd hour (11 PM)
+    * * - any day of the month
+    * * - any month
+    * * - any day of the week
+    */
 
+    //@Scheduled(cron = "0 59 23 * * *")
+    @Scheduled(cron = "0 */5 * * * *")
+    public void resetLocalUserSession() {
         try {
-            // Find all active users
-            List<User> users = userService.getAllUsers();
+            // Get local user using the new query
+            GetLocalUserQuery userQuery = commandFactory.createGetLocalUserQuery();
+            User localUser = commandService.executeQuery(userQuery);
 
-            // Filter to only those with active sessions
-            List<User> activeUsers = users.stream().filter(this::hasActiveSession).toList();
-
-            LoggerUtil.info(this.getClass(), String.format("Found %d active sessions at midnight", activeUsers.size()));
-
-            // Process each active session
-            for (User user : activeUsers) {
-                handleMidnightSessionEnd(user);
-            }
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error during midnight session check: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Check if a user has an active session using command pattern
-     */
-    private boolean hasActiveSession(User user) {
-        try {
-            // Create and execute query to get current session
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(user.getUsername(), user.getUserId());
-            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
-
-            return session != null && (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error checking active session for %s: %s", user.getUsername(), e.getMessage()));
-            return false;
-        }
-    }
-
-    /**
-     * Handle a midnight session end for a user using command pattern
-     */
-    private void handleMidnightSessionEnd(User user) {
-        try {
-            // Create and execute query to get current session
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(user.getUsername(), user.getUserId());
-            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
-
-            if (session == null) {
+            if (localUser == null) {
+                LoggerUtil.warn(this.getClass(), "No local user found, skipping session reset");
                 return;
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Processing midnight session end for user %s", user.getUsername()));
+            // Reset the user's session
+            resetUserSession(localUser);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during session reset: " + e.getMessage(), e);
+        }
+    }
 
-            // Mark session as offline but DO NOT calculate values - we'll let user decide next day
-            session.setSessionStatus(WorkCode.WORK_OFFLINE);
+    /**
+     * Resets a user's session to a fresh state.
+     * Made public so it can be called from startup commands.
+     */
+    public void resetUserSession(User user) {
+        try {
+            // Create fresh blank session
+            WorkUsersSessionsStates freshSession = createFreshSession(user.getUsername(), user.getUserId());
 
-            // Mark as not completed - will need resolution
-            session.setWorkdayCompleted(false);
-            session.setLastActivity(LocalDateTime.now());
-
-            // Save the session using SaveSessionCommand
-            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+            // Use SaveSessionCommand to persist the session
+            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(freshSession);
             commandService.executeCommand(saveCommand);
 
-            LoggerUtil.info(this.getClass(), String.format("Completed midnight session end for user %s - will require resolution", user.getUsername()));
-
+            LoggerUtil.info(this.getClass(), String.format("Reset session file to 0 for user %s", user.getUsername()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error handling midnight session end for %s: %s", user.getUsername(), e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error resetting session for user %s: %s",
+                    user.getUsername(), e.getMessage()), e);
         }
+    }
+
+    private WorkUsersSessionsStates createFreshSession(String username, Integer userId) {
+        WorkUsersSessionsStates freshSession = new WorkUsersSessionsStates();
+        freshSession.setUserId(userId);
+        freshSession.setUsername(username);
+        freshSession.setSessionStatus(WorkCode.WORK_OFFLINE);
+        freshSession.setDayStartTime(null);
+        freshSession.setDayEndTime(null);
+        freshSession.setCurrentStartTime(null);
+        freshSession.setTotalWorkedMinutes(0);
+        freshSession.setFinalWorkedMinutes(0);
+        freshSession.setTotalOvertimeMinutes(0);
+        freshSession.setLunchBreakDeducted(true);
+        freshSession.setWorkdayCompleted(false);
+        freshSession.setTemporaryStopCount(0);
+        freshSession.setTotalTemporaryStopMinutes(0);
+        freshSession.setTemporaryStops(List.of());
+        freshSession.setLastTemporaryStopTime(null);
+        freshSession.setLastActivity(LocalDateTime.now());
+
+        return freshSession;
     }
 }

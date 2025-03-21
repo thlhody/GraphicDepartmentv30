@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
@@ -20,11 +19,6 @@ import java.util.stream.Collectors;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-    private final AuthenticationService authService;
-
-    public SecurityConfig(AuthenticationService authService) {
-        this.authService = authService;
-    }
 
     private static final int REMEMBER_ME_VALIDITY_SECONDS = 2592000; // 30 days
 
@@ -43,7 +37,6 @@ public class SecurityConfig {
                             .requestMatchers("/admin/**").hasRole("ADMIN")
                             .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
                             .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")
-                            .requestMatchers("/user/session/resolve/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")
                             .anyRequest().authenticated()
                     )
                     .formLogin(form -> form
@@ -60,10 +53,7 @@ public class SecurityConfig {
                                             .map(GrantedAuthority::getAuthority)
                                             .collect(Collectors.toSet());
 
-                                    LoggerUtil.debug(this.getClass(),
-                                            String.format("User %s has roles: %s",
-                                                    username,
-                                                    String.join(", ", roles)));
+                                    LoggerUtil.debug(this.getClass(), String.format("User %s has roles: %s", username, String.join(", ", roles)));
 
                                     LoggerUtil.debug(this.getClass(), "Checking roles for redirect...");
                                     if (roles.contains("ROLE_ADMIN")) {

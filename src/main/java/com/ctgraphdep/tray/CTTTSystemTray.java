@@ -1,6 +1,5 @@
 package com.ctgraphdep.tray;
 
-import com.ctgraphdep.model.User;
 import com.ctgraphdep.service.DataAccessService;
 import com.ctgraphdep.service.AutoLoginService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -15,8 +14,6 @@ import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.net.URI;
 import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
 
 @Component
 public class CTTTSystemTray {
@@ -42,6 +39,8 @@ public class CTTTSystemTray {
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();
     private TrayIcon trayIcon;
+    private volatile long lastOpenTime = 0;
+    private static final long DEBOUNCE_DELAY = 500; // milliseconds
 
 
     public synchronized void initialize() {
@@ -101,9 +100,7 @@ public class CTTTSystemTray {
             });
 
             // Add action listener for notification clicks
-            trayIcon.addActionListener(e -> {
-                openApplication();
-                LoggerUtil.info(this.getClass(), "Tray notification clicked, opening application");
+            trayIcon.addActionListener(e -> {openApplication();LoggerUtil.info(this.getClass(), "Tray notification clicked, opening application");
             });
 
             SystemTray.getSystemTray().add(trayIcon);
@@ -166,7 +163,16 @@ public class CTTTSystemTray {
         return image;
     }
 
+
+
     public void openApplication() {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastOpenTime < DEBOUNCE_DELAY) {
+            // Ignore if called within debounce period
+            return;
+        }
+        lastOpenTime = currentTime;
+
         String urlToOpen = appUrl != null ? appUrl : appUrlBackup;
         openUrl(urlToOpen + "/login");
     }
@@ -185,7 +191,7 @@ public class CTTTSystemTray {
 
             URI uri = new URI(url);
 
-            // If no port is specified and it's localhost, add the correct port
+            // If no port is specified  its localhost, add the correct port
             if (uri.getPort() == -1 && "localhost".equals(uri.getHost())) {
                 url = url.replace("localhost", "localhost:8443");
                 uri = new URI(url);

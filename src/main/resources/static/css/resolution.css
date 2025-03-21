@@ -1,0 +1,19 @@
+.resolution-container {
+    transition: all 0.3s ease-in-out;
+}
+
+.resolution-container .card {
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+}
+
+.resolution-container .btn-close {
+    opacity: 0.8;
+}
+
+.resolution-container .btn-close:hover {
+    opacity: 1;
+}
+
+#calculation-result {
+    transition: opacity 0.3s ease;
+}

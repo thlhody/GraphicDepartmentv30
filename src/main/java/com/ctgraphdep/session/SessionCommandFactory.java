@@ -1,5 +1,6 @@
 package com.ctgraphdep.session;
 
+import com.ctgraphdep.service.SessionMidnightHandler;
 import com.ctgraphdep.session.commands.*;
 import com.ctgraphdep.session.commands.notification.*;
 import com.ctgraphdep.session.query.*;
@@ -85,11 +86,6 @@ public class SessionCommandFactory {
         return new UpdateSessionCalculationsCommand(session,explicitEndTime);
     }
 
-    // Creates a command to handle a session from a previous day
-    public HandlePreviousDaySessionCommand createHandlePreviousDaySessionCommand(WorkUsersSessionsStates session) {
-        return new HandlePreviousDaySessionCommand(session);
-    }
-
     // Creates a command to create a worktime entry
     public CreateWorktimeEntryCommand createWorktimeEntryCommand(String username, WorkUsersSessionsStates session, String operatingUsername) {
         return new CreateWorktimeEntryCommand(username, session, operatingUsername);
@@ -100,14 +96,8 @@ public class SessionCommandFactory {
         return new UpdateSessionActivityCommand(username, userId);
     }
 
-    // For updating last temporary stop
-    public UpdateLastTemporaryStopCommand createUpdateLastTemporaryStopCommand(WorkUsersSessionsStates session, LocalDateTime endTime) {
-        return new UpdateLastTemporaryStopCommand(session, endTime);
-    }
-
-    // For resolving a session
-    public ResolveSessionCommand createResolveSessionCommand(String username, Integer userId, LocalDateTime endTime) {
-        return new ResolveSessionCommand(username, userId, endTime);
+    public StartupSessionCheckCommand createStartupSessionCheckCommand(SessionMidnightHandler sessionMidnightHandler) {
+        return new StartupSessionCheckCommand(sessionMidnightHandler);
     }
 
     //========
@@ -123,6 +113,10 @@ public class SessionCommandFactory {
     public ShowHourlyWarningCommand createShowHourlyWarningCommand(String username, Integer userId, Integer finalMinutes) {
         return new ShowHourlyWarningCommand(username, userId, finalMinutes);
     }
+    //Creates a command to show worktime resolution warning
+    public ShowResolutionReminderCommand createShowResolutionReminderCommand(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod){
+        return new ShowResolutionReminderCommand(username, userId, title, message, trayMessage, timeoutPeriod);
+    }
 
     // Creates a command to show temporary stop warning
     public ShowTempStopWarningCommand createShowTempStopWarningCommand(String username, Integer userId, LocalDateTime tempStopStart) {
@@ -135,8 +129,8 @@ public class SessionCommandFactory {
     }
 
     // Creates a command to show a test notification
-    public ShowTestNotificationCommand createShowTestNotificationCommand(String username, Integer userId) {
-        return new ShowTestNotificationCommand(username, userId);
+    public ShowTestNotificationCommand createShowTestNotificationCommand(String username) {
+        return new ShowTestNotificationCommand(username);
     }
 
     // Creates a command to continue working
@@ -172,16 +166,6 @@ public class SessionCommandFactory {
     // Query Methods
     //========
 
-    // For calculating raw work minutes
-    public CalculateRawWorkMinutesQuery createCalculateRawWorkMinutesQuery(WorkUsersSessionsStates session, LocalDateTime endTime) {
-        return new CalculateRawWorkMinutesQuery(session, endTime);
-    }
-
-    // Creates a query to get standardized time values (central source of time values for all commands)
-    public GetSessionTimeValuesQuery getSessionTimeValuesQuery() {
-        return new GetSessionTimeValuesQuery();
-    }
-
     // Creates a query to get the current session
     public GetCurrentSessionQuery createGetCurrentSessionQuery(String username, Integer userId) {
         return new GetCurrentSessionQuery(username, userId);
@@ -192,24 +176,9 @@ public class SessionCommandFactory {
         return new ResolveSessionQuery(username, userId);
     }
 
-    // Creates a query to check if a session is from a previous day
-    public IsPreviousDaySessionQuery createIsPreviousDaySessionQuery(WorkUsersSessionsStates session) {
-        return new IsPreviousDaySessionQuery(session);
-    }
-
-    // Creates a query to check if a user has a completed session for today
-    public HasCompletedSessionForTodayQuery createHasCompletedSessionForTodayQuery(String username, Integer userId) {
-        return new HasCompletedSessionForTodayQuery(username, userId);
-    }
-
     // Creates a query to validate authentication and get user
     public AuthenticatedUserQuery createAuthenticatedUserQuery(UserDetails userDetails) {
         return new AuthenticatedUserQuery(userDetails);
-    }
-
-    // Creates a query to check for unresolved sessions
-    public UnresolvedSessionQuery createUnresolvedSessionQuery(String username, Integer userId) {
-        return new UnresolvedSessionQuery(username, userId);
     }
 
     // Creates a query to determine navigation context
@@ -221,30 +190,13 @@ public class SessionCommandFactory {
     public ExtractUsernameFromSessionFileQuery createExtractUsernameFromSessionFileQuery(String filename) {
         return new ExtractUsernameFromSessionFileQuery(filename);
     }
-
-    // Creates a query to generate a notification key
-    public GetNotificationKeyQuery createGetNotificationKeyQuery(String username, String notificationType) {
-        return new GetNotificationKeyQuery(username, notificationType);
+    public GetLocalUserQuery createGetLocalUserQuery() {
+        return new GetLocalUserQuery();
     }
 
     // Creates a query to check if a notification can be shown
     public CanShowNotificationQuery createCanShowNotificationQuery(String username, String notificationType, Integer intervalMinutes, Map<String, LocalDateTime> lastNotificationTimes) {
         return new CanShowNotificationQuery(username, notificationType, intervalMinutes, lastNotificationTimes);
-    }
-
-    // Creates a query to check if a user is in temporary stop
-    public IsInTemporaryStopQuery createIsInTemporaryStopQuery(String username, Integer userId) {
-        return new IsInTemporaryStopQuery(username, userId);
-    }
-
-    // Creates a query to check if a user has any unresolved sessions
-    public HasUnresolvedSessionQuery createHasUnresolvedSessionQuery(String username, Integer userId) {
-        return new HasUnresolvedSessionQuery(username, userId);
-    }
-
-    // Creates a query to check if a session needs resolution
-    public NeedsResolutionQuery createNeedsResolutionQuery(WorkUsersSessionsStates session) {
-        return new NeedsResolutionQuery(session);
     }
 
     // Creates a query to get work schedule information
@@ -255,5 +207,12 @@ public class SessionCommandFactory {
     // Creates a query to get work schedule information for the current date
     public WorkScheduleQuery createWorkScheduleQuery(Integer userSchedule) {
         return new WorkScheduleQuery(userSchedule);
+    }
+
+    public WorktimeResolutionQuery createWorktimeResolutionQuery(String username, Integer userId) {
+        return new WorktimeResolutionQuery(username, userId);
+    }
+    public SessionStatusQuery createSessionStatusQuery(String username, Integer userId){
+        return new SessionStatusQuery(username, userId);
     }
 }

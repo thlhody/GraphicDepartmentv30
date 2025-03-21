@@ -44,22 +44,6 @@ public abstract class BaseController {
         return userOpt.get();
     }
 
-//    protected User getCurrentUser() {
-//        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-//        if (auth == null) {
-//            LoggerUtil.error(this.getClass(), "No authentication found in security context");
-//            return null;
-//        }
-//
-//        if (!(auth.getPrincipal() instanceof UserDetails userDetails)) {
-//            LoggerUtil.error(this.getClass(),
-//                    String.format("Principal is not UserDetails: %s", auth.getPrincipal().getClass().getName()));
-//            return null;
-//        }
-//
-//        return getUser(userDetails);
-//    }
-
     protected UserService getUserService() {
         return userService;
     }

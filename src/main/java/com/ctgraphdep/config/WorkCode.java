@@ -35,7 +35,6 @@ public class WorkCode {
     public static final Integer INTERVAL_HOURS_A = 4;         // Interval working hours 4 hours
     public static final Integer INTERVAL_HOURS_B = 11;        // Interval working hours 11 hours
     public static final Integer INTERVAL_HOURS_C = 8;         // Interval working hours 8 hours
-    public static final Integer ON_FOR_TEN_SECONDS = 10000; // 10 seconds in milliseconds
     public static final Integer ONCE_PER_DAY_TIMER = 24 * 60;
 
     public static final Integer ONE_MINUTE_DELAY = 1;     // 8.5 hours in minutes (8 * 60 + 30)510
@@ -48,12 +47,14 @@ public class WorkCode {
     public static final Integer ON_FOR_FIVE_MINUTES = five_minutes; // Auto-timer set for 5 minutes (WorkCode.CHECK_EVERY_FIVE_MINUTES)
     public static final Integer ON_FOR_TEN_MINUTES = ten_minutes;  // Auto-timer set for 10 minutes (WorkCode.CHECK_EVERY_TEN_MINUTES)
     public static final Integer ON_FOR_TWELVE_HOURS = twelve_hours;   // Auto-timer set for 12 hours
+    public static final Integer ON_FOR_TEN_SECONDS = 10000; // 10 seconds in milliseconds
+
 
     public static Integer MAX_TEMP_STOP_HOURS = 15;                 // 24 - MAX_WORK_HOURS
 
     // Constants for timing start notice
     public static final int WORK_START_HOUR = 5;  // 5:00 AM
-    public static final int WORK_END_HOUR = 17;   // 5:00 PM
+    public static final int WORK_END_HOUR = 22;   // 5:00 PM
 
     //date format
     public static final DateTimeFormatter INPUT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -150,6 +151,16 @@ public class WorkCode {
     public static final String OVERTIME_TYPE = "OVERTIME";
     public static final String TEMP_STOP_TYPE = "TEMP_STOP";
     public static final String START_DAY_TYPE = "START_DAY";
+
+    // In WorkCode.java
+// Resolution notification constants
+    public static final String RESOLUTION_TITLE = "Previous Session Needs Resolution";
+    public static final String RESOLUTION_MESSAGE = """
+            Your previous work session was not properly ended.
+            
+            Please resolve it before starting a new day.""";
+    public static final String RESOLUTION_MESSAGE_TRAY = "Previous session needs resolution - Click to resolve";
+    public static final String RESOLVE_SESSION_BUTTON = "Resolve Session";
 }
 
 

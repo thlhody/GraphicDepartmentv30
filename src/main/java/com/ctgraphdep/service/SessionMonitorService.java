@@ -12,7 +12,13 @@ import com.ctgraphdep.session.commands.notification.ShowTestNotificationCommand;
 import com.ctgraphdep.session.query.*;
 import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationFactory;
+import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.commands.IsWorkingHoursCommand;
+import com.ctgraphdep.validation.commands.IsWeekdayCommand;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
@@ -26,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.stream.Stream;
 
 /**
  * Service responsible for monitoring active user sessions and triggering
@@ -41,6 +48,11 @@ public class SessionMonitorService {
     private final TaskScheduler taskScheduler;
     private final PathConfig pathConfig;
     private final SystemNotificationBackupService backupService;
+    private final TimeValidationService validationService;
+    private final TimeValidationFactory validationFactory;
+
+    @Value("${app.session.monitoring.interval:30}")
+    private int monitoringInterval;
 
     // Track monitored sessions
     private final Map<String, Boolean> notificationShown = new ConcurrentHashMap<>();
@@ -57,7 +69,9 @@ public class SessionMonitorService {
             UserService userService,
             @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             PathConfig pathConfig,
-            SystemNotificationBackupService backupService) {
+            SystemNotificationBackupService backupService,
+            TimeValidationService validationService,
+            TimeValidationFactory validationFactory) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
@@ -66,6 +80,8 @@ public class SessionMonitorService {
         this.taskScheduler = taskScheduler;
         this.pathConfig = pathConfig;
         this.backupService = backupService;
+        this.validationService = validationService;
+        this.validationFactory = validationFactory;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -116,8 +132,7 @@ public class SessionMonitorService {
                     LoggerUtil.info(this.getClass(), "Showing test notification for user: " + username);
 
                     // Create and execute the test notification command
-                    ShowTestNotificationCommand command = commandFactory.createShowTestNotificationCommand(
-                            username, user.getUserId());
+                    ShowTestNotificationCommand command = commandFactory.createShowTestNotificationCommand(username);
                     commandService.executeCommand(command);
                 }
             } else {
@@ -136,8 +151,8 @@ public class SessionMonitorService {
             monitoringTask.cancel(false);
         }
 
-        // Calculate initial delay to align with the next half-hour mark
-        Duration initialDelay = calculateTimeToNextHalfHour();
+        // Calculate initial delay to align with the next interval mark
+        Duration initialDelay = calculateTimeToNextCheck();
 
         // Schedule the first check
         monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(initialDelay));
@@ -149,13 +164,14 @@ public class SessionMonitorService {
     /**
      * Runs the monitoring task and reschedules for the next check
      */
+
     private void runAndRescheduleMonitoring() {
         try {
             // Run the actual check
             checkActiveSessions();
 
-            // Always reschedule for the next half-hour mark
-            Duration nextDelay = calculateTimeToNextHalfHour();
+            // Always reschedule for the next interval
+            Duration nextDelay = calculateTimeToNextCheck();
             monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(nextDelay));
 
             LoggerUtil.info(this.getClass(), String.format("Next monitoring check scheduled in %d minutes and %d seconds",
@@ -169,61 +185,33 @@ public class SessionMonitorService {
         }
     }
 
-//    /**
-//     * Calculates time to the next half-hour mark (either XX:00 or XX:30)
-//     */
-//    private Duration calculateTimeToNextHalfHour() {
-//        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
-//        LocalDateTime now = timeValues.getCurrentTime();
-//        LocalDateTime nextHalfHour;
-//
-//        // If current minute is less than 30, go to XX:30
-//        // Otherwise, go to the next hour (XX+1:00)
-//        if (now.getMinute() < 30) {
-//            nextHalfHour = now.withMinute(30).withSecond(0).withNano(0);
-//        } else {
-//            nextHalfHour = now.plusHours(1).withMinute(0).withSecond(0).withNano(0);
-//        }
-//
-//        // Handle special cases for 5:00 AM and 5:00 PM resets
-//        LocalDateTime morningReset = now.toLocalDate().atTime(5, 0, 0);
-//        LocalDateTime eveningReset = now.toLocalDate().atTime(17, 0, 0);
-//
-//        // If it's past midnight but before 5:00 AM, check if 5:00 AM is before the next half-hour mark
-//        if (now.getHour() < 5 && morningReset.isAfter(now) && morningReset.isBefore(nextHalfHour)) {
-//            nextHalfHour = morningReset;
-//        }
-//
-//        // If it's between 5:00 AM and 5:00 PM, check if 5:00 PM is before the next half-hour mark
-//        if (now.getHour() >= 5 && now.getHour() < 17 &&
-//                eveningReset.isAfter(now) && eveningReset.isBefore(nextHalfHour)) {
-//            nextHalfHour = eveningReset;
-//        }
-//
-//        return Duration.between(now, nextHalfHour);
-//    }
-
     /**
-     * Calculates time to the next monitoring check (every 10 minutes)
+     * Calculates time to the next monitoring check based on configured interval
      */
-    private Duration calculateTimeToNextHalfHour() {
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+    private Duration calculateTimeToNextCheck() {
+        // Use validation system to get time values
+        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
         LocalDateTime now = timeValues.getCurrentTime();
         LocalDateTime nextCheck;
 
-        // Calculate next 10-minute mark (XX:00, XX:10, XX:20, XX:30, XX:40, XX:50)
+        // Use the configured monitoring interval (in minutes) from application properties
+        int monitoringIntervalMinutes = monitoringInterval;
+
+        // Calculate next interval mark
         int minute = now.getMinute();
-        int nextMinute = ((minute / 10) + 1) * 10; // Round up to next 10-minute mark
+        int nextMinute = ((minute / monitoringIntervalMinutes) + 1) * monitoringIntervalMinutes;
 
         if (nextMinute >= 60) {
             // If we need to go to the next hour
-            nextCheck = now.plusHours(1).withMinute(0).withSecond(0).withNano(0);
+            nextCheck = now.plusHours(1).withMinute(nextMinute % 60).withSecond(0).withNano(0);
         } else {
-            // Go to the next 10-minute mark in this hour
+            // Go to the next interval mark in this hour
             nextCheck = now.withMinute(nextMinute).withSecond(0).withNano(0);
         }
 
-        // Handle special cases for 5:00 AM and 5:00 PM resets (keep these as they were)
+        // Handle special cases for 5:00 AM and 5:00 PM resets
         LocalDateTime morningReset = now.toLocalDate().atTime(5, 0, 0);
         LocalDateTime eveningReset = now.toLocalDate().atTime(17, 0, 0);
 
@@ -238,7 +226,12 @@ public class SessionMonitorService {
             nextCheck = eveningReset;
         }
 
-        return Duration.between(now, nextCheck);
+        Duration duration = Duration.between(now, nextCheck);
+        LoggerUtil.debug(this.getClass(),
+                String.format("Next check scheduled at %s (in %d minutes and %d seconds)",
+                        nextCheck, duration.toMinutes(), duration.toSecondsPart()));
+
+        return duration;
     }
 
     /**
@@ -269,7 +262,7 @@ public class SessionMonitorService {
             }
 
             // Update calculations using command pattern
-            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session,session.getDayEndTime());
+            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session, session.getDayEndTime());
             session = commandService.executeCommand(updateCommand);
 
             // Save session using command pattern
@@ -297,7 +290,10 @@ public class SessionMonitorService {
         LocalDateTime tempStopStart = session.getLastTemporaryStopTime();
 
         if (tempStopStart != null) {
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+            // Get standardized time values using validation system
+            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
             LocalDateTime now = timeValues.getCurrentTime();
 
             // Check if total temporary stop minutes exceed 15 hours
@@ -323,7 +319,11 @@ public class SessionMonitorService {
      */
     private void checkScheduleCompletion(WorkUsersSessionsStates session, User user) {
         LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+
+        // Get standardized time values using validation system
+        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
         LocalDate today = timeValues.getCurrentDate();
 
         if (!sessionDate.equals(today)) {
@@ -382,8 +382,10 @@ public class SessionMonitorService {
         String username = session.getUsername();
         LocalDateTime lastWarning = lastHourlyWarning.get(username);
 
-        // Get standardized time values
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+        // Get standardized time values using validation system
+        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
         LocalDateTime now = timeValues.getCurrentTime();
         LocalDateTime nextHourlyCheckTime = timeValues.getNextHourlyCheckTime();
 
@@ -427,7 +429,14 @@ public class SessionMonitorService {
 
         try {
             // Only check during working hours on weekdays
-            if (!isWeekday() || !isWorkingHours()) {
+            // Use validation commands for checking
+            IsWeekdayCommand weekdayCommand = validationFactory.createIsWeekdayCommand();
+            IsWorkingHoursCommand workingHoursCommand = validationFactory.createIsWorkingHoursCommand();
+
+            boolean isWeekday = validationService.execute(weekdayCommand);
+            boolean isWorkingHours = validationService.execute(workingHoursCommand);
+
+            if (!isWeekday || !isWorkingHours) {
                 return;
             }
 
@@ -438,7 +447,9 @@ public class SessionMonitorService {
             }
 
             // Check if we already showed notification today
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
             LocalDate today = timeValues.getCurrentDate();
             if (lastStartDayCheck.containsKey(username) &&
                     lastStartDayCheck.get(username).equals(today)) {
@@ -447,28 +458,44 @@ public class SessionMonitorService {
 
             User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
 
-            // Check if user has completed a session for today
-            HasCompletedSessionForTodayQuery completedQuery = commandFactory.createHasCompletedSessionForTodayQuery(username, user.getUserId());
-            boolean completedSessionToday = commandService.executeQuery(completedQuery);
+            // Check for unresolved worktime entries using the new WorktimeResolutionQuery
+            WorktimeResolutionQuery resolutionQuery = commandFactory.createWorktimeResolutionQuery(username, user.getUserId());
+            WorktimeResolutionQuery.ResolutionStatus resolutionStatus = commandService.executeQuery(resolutionQuery);
+
+            // Get current session separately (no longer part of ResolutionStatus)
+            WorkUsersSessionsStates session = commandService.executeQuery(
+                    commandFactory.createGetCurrentSessionQuery(username, user.getUserId()));
+
+            // Check if the user has completed a session today
+            boolean hasCompletedSessionToday = false;
+            if (session != null && session.getDayStartTime() != null) {
+                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) &&
+                        WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
+                        session.getWorkdayCompleted();
+            }
 
             // If they already completed a session today, don't show reminder
-            if (completedSessionToday) {
+            if (hasCompletedSessionToday) {
                 return;
             }
 
-            // Check for unresolved sessions from yesterday
-            HasUnresolvedSessionQuery unresolvedQuery = commandFactory.createHasUnresolvedSessionQuery(username, user.getUserId());
-            boolean hasUnresolvedSession = commandService.executeQuery(unresolvedQuery);
+            // If there are unresolved worktime entries, show resolution notification instead of start day reminder
+            if (resolutionStatus.isNeedsResolution()) {
+                LoggerUtil.info(this.getClass(), String.format("User %s has unresolved worktime entries - showing resolution notification", username));
 
-            // If there are unresolved sessions, don't show start day reminder
-            if (hasUnresolvedSession) {
-                LoggerUtil.info(this.getClass(), String.format("User %s has unresolved session - skipping start day reminder", username));
+                // Show resolution notification instead of regular start day
+                notificationService.showResolutionReminder(
+                        username,
+                        user.getUserId(),
+                        WorkCode.RESOLUTION_TITLE,
+                        WorkCode.RESOLUTION_MESSAGE,
+                        WorkCode.RESOLUTION_MESSAGE_TRAY,
+                        WorkCode.ON_FOR_TWELVE_HOURS);
+
+                // Update last check date so we don't keep showing it
+                lastStartDayCheck.put(username, today);
                 return;
             }
-
-            // Get current session using command pattern
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
-            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
             // Use SessionValidator to check if session exists
             if (!SessionValidator.exists(session, this.getClass())) {
@@ -476,7 +503,7 @@ public class SessionMonitorService {
             }
 
             // Validate that session is in offline state and no active session for today
-            if (WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && !hasActiveSessionToday(session)) {
+            if (session != null && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && !hasActiveSessionToday(session)) {
                 // Show notification
                 notificationService.showStartDayReminder(username, user.getUserId());
 
@@ -492,12 +519,13 @@ public class SessionMonitorService {
      * Gets the currently active user by scanning session files
      */
     private String getCurrentActiveUser() {
-        try {
-            Path localSessionPath = pathConfig.getLocalSessionPath("", 0).getParent();
-            if (!Files.exists(localSessionPath)) {
-                return null;
-            }
-            return Files.list(localSessionPath)
+        Path localSessionPath = pathConfig.getLocalSessionPath("", 0).getParent();
+        if (!Files.exists(localSessionPath)) {
+            return null;
+        }
+
+        try (Stream<Path> pathStream = Files.list(localSessionPath)) {
+            return pathStream
                     .filter(this::isValidSessionFile)
                     .max(this::compareByLastModified)
                     .map(this::extractUsernameFromSession)
@@ -571,44 +599,6 @@ public class SessionMonitorService {
         LoggerUtil.info(this.getClass(), "Stopped monitoring for user: " + username);
     }
 
-    /* Helper methods */
-
-    /**
-     * Gets standardized time values using the command pattern.
-     * This centralizes time value retrieval for consistent usage across the service.
-     *
-     * @return The standardized session time values
-     */
-    private GetSessionTimeValuesQuery.SessionTimeValues getStandardizedTimeValues() {
-        GetSessionTimeValuesQuery timeQuery = commandFactory.getSessionTimeValuesQuery();
-        return commandService.executeQuery(timeQuery);
-    }
-
-    /**
-     * Checks if current time is within working hours
-     */
-    private boolean isWorkingHours() {
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
-        LocalDateTime now = timeValues.getCurrentTime();
-        int hour = now.getHour();
-        return hour >= WorkCode.WORK_START_HOUR && hour < WorkCode.WORK_END_HOUR;
-    }
-
-    /**
-     * Checks if today is a weekday
-     */
-    private boolean isWeekday() {
-        try {
-            // Create and execute the query with default schedule (we only need the weekend check)
-            WorkScheduleQuery query = commandFactory.createWorkScheduleQuery(WorkCode.INTERVAL_HOURS_C);
-            WorkScheduleQuery.ScheduleInfo scheduleInfo = commandService.executeQuery(query);
-
-            return scheduleInfo.isWeekday();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error checking if today is a weekday: " + e.getMessage(), e);
-            return true; // Default to true in case of error
-        }
-    }
     /**
      * Checks if session has activity today
      */
@@ -618,7 +608,11 @@ public class SessionMonitorService {
         }
 
         LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = getStandardizedTimeValues();
+
+        // Get standardized time values using validation system
+        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
         LocalDate today = timeValues.getCurrentDate();
 
         return sessionDate.equals(today);

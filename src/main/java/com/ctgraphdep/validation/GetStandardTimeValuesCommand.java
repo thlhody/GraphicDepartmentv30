@@ -1,7 +1,5 @@
-package com.ctgraphdep.session.query;
+package com.ctgraphdep.validation;
 
-import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -10,13 +8,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Query to get standardized time values for session operations
- * Centralizes time-related logic for consistency across commands
+ * Command to get standardized time values
+ * Centralizes time-related logic for consistency across the application
  */
-public class GetSessionTimeValuesQuery implements SessionQuery<GetSessionTimeValuesQuery.SessionTimeValues> {
+public class GetStandardTimeValuesCommand implements TimeValidationCommand<GetStandardTimeValuesCommand.StandardTimeValues> {
 
     @Override
-    public SessionTimeValues execute(SessionContext context) {
+    public StandardTimeValues execute() {
         try {
             // Calculate standard time values
             LocalDateTime now = LocalDateTime.now();
@@ -31,10 +29,10 @@ public class GetSessionTimeValuesQuery implements SessionQuery<GetSessionTimeVal
             LocalDateTime nextHourlyCheck = now.plusMinutes(WorkCode.HOURLY_INTERVAL);
 
             LoggerUtil.debug(this.getClass(),
-                    String.format("Generated session time values - Now: %s, Start time: %s, Today: %s",
+                    String.format("Generated standard time values - Now: %s, Start time: %s, Today: %s",
                             now, startTime, today));
 
-            return new SessionTimeValues(
+            return new StandardTimeValues(
                     now,
                     startTime,
                     today,
@@ -42,10 +40,10 @@ public class GetSessionTimeValuesQuery implements SessionQuery<GetSessionTimeVal
                     continuationTimestamp,
                     nextHourlyCheck);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error generating session time values: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error generating standard time values: " + e.getMessage());
             // Fallback to basic values if something goes wrong
             LocalDateTime now = LocalDateTime.now();
-            return new SessionTimeValues(
+            return new StandardTimeValues(
                     now,
                     now,
                     now.toLocalDate(),
@@ -59,7 +57,7 @@ public class GetSessionTimeValuesQuery implements SessionQuery<GetSessionTimeVal
      * Immutable class to hold standardized time values
      */
     @Getter
-    public static class SessionTimeValues {
+    public static class StandardTimeValues {
         private final LocalDateTime currentTime;
         private final LocalDateTime startTime;
         private final LocalDate currentDate;
@@ -67,7 +65,7 @@ public class GetSessionTimeValuesQuery implements SessionQuery<GetSessionTimeVal
         private final LocalDateTime continuationTimestamp;
         private final LocalDateTime nextHourlyCheck;
 
-        public SessionTimeValues(
+        public StandardTimeValues(
                 LocalDateTime currentTime,
                 LocalDateTime startTime,
                 LocalDate currentDate,

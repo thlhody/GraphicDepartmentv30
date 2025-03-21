@@ -15,11 +15,9 @@ import javax.swing.SwingUtilities;
 public class ShowTestNotificationCommand implements SessionCommand<Boolean> {
 
     private final String username;
-    private final Integer userId;
 
-    public ShowTestNotificationCommand(String username, Integer userId) {
+    public ShowTestNotificationCommand(String username) {
         this.username = username;
-        this.userId = userId;
     }
 
     @Override
@@ -44,7 +42,7 @@ public class ShowTestNotificationCommand implements SessionCommand<Boolean> {
                 // Only show dialog if system is not headless
                 if (!GraphicsEnvironment.isHeadless()) {
                     // Use the SystemNotificationService to create and show dialog
-                    context.getNotificationService().showTestDialogWithButtons(username, userId, testResponded, dialogDisplayed);
+                    context.getNotificationService().showTestDialogWithButtons(username, testResponded, dialogDisplayed);
                 } else {
                     LoggerUtil.info(this.getClass(), "Running in headless mode, skipping dialog notification");
                 }

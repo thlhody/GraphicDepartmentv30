@@ -2,7 +2,6 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
@@ -32,7 +31,6 @@ import java.util.concurrent.ScheduledFuture;
 @Service
 public class SystemNotificationBackupService {
 
-    private final UserService userService;
     private final TaskScheduler taskScheduler;
     private final PathConfig pathConfig;
     private final SessionCommandService sessionCommandService;
@@ -44,9 +42,8 @@ public class SystemNotificationBackupService {
     private final Map<String, LocalDateTime> hourlyNotificationTimes = new ConcurrentHashMap<>();
     private final Map<String, LocalDateTime> tempStopNotificationTimes = new ConcurrentHashMap<>();
 
-    public SystemNotificationBackupService(UserService userService, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
+    public SystemNotificationBackupService(@Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             PathConfig pathConfig, @Lazy SessionCommandService sessionCommandService, @Lazy SessionCommandFactory commandFactory) {
-        this.userService = userService;
         this.taskScheduler = taskScheduler;
         this.pathConfig = pathConfig;
         this.sessionCommandService = sessionCommandService;
@@ -230,85 +227,6 @@ public class SystemNotificationBackupService {
         if (existingTask != null && !existingTask.isDone() && !existingTask.isCancelled()) {
             existingTask.cancel(false);
         }
-    }
-
-    /**
-     * Checks if any sessions have active notification that haven't received responses
-     * Now logs these sessions but doesn't automatically end them
-     */
-    public void checkForStalledNotifications() {
-        // Handle schedule end notification
-        scheduleEndNotificationTimes.forEach((username, time) -> {
-            if (ChronoUnit.MINUTES.between(time, LocalDateTime.now()) >= 15) {
-                try {
-                    User user = userService.getUserByUsername(username).orElse(null);
-                    if (user != null) {
-                        // Use command to get current session
-                        GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
-                        WorkUsersSessionsStates session = sessionCommandService.executeQuery(sessionQuery);
-
-                        if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-                            LoggerUtil.warn(this.getClass(), String.format("Detected stalled schedule end notification for user %s, recording continuation point", username));
-
-                            // Remove after handling
-                            scheduleEndNotificationTimes.remove(username);
-                        }
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format("Error handling stalled notification for %s: %s", username, e.getMessage()));
-                }
-            }
-        });
-
-        // Handle hourly warning notification
-        hourlyNotificationTimes.forEach((username, time) -> {
-            if (ChronoUnit.MINUTES.between(time, LocalDateTime.now()) >= 10) {
-                try {
-                    User user = userService.getUserByUsername(username).orElse(null);
-                    if (user != null) {
-                        // Use command to get current session
-                        GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
-                        WorkUsersSessionsStates session = sessionCommandService.executeQuery(sessionQuery);
-
-                        if (session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-                            LoggerUtil.warn(this.getClass(), String.format("Detected stalled hourly warning notification for user %s, recording continuation point", username));
-
-                            // Remove after handling
-                            hourlyNotificationTimes.remove(username);
-                        }
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format("Error handling stalled hourly notification for %s: %s", username, e.getMessage()));
-                }
-            }
-        });
-
-        // Handle temporary stop notification
-        tempStopNotificationTimes.forEach((username, time) -> {
-            if (ChronoUnit.MINUTES.between(time, LocalDateTime.now()) >= 10) {
-                try {
-                    User user = userService.getUserByUsername(username).orElse(null);
-                    if (user != null) {
-                        // Use command to get current session
-                        GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
-                        WorkUsersSessionsStates session = sessionCommandService.executeQuery(sessionQuery);
-
-                        if (session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                            LoggerUtil.warn(this.getClass(), String.format("Detected stalled temporary stop notification for user %s, continuing temp stop", username));
-
-                            // Use commands to update session and record continuation
-                            UpdateSessionActivityCommand updateCommand = commandFactory.createUpdateSessionActivityCommand(username, user.getUserId());
-                            sessionCommandService.executeCommand(updateCommand);
-
-                            // Remove after handling
-                            tempStopNotificationTimes.remove(username);
-                        }
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format("Error handling stalled temp stop notification for %s: %s", username, e.getMessage()));
-                }
-            }
-        });
     }
 
     /**

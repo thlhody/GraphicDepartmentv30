@@ -3,10 +3,8 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery.SessionTimeValues;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
-import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -21,8 +19,7 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
     private final String username;
     private final Integer userId;
     private final Integer finalMinutes;
-    private final LocalDateTime explicitEndTime; // Explicit end time parameter
-
+    private final LocalDateTime explicitEndTime;// Explicit end time parameter
     /**
      * Creates a new command to end a work day with explicit end time
      *
@@ -42,32 +39,18 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
     public WorkUsersSessionsStates execute(SessionContext context) {
         LoggerUtil.info(this.getClass(), String.format("Executing EndDayCommand for user %s with %d minutes", username, finalMinutes));
 
-        // Get standardized time values
-        GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-        GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+        // Get standardized time values using the new validation system
+        GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
+
 
         // Get and validate session
         WorkUsersSessionsStates session = context.getCurrentSession(username, userId);
 
-        // Modified validation to handle midnight-closed sessions
+        // Basic validation - session must exist
         if (session == null) {
             LoggerUtil.warn(this.getClass(), "Session is null, cannot end");
             return null;
-        }
-
-        // Capture original status to restore it if needed (for midnight handler sessions)
-        String originalStatus = session.getSessionStatus();
-        boolean needsStatusRestore = false;
-
-        // Handle sessions in "Offline" state from midnight handler
-        if (WorkCode.WORK_OFFLINE.equals(originalStatus) && !session.getWorkdayCompleted()) {
-            LoggerUtil.info(this.getClass(), "Session is in Offline state but not completed - handling midnight-closed session");
-            // No need to change status as we'll respect the original state
-
-        }
-        else if (!WorkCode.WORK_ONLINE.equals(originalStatus) && !WorkCode.WORK_TEMPORARY_STOP.equals(originalStatus)) {
-            LoggerUtil.warn(this.getClass(), String.format("Session in unexpected state: %s - cannot end", originalStatus));
-            return session;
         }
 
         // Use explicit end time if provided, otherwise use standardized current time
@@ -75,19 +58,18 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
 
         LoggerUtil.info(this.getClass(), String.format("Using end time: %s for user %s", endTime, username));
 
-        // Process end session operation
-        processEndSession(session, endTime, context);
+        // Process end session operation using calculation command
+        session = processEndSession(session, endTime, context);
 
-        // Update worktime entry and persist session
-        updateWorktimeAndPersist(session, context, endTime, timeValues);
+        // Save the updated session first
+        SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(session);
+        context.executeCommand(saveCommand);
 
-        // Restore original status if needed (for consistency with midnight handler)
-        if (needsStatusRestore) {
-            session.setSessionStatus(originalStatus);
-            // Save again to ensure the status is persisted
-            SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(session);
-            context.executeCommand(saveCommand);
-        }
+        // Update session status in database
+        context.getSessionStatusService().updateSessionStatus(username, userId, WorkCode.WORK_OFFLINE, endTime);
+
+        // Then update worktime entry
+        updateWorktimeEntry(session, context, endTime);
 
         // Clean up monitoring
         context.getSessionMonitorService().stopMonitoring(username);
@@ -97,37 +79,22 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
         return session;
     }
 
-    // Updates the session with end state values
-    private void processEndSession(WorkUsersSessionsStates session, LocalDateTime endTime, SessionContext context) {
-        final int currentWorkedMinutes = session.getTotalWorkedMinutes();
+    // Updates the session with end state values using calculation command
+    private WorkUsersSessionsStates processEndSession(WorkUsersSessionsStates session, LocalDateTime endTime, SessionContext context) {
+        final int currentWorkedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
         final int currentOvertimeMinutes = session.getTotalOvertimeMinutes() != null ? session.getTotalOvertimeMinutes() : 0;
 
-        context.getCalculationService().calculateEndDayValues(session, endTime, finalMinutes);
+        // Use the context method which delegates to the calculation command
+        WorkUsersSessionsStates updatedSession = context.calculateEndDayValues(session, endTime, finalMinutes);
 
-        LoggerUtil.debug(this.getClass(), String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d", currentWorkedMinutes, finalMinutes, currentOvertimeMinutes));
-    }
+        LoggerUtil.debug(this.getClass(), String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d",
+                currentWorkedMinutes, finalMinutes, currentOvertimeMinutes));
 
-    // Updates worktime entry and persists session
-    private void updateWorktimeAndPersist(WorkUsersSessionsStates session, SessionContext context, LocalDateTime endTime, SessionTimeValues timeValues) {
-        try {
-            // Update worktime entry
-            updateWorktimeEntry(session, context, endTime, timeValues);
-
-            // Save session using SaveSessionCommand
-            SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(session);
-            context.executeCommand(saveCommand);
-
-            // Update session status in database
-            context.getSessionStatusService().updateSessionStatus(username, userId, WorkCode.WORK_OFFLINE, endTime);
-
-            LoggerUtil.info(this.getClass(), String.format("Successfully persisted session for user %s with total minutes: %d", session.getUsername(), session.getTotalWorkedMinutes()));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Failed to update and persist session for user %s: %s", session.getUsername(), e.getMessage()));
-        }
+        return updatedSession;
     }
 
     // Creates and saves a worktime entry based on session data
-    private void updateWorktimeEntry(WorkUsersSessionsStates session, SessionContext context, LocalDateTime endTime, SessionTimeValues timeValues) {
+    private void updateWorktimeEntry(WorkUsersSessionsStates session, SessionContext context, LocalDateTime endTime) {
         try {
             // Get date from session entry
             LocalDate workDate = session.getDayStartTime().toLocalDate();
@@ -158,9 +125,7 @@ public class EndDayCommand implements SessionCommand<WorkUsersSessionsStates> {
                 int overtimeMinutes = scheduleInfo.calculateOvertimeMinutes(session.getTotalWorkedMinutes());
                 if (overtimeMinutes > 0 && (entry.getTotalOvertimeMinutes() == null || entry.getTotalOvertimeMinutes() == 0)) {
                     entry.setTotalOvertimeMinutes(overtimeMinutes);
-                    LoggerUtil.info(this.getClass(), String.format(
-                            "Updated overtime minutes for user %s: %d minutes",
-                            username, overtimeMinutes));
+                    LoggerUtil.info(this.getClass(), String.format("Updated overtime minutes for user %s: %d minutes", username, overtimeMinutes));
                 }
             }
 

@@ -40,6 +40,8 @@ public class PathConfig {
     private String userStatus;
     @Value("${dbj.dir.format.status:status_%s_%d.json}")
     private String statusFormat;
+    @Value("${dbj.dir.format.resolution:resolution_%s_%d.json}")
+    private String resolutionFormat;
 
 
     // Directory paths
@@ -242,6 +244,12 @@ public class PathConfig {
     }
     public Path getUsersLockPath() {
         return networkPath.resolve(loginPath).resolve(usersLockFile);
+    }
+
+    // Resolution file path - local only
+    public Path getLocalResolutionPath(String username, Integer userId) {
+        return localPath.resolve(userSession)
+                .resolve(String.format(resolutionFormat, username, userId));
     }
 
     // Network status management

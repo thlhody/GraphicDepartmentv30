@@ -3,7 +3,9 @@ package com.ctgraphdep.session.query;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import lombok.Getter;
 
 import java.time.DayOfWeek;
@@ -47,8 +49,9 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             // Get standardized time values if date is null
             LocalDate dateToUse = date;
             if (dateToUse == null) {
-                GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-                GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+                // Get standardized time values using the new validation system
+                GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+                GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
                 dateToUse = timeValues.getCurrentDate();
             }
 
@@ -153,20 +156,6 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
     }
 
     /**
-     * Determines if lunch break should be deducted based on worked minutes and schedule
-     */
-    public static boolean shouldDeductLunch(int inputMinutes, int schedule) {
-        if (schedule < WorkCode.INTERVAL_HOURS_C) {
-            return false; // No lunch deduction for schedules less than 8 hours
-        } else if (schedule == WorkCode.INTERVAL_HOURS_C) {
-            int hours = inputMinutes / WorkCode.HOUR_DURATION;
-            return hours > WorkCode.INTERVAL_HOURS_A && hours <= WorkCode.INTERVAL_HOURS_B;
-        } else {
-            return true; // For schedules > 8 hours
-        }
-    }
-
-    /**
      * Value class to hold schedule information
      */
     @Getter
@@ -198,7 +187,6 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             this.includesLunchBreak = includesLunchBreak;
             this.lunchBreakDuration = lunchBreakDuration;
         }
-
 
         public boolean isWeekend() {
             return isWeekend;
@@ -236,9 +224,10 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
 
         /**
          * Calculates overtime minutes if any
+         * Delegates to CalculateWorkHoursUtil for consistency
          */
         public int calculateOvertimeMinutes(int workedMinutes) {
-            return Math.max(0, workedMinutes - scheduledMinutes);
+            return CalculateWorkHoursUtil.calculateOvertimeMinutes(workedMinutes, scheduleHours);
         }
     }
 }

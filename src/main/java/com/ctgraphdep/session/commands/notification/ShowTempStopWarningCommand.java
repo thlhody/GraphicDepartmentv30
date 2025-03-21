@@ -5,11 +5,10 @@ import com.ctgraphdep.model.DialogComponents;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.utils.LoggerUtil;
 
 import java.awt.*;
-import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
@@ -37,22 +36,26 @@ public class ShowTempStopWarningCommand implements SessionCommand<Boolean> {
     public Boolean execute(SessionContext context) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Attempting to show temporary stop warning for user %s", username));
-            // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
+
+            // Get standardized time values using the new validation system
+            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
 
             // Check if notification can be shown based on rate limiting (hourly)
-            CanShowNotificationQuery canShowQuery = context.getCommandFactory().createCanShowNotificationQuery(username, WorkCode.TEMP_STOP_TYPE,
-                            WorkCode.HOURLY_INTERVAL, context.getNotificationService().getLastNotificationTimes());
+            CanShowNotificationQuery canShowQuery = context.getCommandFactory().createCanShowNotificationQuery(
+                    username,
+                    WorkCode.TEMP_STOP_TYPE,
+                    WorkCode.HOURLY_INTERVAL,
+                    context.getNotificationService().getLastNotificationTimes()
+            );
 
             if (!context.executeQuery(canShowQuery)) {
                 LoggerUtil.info(this.getClass(), String.format("Skipping temporary stop warning for user %s due to rate limiting", username));
                 return false;
             }
 
-            // Calculate temporary stop duration
-            Duration stopDuration = Duration.between(tempStopStart, timeValues.getCurrentTime());
-            int stopMinutes = (int) stopDuration.toMinutes();
+            // Calculate temporary stop duration using the calculation context
+            int stopMinutes = context.calculateWorkedMinutesBetween(tempStopStart, timeValues.getCurrentTime());
             int hours = stopMinutes / 60;
             int minutes = stopMinutes % 60;
 
@@ -68,7 +71,8 @@ public class ShowTempStopWarningCommand implements SessionCommand<Boolean> {
                     trayMessage,
                     WorkCode.ON_FOR_FIVE_MINUTES,
                     false, true, null,
-                    (DialogComponents components, String u, Integer id, Integer mins) -> context.getNotificationService().addTempStopButtons(components, u, id),
+                    (DialogComponents components, String u, Integer id, Integer mins) ->
+                            context.getNotificationService().addTempStopButtons(components, u, id),
                     TrayIcon.MessageType.WARNING
             );
         } catch (Exception e) {

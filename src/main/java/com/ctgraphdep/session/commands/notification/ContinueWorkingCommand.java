@@ -2,7 +2,6 @@ package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.query.GetSessionTimeValuesQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 
 public class ContinueWorkingCommand implements SessionCommand<Void> {
@@ -18,9 +17,6 @@ public class ContinueWorkingCommand implements SessionCommand<Void> {
     @Override
     public Void execute(SessionContext context) {
         try {
-            // Get standardized time values
-            GetSessionTimeValuesQuery timeQuery = context.getCommandFactory().getSessionTimeValuesQuery();
-            GetSessionTimeValuesQuery.SessionTimeValues timeValues = context.executeQuery(timeQuery);
 
             // Cancel any backup tasks
             context.getBackupService().cancelBackupTask(username);
