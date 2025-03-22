@@ -1,0 +1,104 @@
+/**
+ * Refactored worktime specific styling
+ */
+
+/* Summary boxes */
+.card-body .rounded {
+    transition: all 0.2s ease;
+}
+
+.card-body .rounded:hover {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transform: translateY(-2px);
+}
+
+/* Table styles */
+.table {
+    font-size: 0.9rem;
+}
+
+.table th {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+/* Cell styling */
+.raw-work-cell span,
+.schedule-work-cell span {
+    font-weight: 500;
+}
+
+.overtime-display {
+    min-width: 50px;
+    text-align: center;
+}
+
+/* Lunch break indicator */
+.lunch-break {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Discarded minutes styling */
+.discarded-minutes-cell {
+    font-size: 0.85rem;
+}
+
+.discarded-minutes-cell .text-warning {
+    font-weight: 500;
+}
+
+/* Worktime entry animation */
+.worktime-entry {
+    transition: background-color 0.15s ease;
+}
+
+.worktime-entry:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Make summary displays clearer */
+#summary-regular-hours,
+#summary-overtime-hours,
+#summary-total-hours {
+    font-size: 1.1rem;
+}
+
+#summary-discarded-minutes {
+    font-size: 1rem;
+}
+
+/* Tooltips */
+.tooltip-inner {
+    background-color: rgba(33, 37, 41, 0.95);
+    border-radius: 0.25rem;
+    max-width: 220px;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+/* For print styles */
+@media print {
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+    }
+
+    .badge {
+        border: 1px solid #dee2e6 !important;
+        color: #212529 !important;
+        background-color: transparent !important;
+    }
+
+    .btn {
+        display: none !important;
+    }
+
+    .table th, .table td {
+        padding: 0.5rem !important;
+    }
+}

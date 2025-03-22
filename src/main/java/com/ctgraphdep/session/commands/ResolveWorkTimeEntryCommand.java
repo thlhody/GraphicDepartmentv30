@@ -4,22 +4,35 @@ import com.ctgraphdep.enums.SyncStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeCalculationResult;
 import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
-import com.ctgraphdep.utils.LoggerUtil;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public class ResolveWorkTimeEntryCommand implements SessionCommand<Boolean> {
+/**
+ * Command to resolve an unfinished work time entry
+ */
+public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
     private final String username;
     private final Integer userId;
     private final LocalDate entryDate;
     private final LocalDateTime explicitEndTime;
 
+    /**
+     * Creates a command to resolve a work time entry
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param entryDate The date of the entry to resolve
+     * @param endTime The explicit end time to use (optional)
+     */
     public ResolveWorkTimeEntryCommand(String username, Integer userId, LocalDate entryDate, LocalDateTime endTime) {
+        validateUsername(username);
+        validateUserId(userId);
+        validateCondition(entryDate != null, "Entry date cannot be null");
+
         this.username = username;
         this.userId = userId;
         this.entryDate = entryDate;
@@ -28,19 +41,24 @@ public class ResolveWorkTimeEntryCommand implements SessionCommand<Boolean> {
 
     @Override
     public Boolean execute(SessionContext context) {
-        try {
-            // Get standardized time values using the new validation system
-            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
+        return executeWithDefault(context, ctx -> {
+            info(String.format("Resolving work time entry for user %s on %s", username, entryDate));
+
+            // Get standardized time values
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
+                    .getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
+                    ctx.getValidationService().execute(timeCommand);
 
             // Use explicit end time if provided, otherwise use standardized current time
             LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
+            debug(String.format("Using end time: %s", endTime));
 
             // Load entries for the month of the entry date
             int year = entryDate.getYear();
             int month = entryDate.getMonthValue();
 
-            List<WorkTimeTable> entries = context.getWorkTimeService()
+            List<WorkTimeTable> entries = ctx.getWorkTimeService()
                     .loadUserEntries(username, year, month, username);
 
             // Find the unresolved entry for this date
@@ -52,47 +70,53 @@ public class ResolveWorkTimeEntryCommand implements SessionCommand<Boolean> {
                     .orElse(null);
 
             if (entry == null) {
-                LoggerUtil.warn(this.getClass(), "No unresolved work entry found for date: " + entryDate);
+                warn("No unresolved work entry found for date: " + entryDate);
                 return false;
             }
 
             // Get user schedule
-            User user = context.getUserService().getUserById(userId).orElse(null);
+            User user = ctx.getUserService().getUserById(userId).orElse(null);
             if (user == null) {
-                LoggerUtil.warn(this.getClass(), "User not found: " + userId);
+                warn("User not found: " + userId);
                 return false;
             }
 
             int userSchedule = user.getSchedule();
+            debug(String.format("User schedule: %d hours", userSchedule));
 
             // Calculate raw work minutes using the appropriate calculation query
-            int rawMinutes = calculateRawWorkMinutes(entry, endTime, context);
+            int rawMinutes = calculateRawWorkMinutes(entry, endTime, ctx);
+            debug(String.format("Calculated raw work minutes: %d", rawMinutes));
 
             // Calculate processed work time with lunch break rules
-            WorkTimeCalculationResult result = context.calculateWorkTime(rawMinutes, userSchedule);
+            WorkTimeCalculationResult result = ctx.calculateWorkTime(rawMinutes, userSchedule);
+            debug(String.format("Processed minutes: %d, Overtime: %d, Lunch deducted: %b", result.getProcessedMinutes(), result.getOvertimeMinutes(), result.isLunchDeducted()));
 
             // Update entry with all calculated values
-            entry.setDayEndTime(endTime);
-            entry.setTotalWorkedMinutes(rawMinutes);
-            entry.setTotalOvertimeMinutes(result.getOvertimeMinutes());
-            entry.setLunchBreakDeducted(result.isLunchDeducted());
-
-            // Set status to USER_INPUT (resolved)
-            entry.setAdminSync(SyncStatus.USER_INPUT);
+            updateWorkTimeEntry(entry, endTime, rawMinutes, result);
 
             // Save the updated entry
-            context.getWorkTimeService().saveWorkTimeEntry(
-                    username, entry, year, month, username);
+            ctx.getWorkTimeService().saveWorkTimeEntry(username, entry, year, month, username);
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully resolved work entry for %s on %s. Raw minutes: %d, Overtime: %d",
+            info(String.format("Successfully resolved work entry for %s on %s. Raw minutes: %d, Overtime: %d",
                     username, entryDate, rawMinutes, result.getOvertimeMinutes()));
 
             return true;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error resolving work time entry: " + e.getMessage(), e);
-            return false;
-        }
+        }, false);
+    }
+
+    /**
+     * Updates work time entry with calculated values
+     */
+    private void updateWorkTimeEntry(WorkTimeTable entry, LocalDateTime endTime,
+                                     int rawMinutes, WorkTimeCalculationResult result) {
+        entry.setDayEndTime(endTime);
+        entry.setTotalWorkedMinutes(rawMinutes);
+        entry.setTotalOvertimeMinutes(result.getOvertimeMinutes());
+        entry.setLunchBreakDeducted(result.isLunchDeducted());
+
+        // Set status to USER_INPUT (resolved)
+        entry.setAdminSync(SyncStatus.USER_INPUT);
     }
 
     /**
@@ -103,8 +127,6 @@ public class ResolveWorkTimeEntryCommand implements SessionCommand<Boolean> {
         if (entry == null || entry.getDayStartTime() == null) {
             return 0;
         }
-
-        // Use the dedicated method in SessionContext
         return context.calculateRawWorkMinutesForEntry(entry, endTime);
     }
 }

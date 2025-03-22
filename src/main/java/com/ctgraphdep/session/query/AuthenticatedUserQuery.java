@@ -23,8 +23,8 @@ public class AuthenticatedUserQuery implements SessionQuery<User> {
         }
 
         return context.getUserService().getUserByUsername(userDetails.getUsername()).orElseThrow(() -> {
-                    LoggerUtil.error(this.getClass(), String.format("No user found for username: %s", userDetails.getUsername()));
-                    return new IllegalStateException("User not found");
-                });
+            LoggerUtil.error(this.getClass(), String.format("No user found for username: %s", userDetails.getUsername()));
+            return new IllegalStateException("User not found");
+        });
     }
 }

@@ -1,22 +1,21 @@
 package com.ctgraphdep.session.commands.notification;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.DialogComponents;
-import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.session.query.CanShowNotificationQuery;
+import com.ctgraphdep.session.query.SessionStatusQuery;
 
 import java.awt.*;
 
 /**
- * Command to show a resolution reminder notification
+ * Command to show worktime resolution reminder
  */
-public class ShowResolutionReminderCommand implements SessionCommand<Boolean> {
-    private final String username;
-    private final Integer userId;
+public class ShowResolutionReminderCommand extends BaseNotificationCommand<Boolean> {
     private final String title;
     private final String message;
     private final String trayMessage;
-    private final int timeoutPeriod;
+    private final Integer timeoutPeriod;
 
     /**
      * Creates a new command to show resolution reminder
@@ -34,9 +33,8 @@ public class ShowResolutionReminderCommand implements SessionCommand<Boolean> {
             String title,
             String message,
             String trayMessage,
-            int timeoutPeriod) {
-        this.username = username;
-        this.userId = userId;
+            Integer timeoutPeriod) {
+        super(username, userId);
         this.title = title;
         this.message = message;
         this.trayMessage = trayMessage;
@@ -45,23 +43,47 @@ public class ShowResolutionReminderCommand implements SessionCommand<Boolean> {
 
     @Override
     public Boolean execute(SessionContext context) {
-        try {
-            LoggerUtil.info(this.getClass(), String.format("Showing resolution reminder for user %s", username));
+        return executeWithErrorHandling(context, ctx -> {
+            // Log start of the operation
+            info(String.format("Attempting to show resolution reminder for user %s", username));
 
-            return context.getNotificationService().showNotificationWithFallback(
-                    username, userId,
+            // Check if notification can be shown (rate limiting)
+            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
+                    username,
+                    WorkCode.RESOLUTION_REMINDER_TYPE,
+                    WorkCode.CHECK_INTERVAL,
+                    ctx.getNotificationService().getLastNotificationTimes()
+            );
+
+            if (!ctx.executeQuery(canShowQuery)) {
+                info(String.format("Skipping resolution reminder for user %s due to rate limiting", username));
+                return false;
+            }
+
+            // Additional validation - don't show during certain session states
+            SessionStatusQuery statusQuery = ctx.getCommandFactory().createSessionStatusQuery(username, userId);
+            SessionStatusQuery.SessionStatus status = ctx.executeQuery(statusQuery);
+
+            if (status.isInTemporaryStop()) {
+                info(String.format("Skipping resolution reminder for user %s (in temporary stop)", username));
+                return false;
+            }
+
+            // Show notification with fallback mechanism
+            return ctx.getNotificationService().showNotificationWithFallback(
+                    username,
+                    userId,
                     title,
                     message,
                     trayMessage,
                     timeoutPeriod,
-                    false, false, null,
+                    false,
+                    false,
+                    null,
                     (DialogComponents components, String u, Integer id, Integer minutes) ->
-                            context.getNotificationService().addResolutionButtons(components),
-                    TrayIcon.MessageType.WARNING
+                            ctx.getNotificationService().addStandardButtons(components, u, id, minutes, false),
+                    TrayIcon.MessageType.INFO
             );
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error showing resolution reminder for user %s: %s", username, e.getMessage()));
-            return false;
-        }
+        });
     }
 }

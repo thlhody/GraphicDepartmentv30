@@ -1,13 +1,11 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
-import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.ui.Model;
 
 import java.time.LocalDateTime;
@@ -15,12 +13,22 @@ import java.time.LocalDateTime;
 /**
  * Command to prepare view model for session page
  */
-public class PrepareSessionViewModelCommand implements SessionCommand<Void> {
+public class PrepareSessionViewModelCommand extends BaseSessionCommand<Void> {
     private final Model model;
     private final WorkUsersSessionsStates session;
     private final User user;
 
+    /**
+     * Creates a command to prepare the session view model
+     *
+     * @param model The Spring UI model
+     * @param session The user's session
+     * @param user The user
+     */
     public PrepareSessionViewModelCommand(Model model, WorkUsersSessionsStates session, User user) {
+        validateCondition(model != null, "Model cannot be null");
+        validateCondition(user != null, "User cannot be null");
+
         this.model = model;
         this.session = session;
         this.user = user;
@@ -28,37 +36,50 @@ public class PrepareSessionViewModelCommand implements SessionCommand<Void> {
 
     @Override
     public Void execute(SessionContext context) {
-        // Get standardized time values using the new validation system
-        GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
+        return executeWithErrorHandling(context, ctx -> {
+            debug("Preparing session view model for user: " + user.getUsername());
 
-        // Add session information to model
-        prepareSessionModel(model, session, context, timeValues.getCurrentTime());
+            // Get standardized time values
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
+                    .getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
+                    ctx.getValidationService().execute(timeCommand);
 
-        // Add user information
-        model.addAttribute("username", user.getUsername());
-        model.addAttribute("userFullName", user.getName());
+            // Add session information to model
+            prepareSessionModel(model, session, ctx, timeValues.getCurrentTime());
 
-        // Add current date/time (using the standardized time)
-        model.addAttribute("currentDate", timeValues.getCurrentTime().toLocalDate());
+            // Add user information
+            model.addAttribute("username", user.getUsername());
+            model.addAttribute("userFullName", user.getName());
 
-        return null;
+            // Add current date/time (using the standardized time)
+            model.addAttribute("currentDate", timeValues.getCurrentTime().toLocalDate());
+
+            info("Session view model prepared successfully for user: " + user.getUsername());
+            return null;
+        });
     }
 
+    /**
+     * Prepares session model with appropriate status
+     */
     private void prepareSessionModel(Model model, WorkUsersSessionsStates session, SessionContext context, LocalDateTime currentTime) {
         if (session == null) {
             model.addAttribute("sessionStatus", "Offline");
+            debug("No active session found, setting status to Offline");
             return;
         }
 
         String formattedStatus = getFormattedStatus(session.getSessionStatus());
-
-        LoggerUtil.debug(this.getClass(), String.format("Session status: %s, Formatted status: %s", session.getSessionStatus(), formattedStatus));
+        debug(String.format("Session status: %s, Formatted status: %s", session.getSessionStatus(), formattedStatus));
 
         model.addAttribute("sessionStatus", formattedStatus);
         populateSessionModel(model, session, context, currentTime);
     }
 
+    /**
+     * Populates all session attributes in the model
+     */
     private void populateSessionModel(Model model, WorkUsersSessionsStates session, SessionContext context, LocalDateTime currentTime) {
         // Initial values
         model.addAttribute("sessionStatus", getFormattedStatus(session.getSessionStatus()));
@@ -79,24 +100,35 @@ public class PrepareSessionViewModelCommand implements SessionCommand<Void> {
         int totalBreakMinutes = calculateTotalBreakMinutes(session, context, currentTime);
         model.addAttribute("totalTemporaryStopTime", formatWorkTime(totalBreakMinutes));
 
-        LoggerUtil.debug(this.getClass(), "Model attributes populated");
+        debug("Model attributes populated for session");
     }
 
-    // Helper methods
+    /**
+     * Formats work time minutes as HH:mm
+     */
     private String formatWorkTime(Integer minutes) {
         return minutes != null ? CalculateWorkHoursUtil.minutesToHHmm(minutes) : "--:--";
     }
 
+    /**
+     * Gets temporary stop count with null safety
+     */
     private int getTemporaryStopCount(WorkUsersSessionsStates session) {
         return session != null && session.getTemporaryStopCount() != null ?
                 session.getTemporaryStopCount() : 0;
     }
 
+    /**
+     * Formats last temporary stop time with null safety
+     */
     private String formatLastTempStopTime(WorkUsersSessionsStates session) {
         return session != null && session.getLastTemporaryStopTime() != null ?
                 CalculateWorkHoursUtil.formatDateTime(session.getLastTemporaryStopTime()) : "--:--";
     }
 
+    /**
+     * Calculates total break minutes with temporary stop handling
+     */
     private int calculateTotalBreakMinutes(WorkUsersSessionsStates session, SessionContext context, LocalDateTime currentTime) {
         // If not in temp stop status, just return the stored value
         if (!WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()) || session.getLastTemporaryStopTime() == null) {
@@ -107,13 +139,16 @@ public class PrepareSessionViewModelCommand implements SessionCommand<Void> {
         return context.calculateTotalTempStopMinutes(session, currentTime);
     }
 
+    /**
+     * Gets a user-friendly formatted status string
+     */
     private String getFormattedStatus(String status) {
         if (status == null) return "Offline";
 
         return switch (status) {
             case WorkCode.WORK_ONLINE -> "Online";
             case WorkCode.WORK_TEMPORARY_STOP -> "Temporary Stop";
-            default -> WorkCode.WORK_OFFLINE;
+            default -> "Offline";
         };
     }
 }

@@ -41,8 +41,8 @@ public class SessionMidnightHandler {
     * * - any day of the week
     */
 
-    //@Scheduled(cron = "0 59 23 * * *")
-    @Scheduled(cron = "0 */5 * * * *")
+    @Scheduled(cron = "0 59 23 * * *")
+    //@Scheduled(cron = "0 */5 * * * *")
     public void resetLocalUserSession() {
         try {
             // Get local user using the new query

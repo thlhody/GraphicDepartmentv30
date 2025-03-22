@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -875,6 +876,24 @@ public class DataAccessService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error reading status records: " + e.getMessage(), e);
             return statusMap;
+        }
+    }
+
+    public void writeNotificationTrackingFile(String username, String notificationType, LocalDateTime timestamp) {
+        try {
+            Path notificationsDir = pathConfig.getNotificationsPath();
+            Files.createDirectories(notificationsDir);
+
+            Path trackingFile = pathConfig.getNotificationTrackingFilePath(username, notificationType);
+
+            // Write timestamp to file
+            Files.write(trackingFile, timestamp.toString().getBytes());
+
+            LoggerUtil.info(this.getClass(), String.format("Created notification tracking file for %s: %s", username, trackingFile));
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error writing notification tracking file for user %s with type %s: %s",
+                            username, notificationType, e.getMessage()), e);
         }
     }
 }

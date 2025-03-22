@@ -88,12 +88,16 @@ public class UserSessionController extends BaseController {
             model.addAttribute("isTeamLeaderView", navContext.isTeamLeaderView());
             model.addAttribute("dashboardUrl", navContext.getDashboardUrl());
 
-            // Check for unresolved work time entries
+            // Initialize variables at the start:
+            List<WorkTimeTable> unresolvedEntries = List.of();
             boolean hasUnresolvedEntries = false;
+            Map<LocalDate, LocalDateTime> recommendedEndTimes = new HashMap<>();
+
+            // Check for unresolved work time entries
             if (!skipResolutionCheck) {
                 // Use the new UnresolvedWorkTimeQuery to check for entries that need resolution
                 UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(user.getUsername(), user.getUserId());
-                List<WorkTimeTable> unresolvedEntries = commandService.executeQuery(unresolvedQuery);
+                unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
                 if (!unresolvedEntries.isEmpty()) {
                     LoggerUtil.info(this.getClass(),
@@ -101,10 +105,8 @@ public class UserSessionController extends BaseController {
                                     unresolvedEntries.size(), user.getUsername()));
 
                     hasUnresolvedEntries = true;
-                    model.addAttribute("unresolvedEntries", unresolvedEntries);
 
                     // Calculate recommended end times for each entry using the calculation command
-                    Map<LocalDate, LocalDateTime> recommendedEndTimes = new HashMap<>();
                     for (WorkTimeTable entry : unresolvedEntries) {
                         // Use CalculateRecommendedEndTimeQuery instead of direct utility call
                         CalculateRecommendedEndTimeQuery endTimeQuery =
@@ -112,11 +114,11 @@ public class UserSessionController extends BaseController {
                         LocalDateTime recommendedTime = calculationService.executeQuery(endTimeQuery);
                         recommendedEndTimes.put(entry.getWorkDate(), recommendedTime);
                     }
-
-                    model.addAttribute("recommendedEndTimes", recommendedEndTimes);
                 }
             }
             model.addAttribute("hasUnresolvedEntries", hasUnresolvedEntries);
+            model.addAttribute("unresolvedEntries", unresolvedEntries);
+            model.addAttribute("recommendedEndTimes", recommendedEndTimes);
 
             // Get and process current session (the one we show on the main page)
             ResolveSessionQuery resolveQuery = commandFactory.createResolveSessionQuery(user.getUsername(), user.getUserId());

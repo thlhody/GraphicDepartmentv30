@@ -1,9 +1,9 @@
 package com.ctgraphdep.validation.commands;
 
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationCommand;
-import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.TimeProvider;
+import com.ctgraphdep.config.ValidationConfig;
 
 import java.time.LocalDate;
 
@@ -12,19 +12,35 @@ import java.time.LocalDate;
  */
 public class HasActiveSessionTodayCommand implements TimeValidationCommand<Boolean> {
     private final LocalDate sessionDate;
-    private final TimeValidationService validationService;
-    private final GetStandardTimeValuesCommand timeCommand;
+    private final TimeProvider timeProvider;
+    private final boolean defaultOnError;
 
-    public HasActiveSessionTodayCommand(LocalDate sessionDate, TimeValidationService validationService, GetStandardTimeValuesCommand timeCommand) {
+    /**
+     * Creates a command to check if a session is active for the current day
+     *
+     * @param sessionDate The session date to check
+     * @param timeProvider Provider for obtaining current date/time
+     * @param defaultOnError Value to return if an error occurs (default: false as per security policy)
+     */
+    public HasActiveSessionTodayCommand(LocalDate sessionDate, TimeProvider timeProvider, boolean defaultOnError) {
+        if (timeProvider == null) {
+            throw new IllegalArgumentException("TimeProvider cannot be null");
+        }
+
         this.sessionDate = sessionDate;
-        this.validationService = validationService;
-        this.timeCommand = timeCommand;
+        this.timeProvider = timeProvider;
+        this.defaultOnError = defaultOnError;
     }
 
-    public HasActiveSessionTodayCommand(LocalDate sessionDate) {
-        this.sessionDate = sessionDate;
-        this.validationService = null;
-        this.timeCommand = new GetStandardTimeValuesCommand();
+    /**
+     * Creates a command to check if a session is active for the current day
+     * Uses the default error policy value
+     *
+     * @param sessionDate The session date to check
+     * @param timeProvider Provider for obtaining current date/time
+     */
+    public HasActiveSessionTodayCommand(LocalDate sessionDate, TimeProvider timeProvider) {
+        this(sessionDate, timeProvider, ValidationConfig.DEFAULT_ACTIVE_SESSION_ON_ERROR);
     }
 
     @Override
@@ -34,19 +50,11 @@ public class HasActiveSessionTodayCommand implements TimeValidationCommand<Boole
                 return false;
             }
 
-            // Get current date
-            LocalDate currentDate;
-            if (validationService != null) {
-                GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-                currentDate = timeValues.getCurrentDate();
-            } else {
-                currentDate = timeCommand.execute().getCurrentDate();
-            }
-
+            LocalDate currentDate = timeProvider.getCurrentDate();
             return sessionDate.equals(currentDate);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error checking if session is active today: " + e.getMessage());
-            return false; // Default to false in case of error
+            return defaultOnError;
         }
     }
 }

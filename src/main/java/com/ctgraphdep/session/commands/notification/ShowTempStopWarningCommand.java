@@ -2,11 +2,9 @@ package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.DialogComponents;
-import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
-import com.ctgraphdep.utils.LoggerUtil;
 
 import java.awt.*;
 import java.time.LocalDateTime;
@@ -14,9 +12,7 @@ import java.time.LocalDateTime;
 /**
  * Command to show temporary stop warning
  */
-public class ShowTempStopWarningCommand implements SessionCommand<Boolean> {
-    private final String username;
-    private final Integer userId;
+public class ShowTempStopWarningCommand extends BaseNotificationCommand<Boolean> {
     private final LocalDateTime tempStopStart;
 
     /**
@@ -27,35 +23,37 @@ public class ShowTempStopWarningCommand implements SessionCommand<Boolean> {
      * @param tempStopStart The time when temporary stop started
      */
     public ShowTempStopWarningCommand(String username, Integer userId, LocalDateTime tempStopStart) {
-        this.username = username;
-        this.userId = userId;
+        super(username, userId);
         this.tempStopStart = tempStopStart;
     }
 
     @Override
     public Boolean execute(SessionContext context) {
-        try {
-            LoggerUtil.info(this.getClass(), String.format("Attempting to show temporary stop warning for user %s", username));
+        return executeWithErrorHandling(context, ctx -> {
+            // Log start of the operation
+            info(String.format("Attempting to show temporary stop warning for user %s", username));
 
-            // Get standardized time values using the new validation system
-            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
+            // Get standardized time values
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
+                    .getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
+                    ctx.getValidationService().execute(timeCommand);
 
-            // Check if notification can be shown based on rate limiting (hourly)
-            CanShowNotificationQuery canShowQuery = context.getCommandFactory().createCanShowNotificationQuery(
+            // Check if notification can be shown (rate limiting)
+            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
                     username,
                     WorkCode.TEMP_STOP_TYPE,
                     WorkCode.HOURLY_INTERVAL,
-                    context.getNotificationService().getLastNotificationTimes()
+                    ctx.getNotificationService().getLastNotificationTimes()
             );
 
-            if (!context.executeQuery(canShowQuery)) {
-                LoggerUtil.info(this.getClass(), String.format("Skipping temporary stop warning for user %s due to rate limiting", username));
+            if (!ctx.executeQuery(canShowQuery)) {
+                info(String.format("Skipping temporary stop warning for user %s due to rate limiting", username));
                 return false;
             }
 
-            // Calculate temporary stop duration using the calculation context
-            int stopMinutes = context.calculateWorkedMinutesBetween(tempStopStart, timeValues.getCurrentTime());
+            // Calculate temporary stop duration
+            int stopMinutes = ctx.calculateWorkedMinutesBetween(tempStopStart, timeValues.getCurrentTime());
             int hours = stopMinutes / 60;
             int minutes = stopMinutes % 60;
 
@@ -64,20 +62,20 @@ public class ShowTempStopWarningCommand implements SessionCommand<Boolean> {
             String trayMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING_TRAY, hours, minutes);
 
             // Show notification with fallback
-            return context.getNotificationService().showNotificationWithFallback(
-                    username, userId,
+            return ctx.getNotificationService().showNotificationWithFallback(
+                    username,
+                    userId,
                     WorkCode.NOTICE_TITLE,
                     formattedMessage,
                     trayMessage,
                     WorkCode.ON_FOR_FIVE_MINUTES,
-                    false, true, null,
-                    (DialogComponents components, String u, Integer id, Integer mins) ->
-                            context.getNotificationService().addTempStopButtons(components, u, id),
+                    false,
+                    true,
+                    null,
+                    (DialogComponents components, String u, Integer id, Integer min) ->
+                            ctx.getNotificationService().addTempStopButtons(components, u, id),
                     TrayIcon.MessageType.WARNING
             );
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error showing temporary stop warning for user %s: %s", username, e.getMessage()));
-            return false;
-        }
+        });
     }
 }

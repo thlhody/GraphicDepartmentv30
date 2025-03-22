@@ -10,6 +10,7 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.validation.TimeValidationService;
 import lombok.Getter;
+import org.springframework.context.annotation.Lazy;
 
 import java.time.LocalDateTime;
 
@@ -41,7 +42,7 @@ public class SessionContext {
             SessionStatusService sessionStatusService,
             SystemNotificationService notificationService,
             SystemNotificationBackupService backupService,
-            SessionMonitorService sessionMonitorService,
+            @Lazy SessionMonitorService sessionMonitorService,
             PathConfig pathConfig,
             FolderStatusService folderStatusService,
             SessionCommandFactory commandFactory, TimeValidationService validationService) {
@@ -101,7 +102,7 @@ public class SessionContext {
             WorkUsersSessionsStates session,
             LocalDateTime currentTime,
             int userSchedule) {
-        var command = calculationFactory.createUpdateSessionCalculationsCommand(session, currentTime, userSchedule);
+        var command = calculationFactory.createUpdateOnlineSessionCalculationsCommand(session, currentTime, userSchedule);
         return calculationService.executeCommand(command);
     }
 

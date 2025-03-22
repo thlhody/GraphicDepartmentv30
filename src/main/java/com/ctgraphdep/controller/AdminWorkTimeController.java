@@ -77,7 +77,7 @@ public class AdminWorkTimeController {
             month = Optional.ofNullable(month).orElse(now.getMonthValue());
 
             // Validate period using the validation command
-            ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(year, month, 4, timeValues.getCurrentDate());
+            ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(year, month, 4);
             validationService.execute(periodCommand);
 
             // Get non-admin users
@@ -163,12 +163,7 @@ public class AdminWorkTimeController {
         try {
             LocalDate holidayDate = LocalDate.of(year, month, day);
 
-            // Use validation command to validate the holiday date
-            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-
-            ValidateHolidayDateCommand holidayCommand = validationFactory.createValidateHolidayDateCommand(
-                    holidayDate, timeValues.getCurrentDate());
+            ValidateHolidayDateCommand holidayCommand = validationFactory.createValidateHolidayDateCommand(holidayDate);
             validationService.execute(holidayCommand);
 
             workTimeManagementService.addNationalHoliday(holidayDate);

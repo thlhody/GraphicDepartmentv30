@@ -1,6 +1,6 @@
 package com.ctgraphdep.calculations;
 
-import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.utils.CommandExecutorUtil;
 import lombok.Getter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,10 +8,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Service for executing calculation commands and queries.
  */
+@Getter
 @Service
 public class CalculationCommandService {
 
-    @Getter
     private final CalculationContext context;
 
     /**
@@ -31,19 +31,11 @@ public class CalculationCommandService {
      */
     @Transactional(readOnly = true) // Most calculations are read-only
     public <T> T executeCommand(CalculationCommand<T> command) {
-        try {
-            LoggerUtil.debug(this.getClass(), "Executing calculation command: " + command.getClass().getSimpleName());
-
-            T result = command.execute(context);
-
-            LoggerUtil.debug(this.getClass(), "Calculation command executed successfully: " + command.getClass().getSimpleName());
-
-            return result;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error executing calculation command " + command.getClass().getSimpleName() + ": " + e.getMessage(), e);
-            throw e;
-        }
+        return CommandExecutorUtil.executeCommand(
+                command.getClass().getSimpleName(),
+                this.getClass(),
+                () -> command.execute(context)
+        );
     }
 
     /**
@@ -54,14 +46,10 @@ public class CalculationCommandService {
      */
     @Transactional(readOnly = true)
     public <T> T executeQuery(CalculationQuery<T> query) {
-        try {
-            LoggerUtil.debug(this.getClass(), "Executing calculation query: " + query.getClass().getSimpleName());
-
-            return query.execute(context);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error executing calculation query " + query.getClass().getSimpleName() + ": " + e.getMessage(), e);
-            throw e;
-        }
+        return CommandExecutorUtil.executeCommand(
+                query.getClass().getSimpleName(),
+                this.getClass(),
+                () -> query.execute(context)
+        );
     }
 }

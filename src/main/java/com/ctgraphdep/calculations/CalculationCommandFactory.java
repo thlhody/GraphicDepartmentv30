@@ -31,6 +31,16 @@ public class CalculationCommandFactory {
     }
 
     /**
+     * Creates a command to update online session calculations
+     */
+    public UpdateOnlineSessionCalculationsCommand createUpdateOnlineSessionCalculationsCommand(
+            WorkUsersSessionsStates session,
+            LocalDateTime currentTime,
+            int userSchedule) {
+        return new UpdateOnlineSessionCalculationsCommand(session, currentTime, userSchedule);
+    }
+
+    /**
      * Creates a command to update temporary stop calculations
      */
     public UpdateTempStopCalculationsCommand createUpdateTempStopCalculationsCommand(

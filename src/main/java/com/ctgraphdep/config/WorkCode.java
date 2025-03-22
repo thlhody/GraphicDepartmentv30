@@ -151,6 +151,7 @@ public class WorkCode {
     public static final String OVERTIME_TYPE = "OVERTIME";
     public static final String TEMP_STOP_TYPE = "TEMP_STOP";
     public static final String START_DAY_TYPE = "START_DAY";
+    public static final String RESOLUTION_REMINDER_TYPE = "RESOLUTION_REMINDER";
 
     // In WorkCode.java
 // Resolution notification constants

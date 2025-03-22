@@ -246,10 +246,15 @@ public class PathConfig {
         return networkPath.resolve(loginPath).resolve(usersLockFile);
     }
 
-    // Resolution file path - local only
-    public Path getLocalResolutionPath(String username, Integer userId) {
-        return localPath.resolve(userSession)
-                .resolve(String.format(resolutionFormat, username, userId));
+    public Path getNotificationsPath() {
+        return localPath.resolve("notifications");
+    }
+
+    public Path getNotificationTrackingFilePath(String username, String notificationType) {
+        Path notificationsDir = getNotificationsPath();
+        return notificationsDir.resolve(
+                String.format("%s_%s_notification.lock", username, notificationType.toLowerCase())
+        );
     }
 
     // Network status management

@@ -5,7 +5,8 @@
       lang="en">
 <head>
     <title>Work Time Records</title>
-    <link rel="stylesheet" th:href="@{/css/alerts.css}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=1301010101}">
+    <link rel="stylesheet" th:href="@{/css/worktime.css?v=1301010101}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -74,17 +75,24 @@
                         <div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span>Regular Hours</span>
-                                <strong th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary.totalRegularMinutes)}"></strong>
+                                <strong id="summary-regular-hours"
+                                        th:attr="data-minutes=${summary.totalRegularMinutes}">--:--</strong>
                             </div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span>Overtime</span>
-                                <strong class="text-success"
-                                        th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary.totalOvertimeMinutes)}"></strong>
+                                <strong id="summary-overtime-hours"
+                                        class="text-success"
+                                        th:attr="data-minutes=${summary.totalOvertimeMinutes}">--:--</strong>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center p-3 bg-primary bg-opacity-10 rounded">
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span class="text-primary">Total Hours</span>
-                                <strong class="text-primary"
-                                        th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary.totalMinutes)}"></strong>
+                                <strong id="summary-total-hours"
+                                        class="text-primary"
+                                        th:attr="data-minutes=${summary.totalMinutes}">--:--</strong>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                <span class="text-muted">Discarded Minutes</span>
+                                <strong id="summary-discarded-minutes" class="text-muted">0</strong>
                             </div>
                         </div>
                     </div>
@@ -137,16 +145,26 @@
                                 <tr>
                                     <th>Date</th>
                                     <th>Start</th>
+                                    <th>Temp Stop</th>
                                     <th>End</th>
-                                    <th>Breaks</th>
                                     <th>Time Off</th>
-                                    <th>Hours</th>
+                                    <th>Raw Work</th>
+                                    <th>Lunch Break</th>
+                                    <th>Schedule Work</th>
                                     <th>OT</th>
+                                    <th>Discarded</th>
                                 </tr>
                                 </thead>
                                 <tbody>
-                                <tr th:each="record : ${worktimeData}">
+                                <tr th:each="record : ${worktimeData}" class="worktime-entry"
+                                    th:attr="data-minutes=${record.totalWorkedMinutes},
+                                             data-overtime=${record.totalOvertimeMinutes},
+                                             data-breaks=${record.totalTemporaryStopMinutes},
+                                             data-lunch=${record.lunchBreakDeducted},
+                                             data-timeoff=${record.timeOffType}">
                                     <td th:text="${#temporals.format(record.workDate, 'dd/MM/yyyy')}"></td>
+
+                                    <!-- Start Time -->
                                     <td>
                                         <span th:if="${record.dayStartTime}"
                                               th:text="${#temporals.format(record.dayStartTime, 'HH:mm')}"
@@ -154,13 +172,8 @@
                                         </span>
                                         <span th:unless="${record.dayStartTime}">-</span>
                                     </td>
-                                    <td>
-                                        <span th:if="${record.dayEndTime}"
-                                              th:text="${#temporals.format(record.dayEndTime, 'HH:mm')}"
-                                              class="text-danger">
-                                        </span>
-                                        <span th:unless="${record.dayEndTime}">-</span>
-                                    </td>
+
+                                    <!-- Temporary Stop -->
                                     <td>
                                         <span th:if="${record.temporaryStopCount > 0}"
                                               class="badge bg-warning rounded-pill"
@@ -168,6 +181,17 @@
                                         </span>
                                         <span th:unless="${record.temporaryStopCount > 0}">-</span>
                                     </td>
+
+                                    <!-- End Time -->
+                                    <td>
+                                        <span th:if="${record.dayEndTime}"
+                                              th:text="${#temporals.format(record.dayEndTime, 'HH:mm')}"
+                                              class="text-danger">
+                                        </span>
+                                        <span th:unless="${record.dayEndTime}">-</span>
+                                    </td>
+
+                                    <!-- Time Off -->
                                     <td>
                                         <span th:if="${record.timeOffType}"
                                               th:class="${'badge rounded-pill ' +
@@ -177,19 +201,43 @@
                                         </span>
                                         <span th:unless="${record.timeOffType}">-</span>
                                     </td>
-                                    <td>
+
+                                    <!-- Raw Work -->
+                                    <td class="raw-work-cell">
                                         <span th:if="${record.totalWorkedMinutes}"
-                                              th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(record.totalWorkedMinutes)}"
-                                              class="fw-medium">
-                                        </span>
+                                              th:attr="data-minutes=${record.totalWorkedMinutes}">--:--</span>
                                         <span th:unless="${record.totalWorkedMinutes}">-</span>
                                     </td>
+
+                                    <!-- Lunch Break -->
+                                    <td class="lunch-break-cell">
+                                        <span th:if="${record.lunchBreakDeducted && record.totalWorkedMinutes > 240 && record.totalWorkedMinutes <= 660}"
+                                              class="lunch-break badge bg-secondary">30m</span>
+                                        <span th:unless="${record.lunchBreakDeducted && record.totalWorkedMinutes > 240 && record.totalWorkedMinutes <= 660}">-</span>
+                                    </td>
+
+                                    <!-- Schedule Work (capped at 8 hours) -->
+                                    <td class="schedule-work-cell">
+                                        <span th:if="${record.totalWorkedMinutes}"
+                                              th:attr="data-minutes=${record.totalWorkedMinutes},
+                                                      data-lunch=${record.lunchBreakDeducted}"
+                                              data-bs-toggle="tooltip"
+                                              title="Total work for the day">--:--</span>
+                                        <span th:unless="${record.totalWorkedMinutes}">-</span>
+                                    </td>
+
+                                    <!-- Overtime -->
                                     <td>
                                         <span th:if="${record.totalOvertimeMinutes > 0}"
-                                              class="badge bg-success rounded-pill"
-                                              th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(record.totalOvertimeMinutes)}">
-                                        </span>
+                                              class="badge bg-success rounded-pill overtime-display"
+                                              th:attr="data-minutes=${record.totalOvertimeMinutes}">--:--</span>
                                         <span th:unless="${record.totalOvertimeMinutes > 0}">-</span>
+                                    </td>
+
+                                    <!-- Discarded Minutes -->
+                                    <td class="discarded-minutes-cell">
+                                        <span th:if="${record.totalWorkedMinutes}">-</span>
+                                        <span th:unless="${record.totalWorkedMinutes}">-</span>
                                     </td>
                                 </tr>
                                 </tbody>
@@ -201,5 +249,24 @@
         </div>
     </div>
 </div>
+
+<!-- Page-specific scripts -->
+<th:block layout:fragment="scripts">
+    <!-- Include the custom worktime display script -->
+    <script th:src="@{/js/worktime-user-display.js?v=1301010101}"></script>
+
+    <!-- Initialize tooltips -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Bootstrap tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl, {
+                    html: true
+                });
+            });
+        });
+    </script>
+</th:block>
 </body>
 </html>

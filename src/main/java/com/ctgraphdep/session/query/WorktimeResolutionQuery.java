@@ -61,8 +61,7 @@ public class WorktimeResolutionQuery implements SessionQuery<WorktimeResolutionQ
 
         @Override
         public String toString() {
-            return String.format("ResolutionStatus(needsResolution=%b, unresolvedEntries=%d)",
-                    needsResolution, unresolvedEntries.size());
+            return String.format("ResolutionStatus(needsResolution=%b, unresolvedEntries=%d)", needsResolution, unresolvedEntries.size());
         }
     }
 }

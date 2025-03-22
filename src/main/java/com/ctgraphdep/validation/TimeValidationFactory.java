@@ -13,6 +13,17 @@ import java.time.LocalDate;
 @Component
 public class TimeValidationFactory {
 
+    private final TimeProvider timeProvider;
+
+    /**
+     * Creates a time validation factory
+     *
+     * @param timeProvider Provider for obtaining current date/time
+     */
+    public TimeValidationFactory(TimeProvider timeProvider) {
+        this.timeProvider = timeProvider;
+    }
+
     /**
      * Creates a command to get standard time values
      * @return A command that provides standard time values
@@ -26,64 +37,23 @@ public class TimeValidationFactory {
      * @param year The year to validate
      * @param month The month to validate
      * @param maxMonthsAhead Maximum number of months into the future allowed
-     * @param currentDate The current date for comparison
-     * @return A validation command
-     */
-    public ValidatePeriodCommand createValidatePeriodCommand(
-            int year, int month, int maxMonthsAhead, LocalDate currentDate) {
-        return new ValidatePeriodCommand(year, month, maxMonthsAhead, currentDate);
-    }
-
-    /**
-     * Creates a command to validate a period using the current date
-     * @param year The year to validate
-     * @param month The month to validate
-     * @param maxMonthsAhead Maximum number of months into the future allowed
      * @return A validation command
      */
     public ValidatePeriodCommand createValidatePeriodCommand(int year, int month, int maxMonthsAhead) {
-        return new ValidatePeriodCommand(year, month, maxMonthsAhead);
+        return new ValidatePeriodCommand(year, month, maxMonthsAhead, timeProvider);
     }
 
     /**
      * Creates a command to validate a holiday date
      * @param date The date to validate
-     * @param currentDate The current date for comparison
-     * @return A validation command
-     */
-    public ValidateHolidayDateCommand createValidateHolidayDateCommand(LocalDate date, LocalDate currentDate) {
-        return new ValidateHolidayDateCommand(date, currentDate);
-    }
-
-    /**
-     * Creates a command to validate a holiday date using the current date
-     * @param date The date to validate
      * @return A validation command
      */
     public ValidateHolidayDateCommand createValidateHolidayDateCommand(LocalDate date) {
-        return new ValidateHolidayDateCommand(date);
+        return new ValidateHolidayDateCommand(date, timeProvider);
     }
 
     /**
      * Creates a command to validate a time off request
-     * @param startDate The start date of the time off request
-     * @param endDate The end date of the time off request
-     * @param maxMonthsAhead Maximum number of months into the future allowed
-     * @param maxMonthsBehind Maximum number of months into the past allowed
-     * @param currentDate The current date for comparison
-     * @return A validation command
-     */
-    public ValidateTimeOffRequestCommand createValidateTimeOffRequestCommand(
-            LocalDate startDate,
-            LocalDate endDate,
-            int maxMonthsAhead,
-            int maxMonthsBehind,
-            LocalDate currentDate) {
-        return new ValidateTimeOffRequestCommand(startDate, endDate, maxMonthsAhead, maxMonthsBehind, currentDate);
-    }
-
-    /**
-     * Creates a command to validate a time off request using the current date
      * @param startDate The start date of the time off request
      * @param endDate The end date of the time off request
      * @param maxMonthsAhead Maximum number of months into the future allowed
@@ -95,7 +65,8 @@ public class TimeValidationFactory {
             LocalDate endDate,
             int maxMonthsAhead,
             int maxMonthsBehind) {
-        return new ValidateTimeOffRequestCommand(startDate, endDate, maxMonthsAhead, maxMonthsBehind);
+        return new ValidateTimeOffRequestCommand(startDate, endDate, maxMonthsAhead, maxMonthsBehind,
+                timeProvider.getCurrentDate());
     }
 
     /**
@@ -116,12 +87,13 @@ public class TimeValidationFactory {
             GetStandardTimeValuesCommand.StandardTimeValues timeValues) {
         return new GetStandardDateValuesCommand(timeValues);
     }
+
     /**
      * Creates a command to check if the current day is a weekday
      * @return A command that returns true if today is a weekday
      */
     public IsWeekdayCommand createIsWeekdayCommand() {
-        return new IsWeekdayCommand();
+        return new IsWeekdayCommand(timeProvider);
     }
 
     /**
@@ -129,7 +101,7 @@ public class TimeValidationFactory {
      * @return A command that returns true if the current time is within working hours
      */
     public IsWorkingHoursCommand createIsWorkingHoursCommand() {
-        return new IsWorkingHoursCommand();
+        return new IsWorkingHoursCommand(timeProvider);
     }
 
     /**
@@ -138,6 +110,6 @@ public class TimeValidationFactory {
      * @return A command that returns true if the session is active today
      */
     public HasActiveSessionTodayCommand createHasActiveSessionTodayCommand(LocalDate sessionDate) {
-        return new HasActiveSessionTodayCommand(sessionDate);
+        return new HasActiveSessionTodayCommand(sessionDate, timeProvider);
     }
 }

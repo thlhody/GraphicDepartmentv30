@@ -3,8 +3,6 @@ package com.ctgraphdep.session.query;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.SessionQuery;
-import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import lombok.Getter;
 
@@ -13,32 +11,50 @@ import java.time.LocalDate;
 /**
  * Comprehensive query to check various session-related statuses and conditions
  */
-public class SessionStatusQuery implements SessionQuery<SessionStatusQuery.SessionStatus> {
-    private final String username;
-    private final Integer userId;
+public class SessionStatusQuery extends BaseUserSessionQuery<SessionStatusQuery.SessionStatus> {
 
+    /**
+     * Creates a new query for checking session status
+     *
+     * @param username The username
+     * @param userId The user ID
+     */
     public SessionStatusQuery(String username, Integer userId) {
-        this.username = username;
-        this.userId = userId;
+        super(username, userId);
     }
 
     @Override
     public SessionStatus execute(SessionContext context) {
-        try {
-            // Get current session using GetCurrentSessionQuery
-            GetCurrentSessionQuery sessionQuery = context.getCommandFactory().createGetCurrentSessionQuery(username, userId);
-            WorkUsersSessionsStates session = context.executeQuery(sessionQuery);
+        return executeWithDefault(context, ctx -> {
+            // Log start of the query
+            info(String.format("Checking session status for user %s", username));
 
-            // Get standardized time values using the new validation system
-            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
+            // Get current session
+            GetCurrentSessionQuery sessionQuery = ctx.getCommandFactory().createGetCurrentSessionQuery(username, userId);
+            WorkUsersSessionsStates session = ctx.executeQuery(sessionQuery);
+
+            // Get standardized time values
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory()
+                    .createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
+                    ctx.getValidationService().execute(timeCommand);
             LocalDate today = timeValues.getCurrentDate();
 
             // Check for unresolved worktime entries
             UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username, userId);
-            var unresolvedEntries = context.executeQuery(unresolvedQuery);
+            var unresolvedEntries = ctx.executeQuery(unresolvedQuery);
 
-            // Construct and return comprehensive session status
+            // Log session status details
+            debug(String.format("Session status - Online: %b, Temp Stop: %b, Completed Today: %b, Unresolved Entries: %b",
+                    session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus()),
+                    session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()),
+                    session != null && session.getDayStartTime() != null && session.getDayStartTime().toLocalDate().equals(today)
+                            && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())
+                            && Boolean.TRUE.equals(session.getWorkdayCompleted()),
+                    !unresolvedEntries.isEmpty()
+            ));
+
+            // Construct comprehensive session status
             return new SessionStatus(
                     session,
                     session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()),
@@ -49,20 +65,7 @@ public class SessionStatusQuery implements SessionQuery<SessionStatusQuery.Sessi
                             Boolean.TRUE.equals(session.getWorkdayCompleted()),
                     !unresolvedEntries.isEmpty()
             );
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error checking session status for user %s: %s", username, e.getMessage()));
-
-            // Return a default/safe status
-            return new SessionStatus(
-                    null,
-                    false,
-                    false,
-                    false,
-                    false
-            );
-        }
+        }, new SessionStatus(null, false, false, false, false));
     }
 
     /**
