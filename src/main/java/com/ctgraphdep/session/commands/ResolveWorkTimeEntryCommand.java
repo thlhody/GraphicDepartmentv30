@@ -87,13 +87,20 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
 
             // Calculate processed work time with lunch break rules
             WorkTimeCalculationResult result = ctx.calculateWorkTime(rawMinutes, userSchedule);
-            debug(String.format("Processed minutes: %d, Overtime: %d, Lunch deducted: %b", result.getProcessedMinutes(), result.getOvertimeMinutes(), result.isLunchDeducted()));
+            debug(String.format("Processed minutes: %d, Overtime: %d, Lunch deducted: %b",
+                    result.getProcessedMinutes(), result.getOvertimeMinutes(), result.isLunchDeducted()));
 
             // Update entry with all calculated values
             updateWorkTimeEntry(entry, endTime, rawMinutes, result);
 
-            // Save the updated entry
-            ctx.getWorkTimeService().saveWorkTimeEntry(username, entry, year, month, username);
+            // Use existing WorkTimeService method to save the entry and handle network sync
+            ctx.getWorkTimeService().saveWorkTimeEntry(
+                    username,
+                    entry,
+                    year,
+                    month,
+                    username  // The operating username is the same as the entry username
+            );
 
             info(String.format("Successfully resolved work entry for %s on %s. Raw minutes: %d, Overtime: %d",
                     username, entryDate, rawMinutes, result.getOvertimeMinutes()));
@@ -106,7 +113,6 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
      * Updates work time entry with calculated values
      */
     private void updateWorkTimeEntry(WorkTimeTable entry, LocalDateTime endTime, int rawMinutes, WorkTimeCalculationResult result) {
-
         entry.setDayEndTime(endTime);
         entry.setTotalWorkedMinutes(rawMinutes);
         entry.setTotalOvertimeMinutes(result.getOvertimeMinutes());

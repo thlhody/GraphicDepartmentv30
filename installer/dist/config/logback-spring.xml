@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property name="LOGS" value="${app.home}/logs" />
+    <property name="MAIN_LOG" value="cttt.log" />
+    <property name="ERROR_LOG" value="error.log" />
+    <property name="USER_LOG" value="user-actions.log" />
+    <property name="NETWORK_LOG" value="network.log" />
+
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{ISO8601} %highlight(%-5level) [%blue(%t)] %yellow(%C{1}): %msg%n%throwable</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="MainFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/${MAIN_LOG}</file>
+        <encoder>
+            <pattern>%d{ISO8601} %-5level [%t] %C{1}: %msg%n%throwable</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/${MAIN_LOG}.%d{yyyy-MM-dd}.%i</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>10MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="ErrorFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/${ERROR_LOG}</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        <encoder>
+            <pattern>%d{ISO8601} %-5level [%t] %C{1}: %msg%n%throwable</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/${ERROR_LOG}.%d{yyyy-MM-dd}.%i</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>10MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>60</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="UserActions" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/${USER_LOG}</file>
+        <encoder>
+            <pattern>%d{ISO8601} [%X{username}] %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/${USER_LOG}.%d{yyyy-MM-dd}.%i</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>10MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="NetworkLog" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/${NETWORK_LOG}</file>
+        <encoder>
+            <pattern>%d{ISO8601} %-5level [%t] %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/${NETWORK_LOG}.%d{yyyy-MM-dd}.%i</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>10MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Loggers -->
+    <logger name="com.ctgraphdep" level="INFO" additivity="false">
+        <appender-ref ref="Console" />
+        <appender-ref ref="MainFile" />
+        <appender-ref ref="ErrorFile" />
+    </logger>
+
+    <logger name="UserActions" level="INFO" additivity="false">
+        <appender-ref ref="UserActions" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="NetworkOperations" level="DEBUG" additivity="false">
+        <appender-ref ref="NetworkLog" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="org.springframework" level="WARN" />
+    <logger name="org.hibernate" level="WARN" />
+
+    <root level="INFO">
+        <appender-ref ref="Console" />
+        <appender-ref ref="MainFile" />
+        <appender-ref ref="ErrorFile" />
+    </root>
+
+</configuration>
