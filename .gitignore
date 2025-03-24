@@ -43,5 +43,7 @@ logs/
 log/
 /logs/
 /log/
-/installer/dist/bin/
-/installer/output/
+
+### Installer ###
+/installer/dist/bin/ctgraphdep-web.jar
+

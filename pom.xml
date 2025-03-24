@@ -170,6 +170,19 @@
         </resources>
         <plugins>
             <plugin>
+                <artifactId>maven-clean-plugin</artifactId>
+                <configuration>
+                    <filesets>
+                        <fileset>
+                            <directory>installer/dist/bin</directory>
+                            <includes>
+                                <include>**/*</include>
+                            </includes>
+                        </fileset>
+                    </filesets>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
@@ -181,6 +194,7 @@
                     </excludes>
                     <!-- Add this to ensure system tray icon is included in the jar -->
                     <includeSystemScope>true</includeSystemScope>
+                    <finalName>ctgraphdep-web</finalName>
                 </configuration>
             </plugin>
             <plugin>
@@ -188,6 +202,7 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>3.1.0</version>
                 <executions>
+                    <!-- First execution: Copy JAR to installer directory -->
                     <execution>
                         <id>copy-jar-to-installer</id>
                         <phase>package</phase>
@@ -199,6 +214,33 @@
                                 <mkdir dir="${project.basedir}/installer/dist/bin"/>
                                 <copy file="${project.build.directory}/${project.build.finalName}.jar"
                                       tofile="${project.basedir}/installer/dist/bin/ctgraphdep-web.jar" />
+                                <echo message="JAR file copied to installer directory"/>
+                            </target>
+                        </configuration>
+                    </execution>
+
+                    <!-- Second execution: Run Inno Setup compiler -->
+                    <execution>
+                        <id>build-windows-installer</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- Create installer output directory -->
+                                <mkdir dir="${project.build.directory}/installer-output"/>
+
+                                <!-- Run Inno Setup compiler -->
+                                <echo message="Running Inno Setup compiler..."/>
+                                <exec executable="C:/Program Files (x86)/Inno Setup 6/ISCC.exe" failonerror="true">
+                                    <!-- Override both the output directory and filename in case setup.iss is not synced -->
+                                    <arg value="/O${project.build.directory}\installer-output"/>
+                                    <arg value="/FCTTT_Setup_6.6.9"/>
+                                    <arg value="${project.basedir}/installer/setup.iss"/>
+                                </exec>
+
+                                <echo message="Installer created at: ${project.build.directory}/installer-output/CTTT_Setup_6.6.9.exe"/>
                             </target>
                         </configuration>
                     </execution>
