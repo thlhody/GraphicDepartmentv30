@@ -6,13 +6,15 @@ import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.FolderStatusService;
+import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserRegisterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserRegisterExcelExporter;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,14 +37,14 @@ public class UserRegisterController extends BaseController {
     private final UserRegisterService userRegisterService;
     private final UserRegisterExcelExporter userRegisterExcelExporter;
 
-    public UserRegisterController(
-            UserService userService,
-            FolderStatusService folderStatusService,
-            UserRegisterService userRegisterService, UserRegisterExcelExporter userRegisterExcelExporter) {
-        super(userService, folderStatusService);
+    public UserRegisterController(UserService userService,
+                                  FolderStatus folderStatus,
+                                  UserRegisterService userRegisterService,
+                                  UserRegisterExcelExporter userRegisterExcelExporter,
+                                  TimeValidationService timeValidationService) {
+        super(userService, folderStatus, timeValidationService);
         this.userRegisterService = userRegisterService;
         this.userRegisterExcelExporter = userRegisterExcelExporter;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
@@ -54,25 +56,26 @@ public class UserRegisterController extends BaseController {
             Model model) {
 
         try {
-            // Get current user
-            User currentUser = getUser(userDetails);
-            if (currentUser == null) {
-                LoggerUtil.error(this.getClass(), "Current user is null after getUser()");
-                return "redirect:/login";
+            // Use checkUserAccess for authentication verification
+            String accessCheck = checkUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            if (accessCheck != null) {
+                return accessCheck;
             }
 
-            // Initialize year and month if not provided
-            LocalDate now = LocalDate.now();
-            year = year != null ? year : now.getYear();
-            month = month != null ? month : now.getMonthValue();
+            // Get current user - already checked by checkUserAccess
+            User currentUser = getUser(userDetails);
+
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
             // Always set these basic attributes regardless of potential errors
             model.addAttribute("actionTypes", ActionType.getValues());
             model.addAttribute("printPrepTypes", PrintPrepTypes.getValues());
-            model.addAttribute("currentYear", year);
-            model.addAttribute("currentMonth", month);
+            model.addAttribute("currentYear", selectedYear);
+            model.addAttribute("currentMonth", selectedMonth);
 
-            // Determine target user
+            // Determine target user with role verification
             User targetUser = currentUser;
             if (username != null) {
                 if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
@@ -93,12 +96,12 @@ public class UserRegisterController extends BaseController {
             List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
                     targetUser.getUsername(),
                     targetUser.getUserId(),
-                    year,
-                    month
+                    selectedYear,
+                    selectedMonth
             );
             model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
 
-            // Add role-specific attributes
+            // Add role-specific attributes using consistent hasRole checks
             if (currentUser.hasRole("ADMIN")) {
                 model.addAttribute("isAdminView", true);
                 model.addAttribute("dashboardUrl", "/admin");
@@ -129,8 +132,8 @@ public class UserRegisterController extends BaseController {
             model.addAttribute("entries", new ArrayList<>());
             model.addAttribute("actionTypes", ActionType.getValues());
             model.addAttribute("printPrepTypes", PrintPrepTypes.getValues());
-            model.addAttribute("currentYear", year);
-            model.addAttribute("currentMonth", month);
+            model.addAttribute("currentYear", year != null ? year : getStandardCurrentDate().getYear());
+            model.addAttribute("currentMonth", month != null ? month : getStandardCurrentDate().getMonthValue());
 
             // Try to set user info from current user if available
             if (userDetails != null) {
@@ -155,7 +158,7 @@ public class UserRegisterController extends BaseController {
             @RequestParam(required = false) String omsId,
             @RequestParam(required = false) String clientName,
             @RequestParam(required = false) String actionType,
-            @RequestParam(required = false) List<String> printPrepTypes,  // Changed to List<String>
+            @RequestParam(required = false) List<String> printPrepTypes,
             @RequestParam(required = false) String colorsProfile,
             @RequestParam(required = false) Integer articleNumbers,
             @RequestParam(required = false) Double graphicComplexity,
@@ -165,6 +168,12 @@ public class UserRegisterController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
+            // Use validateUserAccess for better authorization checking
+            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            if (user == null) {
+                return "redirect:/login";
+            }
+
             // Initial validation for required fields
             if (date == null) {
                 return String.format("redirect:/user/register?error=missing_date&year=%d&month=%d", year, month);
@@ -188,7 +197,6 @@ public class UserRegisterController extends BaseController {
                 return String.format("redirect:/user/register?error=missing_articles&year=%d&month=%d", year, month);
             }
 
-            User user = getUser(userDetails);
             List<String> uniquePrintPrepTypes = new ArrayList<>(new LinkedHashSet<>(printPrepTypes));
 
             RegisterEntry entry = RegisterEntry.builder()
@@ -230,7 +238,7 @@ public class UserRegisterController extends BaseController {
             @RequestParam String omsId,
             @RequestParam String clientName,
             @RequestParam String actionType,
-            @RequestParam List<String> printPrepTypes,  // Changed to List<String>
+            @RequestParam List<String> printPrepTypes,
             @RequestParam(required = false) String colorsProfile,
             @RequestParam Integer articleNumbers,
             @RequestParam(required = false) Double graphicComplexity,
@@ -240,7 +248,11 @@ public class UserRegisterController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            User user = getUser(userDetails);
+            // Use validateUserAccess for better authorization checking
+            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            if (user == null) {
+                return "redirect:/login";
+            }
 
             RegisterEntry entry = RegisterEntry.builder()
                     .entryId(entryId)
@@ -282,7 +294,12 @@ public class UserRegisterController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            User user = getUser(userDetails);
+            // Use validateUserAccess for better authorization checking
+            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            if (user == null) {
+                return "redirect:/login";
+            }
+
             userRegisterService.deleteEntry(user.getUsername(), user.getUserId(), entryId, year, month);
             redirectAttributes.addFlashAttribute("successMessage", "Entry deleted successfully");
         } catch (Exception e) {
@@ -299,7 +316,12 @@ public class UserRegisterController extends BaseController {
             @RequestParam int year,
             @RequestParam int month) {
         try {
-            User user = getUser(userDetails);
+            // Use validateUserAccess for better authorization checking
+            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
             List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
                     user.getUsername(), user.getUserId(), year, month);
 

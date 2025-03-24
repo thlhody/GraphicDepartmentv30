@@ -2,9 +2,10 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.service.FolderStatusService;
+import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -14,14 +15,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
-//Controller handling login-related requests and system availability checks.
 @Controller
 @RequestMapping("/login")
 public class LoginController extends BaseController {
 
     private static final String VIEW_LOGIN = "login";
     private static final String VIEW_ERROR = "error/system-error";
+    private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     @Value("${dbj.login}")
     private String loginPath;
@@ -37,6 +40,7 @@ public class LoginController extends BaseController {
     private static final String ATTR_MODE = "mode";
     private static final String ATTR_TITLE = "title";
     private static final String ATTR_ERROR = "error";
+    private static final String ATTR_SYSTEM_TIME = "systemTime";
     private static final String MODE_ONLINE = "ONLINE";
     private static final String MODE_OFFLINE = "OFFLINE";
     private static final String MODE_EMERGENCY = "EMERGENCY";
@@ -46,18 +50,13 @@ public class LoginController extends BaseController {
     @Autowired
     public LoginController(
             UserService userService,
-            FolderStatusService folderStatusService,
+            FolderStatus folderStatus,
+            TimeValidationService timeValidationService,
             PathConfig pathConfig) {
-        super(userService, folderStatusService);
+        super(userService, folderStatus, timeValidationService);
         this.pathConfig = pathConfig;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Handles the login page request and checks system availability.
-     * @param model Spring MVC Model for view attributes
-     * @return login view name or error page if critical system files are unavailable
-     */
     @GetMapping
     public String login(Model model) {
         LoggerUtil.info(this.getClass(), "Accessing login page");
@@ -71,11 +70,14 @@ public class LoginController extends BaseController {
                     "Critical error checking system availability: " + e.getMessage(), e);
             model.addAttribute(ATTR_ERROR, "System configuration error: " + e.getMessage());
             model.addAttribute(ATTR_TITLE, appTitle + " - System Error");
+
+            // Add current system time using standardized time
+            addSystemTimeToModel(model);
+
             return VIEW_ERROR;
         }
     }
 
-    // Checks the availability of network and offline modes.
     private SystemAvailability checkSystemAvailability() {
         boolean networkAvailable = checkNetworkAvailability();
         boolean offlineModeAvailable = checkOfflineModeAvailability();
@@ -84,14 +86,12 @@ public class LoginController extends BaseController {
         if (!networkAvailable && !offlineModeAvailable) {
             LoggerUtil.error(this.getClass(),
                     "No available operation modes - system is in emergency mode");
-            // Instead of throwing IOException, return a special emergency status
             return new SystemAvailability(false, false, true);
         }
 
         return new SystemAvailability(networkAvailable, offlineModeAvailable, false);
     }
 
-    // Checks if network mode is available.
     private boolean checkNetworkAvailability() {
         try {
             boolean available = pathConfig.isNetworkAvailable();
@@ -105,7 +105,6 @@ public class LoginController extends BaseController {
         }
     }
 
-    // Checks if offline mode is available.
     private boolean checkOfflineModeAvailability() {
         try {
             Path usersFilePath = pathConfig.getLocalUsersPath();
@@ -120,7 +119,6 @@ public class LoginController extends BaseController {
         }
     }
 
-    // Populates model attributes based on system availability.
     private void populateModelAttributes(Model model, SystemAvailability availability) {
         model.addAttribute(ATTR_NETWORK_AVAILABLE, availability.networkAvailable());
         model.addAttribute(ATTR_OFFLINE_AVAILABLE, availability.offlineModeAvailable());
@@ -135,8 +133,26 @@ public class LoginController extends BaseController {
 
         model.addAttribute(ATTR_MODE, mode);
         model.addAttribute(ATTR_TITLE, appTitle);
+
+        // Add current system time using standardized time
+        addSystemTimeToModel(model);
     }
 
-    // Record containing system availability status.
+    private void addSystemTimeToModel(Model model) {
+        try {
+            // Use standardized time from base controller
+            LocalDateTime currentTime = getStandardCurrentDateTime();
+            String formattedTime = currentTime.format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN));
+            model.addAttribute(ATTR_SYSTEM_TIME, formattedTime);
+
+            LoggerUtil.debug(this.getClass(), "Added system time to model: " + formattedTime);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), "Failed to add system time to model: " + e.getMessage());
+            // Add fallback time if standard time fails
+            model.addAttribute(ATTR_SYSTEM_TIME,
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN)));
+        }
+    }
+
     private record SystemAvailability(boolean networkAvailable, boolean offlineModeAvailable, boolean emergencyMode) {}
 }

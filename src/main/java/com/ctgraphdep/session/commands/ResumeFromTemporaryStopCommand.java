@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
@@ -107,7 +107,7 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
             entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
             // Important for resuming: update the total temporary stop minutes from the session
             entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
-            entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
+            entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
 
             // Save the updated entry
             context.getWorkTimeService().saveWorkTimeEntry(

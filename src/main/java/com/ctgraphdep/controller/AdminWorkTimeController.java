@@ -1,20 +1,17 @@
 package com.ctgraphdep.controller;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.controller.base.BaseController;
+import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.service.AdminWorkTimeDisplayService;
-import com.ctgraphdep.service.UserManagementService;
-import com.ctgraphdep.service.WorkTimeConsolidationService;
-import com.ctgraphdep.service.WorkTimeManagementService;
+import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.WorkTimeExcelExporter;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationFactory;
 import com.ctgraphdep.validation.TimeValidationService;
-import com.ctgraphdep.validation.commands.ValidateHolidayDateCommand;
 import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -33,31 +30,27 @@ import java.util.stream.Collectors;
 @Controller
 @RequestMapping("/admin/worktime")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
-public class AdminWorkTimeController {
+public class AdminWorkTimeController extends BaseController {
     private final WorkTimeManagementService workTimeManagementService;
     private final WorkTimeConsolidationService workTimeConsolidationService;
     private final UserManagementService userManagementService;
     private final AdminWorkTimeDisplayService displayService;
     private final WorkTimeExcelExporter excelExporter;
-    private final TimeValidationService validationService;
-    private final TimeValidationFactory validationFactory;
 
-    public AdminWorkTimeController(
-            WorkTimeManagementService workTimeManagementService,
-            WorkTimeConsolidationService workTimeConsolidationService,
-            UserManagementService userManagementService,
-            AdminWorkTimeDisplayService displayService,
-            WorkTimeExcelExporter excelExporter,
-            TimeValidationService validationService,
-            TimeValidationFactory validationFactory) {
+    protected AdminWorkTimeController(UserService userService,
+                                      FolderStatus folderStatus,
+                                      TimeValidationService timeValidationService,
+                                      WorkTimeManagementService workTimeManagementService,
+                                      WorkTimeConsolidationService workTimeConsolidationService,
+                                      UserManagementService userManagementService,
+                                      AdminWorkTimeDisplayService displayService,
+                                      WorkTimeExcelExporter excelExporter) {
+        super(userService, folderStatus, timeValidationService);
         this.workTimeManagementService = workTimeManagementService;
         this.workTimeConsolidationService = workTimeConsolidationService;
         this.userManagementService = userManagementService;
         this.displayService = displayService;
         this.excelExporter = excelExporter;
-        this.validationService = validationService;
-        this.validationFactory = validationFactory;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
@@ -69,16 +62,15 @@ public class AdminWorkTimeController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            // Set default year and month using the new validation system
-            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-            LocalDate now = timeValues.getCurrentDate();
-            year = Optional.ofNullable(year).orElse(now.getYear());
-            month = Optional.ofNullable(month).orElse(now.getMonthValue());
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
-            // Validate period using the validation command
-            ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(year, month, 4);
-            validationService.execute(periodCommand);
+            // Validate period using the validation service from BaseController
+            TimeValidationFactory validationFactory = getTimeValidationService().getValidationFactory();
+            ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(
+                    selectedYear, selectedMonth, 4);
+            getTimeValidationService().execute(periodCommand);
 
             // Get non-admin users
             List<User> nonAdminUsers = userManagementService.getNonAdminUsers();
@@ -88,11 +80,12 @@ public class AdminWorkTimeController {
             }
 
             // Consolidate worktime entries and organize by user and date
-            workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
-            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap = convertToUserEntriesMap(workTimeConsolidationService.getViewableEntries(year, month));
+            workTimeConsolidationService.consolidateWorkTimeEntries(selectedYear, selectedMonth);
+            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap = convertToUserEntriesMap(
+                    workTimeConsolidationService.getViewableEntries(selectedYear, selectedMonth));
 
             // Prepare model data
-            prepareWorkTimeModel(model, year, month, selectedUserId, nonAdminUsers, userEntriesMap);
+            prepareWorkTimeModel(model, selectedYear, selectedMonth, selectedUserId, nonAdminUsers, userEntriesMap);
 
             return "admin/worktime";
 
@@ -124,7 +117,8 @@ public class AdminWorkTimeController {
             );
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
         } catch (Exception e) {
@@ -163,15 +157,18 @@ public class AdminWorkTimeController {
         try {
             LocalDate holidayDate = LocalDate.of(year, month, day);
 
-            ValidateHolidayDateCommand holidayCommand = validationFactory.createValidateHolidayDateCommand(holidayDate);
-            validationService.execute(holidayCommand);
+            // Validate period using the validation service from BaseController
+            TimeValidationFactory validationFactory = getTimeValidationService().getValidationFactory();
+            ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(year, month, 4);
+            getTimeValidationService().execute(periodCommand);
 
             workTimeManagementService.addNationalHoliday(holidayDate);
 
             // Trigger consolidation after adding holiday
             workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
 
-            redirectAttributes.addFlashAttribute("successMessage", String.format("National holiday added for %s", holidayDate));
+            redirectAttributes.addFlashAttribute("successMessage",
+                    String.format("National holiday added for %s", holidayDate));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error adding holiday: " + e.getMessage());
@@ -182,10 +179,12 @@ public class AdminWorkTimeController {
     }
 
     private void prepareWorkTimeModel(Model model, int year, int month, Integer selectedUserId,
-                                      List<User> nonAdminUsers, Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
+                                      List<User> nonAdminUsers,
+                                      Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
 
         // Calculate summaries
-        Map<Integer, WorkTimeSummary> summaries = displayService.calculateUserSummaries(userEntriesMap, nonAdminUsers, year, month);
+        Map<Integer, WorkTimeSummary> summaries = displayService.calculateUserSummaries(
+                userEntriesMap, nonAdminUsers, year, month);
 
         // Add model attributes
         model.addAttribute("currentYear", year);
@@ -226,18 +225,23 @@ public class AdminWorkTimeController {
         Map<String, Long> counts = new HashMap<>();
 
         List<WorkTimeTable> allEntries = userEntriesMap.values().stream()
-                .flatMap(map -> map.values().stream())
-                .toList();
+                .flatMap(map -> map.values().stream()).toList();
 
         // Count time off types
-        counts.put("snCount", allEntries.stream().filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType())).count());
-        counts.put("coCount", allEntries.stream().filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType())).count());
-        counts.put("cmCount", allEntries.stream().filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType())).count());
+        counts.put("snCount", allEntries.stream()
+                .filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType())).count());
+        counts.put("coCount", allEntries.stream()
+                .filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType())).count());
+        counts.put("cmCount", allEntries.stream()
+                .filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType())).count());
 
         // Count by status
-        counts.put("adminEditedCount", allEntries.stream().filter(e -> SyncStatus.ADMIN_EDITED.equals(e.getAdminSync())).count());
-        counts.put("userInputCount", allEntries.stream().filter(e -> SyncStatus.USER_INPUT.equals(e.getAdminSync())).count());
-        counts.put("syncedCount", allEntries.stream().filter(e -> SyncStatus.USER_DONE.equals(e.getAdminSync())).count());
+        counts.put("adminEditedCount", allEntries.stream()
+                .filter(e -> SyncStatusWorktime.ADMIN_EDITED.equals(e.getAdminSync())).count());
+        counts.put("userInputCount", allEntries.stream()
+                .filter(e -> SyncStatusWorktime.USER_INPUT.equals(e.getAdminSync())).count());
+        counts.put("syncedCount", allEntries.stream()
+                .filter(e -> SyncStatusWorktime.USER_DONE.equals(e.getAdminSync())).count());
 
         return counts;
     }

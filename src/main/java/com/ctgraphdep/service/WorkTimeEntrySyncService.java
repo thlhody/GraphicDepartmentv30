@@ -1,6 +1,9 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.enums.WorktimeMergeRule;
+import com.ctgraphdep.model.TimeOffTracker;
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
@@ -12,9 +15,13 @@ import java.util.stream.Collectors;
 @Service
 public class WorkTimeEntrySyncService {
     private final DataAccessService dataAccessService;
+    private final UserService userService;
+    private final TimeOffTrackerService timeOffTrackerService;
 
-    public WorkTimeEntrySyncService(DataAccessService dataAccessService) {
+    public WorkTimeEntrySyncService(DataAccessService dataAccessService, UserService userService, TimeOffTrackerService timeOffTrackerService) {
         this.dataAccessService = dataAccessService;
+        this.userService = userService;
+        this.timeOffTrackerService = timeOffTrackerService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -36,6 +43,18 @@ public class WorkTimeEntrySyncService {
             // Save merged entries back to user file
             saveUserEntries(username, mergedEntries, year, month);
 
+            try {
+                Optional<User> userOpt = userService.getUserByUsername(username);
+                if (userOpt.isPresent()) {
+                    User user = userOpt.get();
+                    // Call the timeOffTrackerService to sync the tracker with the merged entries
+                    timeOffTrackerService.syncWithWorktimeFiles(user, year, mergedEntries);
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Failed to sync time off tracker during worktime sync: %s", e.getMessage()));
+            }
+
             return mergedEntries;
 
         } catch (Exception e) {
@@ -46,10 +65,7 @@ public class WorkTimeEntrySyncService {
 
     private Map<LocalDate, WorkTimeTable> createEntriesMap(List<WorkTimeTable> entries) {
         return entries.stream()
-                .collect(Collectors.toMap(
-                        WorkTimeTable::getWorkDate,
-                        entry -> entry,
-                        (e1, e2) -> e2  // Keep the latest entry in case of duplicates
+                .collect(Collectors.toMap(WorkTimeTable::getWorkDate, entry -> entry, (e1, e2) -> e2  // Keep the latest entry in case of duplicates
                 ));
     }
 
@@ -71,8 +87,14 @@ public class WorkTimeEntrySyncService {
             WorkTimeTable userEntry = userEntriesMap != null ? userEntriesMap.get(date) : null;
             WorkTimeTable adminEntry = adminEntriesMap != null ? adminEntriesMap.get(date) : null;
 
+            boolean isUserInProcess = userEntry != null &&
+                    SyncStatusWorktime.USER_IN_PROCESS.equals(userEntry.getAdminSync());
+            boolean isAdminBlank = adminEntry != null &&
+                    SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync());
+
             try {
                 WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, adminEntry);
+
                 if (mergedEntry != null) {
                     // Ensure userId is set
                     if (mergedEntry.getUserId() == null) {
@@ -80,11 +102,21 @@ public class WorkTimeEntrySyncService {
                     }
                     mergedEntries.add(mergedEntry);
 
-                    LoggerUtil.debug(this.getClass(), String.format("Processed entry for date %s, final status: %s", date, mergedEntry.getAdminSync()));
+                    if (isUserInProcess) {
+                        LoggerUtil.debug(this.getClass(),
+                                String.format("Preserved USER_IN_PROCESS entry for date %s", date));
+                    } else {
+                        LoggerUtil.debug(this.getClass(),
+                                String.format("Processed entry for date %s, final status: %s",
+                                        date, mergedEntry.getAdminSync()));
+                    }
+                } else if (isAdminBlank) {
+                    LoggerUtil.info(this.getClass(),
+                            String.format("Entry for date %s removed due to ADMIN_BLANK", date));
                 }
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), String.format("Error merging entries for date %s: %s", date, e.getMessage()));
-                // Continue processing other entries
+                LoggerUtil.error(this.getClass(),
+                        String.format("Error merging entries for date %s: %s", date, e.getMessage()));
             }
         }
 
@@ -94,7 +126,6 @@ public class WorkTimeEntrySyncService {
 
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
         try {
-            // Use readUserWorktime with isAdmin=false to read from local
             List<WorkTimeTable> entries = dataAccessService.readUserWorktime(username, year, month);
 
             if (entries == null) {

@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -57,16 +57,13 @@ public class UserWorkTimeDisplayService {
             displayData.put("user", sanitizeUserData(user));
             displayData.put("summary", summary);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Prepared display data with %d entries for user %s",
-                            displayableEntries.size(), user.getUsername()));
+            LoggerUtil.info(this.getClass(), String.format("Prepared display data with %d entries for user %s",
+                    displayableEntries.size(), user.getUsername()));
 
             return displayData;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error preparing display data for user %s: %s",
-                            user.getUsername(), e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error preparing display data for user %s: %s", user.getUsername(), e.getMessage()));
             throw new RuntimeException("Failed to prepare display data", e);
         }
     }
@@ -83,12 +80,12 @@ public class UserWorkTimeDisplayService {
         if (entry == null) return false;
 
         // Never display ADMIN_BLANK entries
-        if (SyncStatus.ADMIN_BLANK.equals(entry.getAdminSync())) {
+        if (SyncStatusWorktime.ADMIN_BLANK.equals(entry.getAdminSync())) {
             return false;
         }
 
         // Display USER_IN_PROCESS entries with partial info
-        if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
             return true;
         }
 
@@ -100,7 +97,7 @@ public class UserWorkTimeDisplayService {
         WorkTimeTable displayEntry = copyWorkTimeEntry(entry);
 
         // For USER_IN_PROCESS entries, show only partial information
-        if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
             displayEntry.setTotalWorkedMinutes(null);
             displayEntry.setTotalOvertimeMinutes(null);
             displayEntry.setDayEndTime(null);
@@ -183,7 +180,7 @@ public class UserWorkTimeDisplayService {
 
         for (WorkTimeTable entry : worktimeData) {
             // Skip in-process entries
-            if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+            if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
                 continue;
             }
 
@@ -193,13 +190,20 @@ public class UserWorkTimeDisplayService {
                     case "CO" -> counts.incrementCoDays();
                     case "CM" -> counts.incrementCmDays();
                 }
-            } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
+            }  else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
                 counts.incrementDaysWorked();
-                // Add this day's regular minutes to total
-                totalRegularMinutes += entry.getTotalWorkedMinutes();
-                if (entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
-                    totalOvertimeMinutes += entry.getTotalOvertimeMinutes();
-                }
+
+                // Use CalculateWorkHoursUtil for consistent calculation
+                int userSchedule = 8; // Default to 8 hours if not available
+
+                WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
+                        entry.getTotalWorkedMinutes(),
+                        userSchedule
+                );
+
+                totalRegularMinutes += result.getProcessedMinutes();
+                totalOvertimeMinutes += entry.getTotalOvertimeMinutes() != null ?
+                        entry.getTotalOvertimeMinutes() : 0;
             }
         }
         counts.setRegularMinutes(totalRegularMinutes);

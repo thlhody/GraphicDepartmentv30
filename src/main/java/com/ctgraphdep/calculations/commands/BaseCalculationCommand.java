@@ -23,8 +23,7 @@ public abstract class BaseCalculationCommand<T> implements CalculationCommand<T>
             // Execute command logic
             return executeCommand(context);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error executing " + this.getClass().getSimpleName() + ": " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error executing " + this.getClass().getSimpleName() + ": " + e.getMessage(), e);
             // Use standardized error handling
             return handleError(e);
         }

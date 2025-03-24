@@ -1,7 +1,10 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.SyncStatus;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -9,9 +12,8 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.*;
 import java.util.concurrent.*;
-
 @Service
-public class FileSyncService {
+public class FileSyncService implements SyncStatusManager.SyncOperation {
 
     @Value("${app.sync.retry.max:3}")
     private int maxRetries;
@@ -21,16 +23,35 @@ public class FileSyncService {
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final FileBackupService backupService;
+    private final SyncStatusManager statusManager;
+    private final TimeValidationService timeValidationService;
 
-    public FileSyncService(FileBackupService backupService) {
+    public FileSyncService(FileBackupService backupService,
+                           SyncStatusManager statusManager,
+                           TimeValidationService timeValidationService) {
         this.backupService = backupService;
+        this.statusManager = statusManager;
+        this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
+
+        // Register this instance as the sync operation implementation
+        this.statusManager.setSyncOperation(this);
     }
 
     @Async
-    public void syncToNetwork(Path localPath, Path networkPath) {
+    @Override
+    public boolean syncFile(Path localPath, Path networkPath) {
+        return syncToNetwork(localPath, networkPath);
+    }
+
+    @Async
+    public boolean syncToNetwork(Path localPath, Path networkPath) {
         LoggerUtil.info(this.getClass(),
                 String.format("Syncing file\nFrom: %s\nTo: %s", localPath, networkPath));
+
+        String filename = localPath.getFileName().toString();
+        SyncStatus status = statusManager.createSyncStatus(filename, localPath, networkPath);
+        status.setSyncInProgress(true);
 
         try {
             // Ensure network parent directory exists
@@ -49,13 +70,32 @@ public class FileSyncService {
             Files.deleteIfExists(backupPath);
             LoggerUtil.info(this.getClass(), "File sync completed successfully");
 
+            // Get standardized time
+            GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
+                    .createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+
+            // Update status
+            status.setSyncInProgress(false);
+            status.setSyncPending(false);
+            status.setLastSuccessfulSync(timeValues.getCurrentTime());
+            status.resetRetryCount();
+            status.setErrorMessage(null);
+
+            return true;  // Return success
+
         } catch (Exception e) {
             // If any part fails, log the error but don't delete backup
-            LoggerUtil.error(this.getClass(),
-                    String.format("Failed to sync file: %s", e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Failed to sync file: %s", e.getMessage()), e);
+
+            // Update status
+            status.setSyncInProgress(false);
+            status.setSyncPending(true);
+            status.setErrorMessage(e.getMessage());
+
+            return false;  // Return failure
         }
     }
-
 
     @PreDestroy
     public void shutdown() {
@@ -68,7 +108,6 @@ public class FileSyncService {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
-
         LoggerUtil.info(this.getClass(), "File sync service scheduler shutdown completed");
     }
 }

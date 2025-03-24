@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
@@ -47,10 +47,8 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             }
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
             LocalDateTime stopTime = timeValues.getCurrentTime();
             debug(String.format("Temporary stop time: %s", stopTime));
 
@@ -109,7 +107,7 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
             entry.setTemporaryStopCount(session.getTemporaryStopCount());
             entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
-            entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
+            entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
 
             // Save the updated entry
             context.getWorkTimeService().saveWorkTimeEntry(

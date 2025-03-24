@@ -85,26 +85,4 @@ public class ThymeleafService {
             throw new RuntimeException("Error processing template", e);
         }
     }
-
-    /**
-     * Simplified version that only processes the template with the model attributes
-     * This is useful for simple fragments that don't require Spring security or request context
-     */
-    public String processTemplateSimple(String templateName, Model model) {
-        try {
-            Context context = new Context();
-            model.asMap().forEach(context::setVariable);
-
-            // Add Spring Security context for sec:authorize tags
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null) {
-                context.setVariable("authentication", authentication);
-            }
-
-            return templateEngine.process(templateName, context);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error processing template " + templateName + ": " + e.getMessage(), e);
-            throw new RuntimeException("Error processing template", e);
-        }
-    }
 }

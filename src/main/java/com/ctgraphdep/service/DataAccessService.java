@@ -215,7 +215,7 @@ public class DataAccessService {
     public WorkUsersSessionsStates readNetworkSessionFile(String username, Integer userId) {
         try {
             Path networkPath = pathConfig.getNetworkSessionPath(username, userId);
-            return readNetwork(networkPath, new TypeReference<WorkUsersSessionsStates>() {
+            return readNetwork(networkPath, new TypeReference<>() {
             });
         } catch (RuntimeException e) {
             LoggerUtil.error(this.getClass(), String.format("Error reading network session for user status %s: %s", username, e.getMessage()));
@@ -437,7 +437,7 @@ public class DataAccessService {
             // Verify username matches the operating user
             if (username.equals(operatingUsername)) {
                 Path localPath = pathConfig.getLocalWorktimePath(username, year, month);
-                return readLocal(localPath, new TypeReference<List<WorkTimeTable>>() {
+                return readLocal(localPath, new TypeReference<>() {
                 });
             } else {
                 throw new SecurityException("Username mismatch with operating user");
@@ -785,6 +785,109 @@ public class DataAccessService {
         return allEntries;
     }
 
+    /**
+     * Read a time off tracker file for a user for a specific year
+     */
+    public TimeOffTracker readTimeOffTracker(String username, Integer userId, int year) {
+        try {
+            Path localPath = pathConfig.getLocalTimeOffTrackerPath(username, userId, year);
+
+            // First try to read from local file
+            if (Files.exists(localPath)) {
+                try {
+                    return readLocal(localPath, new TypeReference<>() {});
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(),
+                            String.format("Error reading local tracker file for %s (%d): %s",
+                                    username, year, e.getMessage()));
+                }
+            }
+
+            // If network is available, try to read from network
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkPath = pathConfig.getNetworkTimeOffTrackerPath(username, userId, year);
+                if (Files.exists(networkPath)) {
+                    try {
+                        TimeOffTracker tracker = readNetwork(networkPath, new TypeReference<>() {});
+                        if (tracker != null) {
+                            // Save to local for future use
+                            writeTimeOffTracker(tracker, year);
+                            return tracker;
+                        }
+                    } catch (Exception e) {
+                        LoggerUtil.error(this.getClass(),
+                                String.format("Error reading network tracker file for %s (%d): %s",
+                                        username, year, e.getMessage()));
+                    }
+                }
+            }
+
+            // Return null if no file exists
+            return null;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading time off tracker for %s (%d): %s",
+                            username, year, e.getMessage()));
+            return null;
+        }
+    }
+
+    /**
+     * Write a time off tracker file for a user for a specific year
+     */
+    public void writeTimeOffTracker(TimeOffTracker tracker, int year) {
+        if (tracker == null || tracker.getUsername() == null) {
+            LoggerUtil.error(this.getClass(), "Cannot save null tracker or tracker without username");
+            return;
+        }
+
+        try {
+            // First save locally
+            Path localPath = pathConfig.getLocalTimeOffTrackerPath(tracker.getUsername(), tracker.getUserId(), year);
+            Files.createDirectories(localPath.getParent());
+            writeLocal(localPath, tracker);
+
+            // Then save to network if available
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkPath = pathConfig.getNetworkTimeOffTrackerPath(tracker.getUsername(), tracker.getUserId(), year);
+                Files.createDirectories(networkPath.getParent());
+                fileSyncService.syncToNetwork(localPath, networkPath);
+            }
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Saved time off tracker for %s (%d) with %d requests",
+                            tracker.getUsername(), year, tracker.getRequests().size()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error saving time off tracker for %s (%d): %s",
+                            tracker.getUsername(), year, e.getMessage()));
+        }
+    }
+
+    /**
+     * Read a time off tracker in read-only mode
+     */
+    public TimeOffTracker readTimeOffTrackerReadOnly(String username, Integer userId, int year) {
+        try {
+            // Try network first if available
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkPath = pathConfig.getNetworkTimeOffTrackerPath(username, userId, year);
+                TimeOffTracker tracker = readFileReadOnly(networkPath, new TypeReference<TimeOffTracker>() {});
+                if (tracker != null) {
+                    return tracker;
+                }
+            }
+
+            // Fall back to local file
+            Path localPath = pathConfig.getLocalTimeOffTrackerPath(username, userId, year);
+            return readFileReadOnly(localPath, new TypeReference<TimeOffTracker>() {});
+        } catch (Exception e) {
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Read-only time-off tracker access failed for %s (%d): %s",
+                            username, year, e.getMessage()));
+            return null;
+        }
+    }
 
     // Writes a user status record to its dedicated status file.
     public void writeUserStatus(String username, Integer userId, UserStatusRecord statusRecord) {

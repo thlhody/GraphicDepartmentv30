@@ -1,16 +1,18 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
 <body>
-<div th:fragment="statusIndicator" class="status-indicator" th:if="${workTimeSyncService != null and #authorization.expression('isAuthenticated()')}">
+<div th:fragment="statusIndicator" class="status-indicator"
+     th:if="${workTimeSyncService != null and #authorization.expression('isAuthenticated()')}">
     <div class="status-container">
         <div class="status-item">
             <span class="status-label">Network:</span>
-            <span class="status-dot" th:classappend="${workTimeSyncService.network ? 'status-green' : 'status-red'}"></span>
+            <span class="status-dot"
+                  th:classappend="${workTimeSyncService.network ? 'status-green' : 'status-red'}"></span>
         </div>
         <div class="status-item">
             <span class="status-label">Local:</span>
-            <span class="status-dot" th:classappend="${workTimeSyncService.local ? 'status-green' : 'status-red'}"></span>
+            <span class="status-dot"
+                  th:classappend="${workTimeSyncService.local ? 'status-green' : 'status-red'}"></span>
         </div>
     </div>
     <div class="alert alert-danger alert-dismissible fade show"

@@ -5,6 +5,7 @@ import com.ctgraphdep.model.dashboard.DashboardConfiguration;
 import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,12 +20,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class AdminDashboardController extends BaseDashboardController {
 
     @Autowired
-    public AdminDashboardController(UserService userService, DashboardService dashboardService,
-            @Qualifier("adminDashboardConfig") DashboardConfiguration adminDashboardConfig,
-            PermissionFilterService permissionFilterService) {
-        super(userService, dashboardService, adminDashboardConfig, permissionFilterService);
+    public AdminDashboardController(UserService userService,
+                                    DashboardService dashboardService,
+                                    @Qualifier("adminDashboardConfig") DashboardConfiguration adminDashboardConfig,
+                                    PermissionFilterService permissionFilterService,
+                                    TimeValidationService timeValidationService) {
+        super(userService, dashboardService, adminDashboardConfig, permissionFilterService, timeValidationService);
     }
-
     @GetMapping
     public String dashboard(Model model) {
         return renderDashboard(model);

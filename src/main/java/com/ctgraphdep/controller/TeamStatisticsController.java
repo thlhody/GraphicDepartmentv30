@@ -3,10 +3,11 @@ package com.ctgraphdep.controller;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.team.TeamMember;
-import com.ctgraphdep.service.FolderStatusService;
+import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.TeamStatisticsService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,7 +16,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,11 +27,11 @@ public class TeamStatisticsController extends BaseController {
 
     public TeamStatisticsController(
             UserService userService,
-            FolderStatusService folderStatusService,
-            TeamStatisticsService teamStatisticsService) {
-        super(userService, folderStatusService);
+            FolderStatus folderStatus,
+            TeamStatisticsService teamStatisticsService,
+            TimeValidationService timeValidationService) {
+        super(userService, folderStatus, timeValidationService);
         this.teamStatisticsService = teamStatisticsService;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
@@ -41,28 +41,33 @@ public class TeamStatisticsController extends BaseController {
             @RequestParam(required = false) Integer month,
             Model model) {
         try {
-            User teamLead = getUser(userDetails);
-            if (teamLead == null) {
-                return "redirect:/login";
+            // Check if user has team leader role
+            String accessCheck = checkUserAccess(userDetails, "TEAM_LEADER");
+            if (accessCheck != null) {
+                return accessCheck;
             }
 
-            // Set default year and month if not provided
-            LocalDate now = LocalDate.now();
-            year = year != null ? year : now.getYear();
-            month = month != null ? month : now.getMonthValue();
+            User teamLead = getUser(userDetails);
+
+            // Use determineYear and determineMonth methods from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
             // Get all non-admin users for selection
-            List<User> availableUsers = getUserService().getAllUsers().stream().filter(user -> !user.isAdmin()).collect(Collectors.toList()); // Only filter out admins
+            List<User> availableUsers = getUserService().getAllUsers().stream()
+                    .filter(user -> !user.isAdmin())
+                    .collect(Collectors.toList());
 
             // Load existing team members if any
-            List<TeamMember> teamMembers = teamStatisticsService.getTeamMembers(teamLead.getUsername(), year, month);
+            List<TeamMember> teamMembers = teamStatisticsService.getTeamMembers(
+                    teamLead.getUsername(), selectedYear, selectedMonth);
 
             // Add data to model
             model.addAttribute("teamLead", teamLead);
             model.addAttribute("availableUsers", availableUsers);
             model.addAttribute("teamMembers", teamMembers);
-            model.addAttribute("currentYear", year);
-            model.addAttribute("currentMonth", month);
+            model.addAttribute("currentYear", selectedYear);
+            model.addAttribute("currentMonth", selectedMonth);
             model.addAttribute("dashboardUrl", "/team-lead");
 
             return "user/team-stats";
@@ -83,10 +88,13 @@ public class TeamStatisticsController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            User teamLead = getUser(userDetails);
-            if (teamLead == null) {
-                return "redirect:/login";
+            // Check if user has team leader role
+            String accessCheck = checkUserAccess(userDetails, "TEAM_LEADER");
+            if (accessCheck != null) {
+                return accessCheck;
             }
+
+            User teamLead = getUser(userDetails);
 
             teamStatisticsService.initializeTeamMembers(selectedUsers, teamLead.getUsername(), year, month);
             redirectAttributes.addFlashAttribute("successMessage", "Team members initialized successfully");
@@ -107,10 +115,13 @@ public class TeamStatisticsController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            User teamLead = getUser(userDetails);
-            if (teamLead == null) {
-                return "redirect:/login";
+            // Check if user has team leader role
+            String accessCheck = checkUserAccess(userDetails, "TEAM_LEADER");
+            if (accessCheck != null) {
+                return accessCheck;
             }
+
+            User teamLead = getUser(userDetails);
 
             teamStatisticsService.updateTeamStatistics(teamLead.getUsername(), year, month);
             redirectAttributes.addFlashAttribute("successMessage", "Team statistics updated successfully");

@@ -2,7 +2,6 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.PaidHolidayEntry;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
@@ -27,8 +26,7 @@ public class HolidayManagementService {
         holidayLock.lock();
         try {
             dataAccess.writeHolidayEntries(entries);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved holiday list with %d entries", entries.size()));
+            LoggerUtil.info(this.getClass(), String.format("Saved holiday list with %d entries", entries.size()));
         } finally {
             holidayLock.unlock();
         }
@@ -46,9 +44,7 @@ public class HolidayManagementService {
                     .ifPresent(entry -> {
                         entry.setPaidHolidayDays(days);
                         saveHolidayList(entries);
-                        LoggerUtil.info(this.getClass(),
-                                String.format("Updated holiday days for user %d to %d days",
-                                        userId, days));
+                        LoggerUtil.info(this.getClass(), String.format("Updated holiday days for user %d to %d days", userId, days));
                     });
         } finally {
             holidayLock.unlock();
@@ -85,8 +81,7 @@ public class HolidayManagementService {
                     entry.setPaidHolidayDays(remainingDays - daysToUse);
                     dataAccess.writeHolidayEntries(entries);
 
-                    LoggerUtil.info(this.getClass(),
-                            String.format("User %s used %d holiday days", username, daysToUse));
+                    LoggerUtil.info(this.getClass(), String.format("User %s used %d holiday days", username, daysToUse));
                     return true;
                 }
             }
@@ -102,8 +97,7 @@ public class HolidayManagementService {
             List<PaidHolidayEntry> entries = dataAccess.readHolidayEntries();
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error reading holiday list: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error reading holiday list: " + e.getMessage());
             return new ArrayList<>();
         }
     }

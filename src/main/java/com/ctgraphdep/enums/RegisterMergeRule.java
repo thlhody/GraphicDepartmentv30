@@ -11,25 +11,25 @@ public enum RegisterMergeRule {
     NEW_USER_ENTRY((user, admin) -> admin == null,
             (user, admin) -> user),
 
-    USER_ACCEPTS_ADMIN((user, admin) -> admin.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name())
-            && user.getAdminSync().equals(SyncStatus.USER_DONE.name())
+    USER_ACCEPTS_ADMIN((user, admin) -> admin.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name())
+            && user.getAdminSync().equals(SyncStatusWorktime.USER_DONE.name())
             && entriesAreEqual(user, admin),
             (user, admin) -> {
-                admin.setAdminSync(SyncStatus.USER_DONE.name());
+                admin.setAdminSync(SyncStatusWorktime.USER_DONE.name());
                 return admin;
             }),
 
-    ADMIN_MODIFIED_USER_DONE((user, admin) -> user.getAdminSync().equals(SyncStatus.USER_DONE.name())
+    ADMIN_MODIFIED_USER_DONE((user, admin) -> user.getAdminSync().equals(SyncStatusWorktime.USER_DONE.name())
             && !entriesAreEqual(user, admin),
             (user, admin) -> {
-                admin.setAdminSync(SyncStatus.ADMIN_EDITED.name());
+                admin.setAdminSync(SyncStatusWorktime.ADMIN_EDITED.name());
                 return admin;
             }),
 
-    ADMIN_EDITED((user, admin) -> admin.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name()),
+    ADMIN_EDITED((user, admin) -> admin.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name()),
             (user, admin) -> admin),
 
-    USER_INPUT((user, admin) -> user.getAdminSync().equals(SyncStatus.USER_INPUT.name()),
+    USER_INPUT((user, admin) -> user.getAdminSync().equals(SyncStatusWorktime.USER_INPUT.name()),
             (user, admin) -> user),
 
     DEFAULT((user, admin) -> true, (user, admin) -> user);

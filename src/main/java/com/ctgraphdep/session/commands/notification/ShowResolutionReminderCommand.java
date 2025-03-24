@@ -81,7 +81,7 @@ public class ShowResolutionReminderCommand extends BaseNotificationCommand<Boole
                     false,
                     null,
                     (DialogComponents components, String u, Integer id, Integer minutes) ->
-                            ctx.getNotificationService().addStandardButtons(components, u, id, minutes, false),
+                            ctx.getNotificationService().addResolutionButtons(components),
                     TrayIcon.MessageType.INFO
             );
         });

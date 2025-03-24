@@ -1,10 +1,10 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.TimeOffSummary;
+import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,22 +15,35 @@ import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Service for managing user time off requests.
+ * This service orchestrates both worktime files and the time off tracker.
+ */
 @Service
 public class UserTimeOffService {
     private final DataAccessService dataAccessService;
     private final HolidayManagementService holidayService;
     private final UserWorkTimeService userWorkTimeService;
     private final UserService userService;
+    private final TimeOffTrackerService timeOffTrackerService;
 
-    public UserTimeOffService(DataAccessService dataAccessService, HolidayManagementService holidayService,
-                              UserWorkTimeService userWorkTimeService, UserService userService) {
+    public UserTimeOffService(DataAccessService dataAccessService,
+                              HolidayManagementService holidayService,
+                              UserWorkTimeService userWorkTimeService,
+                              UserService userService,
+                              TimeOffTrackerService timeOffTrackerService) {
         this.dataAccessService = dataAccessService;
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
         this.userService = userService;
+        this.timeOffTrackerService = timeOffTrackerService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    /**
+     * Process a time-off request for a user.
+     * Creates individual time-off entries for each eligible day.
+     */
     @Transactional
     public void processTimeOffRequest(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
         LoggerUtil.info(this.getClass(),
@@ -39,59 +52,204 @@ public class UserTimeOffService {
 
         validateTimeOffRequest(startDate, endDate, timeOffType);
 
-        // Calculate eligible workdays (excluding weekends, holidays, and existing time off)
-        int workDays = calculateEligibleDays(user.getUserId(), startDate, endDate);
+        // Get a list of all eligible days (excluding weekends, holidays, and existing time off)
+        List<LocalDate> eligibleDays = getEligibleDays(user.getUserId(), startDate, endDate);
 
-        // Verify and process CO requests
-        if ("CO".equals(timeOffType)) {
-            processCoRequest(user, workDays);
+        if (eligibleDays.isEmpty()) {
+            throw new IllegalArgumentException("No eligible days found in the selected date range");
         }
 
-        // Create and save time off entries
-        List<WorkTimeTable> entries = createTimeOffEntries(user, startDate, endDate, timeOffType);
+        // Step 1: Create and save time off entries in worktime files
+        List<WorkTimeTable> entries = createTimeOffEntries(user, eligibleDays, timeOffType);
         saveTimeOffEntries(user.getUsername(), entries);
 
+        // Step 2: Update the tracker (which also updates the holiday balance)
+        timeOffTrackerService.addTimeOffRequests(user, eligibleDays, timeOffType);
+
         LoggerUtil.info(this.getClass(),
-                String.format("Processed %d time off entries for user %s", entries.size(), user.getUsername()));
+                String.format("Processed %d time off entries for user %s",
+                        entries.size(), user.getUsername()));
     }
 
-    // Gets all-time off records for a specific user for the entire year
+    /**
+     * Sync the time off tracker with worktime files for a given year
+     */
+    public void syncTimeOffTracker(User user, int year) {
+        try {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Syncing time off tracker for user %s (year %d)",
+                            user.getUsername(), year));
 
-    public List<WorkTimeTable> getUserTimeOffHistory(String username, Integer year) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Fetching time off history for user %s for year %d", username, year));
+            // Get all time off entries from worktime files
+            List<WorkTimeTable> allTimeOffEntries = loadAllTimeOffEntries(user.getUsername(), year);
 
-        List<WorkTimeTable> allEntries = new ArrayList<>();
+            // Pass these entries to the tracker service for syncing
+            timeOffTrackerService.syncWithWorktimeFiles(user, year, allTimeOffEntries);
 
-        // Load entries for all months in the specified year
-        for (int month = 1; month <= 12; month++) {
-            try {
-                List<WorkTimeTable> monthEntries = userWorkTimeService.loadMonthWorktime(username, year, month);
-                if (monthEntries != null) {
-                    allEntries.addAll(monthEntries);
-                }
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Error loading entries for %s - %d/%d: %s",
-                                username, year, month, e.getMessage()));
-                // Continue with next month even if one fails
-            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error syncing time off tracker for user %s (year %d): %s",
+                            user.getUsername(), year, e.getMessage()));
         }
+    }
 
-        // Filter only time off entries (where timeOffType is not null)
-        return allEntries.stream()
-                .filter(entry -> entry.getTimeOffType() != null)
-                .sorted((a, b) -> b.getWorkDate().compareTo(a.getWorkDate())) // Sort descending by date
+    /**
+     * Gets time-off entries for the entire year using read-only operations.
+     * More efficient than getUserTimeOffHistory for display purposes.
+     */
+    public List<WorkTimeTable> getUserTimeOffHistoryReadOnly(String username, int year) {
+        LoggerUtil.info(this.getClass(),
+                String.format("Fetching time off history for user %s for year %d (read-only)",
+                        username, year));
+
+        // Use read-only method from DataAccessService to get all worktime entries
+        List<WorkTimeTable> timeOffEntries = dataAccessService.readTimeOffReadOnly(username, year);
+
+        // Sort descending by date
+        return timeOffEntries.stream()
+                .sorted((a, b) -> b.getWorkDate().compareTo(a.getWorkDate()))
                 .collect(Collectors.toList());
     }
 
-    public TimeOffSummary calculateTimeOffSummary(String username, Integer year) {
-        List<WorkTimeTable> timeOffEntries = getUserTimeOffHistory(username, year);
+    /**
+     * Gets upcoming time-off entries for a user.
+     * Uses the tracker to determine upcoming days and converts them to WorkTimeTable entries.
+     */
+    public List<WorkTimeTable> getUpcomingTimeOff(User user) {
+        // Get tracker requests
+        List<TimeOffTracker.TimeOffRequest> upcomingRequests =
+                timeOffTrackerService.getUpcomingTimeOffRequests(user);
 
-        // Count different time off types
+        // Convert to WorkTimeTable entries for compatibility with existing UI
+        List<WorkTimeTable> result = new ArrayList<>();
+
+        for (TimeOffTracker.TimeOffRequest request : upcomingRequests) {
+            WorkTimeTable entry = new WorkTimeTable();
+            entry.setUserId(user.getUserId());
+            entry.setWorkDate(request.getDate());
+            entry.setTimeOffType(request.getTimeOffType());
+            entry.setAdminSync(SyncStatusWorktime.USER_INPUT);
+
+            // Reset work-related fields
+            resetWorkFields(entry);
+
+            result.add(entry);
+        }
+
+        // Sort by date
+        return result.stream()
+                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Calculate time-off summary using read-only operations.
+     * More efficient than calculateTimeOffSummary for display purposes.
+     */
+    public TimeOffSummary calculateTimeOffSummaryReadOnly(String username, int year) {
+        // First try to get user information
+        Optional<User> userOpt = userService.getUserByUsername(username);
+        if (userOpt.isEmpty()) {
+            LoggerUtil.warn(this.getClass(), "User not found for summary calculation: " + username);
+            return createDefaultSummary();
+        }
+
+        User user = userOpt.get();
+
+        try {
+            // Try to get from tracker first (most accurate)
+            TimeOffTracker tracker = dataAccessService.readTimeOffTracker(username, user.getUserId(), year);
+
+            if (tracker != null) {
+                // Count by type from approved requests
+                int snDays = 0, coDays = 0, cmDays = 0;
+
+                for (TimeOffTracker.TimeOffRequest request : tracker.getRequests()) {
+                    if (!"APPROVED".equals(request.getStatus())) {
+                        continue;
+                    }
+
+                    switch (request.getTimeOffType()) {
+                        case "SN" -> snDays++;
+                        case "CO" -> coDays++;
+                        case "CM" -> cmDays++;
+                    }
+                }
+
+                int availablePaidDays = tracker.getAvailableHolidayDays();
+                int usedPaidDays = tracker.getUsedHolidayDays();
+
+                return TimeOffSummary.builder()
+                        .snDays(snDays)
+                        .coDays(coDays)
+                        .cmDays(cmDays)
+                        .availablePaidDays(availablePaidDays + usedPaidDays)
+                        .paidDaysTaken(usedPaidDays)
+                        .remainingPaidDays(availablePaidDays)
+                        .build();
+            }
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(),
+                    String.format("Error reading tracker, falling back to worktime files: %s",
+                            e.getMessage()));
+        }
+
+        // Fallback to worktime files if tracker not available
+        List<WorkTimeTable> timeOffEntries = getUserTimeOffHistoryReadOnly(username, year);
+        TimeOffTypeCounts counts = countTimeOffTypes(timeOffEntries);
+
+        int availablePaidDays;
+        int remainingPaidDays = 0;
+
+        try {
+            // Get available paid days from holiday service
+            availablePaidDays = holidayService.getRemainingHolidayDays(username, user.getUserId());
+
+            // For historical years, just show the used days
+            if (year < Year.now().getValue()) {
+                availablePaidDays = counts.coDays;
+            } else {
+                // For current year, use the actual remaining days
+                remainingPaidDays = Math.max(0, availablePaidDays - counts.coDays);
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error getting paid holiday days for %s: %s",
+                            username, e.getMessage()));
+            availablePaidDays = counts.coDays;
+        }
+
+        return TimeOffSummary.builder()
+                .snDays(counts.snDays)
+                .coDays(counts.coDays)
+                .cmDays(counts.cmDays)
+                .availablePaidDays(availablePaidDays)
+                .paidDaysTaken(counts.coDays)
+                .remainingPaidDays(remainingPaidDays)
+                .build();
+    }
+
+    /**
+     * Creates a default summary with zeroed values
+     */
+    private TimeOffSummary createDefaultSummary() {
+        return TimeOffSummary.builder()
+                .snDays(0)
+                .coDays(0)
+                .cmDays(0)
+                .availablePaidDays(21)
+                .paidDaysTaken(0)
+                .remainingPaidDays(21)
+                .build();
+    }
+
+    /**
+     * Count the number of days of each time-off type in a list of entries.
+     */
+    private TimeOffTypeCounts countTimeOffTypes(List<WorkTimeTable> entries) {
         int snDays = 0, coDays = 0, cmDays = 0;
 
-        for (WorkTimeTable entry : timeOffEntries) {
+        for (WorkTimeTable entry : entries) {
             if (entry.getTimeOffType() != null) {
                 switch (entry.getTimeOffType()) {
                     case "SN" -> snDays++;
@@ -101,57 +259,12 @@ public class UserTimeOffService {
             }
         }
 
-        // Get available paid days and calculate remaining days
-        int availablePaidDays;
-        int remainingPaidDays;
-
-        try {
-            // Get the user ID from username
-            Optional<User> userOpt = userService.getUserByUsername(username);
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
-                availablePaidDays = holidayService.getRemainingHolidayDays(username, user.getUserId());
-
-                // For historical years, just show the used days
-                if (year < Year.now().getValue()) {
-                    // For past years, the remaining days would be total - used
-                    // Since we don't know the original allocation, just set the remaining to 0
-                    // and available to the used amount for display purposes
-                    remainingPaidDays = 0;
-                    availablePaidDays = coDays;
-                } else {
-                    // For current year, use the actual remaining days
-                    remainingPaidDays = availablePaidDays - coDays;
-                    if (remainingPaidDays < 0) {
-                        remainingPaidDays = 0;
-                    }
-                }
-            } else {
-                // If user not found, default values
-                availablePaidDays = coDays;
-                remainingPaidDays = 0;
-                LoggerUtil.warn(this.getClass(), "User not found for username: " + username);
-            }
-        } catch (Exception e) {
-            // Handle errors in fetching holiday data
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error getting paid holiday days for %s: %s",
-                            username, e.getMessage()));
-            availablePaidDays = coDays;
-            remainingPaidDays = 0;
-        }
-
-        // Build and return the summary
-        return TimeOffSummary.builder()
-                .snDays(snDays)
-                .coDays(coDays)
-                .cmDays(cmDays)
-                .availablePaidDays(availablePaidDays)
-                .paidDaysTaken(coDays)
-                .remainingPaidDays(remainingPaidDays)
-                .build();
+        return new TimeOffTypeCounts(snDays, coDays, cmDays);
     }
 
+    /**
+     * Validate a time-off request.
+     */
     private void validateTimeOffRequest(LocalDate startDate, LocalDate endDate, String timeOffType) {
         if (startDate == null || endDate == null) {
             throw new IllegalArgumentException("Start and end dates cannot be null");
@@ -164,13 +277,16 @@ public class UserTimeOffService {
         }
     }
 
-    private int calculateEligibleDays(Integer userId, LocalDate startDate, LocalDate endDate) {
-        int eligibleDays = 0;
+    /**
+     * Get a list of eligible days for time off in a date range.
+     */
+    private List<LocalDate> getEligibleDays(Integer userId, LocalDate startDate, LocalDate endDate) {
+        List<LocalDate> eligibleDays = new ArrayList<>();
         LocalDate currentDate = startDate;
 
         while (!currentDate.isAfter(endDate)) {
             if (isEligibleForTimeOff(userId, currentDate)) {
-                eligibleDays++;
+                eligibleDays.add(currentDate);
             }
             currentDate = currentDate.plusDays(1);
         }
@@ -178,6 +294,9 @@ public class UserTimeOffService {
         return eligibleDays;
     }
 
+    /**
+     * Check if a specific date is eligible for time-off.
+     */
     private boolean isEligibleForTimeOff(Integer userId, LocalDate date) {
         // Skip weekends
         if (date.getDayOfWeek().getValue() >= 6) {
@@ -193,37 +312,102 @@ public class UserTimeOffService {
         WorkTimeTable existingEntry = getExistingEntry(userId, date);
         if (existingEntry != null) {
             // Cannot add time off if there's already a non-ADMIN_BLANK entry
-            return SyncStatus.ADMIN_BLANK.equals(existingEntry.getAdminSync());
+            return SyncStatusWorktime.ADMIN_BLANK.equals(existingEntry.getAdminSync());
         }
 
         return true;
     }
 
-    private void processCoRequest(User user, int workDays) {
-        boolean success = holidayService.useHolidayDays(user.getUsername(), user.getUserId(), workDays);
-        if (!success) {
-            throw new RuntimeException("Failed to deduct holiday days from balance");
+    /**
+     * Load all time off entries from worktime files for a specific year
+     */
+    private List<WorkTimeTable> loadAllTimeOffEntries(String username, int year) {
+        List<WorkTimeTable> allTimeOffEntries = new ArrayList<>();
+
+        // Get current date to determine which months to process
+        LocalDate currentDate = LocalDate.now();
+        int currentYear = currentDate.getYear();
+        int currentMonth = currentDate.getMonthValue();
+
+        // Process each month in the year
+        for (int month = 1; month <= 12; month++) {
+            // Skip future months (except current month)
+            if (year > currentYear || (year == currentYear && month > currentMonth)) {
+                continue;
+            }
+
+            try {
+                // Load worktime entries for the month
+                List<WorkTimeTable> entries = userWorkTimeService.loadMonthWorktime(username, year, month);
+
+                if (entries != null) {
+                    // Filter for time off entries only
+                    List<WorkTimeTable> timeOffEntries = entries.stream()
+                            .filter(entry -> entry.getTimeOffType() != null)
+                            .toList();
+
+                    allTimeOffEntries.addAll(timeOffEntries);
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Error loading worktime for %s - %d/%d: %s",
+                                username, year, month, e.getMessage()));
+            }
         }
-        LoggerUtil.info(this.getClass(),
-                String.format("Deducted %d paid holiday days for user %s", workDays, user.getUsername()));
+
+        return allTimeOffEntries;
     }
 
-    private List<WorkTimeTable> createTimeOffEntries(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
+    /**
+     * Create time-off entries for the provided eligible days.
+     */
+    private List<WorkTimeTable> createTimeOffEntries(User user, List<LocalDate> eligibleDays, String timeOffType) {
         List<WorkTimeTable> entries = new ArrayList<>();
-        LocalDate currentDate = startDate;
 
-        while (!currentDate.isAfter(endDate)) {
-            if (isEligibleForTimeOff(user.getUserId(), currentDate)) {
-                WorkTimeTable existingEntry = getExistingEntry(user.getUserId(), currentDate);
-                WorkTimeTable entry = createTimeOffEntry(user, currentDate, timeOffType, existingEntry);
-                entries.add(entry);
-            }
-            currentDate = currentDate.plusDays(1);
+        for (LocalDate date : eligibleDays) {
+            WorkTimeTable existingEntry = getExistingEntry(user.getUserId(), date);
+            WorkTimeTable entry = createTimeOffEntry(user, date, timeOffType, existingEntry);
+            entries.add(entry);
         }
 
         return entries;
     }
 
+    /**
+     * Get an existing entry for a specific date.
+     */
+    private WorkTimeTable getExistingEntry(Integer userId, LocalDate date) {
+        try {
+            // First get username from userId
+            Optional<User> userOpt = userService.getUserById(userId);
+            if (userOpt.isEmpty()) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("User not found for ID: %d when checking existing entry", userId));
+                return null;
+            }
+
+            String username = userOpt.get().getUsername();
+            YearMonth yearMonth = YearMonth.from(date);
+
+            // Now use the username instead of the userId as string
+            List<WorkTimeTable> existingEntries = loadMonthEntries(
+                    username, yearMonth.getYear(), yearMonth.getMonthValue());
+
+            return existingEntries.stream()
+                    .filter(entry -> entry.getWorkDate().equals(date))
+                    .findFirst()
+                    .orElse(null);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error getting existing entry for user ID %d on date %s: %s",
+                            userId, date, e.getMessage()));
+            return null;
+        }
+    }
+
+    /**
+     * Create a single time-off entry.
+     */
     private WorkTimeTable createTimeOffEntry(User user, LocalDate date, String timeOffType, WorkTimeTable existingEntry) {
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(user.getUserId());
@@ -231,33 +415,41 @@ public class UserTimeOffService {
         entry.setTimeOffType(timeOffType);
 
         // Set appropriate status based on existing entry
-        if (existingEntry != null && SyncStatus.ADMIN_BLANK.equals(existingEntry.getAdminSync())) {
-            entry.setAdminSync(SyncStatus.USER_EDITED); // New entry over ADMIN_BLANK
+        if (existingEntry != null && SyncStatusWorktime.ADMIN_BLANK.equals(existingEntry.getAdminSync())) {
+            entry.setAdminSync(SyncStatusWorktime.USER_EDITED); // New entry over ADMIN_BLANK
         } else {
-            entry.setAdminSync(SyncStatus.USER_INPUT); // Normal new entry
+            entry.setAdminSync(SyncStatusWorktime.USER_INPUT); // Normal new entry
         }
 
         resetWorkFields(entry);
         return entry;
     }
 
-    private WorkTimeTable getExistingEntry(Integer userId, LocalDate date) {
-        YearMonth yearMonth = YearMonth.from(date);
-        List<WorkTimeTable> existingEntries = loadMonthEntries(String.valueOf(userId), yearMonth.getYear(), yearMonth.getMonthValue());
-
-        return existingEntries.stream()
-                .filter(entry -> entry.getWorkDate().equals(date))
-                .findFirst()
-                .orElse(null);
+    /**
+     * Reset work-related fields for a time-off entry.
+     */
+    private void resetWorkFields(WorkTimeTable entry) {
+        entry.setDayStartTime(null);
+        entry.setDayEndTime(null);
+        entry.setTemporaryStopCount(0);
+        entry.setLunchBreakDeducted(false);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
     }
 
+    /**
+     * Save time-off entries, handling month boundaries correctly.
+     */
     private void saveTimeOffEntries(String username, List<WorkTimeTable> newEntries) {
         // Group entries by month for processing
         Map<YearMonth, List<WorkTimeTable>> entriesByMonth = newEntries.stream()
                 .collect(Collectors.groupingBy(entry -> YearMonth.from(entry.getWorkDate())));
 
         entriesByMonth.forEach((yearMonth, monthEntries) -> {
-            List<WorkTimeTable> existingEntries = loadMonthEntries(username, yearMonth.getYear(), yearMonth.getMonthValue());
+            // Get existing entries for this month
+            List<WorkTimeTable> existingEntries = loadMonthEntries(
+                    username, yearMonth.getYear(), yearMonth.getMonthValue());
 
             // Create a map of new entries by date
             Map<LocalDate, WorkTimeTable> newEntriesMap = monthEntries.stream()
@@ -279,16 +471,20 @@ public class UserTimeOffService {
         });
     }
 
+
+    /**
+     * Determine if an existing entry should be replaced by a new one.
+     */
     private boolean shouldReplaceEntry(WorkTimeTable existing, WorkTimeTable newEntry) {
         if (newEntry == null) return false;
 
         // Always replace ADMIN_BLANK entries
-        if (SyncStatus.ADMIN_BLANK.equals(existing.getAdminSync())) {
+        if (SyncStatusWorktime.ADMIN_BLANK.equals(existing.getAdminSync())) {
             return true;
         }
 
         // Don't replace USER_EDITED entries
-        if (SyncStatus.USER_EDITED.equals(existing.getAdminSync())) {
+        if (SyncStatusWorktime.USER_EDITED.equals(existing.getAdminSync())) {
             return false;
         }
 
@@ -296,22 +492,15 @@ public class UserTimeOffService {
         return existing.getWorkDate().equals(newEntry.getWorkDate());
     }
 
-    private void resetWorkFields(WorkTimeTable entry) {
-        entry.setDayStartTime(null);
-        entry.setDayEndTime(null);
-        entry.setTemporaryStopCount(0);
-        entry.setLunchBreakDeducted(false);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-    }
-
+    /**
+     * Load worktime entries for a specific month.
+     */
     private List<WorkTimeTable> loadMonthEntries(String username, int year, int month) {
         try {
-            // Read local worktime entries, isAdmin=false because this is user context
-            List<WorkTimeTable> entries = dataAccessService.readUserWorktime(username, year, month);
+            // Read worktime entries using UserWorkTimeService for proper merging of admin and user entries
+            List<WorkTimeTable> entries = userWorkTimeService.loadMonthWorktime(username, year, month);
 
-            // Handle null result from DataAccessService
+            // Handle null result
             if (entries == null) {
                 entries = new ArrayList<>();
             }
@@ -319,41 +508,18 @@ public class UserTimeOffService {
             return entries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading worktime entries for %s - %d/%d: %s",
-                            username, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading worktime entries for %s - %d/%d: %s", username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
-    public List<WorkTimeTable> getUpcomingTimeOff(User user) {
-        LocalDate today = LocalDate.now();
-        YearMonth currentMonth = YearMonth.now();
-        YearMonth nextMonth = currentMonth.plusMonths(1);
-
-        // Get entries for current and next month - with null checks
-        List<WorkTimeTable> currentMonthEntries = loadMonthEntries(user.getUsername(),
-                currentMonth.getYear(), currentMonth.getMonthValue());
-        List<WorkTimeTable> nextMonthEntries = loadMonthEntries(user.getUsername(),
-                nextMonth.getYear(), nextMonth.getMonthValue());
-
-        // Both lists are now guaranteed to not be null due to loadMonthEntries
-        List<WorkTimeTable> allEntries = new ArrayList<>();
-        allEntries.addAll(currentMonthEntries);
-        allEntries.addAll(nextMonthEntries);
-
-        return allEntries.stream()
-                .filter(entry -> entry.getTimeOffType() != null)  // Only time off entries
-                .filter(entry -> !entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE))  // Exclude national holidays
-                .filter(entry -> entry.getWorkDate().isAfter(today))  // Only future dates
-                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                .collect(Collectors.toList());
-    }
-
+    /**
+     * Save worktime entries for a specific month.
+     */
     private void saveMonthEntries(String username, int year, int month, List<WorkTimeTable> entries) {
         try {
-            // Write to local and sync to network using DataAccessService
-            dataAccessService.writeUserWorktime(username, entries, year, month);
+            // Use UserWorkTimeService to handle proper updates including admin entries
+            userWorkTimeService.saveWorkTimeEntries(username, entries);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Saved %d worktime entries for %s - %d/%d",
@@ -367,60 +533,9 @@ public class UserTimeOffService {
         }
     }
 
-    public List<WorkTimeTable> getUserTimeOffHistoryReadOnly(String username, Integer year) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Fetching time off history for user %s for year %d", username, year));
-
-        // Use read-only method from DataAccessService
-        return dataAccessService.readTimeOffReadOnly(username, year);
-    }
-
-    //Gets time off records for status display using optimized read-only operations
-    public List<WorkTimeTable> getUserTimeOffHistoryReadOnly(String username, int year) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Fetching time off history for user %s for year %d", username, year));
-
-        // Use read-only method from DataAccessService to get all worktime entries
-        List<WorkTimeTable> timeOffEntries = dataAccessService.readTimeOffReadOnly(username, year);
-
-        // Sort descending by date
-        return timeOffEntries.stream()
-                .sorted((a, b) -> b.getWorkDate().compareTo(a.getWorkDate()))
-                .collect(Collectors.toList());
-    }
-
-    // Calculate time off summary for status display using optimized read-only operations
-    public TimeOffSummary calculateTimeOffSummaryReadOnly(String username, int year) {
-        List<WorkTimeTable> timeOffEntries = getUserTimeOffHistoryReadOnly(username, year);
-
-        // Count different time off types
-        int snDays = 0, coDays = 0, cmDays = 0;
-
-        for (WorkTimeTable entry : timeOffEntries) {
-            if (entry.getTimeOffType() != null) {
-                switch (entry.getTimeOffType()) {
-                    case "SN" -> snDays++;
-                    case "CO" -> coDays++;
-                    case "CM" -> cmDays++;
-                }
-            }
-        }
-
-        // Get available paid days - use a simplified version without writing to holiday file
-        int availablePaidDays = 21;  // Default value
-        int remainingPaidDays = availablePaidDays - coDays;
-        if (remainingPaidDays < 0) {
-            remainingPaidDays = 0;
-        }
-
-        // Build and return the summary
-        return TimeOffSummary.builder()
-                .snDays(snDays)
-                .coDays(coDays)
-                .cmDays(cmDays)
-                .availablePaidDays(availablePaidDays)
-                .paidDaysTaken(coDays)
-                .remainingPaidDays(remainingPaidDays)
-                .build();
+    /**
+     * Helper class to hold time-off type counts.
+     */
+    private record TimeOffTypeCounts(int snDays, int coDays, int cmDays) {
     }
 }

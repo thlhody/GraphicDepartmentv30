@@ -22,8 +22,7 @@ public class FileBackupService {
             Files.copy(originalPath, backupPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             LoggerUtil.info(this.getClass(), "Created backup: " + backupPath);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Failed to create backup for %s: %s", originalPath, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Failed to create backup for %s: %s", originalPath, e.getMessage()));
             throw new RuntimeException("Backup creation failed", e);
         }
     }
@@ -39,8 +38,7 @@ public class FileBackupService {
             Files.copy(backupPath, originalPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             LoggerUtil.info(this.getClass(), "Restored from backup: " + originalPath);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Failed to restore from backup for %s: %s", originalPath, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Failed to restore from backup for %s: %s", originalPath, e.getMessage()));
             throw new RuntimeException("Backup restoration failed", e);
         }
     }
@@ -52,8 +50,7 @@ public class FileBackupService {
                 LoggerUtil.info(this.getClass(), "Deleted backup: " + backupPath);
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Failed to delete backup for %s: %s", originalPath, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Failed to delete backup for %s: %s", originalPath, e.getMessage()));
         }
     }
 

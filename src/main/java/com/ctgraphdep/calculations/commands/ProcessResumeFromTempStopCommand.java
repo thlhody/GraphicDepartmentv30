@@ -39,13 +39,11 @@ public class ProcessResumeFromTempStopCommand extends BaseCalculationCommand<Wor
         int totalStopMinutes = context.executeQuery(query);
 
         // Update session
-        SessionEntityBuilder.updateSession(session, builder -> {
-            builder.status(WorkCode.WORK_ONLINE)
-                    .currentStartTime(resumeTime)
-                    .totalTemporaryStopMinutes(totalStopMinutes)
-                    .finalWorkedMinutes(session.getTotalWorkedMinutes() != null ?
-                            session.getTotalWorkedMinutes() : 0);
-        });
+        SessionEntityBuilder.updateSession(session, builder -> builder.status(WorkCode.WORK_ONLINE)
+                .currentStartTime(resumeTime)
+                .totalTemporaryStopMinutes(totalStopMinutes)
+                .finalWorkedMinutes(session.getTotalWorkedMinutes() != null ?
+                        session.getTotalWorkedMinutes() : 0));
 
         return session;
     }

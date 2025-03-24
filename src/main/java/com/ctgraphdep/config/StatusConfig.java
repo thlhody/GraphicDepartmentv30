@@ -20,9 +20,7 @@ public class StatusConfig {
     private final UserService userService;
 
     @Autowired
-    public StatusConfig(
-            UserStatusDbService userStatusDbService,
-            UserService userService) {
+    public StatusConfig(UserStatusDbService userStatusDbService, UserService userService) {
         this.userStatusDbService = userStatusDbService;
         this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -50,16 +48,12 @@ public class StatusConfig {
                                 WorkCode.WORK_OFFLINE,
                                 null
                         );
-                        LoggerUtil.debug(this.getClass(),
-                                String.format("Created initial status for user: %s", user.getUsername()));
+                        LoggerUtil.debug(this.getClass(), String.format("Created initial status for user: %s", user.getUsername()));
                     } else {
-                        LoggerUtil.debug(this.getClass(),
-                                String.format("Status already exists for user: %s", user.getUsername()));
+                        LoggerUtil.debug(this.getClass(), String.format("Status already exists for user: %s", user.getUsername()));
                     }
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            String.format("Error initializing status for user %s: %s",
-                                    user.getUsername(), e.getMessage()));
+                    LoggerUtil.error(this.getClass(), String.format("Error initializing status for user %s: %s", user.getUsername(), e.getMessage()));
                 }
             });
 

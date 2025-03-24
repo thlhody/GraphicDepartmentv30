@@ -1,12 +1,10 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Team Statistics</title>
-    <link rel="stylesheet" th:href="@{/css/team-stats.css?v=123456788}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=123456788}">
+    <link rel="stylesheet" th:href="@{/css/team-stats.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -42,7 +40,8 @@
                         <select id="yearSelect" name="year" class="form-select form-select-sm" style="width: 72px;">
                             <option th:each="y : ${#numbers.sequence(2020, 2030)}"
                                     th:value="${y}" th:text="${y}"
-                                    th:selected="${y == currentYear}">2024</option>
+                                    th:selected="${y == currentYear}">2024
+                            </option>
                         </select>
                     </div>
                     <div class="btn-group">
@@ -70,7 +69,8 @@
                                 class="form-select select2-users" style="width: 100%;">
                             <option th:each="user : ${availableUsers}"
                                     th:value="${user.userId}"
-                                    th:text="${user.name}">User Name</option>
+                                    th:text="${user.name}">User Name
+                            </option>
                         </select>
                     </div>
                     <div class="d-flex gap-2">
@@ -120,43 +120,51 @@
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Processed Orders</span>
-                                <span class="fw-bold" th:text="${member.registerStats?.monthSummary?.processedOrders ?: 0}">0</span>
+                                <span class="fw-bold"
+                                      th:text="${member.registerStats?.monthSummary?.processedOrders ?: 0}">0</span>
                             </div>
                         </div>
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Unique Clients</span>
-                                <span class="fw-bold" th:text="${member.registerStats?.monthSummary?.uniqueClients ?: 0}">0</span>
+                                <span class="fw-bold"
+                                      th:text="${member.registerStats?.monthSummary?.uniqueClients ?: 0}">0</span>
                             </div>
                         </div>
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Work Days</span>
-                                <span class="fw-bold" th:text="${member.registerStats?.monthSummary?.totalWorkDays ?: 0}">0</span>
+                                <span class="fw-bold"
+                                      th:text="${member.registerStats?.monthSummary?.totalWorkDays ?: 0}">0</span>
                             </div>
                         </div>
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg Complexity</span>
-                                <span class="fw-bold" th:text="${#numbers.formatDecimal(member.registerStats?.monthSummary?.averageComplexity ?: 0, 1, 2)}">0.00</span>
+                                <span class="fw-bold"
+                                      th:text="${#numbers.formatDecimal(member.registerStats?.monthSummary?.averageComplexity ?: 0, 1, 2)}">0.00</span>
                             </div>
                         </div>
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg Articles</span>
-                                <span class="fw-bold" th:text="${#numbers.formatDecimal(member.registerStats?.monthSummary?.averageArticleNumbers ?: 0, 1, 2)}">0.00</span>
+                                <span class="fw-bold"
+                                      th:text="${#numbers.formatDecimal(member.registerStats?.monthSummary?.averageArticleNumbers ?: 0, 1, 2)}">0.00</span>
                             </div>
                         </div>
-                        <div class="col-md-4 col-lg-3" th:if="${member.currentMonthWorkStats?.averageStartTime != null}">
+                        <div class="col-md-4 col-lg-3"
+                             th:if="${member.currentMonthWorkStats?.averageStartTime != null}">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg Start Time</span>
-                                <span class="fw-bold" th:text="${#temporals.format(member.currentMonthWorkStats.averageStartTime, 'HH:mm')}">00:00</span>
+                                <span class="fw-bold"
+                                      th:text="${#temporals.format(member.currentMonthWorkStats.averageStartTime, 'HH:mm')}">00:00</span>
                             </div>
                         </div>
                         <div class="col-md-4 col-lg-3" th:if="${member.currentMonthWorkStats?.averageEndTime != null}">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg End Time</span>
-                                <span class="fw-bold" th:text="${#temporals.format(member.currentMonthWorkStats.averageEndTime, 'HH:mm')}">00:00</span>
+                                <span class="fw-bold"
+                                      th:text="${#temporals.format(member.currentMonthWorkStats.averageEndTime, 'HH:mm')}">00:00</span>
                             </div>
                         </div>
                         <!-- Time Off Types -->
@@ -190,7 +198,7 @@
                                 <thead class="bg-light">
                                 <tr>
                                     <th>Client</th>
-                                    <th>Orders</th>
+                                    <th>Actions</th>
                                     <th>Avg Complexity</th>
                                     <th>Avg Articles</th>
                                     <th>Action Types</th>
@@ -200,8 +208,11 @@
                                 <tr th:each="entry : ${member.registerStats?.clientSpecificStats}">
                                     <td th:text="${entry.key}">Client Name</td>
                                     <td th:text="${entry.value.totalOrders}">0</td>
-                                    <td th:text="${#numbers.formatDecimal(entry.value.averageComplexity, 1, 2)}">0.00</td>
-                                    <td th:text="${#numbers.formatDecimal(entry.value.averageArticleNumbers, 1, 2)}">0.00</td>
+                                    <td th:text="${#numbers.formatDecimal(entry.value.averageComplexity, 1, 2)}">0.00
+                                    </td>
+                                    <td th:text="${#numbers.formatDecimal(entry.value.averageArticleNumbers, 1, 2)}">
+                                        0.00
+                                    </td>
                                     <td>
                                             <span th:each="actionStat : ${entry.value.actionTypeStats}"
                                                   th:class="${'badge me-1 ' +
@@ -239,7 +250,7 @@
 </div>
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/team-stats.js?v=123456788}"></script>
+    <script th:src="@{/js/team-stats.js?v=18781}"></script>
 </th:block>
 </body>
 </html>

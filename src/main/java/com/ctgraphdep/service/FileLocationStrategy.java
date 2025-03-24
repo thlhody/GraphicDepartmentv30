@@ -23,10 +23,7 @@ public class FileLocationStrategy {
         forcedLocalMode.set(forced);
 
         if (previous != forced) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Forced local mode changed from %s to %s",
-                            previous, forced));
+            LoggerUtil.info(this.getClass(), String.format("Forced local mode changed from %s to %s", previous, forced));
         }
     }
-
 }

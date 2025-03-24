@@ -33,6 +33,7 @@ public class UpdateLastTemporaryStopCommand extends BaseCalculationCommand<WorkU
 
         TemporaryStop lastStop = session.getTemporaryStops().get(session.getTemporaryStops().size() - 1);
         int stopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(lastStop.getStartTime(), endTime);
+
         lastStop.setEndTime(endTime);
         lastStop.setDuration(stopMinutes);
 

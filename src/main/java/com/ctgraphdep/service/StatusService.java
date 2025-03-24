@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -18,18 +18,15 @@ import java.util.stream.Collectors;
 @Service
 public class StatusService {
     private final DataAccessService dataAccessService;
-    private final UserStatusDbService userStatusDbService; // Updated to use UserStatusDbService
+    private final UserStatusDbService userStatusDbService;
     private final UserRegisterService userRegisterService;
-    private final UserTimeOffService userTimeOffService;
 
     public StatusService(DataAccessService dataAccessService,
-                         UserStatusDbService userStatusDbService, // Updated to use UserStatusDbService
-                         UserRegisterService userRegisterService,
-                         UserTimeOffService userTimeOffService) {
+                         UserStatusDbService userStatusDbService,
+                         UserRegisterService userRegisterService) {
         this.dataAccessService = dataAccessService;
-        this.userStatusDbService = userStatusDbService; // Updated to use UserStatusDbService
+        this.userStatusDbService = userStatusDbService;
         this.userRegisterService = userRegisterService;
-        this.userTimeOffService = userTimeOffService;
 
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -333,11 +330,6 @@ public class StatusService {
                 .collect(Collectors.toCollection(HashSet::new));
     }
 
-    // Gets time off summary for a user using read-only operations.
-    public TimeOffSummary getTimeOffSummary(String username, int year) {
-        return userTimeOffService.calculateTimeOffSummaryReadOnly(username, year);
-    }
-
     private List<RegisterEntry> loadRegisterEntriesForDateRange(User user, LocalDate startDate, LocalDate endDate) {
         List<RegisterEntry> allEntries = new ArrayList<>();
 
@@ -377,12 +369,12 @@ public class StatusService {
         if (entry == null) return false;
 
         // Never display ADMIN_BLANK entries
-        if (SyncStatus.ADMIN_BLANK.equals(entry.getAdminSync())) {
+        if (SyncStatusWorktime.ADMIN_BLANK.equals(entry.getAdminSync())) {
             return false;
         }
 
         // Display USER_IN_PROCESS entries with partial info
-        if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
             return true;
         }
 
@@ -403,7 +395,7 @@ public class StatusService {
         displayEntry.setAdminSync(entry.getAdminSync());
 
         // For USER_IN_PROCESS entries, show only partial information
-        if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
             displayEntry.setTotalWorkedMinutes(null);
             displayEntry.setTotalOvertimeMinutes(null);
             displayEntry.setDayEndTime(null);
@@ -450,7 +442,7 @@ public class StatusService {
 
         for (WorkTimeTable entry : worktimeData) {
             // Skip in-process entries
-            if (SyncStatus.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+            if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
                 continue;
             }
 
@@ -473,6 +465,169 @@ public class StatusService {
         counts.setOvertimeMinutes(totalOvertimeMinutes);
 
         return counts;
+    }
+
+    /**
+     * Gets TimeOffTracker data for a user for a specific year in read-only mode.
+     * This method reads directly from the network or local storage without any data manipulation.
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param year The year to retrieve data for
+     * @return TimeOffTracker data or null if not found
+     */
+    public TimeOffTracker getTimeOffTrackerReadOnly(String username, Integer userId, int year) {
+        try {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Retrieving time off tracker for user %s for year %d in read-only mode",
+                            username, year));
+
+            // Directly use DataAccessService to read the tracker
+            TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+
+            if (tracker != null) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Successfully retrieved time off tracker for %s with %d requests",
+                                username, tracker.getRequests().size()));
+            } else {
+                LoggerUtil.info(this.getClass(),
+                        String.format("No time off tracker found for user %s for year %d",
+                                username, year));
+            }
+
+            return tracker;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error retrieving time off tracker for %s (%d): %s",
+                            username, year, e.getMessage()));
+            return null;
+        }
+    }
+    /**
+     * Gets time off data from TimeOffTracker file in a format compatible with the existing view.
+     * Only returns APPROVED records.
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param year The year to retrieve data for
+     * @return List of WorkTimeTable entries created from tracker data
+     */
+    public List<WorkTimeTable> getApprovedTimeOffFromTracker(String username, Integer userId, int year) {
+        try {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Getting approved time off from tracker for user %s for year %d",
+                            username, year));
+
+            // Read tracker directly in read-only mode
+            TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+
+            if (tracker == null || tracker.getRequests() == null || tracker.getRequests().isEmpty()) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("No time off tracker found for user %s for year %d",
+                                username, year));
+                return new ArrayList<>();
+            }
+
+            // Convert approved entries to WorkTimeTable format for compatibility with view
+            return tracker.getRequests().stream()
+                    .filter(request -> "APPROVED".equals(request.getStatus()))
+                    .map(request -> {
+                        WorkTimeTable entry = new WorkTimeTable();
+                        entry.setUserId(userId);
+                        entry.setWorkDate(request.getDate());
+                        entry.setTimeOffType(request.getTimeOffType());
+                        // Additional fields could be set here if needed
+                        return entry;
+                    })
+                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error getting approved time off from tracker for %s (%d): %s",
+                            username, year, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Gets time off summary directly from TimeOffTracker file.
+     * This only counts APPROVED requests.
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param year The year to retrieve data for
+     * @return TimeOffSummary calculated from tracker data
+     */
+    public TimeOffSummary getTimeOffSummaryFromTracker(String username, Integer userId, int year) {
+        try {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Calculating time off summary from tracker for user %s for year %d",
+                            username, year));
+
+            // Read tracker directly in read-only mode
+            TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+
+            if (tracker != null) {
+                LoggerUtil.info(this.getClass(),
+                        String.format("Successfully retrieved time off tracker for %s with %d requests",
+                                username, tracker.getRequests().size()));
+
+                // Count by type from approved requests
+                int snDays = 0, coDays = 0, cmDays = 0;
+
+                for (TimeOffTracker.TimeOffRequest request : tracker.getRequests()) {
+                    if (!"APPROVED".equals(request.getStatus())) {
+                        continue;
+                    }
+
+                    switch (request.getTimeOffType()) {
+                        case "SN" -> snDays++;
+                        case "CO" -> coDays++;
+                        case "CM" -> cmDays++;
+                    }
+                }
+
+                int availablePaidDays = tracker.getAvailableHolidayDays();
+                int usedPaidDays = tracker.getUsedHolidayDays();
+
+                return TimeOffSummary.builder()
+                        .snDays(snDays)
+                        .coDays(coDays)
+                        .cmDays(cmDays)
+                        .availablePaidDays(availablePaidDays + usedPaidDays)
+                        .paidDaysTaken(usedPaidDays)
+                        .remainingPaidDays(availablePaidDays)
+                        .build();
+            } else {
+                // If no tracker found, return default summary
+                LoggerUtil.info(this.getClass(),
+                        String.format("No time off tracker found for user %s for year %d, returning default summary",
+                                username, year));
+
+                return TimeOffSummary.builder()
+                        .snDays(0)
+                        .coDays(0)
+                        .cmDays(0)
+                        .availablePaidDays(21) // Default value
+                        .paidDaysTaken(0)
+                        .remainingPaidDays(21) // Default value
+                        .build();
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error calculating time off summary from tracker for %s (%d): %s",
+                            username, year, e.getMessage()));
+
+            // Return default summary on error
+            return TimeOffSummary.builder()
+                    .snDays(0)
+                    .coDays(0)
+                    .cmDays(0)
+                    .availablePaidDays(21) // Default value
+                    .paidDaysTaken(0)
+                    .remainingPaidDays(21) // Default value
+                    .build();
+        }
     }
 
     private int calculateWorkDays(int year, int month) {

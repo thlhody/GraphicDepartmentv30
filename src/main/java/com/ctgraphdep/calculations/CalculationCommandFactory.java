@@ -2,13 +2,11 @@ package com.ctgraphdep.calculations;
 
 import com.ctgraphdep.calculations.commands.*;
 import com.ctgraphdep.calculations.queries.*;
-import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * Factory for creating calculation commands and queries.
@@ -23,20 +21,14 @@ public class CalculationCommandFactory {
     /**
      * Creates a command to update session calculations
      */
-    public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCommand(
-            WorkUsersSessionsStates session,
-            LocalDateTime currentTime,
-            int userSchedule) {
-        return new UpdateSessionCalculationsCommand(session, currentTime, userSchedule);
+    public SessionCalculationRouterCommand createSessionCalculationRouterCommand(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
+        return new SessionCalculationRouterCommand(session, currentTime, userSchedule);
     }
 
     /**
      * Creates a command to update online session calculations
      */
-    public UpdateOnlineSessionCalculationsCommand createUpdateOnlineSessionCalculationsCommand(
-            WorkUsersSessionsStates session,
-            LocalDateTime currentTime,
-            int userSchedule) {
+    public UpdateOnlineSessionCalculationsCommand createUpdateOnlineSessionCalculationsCommand(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
         return new UpdateOnlineSessionCalculationsCommand(session, currentTime, userSchedule);
     }
 
@@ -111,16 +103,6 @@ public class CalculationCommandFactory {
             WorkTimeTable entry,
             LocalDateTime endTime) {
         return new CalculateRawWorkMinutesForEntryQuery(entry, endTime);
-    }
-
-    /**
-     * Creates a query to calculate raw work minutes between two times
-     */
-    public CalculateRawWorkMinutesBetweenQuery createCalculateRawWorkMinutesBetweenQuery(
-            LocalDateTime startTime,
-            LocalDateTime endTime,
-            List<TemporaryStop> stops) {
-        return new CalculateRawWorkMinutesBetweenQuery(startTime, endTime, stops);
     }
 
     /**

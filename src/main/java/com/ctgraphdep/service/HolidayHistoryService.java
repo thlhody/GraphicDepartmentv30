@@ -32,9 +32,7 @@ public class HolidayHistoryService {
                 List<WorkTimeTable> monthEntries = loadMonthlyTimeoffs(username, yearMonth);
                 allTimeOffs.addAll(monthEntries);
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Could not load time offs for %s - %d/%d: %s",
-                                username, yearMonth.getYear(), yearMonth.getMonthValue(), e.getMessage()));
+                LoggerUtil.warn(this.getClass(), String.format("Could not load time offs for %s - %d/%d: %s", username, yearMonth.getYear(), yearMonth.getMonthValue(), e.getMessage()));
             }
         }
         return allTimeOffs;

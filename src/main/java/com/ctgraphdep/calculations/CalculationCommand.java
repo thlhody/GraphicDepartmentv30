@@ -8,7 +8,6 @@ public interface CalculationCommand<T> {
      * Executes the calculation command and returns a result
      */
     T execute(CalculationContext context);
-
     /**
      * Validates the command parameters
      * @throws IllegalArgumentException if validation fails

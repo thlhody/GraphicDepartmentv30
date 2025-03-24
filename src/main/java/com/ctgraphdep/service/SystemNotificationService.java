@@ -106,18 +106,18 @@ public class SystemNotificationService {
         }
 
         try {
-            DialogComponents components = createDialog(WorkCode.TEST_NOTICE, WorkCode.TEST_MESSAGE);
+            DialogComponents components = createDialog(WorkCode.TEST_NOTICE_TITLE, WorkCode.TEST_MESSAGE);
 
             // Add test-specific buttons
             addTestButtons(components, testResponded);
 
             try {
-                showDialog(components.dialog);
+                showDialog(components.dialog());
                 dialogDisplayed.set(true);
                 LoggerUtil.info(this.getClass(), "Test dialog displayed successfully");
 
                 // Add auto-close timer
-                setupAutoCloseTimer(components.dialog, username, WorkCode.ON_FOR_TEN_SECONDS, testResponded);
+                setupAutoCloseTimer(components.dialog(), username, WorkCode.ON_FOR_TEN_SECONDS, testResponded);
 
             } catch (Exception e) {
                 LoggerUtil.error(this.getClass(), "Failed to display test dialog: " + e.getMessage());
@@ -191,7 +191,6 @@ public class SystemNotificationService {
     }
 
     // Modified version that expects to be run directly on EDT
-// Modified version that expects to be run directly on EDT
     private boolean showNotificationDialogOnEDT(String username, Integer userId, Integer finalMinutes,
                                                 String title, String message, Integer timeoutPeriod,
                                                 boolean isHourly, boolean isTempStop, ButtonsProvider buttonsProvider) {
@@ -239,11 +238,11 @@ public class SystemNotificationService {
             // Now we're already on EDT, so we don't need invokeAndWait
             DialogComponents components = createDialog(title, message);
             buttonsProvider.addButtons(components, username, userId, finalMinutes);
-            showDialog(components.dialog);
+            showDialog(components.dialog());
             dialogDisplayed = true;
 
             // Set up auto-close timer for the notification
-            setupAutoCloseTimer(components.dialog, username, timeoutPeriod, userResponded);
+            setupAutoCloseTimer(components.dialog(), username, timeoutPeriod, userResponded);
 
             // Track notification display
             trackNotificationDisplay(username, userId, timeoutPeriod, isTempStop);
@@ -364,8 +363,8 @@ public class SystemNotificationService {
 
     // Adds test dialog specific buttons
     public void addTestButtons(DialogComponents components, AtomicBoolean respondedFlag) {
-        JPanel buttonsPanel = components.buttonsPanel;
-        JDialog dialog = components.dialog;
+        JPanel buttonsPanel = components.buttonsPanel();
+        JDialog dialog = components.dialog();
 
         // Open Website Button
         class OpenWebsiteButton extends NotificationButton {
@@ -402,8 +401,8 @@ public class SystemNotificationService {
 
     // Adds standard notification buttons (Continue Working and End Session)
     public void addStandardButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes, boolean isHourly) {
-        JPanel buttonsPanel = components.buttonsPanel;
-        JDialog dialog = components.dialog;
+        JPanel buttonsPanel = components.buttonsPanel();
+        JDialog dialog = components.dialog();
 
         // Continue Working Button
         class ContinueWorkingButton extends NotificationButton {
@@ -457,8 +456,8 @@ public class SystemNotificationService {
 
     // Adds temporary stop specific buttons
     public void addTempStopButtons(DialogComponents components, String username, Integer userId) {
-        JPanel buttonsPanel = components.buttonsPanel;
-        JDialog dialog = components.dialog;
+        JPanel buttonsPanel = components.buttonsPanel();
+        JDialog dialog = components.dialog();
 
         // Continue Break Button
         class ContinueBreakButton extends NotificationButton {
@@ -528,8 +527,8 @@ public class SystemNotificationService {
 
     // Adds start day dialog specific buttons
     public void addStartDayButtons(DialogComponents components, String username, Integer userId) {
-        JPanel buttonsPanel = components.buttonsPanel;
-        JDialog dialog = components.dialog;
+        JPanel buttonsPanel = components.buttonsPanel();
+        JDialog dialog = components.dialog();
 
         // Start Work Button
         class StartWorkButton extends NotificationButton {
@@ -570,8 +569,8 @@ public class SystemNotificationService {
 
     // Adds resolution reminder specific buttons
     public void addResolutionButtons(DialogComponents components) {
-        JPanel buttonsPanel = components.buttonsPanel;
-        JDialog dialog = components.dialog;
+        JPanel buttonsPanel = components.buttonsPanel();
+        JDialog dialog = components.dialog();
 
         // Resolve Session Button
         class ResolveSessionButton extends NotificationButton {

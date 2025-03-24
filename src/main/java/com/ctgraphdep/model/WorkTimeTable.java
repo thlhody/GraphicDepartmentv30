@@ -1,6 +1,6 @@
 package com.ctgraphdep.model;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
@@ -45,7 +45,7 @@ public class WorkTimeTable {
     private Integer totalOvertimeMinutes;
 
     @JsonProperty("adminSync")
-    private SyncStatus adminSync;
+    private SyncStatusWorktime adminSync;
 
 
 }

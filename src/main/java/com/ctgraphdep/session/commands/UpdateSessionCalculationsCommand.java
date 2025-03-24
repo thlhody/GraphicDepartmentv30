@@ -33,10 +33,8 @@ public class UpdateSessionCalculationsCommand extends BaseSessionCommand<WorkUse
             debug(String.format("Updating calculations for session (user: %s)", session.getUsername()));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Get user's schedule
             int userSchedule = ctx.getUserService()

@@ -29,7 +29,6 @@ public class DashboardConfigurationManager {
                         createHolidaysCard(),
                         createSettingsCard(),
                         createAdminStatistics()
-
                 ))
                 .build();
     }

@@ -23,8 +23,7 @@ public class CalculateWorkTimeQuery implements CalculationQuery<WorkTimeCalculat
         try {
             return CalculateWorkHoursUtil.calculateWorkTime(minutes, schedule);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error calculating work time: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error calculating work time: " + e.getMessage(), e);
             // Return a reasonable default in case of error
             return new WorkTimeCalculationResult(
                     minutes, // raw minutes

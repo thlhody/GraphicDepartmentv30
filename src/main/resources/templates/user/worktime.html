@@ -1,12 +1,10 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Time Records</title>
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=1301010101}">
-    <link rel="stylesheet" th:href="@{/css/worktime.css?v=1301010101}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=187811}">
+    <link rel="stylesheet" th:href="@{/css/worktime-user.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -23,7 +21,7 @@
                     <span th:text="${user.name}"></span>
                 </div>
             </div>
-            <a class="btn btn-outline-primary" th:href="${dashboardUrl}" >
+            <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
                 <i class="bi bi-grid me-2"></i>Dashboard
             </a>
         </header>
@@ -43,11 +41,13 @@
                             </div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span>Days Worked</span>
-                                <span class="badge bg-success rounded-pill" th:text="${summary.totalWorkedDaysWithTimeOff}"></span>
+                                <span class="badge bg-success rounded-pill"
+                                      th:text="${summary.totalWorkedDaysWithTimeOff}"></span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
                                 <span>Remaining</span>
-                                <span class="badge bg-warning rounded-pill" th:text="${summary.remainingWorkDays}"></span>
+                                <span class="badge bg-warning rounded-pill"
+                                      th:text="${summary.remainingWorkDays}"></span>
                             </div>
                         </div>
                         <!-- Time Off Section -->
@@ -59,7 +59,8 @@
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="text-muted">Available Paid Days</span>
-                                <span class="badge bg-success rounded-pill" th:text="${summary.availablePaidDays}"></span>
+                                <span class="badge bg-success rounded-pill"
+                                      th:text="${summary.availablePaidDays}"></span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="text-muted">Vacation (CO)</span>
@@ -253,7 +254,7 @@
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
     <!-- Include the custom worktime display script -->
-    <script th:src="@{/js/worktime-user-display.js?v=1301010101}"></script>
+    <script th:src="@{/js/worktime-user-display.js?v=18781}"></script>
 
     <!-- Initialize tooltips -->
     <script>

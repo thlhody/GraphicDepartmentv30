@@ -17,7 +17,5 @@ public class StaticResourceConfiguration implements WebMvcConfigurer {
                 .addResourceLocations("classpath:/static/css/")
                 .setCachePeriod(3600)
                 .resourceChain(true);
-
-        // Add more resource handlers as needed
     }
 }

@@ -33,7 +33,7 @@ public class ShowHourlyWarningCommand extends BaseNotificationCommand<Boolean> {
 
             // Check if notification can be shown based on rate limiting
             CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(username, WorkCode.OVERTIME_TYPE,
-                    WorkCode.CHECK_INTERVAL, ctx.getNotificationService().getLastNotificationTimes());
+                    WorkCode.HOURLY_INTERVAL, ctx.getNotificationService().getLastNotificationTimes());
 
             if (!ctx.executeQuery(canShowQuery)) {
                 info(String.format("Skipping hourly warning for user %s due to rate limiting", username));
@@ -52,7 +52,7 @@ public class ShowHourlyWarningCommand extends BaseNotificationCommand<Boolean> {
             // Show notification with fallback
             return ctx.getNotificationService().showNotificationWithFallback(
                     username, userId,
-                    WorkCode.NOTICE_TITLE,
+                    WorkCode.OVERTIME_TITLE,
                     WorkCode.HOURLY_WARNING_MESSAGE,
                     WorkCode.HOURLY_WARNING_TRAY,
                     WorkCode.ON_FOR_FIVE_MINUTES,

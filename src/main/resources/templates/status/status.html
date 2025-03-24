@@ -1,12 +1,9 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:sec="http://www.w3.org/1999/xhtml"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Status Management</title>
-    <link rel="stylesheet" th:href="@{/css/status.css?v=20242333}">
+    <link rel="stylesheet" th:href="@{/css/status.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -99,10 +96,10 @@
                                 </div>
                             </td>
                             <td>
-                                    <span class="badge rounded-pill px-3 py-2 bg-success">
-                                        <i class="bi bi-broadcast"></i>
-                                        <span class="ms-1">Online</span>
-                                    </span>
+                                <span class="badge rounded-pill px-3 py-2 bg-success">
+                                    <i class="bi bi-broadcast"></i>
+                                    <span class="ms-1">Online</span>
+                                </span>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center justify-content-center">
@@ -113,11 +110,13 @@
                             <td>
                                 <div class="d-flex gap-2 justify-content-center">
                                     <!-- Time Off History Button -->
-                                    <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
+                                    <a th:if="${status.userId != null}"
+                                       th:href="@{/status/timeoff-history(userId=${status.userId})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
-                                    <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
+                                    <a th:if="${status.userId == null}"
+                                       th:href="@{/status/timeoff-history(username=${status.username})}"
                                        class="btn btn-sm btn-outline-info">
                                         <i class="bi bi-calendar-check me-1"></i>Time Off
                                     </a>
@@ -156,10 +155,10 @@
                                 </div>
                             </td>
                             <td>
-                                    <span class="badge rounded-pill px-3 py-2 bg-warning">
-                                        <i class="bi bi-pause-circle"></i>
-                                        <span class="ms-1">Temporary Stop</span>
-                                    </span>
+                                <span class="badge rounded-pill px-3 py-2 bg-warning">
+                                    <i class="bi bi-pause-circle"></i>
+                                    <span class="ms-1">Temporary Stop</span>
+                                </span>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center justify-content-center">
@@ -213,10 +212,10 @@
                                 </div>
                             </td>
                             <td>
-                                    <span class="badge rounded-pill px-3 py-2 bg-secondary">
-                                        <i class="bi bi-power"></i>
-                                        <span class="ms-1" th:text="${status.status}"></span>
-                                    </span>
+                                <span class="badge rounded-pill px-3 py-2 bg-secondary">
+                                    <i class="bi bi-power"></i>
+                                    <span class="ms-1" th:text="${status.status}"></span>
+                                </span>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center justify-content-center">
@@ -272,9 +271,8 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-
     <!-- Reference to the external JavaScript file -->
-    <script th:src="@{/js/status.js?v=233344432}"></script>
+    <script th:src="@{/js/status.js?v=18781}"></script>
 </th:block>
 </body>
 </html>

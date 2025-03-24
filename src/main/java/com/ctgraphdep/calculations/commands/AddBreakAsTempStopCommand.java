@@ -17,10 +17,7 @@ public class AddBreakAsTempStopCommand extends BaseCalculationCommand<WorkUsersS
     private final LocalDateTime startTime;
     private final LocalDateTime endTime;
 
-    public AddBreakAsTempStopCommand(
-            WorkUsersSessionsStates session,
-            LocalDateTime startTime,
-            LocalDateTime endTime) {
+    public AddBreakAsTempStopCommand(WorkUsersSessionsStates session, LocalDateTime startTime, LocalDateTime endTime) {
         this.session = session;
         this.startTime = startTime;
         this.endTime = endTime;
@@ -58,8 +55,7 @@ public class AddBreakAsTempStopCommand extends BaseCalculationCommand<WorkUsersS
         session.setTemporaryStopCount(newStopCount);
 
         // Calculate new total temporary stop minutes
-        CalculateTotalTempStopMinutesQuery query =
-                context.getCommandFactory().createCalculateTotalTempStopMinutesQuery(session, endTime);
+        CalculateTotalTempStopMinutesQuery query = context.getCommandFactory().createCalculateTotalTempStopMinutesQuery(session, endTime);
         int totalStopMinutes = context.executeQuery(query);
         session.setTotalTemporaryStopMinutes(totalStopMinutes);
 

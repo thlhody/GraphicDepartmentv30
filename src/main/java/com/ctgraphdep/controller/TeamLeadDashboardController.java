@@ -5,6 +5,7 @@ import com.ctgraphdep.model.dashboard.DashboardConfiguration;
 import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,8 +25,8 @@ public class TeamLeadDashboardController extends BaseDashboardController {
             UserService userService,
             DashboardService dashboardService,
             @Qualifier("teamLeadDashboardConfig") DashboardConfiguration teamLeadDashboardConfig,
-            PermissionFilterService permissionFilterService) {
-        super(userService, dashboardService, teamLeadDashboardConfig, permissionFilterService);
+            PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
+        super(userService, dashboardService, teamLeadDashboardConfig, permissionFilterService,timeValidationService);
     }
 
     @GetMapping

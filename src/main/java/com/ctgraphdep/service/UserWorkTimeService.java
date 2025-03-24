@@ -2,7 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -86,16 +86,14 @@ public class UserWorkTimeService {
 
         if (adminEntries != null) {
             adminEntries.forEach(adminEntry -> {
-                if (adminEntry.getAdminSync() == SyncStatus.ADMIN_EDITED) {
-                    adminEntry.setAdminSync(SyncStatus.USER_DONE);
+                if (adminEntry.getAdminSync() == SyncStatusWorktime.ADMIN_EDITED) {
+                    adminEntry.setAdminSync(SyncStatusWorktime.USER_DONE);
                     mergedMap.put(adminEntry.getWorkDate(), adminEntry);
                 }
             });
         }
 
-        return new ArrayList<>(mergedMap.values()).stream()
-                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                .collect(Collectors.toList());
+        return new ArrayList<>(mergedMap.values()).stream().sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
     }
 
     private List<WorkTimeTable> mergeEntries(List<WorkTimeTable> userEntries, List<WorkTimeTable> adminEntries) {
@@ -106,12 +104,12 @@ public class UserWorkTimeService {
 
         // Process admin entries (both edits and blanks)
         adminEntries.forEach(adminEntry -> {
-            if (adminEntry.getAdminSync() == SyncStatus.ADMIN_BLANK) {
+            if (adminEntry.getAdminSync() == SyncStatusWorktime.ADMIN_BLANK) {
                 // Remove entry if admin marked it as blank
                 mergedMap.remove(adminEntry.getWorkDate());
-            } else if (adminEntry.getAdminSync() == SyncStatus.ADMIN_EDITED) {
+            } else if (adminEntry.getAdminSync() == SyncStatusWorktime.ADMIN_EDITED) {
                 // For ADMIN_EDITED entries, overlay them with USER_DONE status
-                adminEntry.setAdminSync(SyncStatus.USER_DONE);
+                adminEntry.setAdminSync(SyncStatusWorktime.USER_DONE);
                 mergedMap.put(adminEntry.getWorkDate(), adminEntry);
             }
         });
@@ -132,7 +130,7 @@ public class UserWorkTimeService {
             validateEntries(entries, userId);
 
             // Set sync status for all entries
-            entries.forEach(entry -> entry.setAdminSync(SyncStatus.USER_INPUT));
+            entries.forEach(entry -> entry.setAdminSync(SyncStatusWorktime.USER_INPUT));
 
             // Group entries by month for processing
             Map<YearMonth, List<WorkTimeTable>> entriesByMonth = entries.stream()
@@ -146,9 +144,7 @@ public class UserWorkTimeService {
                     String.format("Saved %d entries for user %s", entries.size(), username));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving worktime entries for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error saving worktime entries for %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to save worktime entries", e);
         } finally {
             lock.writeLock().unlock();
@@ -178,14 +174,12 @@ public class UserWorkTimeService {
             dataAccess.writeUserWorktime(username, remainingEntries, year, month);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error processing month entries for %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error processing month entries for %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to process month entries", e);
         }
     }
 
-    public void saveWorkTimeEntry(String username, WorkTimeTable entry,
-                                  int year, int month, String operatingUsername) {
+    public void saveWorkTimeEntry(String username, WorkTimeTable entry, int year, int month, String operatingUsername) {
         lock.writeLock().lock();
         try {
             List<WorkTimeTable> entries = loadUserEntries(username, year, month);
@@ -202,13 +196,9 @@ public class UserWorkTimeService {
             try {
                 // Use the new overloaded method
                 dataAccess.writeUserWorktime(username, entries, year, month, operatingUsername);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Saved worktime entry for user %s - %d/%d using file-based auth",
-                                username, year, month));
+                LoggerUtil.info(this.getClass(), String.format("Saved worktime entry for user %s - %d/%d using file-based auth", username, year, month));
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Failed to save worktime entry for user %s: %s",
-                                username, e.getMessage()));
+                LoggerUtil.error(this.getClass(), String.format("Failed to save worktime entry for user %s: %s", username, e.getMessage()));
                 throw new RuntimeException("Failed to save worktime entry", e);
             }
         } finally {
@@ -230,8 +220,7 @@ public class UserWorkTimeService {
                 return loadUserEntries(username, year, month, username);
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading user entries for %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading user entries for %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -241,8 +230,7 @@ public class UserWorkTimeService {
             List<WorkTimeTable> entries = dataAccess.readUserWorktime(username, year, month, operatingUsername);
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading user entries for %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading user entries for %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -253,12 +241,11 @@ public class UserWorkTimeService {
             List<WorkTimeTable> adminEntries = dataAccess.readNetworkAdminWorktime(year, month);
             return adminEntries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
-                    .filter(entry -> entry.getAdminSync() == SyncStatus.ADMIN_EDITED
-                            || entry.getAdminSync() == SyncStatus.ADMIN_BLANK)
+                    .filter(entry -> entry.getAdminSync() == SyncStatusWorktime.ADMIN_EDITED
+                            || entry.getAdminSync() == SyncStatusWorktime.ADMIN_BLANK)
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading admin entries for user %d: %s", userId, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading admin entries for user %d: %s", userId, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -273,7 +260,7 @@ public class UserWorkTimeService {
                     .anyMatch(entry ->
                             entry.getWorkDate().equals(date) &&
                                     WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType()) &&
-                                    SyncStatus.ADMIN_EDITED.equals(entry.getAdminSync()));
+                                    SyncStatusWorktime.ADMIN_EDITED.equals(entry.getAdminSync()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error checking national holiday for %s: %s", date, e.getMessage()));
@@ -317,8 +304,7 @@ public class UserWorkTimeService {
 
     private void validateWorkTimeEntry(WorkTimeTable entry) {
         // Removed BLANK from valid time off types
-        if (entry.getTimeOffType() != null &&
-                !entry.getTimeOffType().matches("^(SN|CO|CM)$")) {
+        if (entry.getTimeOffType() != null && !entry.getTimeOffType().matches("^(SN|CO|CM)$")) {
             throw new IllegalArgumentException("Invalid time off type: " + entry.getTimeOffType());
         }
 
@@ -339,8 +325,7 @@ public class UserWorkTimeService {
     }
 
     private Integer getUserId(String username) {
-        return userService.getUserByUsername(username)
-                .map(User::getUserId)
+        return userService.getUserByUsername(username).map(User::getUserId)
                 .orElseThrow(() -> new IllegalStateException("User not found: " + username));
     }
 }

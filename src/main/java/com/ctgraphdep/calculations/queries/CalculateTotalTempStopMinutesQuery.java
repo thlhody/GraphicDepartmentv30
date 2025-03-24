@@ -33,23 +33,16 @@ public class CalculateTotalTempStopMinutesQuery implements CalculationQuery<Inte
             for (TemporaryStop stop : session.getTemporaryStops()) {
                 if (stop.getEndTime() != null) {
                     // Add duration of completed stops - using CalculateWorkHoursUtil
-                    totalStopMinutes += CalculateWorkHoursUtil.calculateMinutesBetween(
-                            stop.getStartTime(),
-                            stop.getEndTime()
-                    );
+                    totalStopMinutes += CalculateWorkHoursUtil.calculateMinutesBetween(stop.getStartTime(), stop.getEndTime());
                 } else {
                     // For current ongoing stop, calculate time up to now - using CalculateWorkHoursUtil
-                    totalStopMinutes += CalculateWorkHoursUtil.calculateMinutesBetween(
-                            stop.getStartTime(),
-                            currentTime
-                    );
+                    totalStopMinutes += CalculateWorkHoursUtil.calculateMinutesBetween(stop.getStartTime(), currentTime);
                 }
             }
 
             return totalStopMinutes;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error calculating total temporary stop minutes: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error calculating total temporary stop minutes: " + e.getMessage(), e);
             return 0;
         }
     }

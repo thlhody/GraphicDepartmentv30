@@ -23,10 +23,7 @@ public abstract class BaseSessionCalculationsCommand<T> extends BaseCalculationC
      * @param currentTime The current time
      * @param userSchedule The user's scheduled working hours
      */
-    protected BaseSessionCalculationsCommand(
-            WorkUsersSessionsStates session,
-            LocalDateTime currentTime,
-            int userSchedule) {
+    protected BaseSessionCalculationsCommand(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
         this.session = session;
         this.currentTime = currentTime;
         this.userSchedule = userSchedule;

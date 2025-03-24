@@ -15,10 +15,7 @@ public class CalculateEndDayValuesCommand extends BaseCalculationCommand<WorkUse
     private final LocalDateTime endTime;
     private final Integer finalMinutes;
 
-    public CalculateEndDayValuesCommand(
-            WorkUsersSessionsStates session,
-            LocalDateTime endTime,
-            Integer finalMinutes) {
+    public CalculateEndDayValuesCommand(WorkUsersSessionsStates session, LocalDateTime endTime, Integer finalMinutes) {
         this.session = session;
         this.endTime = endTime;
         this.finalMinutes = finalMinutes;
@@ -35,10 +32,7 @@ public class CalculateEndDayValuesCommand extends BaseCalculationCommand<WorkUse
     protected WorkUsersSessionsStates executeCommand(CalculationContext context) {
         // Use builder to update all values
         return SessionEntityBuilder.updateSession(session, builder -> {
-            builder.status(WorkCode.WORK_OFFLINE)
-                    .dayEndTime(endTime)
-                    .finalWorkedMinutes(finalMinutes != null ? finalMinutes : session.getFinalWorkedMinutes())
-                    .workdayCompleted(true);
+            builder.status(WorkCode.WORK_OFFLINE).dayEndTime(endTime).finalWorkedMinutes(finalMinutes != null ? finalMinutes : session.getFinalWorkedMinutes()).workdayCompleted(true);
         });
     }
 

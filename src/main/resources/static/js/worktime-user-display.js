@@ -1,5 +1,5 @@
 /**
- * Worktime Display Utilities - Refactored
+ * Worktime Display Utilities - Fixed Version
  *
  * This script handles the proper formatting and calculation of work hours for display,
  * ensuring business rules are consistently applied.
@@ -45,6 +45,8 @@ function processAllEntries() {
             // Fill in schedule work cell (capped at 8 hours = 480 minutes)
             const scheduleWorkCell = row.querySelector('.schedule-work-cell span');
             if (scheduleWorkCell) {
+                // The scheduled minutes for display is the counted minutes (full hours only)
+                // capped at the schedule maximum (8 hours = 480 minutes)
                 const scheduledMinutes = Math.min(calculationResult.countedMinutes, 480);
                 scheduleWorkCell.textContent = formatTimeDisplay(scheduledMinutes, true);
 
@@ -77,6 +79,10 @@ function processAllEntries() {
 function updateWorkTimeSummary() {
     // Get all worktime entries
     const entries = [];
+    let totalRegularMinutes = 0;
+    let totalOvertimeMinutes = 0;
+    let totalDiscardedMinutes = 0;
+
     document.querySelectorAll('.worktime-entry').forEach(function(row) {
         const rawMinutes = parseInt(row.getAttribute('data-minutes') || '0', 10);
         const hasLunchDeducted = row.getAttribute('data-lunch') === 'true';
@@ -87,26 +93,14 @@ function updateWorkTimeSummary() {
             // Calculate entry values
             const calculationResult = calculateEntryValues(rawMinutes, hasLunchDeducted, overtimeMinutes);
 
-            entries.push({
-                rawMinutes: rawMinutes,
-                processedMinutes: calculationResult.processedMinutes,
-                countedMinutes: calculationResult.countedMinutes,
-                scheduledMinutes: Math.min(calculationResult.countedMinutes, 480), // Cap at 8 hours
-                overtimeMinutes: overtimeMinutes,
-                discardedMinutes: calculationResult.discardedMinutes
-            });
+            // Cap regular hours at 8 hours (480 minutes) per day
+            const scheduledMinutes = Math.min(calculationResult.countedMinutes, 480);
+
+            // Add to respective totals
+            totalRegularMinutes += scheduledMinutes; // Only count full hours, capped at schedule
+            totalOvertimeMinutes += overtimeMinutes; // Use the overtime as stored in the data
+            totalDiscardedMinutes += calculationResult.discardedMinutes; // Track discarded partial hours
         }
-    });
-
-    // Calculate totals
-    let totalRegularMinutes = 0;
-    let totalOvertimeMinutes = 0;
-    let totalDiscardedMinutes = 0;
-
-    entries.forEach(function(entry) {
-        totalRegularMinutes += entry.scheduledMinutes;
-        totalOvertimeMinutes += entry.overtimeMinutes;
-        totalDiscardedMinutes += entry.discardedMinutes;
     });
 
     // Format and display summary
@@ -147,7 +141,7 @@ function calculateEntryValues(rawMinutes, hasLunchDeducted, overtimeMinutes) {
         processedMinutes -= 30; // Deduct 30 minutes for lunch break
     }
 
-    // Step 2: Count only full hours
+    // Step 2: Count only full hours (round down to nearest hour)
     const fullHours = Math.floor(processedMinutes / 60);
     const countedMinutes = fullHours * 60;
 
@@ -211,14 +205,3 @@ function initializeTooltips() {
         });
     }
 }
-
-/**
- * Example calculation for the March 10 entry
- * Raw: 440 minutes
- * Lunch deducted: Yes (30 minutes)
- * Processed: 410 minutes
- * Counted: 6 hours = 360 minutes
- * Discarded: 50 minutes
- * Overtime: 0 minutes
- * Schedule work: 6 hours = 360 minutes (below 8-hour cap)
- */

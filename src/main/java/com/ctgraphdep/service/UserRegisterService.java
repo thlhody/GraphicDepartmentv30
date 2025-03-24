@@ -3,7 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.RegisterEntry;
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -67,8 +67,8 @@ public class UserRegisterService {
         return userEntries.stream()
                 .map(userEntry -> {
                     RegisterEntry adminEntry = adminEntriesMap.get(userEntry.getEntryId());
-                    if (adminEntry != null && adminEntry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name())) {
-                        adminEntry.setAdminSync(SyncStatus.USER_DONE.name());
+                    if (adminEntry != null && adminEntry.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name())) {
+                        adminEntry.setAdminSync(SyncStatusWorktime.USER_DONE.name());
                         return adminEntry;
                     }
                     return userEntry;
@@ -81,7 +81,7 @@ public class UserRegisterService {
 
         // Set initial state
         entry.setUserId(userId);
-        entry.setAdminSync(SyncStatus.USER_INPUT.name());
+        entry.setAdminSync(SyncStatusWorktime.USER_INPUT.name());
 
         int year = entry.getDate().getYear();
         int month = entry.getDate().getMonthValue();

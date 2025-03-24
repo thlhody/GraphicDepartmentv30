@@ -5,7 +5,6 @@ import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.security.CustomUserDetailsService;
 import com.ctgraphdep.utils.LoggerUtil;
-import groovy.util.logging.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -17,7 +16,6 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.Optional;
 
-@Slf4j
 @Service
 public class AuthenticationService {
 
@@ -49,39 +47,28 @@ public class AuthenticationService {
             List<User> localUsers = dataAccess.readLocalUsers();
             boolean offlineModeAvailable = localUsers != null && !localUsers.isEmpty();
 
-            String status = networkAvailable ? "ONLINE" :
-                    offlineModeAvailable ? "OFFLINE" : "UNAVAILABLE";
+            String status = networkAvailable ? "ONLINE" : offlineModeAvailable ? "OFFLINE" : "UNAVAILABLE";
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Authentication Status: Network=%b, Local=%b, Status=%s",
-                            networkAvailable, offlineModeAvailable, status));
+            LoggerUtil.info(this.getClass(), String.format("Authentication Status: Network=%b, Local=%b, Status=%s", networkAvailable, offlineModeAvailable, status));
 
             return new AuthenticationStatus(networkAvailable, offlineModeAvailable, status);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error checking authentication status: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error checking authentication status: " + e.getMessage());
             return new AuthenticationStatus(false, false, "UNAVAILABLE");
         }
     }
 
     public UserDetails authenticateUser(String username, String password, boolean offlineMode) {
         // Get the full user object without sanitization
-        UserDetails userDetails = offlineMode ?
-                userDetailsService.loadUserByUsernameOffline(username) :
-                userDetailsService.loadUserByUsername(username);
+        UserDetails userDetails = offlineMode ? userDetailsService.loadUserByUsernameOffline(username) : userDetailsService.loadUserByUsername(username);
 
         // Add debug logs to track password handling
-        LoggerUtil.debug(this.getClass(),
-                String.format("Authenticating user: %s, Encoded password from details: %s",
-                        username, userDetails.getPassword()));
+        LoggerUtil.debug(this.getClass(), String.format("Authenticating user: %s, Encoded password from details: %s", username, userDetails.getPassword()));
 
-        LoggerUtil.debug(this.getClass(),
-                String.format("Password matcher result: %b",
-                        passwordEncoder.matches(password, userDetails.getPassword())));
+        LoggerUtil.debug(this.getClass(), String.format("Password matcher result: %b", passwordEncoder.matches(password, userDetails.getPassword())));
 
         if (passwordEncoder.matches(password, userDetails.getPassword())) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully authenticated user %s", username));
+            LoggerUtil.info(this.getClass(), String.format("Successfully authenticated user %s", username));
             return userDetails;
         }
 
@@ -106,23 +93,17 @@ public class AuthenticationService {
                         ensureLocalDirectories(user.isAdmin());
                         storeUserDataLocally(user);
                     } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(),
-                                "Failed to handle local storage: " + e.getMessage() +
-                                        " - continuing with login");
+                        LoggerUtil.warn(this.getClass(), "Failed to handle local storage: " + e.getMessage() + " - continuing with login");
                     }
                 }
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Successfully handled login for user: %s (rememberMe: %s)",
-                                username, rememberMe));
+                LoggerUtil.info(this.getClass(), String.format("Successfully handled login for user: %s (rememberMe: %s)", username, rememberMe));
             } else {
                 throw new UsernameNotFoundException("User not found after authentication");
             }
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error handling login for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error handling login for user %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to handle login", e);
         }
     }
@@ -131,29 +112,22 @@ public class AuthenticationService {
         try {
             List<User> localUsers = dataAccess.readLocalUsers();
             if (localUsers != null) {
-                return localUsers.stream()
-                        .filter(u -> u.getUsername().equals(username))
-                        .findFirst();
+                return localUsers.stream().filter(u -> u.getUsername().equals(username)).findFirst();
             }
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    "Error reading local users file: " + e.getMessage());
+            LoggerUtil.warn(this.getClass(), "Error reading local users file: " + e.getMessage());
         }
         return Optional.empty();
     }
 
     private void ensureLocalDirectories(boolean isAdmin) {
         try {
-            // PathConfig already handles base directory creation in its init()
-            // We don't need to manually create directories anymore
-            // Just verify they exist
             verifyUserDirectories();
             if (isAdmin) {
                 verifyAdminDirectories();
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error verifying local directories: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error verifying local directories: " + e.getMessage());
             throw new RuntimeException("Failed to verify local directories", e);
         }
     }
@@ -182,17 +156,14 @@ public class AuthenticationService {
             if (fullUserData.isPresent()) {
                 // Store the complete user object including password
                 dataAccess.writeLocalUsers(fullUserData.get());
-                LoggerUtil.info(this.getClass(),
-                        String.format("Stored complete user data locally for: %s", user.getUsername()));
+                LoggerUtil.info(this.getClass(), String.format("Stored complete user data locally for: %s", user.getUsername()));
             } else {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Could not find complete user data for: %s", user.getUsername()));
+                LoggerUtil.error(this.getClass(), String.format("Could not find complete user data for: %s", user.getUsername()));
                 throw new RuntimeException("Failed to store complete user data locally");
             }
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error storing user data locally: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error storing user data locally: %s", e.getMessage()));
             throw new RuntimeException("Failed to store user data locally", e);
         }
     }

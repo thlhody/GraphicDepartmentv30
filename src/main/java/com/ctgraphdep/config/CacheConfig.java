@@ -15,9 +15,7 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager() {
         SimpleCacheManager cacheManager = new SimpleCacheManager();
-        cacheManager.setCaches(
-                List.of(new ConcurrentMapCache("userStatuses"))
-        );
+        cacheManager.setCaches(List.of(new ConcurrentMapCache("userStatuses")));
         return cacheManager;
     }
 }

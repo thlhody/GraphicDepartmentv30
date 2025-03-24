@@ -1,9 +1,6 @@
 package com.ctgraphdep.tray;
 
-import com.ctgraphdep.service.DataAccessService;
-import com.ctgraphdep.service.AutoLoginService;
 import com.ctgraphdep.utils.LoggerUtil;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,17 +21,8 @@ public class CTTTSystemTray {
     @Value("${app.url.backup}")
     private String appUrlBackup;
 
-    @Value("${app.url.dashboard}")
-    private String dashboardUrl;
-
     @Value("${app.title:CTTT}")
     private String appTitle;
-
-    @Autowired
-    private DataAccessService dataAccessService;
-
-    @Autowired
-    private AutoLoginService autoLoginService;
 
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();

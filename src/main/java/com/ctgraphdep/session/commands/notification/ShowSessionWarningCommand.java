@@ -42,7 +42,7 @@ public class ShowSessionWarningCommand extends BaseNotificationCommand<Boolean> 
             // Show notification with fallback
             boolean result = ctx.getNotificationService().showNotificationWithFallback(
                     username, userId,
-                    WorkCode.NOTICE_TITLE,
+                    WorkCode.END_SCHEDULE_TITLE,
                     WorkCode.SESSION_WARNING_MESSAGE,
                     WorkCode.SESSION_WARNING_TRAY,
                     WorkCode.ON_FOR_TEN_MINUTES,

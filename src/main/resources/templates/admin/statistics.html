@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Statistics</title>
@@ -35,7 +34,8 @@
                         </select>
                     </div>
                     <div>
-                        <button type="submit" class="btn btn-primary" style="height: 38px; width: 100px;">Update</button>
+                        <button type="submit" class="btn btn-primary" style="height: 38px; width: 100px;">Update
+                        </button>
                     </div>
                 </form>
             </div>
@@ -47,7 +47,8 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Monthly Entries Distribution - <span th:text="${currentYear}"></span></h5>
+                        <h5 class="card-title">Monthly Entries Distribution - <span th:text="${currentYear}"></span>
+                        </h5>
                         <div style="height: 300px;">
                             <canvas id="monthlyEntriesChart"></canvas>
                         </div>
@@ -59,7 +60,8 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Daily Entries - <span th:text="${monthNames[currentMonth-1]}"></span> <span th:text="${currentYear}"></span></h5>
+                        <h5 class="card-title">Daily Entries - <span th:text="${monthNames[currentMonth-1]}"></span>
+                            <span th:text="${currentYear}"></span></h5>
                         <div style="height: 300px;">
                             <canvas id="dailyEntriesChart"></canvas>
                         </div>
@@ -145,7 +147,7 @@
             window.monthlyEntriesData = /*[[${monthlyEntries}]]*/ null;
             window.dailyEntriesData = /*[[${dailyEntries}]]*/ null;
         </script>
-        <script th:src="@{/js/statistics.js?v=123456889}"></script>
+        <script th:src="@{/js/statistics.js?v=18781}"></script>
     </th:block>
 </div>
 </body>

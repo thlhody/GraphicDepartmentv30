@@ -24,8 +24,7 @@ public class CalculateMinutesBetweenQuery implements CalculationQuery<Integer> {
         try {
             return CalculateWorkHoursUtil.calculateMinutesBetween(startTime, endTime);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error calculating minutes between times: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error calculating minutes between times: " + e.getMessage(), e);
             return 0;
         }
     }

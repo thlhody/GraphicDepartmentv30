@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeCalculationResult;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -45,10 +45,8 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             info(String.format("Resolving work time entry for user %s on %s", username, entryDate));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Use explicit end time if provided, otherwise use standardized current time
             LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
@@ -58,13 +56,12 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             int year = entryDate.getYear();
             int month = entryDate.getMonthValue();
 
-            List<WorkTimeTable> entries = ctx.getWorkTimeService()
-                    .loadUserEntries(username, year, month, username);
+            List<WorkTimeTable> entries = ctx.getWorkTimeService().loadUserEntries(username, year, month, username);
 
             // Find the unresolved entry for this date
             WorkTimeTable entry = entries.stream()
                     .filter(e -> e.getWorkDate() != null && e.getWorkDate().equals(entryDate))
-                    .filter(e -> e.getAdminSync() == SyncStatus.USER_IN_PROCESS)
+                    .filter(e -> e.getAdminSync() == SyncStatusWorktime.USER_IN_PROCESS)
                     .filter(e -> e.getDayStartTime() != null && e.getDayEndTime() == null)
                     .findFirst()
                     .orElse(null);
@@ -108,15 +105,13 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
     /**
      * Updates work time entry with calculated values
      */
-    private void updateWorkTimeEntry(WorkTimeTable entry, LocalDateTime endTime,
-                                     int rawMinutes, WorkTimeCalculationResult result) {
+    private void updateWorkTimeEntry(WorkTimeTable entry, LocalDateTime endTime, int rawMinutes, WorkTimeCalculationResult result) {
+
         entry.setDayEndTime(endTime);
         entry.setTotalWorkedMinutes(rawMinutes);
         entry.setTotalOvertimeMinutes(result.getOvertimeMinutes());
         entry.setLunchBreakDeducted(result.isLunchDeducted());
-
-        // Set status to USER_INPUT (resolved)
-        entry.setAdminSync(SyncStatus.USER_INPUT);
+        entry.setAdminSync(SyncStatusWorktime.USER_INPUT);
     }
 
     /**

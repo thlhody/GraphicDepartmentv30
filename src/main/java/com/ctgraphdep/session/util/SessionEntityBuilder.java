@@ -1,7 +1,7 @@
 package com.ctgraphdep.session.util;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -43,27 +43,6 @@ public class SessionEntityBuilder {
         return session;
     }
 
-    // Create a new worktime entry with default values
-    public static WorkTimeTable createWorktimeEntry(Integer userId, LocalDateTime startTime) {
-        return createWorktimeEntry(userId, startTime, LocalDate.now());
-    }
-
-    // Create a new worktime entry with specified date
-    public static WorkTimeTable createWorktimeEntry(Integer userId, LocalDateTime startTime, LocalDate workDate) {
-        WorkTimeTable entry = new WorkTimeTable();
-        entry.setUserId(userId);
-        entry.setWorkDate(workDate);
-        entry.setDayStartTime(startTime);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setLunchBreakDeducted(false);
-        entry.setAdminSync(SyncStatus.USER_IN_PROCESS);
-        entry.setTimeOffType(null);
-        return entry;
-    }
-
     // Create a worktime entry from a session
     public static WorkTimeTable createWorktimeEntryFromSession(WorkUsersSessionsStates session) {
         WorkTimeTable entry = new WorkTimeTable();
@@ -76,22 +55,44 @@ public class SessionEntityBuilder {
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
         entry.setLunchBreakDeducted(session.getLunchBreakDeducted() != null ? session.getLunchBreakDeducted() : false);
-        entry.setAdminSync(SyncStatus.USER_INPUT);
+        entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
         entry.setTimeOffType(null);
         return entry;
     }
 
     // Update an existing session using a builder pattern
-    public static WorkUsersSessionsStates updateSession(
-            WorkUsersSessionsStates session,
-            Consumer<SessionUpdateBuilder> updates) {
-
+    public static WorkUsersSessionsStates updateSession(WorkUsersSessionsStates session, Consumer<SessionUpdateBuilder> updates) {
         SessionUpdateBuilder builder = new SessionUpdateBuilder(session);
         updates.accept(builder);
         return builder.build();
     }
 
+
+    // Create a new worktime entry with default values
+    @Deprecated
+    public static WorkTimeTable createWorktimeEntry(Integer userId, LocalDateTime startTime) {
+        return createWorktimeEntry(userId, startTime, LocalDate.now());
+    }
+
+    // Create a new worktime entry with specified date
+    @Deprecated
+    public static WorkTimeTable createWorktimeEntry(Integer userId, LocalDateTime startTime, LocalDate workDate) {
+        WorkTimeTable entry = new WorkTimeTable();
+        entry.setUserId(userId);
+        entry.setWorkDate(workDate);
+        entry.setDayStartTime(startTime);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setLunchBreakDeducted(false);
+        entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
+        entry.setTimeOffType(null);
+        return entry;
+    }
+
     // Inner builder class for flexible session updates
+    @Deprecated
     public static class SessionUpdateBuilder {
         private final WorkUsersSessionsStates session;
 
@@ -175,9 +176,8 @@ public class SessionEntityBuilder {
     }
 
     // Update an existing worktime entry
-    public static WorkTimeTable updateWorktimeEntry(
-            WorkTimeTable entry,
-            Consumer<WorktimeUpdateBuilder> updates) {
+    @Deprecated
+    public static WorkTimeTable updateWorktimeEntry(WorkTimeTable entry, Consumer<WorktimeUpdateBuilder> updates) {
 
         WorktimeUpdateBuilder builder = new WorktimeUpdateBuilder(entry);
         updates.accept(builder);
@@ -185,6 +185,7 @@ public class SessionEntityBuilder {
     }
 
     // Inner builder class for worktime entry updates
+    @Deprecated
     public static class WorktimeUpdateBuilder {
         private final WorkTimeTable entry;
 
@@ -222,7 +223,7 @@ public class SessionEntityBuilder {
             return this;
         }
 
-        public WorktimeUpdateBuilder adminSync(SyncStatus status) {
+        public WorktimeUpdateBuilder adminSync(SyncStatusWorktime status) {
             entry.setAdminSync(status);
             return this;
         }

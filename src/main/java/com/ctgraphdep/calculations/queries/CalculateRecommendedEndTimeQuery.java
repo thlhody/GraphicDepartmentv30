@@ -5,6 +5,7 @@ import com.ctgraphdep.calculations.CalculationQuery;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDateTime;
 
@@ -25,9 +26,14 @@ public class CalculateRecommendedEndTimeQuery implements CalculationQuery<LocalD
         try {
             return CalculateWorkHoursUtil.calculateRecommendedEndTime(entry, userSchedule);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error calculating recommended end time: " + e.getMessage(), e);
-            return LocalDateTime.now(); // Fallback to current time
+            LoggerUtil.error(this.getClass(), "Error calculating recommended end time: " + e.getMessage(), e);
+
+            // Get standardized time values instead of using LocalDateTime.now()
+            GetStandardTimeValuesCommand timeCommand = context.getSessionContext().getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getSessionContext().getValidationService().execute(timeCommand);
+
+            // Return standardized current time as fallback
+            return timeValues.getCurrentTime();
         }
     }
 }

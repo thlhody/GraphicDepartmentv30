@@ -5,6 +5,8 @@ import com.ctgraphdep.model.dashboard.DashboardConfiguration;
 import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
+import com.ctgraphdep.validation.TimeValidationService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,8 +25,8 @@ public class UserDashboardController extends BaseDashboardController {
             UserService userService,
             DashboardService dashboardService,
             @Qualifier("userDashboardConfig") DashboardConfiguration userDashboardConfig,
-            PermissionFilterService permissionFilterService) {
-        super(userService, dashboardService, userDashboardConfig, permissionFilterService);
+            PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
+        super(userService, dashboardService, userDashboardConfig, permissionFilterService, timeValidationService);
     }
 
     @GetMapping

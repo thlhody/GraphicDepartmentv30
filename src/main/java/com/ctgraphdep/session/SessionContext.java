@@ -4,6 +4,7 @@ import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.WorkTimeCalculationResult;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -25,7 +26,7 @@ public class SessionContext {
     private final SystemNotificationBackupService backupService;
     private final SessionMonitorService sessionMonitorService;
     private final PathConfig pathConfig;
-    private final FolderStatusService folderStatusService;
+    private final FolderStatus folderStatus;
     private final SessionCommandFactory commandFactory;
     private final TimeValidationService validationService;
 
@@ -44,7 +45,7 @@ public class SessionContext {
             SystemNotificationBackupService backupService,
             @Lazy SessionMonitorService sessionMonitorService,
             PathConfig pathConfig,
-            FolderStatusService folderStatusService,
+            FolderStatus folderStatus,
             SessionCommandFactory commandFactory, TimeValidationService validationService) {
 
         this.dataAccessService = dataAccessService;
@@ -55,7 +56,7 @@ public class SessionContext {
         this.backupService = backupService;
         this.sessionMonitorService = sessionMonitorService;
         this.pathConfig = pathConfig;
-        this.folderStatusService = folderStatusService;
+        this.folderStatus = folderStatus;
         this.commandFactory = commandFactory;
         this.validationService = validationService;
 
@@ -102,7 +103,7 @@ public class SessionContext {
             WorkUsersSessionsStates session,
             LocalDateTime currentTime,
             int userSchedule) {
-        var command = calculationFactory.createUpdateOnlineSessionCalculationsCommand(session, currentTime, userSchedule);
+        var command = calculationFactory.createSessionCalculationRouterCommand(session, currentTime, userSchedule);
         return calculationService.executeCommand(command);
     }
 

@@ -8,6 +8,8 @@ import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.ui.Model;
@@ -22,17 +24,15 @@ public abstract class BaseDashboardController {
     protected final DashboardService dashboardService;
     protected final DashboardConfiguration dashboardConfig;
     protected final PermissionFilterService permissionFilterService;
+    private final TimeValidationService timeValidationService;
 
-    protected BaseDashboardController(
-            UserService userService,
-            DashboardService dashboardService,
-            DashboardConfiguration dashboardConfig,
-            PermissionFilterService permissionFilterService) {
+    protected BaseDashboardController(UserService userService, DashboardService dashboardService, DashboardConfiguration dashboardConfig,
+                                      PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
         this.userService = userService;
         this.dashboardService = dashboardService;
         this.dashboardConfig = dashboardConfig;
         this.permissionFilterService = permissionFilterService;
-        LoggerUtil.initialize(this.getClass(), null);
+        this.timeValidationService = timeValidationService;
     }
 
     protected DashboardViewModel prepareDashboardViewModel() {
@@ -44,19 +44,14 @@ public abstract class BaseDashboardController {
         }
 
         if (!isUserRoleValid(currentUser)) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("User %s with role %s does not have required role: %s",
-                            currentUser.getUsername(), currentUser.getRole(), dashboardConfig.getRole()));
+            LoggerUtil.error(this.getClass(), String.format("User %s with role %s does not have required role: %s", currentUser.getUsername(), currentUser.getRole(), dashboardConfig.getRole()));
             // Return empty dashboard model
             return createEmptyDashboardModel();
         }
 
         try {
             // Filter cards based on permissions
-            List<DashboardCard> filteredCards = permissionFilterService.filterCardsByPermission(
-                    dashboardConfig.getCards(),
-                    currentUser
-            );
+            List<DashboardCard> filteredCards = permissionFilterService.filterCardsByPermission(dashboardConfig.getCards(), currentUser);
 
             // Create a new configuration with filtered cards
             DashboardConfiguration filteredConfig = DashboardConfiguration.builder()
@@ -95,6 +90,7 @@ public abstract class BaseDashboardController {
         model.addAttribute("refreshEnabled", dashboardConfig.isRefreshEnabled());
         model.addAttribute("refreshInterval", dashboardConfig.getRefreshInterval());
         model.addAttribute("templateType", getTemplateType());
+        model.addAttribute("dashboardViewName", getDashboardViewName());
     }
 
     protected User getCurrentUser() {
@@ -112,11 +108,7 @@ public abstract class BaseDashboardController {
             }
 
             User user = userOptional.get();
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Current user: %s, Role: %s, Required role: %s",
-                            user.getUsername(),
-                            user.getRole(),
-                            dashboardConfig.getRole()));
+            LoggerUtil.debug(this.getClass(), String.format("Current user: %s, Role: %s, Required role: %s", user.getUsername(), user.getRole(), dashboardConfig.getRole()));
 
             return user;
         } catch (Exception e) {
@@ -131,12 +123,15 @@ public abstract class BaseDashboardController {
     }
 
     private DashboardViewModel createEmptyDashboardModel() {
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+
         return DashboardViewModel.builder()
                 .pageTitle("Dashboard Unavailable")
                 .username("Unknown")
                 .userFullName("Unknown User")
                 .userRole("NONE")
-                .currentDateTime(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
+                .currentDateTime(timeValues.getCurrentTime().format(WorkCode.DATE_TIME_FORMATTER))
                 .cards(Collections.emptyList())
                 .metrics(buildEmptyMetrics())
                 .build();

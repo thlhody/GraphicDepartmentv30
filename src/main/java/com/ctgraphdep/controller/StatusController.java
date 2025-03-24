@@ -8,6 +8,7 @@ import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserRegisterExcelExporter;
 import com.ctgraphdep.utils.UserWorktimeExcelExporter;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,7 +28,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -35,67 +35,73 @@ import java.util.*;
 @RequestMapping("/status")
 @PreAuthorize("isAuthenticated()")
 public class StatusController extends BaseController {
+
+    private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
+
     private final StatusService statusService;
-    private final UserTimeOffService userTimeOffService;
     private final UserStatusDbService userStatusDbService;
     private final ThymeleafService thymeleafService;
     private final UserRegisterExcelExporter excelExporter;
     private final UserWorktimeExcelExporter userWorktimeExcelExporter;
 
     public StatusController(UserService userService,
-                            FolderStatusService folderStatusService,
+                            FolderStatus folderStatus,
                             StatusService statusService,
-                            UserTimeOffService userTimeOffService, UserStatusDbService userStatusDbService, ThymeleafService thymeleafService,
+                            UserStatusDbService userStatusDbService,
+                            ThymeleafService thymeleafService,
                             UserRegisterExcelExporter excelExporter,
-                            UserWorktimeExcelExporter userWorktimeExcelExporter) {
-        super(userService, folderStatusService);
+                            UserWorktimeExcelExporter userWorktimeExcelExporter,
+                            TimeValidationService timeValidationService) {
+        super(userService, folderStatus, timeValidationService);
         this.statusService = statusService;
-        this.userTimeOffService = userTimeOffService;
         this.userStatusDbService = userStatusDbService;
         this.thymeleafService = thymeleafService;
         this.excelExporter = excelExporter;
         this.userWorktimeExcelExporter = userWorktimeExcelExporter;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
     public String getStatus(@AuthenticationPrincipal UserDetails userDetails, Model model) {
-        LoggerUtil.info(this.getClass(), "Accessing unified status page");
+        LoggerUtil.info(this.getClass(), "Accessing unified status page at " + getStandardCurrentDateTime());
 
         User currentUser = getUser(userDetails);
 
         // Determine dashboard URL based on user role
-        String dashboardUrl = currentUser.hasRole("TEAM_LEADER") ? "/team-lead" :
-                currentUser.hasRole("ADMIN") ? "/admin" : "/user";
-
-        LoggerUtil.debug(this.getClass(), String.format("Determined Dashboard URL for %s: %s", currentUser.getUsername(), dashboardUrl));
+        String dashboardUrl = getDashboardUrl(currentUser);
 
         // Get filtered status list using the StatusService
         List<UserStatusDTO> userStatuses = statusService.getUserStatuses();
         long onlineCount = statusService.getUserStatusCount("online");
+
+        // Add the flag for admin/team leader role check
+        boolean hasAdminTeamLeaderRole = currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER");
 
         // Add model attributes
         model.addAttribute("userStatuses", userStatuses);
         model.addAttribute("currentUsername", currentUser.getUsername());
         model.addAttribute("onlineCount", onlineCount);
         model.addAttribute("isAdminView", currentUser.isAdmin());
+        model.addAttribute("hasAdminTeamLeaderRole", hasAdminTeamLeaderRole);
         model.addAttribute("dashboardUrl", dashboardUrl);
+        model.addAttribute("currentSystemTime", formatCurrentDateTime());
 
         return "status/status";
     }
+
 
     @GetMapping("/refresh")
     public String refreshStatus() {
         // Invalidate the cache to ensure fresh data
         userStatusDbService.invalidateCache();
-        LoggerUtil.info(this.getClass(), "Status cache invalidated via manual refresh");
+        LoggerUtil.info(this.getClass(), "Status cache invalidated via manual refresh at " + getStandardCurrentDateTime());
         return "redirect:/status";
     }
 
     @GetMapping("/ajax-refresh")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> ajaxRefreshStatus(@AuthenticationPrincipal UserDetails userDetails) {
-        LoggerUtil.info(this.getClass(), "Processing AJAX status refresh request");
+        LocalDateTime currentTime = getStandardCurrentDateTime();
+        LoggerUtil.info(this.getClass(), "Processing AJAX status refresh request at " + currentTime);
 
         try {
             // Force invalidation of the status cache
@@ -113,12 +119,16 @@ public class StatusController extends BaseController {
             tableModel.addAttribute("currentUsername", currentUser.getUsername());
             tableModel.addAttribute("isAdminView", currentUser.isAdmin());
 
+            // Add the flag for admin/team leader role check
+            boolean hasAdminTeamLeaderRole = currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER");
+            tableModel.addAttribute("hasAdminTeamLeaderRole", hasAdminTeamLeaderRole);
+
             // Render the table body fragment using Thymeleaf
             String tableHtml = "";
             try {
                 tableHtml = thymeleafService.processTemplate("status/fragments/status-table-body", tableModel);
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), "Error rendering status table fragment: " + e.getMessage());
+                LoggerUtil.error(this.getClass(), "Error rendering status table fragment: " + e.getMessage(), e);
                 // If rendering fails, we'll return an empty string for tableHtml
             }
 
@@ -126,7 +136,7 @@ public class StatusController extends BaseController {
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("onlineCount", onlineCount);
             responseData.put("tableHtml", tableHtml);
-            responseData.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            responseData.put("timestamp", currentTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
 
             return ResponseEntity.ok(responseData);
         } catch (Exception e) {
@@ -152,6 +162,8 @@ public class StatusController extends BaseController {
             Model model) {
 
         try {
+            LoggerUtil.info(this.getClass(), "Accessing register search at " + getStandardCurrentDateTime());
+
             // Get the current user and determine the target user
             User currentUser = getUser(userDetails);
             User targetUser = determineTargetUser(currentUser, username);
@@ -163,16 +175,14 @@ public class StatusController extends BaseController {
             model.addAttribute("actionTypes", ActionType.getValues());
             model.addAttribute("printPrepTypes", PrintPrepTypes.getValues());
 
-            // Get current date for defaults
-            LocalDate now = LocalDate.now();
-
-            // Determine the requested period
-            int displayYear = (year != null) ? year : now.getYear();
-            int displayMonth = (month != null) ? month : now.getMonthValue();
+            // Use determineYear and determineMonth from BaseController
+            int displayYear = determineYear(year);
+            int displayMonth = determineMonth(month);
 
             // Set current period for the UI
             model.addAttribute("currentYear", displayYear);
             model.addAttribute("currentMonth", displayMonth);
+            model.addAttribute("currentDate", getStandardCurrentDate());
 
             // Load appropriate entries based on search parameters
             List<RegisterEntry> entries;
@@ -206,12 +216,16 @@ public class StatusController extends BaseController {
             Set<String> clients = statusService.extractUniqueClients(clientSourceEntries);
             model.addAttribute("clients", clients);
 
+            // Add system time
+            model.addAttribute("currentSystemTime", formatCurrentDateTime());
+
             return "status/register-search";
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in register search: " + e.getMessage(), e);
             model.addAttribute("errorMessage", "Error processing register search: " + e.getMessage());
             model.addAttribute("entries", new ArrayList<>());
+            model.addAttribute("currentDate", getStandardCurrentDate());
             return "status/register-search";
         }
     }
@@ -220,8 +234,8 @@ public class StatusController extends BaseController {
     public ResponseEntity<byte[]> exportSearchResults(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) String searchTerm,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false) String printPrepTypes,
             @RequestParam(required = false) String clientName,
@@ -230,28 +244,35 @@ public class StatusController extends BaseController {
             @RequestParam(required = false) String username) {
 
         try {
-            User currentUser = getUser(userDetails);
-            User targetUser;
+            LoggerUtil.info(this.getClass(), "Exporting register search results at " + getStandardCurrentDateTime());
 
-            // Determine which user's register to export
-            if (username != null && !username.isEmpty()) {
-                targetUser = getUserService().getUserByUsername(username)
-                        .orElseThrow(() -> new RuntimeException("User not found"));
-            } else {
-                targetUser = currentUser;
-            }
+            User currentUser = getUser(userDetails);
+
+            // Determine which user's register to export using the helper method
+            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+
+            // Use determineYear and determineMonth methods from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
             // Load all relevant entries
-            List<RegisterEntry> allEntries = statusService.loadAllRelevantEntries(targetUser, year, month, startDate, endDate);
+            List<RegisterEntry> allEntries = statusService.loadAllRelevantEntries(
+                    targetUser,
+                    selectedYear,
+                    selectedMonth,
+                    startDate,
+                    endDate);
 
             // Apply filters using StatusService
             List<RegisterEntry> filteredEntries = statusService.filterRegisterEntries(
                     allEntries, searchTerm, startDate, endDate, actionType, printPrepTypes, clientName);
 
             // Generate Excel file
-            byte[] excelData = excelExporter.exportToExcel(targetUser, filteredEntries,
-                    year != null ? year : LocalDate.now().getYear(),
-                    month != null ? month : LocalDate.now().getMonthValue());
+            byte[] excelData = excelExporter.exportToExcel(
+                    targetUser,
+                    filteredEntries,
+                    selectedYear,
+                    selectedMonth);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -266,7 +287,6 @@ public class StatusController extends BaseController {
         }
     }
 
-    // In StatusController.java - update getTimeOffHistory
     @GetMapping("/timeoff-history")
     public String getTimeOffHistory(
             @RequestParam(required = false) Integer userId,
@@ -276,15 +296,16 @@ public class StatusController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
+            LoggerUtil.info(this.getClass(), "Accessing time off history at " + getStandardCurrentDateTime());
+
             // We need either userId or username
             if (userId == null && (username == null || username.isEmpty())) {
                 redirectAttributes.addFlashAttribute("errorMessage", "User information is required");
                 return "redirect:/status";
             }
 
-            // Set default year if not provided
-            int currentYear = Year.now().getValue();
-            year = year != null ? year : currentYear;
+            // Use determineYear from BaseController
+            int selectedYear = determineYear(year);
 
             // Get user details either by ID or username
             Optional<User> userOpt;
@@ -304,17 +325,25 @@ public class StatusController extends BaseController {
 
             User user = userOpt.get();
 
-            // Get time off records using the read-only method
-            List<WorkTimeTable> timeOffs = userTimeOffService.getUserTimeOffHistoryReadOnly(user.getUsername(), year);
+            // Get APPROVED time off entries from tracker converted to WorkTimeTable format
+            List<WorkTimeTable> timeOffs = statusService.getApprovedTimeOffFromTracker(
+                    user.getUsername(), user.getUserId(), selectedYear);
 
-            // Calculate time off summary using StatusService
-            TimeOffSummary summary = statusService.getTimeOffSummary(user.getUsername(), year);
+            // Also get the raw tracker using the StatusService method
+            TimeOffTracker tracker = statusService.getTimeOffTrackerReadOnly(
+                    user.getUsername(), user.getUserId(), selectedYear);
+
+            // Calculate time off summary directly from tracker
+            TimeOffSummary summary = statusService.getTimeOffSummaryFromTracker(
+                    user.getUsername(), user.getUserId(), selectedYear);
 
             // Add data to model
             model.addAttribute("user", user);
             model.addAttribute("timeOffs", timeOffs);
+            model.addAttribute("tracker", tracker); // Optional, for debugging
             model.addAttribute("summary", summary);
-            model.addAttribute("year", year);
+            model.addAttribute("year", selectedYear);
+            model.addAttribute("currentSystemTime", formatCurrentDateTime());
 
             return "status/timeoff-history";
 
@@ -335,22 +364,20 @@ public class StatusController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
+            LoggerUtil.info(this.getClass(), "Accessing worktime status at " + getStandardCurrentDateTime());
+
             // Get current authenticated user
             User currentUser = getUser(userDetails);
 
             // Determine target user (user being viewed)
-            User targetUser;
-            if (username != null && !username.isEmpty()) {
-                targetUser = getUserService().getUserByUsername(username)
-                        .orElseThrow(() -> new RuntimeException("User not found"));
-            } else {
-                targetUser = currentUser;
-            }
+            User targetUser = username != null && !username.isEmpty() ?
+                    getUserService().getUserByUsername(username)
+                            .orElseThrow(() -> new RuntimeException("User not found")) :
+                    currentUser;
 
-            // Set up current year and month
-            LocalDate now = LocalDate.now();
-            int currentYear = year != null ? year : now.getYear();
-            int currentMonth = month != null ? month : now.getMonthValue();
+            // Use determineYear and determineMonth from BaseController
+            int currentYear = determineYear(year);
+            int currentMonth = determineMonth(month);
 
             // For other users' data, only admins and team leaders can view
             boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) &&
@@ -373,6 +400,10 @@ public class StatusController extends BaseController {
             // Add all data to model
             model.addAllAttributes(displayData);
 
+            // Add current system time
+            model.addAttribute("currentSystemTime", formatCurrentDateTime());
+            model.addAttribute("standardDate", getStandardCurrentDate());
+
             return "status/worktime-status";
 
         } catch (Exception e) {
@@ -389,48 +420,62 @@ public class StatusController extends BaseController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month) {
         try {
+            LoggerUtil.info(this.getClass(), "Exporting worktime data at " + getStandardCurrentDateTime());
+
             // Get current authenticated user
             User currentUser = getUser(userDetails);
 
-            // Determine target user
-            User targetUser;
-            if (username != null && !username.isEmpty()) {
-                targetUser = getUserService().getUserByUsername(username)
-                        .orElseThrow(() -> new RuntimeException("User not found"));
-            } else {
-                targetUser = currentUser;
-            }
+            // Determine target user using simplified logic
+            User targetUser = username != null && !username.isEmpty() ?
+                    getUserService().getUserByUsername(username)
+                            .orElseThrow(() -> new RuntimeException("User not found")) :
+                    currentUser;
 
-            // Set up current year and month if not specified
-            LocalDate now = LocalDate.now();
-            int exportYear = year != null ? year : now.getYear();
-            int exportMonth = month != null ? month : now.getMonthValue();
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
             // Load worktime data using StatusService
             List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(
-                    targetUser.getUsername(), targetUser.getUserId(), exportYear, exportMonth);
+                    targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
 
             // Get display data which includes the summary
             Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(
-                    targetUser, worktimeData, exportYear, exportMonth);
+                    targetUser, worktimeData, selectedYear, selectedMonth);
 
             // Extract the summary
             WorkTimeSummary summary = (WorkTimeSummary) displayData.get("summary");
 
             // Use the exporter to generate Excel data
             byte[] excelData = userWorktimeExcelExporter.exportToExcel(
-                    targetUser, worktimeData, summary, exportYear, exportMonth);
+                    targetUser, worktimeData, summary, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
                             String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
-                                    targetUser.getUsername(), exportYear, exportMonth))
+                                    targetUser.getUsername(), selectedYear, selectedMonth))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    // Formats the current datetime using the standard pattern
+    private String formatCurrentDateTime() {
+        return getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN));
+    }
+
+    // Determines the appropriate dashboard URL based on user role
+    private String getDashboardUrl(User user) {
+        if (user.hasRole("TEAM_LEADER")) {
+            return "/team-lead";
+        } else if (user.hasRole("ADMIN")) {
+            return "/admin";
+        } else {
+            return "/user";
         }
     }
 
@@ -441,8 +486,7 @@ public class StatusController extends BaseController {
         }
 
         // Anyone can view register search for any user
-        return getUserService().getUserByUsername(requestedUsername)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        return getUserService().getUserByUsername(requestedUsername).orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     // Helper to check if any search criteria are present

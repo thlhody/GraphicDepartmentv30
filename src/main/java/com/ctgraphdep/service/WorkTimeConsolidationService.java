@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.enums.WorktimeMergeRule;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -115,7 +115,7 @@ public class WorkTimeConsolidationService {
             if (adminEntriesMap != null) {
                 for (WorkTimeTable adminEntry : adminEntriesMap.values()) {
                     if (adminEntry.getUserId().equals(user.getUserId())) {
-                        if (SyncStatus.ADMIN_BLANK.equals(adminEntry.getAdminSync())
+                        if (SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync())
                                 && !userEntriesMap.containsKey(adminEntry.getWorkDate())) {
                             continue;
                         }
@@ -168,6 +168,9 @@ public class WorkTimeConsolidationService {
     public List<WorkTimeTable> getViewableEntries(int year, int month) {
         List<WorkTimeTable> allEntries = loadAdminWorktime(year, month);
 
-        return new ArrayList<>(allEntries);
+        // Filter out USER_IN_PROCESS entries
+        return allEntries.stream()
+                .filter(entry -> !SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync()))
+                .collect(Collectors.toList());
     }
 }

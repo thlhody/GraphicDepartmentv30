@@ -1,12 +1,10 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=123456790}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=123456790}">
+    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -154,14 +152,20 @@
                             <!-- Editor popup -->
                             <div class="worktime-editor">
                                 <div class="quick-actions d-flex gap-2 mb-2">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="setWorktime(this, '8')">8h</button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="setWorktime(this, 'SN')">SN</button>
-                                    <button class="btn btn-sm btn-outline-info" onclick="setWorktime(this, 'CO')">CO</button>
-                                    <button class="btn btn-sm btn-outline-warning" onclick="setWorktime(this, 'CM')">CM</button>
-                                    <button class="btn btn-sm btn-outline-secondary" onclick="setWorktime(this, 'REMOVE')">X<i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="setWorktime(this, '8')">8h
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="setWorktime(this, 'SN')">SN
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" onclick="setWorktime(this, 'CO')">CO
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="setWorktime(this, 'CM')">
+                                        CM
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            onclick="setWorktime(this, 'REMOVE')">X<i class="bi bi-trash"></i></button>
                                 </div>
                                 <div class="input-group">
-                                    <input type="text"  class="form-control form-control-sm"
+                                    <input type="text" class="form-control form-control-sm"
                                            placeholder="Custom hours (1-24)">
                                     <button class="btn btn-sm btn-primary" onclick="saveWorktime(this)">Save</button>
                                 </div>
@@ -189,7 +193,7 @@
     </div>
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <script th:src="@{/js/worktime-admin.js?v=123456780}"></script>
+        <script th:src="@{/js/worktime-admin.js?v=18781}"></script>
     </th:block>
 </div>
 </body>

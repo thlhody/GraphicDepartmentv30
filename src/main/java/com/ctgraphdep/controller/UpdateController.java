@@ -21,17 +21,18 @@ import java.nio.file.Paths;
 
 @Controller
 @RequestMapping("/update")
-public class UpdateController {
+public class UpdateController  {
 
     private final UpdateService updateService;
 
     @Value("${cttt.version:}")
     private String currentVersion;
 
-    public UpdateController(UpdateService updateService) {
+    protected UpdateController(UpdateService updateService) {
+
         this.updateService = updateService;
-        LoggerUtil.initialize(this.getClass(), null);
     }
+
 
     @GetMapping
     public String checkForUpdate(Model model) {

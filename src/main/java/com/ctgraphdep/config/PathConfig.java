@@ -28,7 +28,6 @@ public class PathConfig {
     // Base paths
     @Value("${app.paths.network}")
     private String networkBasePath;
-
     @Value("${app.local}")
     private String localBasePath;
 
@@ -40,9 +39,6 @@ public class PathConfig {
     private String userStatus;
     @Value("${dbj.dir.format.status:status_%s_%d.json}")
     private String statusFormat;
-    @Value("${dbj.dir.format.resolution:resolution_%s_%d.json}")
-    private String resolutionFormat;
-
 
     // Directory paths
     @Value("${dbj.user.session}")
@@ -51,6 +47,8 @@ public class PathConfig {
     private String userWorktime;
     @Value("${dbj.user.register}")
     private String userRegister;
+    @Value("${dbj.user.timeoff}")
+    private String userTimeoff;
     @Value("${dbj.admin.worktime}")
     private String adminWorktime;
     @Value("${dbj.admin.register}")
@@ -73,6 +71,8 @@ public class PathConfig {
     private String adminRegisterFormat;
     @Value("${dbj.dir.format.admin.bonus}")
     private String adminBonusFormat;
+    @Value("${dbj.dir.format.timeoff}")
+    private String timeoffFormat;
 
     // File names
     @Value("${dbj.users.filename}")
@@ -86,10 +86,8 @@ public class PathConfig {
 
     @Value("${app.cache.holiday}")
     private String holidayCacheFile;  // holiday_cache.json
-
     @Value("${app.lock.holiday}")
     private String holidayLockFile;   // holiday.lock
-
     @Value("${app.lock.users}")
     private String usersLockFile;   // users.lock
 
@@ -257,6 +255,22 @@ public class PathConfig {
         );
     }
 
+    /**
+     * Get the local path for a user's time off tracker file with year
+     */
+    public Path getLocalTimeOffTrackerPath(String username, Integer userId, int year) {
+        return localPath.resolve(userTimeoff)
+                .resolve(String.format(timeoffFormat, username, userId, year));
+    }
+
+    /**
+     * Get the network path for a user's time off tracker file with year
+     */
+    public Path getNetworkTimeOffTrackerPath(String username, Integer userId, int year) {
+        return networkPath.resolve(userTimeoff)
+                .resolve(String.format(timeoffFormat, username, userId, year));
+    }
+
     // Network status management
     public boolean isNetworkAvailable() {
         synchronized (networkStatusLock) {
@@ -350,6 +364,7 @@ public class PathConfig {
                     userStatus,
                     userWorktime,
                     userRegister,
+                    userTimeoff,
                     adminWorktime,
                     adminRegister,
                     adminBonus

@@ -5,10 +5,9 @@ import com.ctgraphdep.model.*;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserWorktimeExcelExporter;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
-import com.ctgraphdep.validation.TimeValidationFactory;
 import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Controller
@@ -27,59 +26,41 @@ import java.util.*;
 public class UserWorktimeController extends BaseController {
 
     private final UserWorkTimeDisplayService displayService;
-    private final UserWorkTimeService userWorkTimeService;
     private final WorkTimeEntrySyncService entrySyncService;
     private final UserWorktimeExcelExporter excelExporter;
-    private final TimeValidationService validationService;
-    private final TimeValidationFactory validationFactory;
+    private final DataAccessService dataAccessService;
 
     public UserWorktimeController(
             UserService userService,
-            FolderStatusService folderStatusService,
+            FolderStatus folderStatus,
             UserWorkTimeDisplayService displayService,
-            UserWorkTimeService userWorkTimeService,
             WorkTimeEntrySyncService entrySyncService,
             UserWorktimeExcelExporter excelExporter,
-            TimeValidationService validationService,
-            TimeValidationFactory validationFactory) {
-        super(userService, folderStatusService);
+            TimeValidationService validationService, DataAccessService dataAccessService) {
+        super(userService, folderStatus, validationService);
         this.displayService = displayService;
-        this.userWorkTimeService = userWorkTimeService;
         this.entrySyncService = entrySyncService;
         this.excelExporter = excelExporter;
-        this.validationService = validationService;
-        this.validationFactory = validationFactory;
-        LoggerUtil.initialize(this.getClass(), null);
+        this.dataAccessService = dataAccessService;
     }
 
     @GetMapping
     public String getWorktimePage(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) String username,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
             Model model) {
 
         try {
-            User currentUser = getUser(userDetails);
-            User targetUser;
+            LoggerUtil.info(this.getClass(), "Accessing worktime page at " + getStandardCurrentDateTime());
 
-            // Determine which user's worktime to display
-            if (username != null) {
-                // Check roles for access control
-                if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                    targetUser = getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found"));
-                } else if (username.equals(currentUser.getUsername())) {
-                    // Regular users can only view their own worktime
-                    targetUser = currentUser;
-                } else {
-                    // If regular user tries to access another user's worktime, redirect to their own
-                    return "redirect:/user/worktime";
-                }
-            } else {
-                // No username specified, show current user's worktime
-                targetUser = currentUser;
+            // Use checkUserAccess for authentication verification
+            String accessCheck = checkUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            if (accessCheck != null) {
+                return accessCheck;
             }
+
+            User currentUser = getUser(userDetails);
 
             // Add role-specific view attributes
             if (currentUser.hasRole("ADMIN")) {
@@ -92,37 +73,34 @@ public class UserWorktimeController extends BaseController {
                 model.addAttribute("dashboardUrl", "/user");
             }
 
-            // Get standardized time values using the validation system
-            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
-            // Set default year and month if not provided
-            LocalDate now = timeValues.getCurrentDate();
-            year = Optional.ofNullable(year).orElse(now.getYear());
-            month = Optional.ofNullable(month).orElse(now.getMonthValue());
+            // Step 1: Synchronize entries between admin and user files
+            entrySyncService.synchronizeEntries(
+                    currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
-            // Synchronize and get worktime entries
-            List<WorkTimeTable> worktimeData;
+            // Step 2: Read the data from disk after sync is complete
+            // This ensures we're displaying the actual saved data, not in-memory objects
+            List<WorkTimeTable> worktimeData = dataAccessService.readUserWorktime(
+                    currentUser.getUsername(), selectedYear, selectedMonth);
 
-            if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                worktimeData = userWorkTimeService.loadViewOnlyWorktime(targetUser.getUsername(), year, month);
-            } else {
-                worktimeData = entrySyncService.synchronizeEntries(targetUser.getUsername(), targetUser.getUserId(), year, month);
+            // Make sure we have data (never null)
+            if (worktimeData == null) {
+                worktimeData = new ArrayList<>();
+                LoggerUtil.warn(this.getClass(),
+                        String.format("No worktime data found for user %s (%d/%d) after sync",
+                                currentUser.getUsername(), selectedMonth, selectedYear));
             }
 
             // Prepare display data
-            Map<String, Object> displayData = displayService.prepareDisplayData(targetUser, worktimeData, year, month);
+            Map<String, Object> displayData = displayService.prepareDisplayData(
+                    currentUser, worktimeData, selectedYear, selectedMonth);
 
-            // Add role-based view data
-            if (currentUser.getRole().equals("ADMIN") || currentUser.getRole().equals("TEAM_LEADER")) {
-                model.addAttribute("isAdminView", true);
-                model.addAttribute("targetUser", targetUser);
-
-                if (!targetUser.equals(currentUser)) {
-                    model.addAttribute("viewingOtherUser", true);
-                    model.addAttribute("canEdit", true);
-                }
-            }
+            // Add current time to model
+            model.addAttribute("currentSystemTime", getStandardCurrentDateTime()
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             // Add all data to model
             model.addAllAttributes(displayData);
@@ -130,7 +108,7 @@ public class UserWorktimeController extends BaseController {
             return "user/worktime";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error processing worktime: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), "Error processing worktime: " + e.getMessage(), e);
             model.addAttribute("error", "Error loading worktime data");
             return "user/worktime";
         }
@@ -142,36 +120,44 @@ public class UserWorktimeController extends BaseController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month) {
         try {
-            User user = getUser(userDetails);
+            LoggerUtil.info(this.getClass(), "Exporting worktime data at " + getStandardCurrentDateTime());
 
-            // Get standardized time values using the validation system
-            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+            // Use validateUserAccess for better authorization checking
+            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            if (user == null) {
+                LoggerUtil.error(this.getClass(), "Unauthorized access attempt to export worktime data");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
-            // Set default year and month if not provided
-            LocalDate now = timeValues.getCurrentDate();
-            year = Optional.ofNullable(year).orElse(now.getYear());
-            month = Optional.ofNullable(month).orElse(now.getMonthValue());
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
             // Get worktime data
-            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(user.getUsername(), user.getUserId(), year, month);
+            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(
+                    user.getUsername(), user.getUserId(), selectedYear, selectedMonth);
 
-            // Log the dates to verify data
-            LoggerUtil.info(this.getClass(), String.format("Exporting worktime data for %d/%d. Total entries: %d", month, year, worktimeData.size()));
-            worktimeData.forEach(entry -> LoggerUtil.debug(this.getClass(), "Entry date: " + entry.getWorkDate()));
+            // Log the data details
+            LoggerUtil.info(this.getClass(),
+                    String.format("Exporting worktime data for %s (%d/%d). Total entries: %d",
+                            user.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
 
             // Get display data which includes the summary
-            Map<String, Object> displayData = displayService.prepareDisplayData(user, worktimeData, year, month);
+            Map<String, Object> displayData = displayService.prepareDisplayData(
+                    user, worktimeData, selectedYear, selectedMonth);
             WorkTimeSummary summary = (WorkTimeSummary) displayData.get("summary");
 
-            byte[] excelData = excelExporter.exportToExcel(user, worktimeData, summary, year, month);
+            byte[] excelData = excelExporter.exportToExcel(user, worktimeData, summary, selectedYear, selectedMonth);
+
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"", user.getUsername(), year, month))
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
+                                    user.getUsername(), selectedYear, selectedMonth))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
     }

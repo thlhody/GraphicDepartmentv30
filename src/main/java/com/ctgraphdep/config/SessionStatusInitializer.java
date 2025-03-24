@@ -28,11 +28,7 @@ public class SessionStatusInitializer {
     private final PathConfig pathConfig;
 
     @Autowired
-    public SessionStatusInitializer(
-            UserService userService,
-            DataAccessService dataAccessService,
-            SessionStatusService sessionStatusService,
-            PathConfig pathConfig) {
+    public SessionStatusInitializer(UserService userService, DataAccessService dataAccessService, SessionStatusService sessionStatusService, PathConfig pathConfig) {
         this.userService = userService;
         this.dataAccessService = dataAccessService;
         this.sessionStatusService = sessionStatusService;
@@ -56,13 +52,11 @@ public class SessionStatusInitializer {
                         Path networkSessionPath = pathConfig.getNetworkSessionPath(user.getUsername(), user.getUserId());
 
                         if (Files.exists(networkSessionPath) && Files.size(networkSessionPath) > 0) {
-                            WorkUsersSessionsStates networkSession =
-                                    dataAccessService.readNetworkSessionFile(user.getUsername(), user.getUserId());
+                            WorkUsersSessionsStates networkSession = dataAccessService.readNetworkSessionFile(user.getUsername(), user.getUserId());
 
                             if (networkSession != null) {
                                 sessionStatusService.updateSessionStatus(networkSession);
-                                LoggerUtil.info(this.getClass(),
-                                        String.format("Initialized session status from network for user %s", user.getUsername()));
+                                LoggerUtil.info(this.getClass(), String.format("Initialized session status from network for user %s", user.getUsername()));
                                 continue; // Skip to next user
                             }
                         }
@@ -77,14 +71,11 @@ public class SessionStatusInitializer {
 
                         if (localSession != null) {
                             sessionStatusService.updateSessionStatus(localSession);
-                            LoggerUtil.info(this.getClass(),
-                                    String.format("Initialized session status from local file for user %s", user.getUsername()));
+                            LoggerUtil.info(this.getClass(), String.format("Initialized session status from local file for user %s", user.getUsername()));
                         }
                     }
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            String.format("Error initializing session status for user %s: %s",
-                                    user.getUsername(), e.getMessage()), e);
+                    LoggerUtil.error(this.getClass(), String.format("Error initializing session status for user %s: %s", user.getUsername(), e.getMessage()), e);
                 }
             }
 

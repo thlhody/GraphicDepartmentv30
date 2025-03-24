@@ -239,4 +239,42 @@ public class SystemNotificationBackupService {
         scheduleEndNotificationTimes.remove(username);
         LoggerUtil.info(this.getClass(), String.format("Removed stalled schedule end notification for user %s", username));
     }
+
+    /**
+     * Removes an hourly warning notification record for a user
+     * This is called when handling stalled notifications
+     *
+     * @param username The username to remove notification for
+     */
+    public void removeHourlyNotification(String username) {
+        hourlyNotificationTimes.remove(username);
+        LoggerUtil.info(this.getClass(), String.format("Removed stalled hourly notification for user %s", username));
+    }
+
+    /**
+     * Removes a temporary stop notification record for a user
+     * This is called when handling stalled notifications
+     *
+     * @param username The username to remove notification for
+     */
+    public void removeTempStopNotification(String username) {
+        tempStopNotificationTimes.remove(username);
+        LoggerUtil.info(this.getClass(), String.format("Removed stalled temporary stop notification for user %s", username));
+    }
+
+    /**
+     * Gets stalled hourly warning notifications for handling
+     * @return A map of usernames to notification times
+     */
+    public Map<String, LocalDateTime> getStalledHourlyNotifications() {
+        return hourlyNotificationTimes;
+    }
+
+    /**
+     * Gets stalled temporary stop notifications for handling
+     * @return A map of usernames to notification times
+     */
+    public Map<String, LocalDateTime> getStalledTempStopNotifications() {
+        return tempStopNotificationTimes;
+    }
 }

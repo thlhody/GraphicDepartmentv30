@@ -1,36 +1,38 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.enums.RegisterMergeRule;
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Slf4j
 @Service
 public class AdminRegisterService {
     private final DataAccessService dataAccessService;
     private final BonusCalculatorUtil bonusCalculator;
     private final WorkTimeManagementService workTimeManagementService;
     private final UserService userService;
+    private final TimeValidationService timeValidationService;
 
     @Autowired
     public AdminRegisterService(DataAccessService dataAccessService,
                                 BonusCalculatorUtil bonusCalculator,
-                                WorkTimeManagementService workTimeManagementService, UserService userService) {
+                                WorkTimeManagementService workTimeManagementService, UserService userService, TimeValidationService timeValidationService) {
         this.dataAccessService = dataAccessService;
         this.bonusCalculator = bonusCalculator;
         this.workTimeManagementService = workTimeManagementService;
         this.userService = userService;
+        this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -120,17 +122,17 @@ public class AdminRegisterService {
 
                 if (existingEntry != null) {
                     // If existing entry is already ADMIN_EDITED and new entry is not, preserve the ADMIN_EDITED status
-                    if (existingEntry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name()) &&
-                            !entry.getAdminSync().equals(SyncStatus.ADMIN_EDITED.name())) {
-                        entryToSave.setAdminSync(SyncStatus.ADMIN_EDITED.name());
+                    if (existingEntry.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name()) &&
+                            !entry.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name())) {
+                        entryToSave.setAdminSync(SyncStatusWorktime.ADMIN_EDITED.name());
                         LoggerUtil.debug(this.getClass(),
                                 String.format("Preserving ADMIN_EDITED status for entry %d", entry.getEntryId()));
                     }
                 }
 
                 // Apply entry status updates based on sync state
-                if (entryToSave.getAdminSync().equals(SyncStatus.USER_INPUT.name())) {
-                    entryToSave.setAdminSync(SyncStatus.USER_DONE.name());
+                if (entryToSave.getAdminSync().equals(SyncStatusWorktime.USER_INPUT.name())) {
+                    entryToSave.setAdminSync(SyncStatusWorktime.USER_DONE.name());
                     LoggerUtil.debug(this.getClass(),
                             String.format("Updated entry %d status from USER_INPUT to USER_DONE", entry.getEntryId()));
                 }
@@ -269,13 +271,20 @@ public class AdminRegisterService {
     }
 
     private LocalDate parseLocalDate(Object value) {
-        if (value == null) return LocalDate.now();
+        if (value == null) return getStandardCurrentDate();
         if (value instanceof LocalDate) return (LocalDate) value;
         try {
             return LocalDate.parse(String.valueOf(value));
         } catch (Exception e) {
-            return LocalDate.now();
+            return getStandardCurrentDate();
         }
+    }
+
+    // Gets the standard current date from the time validation service
+    private LocalDate getStandardCurrentDate() {
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        return timeValues.getCurrentDate();
     }
 
     //Calculate bonus for filtered entries
@@ -322,8 +331,7 @@ public class AdminRegisterService {
     }
 
     // Save bonus calculation result
-    public void saveBonusResult(Integer userId, Integer year, Integer month,
-                                BonusCalculationResult result, String username) {
+    public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResult result, String username) {
         try {
             // Get user's employeeId
             Integer employeeId = userService.getUserById(userId)

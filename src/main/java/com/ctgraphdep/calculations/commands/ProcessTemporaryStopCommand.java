@@ -35,9 +35,7 @@ public class ProcessTemporaryStopCommand extends BaseCalculationCommand<WorkUser
     @Override
     protected WorkUsersSessionsStates executeCommand(CalculationContext context) {
         // First, calculate raw work minutes up to this point
-        int rawWorkMinutes = context.executeQuery(
-                context.getCommandFactory().createCalculateRawWorkMinutesQuery(session, stopTime)
-        );
+        int rawWorkMinutes = context.executeQuery(context.getCommandFactory().createCalculateRawWorkMinutesQuery(session, stopTime));
         session.setTotalWorkedMinutes(rawWorkMinutes);
 
         // Initialize temporary stop list if needed
@@ -51,8 +49,7 @@ public class ProcessTemporaryStopCommand extends BaseCalculationCommand<WorkUser
         session.getTemporaryStops().add(tempStop);
 
         // Update temporary stop count
-        int stopCount = (session.getTemporaryStopCount() != null) ?
-                session.getTemporaryStopCount() + 1 : 1;
+        int stopCount = (session.getTemporaryStopCount() != null) ? session.getTemporaryStopCount() + 1 : 1;
         session.setTemporaryStopCount(stopCount);
 
         // Update last temporary stop time

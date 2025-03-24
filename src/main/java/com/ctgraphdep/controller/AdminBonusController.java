@@ -2,12 +2,12 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.BonusEntryDTO;
-import com.ctgraphdep.model.User;
 import com.ctgraphdep.service.AdminBonusService;
-import com.ctgraphdep.service.FolderStatusService;
+import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.MonthFormatter;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,7 +16,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.time.Month;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -27,10 +26,10 @@ import java.util.Map;
 public class AdminBonusController extends BaseController {
     private final AdminBonusService adminBonusService;
 
-    public AdminBonusController(UserService userService, FolderStatusService folderStatusService, AdminBonusService adminBonusService) {
-        super(userService, folderStatusService);
+    public AdminBonusController(UserService userService, FolderStatus folderStatus,
+                                AdminBonusService adminBonusService, TimeValidationService timeValidationService) {
+        super(userService, folderStatus, timeValidationService);
         this.adminBonusService = adminBonusService;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
@@ -41,17 +40,15 @@ public class AdminBonusController extends BaseController {
             Model model) {
 
         try {
-            User currentUser = getUser(userDetails);
-
-            // Verify admin access
-            if (!currentUser.hasRole("ADMIN")) {
-                return "redirect:/user";
+            // Use the new role validation method
+            String accessCheck = checkUserAccess(userDetails, "ADMIN");
+            if (accessCheck != null) {
+                return accessCheck;
             }
 
-            // Set default year and month if not provided
-            LocalDate now = LocalDate.now();
-            year = year != null ? year : now.getYear();
-            month = month != null ? month : now.getMonthValue();
+            // Use the new year and month determination methods
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
             // Create months map
             Map<Integer, String> months = new LinkedHashMap<>();
@@ -60,8 +57,8 @@ public class AdminBonusController extends BaseController {
             }
 
             // Add data to model
-            model.addAttribute("currentYear", year);
-            model.addAttribute("currentMonth", month);
+            model.addAttribute("currentYear", selectedYear);
+            model.addAttribute("currentMonth", selectedMonth);
             model.addAttribute("months", months);
 
             return "admin/bonus";

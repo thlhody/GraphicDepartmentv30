@@ -1,12 +1,10 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Work Registry</title>
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=20240313}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=20240313}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
 <!-- Register Page Content -->
@@ -156,7 +154,7 @@
                         <input id="productionIdInput" type="text" class="form-control form-control-sm"
                                name="productionId"
                                th:value="${param.form_productionId != null ? param.form_productionId[0] : ''}"
-                               title="Format: ABCD00-00000"
+                               title="Format: ORDI00-00000"
                                placeholder="CVEX24-123456">
                     </div>
 
@@ -304,7 +302,22 @@
                             <td th:text="${entry.productionId}"></td>
                             <td th:text="${entry.omsId}"></td>
                             <td th:text="${entry.clientName}"></td>
-                            <td th:text="${entry.actionType}"></td>
+                            <td>
+                                <span th:switch="${entry.actionType}" class="badge"
+                                      th:class="${'badge ' +
+                                        (entry.actionType == 'ORDIN' ? 'bg-order' :
+                                         entry.actionType == 'REORDIN' ? 'bg-reorder' :
+                                         entry.actionType == 'CAMPION' ? 'bg-sample' :
+                                         entry.actionType == 'PROBA STAMPA' ? 'bg-strikeoff' :
+                                         entry.actionType == 'DESIGN' ? 'bg-designs' :
+                                         entry.actionType == 'IMPOSTARE' ? 'bg-layout' :
+                                         entry.actionType == 'ORDIN SPIZED' ? 'bg-spized' :
+                                         entry.actionType == 'CAMPION SPIZED' ? 'bg-spized' :
+                                         entry.actionType == 'PROBA S SPIZED' ? 'bg-spized' :
+                                         'bg-other')}">
+                                    <th:block th:text="${entry.actionType}">Action Type</th:block>
+                                </span>
+                            </td>
                             <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
                             <td th:text="${entry.colorsProfile}"></td>
                             <td th:text="${entry.articleNumbers}"></td>
@@ -385,7 +398,7 @@
 
         <!-- Page Scripts -->
         <th:block layout:fragment="scripts">
-            <script th:src="@{/js/register-user.js?v=20240316}"></script>
+            <script th:src="@{/js/register-user.js?v=18781}"></script>
         </th:block>
     </div>
 </div>

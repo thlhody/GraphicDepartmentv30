@@ -27,13 +27,6 @@ public class DashboardConfiguration {
     @Builder.Default
     private List<DashboardCard> cards = new ArrayList<>();
 
-    public void addCard(DashboardCard card) {
-        if (cards == null) {
-            cards = new ArrayList<>();
-        }
-        cards.add(card);
-    }
-
     public List<DashboardCard> getCards() {
         return cards != null ? cards : new ArrayList<>();
     }

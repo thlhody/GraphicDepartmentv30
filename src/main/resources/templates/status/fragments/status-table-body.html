@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
 <body>
 <!-- This fragment contains only the table body rows for AJAX refresh -->
 
@@ -36,25 +35,25 @@
     <td>
         <div class="d-flex gap-2 justify-content-center">
             <!-- Time Off History Button -->
-            <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
+            <a th:if="${status.userId != null}" th:href="@{status/timeoff-history(userId=${status.userId})}"
                class="btn btn-sm btn-outline-info">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
-            <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
+            <a th:if="${status.userId == null}" th:href="@{status/timeoff-history(username=${status.username})}"
                class="btn btn-sm btn-outline-info">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
 
             <!-- Register Search Button -->
-            <a th:href="@{/status/register-search(username=${status.username})}"
+            <a th:href="@{status/register-search(username=${status.username})}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-search me-1"></i>Register
             </a>
 
             <!-- Work Time Button -->
-            <a th:href="@{/status/worktime-status(username=${status.username})}"
+            <a th:href="@{status/worktime-status(username=${status.username})}"
                class="btn btn-sm btn-outline-warning"
-               th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
+               th:classappend="${status.username != currentUsername && !hasAdminTeamLeaderRole ? 'disabled opacity-50 pe-none' : ''}">
                 <i class="bi bi-clock me-1"></i>WT
             </a>
         </div>
@@ -93,26 +92,26 @@
     <td>
         <div class="d-flex gap-2 justify-content-center">
             <!-- Time Off History Button -->
-            <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
+            <a th:if="${status.userId != null}" th:href="@{status/timeoff-history(userId=${status.userId})}"
                class="btn btn-sm btn-outline-info">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
             <!-- Fallback if userId is missing -->
-            <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
+            <a th:if="${status.userId == null}" th:href="@{status/timeoff-history(username=${status.username})}"
                class="btn btn-sm btn-outline-info">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
 
             <!-- Register Search Button -->
-            <a th:href="@{/status/register-search(username=${status.username})}"
+            <a th:href="@{status/register-search(username=${status.username})}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-search me-1"></i>Register
             </a>
 
             <!-- Work Time Button -->
-            <a th:href="@{/status/worktime-status(username=${status.username})}"
+            <a th:href="@{status/worktime-status(username=${status.username})}"
                class="btn btn-sm btn-outline-warning"
-               th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
+               th:classappend="${status.username != currentUsername && !hasAdminTeamLeaderRole ? 'disabled opacity-50 pe-none' : ''}">
                 <i class="bi bi-clock me-1"></i>WT
             </a>
         </div>
@@ -151,26 +150,26 @@
     <td>
         <div class="d-flex gap-2 justify-content-center">
             <!-- Time Off History Button -->
-            <a th:if="${status.userId != null}" th:href="@{/status/timeoff-history(userId=${status.userId})}"
+            <a th:if="${status.userId != null}" th:href="@{status/timeoff-history(userId=${status.userId})}"
                class="btn btn-sm btn-outline-info">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
             <!-- Fallback if userId is missing -->
-            <a th:if="${status.userId == null}" th:href="@{/status/timeoff-history(username=${status.username})}"
+            <a th:if="${status.userId == null}" th:href="@{status/timeoff-history(username=${status.username})}"
                class="btn btn-sm btn-outline-info">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
 
             <!-- Register Search Button -->
-            <a th:href="@{/status/register-search(username=${status.username})}"
+            <a th:href="@{status/register-search(username=${status.username})}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-search me-1"></i>Register
             </a>
 
             <!-- Work Time Button -->
-            <a th:href="@{/status/worktime-status(username=${status.username})}"
+            <a th:href="@{status/worktime-status(username=${status.username})}"
                class="btn btn-sm btn-outline-warning"
-               th:classappend="${status.username != currentUsername && !#authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'')') ? 'disabled opacity-50 pe-none' : ''}">
+               th:classappend="${status.username != currentUsername && !hasAdminTeamLeaderRole ? 'disabled opacity-50 pe-none' : ''}">
                 <i class="bi bi-clock me-1"></i>WT
             </a>
         </div>

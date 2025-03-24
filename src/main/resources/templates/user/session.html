@@ -1,13 +1,11 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Session Management</title>
-    <link rel="stylesheet" th:href="@{/css/session.css?v=1301010101}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=1301010101}">
-    <link rel="stylesheet" th:href="@{/css/resolution.css?v=1301010101}">
+    <link rel="stylesheet" th:href="@{/css/session.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/resolution.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -68,7 +66,8 @@
         </div>
 
         <!-- Unresolved Entries Alert -->
-        <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}" class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+        <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}"
+             class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
             <div class="d-flex">
                 <div class="alert-icon me-3">
                     <i class="bi bi-exclamation-triangle-fill"></i>
@@ -76,7 +75,9 @@
                 <div class="flex-grow-1">
                     <div class="alert-heading h6 mb-0">Action Required</div>
                     <div class="alert-text">You have unresolved work sessions that need your attention.
-                        <a href="#workTimeResolutionContainer" class="alert-link js-scroll-to-resolution">Resolve them now</a> to ensure your hours are tracked correctly.</div>
+                        <a href="#workTimeResolutionContainer" class="alert-link js-scroll-to-resolution">Resolve them
+                            now</a> to ensure your hours are tracked correctly.
+                    </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
@@ -155,7 +156,8 @@
                 </button>
             </form>
             <!-- Refresh Button -->
-            <a th:href="@{/user/session}" class="btn btn-outline-secondary" data-bs-toggle="tooltip" title="Refresh session data">
+            <a th:href="@{/user/session}" class="btn btn-outline-secondary" data-bs-toggle="tooltip"
+               title="Refresh session data">
                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh
             </a>
         </div>
@@ -238,30 +240,41 @@
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
                         Unresolved Work Sessions
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" id="closeResolutionBtn" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" id="closeResolutionBtn"
+                            aria-label="Close"></button>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-light mb-3">
-                        <p><i class="bi bi-info-circle me-2"></i>You have <strong th:text="${unresolvedEntries != null ? unresolvedEntries.size() : 0}">1</strong> unresolved work session(s).</p>
+                        <p><i class="bi bi-info-circle me-2"></i>You have <strong
+                                th:text="${unresolvedEntries != null ? unresolvedEntries.size() : 0}">1</strong>
+                            unresolved work session(s).</p>
                         <p>Please specify when you ended your work day to correctly record your hours.</p>
                     </div>
 
                     <!-- Each unresolved entry gets its own form -->
-                    <div th:each="entry, stat : ${unresolvedEntries != null ? unresolvedEntries : new java.util.ArrayList()}" class="mb-4 pb-3 border-bottom resolution-form-container">
-                        <form th:action="@{/user/session/resolve-worktime}" method="post" class="row g-3 resolution-form">
-                            <input type="hidden" name="entryDate" th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
+                    <div th:each="entry, stat : ${unresolvedEntries != null ? unresolvedEntries : new java.util.ArrayList()}"
+                         class="mb-4 pb-3 border-bottom resolution-form-container">
+                        <form th:action="@{/user/session/resolve-worktime}" method="post"
+                              class="row g-3 resolution-form">
+                            <input type="hidden" name="entryDate"
+                                   th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
 
                             <div class="col-md-6">
-                                <h6 class="mb-2">Session from <span th:text="${#temporals.format(entry.workDate, 'EEEE, dd MMM yyyy')}">Monday, 10 Mar 2025</span></h6>
+                                <h6 class="mb-2">Session from <span
+                                        th:text="${#temporals.format(entry.workDate, 'EEEE, dd MMM yyyy')}">Monday, 10 Mar 2025</span>
+                                </h6>
 
                                 <div class="d-flex flex-wrap gap-3 mb-3 info-items">
                                     <div class="info-item">
-                                        <strong><i class="bi bi-play-circle-fill text-success me-1"></i>Started:</strong>
+                                        <strong><i
+                                                class="bi bi-play-circle-fill text-success me-1"></i>Started:</strong>
                                         <span th:text="${#temporals.format(entry.dayStartTime, 'HH:mm')}">08:30</span>
                                     </div>
 
-                                    <div class="info-item" th:if="${entry.totalTemporaryStopMinutes != null && entry.totalTemporaryStopMinutes > 0}">
-                                        <strong><i class="bi bi-pause-circle-fill text-warning me-1"></i>Breaks:</strong>
+                                    <div class="info-item"
+                                         th:if="${entry.totalTemporaryStopMinutes != null && entry.totalTemporaryStopMinutes > 0}">
+                                        <strong><i
+                                                class="bi bi-pause-circle-fill text-warning me-1"></i>Breaks:</strong>
                                         <span th:with="hours=${entry.totalTemporaryStopMinutes / 60}, minutes=${entry.totalTemporaryStopMinutes % 60}">
                                     <span th:text="${hours}">0</span>h
                                     <span th:text="${minutes}">30</span>m
@@ -269,31 +282,42 @@
                                     </div>
 
                                     <div class="info-item recommendation">
-                                        <strong><i class="bi bi-lightbulb-fill text-info me-1"></i>Recommended end:</strong>
+                                        <strong><i class="bi bi-lightbulb-fill text-info me-1"></i>Recommended
+                                            end:</strong>
                                         <span th:text="${#temporals.format(recommendedEndTimes.get(entry.workDate), 'HH:mm')}">17:00</span>
                                     </div>
                                 </div>
 
                                 <div class="d-flex time-selectors">
                                     <div class="form-group me-2">
-                                        <label th:for="'endHourSelect-' + ${stat.index}" class="form-label">End Hour</label>
-                                        <select th:id="'endHourSelect-' + ${stat.index}" name="endHour" class="form-select hour-select" required aria-label="End hour selection">
+                                        <label th:for="'endHourSelect-' + ${stat.index}" class="form-label">End
+                                            Hour</label>
+                                        <select th:id="'endHourSelect-' + ${stat.index}" name="endHour"
+                                                class="form-select hour-select" required
+                                                aria-label="End hour selection">
                                             <option value="" disabled selected>Hour</option>
                                             <option th:each="hour : ${#numbers.sequence(0, 23)}"
                                                     th:value="${hour}"
                                                     th:text="${hour < 10 ? '0' + hour : hour}"
-                                                    th:selected="${recommendedEndTimes != null && recommendedEndTimes.get(entry.workDate) != null && hour == recommendedEndTimes.get(entry.workDate).getHour()}">08</option>
+                                                    th:selected="${recommendedEndTimes != null && recommendedEndTimes.get(entry.workDate) != null && hour == recommendedEndTimes.get(entry.workDate).getHour()}">
+                                                08
+                                            </option>
                                         </select>
                                     </div>
 
                                     <div class="form-group">
-                                        <label th:for="'endMinuteSelect-' + ${stat.index}" class="form-label">End Minute</label>
-                                        <select th:id="'endMinuteSelect-' + ${stat.index}" name="endMinute" class="form-select minute-select" required aria-label="End minute selection">
+                                        <label th:for="'endMinuteSelect-' + ${stat.index}" class="form-label">End
+                                            Minute</label>
+                                        <select th:id="'endMinuteSelect-' + ${stat.index}" name="endMinute"
+                                                class="form-select minute-select" required
+                                                aria-label="End minute selection">
                                             <option value="" disabled selected>Minute</option>
                                             <option th:each="minute : ${#numbers.sequence(0, 59, 15)}"
                                                     th:value="${minute}"
                                                     th:text="${minute < 10 ? '0' + minute : minute}"
-                                                    th:selected="${recommendedEndTimes != null && recommendedEndTimes.get(entry.workDate) != null && minute == recommendedEndTimes.get(entry.workDate).getMinute()}">30</option>
+                                                    th:selected="${recommendedEndTimes != null && recommendedEndTimes.get(entry.workDate) != null && minute == recommendedEndTimes.get(entry.workDate).getMinute()}">
+                                                30
+                                            </option>
                                         </select>
                                     </div>
                                 </div>
@@ -324,21 +348,24 @@
     </div>
 
     <!-- Resume Confirmation Modal - Enhanced with better UX -->
-    <div class="modal fade" id="resumeConfirmationModal" tabindex="-1" aria-labelledby="resumeConfirmationModalLabel" aria-hidden="true">
+    <div class="modal fade" id="resumeConfirmationModal" tabindex="-1" aria-labelledby="resumeConfirmationModalLabel"
+         aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header bg-info text-white">
                     <h5 class="modal-title" id="resumeConfirmationModalLabel">
                         <i class="bi bi-arrow-repeat me-2"></i>Resume Previous Session
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Important:</strong> Resuming a session creates a record of your work pattern.
                     </div>
-                    <p>You are about to resume your previous work session. The time between ending and now will be recorded as a break.</p>
+                    <p>You are about to resume your previous work session. The time between ending and now will be
+                        recorded as a break.</p>
                     <p>Do you want to continue?</p>
                 </div>
                 <div class="modal-footer">
@@ -359,14 +386,14 @@
     <th:block layout:fragment="scripts">
         <!-- Resume confirmation script -->
         <script th:if="${param.showResumeConfirmation}"
-                th:src="@{/js/session.js?v=1301010101}">
+                th:src="@{/js/session.js?v=18781}">
         </script>
 
         <!-- Main script for resolution handling and clock -->
-        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=1301010101}"></script>
+        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=18781}"></script>
 
         <!-- Always load the session enhancement script -->
-        <script th:src="@{/js/session-enhanced.js?v=1301010101}"></script>
+        <script th:src="@{/js/session-enhanced.js?v=18781}"></script>
     </th:block>
 </div>
 </body>

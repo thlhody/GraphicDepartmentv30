@@ -1,14 +1,32 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Login - CT3</title>
-    <link rel="stylesheet" th:href="@{/css/login.css}">
+    <link rel="stylesheet" th:href="@{/css/login.css?v=18783}">
+    <style>
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        .shake-animation {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        .input-focus {
+            transform: scale(1.02);
+        }
+
+        /* Ensure this class is added to the body element */
+        body.login-page .animated-background {
+            pointer-events: none;
+        }
+    </style>
 </head>
-<body>
-<div layout:fragment="content">
+<body class="login-page">
+<div layout:fragment="content" id="content">
     <!-- Sync Overlay -->
     <div id="syncOverlay" class="sync-overlay">
         <div class="sync-message">
@@ -19,6 +37,14 @@
         </div>
     </div>
 
+    <!-- Background Elements -->
+    <div class="animated-background">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+        <div class="shape shape-4"></div>
+    </div>
+
     <!-- Login Page Content -->
     <div class="login-container">
         <div class="container">
@@ -26,14 +52,33 @@
                 <!-- Left side - Image Section -->
                 <div class="col-lg-6 text-center d-none d-lg-block">
                     <div class="hero-section">
-                        <h1 class="welcome-text">Welcome to CT3</h1>
-                        <p class="lead text-muted mb-4">
-                            Making it easy to track your time and tasks!
-                        </p>
-                        <img th:src="@{/images/ct3front.png}"
-                             alt="CT3 Front"
-                             class="main-image"
-                             loading="lazy" src="">
+                        <div class="hero-content">
+                            <h1 class="welcome-text">Welcome to CT3</h1>
+                            <p class="lead text-muted mb-4">
+                                Making it easy to track your time and tasks!
+                            </p>
+                            <div class="image-container">
+                                <img th:src="@{/images/ct3front.png}"
+                                     alt="CT3 Front"
+                                     class="main-image"
+                                     loading="lazy" src="">
+                                <div class="image-glow"></div>
+                            </div>
+                            <div class="feature-list mt-4">
+                                <div class="feature-item">
+                                    <i class="bi bi-clock feature-icon"></i>
+                                    <span>Time Tracking</span>
+                                </div>
+                                <div class="feature-item">
+                                    <i class="bi bi-calendar-check feature-icon"></i>
+                                    <span>Task Management</span>
+                                </div>
+                                <div class="feature-item">
+                                    <i class="bi bi-graph-up feature-icon"></i>
+                                    <span>Performance Analytics</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -75,40 +120,44 @@
                             </div>
 
                             <!-- Login Form -->
-                            <form th:action="@{/login}" method="post" class="needs-validation" novalidate
-                                  onsubmit="return handleLogin(event)">
+                            <form th:action="@{/login}" method="post" class="needs-validation" novalidate>
+
                                 <!-- Username Field -->
                                 <div class="mb-3">
-                                    <label for="username" class="form-label">Username</label>
-                                    <div class="input-group">
-                                            <span class="input-group-text">
-                                                <i class="bi bi-person"></i>
-                                            </span>
-                                        <input type="text"
-                                               class="form-control"
-                                               id="username"
-                                               name="username"
-                                               required
-                                               autocomplete="username">
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text">
+                                            <i class="bi bi-person"></i>
+                                        </span>
+                                        <div class="form-floating">
+                                            <input type="text"
+                                                   class="form-control"
+                                                   id="username"
+                                                   name="username"
+                                                   required
+                                                   placeholder="Enter your username"
+                                                   autocomplete="username">
+                                            <label for="username">Username</label>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Password Field -->
                                 <div class="mb-3">
-                                    <label for="password" class="form-label">Password</label>
-                                    <div class="input-group">
-                                            <span class="input-group-text">
-                                                <i class="bi bi-lock"></i>
-                                            </span>
-                                        <input type="password"
-                                               class="form-control"
-                                               id="password"
-                                               name="password"
-                                               required
-                                               autocomplete="current-password">
-                                        <button class="btn btn-outline-secondary"
-                                                type="button"
-                                                onclick="togglePassword()">
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text">
+                                            <i class="bi bi-lock"></i>
+                                        </span>
+                                        <div class="form-floating">
+                                            <input type="password"
+                                                   class="form-control"
+                                                   id="password"
+                                                   name="password"
+                                                   required
+                                                   placeholder="Enter your password"
+                                                   autocomplete="current-password">
+                                            <label for="password">Password</label>
+                                        </div>
+                                        <button class="btn btn-outline-secondary" type="button" id="togglePasswordBtn">
                                             <i class="bi bi-eye"></i>
                                         </button>
                                     </div>
@@ -116,7 +165,7 @@
 
                                 <!-- Remember Me -->
                                 <div class="mb-4">
-                                    <div class="form-check">
+                                    <div class="form-check form-switch">
                                         <input type="checkbox"
                                                class="form-check-input"
                                                id="rememberMe"
@@ -133,7 +182,7 @@
 
                                 <!-- Submit Button -->
                                 <button type="submit"
-                                        class="btn btn-primary w-100"
+                                        class="btn btn-primary btn-lg w-100 login-button"
                                         th:disabled="${!networkAvailable && !offlineModeAvailable}">
                                     <i class="bi bi-box-arrow-in-right me-2"></i>
                                     Login
@@ -149,7 +198,13 @@
 
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/login.js?v=1234567}"></script>
+    <!-- Set networkAvailable as a global variable that the JS file can access -->
+    <script th:inline="javascript">
+        window.networkAvailable = /*[[${networkAvailable}]]*/ false;
+        // Add login-page class to body if not already added by the template
+        document.body.classList.add('login-page');
+    </script>
+    <script th:src="@{/js/login.js?v=18781}"></script>
 </th:block>
 </body>
 </html>

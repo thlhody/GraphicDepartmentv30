@@ -65,7 +65,7 @@ public class ShowTempStopWarningCommand extends BaseNotificationCommand<Boolean>
             return ctx.getNotificationService().showNotificationWithFallback(
                     username,
                     userId,
-                    WorkCode.NOTICE_TITLE,
+                    WorkCode.TEMPORARY_STOP_TITLE,
                     formattedMessage,
                     trayMessage,
                     WorkCode.ON_FOR_FIVE_MINUTES,

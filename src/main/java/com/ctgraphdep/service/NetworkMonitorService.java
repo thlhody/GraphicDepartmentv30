@@ -10,8 +10,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
 
@@ -28,15 +26,8 @@ public class NetworkMonitorService {
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean isRunning = false;
-    private volatile LocalDateTime lastNetworkCheck = null;
     private volatile boolean lastKnownNetworkStatus = false;
     private int consecutiveFailures = 0;
-
-    private final List<NetworkStatusListener> statusListeners = new CopyOnWriteArrayList<>();
-
-    public interface NetworkStatusListener {
-        void onNetworkStatusChanged(boolean isAvailable);
-    }
 
     public NetworkMonitorService(
             PathConfig pathConfig,
@@ -54,6 +45,7 @@ public class NetworkMonitorService {
     public void init() {
         startMonitoring();
         startAggressiveNetworkDetection();
+
     }
 
     private void startAggressiveNetworkDetection() {
@@ -106,8 +98,6 @@ public class NetworkMonitorService {
 
     private synchronized void checkNetworkStatusAggressively() {
         try {
-            lastNetworkCheck = LocalDateTime.now();
-
             // Check network path with extra validation
             Path networkPath = pathConfig.getNetworkPath();
             String pathStr = networkPath.toString();
@@ -183,7 +173,6 @@ public class NetworkMonitorService {
         }
 
         try {
-            lastNetworkCheck = LocalDateTime.now();
             Path networkPath = pathConfig.getNetworkPath();
             boolean currentStatus = Files.exists(networkPath) && Files.isWritable(networkPath);
 
@@ -224,9 +213,6 @@ public class NetworkMonitorService {
         pathConfig.updateNetworkStatus();
         locationStrategy.setForcedLocalMode(!newStatus);
 
-        // Notify all listeners
-        notifyStatusListeners(newStatus);
-
         LoggerUtil.info(this.getClass(),
                 String.format("Network status changed to: %s", newStatus ? "Available" : "Unavailable"));
         // Reset failure counter on status change
@@ -245,17 +231,6 @@ public class NetworkMonitorService {
                 Path localPath = pathConfig.getLocalPath().resolve(filename);
                 Path networkPath = pathConfig.getNetworkPath().resolve(filename);
                 syncService.syncToNetwork(localPath, networkPath);
-            }
-        }
-    }
-
-    private void notifyStatusListeners(boolean status) {
-        for (NetworkStatusListener listener : statusListeners) {
-            try {
-                listener.onNetworkStatusChanged(status);
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Error notifying listener: %s", e.getMessage()));
             }
         }
     }

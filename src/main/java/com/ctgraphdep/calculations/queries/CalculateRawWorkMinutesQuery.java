@@ -25,9 +25,7 @@ public class CalculateRawWorkMinutesQuery implements CalculationQuery<Integer> {
         try {
             return CalculateWorkHoursUtil.calculateRawWorkMinutes(session, endTime);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error calculating raw work minutes for user %s: %s",
-                            session.getUsername(), e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error calculating raw work minutes for user %s: %s", session.getUsername(), e.getMessage()), e);
             return 0;
         }
     }

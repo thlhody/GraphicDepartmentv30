@@ -1,7 +1,6 @@
 package com.ctgraphdep.calculations;
 
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import lombok.Getter;
 import org.springframework.stereotype.Component;
 
@@ -44,14 +43,5 @@ public class CalculationContext {
      */
     public <T> T executeQuery(CalculationQuery<T> query) {
         return query.execute(this);
-    }
-
-    /**
-     * Get access to CalculateWorkHoursUtil for direct calculations
-     *
-     * @return The CalculateWorkHoursUtil class to use for calculations
-     */
-    public Class<CalculateWorkHoursUtil> getCalculationUtil() {
-        return CalculateWorkHoursUtil.class;
     }
 }

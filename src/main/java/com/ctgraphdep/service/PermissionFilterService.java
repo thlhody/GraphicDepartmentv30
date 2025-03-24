@@ -89,11 +89,11 @@ public class PermissionFilterService {
         Set<String> userPermissions = getUserPermissions(user);
 
         return cards.stream()
-                .filter(card -> hasPermissionForCard(card, userPermissions, user))
+                .filter(card -> hasPermissionForCard(card, userPermissions))
                 .collect(Collectors.toList());
     }
 
-    private boolean hasPermissionForCard(DashboardCard card, Set<String> userPermissions, User user) {
+    private boolean hasPermissionForCard(DashboardCard card, Set<String> userPermissions) {
         String requiredPermission = card.getPermission();
 
         // Always allow OMS access and Status view

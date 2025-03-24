@@ -1,17 +1,19 @@
 package com.ctgraphdep.controller;
 
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.controller.base.BaseController;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
-import com.ctgraphdep.service.AdminRegisterService;
-import com.ctgraphdep.service.UserService;
+import com.ctgraphdep.service.*;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepTypes;
-import com.ctgraphdep.service.WorkTimeManagementService;
 import com.ctgraphdep.utils.AdminRegisterExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -28,39 +30,48 @@ import java.util.stream.Collectors;
 @Controller
 @RequestMapping("/admin/register")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
-public class AdminRegisterController {
+public class AdminRegisterController extends BaseController {
 
     private final AdminRegisterService adminRegisterService;
-    private final UserService userService;
     private final WorkTimeManagementService workTimeManagementService;
     private final AdminRegisterExcelExporter adminRegisterExcelExporter;
 
     @Autowired
-    public AdminRegisterController(AdminRegisterService adminRegisterService, UserService userService,
-                                   WorkTimeManagementService workTimeManagementService, AdminRegisterExcelExporter adminRegisterExcelExporter) {
+    public AdminRegisterController(
+            UserService userService,
+            FolderStatus folderStatus,
+            TimeValidationService timeValidationService,
+            AdminRegisterService adminRegisterService,
+            WorkTimeManagementService workTimeManagementService,
+            AdminRegisterExcelExporter adminRegisterExcelExporter) {
+        super(userService, folderStatus, timeValidationService);
         this.adminRegisterService = adminRegisterService;
-        this.userService = userService;
         this.workTimeManagementService = workTimeManagementService;
         this.adminRegisterExcelExporter = adminRegisterExcelExporter;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
     public String getRegisterPage(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) Integer userId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
             Model model) {
 
         try {
-            // Set default year and month if not provided
-            LocalDate now = LocalDate.now();
-            year = year != null ? year : now.getYear();
-            month = month != null ? month : now.getMonthValue();
+            // Use checkUserAccess from BaseController for consistent access control
+            String accessCheck = checkUserAccess(userDetails, "ADMIN");
+            if (accessCheck != null) {
+                return accessCheck;
+            }
+
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
 
             // Add users list for dropdown
-            List<User> allUsers = userService.getAllUsers();
-            List<User> users = userService.getNonAdminUsers(allUsers);
+            List<User> allUsers = getUserService().getAllUsers();
+            List<User> users = getUserService().getNonAdminUsers(allUsers);
             model.addAttribute("users", users);
 
             // Add action types and print prep types for filters
@@ -69,50 +80,39 @@ public class AdminRegisterController {
 
             // If userId is provided, look up user and load entries
             if (userId != null) {
-                User selectedUser = userService.getUserById(userId)
+                User selectedUser = getUserService().getUserById(userId)
                         .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
 
                 List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(
-                        selectedUser.getUsername(), userId, year, month);
+                        selectedUser.getUsername(), userId, selectedYear, selectedMonth);
 
                 // Get worked days from workTimeManagementService
-                int workedDays = workTimeManagementService.getWorkedDays(userId, year, month);
+                int workedDays = workTimeManagementService.getWorkedDays(userId, selectedYear, selectedMonth);
 
                 // Add to model
                 model.addAttribute("entries", entries);
                 model.addAttribute("selectedUser", selectedUser);
-                model.addAttribute("workedDays", workedDays);  // Add worked days
+                model.addAttribute("workedDays", workedDays);
 
                 LoggerUtil.info(this.getClass(),
                         String.format("Loaded %d entries and %d worked days for user %s",
                                 entries.size(), workedDays, selectedUser.getUsername()));
-                // Add this to your AdminRegisterController's getRegisterPage method
-                LoggerUtil.info(this.getClass(),
-                        String.format("Loading page with model attributes: userId=%d, year=%d, month=%d, selectedUser=%s, entries=%d",
-                                userId,
-                                year,
-                                month,
-                                selectedUser.getName(),
-                                entries.size()));
             } else {
                 LoggerUtil.info(this.getClass(), "No user selected, adding empty entries list");
                 model.addAttribute("entries", new ArrayList<>());
             }
 
-            // Add period info
-            model.addAttribute("currentYear", year);
-            model.addAttribute("currentMonth", month);
+            // Add period info - use the selected values here
+            model.addAttribute("currentYear", selectedYear);
+            model.addAttribute("currentMonth", selectedMonth);
 
             // Add bonus configuration defaults
             model.addAttribute("bonusConfig", BonusConfiguration.getDefaultConfig());
 
-
-
             return "admin/register";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error loading register page: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error loading register page: " + e.getMessage(), e);
             model.addAttribute("error", "Error loading register data: " + e.getMessage());
             return "admin/register";
         }
@@ -120,16 +120,32 @@ public class AdminRegisterController {
 
     @GetMapping("/worked-days")
     public ResponseEntity<Integer> getWorkedDays(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam Integer userId,
             @RequestParam Integer year,
             @RequestParam Integer month) {
+
+        // Use validateUserAccess for REST controllers
+        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         int workedDays = workTimeManagementService.getWorkedDays(userId, year, month);
         return ResponseEntity.ok(workedDays);
     }
 
-
     @PostMapping("/save")
-    public ResponseEntity<?> saveEntries(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<?> saveEntries(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, Object> request) {
+
+        // Use validateUserAccess for REST controllers
+        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
+        }
+
         try {
             String username = (String) request.get("username");
             Integer userId = Integer.parseInt(request.get("userId").toString());
@@ -174,7 +190,7 @@ public class AdminRegisterController {
 
                         // IMPORTANT: Preserve the original adminSync status from the client
                         String adminSync = data.get("adminSync") != null ?
-                                data.get("adminSync").toString() : SyncStatus.USER_DONE.name();
+                                data.get("adminSync").toString() : SyncStatusWorktime.USER_DONE.name();
 
                         return RegisterEntry.builder()
                                 .entryId(Integer.parseInt(data.get("entryId").toString()))
@@ -195,12 +211,10 @@ public class AdminRegisterController {
                     })
                     .collect(Collectors.toList());
 
-            // Log the number of entries before saving
             LoggerUtil.info(this.getClass(),
                     String.format("Saving %d entries for user %s (year: %d, month: %d)",
                             entries.size(), username, year, month));
 
-            // Don't modify the status here, let the service handle it
             adminRegisterService.saveAdminRegisterEntries(username, userId, year, month, entries);
             return ResponseEntity.ok().build();
 
@@ -211,7 +225,16 @@ public class AdminRegisterController {
     }
 
     @PostMapping("/calculate-bonus")
-    public ResponseEntity<BonusCalculationResult> calculateBonus(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<BonusCalculationResult> calculateBonus(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, Object> request) {
+
+        // Use validateUserAccess for REST controllers
+        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         try {
             BonusCalculationResult result = adminRegisterService.calculateBonusFromRequest(request);
 
@@ -221,7 +244,7 @@ public class AdminRegisterController {
             Integer month = (Integer) request.get("month");
 
             // Get username from UserService
-            String username = userService.getUserById(userId)
+            String username = getUserService().getUserById(userId)
                     .map(User::getUsername)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -237,10 +260,17 @@ public class AdminRegisterController {
 
     @GetMapping("/summary")
     public ResponseEntity<RegisterSummary> getRegisterSummary(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam String username,
             @RequestParam Integer userId,
             @RequestParam Integer year,
             @RequestParam Integer month) {
+
+        // Use validateUserAccess for REST controllers
+        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(
                 username, userId, year, month);
@@ -250,12 +280,20 @@ public class AdminRegisterController {
 
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportToExcel(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam Integer userId,
             @RequestParam Integer year,
             @RequestParam Integer month) {
+
+        // Use validateUserAccess for REST controllers
+        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         try {
             // Get user details
-            User user = userService.getUserById(userId)
+            User user = getUserService().getUserById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
 
             // Load register entries

@@ -11,7 +11,9 @@ public class SessionConfig {
 
     @Bean
     public HttpSessionListener httpSessionListener() {
+
         return new HttpSessionListener() {
+
             @Override
             public void sessionCreated(HttpSessionEvent se) {
                 LoggerUtil.info(this.getClass(), "Session created: " + se.getSession().getId());

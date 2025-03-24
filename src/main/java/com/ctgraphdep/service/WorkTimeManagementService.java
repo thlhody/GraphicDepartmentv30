@@ -1,7 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatus;
+import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -142,7 +142,7 @@ public class WorkTimeManagementService {
         entry.setUserId(userId);
         entry.setWorkDate(date);
         entry.setTimeOffType(null);
-        entry.setAdminSync(SyncStatus.ADMIN_BLANK);
+        entry.setAdminSync(SyncStatusWorktime.ADMIN_BLANK);
         resetEntryValues(entry);
         return entry;
     }
@@ -152,7 +152,7 @@ public class WorkTimeManagementService {
         entry.setUserId(userId);
         entry.setWorkDate(date);
         entry.setTimeOffType(type.toUpperCase());
-        entry.setAdminSync(SyncStatus.ADMIN_EDITED);
+        entry.setAdminSync(SyncStatusWorktime.ADMIN_EDITED);
         resetEntryValues(entry);
         return entry;
     }
@@ -176,7 +176,7 @@ public class WorkTimeManagementService {
         entry.setTemporaryStopCount(0);
         entry.setTotalTemporaryStopMinutes(0);
         entry.setTotalOvertimeMinutes(0);
-        entry.setAdminSync(SyncStatus.ADMIN_EDITED);
+        entry.setAdminSync(SyncStatusWorktime.ADMIN_EDITED);
 
         return entry;
     }

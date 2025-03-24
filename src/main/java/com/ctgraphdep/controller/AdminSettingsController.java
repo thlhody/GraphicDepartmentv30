@@ -1,10 +1,14 @@
 package com.ctgraphdep.controller;
 
+import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.PaidHolidayEntry;
 import com.ctgraphdep.service.UserManagementService;
 import com.ctgraphdep.service.HolidayManagementService;
+import com.ctgraphdep.model.FolderStatus;
+import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,35 +18,51 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-
 @Controller
 @RequestMapping("/admin/settings")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
-public class AdminSettingsController {
-    private final UserManagementService userService;
+public class AdminSettingsController extends BaseController {
+    private final UserManagementService userManagementService;
     private final HolidayManagementService holidayService;
 
     @Autowired
     public AdminSettingsController(
-            UserManagementService userService,
+            UserService userService,
+            FolderStatus folderStatus,
+            TimeValidationService timeValidationService,
+            UserManagementService userManagementService,
             HolidayManagementService holidayService) {
-        this.userService = userService;
+        super(userService, folderStatus, timeValidationService);
+        this.userManagementService = userManagementService;
         this.holidayService = holidayService;
-        LoggerUtil.initialize(this.getClass(), null);
     }
 
     @GetMapping
-    public String settings(@RequestParam(required = false) Integer userId, Model model) {
-        List<User> users = userService.getNonAdminUsers();
+    public String settings(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) Integer userId,
+            Model model) {
+
+        // Use checkUserAccess for admin role verification
+        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        if (accessCheck != null) {
+            return accessCheck;
+        }
+
+        LoggerUtil.info(this.getClass(), "Accessing admin settings at " + getStandardCurrentDateTime());
+
+        List<User> users = userManagementService.getNonAdminUsers();
         List<PaidHolidayEntry> holidayEntries = holidayService.getHolidayList();
 
         model.addAttribute("users", users);
-        model.addAttribute("holidayEntries", holidayEntries);  // Add this line to pass holiday entries
+        model.addAttribute("holidayEntries", holidayEntries);
+        model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
         // Handle user form
         if (userId != null) {
-            userService.getUserById(userId).ifPresentOrElse(
+            userManagementService.getUserById(userId).ifPresentOrElse(
                     user -> {
                         model.addAttribute("userForm", user);
                         model.addAttribute("isNewUser", false);
@@ -70,22 +90,30 @@ public class AdminSettingsController {
 
     @PostMapping("/user")
     public String saveUser(
+            @AuthenticationPrincipal UserDetails userDetails,
             @ModelAttribute("userForm") User user,
             @RequestParam(required = false) Boolean isNewUser,
             @RequestParam(defaultValue = "21") Integer paidHolidayDays,
             RedirectAttributes redirectAttributes) {
 
+        // Use checkUserAccess for consistent access control
+        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        if (accessCheck != null) {
+            return accessCheck;
+        }
+
         LoggerUtil.info(this.getClass(),
-                String.format("%s user with %d holiday days",
+                String.format("%s user with %d holiday days at %s",
                         isNewUser ? "Creating new" : "Updating",
-                        paidHolidayDays));
+                        paidHolidayDays,
+                        getStandardCurrentDateTime()));
 
         try {
             if (Boolean.TRUE.equals(isNewUser)) {
-                userService.saveUser(user, paidHolidayDays);
+                userManagementService.saveUser(user, paidHolidayDays);
                 redirectAttributes.addFlashAttribute("successMessage", "User created successfully");
             } else {
-                userService.updateUser(user, paidHolidayDays);
+                userManagementService.updateUser(user, paidHolidayDays);
                 redirectAttributes.addFlashAttribute("successMessage", "User updated successfully");
             }
         } catch (IllegalArgumentException e) {
@@ -104,11 +132,21 @@ public class AdminSettingsController {
     }
 
     @GetMapping("/user/delete/{userId}")
-    public String deleteUser(@PathVariable Integer userId, RedirectAttributes redirectAttributes) {
-        LoggerUtil.info(this.getClass(), "Deleting user with ID: " + userId);
+    public String deleteUser(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Integer userId,
+            RedirectAttributes redirectAttributes) {
+
+        // Use checkUserAccess for consistent access control
+        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        if (accessCheck != null) {
+            return accessCheck;
+        }
+
+        LoggerUtil.info(this.getClass(), "Deleting user with ID: " + userId + " at " + getStandardCurrentDateTime());
 
         try {
-            userService.deleteUser(userId);
+            userManagementService.deleteUser(userId);
             redirectAttributes.addFlashAttribute("successMessage", "User deleted successfully");
         } catch (IllegalArgumentException e) {
             LoggerUtil.error(this.getClass(), "Validation error: " + e.getMessage());
@@ -122,15 +160,24 @@ public class AdminSettingsController {
     }
 
     @PostMapping("/change-password")
-    public String changePassword(@AuthenticationPrincipal UserDetails userDetails,
-                                 @RequestParam String currentPassword,
-                                 @RequestParam String newPassword,
-                                 RedirectAttributes redirectAttributes) {
-        try {
-            User admin = userService.getUserByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new RuntimeException("Admin not found"));
+    public String changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam String currentPassword,
+            @RequestParam String newPassword,
+            RedirectAttributes redirectAttributes) {
 
-            boolean success = userService.changePassword(admin.getUserId(), currentPassword, newPassword);
+        // Use checkUserAccess for consistent access control
+        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        if (accessCheck != null) {
+            return accessCheck;
+        }
+
+        try {
+            LoggerUtil.info(this.getClass(), "Changing admin password at " + getStandardCurrentDateTime());
+
+            // Get the authenticated user using getUser method from BaseController
+            User admin = getUser(userDetails);
+            boolean success = userManagementService.changePassword(admin.getUserId(), currentPassword, newPassword);
 
             if (success) {
                 redirectAttributes.addFlashAttribute("successMessage", "Password changed successfully");

@@ -33,7 +33,7 @@ public class SecurityConfig {
             http
                     .authenticationProvider(authenticationProvider)
                     .authorizeHttpRequests(authorize -> authorize
-                            .requestMatchers("/", "/about", "/css/**", "/images/**", "/icons/**", "/api/system/status", "/autologin", "/update/**").permitAll()
+                            .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**", "/api/system/status", "/update/**").permitAll()
                             .requestMatchers("/admin/**").hasRole("ADMIN")
                             .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
                             .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")
@@ -49,9 +49,7 @@ public class SecurityConfig {
                                     authService.handleSuccessfulLogin(username, rememberMe);
 
                                     var authorities = authentication.getAuthorities();
-                                    var roles = authorities.stream()
-                                            .map(GrantedAuthority::getAuthority)
-                                            .collect(Collectors.toSet());
+                                    var roles = authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
 
                                     LoggerUtil.debug(this.getClass(), String.format("User %s has roles: %s", username, String.join(", ", roles)));
 
@@ -70,8 +68,7 @@ public class SecurityConfig {
                                         response.sendRedirect("/");
                                     }
                                 } catch (Exception e) {
-                                    LoggerUtil.error(this.getClass(),
-                                            "Failed to handle login success: " + e.getMessage());
+                                    LoggerUtil.error(this.getClass(), "Failed to handle login success: " + e.getMessage());
                                     response.sendRedirect("/login?error");
                                 }
                             })
@@ -101,6 +98,7 @@ public class SecurityConfig {
 
     @Bean
     public HttpSessionSecurityContextRepository httpSessionSecurityContextRepository() {
+
         HttpSessionSecurityContextRepository repository = new HttpSessionSecurityContextRepository();
         // Ensure web session handling doesn't affect work sessions
         repository.setAllowSessionCreation(true);

@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
  * Sets up event listener for the refresh button
  */
 function setupRefreshButton() {
-    const refreshButton = document.querySelector('a[href="/status/refresh"]');
+    const refreshButton = document.querySelector('a[href*="/status/refresh"]');
     if (refreshButton) {
         refreshButton.addEventListener('click', function(e) {
             e.preventDefault();
@@ -48,7 +48,10 @@ function updateOnlineCount() {
         }
     });
 
-    document.getElementById('onlineCount').textContent = onlineCount;
+    const onlineCountElement = document.getElementById('onlineCount');
+    if (onlineCountElement) {
+        onlineCountElement.textContent = onlineCount;
+    }
 }
 
 /**
@@ -73,7 +76,10 @@ function updateLastRefresh() {
     // Combine into Day :: DD/MM/YYYY :: HH:MM format with bold time
     const formattedDateTime = `${dayName} :: ${day}/${month}/${year} :: <strong>${hours}:${minutes}</strong>`;
 
-    document.getElementById('lastUpdate').innerHTML = formattedDateTime;
+    const lastUpdateElement = document.getElementById('lastUpdate');
+    if (lastUpdateElement) {
+        lastUpdateElement.innerHTML = formattedDateTime;
+    }
 }
 
 /**
@@ -133,14 +139,28 @@ function formatDateDisplays() {
  */
 function autoRefreshStatus() {
     // Show a small loading indicator
-    const refreshButton = document.querySelector('a[href="/status/refresh"]');
+    const refreshButton = document.querySelector('a[href*="/status/refresh"]');
     if (refreshButton) {
         refreshButton.innerHTML = '<i class="bi bi-arrow-clockwise me-1 spin"></i> Refreshing...';
         refreshButton.classList.add('disabled');
     }
 
+    // Build the correct URL for AJAX request
+    let ajaxUrl = 'status/ajax-refresh';
+
+    // Make the URL absolute if it's not already
+    if (!ajaxUrl.startsWith('/') && !ajaxUrl.startsWith('http')) {
+        const baseUrl = window.location.pathname;
+        // Remove 'status' if it's already in the path to prevent duplication
+        const basePath = baseUrl.endsWith('/status') ? baseUrl :
+        baseUrl.endsWith('/status/') ? baseUrl.slice(0, -1) :
+        baseUrl;
+
+        ajaxUrl = basePath + '/' + ajaxUrl;
+    }
+
     // Make AJAX request to get fresh status data
-    fetch('/status/ajax-refresh', {
+    fetch(ajaxUrl, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -156,12 +176,17 @@ function autoRefreshStatus() {
     })
         .then(data => {
         // Update the online count
-        document.getElementById('onlineCount').textContent = data.onlineCount;
+        const onlineCountElement = document.getElementById('onlineCount');
+        if (onlineCountElement && data.onlineCount !== undefined) {
+            onlineCountElement.textContent = data.onlineCount;
+        }
 
         // Update the table body with new HTML
         if (data.tableHtml) {
             const tableBody = document.querySelector('table tbody');
-            tableBody.innerHTML = data.tableHtml;
+            if (tableBody) {
+                tableBody.innerHTML = data.tableHtml;
+            }
         }
 
         // Update last refresh time

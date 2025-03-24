@@ -50,7 +50,7 @@ public class ShowTestNotificationCommand extends BaseNotificationCommand<Boolean
                         info("Falling back to tray notification");
 
                         ctx.getNotificationService().getSystemTray().getTrayIcon().displayMessage(
-                                WorkCode.TEST_NOTICE,
+                                WorkCode.TEST_NOTICE_TITLE,
                                 WorkCode.TEST_MESSAGE_TRAY,
                                 TrayIcon.MessageType.INFO);
 

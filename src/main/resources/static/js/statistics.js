@@ -1,9 +1,5 @@
-
 // Chart data from server
-const chartColors = [
-    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-    '#9966FF', '#FF9F40', '#7CBA3D', '#6B8E23'
-];
+const chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0','#9966FF', '#FF9F40', '#7CBA3D', '#6B8E23'];
 
 // Create charts when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {

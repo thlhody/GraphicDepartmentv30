@@ -28,8 +28,7 @@ public class UserServiceImpl implements UserService {
     public Optional<User> getUserByUsername(String username) {
         List<User> users = getAllUsers();
         return users.stream()
-                .filter(user -> user.getUsername() != null &&
-                        user.getUsername().equals(username))
+                .filter(user -> user.getUsername() != null && user.getUsername().equals(username))
                 .findFirst()
                 .map(this::sanitizeUser);  // For display/general use
     }
@@ -38,8 +37,7 @@ public class UserServiceImpl implements UserService {
     public Optional<User> getCompleteUserByUsername(String username) {
         List<User> users = getAllUsers();
         return users.stream()
-                .filter(user -> user.getUsername() != null &&
-                        user.getUsername().equals(username))
+                .filter(user -> user.getUsername() != null && user.getUsername().equals(username))
                 .findFirst();  // Return complete user without sanitization
     }
 
@@ -47,8 +45,7 @@ public class UserServiceImpl implements UserService {
     public Optional<User> getUserById(Integer userId) {
         List<User> users = getAllUsers();
         return users.stream()
-                .filter(user -> user.getUserId() != null &&
-                        user.getUserId().equals(userId))
+                .filter(user -> user.getUserId() != null && user.getUserId().equals(userId))
                 .findFirst()
                 .map(this::sanitizeUser);
     }
@@ -59,57 +56,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<User> getAdminUser() {
-        lock.readLock().lock();
-        try {
-            return getAllUsers().stream()
-                    .filter(User::isAdmin)  // Assuming isAdmin() is a method in the User class
-                    .findFirst()
-                    .map(this::sanitizeUser);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    @Override
     public List<User> getNonAdminUsers(List<User> allUsers) {
         return allUsers.stream()
                 .filter(user -> !user.isAdmin())
                 .map(this::sanitizeUser)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    public String getPasswordHash(String username) {
-        return "";
-    }
-
-    @Override
-    public User saveUser(User user) {
-        List<User> users = getAllUsers();
-
-        if (user.getUserId() == null) {
-            // New user
-            validateNewUser(user, users);
-            user.setUserId(generateNextUserId(users));
-            encryptPassword(user, null);
-            users.add(user);
-        } else {
-            // Update existing user
-            int index = findUserIndex(users, user.getUserId());
-            if (index >= 0) {
-                validateUserUpdate(user, users.get(index), users);
-                User existingUser = users.get(index);
-                encryptPassword(user, existingUser);
-                users.set(index, user);
-            } else {
-                throw new IllegalArgumentException("User not found for update: " + user.getUserId());
-            }
-        }
-
-        // Save to network users path
-        saveUsers(users);
-        return user;
     }
 
     @Override
@@ -178,33 +129,12 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    @Override
-    public boolean validateCredentials(String username, String password) {
-        return getUserByUsername(username)
-                .map(user -> passwordEncoder.matches(password, user.getPassword()))
-                .orElse(false);
-    }
-
     private void saveUsers(List<User> users) {
         try {
             dataAccessService.writeUsersNetwork(users);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to save users: " + e.getMessage());
             throw new RuntimeException("Failed to save users", e);
-        }
-    }
-
-    private void validateNewUser(User user, List<User> existingUsers) {
-        if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
-            throw new IllegalArgumentException("Username cannot be empty");
-        }
-
-        boolean usernameExists = existingUsers.stream()
-                .anyMatch(existing -> existing.getUsername().equals(user.getUsername()) &&
-                        !existing.getUserId().equals(user.getUserId()));
-
-        if (usernameExists) {
-            throw new IllegalArgumentException("Username already exists");
         }
     }
 
@@ -238,12 +168,6 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    private Integer generateNextUserId(List<User> users) {
-        return users.stream()
-                .mapToInt(User::getUserId)
-                .max()
-                .orElse(0) + 1;
-    }
 
     private int findUserIndex(List<User> users, Integer userId) {
         for (int i = 0; i < users.size(); i++) {
@@ -271,26 +195,17 @@ public class UserServiceImpl implements UserService {
 
             // Verify sanitized user
             if (sanitized.getName() == null) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Sanitized user '%s' has null name (original name: %s)",
-                                sanitized.getUsername(),
-                                user.getName()));
+                LoggerUtil.warn(this.getClass(), String.format("Sanitized user '%s' has null name (original name: %s)", sanitized.getUsername(), user.getName()));
             }
 
             // Log sanitization results
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Found user by username '%s': Yes", user.getUsername()));
-            LoggerUtil.debug(this.getClass(),
-                    String.format("User details - ID: %d, Name: %s",
-                            user.getUserId(), user.getName()));
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Sanitized user details - ID: %d, Name: %s",
-                            sanitized.getUserId(), sanitized.getName()));
+            LoggerUtil.debug(this.getClass(), String.format("Found user by username '%s': Yes", user.getUsername()));
+            LoggerUtil.debug(this.getClass(), String.format("User details - ID: %d, Name: %s", user.getUserId(), user.getName()));
+            LoggerUtil.debug(this.getClass(), String.format("Sanitized user details - ID: %d, Name: %s", sanitized.getUserId(), sanitized.getName()));
 
             return sanitized;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error sanitizing user: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error sanitizing user: %s", e.getMessage()));
             throw new RuntimeException("Failed to sanitize user", e);
         }
     }

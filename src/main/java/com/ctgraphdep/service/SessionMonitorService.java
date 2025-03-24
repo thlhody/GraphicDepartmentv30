@@ -1,5 +1,8 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.calculations.CalculationCommandFactory;
+import com.ctgraphdep.calculations.CalculationCommandService;
+import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
@@ -28,7 +31,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -50,6 +52,8 @@ public class SessionMonitorService {
     private final SystemNotificationBackupService backupService;
     private final TimeValidationService validationService;
     private final TimeValidationFactory validationFactory;
+    private final CalculationCommandFactory calculationFactory;
+    private final CalculationCommandService calculationService;
 
     @Value("${app.session.monitoring.interval:30}")
     private int monitoringInterval;
@@ -71,7 +75,7 @@ public class SessionMonitorService {
             PathConfig pathConfig,
             SystemNotificationBackupService backupService,
             TimeValidationService validationService,
-            TimeValidationFactory validationFactory) {
+            TimeValidationFactory validationFactory, CalculationCommandFactory calculationFactory, CalculationCommandService calculationService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
@@ -82,16 +86,15 @@ public class SessionMonitorService {
         this.backupService = backupService;
         this.validationService = validationService;
         this.validationFactory = validationFactory;
+        this.calculationFactory = calculationFactory;
+        this.calculationService = calculationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PostConstruct
     public void init() {
         // Schedule initialization with a 6-second delay after system tray is ready
-        taskScheduler.schedule(
-                this::delayedInitialization,
-                Instant.now().plusMillis(6000)
-        );
+        taskScheduler.schedule(this::delayedInitialization, Instant.now().plusMillis(6000));
     }
 
     /**
@@ -142,6 +145,7 @@ public class SessionMonitorService {
             LoggerUtil.error(this.getClass(), "Error showing test notification: " + e.getMessage());
         }
     }
+
     /**
      * Starts the scheduled monitoring of user sessions
      */
@@ -174,8 +178,7 @@ public class SessionMonitorService {
             Duration nextDelay = calculateTimeToNextCheck();
             monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(nextDelay));
 
-            LoggerUtil.info(this.getClass(), String.format("Next monitoring check scheduled in %d minutes and %d seconds",
-                    nextDelay.toMinutes(), nextDelay.toSecondsPart()));
+            LoggerUtil.info(this.getClass(), String.format("Next monitoring check scheduled in %d minutes and %d seconds", nextDelay.toMinutes(), nextDelay.toSecondsPart()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in monitoring task: " + e.getMessage(), e);
             // Reschedule anyway to keep the service running even after errors
@@ -227,9 +230,7 @@ public class SessionMonitorService {
         }
 
         Duration duration = Duration.between(now, nextCheck);
-        LoggerUtil.debug(this.getClass(),
-                String.format("Next check scheduled at %s (in %d minutes and %d seconds)",
-                        nextCheck, duration.toMinutes(), duration.toSecondsPart()));
+        LoggerUtil.debug(this.getClass(), String.format("Next check scheduled at %s (in %d minutes and %d seconds)", nextCheck, duration.toMinutes(), duration.toSecondsPart()));
 
         return duration;
     }
@@ -249,8 +250,7 @@ public class SessionMonitorService {
                 return;
             }
 
-            User user = userService.getUserByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + username));
+            User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
 
             // Get current session using the command pattern
             GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
@@ -302,12 +302,13 @@ public class SessionMonitorService {
                 return;
             }
 
-            long minutesSinceTempStop = ChronoUnit.MINUTES.between(tempStopStart, now);
+            CalculateMinutesBetweenQuery minutesQuery = calculationFactory.createCalculateMinutesBetweenQuery(
+                    tempStopStart, now);
+            int minutesSinceTempStop = calculationService.executeQuery(minutesQuery);
             // Show warning every hour of temporary stop
             if (minutesSinceTempStop >= WorkCode.HOURLY_INTERVAL) {
                 // First register backup action
                 backupService.registerTempStopNotification(username, session.getUserId(), tempStopStart);
-
                 // Then show notification
                 notificationService.showLongTempStopWarning(username, session.getUserId(), tempStopStart);
             }
@@ -339,13 +340,10 @@ public class SessionMonitorService {
         int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
 
         // Add this debug logging
-        LoggerUtil.debug(this.getClass(),
-                String.format("Schedule check - User: %s, Schedule: %d hours, " +
-                                "Is 8-hour schedule: %b, Required minutes: %d, " +
-                                "Current worked minutes: %d, Notified already: %b",
-                        session.getUsername(), scheduleInfo.getScheduleHours(),
-                        scheduleInfo.isStandardEightHourSchedule(), scheduleInfo.getFullDayDuration(),
-                        workedMinutes, notificationShown.getOrDefault(session.getUsername(), false)));
+        LoggerUtil.debug(this.getClass(), String.format("Schedule check - User: %s, Schedule: %d hours, " + "Is 8-hour schedule: %b, Required minutes: %d, " +
+                        "Current worked minutes: %d, Notified already: %b",
+                session.getUsername(), scheduleInfo.getScheduleHours(), scheduleInfo.isStandardEightHourSchedule(), scheduleInfo.getFullDayDuration(),
+                workedMinutes, notificationShown.getOrDefault(session.getUsername(), false)));
 
         // Only show notification if not already shown for this session and schedule is completed
         if (scheduleInfo.isScheduleCompleted(workedMinutes) &&
@@ -369,9 +367,7 @@ public class SessionMonitorService {
             // Save the updated session
             SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
             commandService.executeCommand(saveCommand);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Schedule completion notification shown for user %s (worked: %d minutes)",
-                            session.getUsername(), workedMinutes));
+            LoggerUtil.info(this.getClass(), String.format("Schedule completion notification shown for user %s (worked: %d minutes)", session.getUsername(), workedMinutes));
         }
     }
 
@@ -392,8 +388,7 @@ public class SessionMonitorService {
         // Check if it's time for the next hourly warning
         if (lastWarning == null || lastWarning.isBefore(nextHourlyCheckTime)) {
             // Add detailed logging
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Preparing hourly warning for %s - Last warning: %s, Next check: %s",
+            LoggerUtil.info(this.getClass(), String.format("Preparing hourly warning for %s - Last warning: %s, Next check: %s",
                     username,
                     lastWarning != null ? lastWarning.toString() : "never",
                     nextHourlyCheckTime));
@@ -451,8 +446,7 @@ public class SessionMonitorService {
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
 
             LocalDate today = timeValues.getCurrentDate();
-            if (lastStartDayCheck.containsKey(username) &&
-                    lastStartDayCheck.get(username).equals(today)) {
+            if (lastStartDayCheck.containsKey(username) && lastStartDayCheck.get(username).equals(today)) {
                 return;
             }
 
@@ -463,15 +457,12 @@ public class SessionMonitorService {
             WorktimeResolutionQuery.ResolutionStatus resolutionStatus = commandService.executeQuery(resolutionQuery);
 
             // Get current session separately (no longer part of ResolutionStatus)
-            WorkUsersSessionsStates session = commandService.executeQuery(
-                    commandFactory.createGetCurrentSessionQuery(username, user.getUserId()));
+            WorkUsersSessionsStates session = commandService.executeQuery(commandFactory.createGetCurrentSessionQuery(username, user.getUserId()));
 
             // Check if the user has completed a session today
             boolean hasCompletedSessionToday = false;
             if (session != null && session.getDayStartTime() != null) {
-                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) &&
-                        WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
-                        session.getWorkdayCompleted();
+                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && session.getWorkdayCompleted();
             }
 
             // If they already completed a session today, don't show reminder
@@ -506,7 +497,6 @@ public class SessionMonitorService {
             if (session != null && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && !hasActiveSessionToday(session)) {
                 // Show notification
                 notificationService.showStartDayReminder(username, user.getUserId());
-
                 // Update last check date
                 lastStartDayCheck.put(username, today);
             }
@@ -515,6 +505,7 @@ public class SessionMonitorService {
             LoggerUtil.error(this.getClass(), "Error checking start day reminder: " + e.getMessage(), e);
         }
     }
+
     /**
      * Gets the currently active user by scanning session files
      */
@@ -616,5 +607,11 @@ public class SessionMonitorService {
         LocalDate today = timeValues.getCurrentDate();
 
         return sessionDate.equals(today);
+    }
+
+    public void activateHourlyMonitoring(String username, LocalDateTime timestamp) {
+        continuedAfterSchedule.put(username, true);
+        lastHourlyWarning.put(username, timestamp);
+        LoggerUtil.info(this.getClass(), "Activated hourly monitoring for user: " + username);
     }
 }

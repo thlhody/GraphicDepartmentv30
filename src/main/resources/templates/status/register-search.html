@@ -1,12 +1,10 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Register Search</title>
-    <link rel="stylesheet" th:href="@{/css/register-search.css?v=20250314}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=20240313}">
+    <link rel="stylesheet" th:href="@{/css/register-search.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -108,7 +106,8 @@
                         <!-- Reset and Advanced Options -->
                         <div class="col-md-2">
                             <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-secondary w-50" id="resetSearchBtn" onclick="resetSearch()">
+                                <button type="button" class="btn btn-outline-secondary w-50" id="resetSearchBtn"
+                                        onclick="resetSearch()">
                                     <i class="bi bi-x-circle me-1"></i>Reset
                                 </button>
                                 <button type="button" class="btn btn-outline-secondary w-50" id="toggleAdvanced">
@@ -126,7 +125,8 @@
                             <div class="col-md-6 mb-3">
                                 <label for="startDate" class="form-label">From</label>
                                 <div class="input-group">
-                                    <input type="date" class="form-control form-control-sm" id="startDate" name="startDate"
+                                    <input type="date" class="form-control form-control-sm" id="startDate"
+                                           name="startDate"
                                            th:value="${param.startDate}">
                                     <span class="input-group-text">to</span>
                                     <label for="endDate" class="visually-hidden">To</label>
@@ -152,7 +152,8 @@
                             <!-- Print Prep Type filter -->
                             <div class="col-md-3 mb-3">
                                 <label for="printPrepTypes" class="form-label">Print Prep Type</label>
-                                <select id="printPrepTypes" name="printPrepTypes" class="form-select form-select-sm select2-input">
+                                <select id="printPrepTypes" name="printPrepTypes"
+                                        class="form-select form-select-sm select2-input">
                                     <option value="">All Print Prep Types</option>
                                     <option th:each="type : ${printPrepTypes}"
                                             th:value="${type}"
@@ -168,7 +169,8 @@
                             <!-- Client filter -->
                             <div class="col-md-4 mb-3">
                                 <label for="clientName" class="form-label">Client</label>
-                                <select id="clientName" name="clientName" class="form-select form-select-sm select2-input">
+                                <select id="clientName" name="clientName"
+                                        class="form-select form-select-sm select2-input">
                                     <option value="">All Clients</option>
                                     <option th:each="client : ${clients}"
                                             th:value="${client}"
@@ -184,7 +186,8 @@
                                     <button type="submit" class="btn btn-primary btn-sm">
                                         <i class="bi bi-search me-1"></i>Apply Filters
                                     </button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetFilters()">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                                            onclick="resetFilters()">
                                         <i class="bi bi-x-circle me-1"></i>Clear Filters
                                     </button>
                                 </div>
@@ -320,7 +323,7 @@
 </div>
 
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/register-search.js?v=20240326}"></script>
+    <script th:src="@{/js/register-search.js?v=18781}"></script>
 </th:block>
 </body>
 </html>

@@ -12,8 +12,6 @@ public class PermissionConfiguration {
     public PermissionFilterService permissionFilterService() {
         PermissionFilterService service = new PermissionFilterService();
 
-        // Initialize role permissions - these are in addition to the default ones in PermissionFilterService
-
         // For Role_User permissions (optional - can customize default user permissions)
         service.addRolePermissions("USER", Set.of(
                 PermissionFilterService.PERMISSION_VIEW_STATUS_USER,
@@ -39,15 +37,13 @@ public class PermissionConfiguration {
                 PermissionFilterService.PERMISSION_MANAGE_ADMIN_REGISTER
         ));
 
-        // Could add other custom roles here
-        // For example, if you wanted to add a Team Leader role:
+        // For Role_Team_Leader permissions
         service.addRolePermissions("TEAM_LEADER", Set.of(
                 PermissionFilterService.PERMISSION_VIEW_STATUS_ADMIN,
                 PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER,
                 PermissionFilterService.PERMISSION_MANAGE_SESSION,
                 PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER,
                 PermissionFilterService.PERMISSION_REQUEST_TIMEOFF
-
         ));
 
         return service;

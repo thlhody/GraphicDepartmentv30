@@ -1,37 +1,41 @@
+// Add this code at the beginning of your worktime-admin.js file
+document.addEventListener('DOMContentLoaded', function() {
+    // Check structure of a sample cell
+    const sampleCell = document.querySelector('.worktime-cell');
+    if (sampleCell) {
+        console.log("Sample cell found:", sampleCell);
+        const editor = sampleCell.querySelector('.worktime-editor');
+        if (editor) {
+            console.log("Editor found within cell:", editor);
+            console.log("Editor HTML structure:", editor.outerHTML);
+        } else {
+            console.error("Editor not found within cell!");
+            console.log("Cell HTML structure:", sampleCell.innerHTML);
+        }
+    } else {
+        console.error("No worktime-cell found on page!");
+    }
+});
 function showEditor(cell) {
-    // Hide any other open editors
-    document.querySelectorAll('.worktime-editor.show').forEach(editor => {
+    // First, hide ALL editors, not just the visible ones
+    document.querySelectorAll('.worktime-editor').forEach(editor => {
         editor.classList.remove('show');
+        editor.style.display = 'none';
     });
 
     const editor = cell.querySelector('.worktime-editor');
     if (editor) {
-        // Get cell position
+        // Position editor above the cell
         const rect = cell.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
-        // Position editor below the cell
-        editor.style.top = (rect.bottom + scrollTop) + 'px';
-        editor.style.left = (rect.left + scrollLeft) + 'px';
+        // Use fixed positioning
+        editor.style.position = 'fixed';
+        editor.style.top = (rect.top - 100) + 'px'; // 100px above the cell
+        editor.style.left = rect.left + 'px';
 
         // Show the editor
+        editor.style.display = 'block';
         editor.classList.add('show');
-
-        // Ensure editor stays in viewport
-        const editorRect = editor.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        // Adjust horizontal position if needed
-        if (editorRect.right > viewportWidth) {
-            editor.style.left = (viewportWidth - editorRect.width - 10) + 'px';
-        }
-
-        // Adjust vertical position if needed
-        if (editorRect.bottom > viewportHeight) {
-            editor.style.top = (rect.top + scrollTop - editorRect.height) + 'px';
-        }
     }
 }
 

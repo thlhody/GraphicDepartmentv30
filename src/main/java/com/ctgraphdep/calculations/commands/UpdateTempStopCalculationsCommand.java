@@ -33,19 +33,16 @@ public class UpdateTempStopCalculationsCommand extends BaseCalculationCommand<Wo
         }
 
         // Calculate total temporary stop minutes
-        CalculateTotalTempStopMinutesQuery query =
-                context.getCommandFactory().createCalculateTotalTempStopMinutesQuery(session, currentTime);
+        CalculateTotalTempStopMinutesQuery query = context.getCommandFactory().createCalculateTotalTempStopMinutesQuery(session, currentTime);
         int totalStopMinutes = context.executeQuery(query);
 
         session.setTotalTemporaryStopMinutes(totalStopMinutes);
 
         // Update current stop duration if there are any stops
         if (session.getTemporaryStops() != null && !session.getTemporaryStops().isEmpty()) {
-            TemporaryStop currentStop = session.getTemporaryStops()
-                    .get(session.getTemporaryStops().size() - 1);
+            TemporaryStop currentStop = session.getTemporaryStops().get(session.getTemporaryStops().size() - 1);
 
-            int currentStopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(
-                    currentStop.getStartTime(), currentTime
+            int currentStopMinutes = CalculateWorkHoursUtil.calculateMinutesBetween(currentStop.getStartTime(), currentTime
             );
             currentStop.setDuration(currentStopMinutes);
         }

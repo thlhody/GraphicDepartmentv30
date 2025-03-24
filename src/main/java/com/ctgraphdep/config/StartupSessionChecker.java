@@ -22,10 +22,7 @@ public class StartupSessionChecker {
     private final SessionMidnightHandler sessionMidnightHandler;
 
     @Autowired
-    public StartupSessionChecker(
-            SessionCommandService commandService,
-            SessionCommandFactory commandFactory,
-            SessionMidnightHandler sessionMidnightHandler) {
+    public StartupSessionChecker(SessionCommandService commandService, SessionCommandFactory commandFactory, SessionMidnightHandler sessionMidnightHandler) {
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.sessionMidnightHandler = sessionMidnightHandler;

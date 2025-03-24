@@ -57,9 +57,7 @@ public class AdminStatisticsService {
                     allEntries.addAll(userEntries);
                 }
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Error reading register for user %s: %s",
-                                user.getUsername(), e.getMessage()));
+                LoggerUtil.error(this.getClass(), String.format("Error reading register for user %s: %s", user.getUsername(), e.getMessage()));
             }
         }
         return allEntries;
@@ -142,9 +140,7 @@ public class AdminStatisticsService {
                     .count();
 
             // Count ORDIN SPIZED entries
-            int spizedCount = (int) entries.stream()
-                    .filter(entry -> "ORDIN SPIZED".equals(entry.getActionType()))
-                    .count();
+            int spizedCount = (int) entries.stream().filter(entry -> "ORDIN SPIZED".equals(entry.getActionType())).count();
 
             regularEntries.put(months[month - 1], regularCount);
             spizedEntries.put(months[month - 1], spizedCount);

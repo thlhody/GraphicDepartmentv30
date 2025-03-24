@@ -1,5 +1,6 @@
 package com.ctgraphdep.model;
 
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,15 +22,12 @@ public class SyncStatus {
     private Path localPath;
     private Path networkPath;
 
-    public SyncStatus() {
+    // Constructor for when you know the paths immediately
+    public SyncStatus(GetStandardTimeValuesCommand.StandardTimeValues timeValues, Path localPath, Path networkPath) {
         this.retryCount = new AtomicInteger(0);
-        this.lastAttempt = LocalDateTime.now();
+        this.lastAttempt = timeValues.getCurrentTime();
         this.syncInProgress = false;
         this.syncPending = false;
-    }
-
-    public SyncStatus(Path localPath, Path networkPath) {
-        this();
         this.localPath = localPath;
         this.networkPath = networkPath;
     }

@@ -84,10 +84,7 @@ public class CalculateWorkHoursUtil {
         // Adjust minutes based on lunch break
         int adjustedMinutes = calculateAdjustedMinutes(inputMinutes, schedule);
 
-        // Round down to the nearest hour for schedules less than 8 hours
-        if (schedule < WorkCode.INTERVAL_HOURS_C) {
-            adjustedMinutes = (adjustedMinutes / WorkCode.HOUR_DURATION) * WorkCode.HOUR_DURATION;
-        }
+        adjustedMinutes = (adjustedMinutes / WorkCode.HOUR_DURATION) * WorkCode.HOUR_DURATION;
         // Calculate final values
         int processedMinutes = calculateProcessedMinutes(adjustedMinutes, schedule);
         int overtimeMinutes = calculateOvertimeMinutes(adjustedMinutes, schedule);
@@ -124,8 +121,6 @@ public class CalculateWorkHoursUtil {
                 .filter(date -> date.getDayOfWeek() != DayOfWeek.SATURDAY &&
                         date.getDayOfWeek() != DayOfWeek.SUNDAY)
                 .filter(date -> !workTimeService.isNationalHoliday(date))  // Changed to NOT
-                .peek(date -> LoggerUtil.debug(CalculateWorkHoursUtil.class,
-                        String.format("Including workday: %s", date)))
                 .count();
     }
 

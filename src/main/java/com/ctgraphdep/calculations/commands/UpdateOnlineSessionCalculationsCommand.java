@@ -5,7 +5,6 @@ import com.ctgraphdep.model.WorkTimeCalculationResult;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
-import com.ctgraphdep.utils.CommandExecutorUtil;
 
 import java.time.LocalDateTime;
 
@@ -17,14 +16,11 @@ public class UpdateOnlineSessionCalculationsCommand extends BaseSessionCalculati
     /**
      * Creates a command to update online session calculations
      *
-     * @param session The session to update
-     * @param currentTime The current time
+     * @param session      The session to update
+     * @param currentTime  The current time
      * @param userSchedule The user's scheduled working hours
      */
-    public UpdateOnlineSessionCalculationsCommand(
-            WorkUsersSessionsStates session,
-            LocalDateTime currentTime,
-            int userSchedule) {
+    public UpdateOnlineSessionCalculationsCommand(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
         super(session, currentTime, userSchedule);
     }
 
@@ -40,16 +36,15 @@ public class UpdateOnlineSessionCalculationsCommand extends BaseSessionCalculati
         boolean workdayCompleted = result.getRawMinutes() >= (userSchedule * 60);
 
         // Update session with calculated values
-        SessionEntityBuilder.updateSession(session, builder -> {
-            builder.totalWorkedMinutes(rawWorkedMinutes)
-                    .finalWorkedMinutes(result.getProcessedMinutes())
-                    .totalOvertimeMinutes(result.getOvertimeMinutes())
-                    .lunchBreakDeducted(result.isLunchDeducted())
-                    .workdayCompleted(workdayCompleted);
-        });
+        SessionEntityBuilder.updateSession(session, builder -> builder.totalWorkedMinutes(rawWorkedMinutes)
+                .finalWorkedMinutes(result.getProcessedMinutes())
+                .totalOvertimeMinutes(result.getOvertimeMinutes())
+                .lunchBreakDeducted(result.isLunchDeducted())
+                .workdayCompleted(workdayCompleted));
 
         return session;
     }
+
     @Override
     protected WorkUsersSessionsStates handleError(Exception e) {
         return session;

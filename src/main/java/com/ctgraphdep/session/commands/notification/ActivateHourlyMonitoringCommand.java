@@ -26,9 +26,8 @@ public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boo
             GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
-            // Direct manipulation of session monitoring state
-            ctx.getSessionMonitorService().continuedAfterSchedule.put(username, true);
-            ctx.getSessionMonitorService().lastHourlyWarning.put(username, timeValues.getCurrentTime());
+            // Use the service method instead of direct map manipulation
+            ctx.getSessionMonitorService().activateHourlyMonitoring(username, timeValues.getCurrentTime());
 
             // Cancel any backup tasks
             ctx.getBackupService().cancelBackupTask(username);

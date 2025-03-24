@@ -31,11 +31,7 @@ public class CalculationCommandService {
      */
     @Transactional(readOnly = true) // Most calculations are read-only
     public <T> T executeCommand(CalculationCommand<T> command) {
-        return CommandExecutorUtil.executeCommand(
-                command.getClass().getSimpleName(),
-                this.getClass(),
-                () -> command.execute(context)
-        );
+        return CommandExecutorUtil.executeCommand(command.getClass().getSimpleName(), this.getClass(), () -> command.execute(context));
     }
 
     /**
@@ -46,10 +42,6 @@ public class CalculationCommandService {
      */
     @Transactional(readOnly = true)
     public <T> T executeQuery(CalculationQuery<T> query) {
-        return CommandExecutorUtil.executeCommand(
-                query.getClass().getSimpleName(),
-                this.getClass(),
-                () -> query.execute(context)
-        );
+        return CommandExecutorUtil.executeCommand(query.getClass().getSimpleName(), this.getClass(), () -> query.execute(context));
     }
 }

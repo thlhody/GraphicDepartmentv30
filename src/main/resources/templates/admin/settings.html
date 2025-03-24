@@ -1,12 +1,9 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:sec="http://www.w3.org/1999/xhtml"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Management</title>
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=123456788}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -49,8 +46,8 @@
                     </div>
                     <div class="card-body">
                         <form th:action="@{/admin/settings/user}" method="post" th:object="${userForm}">
-                            <input type="hidden" th:field="*{userId}" />
-                            <input type="hidden" name="isNewUser" th:value="${isNewUser}" />
+                            <input type="hidden" th:field="*{userId}"/>
+                            <input type="hidden" name="isNewUser" th:value="${isNewUser}"/>
 
                             <!-- Name -->
                             <div class="mb-3">
@@ -69,7 +66,8 @@
                                     <span class="input-group-text">
                                         <i class="bi bi-at"></i>
                                     </span>
-                                    <input type="text" id="username" class="form-control" th:field="*{username}" required>
+                                    <input type="text" id="username" class="form-control" th:field="*{username}"
+                                           required>
                                 </div>
                             </div>
                             <!-- Password -->
@@ -79,7 +77,8 @@
                                     <span class="input-group-text">
                                         <i class="bi bi-lock"></i>
                                     </span>
-                                    <input type="password" id="password" class="form-control" th:field="*{password}" required>
+                                    <input type="password" id="password" class="form-control" th:field="*{password}"
+                                           required>
                                 </div>
                                 <small class="text-muted" th:if="${!isNewUser}">
                                     Leave blank to keep current password
@@ -92,7 +91,8 @@
                                     <span class="input-group-text">
                                         <i class="bi bi-person-badge"></i>
                                     </span>
-                                    <input type="text" id="employeeId" class="form-control" th:field="*{employeeId}" required>
+                                    <input type="text" id="employeeId" class="form-control" th:field="*{employeeId}"
+                                           required>
                                 </div>
                             </div>
                             <!-- Schedule -->
@@ -129,7 +129,8 @@
                                     <span class="input-group-text">
                                         <i class="bi bi-calendar-check"></i>
                                     </span>
-                                    <input type="number" id="paidHolidayDays" class="form-control" name="paidHolidayDays"
+                                    <input type="number" id="paidHolidayDays" class="form-control"
+                                           name="paidHolidayDays"
                                            th:value="${holidayEntry?.paidHolidayDays ?: 21}"
                                            min="0" max="30" required>
                                 </div>
@@ -152,10 +153,12 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <form th:action="@{/admin/settings/change-password}" method="post" class="needs-validation" novalidate>
+                                <form th:action="@{/admin/settings/change-password}" method="post"
+                                      class="needs-validation" novalidate>
                                     <!-- Current Password -->
                                     <div class="mb-3">
-                                        <label for="currentPassword" class="form-label text-muted">Current Password</label>
+                                        <label for="currentPassword" class="form-label text-muted">Current
+                                            Password</label>
                                         <div class="input-group">
                                             <span class="input-group-text">
                                                 <i class="bi bi-key"></i>

@@ -23,6 +23,7 @@ public class SchedulingConfiguration implements SchedulingConfigurer {
 
     @Override
     public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
+
         // Explicitly set the scheduler to use for @Scheduled annotations
         taskRegistrar.setScheduler(sessionMonitorScheduler);
     }

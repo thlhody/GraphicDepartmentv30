@@ -1,11 +1,9 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
 <head>
     <title th:text="${dashboard.pageTitle}">Team Lead Dashboard</title>
-    <link rel="stylesheet" th:href="@{/css/dashboard.css?v=123456788}">
+    <link rel="stylesheet" th:href="@{/css/dashboard.css?v=18781}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -17,11 +15,13 @@
                     <h1 class="h2 mb-2" th:text="${dashboard.pageTitle}">Team Lead Dashboard</h1>
                     <div class="d-flex align-items-center gap-3">
                         <h2 class="h3 mb-0 text-primary" th:text="${dashboard.userFullName}">Team Lead Name</h2>
-                        <span class="badge bg-primary rounded-pill px-3 py-2" th:text="${dashboard.username}">username</span>
+                        <span class="badge bg-primary rounded-pill px-3 py-2"
+                              th:text="${dashboard.username}">username</span>
                     </div>
                 </div>
                 <div class="text-end">
-                    <div class="text-muted header-date" th:text="${#temporals.format(#temporals.createNow(), 'EEEE, dd MMMM yyyy')}">
+                    <div class="text-muted header-date"
+                         th:text="${#temporals.format(#temporals.createNow(), 'EEEE, dd MMMM yyyy')}">
                         Date
                     </div>
                 </div>
@@ -79,7 +79,7 @@
 </div>
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/dashboard.js?v=123456788}"></script>
+    <script th:src="@{/js/dashboard.js?v=18781}"></script>
 </th:block>
 </body>
 </html>

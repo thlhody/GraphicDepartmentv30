@@ -3,7 +3,6 @@ package com.ctgraphdep.model;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -58,12 +57,9 @@ public abstract class NotificationButton {
             }
         });
 
-        button.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                userResponded.set(true);
-                handleAction(e);
-            }
+        button.addActionListener(e -> {
+            userResponded.set(true);
+            handleAction(e);
         });
 
         return button;

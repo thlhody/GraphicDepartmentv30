@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
 <body>
 <div th:fragment="alerts">
     <!-- Alert Container -->
@@ -88,27 +88,27 @@
                             <i class="bi bi-calendar-x me-2"></i>
                             Please select a date.
                         </span>
-                                <span th:case="'missing_order_id'" class="d-flex align-items-center">
+                        <span th:case="'missing_order_id'" class="d-flex align-items-center">
                             <i class="bi bi-exclamation-circle me-2"></i>
                             Order ID is required.
                         </span>
-                                <span th:case="'missing_oms_id'" class="d-flex align-items-center">
+                        <span th:case="'missing_oms_id'" class="d-flex align-items-center">
                             <i class="bi bi-exclamation-circle me-2"></i>
                             OMS ID is required.
                         </span>
-                                <span th:case="'missing_client'" class="d-flex align-items-center">
+                        <span th:case="'missing_client'" class="d-flex align-items-center">
                             <i class="bi bi-exclamation-circle me-2"></i>
                             Client name is required.
                         </span>
-                                <span th:case="'missing_action_type'" class="d-flex align-items-center">
+                        <span th:case="'missing_action_type'" class="d-flex align-items-center">
                             <i class="bi bi-exclamation-circle me-2"></i>
                             Action type is required.
                         </span>
-                                <span th:case="'missing_print_type'" class="d-flex align-items-center">
+                        <span th:case="'missing_print_type'" class="d-flex align-items-center">
                             <i class="bi bi-exclamation-circle me-2"></i>
                             Print type is required.
                         </span>
-                                <span th:case="'missing_articles'" class="d-flex align-items-center">
+                        <span th:case="'missing_articles'" class="d-flex align-items-center">
                             <i class="bi bi-exclamation-circle me-2"></i>
                             Number of articles is required.
                         </span>

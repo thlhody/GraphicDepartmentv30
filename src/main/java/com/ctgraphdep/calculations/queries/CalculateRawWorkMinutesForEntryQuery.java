@@ -25,8 +25,7 @@ public class CalculateRawWorkMinutesForEntryQuery implements CalculationQuery<In
         try {
             return CalculateWorkHoursUtil.calculateRawWorkMinutes(entry, endTime);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error calculating raw work minutes for entry: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error calculating raw work minutes for entry: " + e.getMessage(), e);
             return 0;
         }
     }
