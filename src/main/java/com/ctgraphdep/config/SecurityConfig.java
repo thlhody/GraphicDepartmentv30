@@ -60,6 +60,15 @@ public class SecurityConfig {
                                     } else if (roles.contains("ROLE_TEAM_LEADER")) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to team lead...");
                                         response.sendRedirect("/team-lead");
+                                    } else if (roles.contains("ROLE_TL_CHECKING")) {
+                                        LoggerUtil.debug(this.getClass(), "Redirecting to tl checking...");
+                                        response.sendRedirect("/team-checking");
+                                    } else if (roles.contains("USER_CHECKING")) {
+                                        LoggerUtil.debug(this.getClass(), "Redirecting to user+checking...");
+                                        response.sendRedirect("/user-checking");
+                                    } else if (roles.contains("CHECKING")) {
+                                        LoggerUtil.debug(this.getClass(), "Redirecting to checking...");
+                                        response.sendRedirect("/checking");
                                     } else if (roles.contains("ROLE_USER")) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to user...");
                                         response.sendRedirect("/user");

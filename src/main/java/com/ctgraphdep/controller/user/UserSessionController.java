@@ -1,4 +1,4 @@
-package com.ctgraphdep.controller;
+package com.ctgraphdep.controller.user;
 
 import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationCommandService;

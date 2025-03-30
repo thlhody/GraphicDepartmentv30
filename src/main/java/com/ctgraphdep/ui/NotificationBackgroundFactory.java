@@ -1,4 +1,6 @@
-package com.ctgraphdep.utils;
+package com.ctgraphdep.ui;
+
+import com.ctgraphdep.utils.LoggerUtil;
 
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
@@ -9,7 +11,7 @@ import javax.imageio.ImageIO;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NotificationBackgroundUtility {
+public class NotificationBackgroundFactory {
     private static final int WIDTH = 600;
     private static final int HEIGHT = 400;
     private static final int CORNER_RADIUS = 20;
@@ -53,7 +55,7 @@ public class NotificationBackgroundUtility {
 
     private static void addProgramLogo(Graphics2D g2d) {
         try {
-            URL logoUrl = NotificationBackgroundUtility.class.getResource("/static/icons/ct3logoicon.png");
+            URL logoUrl = NotificationBackgroundFactory.class.getResource("/static/icons/ct3logoicon.png");
             if (logoUrl != null) {
                 BufferedImage logo = ImageIO.read(logoUrl);
                 int logoWidth = 40;
@@ -62,7 +64,7 @@ public class NotificationBackgroundUtility {
                 g2d.drawImage(scaledLogo, 15, 15, null);
             }
         } catch (IOException e) {
-            LoggerUtil.error(NotificationBackgroundUtility.class, "Failed to load program logo", e);
+            LoggerUtil.error(NotificationBackgroundFactory.class, "Failed to load program logo", e);
         }
     }
 
@@ -91,7 +93,7 @@ public class NotificationBackgroundUtility {
 
         // Add warning icon
         try {
-            URL warningUrl = NotificationBackgroundUtility.class.getResource("/static/icons/warning_sign.png");
+            URL warningUrl = NotificationBackgroundFactory.class.getResource("/static/icons/warning_sign.png");
             if (warningUrl != null) {
                 BufferedImage warningSign = ImageIO.read(warningUrl);
                 int signWidth = 50;
@@ -114,7 +116,7 @@ public class NotificationBackgroundUtility {
                 drawCenteredMultilineText(g2d, message, contentX, contentY, contentWidth, contentHeight);
             }
         } catch (IOException e) {
-            LoggerUtil.error(NotificationBackgroundUtility.class, "Failed to load warning sign", e);
+            LoggerUtil.error(NotificationBackgroundFactory.class, "Failed to load warning sign", e);
         }
     }
 

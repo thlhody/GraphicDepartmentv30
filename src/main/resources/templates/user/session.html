@@ -228,6 +228,16 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Discarded minutes -->
+                    <div class="col-md-4">
+                        <div class="stat-container border-start border-4 border-warning ps-3">
+                            <h6 class="text-muted mb-1"><i class="bi bi-hourglass-split me-2"></i>Discarded Minutes</h6>
+                            <div class="h5 mb-0">
+                                <span th:text="${discardedMinutes ?: 0}">0</span>
+                                <small class="text-muted">minutes</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

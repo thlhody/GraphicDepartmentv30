@@ -3,7 +3,6 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.DialogComponents;
-import com.ctgraphdep.model.NotificationButton;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
@@ -11,15 +10,15 @@ import com.ctgraphdep.session.commands.notification.*;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
 import com.ctgraphdep.tray.CTTTSystemTray;
+import com.ctgraphdep.ui.ButtonFactory;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.NotificationBackgroundUtility;
+import com.ctgraphdep.ui.NotificationBackgroundFactory;
 import lombok.Getter;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
 import java.awt.geom.RoundRectangle2D;
 import java.nio.file.Files;
@@ -300,7 +299,7 @@ public class SystemNotificationService {
 
     // Creates a dialog with the specified title and message
     private DialogComponents createDialog(String title, String message) {
-        BufferedImage notificationImage = NotificationBackgroundUtility.createNotificationBackground(title, message);
+        BufferedImage notificationImage = NotificationBackgroundFactory.createNotificationBackground(title, message);
 
         JDialog dialog = new JDialog();
         dialog.setUndecorated(true);
@@ -366,37 +365,35 @@ public class SystemNotificationService {
         JPanel buttonsPanel = components.buttonsPanel();
         JDialog dialog = components.dialog();
 
-        // Open Website Button
-        class OpenWebsiteButton extends NotificationButton {
-            OpenWebsiteButton() {
-                super(WorkCode.OPEN_WEBSITE, new Color(51, 122, 183), respondedFlag);
-            }
+        // Open Website Button using ButtonFactory
+        JButton openWebsiteButton = ButtonFactory.createButton(
+                WorkCode.OPEN_WEBSITE,
+                ButtonFactory.BUTTON_SECONDARY,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    systemTray.openApplication();
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User chose to open website from test notification");
+                },
+                respondedFlag
+        );
 
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-                systemTray.openApplication();
-                LoggerUtil.info(SystemNotificationService.this.getClass(),
-                        "User chose to open website from test notification");
-            }
-        }
+        // Dismiss Button using ButtonFactory
+        JButton dismissButton = ButtonFactory.createButton(
+                WorkCode.DISMISS_BUTTON,
+                ButtonFactory.BUTTON_NEUTRAL,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User dismissed test notification");
+                },
+                respondedFlag
+        );
 
-        // Dismiss Button
-        class DismissButton extends NotificationButton {
-            DismissButton() {
-                super(WorkCode.DISMISS_BUTTON, new Color(108, 117, 125), respondedFlag);
-            }
-
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-                LoggerUtil.info(SystemNotificationService.this.getClass(),
-                        "User dismissed test notification");
-            }
-        }
-
-        buttonsPanel.add(new OpenWebsiteButton().create());
-        buttonsPanel.add(new DismissButton().create());
+        buttonsPanel.add(openWebsiteButton);
+        buttonsPanel.add(dismissButton);
     }
 
     // Adds standard notification buttons (Continue Working and End Session)
@@ -404,54 +401,52 @@ public class SystemNotificationService {
         JPanel buttonsPanel = components.buttonsPanel();
         JDialog dialog = components.dialog();
 
-        // Continue Working Button
-        class ContinueWorkingButton extends NotificationButton {
-            ContinueWorkingButton() {
-                super(WorkCode.CONTINUE_WORKING, new Color(0, 153, 51), SystemNotificationService.this.userResponded);
-            }
+        // Continue Working Button using ButtonFactory
+        JButton continueWorkingButton = ButtonFactory.createButton(
+                WorkCode.CONTINUE_WORKING,
+                ButtonFactory.BUTTON_PRIMARY,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    // Create and execute continue working command
+                    ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, isHourly);
+                    commandService.executeCommand(command);
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            String.format("User %s chose to continue working - continuation point recorded", username));
+                },
+                userResponded
+        );
 
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-
-                // Create and execute continue working command
-                ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, isHourly);
-                commandService.executeCommand(command);
-
-                LoggerUtil.info(SystemNotificationService.this.getClass(), String.format("User %s chose to continue working - continuation point recorded", username));
-            }
-        }
-
-        // End Session Button
-        class EndSessionButton extends NotificationButton {
-            EndSessionButton() {
-                super(WorkCode.END_SESSION, new Color(204, 51, 0), SystemNotificationService.this.userResponded);
-            }
-
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-
-                try {
-                    // Use the command factory to create the command
-                    EndSessionFromNotificationCommand command = commandFactory.createEndSessionFromNotificationCommand(username, userId, finalMinutes);
-
-                    // Execute the command through the command service
-                    boolean success = commandService.executeCommand(command);
-
-                    if (success) {
-                        LoggerUtil.info(SystemNotificationService.this.getClass(), String.format("User chose to end session for user %s", username));
-                    } else {
-                        LoggerUtil.warn(SystemNotificationService.this.getClass(), "Failed to end session from notification");
+        // End Session Button using ButtonFactory
+        JButton endSessionButton = ButtonFactory.createButton(
+                WorkCode.END_SESSION,
+                ButtonFactory.BUTTON_DANGER,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    try {
+                        // Use the command factory to create the command
+                        EndSessionFromNotificationCommand command = commandFactory.createEndSessionFromNotificationCommand(
+                                username, userId, finalMinutes);
+                        // Execute the command through the command service
+                        boolean success = commandService.executeCommand(command);
+                        if (success) {
+                            LoggerUtil.info(SystemNotificationService.this.getClass(),
+                                    String.format("User chose to end session for user %s", username));
+                        } else {
+                            LoggerUtil.warn(SystemNotificationService.this.getClass(),
+                                    "Failed to end session from notification");
+                        }
+                    } catch (Exception ex) {
+                        LoggerUtil.error(SystemNotificationService.this.getClass(),
+                                "Error ending session from notification: " + ex.getMessage());
                     }
-                } catch (Exception ex) {
-                    LoggerUtil.error(SystemNotificationService.this.getClass(), "Error ending session from notification: " + ex.getMessage());
-                }
-            }
-        }
+                },
+                userResponded
+        );
 
-        buttonsPanel.add(new ContinueWorkingButton().create());
-        buttonsPanel.add(new EndSessionButton().create());
+        buttonsPanel.add(continueWorkingButton);
+        buttonsPanel.add(endSessionButton);
     }
 
     // Adds temporary stop specific buttons
@@ -459,112 +454,99 @@ public class SystemNotificationService {
         JPanel buttonsPanel = components.buttonsPanel();
         JDialog dialog = components.dialog();
 
-        // Continue Break Button
-        class ContinueBreakButton extends NotificationButton {
-            ContinueBreakButton() {
-                super(WorkCode.CONTINUE_BREAK, new Color(0, 153, 51), SystemNotificationService.this.userResponded);
-            }
+        // Continue Break Button using ButtonFactory
+        JButton continueBreakButton = ButtonFactory.createButton(
+                WorkCode.CONTINUE_BREAK,
+                ButtonFactory.BUTTON_PRIMARY,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    // Create and execute continue temp stop command
+                    ContinueTempStopCommand command = commandFactory.createContinueTempStopCommand(
+                            username, userId);
+                    commandService.executeCommand(command);
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User chose to continue temporary stop");
+                },
+                userResponded
+        );
 
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
+        // Resume Work Button using ButtonFactory
+        JButton resumeWorkButton = ButtonFactory.createButton(
+                WorkCode.RESUME_WORK,
+                ButtonFactory.BUTTON_SECONDARY,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    // Create and execute resume from temp stop command
+                    ResumeFromTempStopCommand command = commandFactory.createResumeFromTempStopCommand(
+                            username, userId);
+                    commandService.executeCommand(command);
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User chose to resume work from temporary stop");
+                },
+                userResponded
+        );
 
-                // Create and execute continue temp stop command
-                ContinueTempStopCommand command = commandFactory.createContinueTempStopCommand(
-                        username, userId);
-                commandService.executeCommand(command);
+        // End Session Button using ButtonFactory
+        JButton endSessionButton = ButtonFactory.createButton(
+                WorkCode.END_SESSION,
+                ButtonFactory.BUTTON_DANGER,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    // First resume from temp stop, then end session - use commands for both
+                    ResumeFromTempStopCommand resumeCommand = commandFactory.createResumeFromTempStopCommand(
+                            username, userId);
+                    commandService.executeCommand(resumeCommand);
+                    EndSessionFromNotificationCommand endCommand = commandFactory.createEndSessionFromNotificationCommand(
+                            username, userId, null);
+                    commandService.executeCommand(endCommand);
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User chose to end session from temporary stop");
+                },
+                userResponded
+        );
 
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue temporary stop");
-            }
-        }
-
-        // Resume Work Button
-        class ResumeWorkButton extends NotificationButton {
-            ResumeWorkButton() {
-                super(WorkCode.RESUME_WORK, new Color(51, 122, 183), SystemNotificationService.this.userResponded);
-            }
-
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-
-                // Create and execute resume from temp stop command
-                ResumeFromTempStopCommand command = commandFactory.createResumeFromTempStopCommand(
-                        username, userId);
-                commandService.executeCommand(command);
-
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to resume work from temporary stop");
-            }
-        }
-
-        // End Session Button
-        class EndSessionButton extends NotificationButton {
-            EndSessionButton() {
-                super(WorkCode.END_SESSION, new Color(204, 51, 0), SystemNotificationService.this.userResponded);
-            }
-
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-
-                // First resume from temp stop, then end session - use commands for both
-                ResumeFromTempStopCommand resumeCommand = commandFactory.createResumeFromTempStopCommand(
-                        username, userId);
-                commandService.executeCommand(resumeCommand);
-
-                EndSessionFromNotificationCommand endCommand = commandFactory.createEndSessionFromNotificationCommand(
-                        username, userId, null);
-                commandService.executeCommand(endCommand);
-
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session from temporary stop");
-            }
-        }
-
-        buttonsPanel.add(new ContinueBreakButton().create());
-        buttonsPanel.add(new ResumeWorkButton().create());
-        buttonsPanel.add(new EndSessionButton().create());
+        buttonsPanel.add(continueBreakButton);
+        buttonsPanel.add(resumeWorkButton);
+        buttonsPanel.add(endSessionButton);
     }
+
 
     // Adds start day dialog specific buttons
     public void addStartDayButtons(DialogComponents components, String username, Integer userId) {
         JPanel buttonsPanel = components.buttonsPanel();
         JDialog dialog = components.dialog();
 
-        // Start Work Button
-        class StartWorkButton extends NotificationButton {
-            StartWorkButton() {
-                super(WorkCode.START_WORK, new Color(0, 153, 51), SystemNotificationService.this.userResponded);
-            }
+        // Start Work Button using ButtonFactory
+        JButton startWorkButton = ButtonFactory.createButton(
+                WorkCode.START_WORK,
+                ButtonFactory.BUTTON_PRIMARY,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    StartWorkDayCommand command = commandFactory.createStartWorkDayCommand(username, userId);
+                    commandService.executeCommand(command);
+                    LoggerUtil.info(this.getClass(), "User chose to start work day through notification");
+                },
+                userResponded
+        );
 
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
+        // Skip Button using ButtonFactory
+        JButton skipButton = ButtonFactory.createButton(
+                WorkCode.SKIP_BUTTON,
+                ButtonFactory.BUTTON_DANGER,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    LoggerUtil.info(this.getClass(), "User chose to skip start day reminder");
+                },
+                userResponded
+        );
 
-                // Use command factory to create the command
-                StartWorkDayCommand command = commandFactory.createStartWorkDayCommand(username, userId);
-                // Execute the command through the command service
-                commandService.executeCommand(command);
-
-                LoggerUtil.info(SystemNotificationService.this.getClass(),
-                        "User chose to start work day through notification");
-            }
-        }
-
-        // Skip Button
-        class SkipButton extends NotificationButton {
-            SkipButton() {
-                super(WorkCode.SKIP_BUTTON, new Color(204, 51, 0), SystemNotificationService.this.userResponded);
-            }
-
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to skip start day reminder");
-            }
-        }
-
-        buttonsPanel.add(new StartWorkButton().create());
-        buttonsPanel.add(new SkipButton().create());
+        buttonsPanel.add(startWorkButton);
+        buttonsPanel.add(skipButton);
     }
 
     // Adds resolution reminder specific buttons
@@ -572,36 +554,36 @@ public class SystemNotificationService {
         JPanel buttonsPanel = components.buttonsPanel();
         JDialog dialog = components.dialog();
 
-        // Resolve Session Button
-        class ResolveSessionButton extends NotificationButton {
-            ResolveSessionButton() {
-                super(WorkCode.RESOLVE_SESSION_BUTTON, new Color(0, 153, 51), SystemNotificationService.this.userResponded);
-            }
+        // Resolve Session Button using ButtonFactory
+        JButton resolveSessionButton = ButtonFactory.createButton(
+                WorkCode.RESOLVE_SESSION_BUTTON,
+                ButtonFactory.BUTTON_PRIMARY,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    // Open the resolution page in the browser
+                    systemTray.openApplication();
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User chose to resolve session from notification");
+                },
+                userResponded
+        );
 
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-                // Open the resolution page in the browser
-                systemTray.openApplication();
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to resolve session from notification");
-            }
-        }
+        // Dismiss button using ButtonFactory
+        JButton dismissButton = ButtonFactory.createButton(
+                WorkCode.DISMISS_BUTTON,
+                ButtonFactory.BUTTON_DANGER,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    LoggerUtil.info(SystemNotificationService.this.getClass(),
+                            "User dismissed resolution reminder");
+                },
+                userResponded
+        );
 
-        // Dismiss button
-        class DismissButton extends NotificationButton {
-            DismissButton() {
-                super(WorkCode.DISMISS_BUTTON, new Color(204, 51, 0), SystemNotificationService.this.userResponded);
-            }
-
-            @Override
-            protected void handleAction(ActionEvent e) {
-                dialog.dispose();
-                LoggerUtil.info(SystemNotificationService.this.getClass(), "User dismissed resolution reminder");
-            }
-        }
-
-        buttonsPanel.add(new ResolveSessionButton().create());
-        buttonsPanel.add(new DismissButton().create());
+        buttonsPanel.add(resolveSessionButton);
+        buttonsPanel.add(dismissButton);
     }
 
     // Records the time a notification was shown

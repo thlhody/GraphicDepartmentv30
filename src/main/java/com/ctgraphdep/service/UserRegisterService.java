@@ -5,6 +5,8 @@ import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.utils.LoggerUtil;
+import lombok.Getter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -16,8 +18,11 @@ import java.util.stream.Collectors;
 public class UserRegisterService {
 
     private final DataAccessService dataAccessService;
+    @Getter
     private final PathConfig pathConfig;
 
+
+    @Autowired
     public UserRegisterService(DataAccessService dataAccessService, PathConfig pathConfig) {
         this.dataAccessService = dataAccessService;
         this.pathConfig = pathConfig;

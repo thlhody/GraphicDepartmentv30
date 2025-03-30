@@ -1,7 +1,10 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.model.WorkTimeEntryDTO;
+import com.ctgraphdep.model.WorkTimeSummaryDTO;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import lombok.Setter;
@@ -71,7 +74,7 @@ public class StatusService {
         }
     }
 
-    // Prepares worktime display data without modifying any files.
+    // Prepares worktime display data without modifying any files, now using DTOs
     public Map<String, Object> prepareWorktimeDisplayData(User user, List<WorkTimeTable> worktimeData, int year, int month) {
         validateInput(user, worktimeData, year, month);
 
@@ -81,19 +84,28 @@ public class StatusService {
             // Filter entries for display
             List<WorkTimeTable> displayableEntries = filterWorktimeEntriesForDisplay(worktimeData);
 
-            // Calculate summary
+            // Calculate summary using domain model
             WorkTimeSummary summary = calculateMonthSummary(
                     displayableEntries,
                     year,
                     month
             );
 
-            // Prepare display data
-            displayData.put("worktimeData", displayableEntries);
+            // Convert to DTOs
+            int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8; // Default to 8 hours
+            List<WorkTimeEntryDTO> entryDTOs = displayableEntries.stream()
+                    .map(entry -> WorkTimeEntryDTO.fromWorkTimeTable(entry, userSchedule))
+                    .collect(Collectors.toList());
+
+            // Convert summary to DTO
+            WorkTimeSummaryDTO summaryDTO = WorkTimeSummaryDTO.fromWorkTimeSummary(summary);
+
+            // Prepare display data with DTOs
+            displayData.put("worktimeData", entryDTOs);
             displayData.put("currentYear", year);
             displayData.put("currentMonth", month);
             displayData.put("user", sanitizeUserData(user));
-            displayData.put("summary", summary);
+            displayData.put("summary", summaryDTO);
 
             return displayData;
 
@@ -396,10 +408,22 @@ public class StatusService {
 
         // For USER_IN_PROCESS entries, show only partial information
         if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
-            displayEntry.setTotalWorkedMinutes(null);
-            displayEntry.setTotalOvertimeMinutes(null);
+            // Keep information that is already available
+            if (displayEntry.getTotalWorkedMinutes() == null || displayEntry.getTotalWorkedMinutes() == 0) {
+                displayEntry.setTotalWorkedMinutes(null);
+            }
+
+            if (displayEntry.getTotalOvertimeMinutes() == null || displayEntry.getTotalOvertimeMinutes() == 0) {
+                displayEntry.setTotalOvertimeMinutes(null);
+            }
+
+            // Always hide end time for in-process entries
             displayEntry.setDayEndTime(null);
-            displayEntry.setLunchBreakDeducted(false);
+
+            // Don't apply lunch break for in-process entries unless explicitly set
+            if (!displayEntry.isLunchBreakDeducted()) {
+                displayEntry.setLunchBreakDeducted(false);
+            }
         } else {
             displayEntry.setTotalWorkedMinutes(entry.getTotalWorkedMinutes());
             displayEntry.setTotalOvertimeMinutes(entry.getTotalOvertimeMinutes());
@@ -427,6 +451,7 @@ public class StatusService {
                     .totalRegularMinutes(counts.getRegularMinutes())
                     .totalOvertimeMinutes(counts.getOvertimeMinutes())
                     .totalMinutes(counts.getRegularMinutes() + counts.getOvertimeMinutes())
+                    .discardedMinutes(counts.getDiscardedMinutes()) // Now including discarded minutes
                     .availablePaidDays(21) // Default value to avoid file reads
                     .build();
         } catch (Exception e) {
@@ -439,6 +464,7 @@ public class StatusService {
         WorkTimeCounts counts = new WorkTimeCounts();
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
+        int totalDiscardedMinutes = 0;
 
         for (WorkTimeTable entry : worktimeData) {
             // Skip in-process entries
@@ -454,15 +480,34 @@ public class StatusService {
                 }
             } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
                 counts.incrementDaysWorked();
-                // Add this day's regular minutes to total
-                totalRegularMinutes += entry.getTotalWorkedMinutes();
-                if (entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
-                    totalOvertimeMinutes += entry.getTotalOvertimeMinutes();
-                }
+
+                // Get user schedule (default to 8 hours)
+                int userSchedule = 8;
+
+                // Use CalculateWorkHoursUtil for consistent calculation
+                WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
+                        entry.getTotalWorkedMinutes(),
+                        userSchedule
+                );
+
+                // Use the calculation results directly
+                totalRegularMinutes += result.getProcessedMinutes();
+                totalOvertimeMinutes += result.getOvertimeMinutes();
+
+                // Calculate discarded minutes - partial hour not counted in processed minutes
+                // Get adjusted minutes (after lunch deduction)
+                int adjustedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(
+                        entry.getTotalWorkedMinutes(), userSchedule);
+
+                // Discarded minutes are the remainder after dividing by 60 (partial hour)
+                int discardedMinutes = adjustedMinutes % 60;
+                totalDiscardedMinutes += discardedMinutes;
             }
         }
+
         counts.setRegularMinutes(totalRegularMinutes);
         counts.setOvertimeMinutes(totalOvertimeMinutes);
+        counts.setDiscardedMinutes(totalDiscardedMinutes);
 
         return counts;
     }
@@ -472,8 +517,8 @@ public class StatusService {
      * This method reads directly from the network or local storage without any data manipulation.
      *
      * @param username The username
-     * @param userId The user ID
-     * @param year The year to retrieve data for
+     * @param userId   The user ID
+     * @param year     The year to retrieve data for
      * @return TimeOffTracker data or null if not found
      */
     public TimeOffTracker getTimeOffTrackerReadOnly(String username, Integer userId, int year) {
@@ -503,13 +548,14 @@ public class StatusService {
             return null;
         }
     }
+
     /**
      * Gets time off data from TimeOffTracker file in a format compatible with the existing view.
      * Only returns APPROVED records.
      *
      * @param username The username
-     * @param userId The user ID
-     * @param year The year to retrieve data for
+     * @param userId   The user ID
+     * @param year     The year to retrieve data for
      * @return List of WorkTimeTable entries created from tracker data
      */
     public List<WorkTimeTable> getApprovedTimeOffFromTracker(String username, Integer userId, int year) {
@@ -554,8 +600,8 @@ public class StatusService {
      * This only counts APPROVED requests.
      *
      * @param username The username
-     * @param userId The user ID
-     * @param year The year to retrieve data for
+     * @param userId   The user ID
+     * @param year     The year to retrieve data for
      * @return TimeOffSummary calculated from tracker data
      */
     public TimeOffSummary getTimeOffSummaryFromTracker(String username, Integer userId, int year) {
@@ -687,6 +733,7 @@ public class StatusService {
         private int cmDays = 0;
         private int regularMinutes = 0;
         private int overtimeMinutes = 0;
+        private int discardedMinutes = 0;
 
         public void incrementDaysWorked() {
             daysWorked++;

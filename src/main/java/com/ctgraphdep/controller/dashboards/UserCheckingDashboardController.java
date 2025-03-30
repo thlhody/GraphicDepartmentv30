@@ -1,4 +1,4 @@
-package com.ctgraphdep.controller;
+package com.ctgraphdep.controller.dashboards;
 
 import com.ctgraphdep.controller.base.BaseDashboardController;
 import com.ctgraphdep.model.dashboard.DashboardConfiguration;
@@ -15,18 +15,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 @Controller
-@RequestMapping("/team-lead")
-@PreAuthorize("hasRole('ROLE_TEAM_LEADER')")
-public class TeamLeadDashboardController extends BaseDashboardController {
-
+@RequestMapping("/user-checking")
+@PreAuthorize("hasRole('USER_CHECKING')")
+public class UserCheckingDashboardController extends BaseDashboardController {
 
     @Autowired
-    public TeamLeadDashboardController(
+    public UserCheckingDashboardController(
             UserService userService,
             DashboardService dashboardService,
-            @Qualifier("teamLeadDashboardConfig") DashboardConfiguration teamLeadDashboardConfig,
+            @Qualifier("userCheckingDashboardConfig") DashboardConfiguration userDashboardConfig,
             PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
-        super(userService, dashboardService, teamLeadDashboardConfig, permissionFilterService,timeValidationService);
+        super(userService, dashboardService, userDashboardConfig, permissionFilterService, timeValidationService);
     }
 
     @GetMapping
@@ -36,11 +35,11 @@ public class TeamLeadDashboardController extends BaseDashboardController {
 
     @Override
     protected String getTemplateType() {
-        return "team-lead";
+        return "user-checking";
     }
 
     @Override
     protected String getDashboardViewName() {
-        return getCurrentUser().getName() + " (Team Leader)";
+        return getCurrentUser().getName();
     }
 }

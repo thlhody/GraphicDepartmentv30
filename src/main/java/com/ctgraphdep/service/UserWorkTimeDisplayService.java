@@ -8,8 +8,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-
-//changing
+import java.util.stream.Collectors;
 
 @Service
 public class UserWorkTimeDisplayService {
@@ -20,6 +19,14 @@ public class UserWorkTimeDisplayService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    /**
+     * Processes worktime data and converts it to DTOs for display
+     * @param user User requesting the data
+     * @param worktimeData Raw worktime data
+     * @param year Year for display
+     * @param month Month for display
+     * @return Map containing display data with DTOs
+     */
     @PreAuthorize("#user.username == authentication.name or hasRole('ADMIN')")
     public Map<String, Object> prepareDisplayData(
             User user,
@@ -50,15 +57,23 @@ public class UserWorkTimeDisplayService {
                     paidHolidayDays
             );
 
+            // Convert to DTOs with pre-calculated values
+            int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8; // Default to 8 hours
+            List<WorkTimeEntryDTO> entryDTOs = displayableEntries.stream()
+                    .map(entry -> WorkTimeEntryDTO.fromWorkTimeTable(entry, userSchedule))
+                    .collect(Collectors.toList());
+
+            WorkTimeSummaryDTO summaryDTO = WorkTimeSummaryDTO.fromWorkTimeSummary(summary);
+
             // Prepare display data
-            displayData.put("worktimeData", displayableEntries);
+            displayData.put("worktimeData", entryDTOs);
             displayData.put("currentYear", year);
             displayData.put("currentMonth", month);
             displayData.put("user", sanitizeUserData(user));
-            displayData.put("summary", summary);
+            displayData.put("summary", summaryDTO);
 
             LoggerUtil.info(this.getClass(), String.format("Prepared display data with %d entries for user %s",
-                    displayableEntries.size(), user.getUsername()));
+                    entryDTOs.size(), user.getUsername()));
 
             return displayData;
 
@@ -98,16 +113,28 @@ public class UserWorkTimeDisplayService {
 
         // For USER_IN_PROCESS entries, show only partial information
         if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
-            displayEntry.setTotalWorkedMinutes(null);
-            displayEntry.setTotalOvertimeMinutes(null);
+            // Keep information that is already available
+            if (displayEntry.getTotalWorkedMinutes() == null || displayEntry.getTotalWorkedMinutes() == 0) {
+                displayEntry.setTotalWorkedMinutes(null);
+            }
+
+            if (displayEntry.getTotalOvertimeMinutes() == null || displayEntry.getTotalOvertimeMinutes() == 0) {
+                displayEntry.setTotalOvertimeMinutes(null);
+            }
+
+            // Always hide end time for in-process entries
             displayEntry.setDayEndTime(null);
-            displayEntry.setLunchBreakDeducted(false);
+
+            // Don't apply lunch break for in-process entries unless explicitly set
+            if (!displayEntry.isLunchBreakDeducted()) {
+                displayEntry.setLunchBreakDeducted(false);
+            }
+
             return displayEntry;
         }
 
         return displayEntry;
     }
-
 
     private void validateInput(User user, List<WorkTimeTable> worktimeData, int year, int month) {
         if (user == null) {
@@ -127,7 +154,6 @@ public class UserWorkTimeDisplayService {
             throw new SecurityException("Worktime data contains entries for other users");
         }
     }
-
 
     private int getPaidHolidayDays(Integer userId) {
         try {
@@ -157,14 +183,14 @@ public class UserWorkTimeDisplayService {
             return WorkTimeSummary.builder()
                     .totalWorkDays(totalWorkDays)
                     .daysWorked(counts.getDaysWorked())
-                    .remainingWorkDays(totalWorkDays - (
-                            counts.getDaysWorked() + counts.getSnDays() + counts.getCoDays() + counts.getCmDays()))
+                    .remainingWorkDays(totalWorkDays - (counts.getDaysWorked() + counts.getSnDays() + counts.getCoDays() + counts.getCmDays()))
                     .snDays(counts.getSnDays())
                     .coDays(counts.getCoDays())
                     .cmDays(counts.getCmDays())
                     .totalRegularMinutes(counts.getRegularMinutes())
                     .totalOvertimeMinutes(counts.getOvertimeMinutes())
                     .totalMinutes(counts.getRegularMinutes() + counts.getOvertimeMinutes())
+                    .discardedMinutes(counts.getDiscardedMinutes())
                     .availablePaidDays(paidHolidayDays)
                     .build();
         } catch (Exception e) {
@@ -177,6 +203,7 @@ public class UserWorkTimeDisplayService {
         WorkTimeCounts counts = new WorkTimeCounts();
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
+        int totalDiscardedMinutes = 0;
 
         for (WorkTimeTable entry : worktimeData) {
             // Skip in-process entries
@@ -190,24 +217,36 @@ public class UserWorkTimeDisplayService {
                     case "CO" -> counts.incrementCoDays();
                     case "CM" -> counts.incrementCmDays();
                 }
-            }  else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
+            } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
                 counts.incrementDaysWorked();
 
-                // Use CalculateWorkHoursUtil for consistent calculation
-                int userSchedule = 8; // Default to 8 hours if not available
+                // Get user schedule (default to 8 hours)
+                int userSchedule = 8;
 
+                // Use CalculateWorkHoursUtil for consistent calculation
                 WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
                         entry.getTotalWorkedMinutes(),
                         userSchedule
                 );
 
+                // Use the calculation results directly
                 totalRegularMinutes += result.getProcessedMinutes();
-                totalOvertimeMinutes += entry.getTotalOvertimeMinutes() != null ?
-                        entry.getTotalOvertimeMinutes() : 0;
+                totalOvertimeMinutes += result.getOvertimeMinutes();
+
+                // Calculate discarded minutes - partial hour not counted in processed minutes
+                // Get adjusted minutes (after lunch deduction)
+                int adjustedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(
+                        entry.getTotalWorkedMinutes(), userSchedule);
+
+                // Discarded minutes are the remainder after dividing by 60 (partial hour)
+                int discardedMinutes = adjustedMinutes % 60;
+                totalDiscardedMinutes += discardedMinutes;
             }
         }
+
         counts.setRegularMinutes(totalRegularMinutes);
         counts.setOvertimeMinutes(totalOvertimeMinutes);
+        counts.setDiscardedMinutes(totalDiscardedMinutes);
 
         return counts;
     }

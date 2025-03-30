@@ -1,23 +1,21 @@
 package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.WorkTimeEntryDTO;
+import com.ctgraphdep.model.WorkTimeSummaryDTO;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeSummary;
-import com.ctgraphdep.model.WorkTimeTable;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
-import java.time.LocalTime;
 import java.util.*;
 
 @Component
 public class UserWorktimeExcelExporter {
 
-
-    public byte[] exportToExcel(User user, List<WorkTimeTable> worktimeData, WorkTimeSummary summary, int year, int month) {
+    public byte[] exportToExcel(User user, List<WorkTimeEntryDTO> worktimeData, WorkTimeSummaryDTO summary, int year, int month) {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             LoggerUtil.info(this.getClass(), "Creating Excel export for " + worktimeData.size() + " entries");
             Sheet sheet = workbook.createSheet("Work Time Report");
@@ -68,7 +66,7 @@ public class UserWorktimeExcelExporter {
             // Populate summary data starting at the new row
             populateSummaryData(sheet, styles, summary, currentRow);
 
-            // Autosize columns
+            // Auto size columns
             for (int i = 0; i < 7; i++) {
                 sheet.autoSizeColumn(i);
             }
@@ -80,7 +78,7 @@ public class UserWorktimeExcelExporter {
         }
     }
 
-    private int populateWorkTimeData(Sheet sheet, Map<String, CellStyle> styles, List<WorkTimeTable> worktimeData, int startRow) {
+    private int populateWorkTimeData(Sheet sheet, Map<String, CellStyle> styles, List<WorkTimeEntryDTO> worktimeData, int startRow) {
         CellStyle dateStyle = styles.get("date");
         CellStyle numberStyle = styles.get("number");
         CellStyle timeStyle = styles.get("time");
@@ -88,67 +86,46 @@ public class UserWorktimeExcelExporter {
         int currentRow = startRow;
 
         // Create a new ArrayList and sort it explicitly
-        List<WorkTimeTable> sortedData = new ArrayList<>(worktimeData);
-        sortedData.sort(Comparator.comparing(WorkTimeTable::getWorkDate));
+        List<WorkTimeEntryDTO> sortedData = new ArrayList<>(worktimeData);
+        sortedData.sort(Comparator.comparing(WorkTimeEntryDTO::getWorkDate));
 
         LoggerUtil.info(this.getClass(), "Processing sorted entries:");
 
-        for (WorkTimeTable record : sortedData) {
+        for (WorkTimeEntryDTO record : sortedData) {
             LoggerUtil.debug(this.getClass(), "Processing row for date: " + record.getWorkDate());
 
             Row row = sheet.createRow(currentRow++);
 
-            // Date
-            createCell(row, 0, record.getWorkDate().format(WorkCode.DATE_FORMATTER), dateStyle);
+            // Date - use formatted date from DTO
+            createCell(row, 0, record.getFormattedDate(), dateStyle);
 
-            // Start Time
-            createTimeCell(row, 1,
-                    record.getDayStartTime() != null ? record.getDayStartTime().toLocalTime() : null,
-                    timeStyle, numberStyle);
+            // Start Time - use formatted time from DTO
+            createCell(row, 1, record.getFormattedStartTime() != null ? record.getFormattedStartTime() : "-", timeStyle);
 
-            // End Time
-            createTimeCell(row, 2,
-                    record.getDayEndTime() != null ? record.getDayEndTime().toLocalTime() : null,
-                    timeStyle, numberStyle);
+            // End Time - use formatted time from DTO
+            createCell(row, 2, record.getFormattedEndTime() != null ? record.getFormattedEndTime() : "-", timeStyle);
 
             // Breaks
-            if (record.getTemporaryStopCount() != null && record.getTemporaryStopCount() > 0) {
-                createCell(row, 3, String.format("%d (%dm)",
-                                record.getTemporaryStopCount(),
-                                record.getTotalTemporaryStopMinutes()),
-                        numberStyle);
+            if (record.getFormattedTemporaryStop() != null) {
+                createCell(row, 3, record.getFormattedTemporaryStop(), numberStyle);
             } else {
                 createCell(row, 3, "-", numberStyle);
             }
 
             // Time Off
-            createCell(row, 4,
-                    record.getTimeOffType() != null ? record.getTimeOffType() : "-",
-                    numberStyle);
+            createCell(row, 4, record.getTimeOffType() != null ? record.getTimeOffType() : "-", numberStyle);
 
-            // Hours
-            if (record.getTotalWorkedMinutes() != null && record.getTotalWorkedMinutes() > 0) {
-                createCell(row, 5,
-                        CalculateWorkHoursUtil.minutesToHHmm(record.getTotalWorkedMinutes()),
-                        numberStyle);
-            } else {
-                createCell(row, 5, "-", numberStyle);
-            }
+            // Hours - use formatted raw time from DTO
+            createCell(row, 5, record.getFormattedRawTime() != null ? record.getFormattedRawTime() : "-", numberStyle);
 
-            // Overtime
-            if (record.getTotalOvertimeMinutes() != null && record.getTotalOvertimeMinutes() > 0) {
-                createCell(row, 6,
-                        CalculateWorkHoursUtil.minutesToHHmm(record.getTotalOvertimeMinutes()),
-                        numberStyle);
-            } else {
-                createCell(row, 6, "-", numberStyle);
-            }
+            // Overtime - use formatted overtime time from DTO
+            createCell(row, 6, record.getFormattedOvertimeTime() != null ? record.getFormattedOvertimeTime() : "-", numberStyle);
         }
 
         return currentRow;
     }
 
-    private void populateSummaryData(Sheet sheet, Map<String, CellStyle> styles, WorkTimeSummary summary, int startRow) {
+    private void populateSummaryData(Sheet sheet, Map<String, CellStyle> styles, WorkTimeSummaryDTO summary, int startRow) {
         int currentRow = startRow;
 
         // Work Days Section
@@ -166,10 +143,10 @@ public class UserWorktimeExcelExporter {
 
         currentRow++; // Spacing
 
-        // Hours Details
-        addSummaryRow(sheet, styles, currentRow++, WorkCode.REGULAR_HOURS, CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalRegularMinutes()));
-        addSummaryRow(sheet, styles, currentRow++, WorkCode.OVERTIME, CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalOvertimeMinutes()));
-        addSummaryRow(sheet, styles, currentRow, WorkCode.TOTAL_HOURS, CalculateWorkHoursUtil.minutesToHHmm(summary.getTotalMinutes()));
+        // Hours Details - use formatted hours from DTO
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.REGULAR_HOURS, summary.getFormattedRegularHours());
+        addSummaryRow(sheet, styles, currentRow++, WorkCode.OVERTIME, summary.getFormattedOvertimeHours());
+        addSummaryRow(sheet, styles, currentRow, WorkCode.TOTAL_HOURS, summary.getFormattedTotalHours());
     }
 
     private void addSummaryRow(Sheet sheet, Map<String, CellStyle> styles, int rowNum, String label, String value) {
@@ -185,17 +162,6 @@ public class UserWorktimeExcelExporter {
 
         // Merge the label cells
         sheet.addMergedRegion(new CellRangeAddress(rowNum, rowNum, 2, 6));
-    }
-
-    private void createTimeCell(Row row, int column, LocalTime time, CellStyle timeStyle, CellStyle defaultStyle) {
-        Cell cell = row.createCell(column);
-        if (time != null) {
-            cell.setCellValue(time.format(WorkCode.TIME_FORMATTER));
-            cell.setCellStyle(timeStyle);
-        } else {
-            cell.setCellValue("-");
-            cell.setCellStyle(defaultStyle);
-        }
     }
 
     // Helper methods to ensure consistent cell creation

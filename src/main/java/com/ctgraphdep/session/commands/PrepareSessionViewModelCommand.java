@@ -1,5 +1,6 @@
 package com.ctgraphdep.session.commands;
 
+import com.ctgraphdep.model.WorkTimeCalculationResult;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.config.WorkCode;
@@ -86,21 +87,48 @@ public class PrepareSessionViewModelCommand extends BaseSessionCommand<Void> {
         model.addAttribute("currentDateTime", CalculateWorkHoursUtil.formatDateTime(currentTime));
         model.addAttribute("dayStartTime", CalculateWorkHoursUtil.formatDateTime(session.getDayStartTime()));
 
-        // Work values
-        model.addAttribute("totalWorkRaw", formatWorkTime(session.getTotalWorkedMinutes()));
-        model.addAttribute("actualWorkTime", formatWorkTime(session.getFinalWorkedMinutes()));
-        model.addAttribute("lunchBreakStatus", session.getLunchBreakDeducted());
-        model.addAttribute("overtime", formatWorkTime(session.getTotalOvertimeMinutes()));
+        // Get user schedule from user object
+        int userSchedule = context.getUserService()
+                .getUserById(session.getUserId())
+                .map(User::getSchedule)
+                .orElse(8); // Default to 8 hours if not found
 
-        // Temporary stop values
+        // Raw work time (unchanged)
+        model.addAttribute("totalWorkRaw", formatWorkTime(session.getTotalWorkedMinutes()));
+
+        // For actual work time, recalculate based on proper logic
+        if (session.getTotalWorkedMinutes() != null) {
+            // Use CalculateWorkHoursUtil to properly calculate work time according to business rules
+            WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
+                    session.getTotalWorkedMinutes(), userSchedule);
+
+            // Use the processed minutes from the calculation
+            model.addAttribute("actualWorkTime", formatWorkTime(result.getProcessedMinutes()));
+
+            // Ensure overtime is shown correctly (using the calculated value)
+            model.addAttribute("overtime", formatWorkTime(result.getOvertimeMinutes()));
+
+            // Add discarded minutes calculation calculate it correctly)
+            int discardedMinutes = (result.getProcessedMinutes() % 60) - WorkCode.HALF_HOUR_DURATION;
+            model.addAttribute("discardedMinutes", discardedMinutes);
+        } else {
+            model.addAttribute("actualWorkTime", "--:--");
+            model.addAttribute("overtime", "--:--");
+            model.addAttribute("discardedMinutes", 0);
+        }
+
+        // Lunch break status (unchanged)
+        model.addAttribute("lunchBreakStatus", session.getLunchBreakDeducted());
+
+        // Temporary stop values (unchanged)
         model.addAttribute("lastTemporaryStopTime", formatLastTempStopTime(session));
         model.addAttribute("temporaryStopCount", getTemporaryStopCount(session));
 
-        // Calculate total temporary stop time using the calculation context
+        // Calculate total temporary stop time using the calculation context (unchanged)
         int totalBreakMinutes = calculateTotalBreakMinutes(session, context, currentTime);
         model.addAttribute("totalTemporaryStopTime", formatWorkTime(totalBreakMinutes));
 
-        debug("Model attributes populated for session");
+        debug("Model attributes populated for session with recalculated work times");
     }
 
     /**

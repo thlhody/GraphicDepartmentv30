@@ -393,7 +393,7 @@ public class StatusController extends BaseController {
             List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(
                     targetUser.getUsername(), targetUser.getUserId(), currentYear, currentMonth);
 
-            // Prepare display data using StatusService
+            // Prepare display data using StatusService (now returns DTOs)
             Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(
                     targetUser, worktimeData, currentYear, currentMonth);
 
@@ -443,12 +443,14 @@ public class StatusController extends BaseController {
             Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(
                     targetUser, worktimeData, selectedYear, selectedMonth);
 
-            // Extract the summary
-            WorkTimeSummary summary = (WorkTimeSummary) displayData.get("summary");
+            // Extract the DTOs from display data
+            @SuppressWarnings("unchecked")
+            List<WorkTimeEntryDTO> entryDTOs = (List<WorkTimeEntryDTO>) displayData.get("worktimeData");
+            WorkTimeSummaryDTO summaryDTO = (WorkTimeSummaryDTO) displayData.get("summary");
 
-            // Use the exporter to generate Excel data
+            // Use the updated exporter to generate Excel data with DTOs
             byte[] excelData = userWorktimeExcelExporter.exportToExcel(
-                    targetUser, worktimeData, summary, selectedYear, selectedMonth);
+                    targetUser, entryDTOs, summaryDTO, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,

@@ -1,4 +1,4 @@
-package com.ctgraphdep.controller;
+package com.ctgraphdep.controller.user;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.*;
@@ -36,7 +36,8 @@ public class UserWorktimeController extends BaseController {
             UserWorkTimeDisplayService displayService,
             WorkTimeEntrySyncService entrySyncService,
             UserWorktimeExcelExporter excelExporter,
-            TimeValidationService validationService, DataAccessService dataAccessService) {
+            TimeValidationService validationService,
+            DataAccessService dataAccessService) {
         super(userService, folderStatus, validationService);
         this.displayService = displayService;
         this.entrySyncService = entrySyncService;
@@ -82,7 +83,6 @@ public class UserWorktimeController extends BaseController {
                     currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
             // Step 2: Read the data from disk after sync is complete
-            // This ensures we're displaying the actual saved data, not in-memory objects
             List<WorkTimeTable> worktimeData = dataAccessService.readUserWorktime(
                     currentUser.getUsername(), selectedYear, selectedMonth);
 
@@ -94,16 +94,16 @@ public class UserWorktimeController extends BaseController {
                                 currentUser.getUsername(), selectedMonth, selectedYear));
             }
 
-            // Prepare display data
+            // Step 3: Process data with display service to get DTOs
             Map<String, Object> displayData = displayService.prepareDisplayData(
                     currentUser, worktimeData, selectedYear, selectedMonth);
+
+            // Step 4: Add display data to the model
+            model.addAllAttributes(displayData);
 
             // Add current time to model
             model.addAttribute("currentSystemTime", getStandardCurrentDateTime()
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-
-            // Add all data to model
-            model.addAllAttributes(displayData);
 
             return "user/worktime";
 
@@ -142,12 +142,17 @@ public class UserWorktimeController extends BaseController {
                     String.format("Exporting worktime data for %s (%d/%d). Total entries: %d",
                             user.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
 
-            // Get display data which includes the summary
+            // Get display data which includes the summary with DTOs
             Map<String, Object> displayData = displayService.prepareDisplayData(
                     user, worktimeData, selectedYear, selectedMonth);
-            WorkTimeSummary summary = (WorkTimeSummary) displayData.get("summary");
 
-            byte[] excelData = excelExporter.exportToExcel(user, worktimeData, summary, selectedYear, selectedMonth);
+            // Extract DTO's for Excel export
+            @SuppressWarnings("unchecked")
+            List<WorkTimeEntryDTO> entryDTOs = (List<WorkTimeEntryDTO>) displayData.get("worktimeData");
+            WorkTimeSummaryDTO summaryDTO = (WorkTimeSummaryDTO) displayData.get("summary");
+
+            // Pass DTOs to the updated Excel exporter
+            byte[] excelData = excelExporter.exportToExcel(user, entryDTOs, summaryDTO, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,

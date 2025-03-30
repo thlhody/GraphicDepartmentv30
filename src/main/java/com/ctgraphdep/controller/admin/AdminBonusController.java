@@ -1,4 +1,4 @@
-package com.ctgraphdep.controller;
+package com.ctgraphdep.controller.admin;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.BonusEntryDTO;

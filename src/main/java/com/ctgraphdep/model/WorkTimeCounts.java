@@ -14,6 +14,7 @@ public class WorkTimeCounts {
     private int cmDays = 0;
     private int regularMinutes = 0;
     private int overtimeMinutes = 0;
+    private int discardedMinutes = 0;
 
     // Add increment methods for convenience
     public void incrementDaysWorked() {

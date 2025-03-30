@@ -1,6 +1,6 @@
 //
 //import com.ctgraphdep.config.WorkCode;
-//import com.ctgraphdep.utils.NotificationBackgroundUtility;
+//import com.ctgraphdep.ui.NotificationBackgroundFactory;
 //import org.junit.jupiter.api.BeforeAll;
 //import org.junit.jupiter.api.Test;
 //
@@ -37,7 +37,7 @@
 //        Path outputPath = Paths.get(TEST_OUTPUT_DIR, filename);
 //
 //        // Act
-//        BufferedImage notificationImage = NotificationBackgroundUtility.createNotificationBackground(title, message);
+//        BufferedImage notificationImage = NotificationBackgroundFactory.createNotificationBackground(title, message);
 //
 //        // Save the image
 //        File outputFile = outputPath.toFile();
@@ -66,7 +66,7 @@
 //        Path outputPath = Paths.get(TEST_OUTPUT_DIR, filename);
 //
 //        // Act
-//        BufferedImage notificationImage = NotificationBackgroundUtility.createNotificationBackground(title, message);
+//        BufferedImage notificationImage = NotificationBackgroundFactory.createNotificationBackground(title, message);
 //
 //        // Save the image
 //        File outputFile = outputPath.toFile();
@@ -88,7 +88,7 @@
 //        String message = "Test message";
 //
 //        // Act
-//        BufferedImage notificationImage = NotificationBackgroundUtility.createNotificationBackground(title, message);
+//        BufferedImage notificationImage = NotificationBackgroundFactory.createNotificationBackground(title, message);
 //
 //        // Assert
 //        assertNotNull(notificationImage, "Image should not be null");

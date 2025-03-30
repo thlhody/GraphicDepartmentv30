@@ -239,6 +239,9 @@ public class SessionMonitorService {
      * Main method for checking active user sessions and triggering notification
      */
     private void checkActiveSessions() {
+        LoggerUtil.debug(this.getClass(),
+                "Checking active sessions on thread: " +
+                        Thread.currentThread().getName());
         if (!isInitialized) {
             return;
         }

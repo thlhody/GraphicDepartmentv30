@@ -1,4 +1,3 @@
-// First, create custom exceptions for validation
 package com.ctgraphdep.exception;
 
 import lombok.Getter;

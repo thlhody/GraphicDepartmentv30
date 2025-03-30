@@ -1,4 +1,4 @@
-package com.ctgraphdep.controller;
+package com.ctgraphdep.controller.dashboards;
 
 import com.ctgraphdep.controller.base.BaseDashboardController;
 import com.ctgraphdep.model.dashboard.DashboardConfiguration;
@@ -6,7 +6,6 @@ import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.validation.TimeValidationService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,17 +15,18 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 @Controller
-@RequestMapping("/user")
-@PreAuthorize("hasRole('ROLE_USER')")
-public class UserDashboardController extends BaseDashboardController {
+@RequestMapping("/team-lead")
+@PreAuthorize("hasRole('ROLE_TEAM_LEADER')")
+public class TeamLeadDashboardController extends BaseDashboardController {
+
 
     @Autowired
-    public UserDashboardController(
+    public TeamLeadDashboardController(
             UserService userService,
             DashboardService dashboardService,
-            @Qualifier("userDashboardConfig") DashboardConfiguration userDashboardConfig,
+            @Qualifier("teamLeadDashboardConfig") DashboardConfiguration teamLeadDashboardConfig,
             PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
-        super(userService, dashboardService, userDashboardConfig, permissionFilterService, timeValidationService);
+        super(userService, dashboardService, teamLeadDashboardConfig, permissionFilterService,timeValidationService);
     }
 
     @GetMapping
@@ -36,11 +36,11 @@ public class UserDashboardController extends BaseDashboardController {
 
     @Override
     protected String getTemplateType() {
-        return "user";
+        return "team-lead";
     }
 
     @Override
     protected String getDashboardViewName() {
-        return getCurrentUser().getName();
+        return getCurrentUser().getName() + " (Team Leader)";
     }
 }

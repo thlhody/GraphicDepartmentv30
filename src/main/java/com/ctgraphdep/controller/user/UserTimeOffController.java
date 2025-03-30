@@ -1,4 +1,4 @@
-package com.ctgraphdep.controller;
+package com.ctgraphdep.controller.user;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.TimeOffSummary;

@@ -18,6 +18,7 @@ public class WorkTimeSummary {
     private int totalRegularMinutes;   // Total regular working minutes
     private int totalOvertimeMinutes;  // Total overtime minutes
     private int totalMinutes;          // Total minutes (regular + overtime)
+    private int discardedMinutes;      // Discarded minutes
 
     // Helper method to get total days off (SN + CO + CM)
     public int getTotalTimeOffDays() {

@@ -56,6 +56,74 @@ public class DashboardConfigurationManager {
     }
 
     @Bean
+    @Qualifier("teamCheckingDashboardConfig")
+    public DashboardConfiguration teamCheckingDashboardConfig() {
+        return DashboardConfiguration.builder()
+                .title("Team Checking Dashboard")
+                .description("Team Management Dashboard")
+                .role("TL_CHECKING")
+                .refreshEnabled(true)
+                .refreshInterval(45000)
+                .cards(Arrays.asList(
+                        createStatusCard("ADMIN"),
+                        createTeamLeadSessionCard(),
+                        createTeamLeadRegisterCard(),
+                        createTeamLeadWorktimeCard(),
+                        createTeamLeadTimeOffCard(),
+                        createOMSSystemCard(),
+                        createUserSettingsCard(),
+                        createTeamStatisticsCard()
+                        ///need to implement a management checking register card
+                ))
+                .build();
+    }
+
+    @Bean
+    @Qualifier("checkingDashboardConfig")
+    public DashboardConfiguration checkingDashboardConfig() {
+        return DashboardConfiguration.builder()
+                .title("Checking Dashboard")
+                .description("User Checking Control Panel")
+                .role("CHECKING")
+                .refreshEnabled(true)
+                .refreshInterval(60000)
+                .cards(Arrays.asList(
+                        createStatusCard("USER"),
+                        createSessionCard(),
+                        createUserWorktimeCard(),
+                        createTimeOffCard(),
+                        createOMSSystemCard(),
+                        createUserSettingsCard()
+                        /// needs to implement the checking register
+                ))
+                .build();
+    }
+
+    @Bean
+    @Qualifier("userCheckingDashboardConfig")
+    public DashboardConfiguration userCheckingDashboardConfig() {
+        return DashboardConfiguration.builder()
+                .title("Checking Dashboard")
+                .description("User Checking Control Panel")
+                .role("USER_CHECKING")
+                .refreshEnabled(true)
+                .refreshInterval(60000)
+                .cards(Arrays.asList(
+                        createStatusCard("USER"),
+                        createSessionCard(),
+                        createUserRegisterCard(),
+                        createUserWorktimeCard(),
+                        createTimeOffCard(),
+                        createOMSSystemCard(),
+                        createUserSettingsCard()
+                        /// needs to implement the checking register
+                ))
+                .build();
+    }
+
+
+
+    @Bean
     @Qualifier("userDashboardConfig")
     public DashboardConfiguration userDashboardConfig() {
         return DashboardConfiguration.builder()

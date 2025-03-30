@@ -15,11 +15,11 @@ import java.util.Properties;
 @SpringBootApplication
 @EnableScheduling
 public class Application {
-
     private final CTTTSystemTray systemTray;
 
     public Application(CTTTSystemTray systemTray) {
         this.systemTray = systemTray;
+
     }
 
     public static void main(String[] args) {
@@ -55,19 +55,14 @@ public class Application {
                     if (systemTray.getTrayIcon() == null) {
                         LoggerUtil.error(this.getClass(), "System tray initialization failed - tray icon is null");
                     } else {
-                        LoggerUtil.info(this.getClass(), "System Tray successfully initialized with icon");
-
-                        // We'll let SystemNotificationService handle the notification
-                        // It will decide whether to show dialog or tray notification
-                        // No need to send a direct tray notification here
+                        LoggerUtil.info(this.getClass(), "System Tray successfully initialized with icon. Quick Register feature is available");
                     }
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Failed to initialize system tray: " + e.getMessage(), e);
                 }
             });
         } else {
-            LoggerUtil.error(this.getClass(),
-                    "System tray not supported on this platform. Headless: " +
+            LoggerUtil.error(this.getClass(), "System tray not supported on this platform. Headless: " +
                             GraphicsEnvironment.isHeadless() + ", Tray supported: " + SystemTray.isSupported());
         }
     }

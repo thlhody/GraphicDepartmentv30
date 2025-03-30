@@ -76,24 +76,23 @@
                         <div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span>Regular Hours</span>
-                                <strong id="summary-regular-hours"
-                                        th:attr="data-minutes=${summary.totalRegularMinutes}">--:--</strong>
+                                <strong id="summary-regular-hours" th:text="${summary.formattedRegularHours}">--:--</strong>
                             </div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span>Overtime</span>
                                 <strong id="summary-overtime-hours"
                                         class="text-success"
-                                        th:attr="data-minutes=${summary.totalOvertimeMinutes}">--:--</strong>
+                                        th:text="${summary.formattedOvertimeHours}">--:--</strong>
                             </div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mb-2">
                                 <span class="text-primary">Total Hours</span>
                                 <strong id="summary-total-hours"
                                         class="text-primary"
-                                        th:attr="data-minutes=${summary.totalMinutes}">--:--</strong>
+                                        th:text="${summary.formattedTotalHours}">--:--</strong>
                             </div>
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
                                 <span class="text-muted">Discarded Minutes</span>
-                                <strong id="summary-discarded-minutes" class="text-muted">0</strong>
+                                <strong id="summary-discarded-minutes" class="text-muted" th:text="${summary.discardedMinutes}">0</strong>
                             </div>
                         </div>
                     </div>
@@ -157,47 +156,40 @@
                                 </tr>
                                 </thead>
                                 <tbody>
-                                <tr th:each="record : ${worktimeData}" class="worktime-entry"
-                                    th:attr="data-minutes=${record.totalWorkedMinutes},
-                                             data-overtime=${record.totalOvertimeMinutes},
-                                             data-breaks=${record.totalTemporaryStopMinutes},
-                                             data-lunch=${record.lunchBreakDeducted},
-                                             data-timeoff=${record.timeOffType}">
-                                    <td th:text="${#temporals.format(record.workDate, 'dd/MM/yyyy')}"></td>
+                                <tr th:each="record : ${worktimeData}" class="worktime-entry">
+                                    <td th:text="${record.formattedDate}"></td>
 
                                     <!-- Start Time -->
                                     <td>
-                                        <span th:if="${record.dayStartTime}"
-                                              th:text="${#temporals.format(record.dayStartTime, 'HH:mm')}"
+                                        <span th:if="${record.formattedStartTime}"
+                                              th:text="${record.formattedStartTime}"
                                               class="text-success">
                                         </span>
-                                        <span th:unless="${record.dayStartTime}">-</span>
+                                        <span th:unless="${record.formattedStartTime}">-</span>
                                     </td>
 
                                     <!-- Temporary Stop -->
                                     <td>
-                                        <span th:if="${record.temporaryStopCount > 0}"
+                                        <span th:if="${record.formattedTemporaryStop}"
                                               class="badge bg-warning rounded-pill"
-                                              th:text="${record.temporaryStopCount + ' (' + record.totalTemporaryStopMinutes + 'm)'}">
+                                              th:text="${record.formattedTemporaryStop}">
                                         </span>
-                                        <span th:unless="${record.temporaryStopCount > 0}">-</span>
+                                        <span th:unless="${record.formattedTemporaryStop}">-</span>
                                     </td>
 
                                     <!-- End Time -->
                                     <td>
-                                        <span th:if="${record.dayEndTime}"
-                                              th:text="${#temporals.format(record.dayEndTime, 'HH:mm')}"
+                                        <span th:if="${record.formattedEndTime}"
+                                              th:text="${record.formattedEndTime}"
                                               class="text-danger">
                                         </span>
-                                        <span th:unless="${record.dayEndTime}">-</span>
+                                        <span th:unless="${record.formattedEndTime}">-</span>
                                     </td>
 
                                     <!-- Time Off -->
                                     <td>
                                         <span th:if="${record.timeOffType}"
-                                              th:class="${'badge rounded-pill ' +
-                                              (record.timeOffType == 'CO' ? 'bg-info' :
-                                               record.timeOffType == 'CM' ? 'bg-danger' : 'bg-secondary')}"
+                                              th:class="${'badge rounded-pill ' + record.timeOffClass}"
                                               th:text="${record.timeOffType}">
                                         </span>
                                         <span th:unless="${record.timeOffType}">-</span>
@@ -205,40 +197,41 @@
 
                                     <!-- Raw Work -->
                                     <td class="raw-work-cell">
-                                        <span th:if="${record.totalWorkedMinutes}"
-                                              th:attr="data-minutes=${record.totalWorkedMinutes}">--:--</span>
-                                        <span th:unless="${record.totalWorkedMinutes}">-</span>
+                                        <span th:if="${record.formattedRawTime}"
+                                              th:text="${record.formattedRawTime}">--:--</span>
+                                        <span th:unless="${record.formattedRawTime}">-</span>
                                     </td>
 
                                     <!-- Lunch Break -->
                                     <td class="lunch-break-cell">
-                                        <span th:if="${record.lunchBreakDeducted && record.totalWorkedMinutes > 240 && record.totalWorkedMinutes <= 660}"
+                                        <span th:if="${record.lunchBreakApplied}"
                                               class="lunch-break badge bg-secondary">30m</span>
-                                        <span th:unless="${record.lunchBreakDeducted && record.totalWorkedMinutes > 240 && record.totalWorkedMinutes <= 660}">-</span>
+                                        <span th:unless="${record.lunchBreakApplied}">-</span>
                                     </td>
 
                                     <!-- Schedule Work (capped at 8 hours) -->
                                     <td class="schedule-work-cell">
-                                        <span th:if="${record.totalWorkedMinutes}"
-                                              th:attr="data-minutes=${record.totalWorkedMinutes},
-                                                      data-lunch=${record.lunchBreakDeducted}"
+                                        <span th:if="${record.formattedScheduledTime}"
+                                              th:text="${record.formattedScheduledTime}"
                                               data-bs-toggle="tooltip"
                                               title="Total work for the day">--:--</span>
-                                        <span th:unless="${record.totalWorkedMinutes}">-</span>
+                                        <span th:unless="${record.formattedScheduledTime}">-</span>
                                     </td>
 
                                     <!-- Overtime -->
                                     <td>
-                                        <span th:if="${record.totalOvertimeMinutes > 0}"
+                                        <span th:if="${record.formattedOvertimeTime}"
                                               class="badge bg-success rounded-pill overtime-display"
-                                              th:attr="data-minutes=${record.totalOvertimeMinutes}">--:--</span>
-                                        <span th:unless="${record.totalOvertimeMinutes > 0}">-</span>
+                                              th:text="${record.formattedOvertimeTime}">--:--</span>
+                                        <span th:unless="${record.formattedOvertimeTime}">-</span>
                                     </td>
 
                                     <!-- Discarded Minutes -->
                                     <td class="discarded-minutes-cell">
-                                        <span th:if="${record.totalWorkedMinutes}">-</span>
-                                        <span th:unless="${record.totalWorkedMinutes}">-</span>
+                                        <span th:if="${record.discardedMinutes != null && record.discardedMinutes > 0}"
+                                              class="text-warning"
+                                              th:text="${record.discardedMinutes}">0</span>
+                                        <span th:unless="${record.discardedMinutes != null && record.discardedMinutes > 0}">-</span>
                                     </td>
                                 </tr>
                                 </tbody>
@@ -253,9 +246,6 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-    <!-- Include the custom worktime display script -->
-    <script th:src="@{/js/worktime-user-display.js?v=18781}"></script>
-
     <!-- Initialize tooltips -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {

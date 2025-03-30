@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.net.URI;
@@ -21,15 +23,17 @@ public class CTTTSystemTray {
     @Value("${app.url.backup}")
     private String appUrlBackup;
 
-    @Value("${app.title:CTTT}")
+    @Value("${app.title}")
     private String appTitle;
+
+    @Value("${server.port}")
+    private String serverPort;
 
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();
     private TrayIcon trayIcon;
     private volatile long lastOpenTime = 0;
     private static final long DEBOUNCE_DELAY = 500; // milliseconds
-
 
     public synchronized void initialize() {
         if (isInitialized) {
@@ -78,9 +82,9 @@ public class CTTTSystemTray {
             trayIcon.setImageAutoSize(true);
 
             // Add double-click behavior to open login page
-            trayIcon.addMouseListener(new java.awt.event.MouseAdapter() {
+            trayIcon.addMouseListener(new MouseAdapter() {
                 @Override
-                public void mouseClicked(java.awt.event.MouseEvent e) {
+                public void mouseClicked(MouseEvent e) {
                     if (e.getClickCount() == 2) {
                         openApplication();
                     }
@@ -88,7 +92,9 @@ public class CTTTSystemTray {
             });
 
             // Add action listener for notification clicks
-            trayIcon.addActionListener(e -> {openApplication();LoggerUtil.info(this.getClass(), "Tray notification clicked, opening application");
+            trayIcon.addActionListener(e -> {
+                openApplication();
+                LoggerUtil.info(this.getClass(), "Tray notification clicked, opening application");
             });
 
             SystemTray.getSystemTray().add(trayIcon);
@@ -106,12 +112,12 @@ public class CTTTSystemTray {
         MenuItem openItem = new MenuItem("Open");
         openItem.addActionListener(e -> openApplication());
         popup.add(openItem);
+        popup.addSeparator();
 
         // About item
         MenuItem aboutItem = new MenuItem("About");
         aboutItem.addActionListener(e -> openAboutPage());
         popup.add(aboutItem);
-
         popup.addSeparator();
 
         // Exit item
@@ -130,7 +136,7 @@ public class CTTTSystemTray {
             if (resourceUrl != null) {
                 return ImageIO.read(resourceUrl);
             }
-            LoggerUtil.debug(this.getClass(), "No icon found at, creating a default one!");
+            LoggerUtil.debug(this.getClass(), "No icon found at default location, creating a default one!");
             return createDefaultIcon();
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(), "Failed to load tray icon: " + e.getMessage(), e);
@@ -138,6 +144,73 @@ public class CTTTSystemTray {
         }
     }
 
+    /**
+     * Open the application
+     */
+    public void openApplication() {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastOpenTime < DEBOUNCE_DELAY) {
+            // Ignore if called within debounce period
+            return;
+        }
+        lastOpenTime = currentTime;
+
+        String baseUrl = getBaseUrl();
+        openUrl(baseUrl + "/login");
+    }
+
+    /**
+     * Open the about page
+     */
+    private void openAboutPage() {
+        String baseUrl = getBaseUrl();
+        openUrl(baseUrl + "/about");
+    }
+
+    /**
+     * Get the base URL for the application, using the primary URL if available
+     * or falling back to the backup URL if necessary
+     *
+     * @return The base URL to use for application links
+     */
+    private String getBaseUrl() {
+        return (appUrl != null && !appUrl.isEmpty()) ? appUrl : appUrlBackup;
+    }
+
+    /**
+     * Open a URL in the default browser
+     *
+     * @param url The URL to open
+     */
+    private void openUrl(String url) {
+        try {
+            // Make sure the URL starts with http or https
+            if (!url.startsWith("http")) {
+                url = "http://" + url;
+            }
+
+            URI uri = new URI(url);
+
+            // If no port is specified in the URL, add the port from application properties
+            if (uri.getPort() == -1) {
+                // Get the host from the URI
+                String host = uri.getHost();
+                if (host != null) {
+                    // Replace the host with host:port
+                    url = url.replace(host, host + ":" + serverPort);
+                    uri = new URI(url);
+                }
+            }
+
+            LoggerUtil.info(this.getClass(), "Opening URL: " + url);
+            Desktop.getDesktop().browse(uri);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to open URL: " + e.getMessage());
+        }
+    }
+    /**
+     * Create a default icon if the icon file cannot be loaded
+     */
     private Image createDefaultIcon() {
         BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
@@ -151,47 +224,9 @@ public class CTTTSystemTray {
         return image;
     }
 
-
-
-    public void openApplication() {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastOpenTime < DEBOUNCE_DELAY) {
-            // Ignore if called within debounce period
-            return;
-        }
-        lastOpenTime = currentTime;
-
-        String urlToOpen = appUrl != null ? appUrl : appUrlBackup;
-        openUrl(urlToOpen + "/login");
-    }
-
-    private void openAboutPage() {
-        String urlToOpen = appUrl != null ? appUrl : appUrlBackup;
-        openUrl(urlToOpen + "/about");
-    }
-
-    private void openUrl(String url) {
-        try {
-            // Make sure the URL starts with http or https
-            if (!url.startsWith("http")) {
-                url = "http://" + url;
-            }
-
-            URI uri = new URI(url);
-
-            // If no port is specified  its localhost, add the correct port
-            if (uri.getPort() == -1 && "localhost".equals(uri.getHost())) {
-                url = url.replace("localhost", "localhost:8443");
-                uri = new URI(url);
-            }
-
-            LoggerUtil.info(this.getClass(), "Opening URL: " + url);
-            Desktop.getDesktop().browse(uri);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to open URL: " + e.getMessage());
-        }
-    }
-
+    /**
+     * Clean up system tray resources
+     */
     private void cleanup() {
         try {
             if (trayIcon != null && SystemTray.isSupported()) {
@@ -204,6 +239,11 @@ public class CTTTSystemTray {
         }
     }
 
+    /**
+     * Get the tray icon
+     *
+     * @return The tray icon
+     */
     public TrayIcon getTrayIcon() {
         synchronized (trayLock) {
             return trayIcon;
