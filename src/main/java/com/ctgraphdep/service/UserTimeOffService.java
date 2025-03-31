@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.TimeOffSummary;
+import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -146,7 +146,7 @@ public class UserTimeOffService {
      * Calculate time-off summary using read-only operations.
      * More efficient than calculateTimeOffSummary for display purposes.
      */
-    public TimeOffSummary calculateTimeOffSummaryReadOnly(String username, int year) {
+    public TimeOffSummaryDTO calculateTimeOffSummaryReadOnly(String username, int year) {
         // First try to get user information
         Optional<User> userOpt = userService.getUserByUsername(username);
         if (userOpt.isEmpty()) {
@@ -179,7 +179,7 @@ public class UserTimeOffService {
                 int availablePaidDays = tracker.getAvailableHolidayDays();
                 int usedPaidDays = tracker.getUsedHolidayDays();
 
-                return TimeOffSummary.builder()
+                return TimeOffSummaryDTO.builder()
                         .snDays(snDays)
                         .coDays(coDays)
                         .cmDays(cmDays)
@@ -219,7 +219,7 @@ public class UserTimeOffService {
             availablePaidDays = counts.coDays;
         }
 
-        return TimeOffSummary.builder()
+        return TimeOffSummaryDTO.builder()
                 .snDays(counts.snDays)
                 .coDays(counts.coDays)
                 .cmDays(counts.cmDays)
@@ -232,8 +232,8 @@ public class UserTimeOffService {
     /**
      * Creates a default summary with zeroed values
      */
-    private TimeOffSummary createDefaultSummary() {
-        return TimeOffSummary.builder()
+    private TimeOffSummaryDTO createDefaultSummary() {
+        return TimeOffSummaryDTO.builder()
                 .snDays(0)
                 .coDays(0)
                 .cmDays(0)

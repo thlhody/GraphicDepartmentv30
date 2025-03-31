@@ -3,7 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.UserStatusDTO;
+import com.ctgraphdep.model.dto.UserStatusDTO;
 import com.ctgraphdep.model.db.UserStatusRecord;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;

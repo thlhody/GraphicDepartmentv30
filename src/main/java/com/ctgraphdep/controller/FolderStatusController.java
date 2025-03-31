@@ -1,7 +1,7 @@
 package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.model.SyncFolderStatus;
+import com.ctgraphdep.model.dto.SyncFolderStatusDTO;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -24,14 +24,14 @@ public class FolderStatusController extends BaseController {
     @GetMapping("/fragments/status")
     public String getStatus(Model model) {
         LoggerUtil.info(this.getClass(), "Getting sync status");
-        SyncFolderStatus status = folderStatus.getStatus();
+        SyncFolderStatusDTO status = folderStatus.getStatus();
         model.addAttribute("syncStatus", status);
         return "fragments/status :: statusIndicator";
     }
 
     @ModelAttribute
     public void addGlobalAttributes(Model model) {
-        SyncFolderStatus status = folderStatus.getStatus();
+        SyncFolderStatusDTO status = folderStatus.getStatus();
         model.addAttribute("syncStatus", status);
     }
 }

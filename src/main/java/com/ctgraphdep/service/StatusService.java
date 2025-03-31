@@ -1,9 +1,12 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.WorkTimeEntryDTO;
-import com.ctgraphdep.model.WorkTimeSummaryDTO;
+import com.ctgraphdep.model.WorkTimeSummary;
+import com.ctgraphdep.model.dto.*;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -485,7 +488,7 @@ public class StatusService {
                 int userSchedule = 8;
 
                 // Use CalculateWorkHoursUtil for consistent calculation
-                WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
+                WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(
                         entry.getTotalWorkedMinutes(),
                         userSchedule
                 );
@@ -602,9 +605,9 @@ public class StatusService {
      * @param username The username
      * @param userId   The user ID
      * @param year     The year to retrieve data for
-     * @return TimeOffSummary calculated from tracker data
+     * @return TimeOffSummaryDTO calculated from tracker data
      */
-    public TimeOffSummary getTimeOffSummaryFromTracker(String username, Integer userId, int year) {
+    public TimeOffSummaryDTO getTimeOffSummaryFromTracker(String username, Integer userId, int year) {
         try {
             LoggerUtil.info(this.getClass(),
                     String.format("Calculating time off summary from tracker for user %s for year %d",
@@ -636,7 +639,7 @@ public class StatusService {
                 int availablePaidDays = tracker.getAvailableHolidayDays();
                 int usedPaidDays = tracker.getUsedHolidayDays();
 
-                return TimeOffSummary.builder()
+                return TimeOffSummaryDTO.builder()
                         .snDays(snDays)
                         .coDays(coDays)
                         .cmDays(cmDays)
@@ -650,7 +653,7 @@ public class StatusService {
                         String.format("No time off tracker found for user %s for year %d, returning default summary",
                                 username, year));
 
-                return TimeOffSummary.builder()
+                return TimeOffSummaryDTO.builder()
                         .snDays(0)
                         .coDays(0)
                         .cmDays(0)
@@ -665,7 +668,7 @@ public class StatusService {
                             username, year, e.getMessage()));
 
             // Return default summary on error
-            return TimeOffSummary.builder()
+            return TimeOffSummaryDTO.builder()
                     .snDays(0)
                     .coDays(0)
                     .cmDays(0)

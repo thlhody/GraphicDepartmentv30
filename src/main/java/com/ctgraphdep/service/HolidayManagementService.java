@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.PaidHolidayEntry;
+import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ public class HolidayManagementService {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    public void saveHolidayList(List<PaidHolidayEntry> entries) {
+    public void saveHolidayList(List<PaidHolidayEntryDTO> entries) {
         holidayLock.lock();
         try {
             dataAccess.writeHolidayEntries(entries);
@@ -36,7 +36,7 @@ public class HolidayManagementService {
     public void updateUserHolidayDays(Integer userId, int days) {
         holidayLock.lock();
         try {
-            List<PaidHolidayEntry> entries = getHolidayList();
+            List<PaidHolidayEntryDTO> entries = getHolidayList();
 
             entries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
@@ -53,12 +53,12 @@ public class HolidayManagementService {
 
     @PreAuthorize("#username == authentication.name or hasRole('ADMIN')")
     public int getRemainingHolidayDays(String username, Integer userId) {
-        List<PaidHolidayEntry> entries = dataAccess.readHolidayEntries();
+        List<PaidHolidayEntryDTO> entries = dataAccess.readHolidayEntries();
 
         return entries.stream()
                 .filter(entry -> entry.getUserId().equals(userId))
                 .findFirst()
-                .map(PaidHolidayEntry::getPaidHolidayDays)
+                .map(PaidHolidayEntryDTO::getPaidHolidayDays)
                 .orElse(0);
     }
 
@@ -67,14 +67,14 @@ public class HolidayManagementService {
     public boolean useHolidayDays(String username, Integer userId, int daysToUse) {
         holidayLock.lock();
         try {
-            List<PaidHolidayEntry> entries = dataAccess.readHolidayEntries();
+            List<PaidHolidayEntryDTO> entries = dataAccess.readHolidayEntries();
 
-            Optional<PaidHolidayEntry> userEntry = entries.stream()
+            Optional<PaidHolidayEntryDTO> userEntry = entries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
                     .findFirst();
 
             if (userEntry.isPresent()) {
-                PaidHolidayEntry entry = userEntry.get();
+                PaidHolidayEntryDTO entry = userEntry.get();
                 int remainingDays = entry.getPaidHolidayDays();
 
                 if (remainingDays >= daysToUse) {
@@ -92,9 +92,9 @@ public class HolidayManagementService {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    public List<PaidHolidayEntry> getHolidayList() {
+    public List<PaidHolidayEntryDTO> getHolidayList() {
         try {
-            List<PaidHolidayEntry> entries = dataAccess.readHolidayEntries();
+            List<PaidHolidayEntryDTO> entries = dataAccess.readHolidayEntries();
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error reading holiday list: " + e.getMessage());

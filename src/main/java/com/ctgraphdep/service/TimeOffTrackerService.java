@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.TimeOffSummary;
+import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -470,7 +470,7 @@ public class TimeOffTrackerService {
      * Calculate time off summary for a year.
      * This reads directly from the tracker and does not modify anything.
      */
-    public TimeOffSummary calculateTimeOffSummary(User user, int year) {
+    public TimeOffSummaryDTO calculateTimeOffSummary(User user, int year) {
         try {
             // Load the tracker directly (no sync)
             TimeOffTracker tracker = loadTimeOffTracker(user.getUsername(), user.getUserId(), year);
@@ -497,7 +497,7 @@ public class TimeOffTrackerService {
             int usedPaidDays = tracker.getUsedHolidayDays();
 
             // Build and return the summary
-            return TimeOffSummary.builder()
+            return TimeOffSummaryDTO.builder()
                     .snDays(snDays)
                     .coDays(coDays)
                     .cmDays(cmDays)
@@ -510,7 +510,7 @@ public class TimeOffTrackerService {
             LoggerUtil.error(this.getClass(),
                     String.format("Error calculating time off summary for %s (year %d): %s",
                             user.getUsername(), year, e.getMessage()));
-            return TimeOffSummary.builder()
+            return TimeOffSummaryDTO.builder()
                     .snDays(0)
                     .coDays(0)
                     .cmDays(0)

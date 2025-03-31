@@ -2,7 +2,7 @@ package com.ctgraphdep.controller.admin;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.model.statistics.RegisterStatistics;
+import com.ctgraphdep.model.dto.statistics.RegisterStatisticsDTO;
 import com.ctgraphdep.service.AdminStatisticsService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
@@ -40,7 +40,7 @@ public class AdminStatisticsController extends BaseController {
         int selectedYear = determineYear(year);
         int selectedMonth = determineMonth(month);
 
-        RegisterStatistics statistics = statisticsService.calculateStatistics(selectedYear, selectedMonth);
+        RegisterStatisticsDTO statistics = statisticsService.calculateStatistics(selectedYear, selectedMonth);
         Map<String, Map<String, Integer>> monthlyEntries = statisticsService.getMonthlyEntriesForYear(selectedYear);
         Map<Integer, Integer> dailyEntries = statisticsService.getDailyEntriesForMonth(selectedYear, selectedMonth);
 

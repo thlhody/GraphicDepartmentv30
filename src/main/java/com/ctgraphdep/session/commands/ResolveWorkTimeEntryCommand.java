@@ -2,7 +2,7 @@ package com.ctgraphdep.session.commands;
 
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
@@ -86,7 +86,7 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             debug(String.format("Calculated raw work minutes: %d", rawMinutes));
 
             // Calculate processed work time with lunch break rules
-            WorkTimeCalculationResult result = ctx.calculateWorkTime(rawMinutes, userSchedule);
+            WorkTimeCalculationResultDTO result = ctx.calculateWorkTime(rawMinutes, userSchedule);
             debug(String.format("Processed minutes: %d, Overtime: %d, Lunch deducted: %b",
                     result.getProcessedMinutes(), result.getOvertimeMinutes(), result.isLunchDeducted()));
 
@@ -112,7 +112,7 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
     /**
      * Updates work time entry with calculated values
      */
-    private void updateWorkTimeEntry(WorkTimeTable entry, LocalDateTime endTime, int rawMinutes, WorkTimeCalculationResult result) {
+    private void updateWorkTimeEntry(WorkTimeTable entry, LocalDateTime endTime, int rawMinutes, WorkTimeCalculationResultDTO result) {
         entry.setDayEndTime(endTime);
         entry.setTotalWorkedMinutes(rawMinutes);
         entry.setTotalOvertimeMinutes(result.getOvertimeMinutes());

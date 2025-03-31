@@ -1,6 +1,7 @@
 package com.ctgraphdep.model;
 
 import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.model.dto.SyncFolderStatusDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 
@@ -25,8 +26,8 @@ public class FolderStatus {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    public SyncFolderStatus getStatus() {
-        return new SyncFolderStatus(
+    public SyncFolderStatusDTO getStatus() {
+        return new SyncFolderStatusDTO(
                 Files.exists(pathConfig.getNetworkPath()),
                 Files.exists(pathConfig.getLocalPath()),
                 lastError.get(),

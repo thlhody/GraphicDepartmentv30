@@ -2,7 +2,7 @@ package com.ctgraphdep.controller.team;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.team.TeamMember;
+import com.ctgraphdep.model.dto.TeamMemberDTO;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.TeamStatisticsService;
 import com.ctgraphdep.service.UserService;
@@ -59,13 +59,13 @@ public class TeamStatisticsController extends BaseController {
                     .collect(Collectors.toList());
 
             // Load existing team members if any
-            List<TeamMember> teamMembers = teamStatisticsService.getTeamMembers(
+            List<TeamMemberDTO> teamMemberDTOS = teamStatisticsService.getTeamMembers(
                     teamLead.getUsername(), selectedYear, selectedMonth);
 
             // Add data to model
             model.addAttribute("teamLead", teamLead);
             model.addAttribute("availableUsers", availableUsers);
-            model.addAttribute("teamMembers", teamMembers);
+            model.addAttribute("teamMemberDTOS", teamMemberDTOS);
             model.addAttribute("currentYear", selectedYear);
             model.addAttribute("currentMonth", selectedMonth);
             model.addAttribute("dashboardUrl", "/team-lead");

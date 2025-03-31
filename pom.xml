@@ -212,7 +212,7 @@
                         <configuration>
                             <target>
                                 <mkdir dir="${project.basedir}/installer/dist/bin"/>
-                                <copy file="${project.build.directory}/${project.build.finalName}.jar"
+                                <copy file="${project.build.directory}/ctgraphdep-web.jar"
                                       tofile="${project.basedir}/installer/dist/bin/ctgraphdep-web.jar" />
                                 <echo message="JAR file copied to installer directory"/>
                             </target>

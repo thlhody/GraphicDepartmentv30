@@ -1,7 +1,7 @@
 package com.ctgraphdep.controller.dashboards;
 
 import com.ctgraphdep.controller.base.BaseDashboardController;
-import com.ctgraphdep.model.dashboard.DashboardConfiguration;
+import com.ctgraphdep.config.DashboardConfig;
 import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
@@ -24,7 +24,7 @@ public class TeamLeadDashboardController extends BaseDashboardController {
     public TeamLeadDashboardController(
             UserService userService,
             DashboardService dashboardService,
-            @Qualifier("teamLeadDashboardConfig") DashboardConfiguration teamLeadDashboardConfig,
+            @Qualifier("teamLeadDashboardConfig") DashboardConfig teamLeadDashboardConfig,
             PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
         super(userService, dashboardService, teamLeadDashboardConfig, permissionFilterService,timeValidationService);
     }

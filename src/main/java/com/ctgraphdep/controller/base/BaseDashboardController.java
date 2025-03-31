@@ -1,8 +1,11 @@
 package com.ctgraphdep.controller.base;
 
+import com.ctgraphdep.config.DashboardConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.dashboard.*;
+import com.ctgraphdep.model.dto.DashboardViewModelDTO;
+import com.ctgraphdep.model.dto.dashboard.DashboardCardDTO;
+import com.ctgraphdep.model.dto.dashboard.DashboardMetricsDTO;
 import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
@@ -22,11 +25,11 @@ import java.util.Optional;
 public abstract class BaseDashboardController {
     protected final UserService userService;
     protected final DashboardService dashboardService;
-    protected final DashboardConfiguration dashboardConfig;
+    protected final DashboardConfig dashboardConfig;
     protected final PermissionFilterService permissionFilterService;
     private final TimeValidationService timeValidationService;
 
-    protected BaseDashboardController(UserService userService, DashboardService dashboardService, DashboardConfiguration dashboardConfig,
+    protected BaseDashboardController(UserService userService, DashboardService dashboardService, DashboardConfig dashboardConfig,
                                       PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
         this.userService = userService;
         this.dashboardService = dashboardService;
@@ -35,7 +38,7 @@ public abstract class BaseDashboardController {
         this.timeValidationService = timeValidationService;
     }
 
-    protected DashboardViewModel prepareDashboardViewModel() {
+    protected DashboardViewModelDTO prepareDashboardViewModel() {
         User currentUser = getCurrentUser();
         if (currentUser == null) {
             LoggerUtil.error(this.getClass(), "Failed to prepare dashboard: current user is null");
@@ -51,10 +54,10 @@ public abstract class BaseDashboardController {
 
         try {
             // Filter cards based on permissions
-            List<DashboardCard> filteredCards = permissionFilterService.filterCardsByPermission(dashboardConfig.getCards(), currentUser);
+            List<DashboardCardDTO> filteredCards = permissionFilterService.filterCardsByPermission(dashboardConfig.getCards(), currentUser);
 
             // Create a new configuration with filtered cards
-            DashboardConfiguration filteredConfig = DashboardConfiguration.builder()
+            DashboardConfig filteredConfig = DashboardConfig.builder()
                     .title(dashboardConfig.getTitle())
                     .description(dashboardConfig.getDescription())
                     .role(dashboardConfig.getRole())
@@ -73,7 +76,7 @@ public abstract class BaseDashboardController {
 
     protected String renderDashboard(Model model) {
         try {
-            DashboardViewModel viewModel = prepareDashboardViewModel();
+            DashboardViewModelDTO viewModel = prepareDashboardViewModel();
             populateModel(model, viewModel);
             return "dashboard/" + getTemplateType() + "/dashboard";
         } catch (Exception e) {
@@ -83,7 +86,7 @@ public abstract class BaseDashboardController {
         }
     }
 
-    private void populateModel(Model model, DashboardViewModel viewModel) {
+    private void populateModel(Model model, DashboardViewModelDTO viewModel) {
         model.addAttribute("dashboard", viewModel);
         model.addAttribute("dashboardCards", viewModel.getCards());
         model.addAttribute("dashboardMetrics", viewModel.getMetrics());
@@ -122,11 +125,11 @@ public abstract class BaseDashboardController {
                 user.getRole().equals(dashboardConfig.getRole());
     }
 
-    private DashboardViewModel createEmptyDashboardModel() {
+    private DashboardViewModelDTO createEmptyDashboardModel() {
         GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
         GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
 
-        return DashboardViewModel.builder()
+        return DashboardViewModelDTO.builder()
                 .pageTitle("Dashboard Unavailable")
                 .username("Unknown")
                 .userFullName("Unknown User")
@@ -137,8 +140,8 @@ public abstract class BaseDashboardController {
                 .build();
     }
 
-    private DashboardMetrics buildEmptyMetrics() {
-        return DashboardMetrics.builder()
+    private DashboardMetricsDTO buildEmptyMetrics() {
+        return DashboardMetricsDTO.builder()
                 .onlineUsers(0)
                 .activeUsers(0)
                 .systemStatus("UNAVAILABLE")

@@ -5,7 +5,7 @@ import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.model.FolderStatus;
-import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.*;
@@ -87,7 +87,7 @@ public class SessionContext {
     }
 
     // Calculate work time using CalculationService
-    public WorkTimeCalculationResult calculateWorkTime(int minutes, int schedule) {
+    public WorkTimeCalculationResultDTO calculateWorkTime(int minutes, int schedule) {
         var query = calculationFactory.createCalculateWorkTimeQuery(minutes, schedule);
         return calculationService.executeQuery(query);
     }

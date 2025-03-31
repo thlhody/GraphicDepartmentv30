@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.PaidHolidayEntry;
+import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,14 +26,14 @@ public class AdminPaidHolidayService {
     public void createOrUpdateHolidayList(List<User> users) {
         holidayLock.lock();
         try {
-            List<PaidHolidayEntry> currentEntries = loadHolidayList();
+            List<PaidHolidayEntryDTO> currentEntries = loadHolidayList();
 
             // Create entries for new users
-            List<PaidHolidayEntry> newEntries = users.stream()
+            List<PaidHolidayEntryDTO> newEntries = users.stream()
                     .filter(user -> !user.isAdmin()) // Exclude admin users
                     .filter(user -> currentEntries.stream()
                             .noneMatch(entry -> entry.getUserId().equals(user.getUserId())))
-                    .map(PaidHolidayEntry::fromUser)
+                    .map(PaidHolidayEntryDTO::fromUser)
                     .toList();
 
             if (!newEntries.isEmpty()) {
@@ -52,14 +52,14 @@ public class AdminPaidHolidayService {
     public void updateUserHolidayDays(Integer userId, Integer days) {
         holidayLock.lock();
         try {
-            List<PaidHolidayEntry> entries = loadHolidayList();
+            List<PaidHolidayEntryDTO> entries = loadHolidayList();
 
-            Optional<PaidHolidayEntry> userEntry = entries.stream()
+            Optional<PaidHolidayEntryDTO> userEntry = entries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
                     .findFirst();
 
             if (userEntry.isPresent()) {
-                PaidHolidayEntry entry = userEntry.get();
+                PaidHolidayEntryDTO entry = userEntry.get();
                 entry.setPaidHolidayDays(days);
                 saveHolidayList(entries);
 
@@ -82,7 +82,7 @@ public class AdminPaidHolidayService {
             return loadHolidayList().stream()
                     .filter(entry -> entry.getUserId().equals(userId))
                     .findFirst()
-                    .map(PaidHolidayEntry::getPaidHolidayDays)
+                    .map(PaidHolidayEntryDTO::getPaidHolidayDays)
                     .orElse(0);
         } finally {
             holidayLock.unlock();
@@ -98,14 +98,14 @@ public class AdminPaidHolidayService {
 
         holidayLock.lock();
         try {
-            List<PaidHolidayEntry> entries = loadHolidayList();
+            List<PaidHolidayEntryDTO> entries = loadHolidayList();
 
-            Optional<PaidHolidayEntry> userEntry = entries.stream()
+            Optional<PaidHolidayEntryDTO> userEntry = entries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
                     .findFirst();
 
             if (userEntry.isPresent()) {
-                PaidHolidayEntry entry = userEntry.get();
+                PaidHolidayEntryDTO entry = userEntry.get();
                 int remainingDays = entry.getPaidHolidayDays();
 
                 if (remainingDays >= daysToUse) {
@@ -133,14 +133,14 @@ public class AdminPaidHolidayService {
     public void restoreHolidayDay(Integer userId) {
         holidayLock.lock();
         try {
-            List<PaidHolidayEntry> entries = loadHolidayList();
+            List<PaidHolidayEntryDTO> entries = loadHolidayList();
 
-            Optional<PaidHolidayEntry> userEntry = entries.stream()
+            Optional<PaidHolidayEntryDTO> userEntry = entries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
                     .findFirst();
 
             if (userEntry.isPresent()) {
-                PaidHolidayEntry entry = userEntry.get();
+                PaidHolidayEntryDTO entry = userEntry.get();
                 entry.setPaidHolidayDays(entry.getPaidHolidayDays() + 1);
                 saveHolidayList(entries);
 
@@ -153,7 +153,7 @@ public class AdminPaidHolidayService {
         }
     }
 
-    public List<PaidHolidayEntry> loadHolidayList() {
+    public List<PaidHolidayEntryDTO> loadHolidayList() {
         try {
             return dataAccess.readHolidayEntries();
         } catch (Exception e) {
@@ -163,7 +163,7 @@ public class AdminPaidHolidayService {
         }
     }
 
-    private void saveHolidayList(List<PaidHolidayEntry> entries) {
+    private void saveHolidayList(List<PaidHolidayEntryDTO> entries) {
         try {
             dataAccess.writeHolidayEntries(entries);
         } catch (Exception e) {
@@ -177,14 +177,14 @@ public class AdminPaidHolidayService {
     public void initializeUserHolidays(User user, Integer initialDays) {
         holidayLock.lock();
         try {
-            List<PaidHolidayEntry> entries = loadHolidayList();
+            List<PaidHolidayEntryDTO> entries = loadHolidayList();
 
             // Check if entry already exists
             boolean exists = entries.stream()
                     .anyMatch(entry -> entry.getUserId().equals(user.getUserId()));
 
             if (!exists) {
-                PaidHolidayEntry newEntry = PaidHolidayEntry.fromUser(user);
+                PaidHolidayEntryDTO newEntry = PaidHolidayEntryDTO.fromUser(user);
                 newEntry.setPaidHolidayDays(initialDays);
                 entries.add(newEntry);
                 saveHolidayList(entries);

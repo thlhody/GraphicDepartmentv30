@@ -1,7 +1,7 @@
 package com.ctgraphdep.controller.admin;
 
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.model.PaidHolidayEntry;
+import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.service.AdminPaidHolidayService;
@@ -47,7 +47,7 @@ public class AdminHolidayController extends BaseController {
             return accessCheck;
         }
 
-        List<PaidHolidayEntry> entries = holidayService.loadHolidayList();
+        List<PaidHolidayEntryDTO> entries = holidayService.loadHolidayList();
         LoggerUtil.debug(this.getClass(), "Found " + entries.size() + " entries");
 
         model.addAttribute("entries", entries);

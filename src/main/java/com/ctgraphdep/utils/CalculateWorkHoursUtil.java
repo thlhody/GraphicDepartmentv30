@@ -1,7 +1,7 @@
 package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -78,7 +78,7 @@ public class CalculateWorkHoursUtil {
         return (overtimeMinutes / WorkCode.HOUR_DURATION) * WorkCode.HOUR_DURATION;
     }
 
-    public static WorkTimeCalculationResult calculateWorkTime(int inputMinutes, int schedule) {
+    public static WorkTimeCalculationResultDTO calculateWorkTime(int inputMinutes, int schedule) {
         // Calculate lunch break first
         boolean lunchDeducted = isLunchBreakDeducted(inputMinutes, schedule);
         // Adjust minutes based on lunch break
@@ -91,7 +91,7 @@ public class CalculateWorkHoursUtil {
         int finalTotalMinutes = processedMinutes + overtimeMinutes;
 
         // Return complete result including raw minutes for session update
-        return new WorkTimeCalculationResult(inputMinutes, processedMinutes, overtimeMinutes, lunchDeducted, finalTotalMinutes);
+        return new WorkTimeCalculationResultDTO(inputMinutes, processedMinutes, overtimeMinutes, lunchDeducted, finalTotalMinutes);
     }
 
     //display

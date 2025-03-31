@@ -1,9 +1,11 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.DashboardConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.dashboard.*;
+import com.ctgraphdep.model.dto.DashboardViewModelDTO;
+import com.ctgraphdep.model.dto.dashboard.DashboardMetricsDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
@@ -19,8 +21,8 @@ public class DashboardService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    public DashboardViewModel buildDashboardViewModel(User currentUser, DashboardConfiguration config) {
-        return DashboardViewModel.builder()
+    public DashboardViewModelDTO buildDashboardViewModel(User currentUser, DashboardConfig config) {
+        return DashboardViewModelDTO.builder()
                 .pageTitle(config.getTitle())
                 .username(currentUser.getUsername())
                 .userFullName(currentUser.getName())
@@ -31,8 +33,8 @@ public class DashboardService {
                 .build();
     }
 
-    public DashboardMetrics buildDashboardMetrics() {
-        return DashboardMetrics.builder()
+    public DashboardMetricsDTO buildDashboardMetrics() {
+        return DashboardMetricsDTO.builder()
                 .onlineUsers(onlineMetricsService.getOnlineUserCount())
                 .activeUsers(onlineMetricsService.getActiveUserCount())
                 .systemStatus(folderStatus.getStatus().toString())

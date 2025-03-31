@@ -1,6 +1,6 @@
 package com.ctgraphdep.controller.base;
 
-import com.ctgraphdep.model.SyncFolderStatus;
+import com.ctgraphdep.model.dto.SyncFolderStatusDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
@@ -35,7 +35,7 @@ public abstract class BaseController {
     }
 
     @ModelAttribute("syncStatus")
-    public SyncFolderStatus addSyncStatus() {
+    public SyncFolderStatusDTO addSyncStatus() {
         return folderStatus.getStatus();
     }
 

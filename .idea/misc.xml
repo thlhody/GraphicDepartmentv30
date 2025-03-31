@@ -22,6 +22,7 @@
       <item index="17" class="java.lang.String" itemvalue="org.springframework.web.bind.annotation.ResponseBody" />
     </list>
     <writeAnnotations>
+      <writeAnnotation name="org.springframework.beans.factory.annotation.Autowired" />
       <writeAnnotation name="org.springframework.beans.factory.annotation.Value" />
     </writeAnnotations>
   </component>

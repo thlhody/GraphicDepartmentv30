@@ -2,8 +2,8 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.statistics.ChartData;
-import com.ctgraphdep.model.statistics.RegisterStatistics;
+import com.ctgraphdep.model.dto.statistics.ChartDataDTO;
+import com.ctgraphdep.model.dto.statistics.RegisterStatisticsDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,10 +24,10 @@ public class AdminStatisticsService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    public RegisterStatistics calculateStatistics(Integer year, Integer month) {
+    public RegisterStatisticsDTO calculateStatistics(Integer year, Integer month) {
         List<RegisterEntry> allEntries = getAllEntriesForMonth(year, month);
 
-        return RegisterStatistics.builder()
+        return RegisterStatisticsDTO.builder()
                 .clientDistribution(calculateClientDistribution(allEntries))
                 .actionTypeDistribution(calculateActionTypeDistribution(allEntries))
                 .printPrepTypeDistribution(calculatePrintPrepTypeDistribution(allEntries))
@@ -63,33 +63,33 @@ public class AdminStatisticsService {
         return allEntries;
     }
 
-    private ChartData calculateClientDistribution(List<RegisterEntry> entries) {
+    private ChartDataDTO calculateClientDistribution(List<RegisterEntry> entries) {
         Map<String, Integer> distribution = entries.stream()
                 .collect(Collectors.groupingBy(
                         RegisterEntry::getClientName,
                         Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
                 ));
 
-        return ChartData.builder()
+        return ChartDataDTO.builder()
                 .labels(new ArrayList<>(distribution.keySet()))
                 .data(new ArrayList<>(distribution.values()))
                 .build();
     }
 
-    private ChartData calculateActionTypeDistribution(List<RegisterEntry> entries) {
+    private ChartDataDTO calculateActionTypeDistribution(List<RegisterEntry> entries) {
         Map<String, Integer> distribution = entries.stream()
                 .collect(Collectors.groupingBy(
                         RegisterEntry::getActionType,
                         Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
                 ));
 
-        return ChartData.builder()
+        return ChartDataDTO.builder()
                 .labels(new ArrayList<>(distribution.keySet()))
                 .data(new ArrayList<>(distribution.values()))
                 .build();
     }
 
-    private ChartData calculatePrintPrepTypeDistribution(List<RegisterEntry> entries) {
+    private ChartDataDTO calculatePrintPrepTypeDistribution(List<RegisterEntry> entries) {
         Map<String, Integer> distribution = entries.stream()
                 .flatMap(entry -> entry.getPrintPrepTypes().stream())
                 .collect(Collectors.groupingBy(
@@ -97,7 +97,7 @@ public class AdminStatisticsService {
                         Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
                 ));
 
-        return ChartData.builder()
+        return ChartDataDTO.builder()
                 .labels(new ArrayList<>(distribution.keySet()))
                 .data(new ArrayList<>(distribution.values()))
                 .build();

@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.PaidHolidayEntry;
+import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -163,7 +163,7 @@ public class UserManagementService {
     }
 
     private void ensureHolidayEntry(User user, Integer paidHolidayDays) {
-        List<PaidHolidayEntry> holidayEntries = holidayService.getHolidayList();
+        List<PaidHolidayEntryDTO> holidayEntries = holidayService.getHolidayList();
 
         // Check if user already has an entry
         boolean hasEntry = holidayEntries.stream()
@@ -171,7 +171,7 @@ public class UserManagementService {
 
         if (!hasEntry) {
             // Create new entry if user doesn't have one
-            PaidHolidayEntry newEntry = PaidHolidayEntry.fromUser(user);
+            PaidHolidayEntryDTO newEntry = PaidHolidayEntryDTO.fromUser(user);
             newEntry.setPaidHolidayDays(paidHolidayDays);
             holidayEntries.add(newEntry);
             holidayService.saveHolidayList(holidayEntries);

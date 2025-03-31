@@ -3,6 +3,8 @@ package com.ctgraphdep.controller.admin;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
+import com.ctgraphdep.model.dto.RegisterSummaryDTO;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepTypes;
@@ -225,7 +227,7 @@ public class AdminRegisterController extends BaseController {
     }
 
     @PostMapping("/calculate-bonus")
-    public ResponseEntity<BonusCalculationResult> calculateBonus(
+    public ResponseEntity<BonusCalculationResultDTO> calculateBonus(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody Map<String, Object> request) {
 
@@ -236,7 +238,7 @@ public class AdminRegisterController extends BaseController {
         }
 
         try {
-            BonusCalculationResult result = adminRegisterService.calculateBonusFromRequest(request);
+            BonusCalculationResultDTO result = adminRegisterService.calculateBonusFromRequest(request);
 
             // Get required parameters
             Integer userId = (Integer) request.get("userId");
@@ -259,7 +261,7 @@ public class AdminRegisterController extends BaseController {
     }
 
     @GetMapping("/summary")
-    public ResponseEntity<RegisterSummary> getRegisterSummary(
+    public ResponseEntity<RegisterSummaryDTO> getRegisterSummary(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam String username,
             @RequestParam Integer userId,
@@ -274,7 +276,7 @@ public class AdminRegisterController extends BaseController {
 
         List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(
                 username, userId, year, month);
-        RegisterSummary summary = adminRegisterService.calculateRegisterSummary(entries);
+        RegisterSummaryDTO summary = adminRegisterService.calculateRegisterSummary(entries);
         return ResponseEntity.ok(summary);
     }
 
@@ -302,7 +304,7 @@ public class AdminRegisterController extends BaseController {
 
             // Get bonus configuration and calculation result if exists
             BonusConfiguration bonusConfig = BonusConfiguration.getDefaultConfig();
-            BonusCalculationResult bonusResult = null;
+            BonusCalculationResultDTO bonusResult = null;
 
             try {
                 // Try to load saved bonus result

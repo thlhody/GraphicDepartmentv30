@@ -1,9 +1,8 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.dashboard.DashboardCard;
+import com.ctgraphdep.model.dto.dashboard.DashboardCardDTO;
 import com.ctgraphdep.utils.LoggerUtil;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -130,7 +129,7 @@ public class PermissionFilterService {
         ));
     }
 
-    public List<DashboardCard> filterCardsByPermission(List<DashboardCard> cards, User user) {
+    public List<DashboardCardDTO> filterCardsByPermission(List<DashboardCardDTO> cards, User user) {
         if (cards == null || user == null) {
             return Collections.emptyList();
         }
@@ -142,7 +141,7 @@ public class PermissionFilterService {
                 .collect(Collectors.toList());
     }
 
-    private boolean hasPermissionForCard(DashboardCard card, Set<String> userPermissions) {
+    private boolean hasPermissionForCard(DashboardCardDTO card, Set<String> userPermissions) {
         String requiredPermission = card.getPermission();
 
         // Always allow OMS access and Status view

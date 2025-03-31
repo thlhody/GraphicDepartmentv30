@@ -3,6 +3,8 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.enums.RegisterMergeRule;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
+import com.ctgraphdep.model.dto.RegisterSummaryDTO;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -171,7 +173,7 @@ public class AdminRegisterService {
                 .build();
     }
 
-    public BonusCalculationResult calculateBonusFromRequest(Map<String, Object> request) {
+    public BonusCalculationResultDTO calculateBonusFromRequest(Map<String, Object> request) {
         try {
             // Convert and validate entries
             @SuppressWarnings("unchecked")
@@ -288,7 +290,7 @@ public class AdminRegisterService {
     }
 
     //Calculate bonus for filtered entries
-    public BonusCalculationResult calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config) {
+    public BonusCalculationResultDTO calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config) {
         // Filter valid entries for bonus calculation
         List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
 
@@ -308,7 +310,7 @@ public class AdminRegisterService {
         PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(userId, year, month);
 
         // Calculate bonus
-        BonusCalculationResult result = bonusCalculator.calculateBonus(
+        BonusCalculationResultDTO result = bonusCalculator.calculateBonus(
                 numberOfEntries,
                 workedDays,
                 sumArticleNumbers,
@@ -317,7 +319,7 @@ public class AdminRegisterService {
         );
 
         // Create a new result with previous months included
-        return BonusCalculationResult.builder()
+        return BonusCalculationResultDTO.builder()
                 .entries(result.getEntries())
                 .articleNumbers(result.getArticleNumbers())
                 .graphicComplexity(result.getGraphicComplexity())
@@ -331,7 +333,7 @@ public class AdminRegisterService {
     }
 
     // Save bonus calculation result
-    public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResult result, String username) {
+    public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResultDTO result, String username) {
         try {
             // Get user's employeeId
             Integer employeeId = userService.getUserById(userId)
@@ -435,7 +437,7 @@ public class AdminRegisterService {
         }
     }
 
-    public BonusCalculationResult loadSavedBonusResult(Integer userId, Integer year, Integer month) {
+    public BonusCalculationResultDTO loadSavedBonusResult(Integer userId, Integer year, Integer month) {
         try {
             // Get user's employeeId
             Integer employeeId = userService.getUserById(userId)
@@ -450,7 +452,7 @@ public class AdminRegisterService {
 
             BonusEntry entry = bonusEntryOpt.get();
 
-            return BonusCalculationResult.builder()
+            return BonusCalculationResultDTO.builder()
                     .entries(entry.getEntries())
                     .articleNumbers(entry.getArticleNumbers())
                     .graphicComplexity(entry.getGraphicComplexity())
@@ -476,11 +478,11 @@ public class AdminRegisterService {
                 .collect(Collectors.toList());
     }
 
-    public RegisterSummary calculateRegisterSummary(List<RegisterEntry> entries) {
+    public RegisterSummaryDTO calculateRegisterSummary(List<RegisterEntry> entries) {
         // Filter valid entries
         List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
 
-        return RegisterSummary.builder()
+        return RegisterSummaryDTO.builder()
                 .totalEntries(validEntries.size())
                 .averageArticleNumbers(validEntries.stream()
                         .mapToDouble(RegisterEntry::getArticleNumbers)

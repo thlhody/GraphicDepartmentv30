@@ -2,6 +2,7 @@ package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -14,7 +15,7 @@ import java.util.*;
 public class AdminRegisterExcelExporter {
 
     public byte[] exportToExcel(User user, List<RegisterEntry> entries, BonusConfiguration bonusConfig,
-                                BonusCalculationResult bonusResult, int year, int month) {
+                                BonusCalculationResultDTO bonusResult, int year, int month) {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             LoggerUtil.info(this.getClass(), "Creating Excel export for " + entries.size() + " entries");
             Sheet sheet = workbook.createSheet("Register Report");
@@ -96,7 +97,7 @@ public class AdminRegisterExcelExporter {
         return startRow;
     }
 
-    private int createBonusResultSection(Sheet sheet, Map<String, CellStyle> styles, BonusCalculationResult result, int startRow) {
+    private int createBonusResultSection(Sheet sheet, Map<String, CellStyle> styles, BonusCalculationResultDTO result, int startRow) {
         // Section title
         Row titleRow = sheet.createRow(startRow++);
         Cell titleCell = titleRow.createCell(0);

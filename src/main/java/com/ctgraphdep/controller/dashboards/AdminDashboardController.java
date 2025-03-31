@@ -1,7 +1,7 @@
 package com.ctgraphdep.controller.dashboards;
 
 import com.ctgraphdep.controller.base.BaseDashboardController;
-import com.ctgraphdep.model.dashboard.DashboardConfiguration;
+import com.ctgraphdep.config.DashboardConfig;
 import com.ctgraphdep.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
@@ -22,7 +22,7 @@ public class AdminDashboardController extends BaseDashboardController {
     @Autowired
     public AdminDashboardController(UserService userService,
                                     DashboardService dashboardService,
-                                    @Qualifier("adminDashboardConfig") DashboardConfiguration adminDashboardConfig,
+                                    @Qualifier("adminDashboardConfig") DashboardConfig adminDashboardConfig,
                                     PermissionFilterService permissionFilterService,
                                     TimeValidationService timeValidationService) {
         super(userService, dashboardService, adminDashboardConfig, permissionFilterService, timeValidationService);

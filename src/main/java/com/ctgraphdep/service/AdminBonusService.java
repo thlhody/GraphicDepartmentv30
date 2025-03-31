@@ -1,7 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.model.BonusEntry;
-import com.ctgraphdep.model.BonusEntryDTO;
+import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.AdminBonusExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;

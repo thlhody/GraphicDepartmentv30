@@ -2,8 +2,9 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.DialogComponents;
+import com.ctgraphdep.ui.DialogComponents;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.notification.*;
@@ -13,7 +14,9 @@ import com.ctgraphdep.tray.CTTTSystemTray;
 import com.ctgraphdep.ui.ButtonFactory;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.ui.NotificationBackgroundFactory;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +44,8 @@ public class SystemNotificationService {
     private final PathConfig pathConfig;
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
+    @Autowired
+    private SchedulerHealthMonitor healthMonitor;
 
     // This is used by queries to determine if a notification can be shown
     @Getter
@@ -59,41 +64,149 @@ public class SystemNotificationService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    @PostConstruct
+    public void init() {
+        // Register with health monitor including recovery action
+        healthMonitor.registerTask(
+                "notification-service",
+                5, // Check every 5 minutes
+                status -> {
+                    // Recovery action when notification service is unhealthy
+                    LoggerUtil.warn(this.getClass(), String.format("Attempting to recover unhealthy notification service. Last execution: %s, Minutes since: %d",
+                                    status.getLastExecutionTime(), status.getMinutesSinceLastExecution()));
+                    resetService();
+                }
+        );
+
+        // Record initial execution to establish baseline
+        healthMonitor.recordTaskExecution("notification-service");
+        LoggerUtil.info(this.getClass(), "Notification service initialized and registered with health monitor");
+    }
+
     // Shows schedule completion warning to the user
-    @SuppressWarnings("UnusedReturnValue")
     public boolean showSessionWarning(String username, Integer userId, Integer finalMinutes) {
-        // Create and execute the command instead of direct implementation
-        ShowSessionWarningCommand command = commandFactory.createShowSessionWarningCommand(username, userId, finalMinutes);
-        return commandService.executeCommand(command);
+        try {
+            // Create and execute the command instead of direct implementation
+            ShowSessionWarningCommand command = commandFactory.createShowSessionWarningCommand(username, userId, finalMinutes);
+            boolean result = commandService.executeCommand(command);
+
+            // Record success
+            if (result) {
+                healthMonitor.recordTaskExecution("notification-service");
+                LoggerUtil.debug(this.getClass(), "Recorded notification service execution for session warning");
+            }
+
+            return result;
+        } catch (Exception e) {
+            // Record failure
+            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error in notification service: " + e.getMessage(), e);
+            return false;
+        }
     }
 
     // Shows hourly overtime warning to the user
-    @SuppressWarnings("UnusedReturnValue")
     public boolean showHourlyWarning(String username, Integer userId, Integer finalMinutes) {
-        ShowHourlyWarningCommand command = commandFactory.createShowHourlyWarningCommand(username, userId, finalMinutes);
-        return commandService.executeCommand(command);
+        try {
+            ShowHourlyWarningCommand command = commandFactory.createShowHourlyWarningCommand(username, userId, finalMinutes);
+            boolean result = commandService.executeCommand(command);
+
+            // Record success
+            if (result) {
+                healthMonitor.recordTaskExecution("notification-service");
+                LoggerUtil.debug(this.getClass(), "Recorded notification service execution for hourly warning");
+            }
+
+            return result;
+        } catch (Exception e) {
+            // Record failure
+            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error in notification service: " + e.getMessage(), e);
+            return false;
+        }
     }
 
     // Shows temporary stop duration warning to the user
-    @SuppressWarnings("UnusedReturnValue")
     public boolean showLongTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
-        ShowTempStopWarningCommand command = commandFactory.createShowTempStopWarningCommand(username, userId, tempStopStart);
-        return commandService.executeCommand(command);
+        try {
+            ShowTempStopWarningCommand command = commandFactory.createShowTempStopWarningCommand(username, userId, tempStopStart);
+            boolean result = commandService.executeCommand(command);
+
+            // Record success
+            if (result) {
+                healthMonitor.recordTaskExecution("notification-service");
+                LoggerUtil.debug(this.getClass(), "Recorded notification service execution for temp stop warning");
+            }
+
+            return result;
+        } catch (Exception e) {
+            // Record failure
+            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error in notification service: " + e.getMessage(), e);
+            return false;
+        }
     }
 
     // Shows work day start reminder to the user
-    @SuppressWarnings("UnusedReturnValue")
     public boolean showStartDayReminder(String username, Integer userId) {
-        ShowStartDayReminderCommand command = commandFactory.createShowStartDayReminderCommand(username, userId);
-        return commandService.executeCommand(command);
+        try {
+            ShowStartDayReminderCommand command = commandFactory.createShowStartDayReminderCommand(username, userId);
+            boolean result = commandService.executeCommand(command);
+
+            // Record success
+            if (result) {
+                healthMonitor.recordTaskExecution("notification-service");
+                LoggerUtil.debug(this.getClass(), "Recorded notification service execution for start day reminder");
+            }
+
+            return result;
+        } catch (Exception e) {
+            // Record failure
+            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error in notification service: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    // Add resetService method for recovery
+    public void resetService() {
+        try {
+            LoggerUtil.info(this.getClass(), "Resetting notification service after detected unhealthy state");
+
+            // Clear any pending notifications
+            userResponded.set(false);
+
+            // Reset any internal state that might be causing issues
+            lastNotificationTimes.clear();
+
+            // Mark service as healthy again
+            healthMonitor.recordTaskExecution("notification-service");
+            LoggerUtil.info(this.getClass(), "Notification service reset completed");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error resetting notification service: " + e.getMessage(), e);
+        }
     }
 
     // Shows a Worktime entry resolution reminder to the user
-    @SuppressWarnings("UnusedReturnValue")
     public boolean showResolutionReminder(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod) {
-        // Create and execute the command instead of direct implementation
-        ShowResolutionReminderCommand command = commandFactory.createShowResolutionReminderCommand(username, userId, title, message, trayMessage, timeoutPeriod);
-        return commandService.executeCommand(command);
+        try {
+            // Create and execute the command instead of direct implementation
+            ShowResolutionReminderCommand command = commandFactory.createShowResolutionReminderCommand(username, userId, title, message, trayMessage, timeoutPeriod);
+            boolean result = commandService.executeCommand(command);
+
+            // Record success
+            if (result) {
+                healthMonitor.recordTaskExecution("notification-service");
+                LoggerUtil.debug(this.getClass(), "Recorded notification service execution for resolution reminder");
+            }
+
+            return result;
+        } catch (Exception e) {
+            // Record failure
+            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error in notification service: " + e.getMessage(), e);
+            return false;
+        }
     }
 
     // Shows a test dialog with buttons (used by the test notification command)
@@ -142,6 +255,9 @@ public class SystemNotificationService {
             LoggerUtil.info(this.getClass(), "Attempting to display notification for user: " + username);
             LoggerUtil.info(this.getClass(), "Current thread: " + Thread.currentThread().getName());
 
+            // Record attempt to show notification
+            healthMonitor.recordTaskExecution("notification-service");
+
             // Reset the userResponded flag before showing new notification
             userResponded.set(false);
 
@@ -172,6 +288,7 @@ public class SystemNotificationService {
                     }
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Error in EDT showing notification: " + e.getMessage());
+                    healthMonitor.recordTaskFailure("notification-service", e.getMessage());
                     // Create fallback mechanism
                     startFallbackResponseTimer(username);
                 }
@@ -182,6 +299,10 @@ public class SystemNotificationService {
             return true;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in showNotificationWithFallback: " + e.getMessage());
+
+            // Record failure
+            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+
             // Even on exception, ensure we have a fallback tracking mechanism
             LoggerUtil.info(this.getClass(), "Setting up emergency fallback for notification response tracking");
             startFallbackResponseTimer(username);
@@ -512,7 +633,6 @@ public class SystemNotificationService {
         buttonsPanel.add(resumeWorkButton);
         buttonsPanel.add(endSessionButton);
     }
-
 
     // Adds start day dialog specific buttons
     public void addStartDayButtons(DialogComponents components, String username, Integer userId) {

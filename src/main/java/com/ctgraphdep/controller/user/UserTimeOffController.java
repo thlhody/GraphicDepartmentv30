@@ -1,7 +1,7 @@
 package com.ctgraphdep.controller.user;
 
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.model.TimeOffSummary;
+import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.service.AdminPaidHolidayService;
@@ -214,7 +214,7 @@ public class UserTimeOffController extends BaseController {
 
         // Get time off summary for the current year (using read-only method for better performance)
         // This now uses the tracker service which shows time-off across all months
-        TimeOffSummary summary = timeOffService.calculateTimeOffSummaryReadOnly(user.getUsername(), currentYear);
+        TimeOffSummaryDTO summary = timeOffService.calculateTimeOffSummaryReadOnly(user.getUsername(), currentYear);
 
         // Update with the correct available days from the holiday service
         summary.setAvailablePaidDays(availablePaidDays);

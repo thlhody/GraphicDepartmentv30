@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.VersionInfo;
+import com.ctgraphdep.model.dto.VersionInfoDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -28,21 +28,21 @@ public class UpdateService {
 
     private static final Pattern VERSION_PATTERN = Pattern.compile("_(\\d+\\.\\d+\\.\\d+)\\.exe$");
 
-    public VersionInfo checkForUpdates() {
-        VersionInfo versionInfo = new VersionInfo();
-        versionInfo.setCurrentVersion(currentVersion);
-        versionInfo.setUpdateAvailable(false);
+    public VersionInfoDTO checkForUpdates() {
+        VersionInfoDTO versionInfoDTO = new VersionInfoDTO();
+        versionInfoDTO.setCurrentVersion(currentVersion);
+        versionInfoDTO.setUpdateAvailable(false);
 
         if (networkInstallerPath == null || networkInstallerPath.trim().isEmpty()) {
             LoggerUtil.warn(this.getClass(), "Network installer path not configured");
-            return versionInfo;
+            return versionInfoDTO;
         }
 
         try {
             Path installerDir = Paths.get(networkInstallerPath);
             if (!Files.exists(installerDir) || !Files.isDirectory(installerDir)) {
                 LoggerUtil.warn(this.getClass(), "Installer directory not found: " + networkInstallerPath);
-                return versionInfo;
+                return versionInfoDTO;
             }
 
             // Find the latest installer file
@@ -61,7 +61,7 @@ public class UpdateService {
 
             if (latestInstaller.isEmpty()) {
                 LoggerUtil.info(this.getClass(), "No installer files found in " + networkInstallerPath);
-                return versionInfo;
+                return versionInfoDTO;
             }
 
             Path installerPath = latestInstaller.get();
@@ -72,9 +72,9 @@ public class UpdateService {
 
             // Compare versions
             if (compareVersions(installerVersion, currentVersion) > 0) {
-                versionInfo.setNewVersion(installerVersion);
-                versionInfo.setInstallerPath(installerPath.toString());
-                versionInfo.setUpdateAvailable(true);
+                versionInfoDTO.setNewVersion(installerVersion);
+                versionInfoDTO.setInstallerPath(installerPath.toString());
+                versionInfoDTO.setUpdateAvailable(true);
                 LoggerUtil.info(this.getClass(), "Update available: " + installerVersion);
             } else {
                 LoggerUtil.info(this.getClass(), "No update available. Current: " + currentVersion + ", Latest: " + installerVersion);
@@ -84,7 +84,7 @@ public class UpdateService {
             LoggerUtil.error(this.getClass(), "Error checking for updates: " + e.getMessage(), e);
         }
 
-        return versionInfo;
+        return versionInfoDTO;
     }
 
     private String extractVersion(Path installerPath) {

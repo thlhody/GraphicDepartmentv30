@@ -2,6 +2,11 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCountsDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -157,11 +162,11 @@ public class UserWorkTimeDisplayService {
 
     private int getPaidHolidayDays(Integer userId) {
         try {
-            List<PaidHolidayEntry> holidayEntries = holidayService.loadHolidayList();
+            List<PaidHolidayEntryDTO> holidayEntries = holidayService.loadHolidayList();
             return holidayEntries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
                     .findFirst()
-                    .map(PaidHolidayEntry::getPaidHolidayDays)
+                    .map(PaidHolidayEntryDTO::getPaidHolidayDays)
                     .orElse(0);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
@@ -178,7 +183,7 @@ public class UserWorkTimeDisplayService {
 
         try {
             int totalWorkDays = CalculateWorkHoursUtil.calculateWorkDays(year, month);
-            WorkTimeCounts counts = calculateWorkTimeCounts(worktimeData);
+            WorkTimeCountsDTO counts = calculateWorkTimeCounts(worktimeData);
 
             return WorkTimeSummary.builder()
                     .totalWorkDays(totalWorkDays)
@@ -199,8 +204,8 @@ public class UserWorkTimeDisplayService {
         }
     }
 
-    private WorkTimeCounts calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
-        WorkTimeCounts counts = new WorkTimeCounts();
+    private WorkTimeCountsDTO calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
+        WorkTimeCountsDTO counts = new WorkTimeCountsDTO();
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
         int totalDiscardedMinutes = 0;
@@ -224,7 +229,7 @@ public class UserWorkTimeDisplayService {
                 int userSchedule = 8;
 
                 // Use CalculateWorkHoursUtil for consistent calculation
-                WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
+                WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(
                         entry.getTotalWorkedMinutes(),
                         userSchedule
                 );

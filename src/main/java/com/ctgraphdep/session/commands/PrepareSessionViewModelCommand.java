@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.config.WorkCode;
@@ -99,7 +99,7 @@ public class PrepareSessionViewModelCommand extends BaseSessionCommand<Void> {
         // For actual work time, recalculate based on proper logic
         if (session.getTotalWorkedMinutes() != null) {
             // Use CalculateWorkHoursUtil to properly calculate work time according to business rules
-            WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(
+            WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(
                     session.getTotalWorkedMinutes(), userSchedule);
 
             // Use the processed minutes from the calculation

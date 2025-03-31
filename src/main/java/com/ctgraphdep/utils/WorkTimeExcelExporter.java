@@ -2,7 +2,7 @@ package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeResult;
+import com.ctgraphdep.model.dto.worktime.WorkTimeResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -143,16 +143,16 @@ public class WorkTimeExcelExporter {
             createUserInfoCells(row, user, styles.get("name"));
 
             // Process daily entries
-            WorkTimeResult summary = processDailyEntries(row, yearMonth, userEntries, user, styles);
+            WorkTimeResultDTO summary = processDailyEntries(row, yearMonth, userEntries, user, styles);
 
             // Create summary cells
             createSummaryCells(row, summary, columnCount, styles.get("number"));
         }
     }
 
-    private WorkTimeResult processDailyEntries(Row row, YearMonth yearMonth,
-                                               Map<LocalDate, WorkTimeTable> userEntries,
-                                               User user, Map<String, CellStyle> styles) {
+    private WorkTimeResultDTO processDailyEntries(Row row, YearMonth yearMonth,
+                                                  Map<LocalDate, WorkTimeTable> userEntries,
+                                                  User user, Map<String, CellStyle> styles) {
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
 
@@ -178,7 +178,7 @@ public class WorkTimeExcelExporter {
             }
         }
 
-        return new WorkTimeResult(totalRegularMinutes, totalOvertimeMinutes);
+        return new WorkTimeResultDTO(totalRegularMinutes, totalOvertimeMinutes);
     }
 
 
@@ -216,7 +216,7 @@ public class WorkTimeExcelExporter {
         idCell.setCellStyle(nameStyle);
     }
 
-    private void createSummaryCells(Row row, WorkTimeResult summary, int columnCount, CellStyle numberStyle) {
+    private void createSummaryCells(Row row, WorkTimeResultDTO summary, int columnCount, CellStyle numberStyle) {
         createSummaryCell(row, columnCount - 3, summary.getTotalRegularMinutes(), numberStyle);
         createSummaryCell(row, columnCount - 2, summary.getTotalOvertimeMinutes(), numberStyle);
         createSummaryCell(row, columnCount - 1,

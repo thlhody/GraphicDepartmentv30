@@ -1,7 +1,7 @@
 package com.ctgraphdep.calculations.commands;
 
 import com.ctgraphdep.calculations.CalculationContext;
-import com.ctgraphdep.model.WorkTimeCalculationResult;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
@@ -30,7 +30,7 @@ public class UpdateOnlineSessionCalculationsCommand extends BaseSessionCalculati
         int rawWorkedMinutes = CalculateWorkHoursUtil.calculateRawWorkMinutes(session, currentTime);
 
         // Calculate work time using the proven utility
-        WorkTimeCalculationResult result = CalculateWorkHoursUtil.calculateWorkTime(rawWorkedMinutes, userSchedule);
+        WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(rawWorkedMinutes, userSchedule);
 
         // Determine if workday is completed based on schedule
         boolean workdayCompleted = result.getRawMinutes() >= (userSchedule * 60);

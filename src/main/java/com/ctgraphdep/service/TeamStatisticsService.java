@@ -4,7 +4,8 @@ import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.model.team.*;
+import com.ctgraphdep.model.dto.TeamMemberDTO;
+import com.ctgraphdep.model.dto.team.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 
@@ -40,22 +41,22 @@ public class TeamStatisticsService {
      */
     public void initializeTeamMembers(List<Integer> selectedUserIds, String teamLeadUsername, int year, int month) {
         try {
-            List<TeamMember> teamMembers = new ArrayList<>();
+            List<TeamMemberDTO> teamMemberDTOS = new ArrayList<>();
 
             for (Integer userId : selectedUserIds) {
                 User user = userService.getUserById(userId)
                         .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-                TeamMember member = createInitialTeamMember(user);
-                teamMembers.add(member);
+                TeamMemberDTO member = createInitialTeamMember(user);
+                teamMemberDTOS.add(member);
             }
 
             // Save initial team members to JSON with year and month
-            dataAccessService.writeTeamMembers(teamMembers, teamLeadUsername, year, month);
+            dataAccessService.writeTeamMembers(teamMemberDTOS, teamLeadUsername, year, month);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Initialized %d team members for team lead %s for period %d/%d",
-                            teamMembers.size(), teamLeadUsername, year, month));
+                            teamMemberDTOS.size(), teamLeadUsername, year, month));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
@@ -74,16 +75,16 @@ public class TeamStatisticsService {
     public void updateTeamStatistics(String teamLeadUsername, int year, int month) {
         try {
             // Read existing team members for the specified period
-            List<TeamMember> teamMembers = dataAccessService.readTeamMembers(teamLeadUsername, year, month);
+            List<TeamMemberDTO> teamMemberDTOS = dataAccessService.readTeamMembers(teamLeadUsername, year, month);
 
-            if (teamMembers.isEmpty()) {
+            if (teamMemberDTOS.isEmpty()) {
                 LoggerUtil.warn(this.getClass(),
                         String.format("No team members found for team lead %s for period %d/%d",
                                 teamLeadUsername, year, month));
                 return;
             }
 
-            for (TeamMember member : teamMembers) {
+            for (TeamMemberDTO member : teamMemberDTOS) {
                 // Update work time statistics
                 updateWorkTimeStats(member, year, month);
 
@@ -98,11 +99,11 @@ public class TeamStatisticsService {
             }
 
             // Save updated team members with year and month
-            dataAccessService.writeTeamMembers(teamMembers, teamLeadUsername, year, month);
+            dataAccessService.writeTeamMembers(teamMemberDTOS, teamLeadUsername, year, month);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Updated statistics for %d team members for team lead %s for period %d/%d",
-                            teamMembers.size(), teamLeadUsername, year, month));
+                            teamMemberDTOS.size(), teamLeadUsername, year, month));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
@@ -112,24 +113,24 @@ public class TeamStatisticsService {
         }
     }
 
-    private TeamMember createInitialTeamMember(User user) {
-        return TeamMember.builder()
+    private TeamMemberDTO createInitialTeamMember(User user) {
+        return TeamMemberDTO.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .name(user.getName())
                 .employeeId(user.getEmployeeId())
                 .schedule(user.getSchedule())
                 .role(user.getRole())
-                .currentMonthWorkStats(new CurrentMonthWorkStats())
-                .timeOffList(new TimeOffList())
-                .sessionDetails(new SessionDetails())
+                .currentMonthWorkStatsDTO(new CurrentMonthWorkStatsDTO())
+                .timeOffListDTO(new TimeOffListDTO())
+                .sessionDetailsDTO(new SessionDetailsDTO())
                 .registerStats(createInitialRegisterStats())
                 .build();
     }
 
-    private TeamMemberRegisterStats createInitialRegisterStats() {
-        return TeamMemberRegisterStats.builder()
-                .monthSummary(new MonthSummary())
+    private TeamMemberRegisterStatsDTO createInitialRegisterStats() {
+        return TeamMemberRegisterStatsDTO.builder()
+                .monthSummaryDTO(new MonthSummaryDTO())
                 .clientSpecificStats(new HashMap<>())
                 .build();
     }
@@ -141,20 +142,20 @@ public class TeamStatisticsService {
      * @param month Month to get members for
      * @return List of team members, empty list if none found
      */
-    public List<TeamMember> getTeamMembers(String teamLeadUsername, int year, int month) {
+    public List<TeamMemberDTO> getTeamMembers(String teamLeadUsername, int year, int month) {
         try {
-            List<TeamMember> teamMembers = dataAccessService.readTeamMembers(teamLeadUsername, year, month);
+            List<TeamMemberDTO> teamMemberDTOS = dataAccessService.readTeamMembers(teamLeadUsername, year, month);
 
             // If no members found, return empty list instead of null
-            if (teamMembers == null) {
+            if (teamMemberDTOS == null) {
                 return new ArrayList<>();
             }
 
             LoggerUtil.info(this.getClass(),
                     String.format("Retrieved %d team members for team lead %s for period %d/%d",
-                            teamMembers.size(), teamLeadUsername, year, month));
+                            teamMemberDTOS.size(), teamLeadUsername, year, month));
 
-            return teamMembers;
+            return teamMemberDTOS;
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
@@ -164,7 +165,7 @@ public class TeamStatisticsService {
         }
     }
 
-    private void updateWorkTimeStats(TeamMember member, int year, int month) {
+    private void updateWorkTimeStats(TeamMemberDTO member, int year, int month) {
         List<WorkTimeTable> worktime = workTimeService.loadMonthWorktime(
                 member.getUsername(), year, month);
 
@@ -194,19 +195,19 @@ public class TeamStatisticsService {
                 .average();
 
         if (avgStartHour.isPresent() && avgStartMinute.isPresent()) {
-            member.getCurrentMonthWorkStats().setAverageStartTime(
+            member.getCurrentMonthWorkStatsDTO().setAverageStartTime(
                     LocalTime.of((int) avgStartHour.getAsDouble(),
                             (int) avgStartMinute.getAsDouble()));
         }
 
         if (avgEndHour.isPresent() && avgEndMinute.isPresent()) {
-            member.getCurrentMonthWorkStats().setAverageEndTime(
+            member.getCurrentMonthWorkStatsDTO().setAverageEndTime(
                     LocalTime.of((int) avgEndHour.getAsDouble(),
                             (int) avgEndMinute.getAsDouble()));
         }
     }
 
-    private void updateRegisterStats(TeamMember member, int year, int month) {
+    private void updateRegisterStats(TeamMemberDTO member, int year, int month) {
         List<RegisterEntry> entries = registerService.loadMonthEntries(
                 member.getUsername(), member.getUserId(), year, month);
 
@@ -215,15 +216,15 @@ public class TeamStatisticsService {
         }
 
         // Update month summary
-        MonthSummary monthSummary = calculateMonthSummary(entries);
-        member.getRegisterStats().setMonthSummary(monthSummary);
+        MonthSummaryDTO monthSummaryDTO = calculateMonthSummary(entries);
+        member.getRegisterStats().setMonthSummaryDTO(monthSummaryDTO);
 
         // Update client specific stats
-        Map<String, ClientDetailedStats> clientStats = calculateClientStats(entries);
+        Map<String, ClientDetailedStatsDTO> clientStats = calculateClientStats(entries);
         member.getRegisterStats().setClientSpecificStats(clientStats);
     }
 
-    private MonthSummary calculateMonthSummary(List<RegisterEntry> entries) {
+    private MonthSummaryDTO calculateMonthSummary(List<RegisterEntry> entries) {
         Set<String> uniqueClients = entries.stream()
                 .map(RegisterEntry::getClientName)
                 .collect(Collectors.toSet());
@@ -242,7 +243,7 @@ public class TeamStatisticsService {
                 .average()
                 .orElse(0.0);
 
-        return MonthSummary.builder()
+        return MonthSummaryDTO.builder()
                 .totalWorkDays(uniqueDays.size())
                 .processedOrders(entries.size())
                 .uniqueClients(uniqueClients.size())
@@ -251,7 +252,7 @@ public class TeamStatisticsService {
                 .build();
     }
 
-    private Map<String, ClientDetailedStats> calculateClientStats(List<RegisterEntry> entries) {
+    private Map<String, ClientDetailedStatsDTO> calculateClientStats(List<RegisterEntry> entries) {
         Map<String, List<RegisterEntry>> entriesByClient = entries.stream()
                 .collect(Collectors.groupingBy(RegisterEntry::getClientName));
 
@@ -262,7 +263,7 @@ public class TeamStatisticsService {
                 ));
     }
 
-    private ClientDetailedStats calculateClientDetailedStats(List<RegisterEntry> clientEntries) {
+    private ClientDetailedStatsDTO calculateClientDetailedStats(List<RegisterEntry> clientEntries) {
         // Calculate overall averages
         double avgComplexity = clientEntries.stream()
                 .mapToDouble(RegisterEntry::getGraphicComplexity)
@@ -275,12 +276,12 @@ public class TeamStatisticsService {
                 .orElse(0.0);
 
         // Calculate stats per action type
-        Map<String, ActionTypeStats> actionTypeStats = calculateActionTypeStats(clientEntries);
+        Map<String, ActionTypeStatsDTO> actionTypeStats = calculateActionTypeStats(clientEntries);
 
         // Calculate overall print prep type distribution
         Map<String, Integer> printPrepDist = calculatePrintPrepDistribution(clientEntries);
 
-        return ClientDetailedStats.builder()
+        return ClientDetailedStatsDTO.builder()
                 .totalOrders(clientEntries.size())
                 .averageComplexity(avgComplexity)
                 .averageArticleNumbers(avgArticles)
@@ -289,7 +290,7 @@ public class TeamStatisticsService {
                 .build();
     }
 
-    private Map<String, ActionTypeStats> calculateActionTypeStats(List<RegisterEntry> entries) {
+    private Map<String, ActionTypeStatsDTO> calculateActionTypeStats(List<RegisterEntry> entries) {
         Map<String, List<RegisterEntry>> entriesByActionType = entries.stream()
                 .collect(Collectors.groupingBy(RegisterEntry::getActionType));
 
@@ -298,7 +299,7 @@ public class TeamStatisticsService {
                         Map.Entry::getKey,
                         e -> {
                             List<RegisterEntry> actionTypeEntries = e.getValue();
-                            return ActionTypeStats.builder()
+                            return ActionTypeStatsDTO.builder()
                                     .count(actionTypeEntries.size())
                                     .averageComplexity(actionTypeEntries.stream()
                                             .mapToDouble(RegisterEntry::getGraphicComplexity)
@@ -324,7 +325,7 @@ public class TeamStatisticsService {
                 ));
     }
 
-    private void updateSessionDetails(TeamMember member) {
+    private void updateSessionDetails(TeamMemberDTO member) {
         WorkUsersSessionsStates session = dataAccessService.readNetworkSessionFile(
                 member.getUsername(), member.getUserId());
 
@@ -345,7 +346,7 @@ public class TeamStatisticsService {
                     "Original session status for " + member.getUsername() + ": " + originalStatus +
                             ", Normalized status: " + normalizedStatus);
 
-            member.setSessionDetails(SessionDetails.builder()
+            member.setSessionDetailsDTO(SessionDetailsDTO.builder()
                     .status(normalizedStatus)
                     .dayStartTime(session.getDayStartTime())
                     .dayEndTime(session.getDayEndTime())
@@ -353,7 +354,7 @@ public class TeamStatisticsService {
         }
     }
 
-    private void updateTimeOffList(TeamMember member, int year, int month) {
+    private void updateTimeOffList(TeamMemberDTO member, int year, int month) {
         // Load work time entries to get time off information
         List<WorkTimeTable> worktime = workTimeService.loadMonthWorktime(
                 member.getUsername(), year, month);
@@ -371,23 +372,23 @@ public class TeamStatisticsService {
                 ));
 
         // Create time off entries
-        List<TimeOffEntry> coEntries = createTimeOffEntries("CO", timeOffDays.get("CO"));
-        List<TimeOffEntry> cmEntries = createTimeOffEntries("CM", timeOffDays.get("CM"));
-        List<TimeOffEntry> snEntries = createTimeOffEntries("SN", timeOffDays.get("SN"));
+        List<TimeOffEntryDTO> coEntries = createTimeOffEntries("CO", timeOffDays.get("CO"));
+        List<TimeOffEntryDTO> cmEntries = createTimeOffEntries("CM", timeOffDays.get("CM"));
+        List<TimeOffEntryDTO> snEntries = createTimeOffEntries("SN", timeOffDays.get("SN"));
 
-        member.setTimeOffList(TimeOffList.builder()
+        member.setTimeOffListDTO(TimeOffListDTO.builder()
                 .timeOffCO(coEntries)
                 .timeOffCM(cmEntries)
                 .timeOffSN(snEntries)
                 .build());
     }
 
-    private List<TimeOffEntry> createTimeOffEntries(String type, List<LocalDate> days) {
+    private List<TimeOffEntryDTO> createTimeOffEntries(String type, List<LocalDate> days) {
         if (days == null || days.isEmpty()) {
             return new ArrayList<>();
         }
 
-        return List.of(TimeOffEntry.builder()
+        return List.of(TimeOffEntryDTO.builder()
                 .timeOffType(type)
                 .days(new ArrayList<>(days))
                 .build());

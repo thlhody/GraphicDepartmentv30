@@ -1,7 +1,7 @@
 package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.DialogComponents;
+import com.ctgraphdep.ui.DialogComponents;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
 import com.ctgraphdep.session.query.SessionStatusQuery;

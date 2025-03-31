@@ -4,6 +4,10 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
+import com.ctgraphdep.model.dto.UserStatusDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserRegisterExcelExporter;
@@ -334,7 +338,7 @@ public class StatusController extends BaseController {
                     user.getUsername(), user.getUserId(), selectedYear);
 
             // Calculate time off summary directly from tracker
-            TimeOffSummary summary = statusService.getTimeOffSummaryFromTracker(
+            TimeOffSummaryDTO summary = statusService.getTimeOffSummaryFromTracker(
                     user.getUsername(), user.getUserId(), selectedYear);
 
             // Add data to model

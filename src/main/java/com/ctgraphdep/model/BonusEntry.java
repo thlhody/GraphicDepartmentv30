@@ -1,6 +1,7 @@
 package com.ctgraphdep.model;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -51,7 +52,7 @@ public class BonusEntry {
     @JsonProperty("calculationDate")
     private String calculationDate;
 
-    public static BonusEntry fromBonusCalculationResult(String username, Integer employeeId, BonusCalculationResult result) {
+    public static BonusEntry fromBonusCalculationResult(String username, Integer employeeId, BonusCalculationResultDTO result) {
         return BonusEntry.builder()
                 .username(username)
                 .employeeId(employeeId)

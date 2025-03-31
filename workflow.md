@@ -3,14 +3,14 @@
 Here's a comprehensive multi-branch strategy based on my first response, breaking down the implementation of 
 the checking system into focused, manageable branches:
 
-## Branch 1: `feature/checking-roles-permissions`
+## Branch 1: `feature/checking-roles-permissions` **done**
 
 **Purpose:** Set up the foundation by implementing roles and permissions.
 
 **Files to modify:**
-- `PermissionConfiguration.java` - Add new checking-related permissions
-- `PermissionFilterService.java` - Add new permission constants
-- `SecurityConfig.java` - Update security configuration for new roles
+- `PermissionConfiguration.java` - Add new checking-related permissions **done**
+- `PermissionFilterService.java` - Add new permission constants **done**
+- `SecurityConfig.java` - Update security configuration for new roles **done**
 
 **Tasks:**
 - Add roles: `CHECKING`, `USER_CHECKING`, `TL_CHECKING`

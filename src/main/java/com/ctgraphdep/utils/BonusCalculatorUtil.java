@@ -1,6 +1,6 @@
 package com.ctgraphdep.utils;
 
-import com.ctgraphdep.model.BonusCalculationResult;
+import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 import com.ctgraphdep.model.BonusConfiguration;
 import org.springframework.stereotype.Component;
 
@@ -48,8 +48,8 @@ public class BonusCalculatorUtil {
     }
 
     //Calculates the complete bonus result using configuration
-    public BonusCalculationResult calculateBonus(int numberOfEntries, int workedDays, double sumArticleNumbers,
-                                                 double sumComplexity, BonusConfiguration config) {
+    public BonusCalculationResultDTO calculateBonus(int numberOfEntries, int workedDays, double sumArticleNumbers,
+                                                    double sumComplexity, BonusConfiguration config) {
         // Validate configuration
         if (config == null) {
             LoggerUtil.error(this.getClass(), "Bonus calculation failed: configuration is null");
@@ -96,7 +96,7 @@ public class BonusCalculatorUtil {
         double bonusAmount = bonusPercentage * config.getSumValue();
 
         // Build and return result
-        return BonusCalculationResult.builder()
+        return BonusCalculationResultDTO.builder()
                 .entries(numberOfEntries)
                 .articleNumbers(numberOfEntries > 0 ? sumArticleNumbers / numberOfEntries : 0)
                 .graphicComplexity(numberOfEntries > 0 ? sumComplexity / numberOfEntries : 0)
@@ -109,9 +109,9 @@ public class BonusCalculatorUtil {
     }
 
     // Helper method to create empty bonus result
-    private BonusCalculationResult createEmptyBonusResult(int entries, double articleNumbers,
-                                                          double graphicComplexity, double miscValue) {
-        return BonusCalculationResult.builder()
+    private BonusCalculationResultDTO createEmptyBonusResult(int entries, double articleNumbers,
+                                                             double graphicComplexity, double miscValue) {
+        return BonusCalculationResultDTO.builder()
                 .entries(entries)
                 .articleNumbers(articleNumbers)
                 .graphicComplexity(graphicComplexity)

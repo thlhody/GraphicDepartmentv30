@@ -2,6 +2,8 @@ package com.ctgraphdep.model;
 
 import java.time.LocalDateTime;
 import java.util.List;
+
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import lombok.Getter;
 import lombok.AllArgsConstructor;
 
@@ -10,7 +12,7 @@ import lombok.AllArgsConstructor;
 public class SessionCalculationResult {
     private final int scheduleDuration;
     private final LocalDateTime calculatedEndTime;
-    private final WorkTimeCalculationResult workTimeResult;
+    private final WorkTimeCalculationResultDTO workTimeResult;
     private final LocalDateTime originalStartTime;
     private final int originalTempStopCount;
     private final int originalTempStopMinutes;

@@ -4,7 +4,8 @@ import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.db.UserStatusRecord;
-import com.ctgraphdep.model.team.TeamMember;
+import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
+import com.ctgraphdep.model.dto.TeamMemberDTO;
 import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -340,14 +341,14 @@ public class DataAccessService {
     }
 
     // Single read method for holiday entries
-    public List<PaidHolidayEntry> readHolidayEntries() {
+    public List<PaidHolidayEntryDTO> readHolidayEntries() {
         Path networkPath = pathConfig.getNetworkHolidayPath();
         Path localCachePath = pathConfig.getHolidayCachePath();
 
         try {
             // Try network first
             if (pathConfig.isNetworkAvailable()) {
-                List<PaidHolidayEntry> networkEntries = readNetwork(networkPath, new TypeReference<>() {
+                List<PaidHolidayEntryDTO> networkEntries = readNetwork(networkPath, new TypeReference<>() {
 
                 });
                 if (networkEntries != null) {
@@ -358,7 +359,7 @@ public class DataAccessService {
             }
 
             // Fallback to cache if network unavailable or read failed
-            List<PaidHolidayEntry> cacheEntries = readLocal(localCachePath, new TypeReference<>() {
+            List<PaidHolidayEntryDTO> cacheEntries = readLocal(localCachePath, new TypeReference<>() {
             });
             return cacheEntries != null ? cacheEntries : new ArrayList<>();
 
@@ -369,7 +370,7 @@ public class DataAccessService {
     }
 
     // Single write method for holiday entries
-    public void writeHolidayEntries(List<PaidHolidayEntry> entries) {
+    public void writeHolidayEntries(List<PaidHolidayEntryDTO> entries) {
         Path networkPath = pathConfig.getNetworkHolidayPath();
         Path localCachePath = pathConfig.getHolidayCachePath();
         Path lockPath = pathConfig.getHolidayLockPath();
@@ -634,21 +635,21 @@ public class DataAccessService {
     }
 
     // Add new methods for team members operations
-    public List<TeamMember> readTeamMembers(String teamLeadUsername, int year, int month) {
+    public List<TeamMemberDTO> readTeamMembers(String teamLeadUsername, int year, int month) {
         try {
             Path teamPath = pathConfig.getTeamJsonPath(teamLeadUsername, year, month);
-            List<TeamMember> members = readLocal(teamPath, new TypeReference<>() {});
+            List<TeamMemberDTO> members = readLocal(teamPath, new TypeReference<>() {});
             return members != null ? members : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error reading team members for %s (%d/%d): %s", teamLeadUsername, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
-    public void writeTeamMembers(List<TeamMember> teamMembers, String teamLeadUsername, int year, int month) {
+    public void writeTeamMembers(List<TeamMemberDTO> teamMemberDTOS, String teamLeadUsername, int year, int month) {
         try {
             Path teamPath = pathConfig.getTeamJsonPath(teamLeadUsername, year, month);
-            writeLocal(teamPath, teamMembers);
-            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d team members for %s (%d/%d)", teamMembers.size(), teamLeadUsername, year, month));
+            writeLocal(teamPath, teamMemberDTOS);
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d team members for %s (%d/%d)", teamMemberDTOS.size(), teamLeadUsername, year, month));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error writing team members for %s (%d/%d): %s", teamLeadUsername, year, month, e.getMessage()));
             throw new RuntimeException("Failed to write team members", e);

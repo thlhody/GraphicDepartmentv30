@@ -1,8 +1,8 @@
 package com.ctgraphdep.utils;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.model.WorkTimeEntryDTO;
-import com.ctgraphdep.model.WorkTimeSummaryDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.model.User;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;

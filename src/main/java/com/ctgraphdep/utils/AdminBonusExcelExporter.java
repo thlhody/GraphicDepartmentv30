@@ -1,6 +1,6 @@
 package com.ctgraphdep.utils;
 
-import com.ctgraphdep.model.BonusEntryDTO;
+import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;

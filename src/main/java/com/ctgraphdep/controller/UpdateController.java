@@ -1,6 +1,6 @@
 package com.ctgraphdep.controller;
 
-import com.ctgraphdep.model.VersionInfo;
+import com.ctgraphdep.model.dto.VersionInfoDTO;
 import com.ctgraphdep.service.UpdateService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,8 +37,8 @@ public class UpdateController  {
     @GetMapping
     public String checkForUpdate(Model model) {
         try {
-            VersionInfo versionInfo = updateService.checkForUpdates();
-            model.addAttribute("versionInfo", versionInfo);
+            VersionInfoDTO versionInfoDTO = updateService.checkForUpdates();
+            model.addAttribute("versionInfoDTO", versionInfoDTO);
             model.addAttribute("currentVersion", currentVersion);
 
             return "update";
@@ -53,13 +53,13 @@ public class UpdateController  {
     @ResponseBody
     public ResponseEntity<Resource> downloadInstaller() {
         try {
-            VersionInfo versionInfo = updateService.checkForUpdates();
+            VersionInfoDTO versionInfoDTO = updateService.checkForUpdates();
 
-            if (!versionInfo.isUpdateAvailable() || versionInfo.getInstallerPath() == null) {
+            if (!versionInfoDTO.isUpdateAvailable() || versionInfoDTO.getInstallerPath() == null) {
                 return ResponseEntity.notFound().build();
             }
 
-            Path installerPath = Paths.get(versionInfo.getInstallerPath());
+            Path installerPath = Paths.get(versionInfoDTO.getInstallerPath());
             File file = installerPath.toFile();
 
             if (!file.exists()) {

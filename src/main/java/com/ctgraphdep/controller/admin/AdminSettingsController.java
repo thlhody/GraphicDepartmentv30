@@ -2,7 +2,7 @@ package com.ctgraphdep.controller.admin;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.PaidHolidayEntry;
+import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.service.UserManagementService;
 import com.ctgraphdep.service.HolidayManagementService;
 import com.ctgraphdep.model.FolderStatus;
@@ -54,7 +54,7 @@ public class AdminSettingsController extends BaseController {
         LoggerUtil.info(this.getClass(), "Accessing admin settings at " + getStandardCurrentDateTime());
 
         List<User> users = userManagementService.getNonAdminUsers();
-        List<PaidHolidayEntry> holidayEntries = holidayService.getHolidayList();
+        List<PaidHolidayEntryDTO> holidayEntries = holidayService.getHolidayList();
 
         model.addAttribute("users", users);
         model.addAttribute("holidayEntries", holidayEntries);
@@ -68,7 +68,7 @@ public class AdminSettingsController extends BaseController {
                         model.addAttribute("isNewUser", false);
 
                         // Get holiday entry for the user
-                        PaidHolidayEntry holidayEntry = holidayEntries.stream()
+                        PaidHolidayEntryDTO holidayEntry = holidayEntries.stream()
                                 .filter(entry -> entry.getUserId().equals(userId))
                                 .findFirst()
                                 .orElse(null);

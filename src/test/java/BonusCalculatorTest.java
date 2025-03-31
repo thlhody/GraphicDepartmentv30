@@ -1,6 +1,6 @@
 //
 //
-//import com.ctgraphdep.model.BonusCalculationResult;
+//import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 //import com.ctgraphdep.model.BonusConfiguration;
 //import com.ctgraphdep.utils.BonusCalculatorUtil;
 //import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@
 //        double sumComplexity =106.5;
 //
 //        // When
-//        BonusCalculationResult result = calculator.calculateBonus(
+//        BonusCalculationResultDTO result = calculator.calculateBonus(
 //                numberOfEntries,
 //                workedDays,
 //                sumArticleNumbers,
