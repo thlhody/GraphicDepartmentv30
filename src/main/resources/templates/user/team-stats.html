@@ -7,12 +7,15 @@
     <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
+
 <div layout:fragment="content">
     <div class="container py-4">
+
         <!-- Alert System -->
         <div class="mb-4">
             <div th:replace="~{alerts/alerts :: alerts}"></div>
         </div>
+
         <!-- Header Section - Like other pages -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
@@ -28,11 +31,13 @@
                 <i class="bi bi-grid me-2"></i>Dashboard
             </a>
         </div>
+
         <!-- Period Selection Card - Similar to register/worktime -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h5 class="card-title mb-0">Period Selection</h5>
             </div>
+
             <div class="card-body">
                 <form class="d-flex gap-3 align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -44,18 +49,19 @@
                             </option>
                         </select>
                     </div>
+
                     <div class="btn-group">
                         <a th:each="m : ${#numbers.sequence(1, 12)}"
                            th:href="@{/user/stats(year=${currentYear},month=${m})}"
                            th:text="${T(java.time.Month).of(m)}"
                            th:data-month="${m}"
-                           th:class="${'btn btn-outline-primary' + (m == currentMonth ? ' active' : '')}">
-                            Month
+                           th:class="${'btn btn-outline-primary' + (m == currentMonth ? ' active' : '')}">Month
                         </a>
                     </div>
                 </form>
             </div>
         </div>
+
         <!-- Team Members Selection Card -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
@@ -65,14 +71,14 @@
                 <div class="d-flex align-items-center gap-3">
                     <div class="flex-grow-1">
                         <label for="teamMemberSelect" class="form-label">Select Team Members:</label>
-                        <select id="teamMemberSelect" name="selectedUsers" multiple
-                                class="form-select select2-users" style="width: 100%;">
+                        <select id="teamMemberSelect" name="selectedUsers" multiple class="form-select select2-users" style="width: 100%;">
                             <option th:each="user : ${availableUsers}"
                                     th:value="${user.userId}"
                                     th:text="${user.name}">User Name
                             </option>
                         </select>
                     </div>
+
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary" onclick="initializeMembers()">
                             <i class="bi bi-plus-circle me-2"></i>Initialize
@@ -84,27 +90,28 @@
                 </div>
             </div>
         </div>
+
         <!-- Team Members Statistics -->
         <div th:if="${teamMemberDTOS != null and !teamMemberDTOS.empty}">
             <div th:each="member : ${teamMemberDTOS}" class="member-section">
+
                 <!-- Member Header -->
                 <div class="member-header">
                     <div class="d-flex align-items-center gap-3">
                         <h5 class="mb-0" th:text="${member.name ?: member.username}">Member Name</h5>
                         <div th:class="${'status-badge ' +
-                            (member.sessionDetails?.status == 'WORK_ONLINE' ? 'online' :
-                             member.sessionDetails?.status == 'WORK_TEMPORARY_STOP' ? 'break' : 'offline')}">
+                            (member.sessionDetailsDTO?.status == 'WORK_ONLINE' ? 'online' :
+                             member.sessionDetailsDTO?.status == 'WORK_TEMPORARY_STOP' ? 'break' : 'offline')}">
                             <span th:text="${
-                                member.sessionDetails?.status == 'WORK_ONLINE' ? 'Online' :
-                                member.sessionDetails?.status == 'WORK_TEMPORARY_STOP' ? 'Break' : 'Offline'}">
-                                Status
+                                member.sessionDetailsDTO?.status == 'WORK_ONLINE' ? 'Online' :
+                                member.sessionDetailsDTO?.status == 'WORK_TEMPORARY_STOP' ? 'Break' : 'Offline'}">Status
                             </span>
-                            <span class="ms-2" th:if="${member.sessionDetails?.dayStartTime != null}"
-                                  th:text="${'Since: ' + #temporals.format(member.sessionDetails.dayStartTime, 'HH:mm')}">
-                                Since: 00:00
+                            <span class="ms-2" th:if="${member.sessionDetailsDTO?.dayStartTime != null}"
+                                  th:text="${'Since: ' + #temporals.format(member.sessionDetailsDTO.dayStartTime, 'HH:mm')}">Since: 00:00
                             </span>
                         </div>
                     </div>
+
                     <div>
                         <button class="btn btn-sm btn-outline-primary" type="button"
                                 data-bs-toggle="collapse"
@@ -120,70 +127,70 @@
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Processed Orders</span>
-                                <span class="fw-bold"
-                                      th:text="${member.registerStats?.monthSummaryDTO?.processedOrders ?: 0}">0</span>
+                                <span class="fw-bold" th:text="${member.registerStats?.monthSummaryDTO?.processedOrders ?: 0}">0</span>
                             </div>
                         </div>
+
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Unique Clients</span>
-                                <span class="fw-bold"
-                                      th:text="${member.registerStats?.monthSummaryDTO?.uniqueClients ?: 0}">0</span>
+                                <span class="fw-bold" th:text="${member.registerStats?.monthSummaryDTO?.uniqueClients ?: 0}">0</span>
                             </div>
                         </div>
+
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Work Days</span>
-                                <span class="fw-bold"
-                                      th:text="${member.registerStats?.monthSummaryDTO?.totalWorkDays ?: 0}">0</span>
+                                <span class="fw-bold" th:text="${member.registerStats?.monthSummaryDTO?.totalWorkDays ?: 0}">0</span>
                             </div>
                         </div>
+
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg Complexity</span>
-                                <span class="fw-bold"
-                                      th:text="${#numbers.formatDecimal(member.registerStats?.monthSummaryDTO?.averageComplexity ?: 0, 1, 2)}">0.00</span>
+                                <span class="fw-bold" th:text="${#numbers.formatDecimal(member.registerStats?.monthSummaryDTO?.averageComplexity ?: 0, 1, 2)}">0.00</span>
                             </div>
                         </div>
+
                         <div class="col-md-4 col-lg-3">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg Articles</span>
-                                <span class="fw-bold"
-                                      th:text="${#numbers.formatDecimal(member.registerStats?.monthSummaryDTO?.averageArticleNumbers ?: 0, 1, 2)}">0.00</span>
+                                <span class="fw-bold" th:text="${#numbers.formatDecimal(member.registerStats?.monthSummaryDTO?.averageArticleNumbers ?: 0, 1, 2)}">0.00</span>
                             </div>
                         </div>
-                        <div class="col-md-4 col-lg-3"
-                             th:if="${member.currentMonthWorkStats?.averageStartTime != null}">
+
+                        <div class="col-md-4 col-lg-3" th:if="${member.currentMonthWorkStatsDTO?.averageStartTime != null}">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg Start Time</span>
-                                <span class="fw-bold"
-                                      th:text="${#temporals.format(member.currentMonthWorkStats.averageStartTime, 'HH:mm')}">00:00</span>
+                                <span class="fw-bold" th:text="${#temporals.format(member.currentMonthWorkStatsDTO.averageStartTime, 'HH:mm')}">00:00</span>
                             </div>
                         </div>
-                        <div class="col-md-4 col-lg-3" th:if="${member.currentMonthWorkStats?.averageEndTime != null}">
+
+                        <div class="col-md-4 col-lg-3" th:if="${member.currentMonthWorkStatsDTO?.averageEndTime != null}">
                             <div class="d-flex flex-column">
                                 <span class="text-muted mb-1">Avg End Time</span>
                                 <span class="fw-bold"
-                                      th:text="${#temporals.format(member.currentMonthWorkStats.averageEndTime, 'HH:mm')}">00:00</span>
+                                      th:text="${#temporals.format(member.currentMonthWorkStatsDTO.averageEndTime, 'HH:mm')}">00:00</span>
                             </div>
                         </div>
+
                         <!-- Time Off Types -->
                         <div class="col-12">
                             <div class="d-flex gap-3 mt-2">
                                 <span class="text-muted">Time Off Types:</span>
-                                <span th:if="${member.timeOffList?.timeOffCO != null && !member.timeOffList.timeOffCO.empty}"
+                                <span th:if="${member.timeOffListDTO?.timeOffCO != null && !member.timeOffListDTO.timeOffCO.empty}"
                                       class="badge bg-info me-2"
-                                      th:text="${'CO: ' + member.timeOffList.timeOffCO[0]?.days?.size() + ' days'}">CO: 2 days</span>
-                                <span th:if="${member.timeOffList?.timeOffCM != null && !member.timeOffList.timeOffCM.empty}"
+                                      th:text="${'CO: ' + member.timeOffListDTO.timeOffCO[0]?.days?.size() + ' days'}">CO: 2 days</span>
+                                <span th:if="${member.timeOffListDTO?.timeOffCM != null && !member.timeOffListDTO.timeOffCM.empty}"
                                       class="badge bg-danger me-2"
-                                      th:text="${'CM: ' + member.timeOffList.timeOffCM[0]?.days?.size() + ' days'}">CM: 1 day</span>
-                                <span th:if="${member.timeOffList?.timeOffSN != null && !member.timeOffList.timeOffSN.empty}"
+                                      th:text="${'CM: ' + member.timeOffListDTO.timeOffCM[0]?.days?.size() + ' days'}">CM: 1 day</span>
+                                <span th:if="${member.timeOffListDTO?.timeOffSN != null && !member.timeOffListDTO.timeOffSN.empty}"
                                       class="badge bg-warning me-2"
-                                      th:text="${'SN: ' + member.timeOffList.timeOffSN[0]?.days?.size() + ' days'}">SN: 1 day</span>
-                                <span th:if="${(member.timeOffList == null) ||
-                                             (member.timeOffList.timeOffCO == null || member.timeOffList.timeOffCO.empty) &&
-                                             (member.timeOffList.timeOffCM == null || member.timeOffList.timeOffCM.empty) &&
-                                             (member.timeOffList.timeOffSN == null || member.timeOffList.timeOffSN.empty)}"
+                                      th:text="${'SN: ' + member.timeOffListDTO.timeOffSN[0]?.days?.size() + ' days'}">SN: 1 day</span>
+                                <span th:if="${(member.timeOffListDTO == null) ||
+                                             (member.timeOffListDTO.timeOffCO == null || member.timeOffListDTO.timeOffCO.empty) &&
+                                             (member.timeOffListDTO.timeOffCM == null || member.timeOffListDTO.timeOffCM.empty) &&
+                                             (member.timeOffListDTO.timeOffSN == null || member.timeOffListDTO.timeOffSN.empty)}"
                                       class="text-muted">No time off</span>
                             </div>
                         </div>
@@ -208,11 +215,8 @@
                                 <tr th:each="entry : ${member.registerStats?.clientSpecificStats}">
                                     <td th:text="${entry.key}">Client Name</td>
                                     <td th:text="${entry.value.totalOrders}">0</td>
-                                    <td th:text="${#numbers.formatDecimal(entry.value.averageComplexity, 1, 2)}">0.00
-                                    </td>
-                                    <td th:text="${#numbers.formatDecimal(entry.value.averageArticleNumbers, 1, 2)}">
-                                        0.00
-                                    </td>
+                                    <td th:text="${#numbers.formatDecimal(entry.value.averageComplexity, 1, 2)}">0.00</td>
+                                    <td th:text="${#numbers.formatDecimal(entry.value.averageArticleNumbers, 1, 2)}">0.00</td>
                                     <td>
                                             <span th:each="actionStat : ${entry.value.actionTypeStats}"
                                                   th:class="${'badge me-1 ' +
@@ -238,6 +242,7 @@
                 </div>
             </div>
         </div>
+
         <!-- Empty State - Like register page -->
         <div th:if="${teamMemberDTOS == null or teamMemberDTOS.empty}" class="empty-state card shadow-sm">
             <div class="card-body text-center">
@@ -248,6 +253,7 @@
         </div>
     </div>
 </div>
+
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
     <script th:src="@{/js/team-stats.js?v=18781}"></script>
