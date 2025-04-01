@@ -176,4 +176,37 @@ public class UserRegisterService {
                 .max()
                 .orElse(0) + 1;
     }
+
+    public List<RegisterEntry> performFullRegisterSearch(String username, Integer userId, String query) {
+        // First, retrieve all entries
+        List<RegisterEntry> allEntries = dataAccessService.findRegisterFiles(username, userId);
+
+        // If no query, return all entries sorted by date
+        if (query == null || query.trim().isEmpty()) {
+            return allEntries.stream()
+                    .sorted(Comparator.comparing(RegisterEntry::getDate).reversed())
+                    .collect(Collectors.toList());
+        }
+
+        // Split query into search terms
+        String[] searchTerms = query.toLowerCase().split("\\s+");
+
+        // Filter entries
+        return allEntries.stream()
+                .filter(entry ->
+                        Arrays.stream(searchTerms).allMatch(term ->
+                                (entry.getOrderId() != null && entry.getOrderId().toLowerCase().contains(term)) ||
+                                        (entry.getProductionId() != null && entry.getProductionId().toLowerCase().contains(term)) ||
+                                        (entry.getOmsId() != null && entry.getOmsId().toLowerCase().contains(term)) ||
+                                        (entry.getClientName() != null && entry.getClientName().toLowerCase().contains(term)) ||
+                                        (entry.getActionType() != null && entry.getActionType().toLowerCase().contains(term)) ||
+                                        (entry.getPrintPrepTypes() != null &&
+                                                entry.getPrintPrepTypes().stream().anyMatch(type ->
+                                                        type.toLowerCase().contains(term))) ||
+                                        (entry.getObservations() != null && entry.getObservations().toLowerCase().contains(term))
+                        )
+                )
+                .sorted(Comparator.comparing(RegisterEntry::getDate).reversed())
+                .collect(Collectors.toList());
+    }
 }

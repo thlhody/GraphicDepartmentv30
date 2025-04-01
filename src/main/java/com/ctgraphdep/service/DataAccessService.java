@@ -19,9 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Stream;
@@ -95,7 +93,6 @@ public class DataAccessService {
             readLock.unlock();
         }
     }
-
     private <T> void writeFile(Path path, T data, boolean skipSerialization) {
         ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
         writeLock.lock();
@@ -134,7 +131,6 @@ public class DataAccessService {
         boolean skipSerialization = filename.equals("users.json") || filename.equals("local_users.json");
         return readFile(path, typeRef, skipSerialization);
     }
-
     private <T> void writeLocal(Path path, T data) {
         String filename = path.getFileName().toString();
         boolean skipSerialization = filename.equals("users.json") || filename.equals("local_users.json");
@@ -183,7 +179,6 @@ public class DataAccessService {
             return null; // Unreachable but helps with compiler
         }
     }
-
     private <T> void writeNetwork(Path path, T data) {
         if (!pathConfig.isNetworkAvailable()) {
             LoggerUtil.error(this.getClass(),"Network not available");
@@ -205,7 +200,6 @@ public class DataAccessService {
             fileSyncService.syncToNetwork(localPath, networkPath);
         }
     }
-
     public WorkUsersSessionsStates readLocalSessionFile(String username, Integer userId) {
         Path localPath = pathConfig.getLocalSessionPath(username, userId);
         return readLocal(localPath, new TypeReference<>() {
@@ -223,7 +217,6 @@ public class DataAccessService {
             return null;
         }
     }
-
     // Network User file - Network only
     public List<User> readUsersNetwork() {
         Path networkPath = pathConfig.getNetworkUsersPath();
@@ -257,7 +250,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     public void writeUsersNetwork(List<User> users) {
         Path networkPath = pathConfig.getNetworkUsersPath();
         Path lockPath = pathConfig.getUsersLockPath();
@@ -294,7 +286,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     public void writeLocalUsers(List<User> users) {
         Path localPath = pathConfig.getLocalUsersPath();
         Path lockPath = pathConfig.getUsersLockPath();
@@ -309,7 +300,6 @@ public class DataAccessService {
             releaseLock(lockPath);
         }
     }
-
     // Add this helper method for single user write
     public void writeLocalUsers(User user) {
         try {
@@ -368,7 +358,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     // Single write method for holiday entries
     public void writeHolidayEntries(List<PaidHolidayEntryDTO> entries) {
         Path networkPath = pathConfig.getNetworkHolidayPath();
@@ -405,7 +394,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     // Worktime file operations - Bidirectional sync - UserTimeOffService,
     public List<WorkTimeTable> readUserWorktime(String username, int year, int month) {
         try {
@@ -432,7 +420,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     public List<WorkTimeTable> readUserWorktime(String username, int year, int month, String operatingUsername) {
         try {
             // Verify username matches the operating user
@@ -448,7 +435,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     public void writeUserWorktime(String username, List<WorkTimeTable> entries, int year, int month) {
         // Get current user
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -467,7 +453,6 @@ public class DataAccessService {
             fileSyncService.syncToNetwork(localPath, networkPath);
         }
     }
-
     public void writeUserWorktime(String username, List<WorkTimeTable> entries, int year, int month, String operatingUsername) {
         try {
             // Verify the username matches the session file
@@ -499,7 +484,6 @@ public class DataAccessService {
             fileSyncService.syncToNetwork(localPath, networkPath);
         }
     }
-
     public List<RegisterEntry> readUserRegister(String username, Integer userId, int year, int month) {
         try {
             // Get current user from security context
@@ -529,7 +513,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     // Admin worktime operations - Bidirectional sync - for WorkTimeConsolidationService
     public void writeAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
         Path localPath = pathConfig.getLocalAdminWorktimePath(year, month);
@@ -540,7 +523,6 @@ public class DataAccessService {
             fileSyncService.syncToNetwork(localPath, networkPath);
         }
     }
-
     public List<WorkTimeTable> readLocalAdminWorktime(int year, int month) {
         Path localPath = pathConfig.getLocalAdminWorktimePath(year, month);
         try {
@@ -558,7 +540,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     // Admin worktime operations - Network only
     public List<WorkTimeTable> readNetworkAdminWorktime(int year, int month) {
         try {
@@ -586,13 +567,11 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     // Admin bonus operations - Local only for AdminBonusService
     public void writeAdminBonus(List<BonusEntry> entries, int year, int month) {
         Path localPath = pathConfig.getLocalBonusPath(year, month);
         writeLocal(localPath, entries);
     }
-
     public List<BonusEntry> readAdminBonus(int year, int month) {
         try {
             Path localPath = pathConfig.getLocalBonusPath(year, month);
@@ -610,6 +589,55 @@ public class DataAccessService {
         Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
         return readNetwork(networkPath, new TypeReference<>() {
         });
+    }
+    public List<RegisterEntry> findRegisterFiles(String username, Integer userId) {
+        List<RegisterEntry> allEntries = new ArrayList<>();
+
+        try {
+            // Determine the years and months to search
+            int currentYear = LocalDate.now().getYear();
+            int currentMonth = LocalDate.now().getMonthValue();
+
+            // Search previous 24 months (2 years)
+            for (int year = currentYear; year >= currentYear - 1; year--) {
+                for (int month = (year == currentYear ? currentMonth : 12); month >= 1; month--) {
+                    // Try network path first if available
+                    if (pathConfig.isNetworkAvailable()) {
+                        try {
+                            Path networkPath = pathConfig.getNetworkRegisterPath(username, userId, year, month);
+                            List<RegisterEntry> networkEntries = readNetwork(networkPath, new TypeReference<>() {});
+
+                            if (networkEntries != null) {
+                                allEntries.addAll(networkEntries);
+                            }
+                        } catch (Exception e) {
+                            LoggerUtil.warn(this.getClass(),
+                                    String.format("Error reading network register for %s (%d/%d): %s",
+                                            username, year, month, e.getMessage()));
+                        }
+                    }
+
+                    // Fallback to local path
+                    try {
+                        Path localPath = pathConfig.getLocalRegisterPath(username, userId, year, month);
+                        List<RegisterEntry> localEntries = readLocal(localPath, new TypeReference<>() {});
+
+                        if (localEntries != null) {
+                            allEntries.addAll(localEntries);
+                        }
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(),
+                                String.format("Error reading local register for %s (%d/%d): %s",
+                                        username, year, month, e.getMessage()));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error searching register files for %s: %s", username, e.getMessage()));
+        }
+
+        return allEntries;
     }
 
     public void writeLocalAdminRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {

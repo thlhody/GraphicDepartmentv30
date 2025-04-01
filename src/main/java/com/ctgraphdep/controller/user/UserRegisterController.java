@@ -7,6 +7,7 @@ import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
+import com.ctgraphdep.model.dto.RegisterSearchResultDTO;
 import com.ctgraphdep.service.UserRegisterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -29,6 +30,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/user/register")
@@ -308,6 +310,49 @@ public class UserRegisterController extends BaseController {
         }
 
         return "redirect:/user/register?year=" + year + "&month=" + month;
+    }
+
+    @GetMapping("/full-search")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<RegisterSearchResultDTO>> performFullRegisterSearch(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam() String query,
+            @RequestParam(required = false) Integer userId
+    ) {
+        try {
+            // Validate user access
+            User currentUser = getUser(userDetails);
+
+            // If no userId provided, use current user's ID
+            if (userId == null) {
+                userId = currentUser.getUserId();
+            }
+
+            // Validate access (user can only search their own or team members' entries)
+            if (!currentUser.getUserId().equals(userId) &&
+                    !currentUser.hasRole("ADMIN") &&
+                    !currentUser.hasRole("TEAM_LEADER")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            // Perform search
+            List<RegisterEntry> searchResults = userRegisterService.performFullRegisterSearch(
+                    currentUser.getUsername(),
+                    userId,
+                    query
+            );
+
+            // Convert to DTO
+            List<RegisterSearchResultDTO> dtoResults = searchResults.stream()
+                    .map(RegisterSearchResultDTO::new)
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.ok(dtoResults);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error performing full register search: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @GetMapping("/export")

@@ -10,7 +10,6 @@ import lombok.Getter;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 /**
@@ -66,7 +65,7 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             int fullDayDuration = calculateFullDayDuration(normalizedSchedule);
 
             // Calculate expected end time
-            LocalTime expectedEndTime = calculateExpectedEndTime(dateToUse, normalizedSchedule, isWeekend);
+            LocalTime expectedEndTime = calculateExpectedEndTime(normalizedSchedule, isWeekend);
 
             // Calculate lunch break info
             boolean includesLunchBreak = includesLunchBreak(normalizedSchedule);
@@ -133,7 +132,7 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
     /**
      * Calculates the expected end time based on schedule
      */
-    private LocalTime calculateExpectedEndTime(LocalDate date, int schedule, boolean isWeekend) {
+    private LocalTime calculateExpectedEndTime(int schedule, boolean isWeekend) {
         // Weekend special case (end at 1 PM)
         if (isWeekend) {
             return LocalTime.of(13, 0);
@@ -169,15 +168,8 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
         private final boolean includesLunchBreak;
         private final int lunchBreakDuration;
 
-        public ScheduleInfo(
-                LocalDate date,
-                boolean isWeekend,
-                int scheduleHours,
-                int scheduledMinutes,
-                int fullDayDuration,
-                LocalTime expectedEndTime,
-                boolean includesLunchBreak,
-                int lunchBreakDuration) {
+        public ScheduleInfo(LocalDate date, boolean isWeekend, int scheduleHours, int scheduledMinutes,
+                int fullDayDuration, LocalTime expectedEndTime, boolean includesLunchBreak, int lunchBreakDuration) {
             this.date = date;
             this.isWeekend = isWeekend;
             this.scheduleHours = scheduleHours;
@@ -188,31 +180,8 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             this.lunchBreakDuration = lunchBreakDuration;
         }
 
-        public boolean isWeekend() {
-            return isWeekend;
-        }
-
-        public boolean isWeekday() {
-            return !isWeekend;
-        }
-
-        public LocalDateTime getExpectedEndDateTime() {
-            return LocalDateTime.of(date, expectedEndTime);
-        }
-
-        public boolean includesLunchBreak() {
-            return includesLunchBreak;
-        }
-
         public boolean isStandardEightHourSchedule() {
             return scheduleHours == WorkCode.INTERVAL_HOURS_C;
-        }
-
-        /**
-         * Calculates the appropriate end time for resolving a session
-         */
-        public LocalDateTime getRecommendedEndTime() {
-            return LocalDateTime.of(date, expectedEndTime);
         }
 
         /**

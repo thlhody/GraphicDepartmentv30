@@ -236,7 +236,6 @@
                                 <exec executable="C:/Program Files (x86)/Inno Setup 6/ISCC.exe" failonerror="true">
                                     <!-- Override both the output directory and filename in case setup.iss is not synced -->
                                     <arg value="/O${project.build.directory}\installer-output"/>
-                                    <arg value="/FCTTT_Setup_6.6.9"/>
                                     <arg value="${project.basedir}/installer/setup.iss"/>
                                 </exec>
 
