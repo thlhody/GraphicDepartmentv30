@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Work Registry</title>
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=18799}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=18805}">
     <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
@@ -98,75 +98,17 @@
         <div id="searchModal" class="search-modal">
             <div class="search-modal-content">
                 <div class="search-input-container">
-                    <label for="searchInput" class="form-label visually-hidden">Search Entries</label>
+                    <label for="searchInput" class="visually-hidden">Search entries</label>
                     <input type="text" id="searchInput" class="form-control"
-                           placeholder="Search by Order ID or Client Name"
+                           placeholder="Search entries..."
                            aria-describedby="searchHelp">
-                    <small id="searchHelp" class="form-text text-muted visually-hidden">
-                        Search through register entries by Order ID or Client Name
-                    </small>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.unifiedSearchHandler.closeSearchModal()">
+                        <i class="bi bi-x"></i> Close
+                    </button>
+                    <!-- The toggle button will be added via JavaScript -->
                 </div>
                 <div class="search-results">
-                    <div class="search-result-header">
-                        <div>Date</div>
-                        <div>Order ID</div>
-                        <div>Prod ID</div>
-                        <div>OMS ID</div>
-                        <div>Client</div>
-                        <div>Action</div>
-                        <div>Mod</div>
-                    </div>
                     <div id="searchResultsContainer"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Full Search Modal -->
-        <div id="fullSearchModal" class="modal fade" tabindex="-1">
-            <div class="modal-dialog modal-xl">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Full Register Search</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="input-group mb-3">
-                            <label for="fullSearchInput"></label><input
-                                    type="text"
-                                    id="fullSearchInput"
-                                    class="form-control"
-                                    placeholder="Search across all register files..."
-                            >
-                            <button id="fullSearchButton" class="btn btn-primary">
-                                <i class="bi bi-search me-1"></i>Search
-                            </button>
-                        </div>
-                        <div id="fullSearchLoadingSpinner" class="text-center d-none">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                        <div id="fullSearchResultsContainer" class="table-responsive">
-                            <table class="table table-hover table-striped">
-                                <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Order ID</th>
-                                    <th>Prod ID</th>
-                                    <th>OMS ID</th>
-                                    <th>Client</th>
-                                    <th>Action</th>
-                                    <th>Print Types</th>
-                                    <th>Mod</th>
-                                </tr>
-                                </thead>
-                                <tbody id="fullSearchResultsBody"></tbody>
-                            </table>
-                        </div>
-                        <div id="fullSearchNoResults" class="text-center text-muted d-none">
-                            <p>No entries found matching your search.</p>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -238,7 +180,7 @@
                         </select>
                     </div>
 
-                    <div class="col-auto" style="width: 140px;">
+                    <div class="col-auto print-prep-container" style="width: 140px;">
                         <label for="printPrepTypeSelect" class="form-label">Print Prep Types*</label>
                         <select class="form-select form-select-sm select2-input"
                                 multiple
@@ -254,7 +196,7 @@
                     </div>
 
                     <div class="col-auto" style="width: 90px;">
-                        <label for="colorsInput" class="form-label">Colors*</label>
+                        <label for="colorsInput" class="form-label">Color*</label>
                         <input id="colorsInput" type="text" class="form-control form-control-sm" name="colorsProfile"
                                required
                                th:value="${param.form_colorsProfile != null ? param.form_colorsProfile[0] : ''}"
@@ -265,7 +207,7 @@
                     </div>
 
                     <div class="col-auto" style="width: 90px;">
-                        <label for="articlesInput" class="form-label">Articles*</label>
+                        <label for="articlesInput" class="form-label">Art.*</label>
                         <input id="articlesInput" type="number" class="form-control form-control-sm"
                                name="articleNumbers"
                                th:value="${param.form_articleNumbers != null ? param.form_articleNumbers[0] : ''}"
@@ -273,7 +215,7 @@
                     </div>
 
                     <div class="col-auto" style="width: 90px;">
-                        <label for="complexityInput" class="form-label">Complexity</label>
+                        <label for="complexityInput" class="form-label">CG</label>
                         <input id="complexityInput" type="number" class="form-control form-control-sm"
                                name="graphicComplexity"
                                th:value="${param.form_graphicComplexity != null ? param.form_graphicComplexity[0] : ''}"
@@ -457,7 +399,7 @@
 
         <!-- Page Scripts -->
         <th:block layout:fragment="scripts">
-            <script th:src="@{/js/register-user.js?v=18799}"></script>
+            <script th:src="@{/js/register-user.js?v=18805}"></script>
         </th:block>
     </div>
 </div>

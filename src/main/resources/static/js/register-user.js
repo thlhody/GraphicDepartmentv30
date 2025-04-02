@@ -49,19 +49,81 @@ class RegisterFormHandler {
         this.defaultUrl = '/user/register/entry';
     }
 
+
+    // Simplified and fixed Select2 initialization
     initializeForm() {
         if (!this.form) return;
 
-        // Initialize Select2 with simplified configuration
+        // Destroy any existing select2 instance
+        try {
+            $(this.printPrepSelect).select2('destroy');
+        } catch (e) {
+            // Ignore if not initialized
+        }
+
+        // Fixed, simplified configuration
         $(this.printPrepSelect).select2({
             theme: 'bootstrap-5',
             width: '100%',
-            placeholder: 'Select types',
+            placeholder: 'Select',
             multiple: true,
-            dropdownParent: $(this.printPrepSelect).parent(),
-            selectionCssClass: 'form-select-sm'
+            maximumSelectionLength: 10,
+            dropdownParent: $('body'),
+            minimumResultsForSearch: 5,
+
+            // Custom formatting of selection with first letters
+            templateSelection: (data, container) => {
+                // Get all selected items
+                const selectedItems = $(this.printPrepSelect).select2('data');
+
+                if (!selectedItems || selectedItems.length === 0) {
+                    return $('<span class="select2-placeholder">Select</span>');
+                }
+
+                if (selectedItems.length === 1) {
+                    // If only 1 item, show it normally but shortened if needed
+                    const text = data.text.length > 7 ? data.text.substring(0, 7) + '...' : data.text;
+                    return $(`<span class="select2-single-selection">${text}</span>`);
+                }
+
+                // For multiple selections, show first letters
+                const initials = selectedItems.map(item => item.text.charAt(0).toUpperCase()).join('');
+
+                // Limit to 7 characters plus counter
+                const displayInitials = initials.length > 7 ? initials.substring(0, 7) + '...' : initials;
+
+                return $(`<span class="select2-initials">${displayInitials} <span class="select2-selection__pill-count">${selectedItems.length}</span></span>`);
+            },
+
+            // Clean dropdown formatting
+            templateResult: (data) => {
+                if (!data.id) return data.text;
+                return $(`<span>${data.text}</span>`);
+            }
         });
 
+        // Make dropdowns appear correctly
+        $(document).on('select2:open', () => {
+            document.querySelector('.select2-search__field').focus();
+        });
+
+        // Fix dropdown positioning
+        $(this.printPrepSelect).on('select2:opening', function() {
+            $(this).closest('.print-prep-container').css('z-index', 1055);
+        });
+
+        $(this.printPrepSelect).on('select2:closing', function() {
+            setTimeout(() => {
+                $(this).closest('.print-prep-container').css('z-index', '');
+            }, 100);
+        });
+
+        // Prevent click propagation on selections
+        $(document).on('click', '.select2-selection__choice__remove', function(e) {
+            e.stopPropagation();
+        });
+
+        // Setup other event listeners
         this.setupEventListeners();
         this.initializeDefaultValues();
     }
@@ -140,6 +202,18 @@ class RegisterFormHandler {
     }
 
     setupEventListeners() {
+
+        // Add hover effect to show all selected items
+        $(this.printPrepSelect).on('mouseenter', '.select2-selection__rendered', (e) => {
+            const selectedItems = $(this.printPrepSelect).select2('data');
+            if (selectedItems.length > 1) {
+                // Create tooltip content
+                const tooltipContent = selectedItems.map(item => item.text).join(', ');
+
+                // You could use Bootstrap's tooltip or a simple title attribute
+                $(e.currentTarget).attr('title', tooltipContent);
+            }
+        });
         // Form submission
         this.form.addEventListener('submit', (e) => this.handleSubmit(e));
 
@@ -653,15 +727,32 @@ class RegisterSummaryHandler {
         }
     }
 }
-
-class RegisterSearchHandler {
-
+// Full and Basic Search
+class UnifiedSearchHandler {
     constructor() {
-        this.modal = document.getElementById('searchModal');
+        // Initialize modal elements
+        this.searchModal = document.getElementById('searchModal');
         this.searchInput = document.getElementById('searchInput');
         this.resultsContainer = document.getElementById('searchResultsContainer');
-        this.searchModalTrigger = document.getElementById('searchModalTrigger');
-        this.allEntries = this.extractEntriesFromTable();
+        this.searchButton = document.getElementById('searchModalTrigger');
+
+        // Initialize loading indicator
+        this.loadingIndicator = document.createElement('div');
+        this.loadingIndicator.className = 'search-loading-indicator';
+        this.loadingIndicator.innerHTML = `
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        `;
+
+        // Flag to track search mode
+        this.isFullSearchMode = false;
+        this.localSearchTimeoutId = null;
+
+        // Extract entries from table for local search
+        this.localEntries = this.extractEntriesFromTable();
+
+        // Set up event listeners
         this.setupEventListeners();
     }
 
@@ -675,17 +766,17 @@ class RegisterSearchHandler {
             if (cells.length < 10) return;
 
             const entry = {
-                date: cells[1].textContent.trim(),
-                orderId: cells[2].textContent.trim(),
-                productionId: cells[3].textContent.trim(),
-                omsId: cells[4].textContent.trim(),
-                clientName: cells[5].textContent.trim(),
-                actionType: cells[6].textContent.trim(),
-                printPrepTypes: cells[7].textContent.trim(),
-                colorsProfile: cells[8].textContent.trim(),
-                articleNumbers: cells[9].textContent.trim(),
-                graphicComplexity: cells[10].textContent.trim(),
-                observations: cells[11].textContent.trim(),
+                date: cells[1]?.textContent.trim(),
+                orderId: cells[2]?.textContent.trim(),
+                productionId: cells[3]?.textContent.trim(),
+                omsId: cells[4]?.textContent.trim(),
+                clientName: cells[5]?.textContent.trim(),
+                actionType: cells[6]?.textContent.trim(),
+                printPrepTypes: cells[7]?.textContent.trim(),
+                colorsProfile: cells[8]?.textContent.trim(),
+                articleNumbers: cells[9]?.textContent.trim(),
+                graphicComplexity: cells[10]?.textContent.trim(),
+                observations: cells[11]?.textContent.trim(),
                 entryId: row.querySelector('.copy-entry')?.getAttribute('data-entry-id'),
                 rawRow: row
             };
@@ -707,27 +798,52 @@ class RegisterSearchHandler {
             }
         });
 
-        // Search input listener
-        this.searchInput.addEventListener('input', () => this.performSearch());
+        // Search input listener with debounce
+        this.searchInput.addEventListener('input', () => {
+            clearTimeout(this.localSearchTimeoutId);
+            this.localSearchTimeoutId = setTimeout(() => this.performSearch(), 250);
+        });
 
         // Close modal when clicking outside
-        this.modal.addEventListener('click', (e) => {
-            if (e.target === this.modal) {
+        this.searchModal.addEventListener('click', (e) => {
+            if (e.target === this.searchModal) {
                 this.closeSearchModal();
             }
         });
 
         // Add search modal trigger button event listener
-        if (this.searchModalTrigger) {
-            this.searchModalTrigger.addEventListener('click', () => {
+        if (this.searchButton) {
+            this.searchButton.addEventListener('click', () => {
                 this.openSearchModal();
             });
         }
+
+        // Toggle mode button
+        const modeToggle = document.createElement('button');
+        modeToggle.id = 'searchModeToggle';
+        modeToggle.className = 'btn btn-sm btn-outline-secondary ms-2';
+        modeToggle.innerHTML = 'Full Search Mode: OFF';
+        this.searchModal.querySelector('.search-input-container').appendChild(modeToggle);
+
+        modeToggle.addEventListener('click', () => {
+            this.isFullSearchMode = !this.isFullSearchMode;
+            modeToggle.innerHTML = `Full Search Mode: ${this.isFullSearchMode ? 'ON' : 'OFF'}`;
+
+            // Update placeholder text based on mode
+            if (this.isFullSearchMode) {
+                this.searchInput.placeholder = 'Search across all register files (backend search)...';
+            } else {
+                this.searchInput.placeholder = 'Search current page entries (client-side)...';
+            }
+
+            // Clear previous results and perform search with new mode
+            this.performSearch();
+        });
     }
 
     openSearchModal() {
         // Show modal
-        this.modal.classList.add('show');
+        this.searchModal.classList.add('show');
         // Focus search input
         this.searchInput.focus();
         // Clear previous search results
@@ -737,41 +853,82 @@ class RegisterSearchHandler {
     }
 
     closeSearchModal() {
-        this.modal.classList.remove('show');
+        this.searchModal.classList.remove('show');
         this.searchInput.value = '';
         this.resultsContainer.innerHTML = '';
     }
 
-    performSearch() {
-        const query = this.searchInput.value.trim().toLowerCase();
+    async performSearch() {
+        const query = this.searchInput.value.trim();
 
-        // If query is empty, clear results
+        // Clear results container
+        this.resultsContainer.innerHTML = '';
+
+        // If query is empty, exit early
+        if (!query) {
+            return;
+        }
+
+        // Show loading indicator
+        this.resultsContainer.appendChild(this.loadingIndicator);
+
+        if (this.isFullSearchMode) {
+            // Perform backend search
+            await this.performFullSearch(query);
+        } else {
+            // Perform local search
+            this.performLocalSearch(query);
+        }
+    }
+
+    // Create a consistent header for both search types
+    createResultsHeader() {
+        const header = document.createElement('div');
+        header.className = 'search-result-header';
+        header.innerHTML = `
+            <div>Date</div>
+            <div>Order ID</div>
+            <div>Prod ID</div>
+            <div>OMS ID</div>
+            <div>Client</div>
+            <div>Action</div>
+            <div>Print Types</div>
+            <div>Mod</div>
+        `;
+        return header;
+    }
+
+    performLocalSearch(query) {
+        // Remove loading indicator
+        this.loadingIndicator.remove();
+
+        // If query is empty, exit early
         if (!query) {
             this.resultsContainer.innerHTML = '';
             return;
         }
 
-        // Split query into search terms
-        const searchTerms = query.split(/\s+/).filter(term => term.length > 0);
+        // Convert query to lowercase and split into search terms
+        const searchTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 0);
 
         // Filter entries based on search terms
-        const matchingEntries = this.allEntries.filter(entry => {
-            // Check if ALL search terms match
+        const matchingEntries = this.localEntries.filter(entry => {
+            // Check if ALL search terms match at least one field
             return searchTerms.every(term =>
-            entry.orderId.toLowerCase().includes(term) ||
-            entry.productionId.toLowerCase().includes(term) ||
-            entry.omsId.toLowerCase().includes(term) ||
-            entry.clientName.toLowerCase().includes(term) ||
-            entry.actionType.toLowerCase().includes(term) ||
-            entry.printPrepTypes.toLowerCase().includes(term)
+            (entry.orderId && entry.orderId.toLowerCase().includes(term)) ||
+            (entry.productionId && entry.productionId.toLowerCase().includes(term)) ||
+            (entry.omsId && entry.omsId.toLowerCase().includes(term)) ||
+            (entry.clientName && entry.clientName.toLowerCase().includes(term)) ||
+            (entry.actionType && entry.actionType.toLowerCase().includes(term)) ||
+            (entry.printPrepTypes && entry.printPrepTypes.toLowerCase().includes(term)) ||
+            (entry.observations && entry.observations.toLowerCase().includes(term))
             );
         });
 
-        // Display results
-        this.displaySearchResults(matchingEntries);
+        this.displayLocalSearchResults(matchingEntries);
     }
 
-    displaySearchResults(entries) {
+    displayLocalSearchResults(entries) {
         // Clear previous results
         this.resultsContainer.innerHTML = '';
 
@@ -785,23 +942,31 @@ class RegisterSearchHandler {
             return;
         }
 
+        // Create header for search results - using the consistent header
+        this.resultsContainer.appendChild(this.createResultsHeader());
+
         // Render results
         entries.forEach(entry => {
             const resultRow = document.createElement('div');
-            resultRow.classList.add('search-result-row');
+            resultRow.className = 'search-result-row';
             resultRow.innerHTML = `
                 <div>${entry.date}</div>
                 <div>${entry.orderId}</div>
-                <div>${entry.productionId}</div>
+                <div>${entry.productionId || ''}</div>
                 <div>${entry.omsId}</div>
                 <div>${entry.clientName}</div>
-                <div>${entry.actionType}</div>
+                <div>
+                    <span class="badge ${this.getActionTypeBadgeClass(entry.actionType)}">
+                        ${entry.actionType || ''}
+                    </span>
+                </div>
+                <div>${entry.printPrepTypes || ''}</div>
                 <div>
                     <button class="btn btn-sm btn-outline-secondary copy-search-entry"
                         data-entry-id="${entry.entryId}"
                         data-date="${entry.date}"
                         data-order-id="${entry.orderId}"
-                        data-production-id="${entry.productionId}"
+                        data-production-id="${entry.productionId || ''}"
                         data-oms-id="${entry.omsId}"
                         data-client-name="${entry.clientName}"
                         data-action-type="${entry.actionType}"
@@ -809,7 +974,7 @@ class RegisterSearchHandler {
                         data-colors-profile="${entry.colorsProfile}"
                         data-article-numbers="${entry.articleNumbers}"
                         data-graphic-complexity="${entry.graphicComplexity}"
-                        data-observations="${entry.observations}">
+                        data-observations="${entry.observations || ''}">
                         <i class="bi bi-copy"></i> Copy
                     </button>
                 </div>
@@ -825,131 +990,8 @@ class RegisterSearchHandler {
             this.resultsContainer.appendChild(resultRow);
         });
     }
-}
 
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.placeholder = 'Search: Orbea, ORDIN, 1234, CVEX';
-    }
-});
-
-// Updated FullRegisterSearchHandler to use backend search
-class FullRegisterSearchHandler {
-
-    constructor() {
-        this.fullSearchModal = this.createFullSearchModal();
-        this.setupEventListeners();
-    }
-
-    createFullSearchModal() {
-        const modal = document.createElement('div');
-        modal.id = 'fullSearchModal';
-        modal.className = 'modal fade';
-        modal.innerHTML = `
-            <div class="modal-dialog modal-xl">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Full Register Search</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="input-group mb-3">
-                            <input
-                                type="text"
-                                id="fullSearchInput"
-                                class="form-control"
-                                placeholder="Search across register files..."
-                            >
-                            <button id="fullSearchButton" class="btn btn-primary">
-                                <i class="bi bi-search me-1"></i>Search
-                            </button>
-                        </div>
-                        <div id="fullSearchLoadingSpinner" class="text-center d-none">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                        <div id="fullSearchResultsContainer" class="table-responsive">
-                            <table class="table table-hover table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Order ID</th>
-                                        <th>Prod ID</th>
-                                        <th>OMS ID</th>
-                                        <th>Client</th>
-                                        <th>Action</th>
-                                        <th>Print Types</th>
-                                        <th>Mod</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="fullSearchResultsBody"></tbody>
-                            </table>
-                        </div>
-                        <div id="fullSearchNoResults" class="text-center text-muted d-none">
-                            <p>No entries found matching your search.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        return modal;
-    }
-
-    setupEventListeners() {
-        // Reuse existing full search modal trigger logic
-        const existingSearchModalTrigger = document.getElementById('searchModalTrigger');
-        if (existingSearchModalTrigger) {
-            const fullSearchTrigger = existingSearchModalTrigger.cloneNode(true);
-            fullSearchTrigger.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i>Full Search';
-            fullSearchTrigger.id = 'fullSearchModalTrigger';
-            fullSearchTrigger.addEventListener('click', () => this.openFullSearchModal());
-            existingSearchModalTrigger.parentNode.insertBefore(fullSearchTrigger, existingSearchModalTrigger.nextSibling);
-        }
-
-        // Attach event listeners in the modal
-        const searchInput = this.fullSearchModal.querySelector('#fullSearchInput');
-        const searchButton = this.fullSearchModal.querySelector('#fullSearchButton');
-        const loadingSpinner = this.fullSearchModal.querySelector('#fullSearchLoadingSpinner');
-        const resultsBody = this.fullSearchModal.querySelector('#fullSearchResultsBody');
-        const noResultsMessage = this.fullSearchModal.querySelector('#fullSearchNoResults');
-
-        // Search on button click
-        searchButton.addEventListener('click', () => this.performFullSearch());
-
-        // Search on Enter key
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.performFullSearch();
-            }
-        });
-    }
-
-    openFullSearchModal() {
-        // Use Bootstrap modal method
-        const modalInstance = new bootstrap.Modal(this.fullSearchModal);
-        modalInstance.show();
-    }
-
-    async performFullSearch() {
-        const searchInput = this.fullSearchModal.querySelector('#fullSearchInput');
-        const resultsBody = this.fullSearchModal.querySelector('#fullSearchResultsBody');
-        const loadingSpinner = this.fullSearchModal.querySelector('#fullSearchLoadingSpinner');
-        const noResultsMessage = this.fullSearchModal.querySelector('#fullSearchNoResults');
-        const query = searchInput.value.trim();
-
-        // Reset previous state
-        resultsBody.innerHTML = '';
-        loadingSpinner.classList.remove('d-none');
-        noResultsMessage.classList.add('d-none');
-
-        if (!query) {
-            this.showNoResults('Please enter a search term');
-            return;
-        }
-
+    async performFullSearch(query) {
         try {
             // Fetch search results from backend
             const response = await fetch(`/user/register/full-search?query=${encodeURIComponent(query)}`, {
@@ -958,75 +1000,83 @@ class FullRegisterSearchHandler {
                 }
             });
 
+            // Remove loading indicator
+            this.loadingIndicator.remove();
+
             if (!response.ok) {
                 throw new Error('Search failed');
             }
 
             const results = await response.json();
 
-            // Hide loading spinner
-            loadingSpinner.classList.add('d-none');
-
             // Check if no results
             if (results.length === 0) {
-                this.showNoResults('No entries found matching your search');
+                this.resultsContainer.innerHTML = `
+                    <div class="p-3 text-center text-muted">
+                        No entries found matching your search.
+                    </div>
+                `;
                 return;
             }
 
+            // Create header for search results - using the consistent header
+            this.resultsContainer.appendChild(this.createResultsHeader());
+
             // Render results
             results.forEach(entry => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${new Date(entry.date).toLocaleDateString()}</td>
-                    <td>${entry.orderId || ''}</td>
-                    <td>${entry.productionId || ''}</td>
-                    <td>${entry.omsId || ''}</td>
-                    <td>${entry.clientName || ''}</td>
-                    <td>
+                const resultRow = document.createElement('div');
+                resultRow.className = 'search-result-row full-search-result';
+
+                // Format date for display
+                const entryDate = entry.date ? new Date(entry.date).toLocaleDateString() : '';
+
+                resultRow.innerHTML = `
+                    <div>${entryDate}</div>
+                    <div>${entry.orderId || ''}</div>
+                    <div>${entry.productionId || ''}</div>
+                    <div>${entry.omsId || ''}</div>
+                    <div>${entry.clientName || ''}</div>
+                    <div>
                         <span class="badge ${this.getActionTypeBadgeClass(entry.actionType)}">
                             ${entry.actionType || ''}
                         </span>
-                    </td>
-                    <td>${entry.printPrepTypes ? entry.printPrepTypes.join(', ') : ''}</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary copy-search-entry"
-                            data-entry-json='${JSON.stringify(entry)}'>
-                            <i class="bi bi-copy me-1"></i>Copy
+                    </div>
+                    <div>${entry.printPrepTypes ? entry.printPrepTypes.join(', ') : ''}</div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary copy-search-entry">
+                            <i class="bi bi-copy"></i> Copy
                         </button>
-                    </td>
+                    </div>
                 `;
 
                 // Add copy functionality
-                const copyButton = row.querySelector('.copy-search-entry');
+                const copyButton = resultRow.querySelector('.copy-search-entry');
                 copyButton.addEventListener('click', (e) => {
                     e.preventDefault();
-                    const entryData = JSON.parse(copyButton.getAttribute('data-entry-json'));
-                    this.copyEntryToMainForm(entryData);
+                    this.copyEntryToMainForm(entry);
+                    this.closeSearchModal();
                 });
 
-                resultsBody.appendChild(row);
+                this.resultsContainer.appendChild(resultRow);
             });
 
         } catch (error) {
+            // Remove loading indicator
+            this.loadingIndicator.remove();
+
             console.error('Full search error:', error);
-            this.showNoResults('Error performing search');
+            this.resultsContainer.innerHTML = `
+                <div class="p-3 text-center text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Error performing search: ${error.message}
+                </div>
+            `;
         }
     }
 
-    showNoResults(message) {
-        const loadingSpinner = this.fullSearchModal.querySelector('#fullSearchLoadingSpinner');
-        const resultsBody = this.fullSearchModal.querySelector('#fullSearchResultsBody');
-        const noResultsMessage = this.fullSearchModal.querySelector('#fullSearchNoResults');
-
-        loadingSpinner.classList.add('d-none');
-        resultsBody.innerHTML = '';
-
-        const noResultsContainer = this.fullSearchModal.querySelector('#fullSearchNoResults');
-        noResultsContainer.querySelector('p').textContent = message;
-        noResultsContainer.classList.remove('d-none');
-    }
-
     getActionTypeBadgeClass(actionType) {
+        if (!actionType) return 'bg-other';
+
         // Reuse existing badge classes from register-user.css
         const badgeClasses = {
             'ORDIN': 'bg-order',
@@ -1037,10 +1087,9 @@ class FullRegisterSearchHandler {
             'IMPOSTARE': 'bg-layout',
             'ORDIN SPIZED': 'bg-spized',
             'CAMPION SPIZED': 'bg-spized',
-            'PROBA S SPIZED': 'bg-spized',
-            'DEFAULT': 'bg-other'
+            'PROBA S SPIZED': 'bg-spized'
         };
-        return badgeClasses[actionType] || badgeClasses['DEFAULT'];
+        return badgeClasses[actionType] || 'bg-other';
     }
 
     copyEntryToMainForm(entry) {
@@ -1048,26 +1097,32 @@ class FullRegisterSearchHandler {
         if (window.registerFormHandler && window.registerFormHandler.copyEntry) {
             // Create a temporary button with entry data
             const tempButton = document.createElement('button');
-            tempButton.setAttribute('data-date', entry.date);
-            tempButton.setAttribute('data-order-id', entry.orderId);
+
+            // Format date if needed
+            let dateStr = entry.date;
+            if (typeof entry.date === 'string' && entry.date.includes('T')) {
+                // If date contains time part, convert to YYYY-MM-DD
+                dateStr = entry.date.split('T')[0];
+            } else if (entry.date instanceof Date) {
+                // If it's a Date object, convert to YYYY-MM-DD
+                dateStr = entry.date.toISOString().split('T')[0];
+            }
+
+            tempButton.setAttribute('data-date', dateStr);
+            tempButton.setAttribute('data-order-id', entry.orderId || '');
             tempButton.setAttribute('data-production-id', entry.productionId || '');
-            tempButton.setAttribute('data-oms-id', entry.omsId);
-            tempButton.setAttribute('data-client-name', entry.clientName);
-            tempButton.setAttribute('data-action-type', entry.actionType);
-            tempButton.setAttribute('data-print-prep-types', entry.printPrepTypes.join(', '));
-            tempButton.setAttribute('data-colors-profile', entry.colorsProfile);
-            tempButton.setAttribute('data-article-numbers', entry.articleNumbers);
-            tempButton.setAttribute('data-graphic-complexity', entry.graphicComplexity);
+            tempButton.setAttribute('data-oms-id', entry.omsId || '');
+            tempButton.setAttribute('data-client-name', entry.clientName || '');
+            tempButton.setAttribute('data-action-type', entry.actionType || '');
+            tempButton.setAttribute('data-print-prep-types',
+                Array.isArray(entry.printPrepTypes) ? entry.printPrepTypes.join(', ') : entry.printPrepTypes || '');
+            tempButton.setAttribute('data-colors-profile', entry.colorsProfile || '');
+            tempButton.setAttribute('data-article-numbers', entry.articleNumbers || '1');
+            tempButton.setAttribute('data-graphic-complexity', entry.graphicComplexity || '');
             tempButton.setAttribute('data-observations', entry.observations || '');
 
             // Call copyEntry with the temp button
             window.registerFormHandler.copyEntry(tempButton);
-
-            // Close the full search modal
-            const modalInstance = bootstrap.Modal.getInstance(this.fullSearchModal);
-            if (modalInstance) {
-                modalInstance.hide();
-            }
         }
     }
 }
@@ -1139,6 +1194,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.registerFormHandler = new RegisterFormHandler();
     window.registerSummaryHandler = new RegisterSummaryHandler();
-    window.registerSearchHandler = new RegisterSearchHandler();
-    window.fullRegisterSearchHandler = new FullRegisterSearchHandler();
+    window.unifiedSearchHandler = new UnifiedSearchHandler();
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.placeholder = 'Search current page entries (client-side)...';
+    }
 });
