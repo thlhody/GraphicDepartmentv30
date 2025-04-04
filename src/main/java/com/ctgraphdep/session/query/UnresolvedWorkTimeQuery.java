@@ -15,28 +15,25 @@ import java.util.stream.Collectors;
 
 public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>> {
     private final String username;
-    private final Integer userId;
 
-    public UnresolvedWorkTimeQuery(String username, Integer userId) {
+    public UnresolvedWorkTimeQuery(String username) {
         this.username = username;
-        this.userId = userId;
     }
 
     @Override
     public List<WorkTimeTable> execute(SessionContext context) {
         try {
-            LocalDate today = LocalDate.now();
-            List<WorkTimeTable> unresolvedEntries = new ArrayList<>();
-
             // Get standardized time values using the new validation system
             GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
-            // Only check current month and previous month (for entries from the end of previous month)
-            LocalDate currentMonth = timeValues.getCurrentDate();
-            LocalDate previousMonth = today.minusMonths(1);
+
+            LocalDate currentDate = timeValues.getCurrentDate();
+            LocalDate previousMonth = currentDate.minusMonths(1);
+
+            List<WorkTimeTable> unresolvedEntries = new ArrayList<>();
 
             // Load current month entries
-            List<WorkTimeTable> currentMonthEntries = context.getWorkTimeService().loadUserEntries(username, currentMonth.getYear(), currentMonth.getMonthValue(), username);
+            List<WorkTimeTable> currentMonthEntries = context.getWorkTimeService().loadUserEntries(username, currentDate.getYear(), currentDate.getMonthValue(), username);
 
             if (currentMonthEntries != null) {
                 unresolvedEntries.addAll(currentMonthEntries);
@@ -52,7 +49,8 @@ public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>
             // Filter for unresolved entries (USER_IN_PROCESS status from before today)
             List<WorkTimeTable> result = unresolvedEntries.stream()
                     .filter(entry -> entry.getAdminSync() == SyncStatusWorktime.USER_IN_PROCESS)
-                    .filter(entry -> entry.getWorkDate() != null && entry.getWorkDate().isBefore(today))
+                    .filter(entry -> entry.getWorkDate() != null && entry.getWorkDate().isBefore(currentDate))
+                    .filter(entry -> entry.getTimeOffType() == null)
                     .filter(entry -> entry.getDayStartTime() != null && entry.getDayEndTime() == null)
                     .sorted(Comparator.comparing(WorkTimeTable::getWorkDate).reversed())
                     .collect(Collectors.toList());

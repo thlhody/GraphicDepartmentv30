@@ -41,7 +41,7 @@ public class SessionStatusQuery extends BaseUserSessionQuery<SessionStatusQuery.
             LocalDate today = timeValues.getCurrentDate();
 
             // Check for unresolved worktime entries
-            UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username, userId);
+            UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username);
             var unresolvedEntries = ctx.executeQuery(unresolvedQuery);
 
             // Log session status details

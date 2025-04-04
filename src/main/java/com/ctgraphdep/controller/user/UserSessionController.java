@@ -101,7 +101,7 @@ public class UserSessionController extends BaseController {
             // Check for unresolved work time entries
             if (!skipResolutionCheck) {
                 // Use the UnresolvedWorkTimeQuery to check for entries that need resolution
-                UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(user.getUsername(), user.getUserId());
+                UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(user.getUsername());
                 unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
                 if (!unresolvedEntries.isEmpty()) {
@@ -172,7 +172,7 @@ public class UserSessionController extends BaseController {
             Integer userId = user.getUserId();
 
             // Check for unresolved work time entries
-            UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username, userId);
+            UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username);
             List<WorkTimeTable> unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
             if (!unresolvedEntries.isEmpty()) {

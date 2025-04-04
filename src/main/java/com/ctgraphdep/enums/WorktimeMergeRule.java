@@ -9,6 +9,16 @@ import java.util.function.BiPredicate;
 import java.util.function.BiFunction;
 
 public enum WorktimeMergeRule {
+
+    USER_INPUT_PRIORITY((user, admin) ->
+            user != null && SyncStatusWorktime.USER_INPUT.equals(user.getAdminSync()) &&
+                    admin != null && SyncStatusWorktime.USER_IN_PROCESS.equals(admin.getAdminSync()),
+            (user, admin) -> {
+                // Always keep the USER_INPUT (resolved) entry from the user's file
+                LoggerUtil.info(WorktimeMergeRule.class, String.format("Prioritizing USER_INPUT over USER_IN_PROCESS for date %s", user.getWorkDate()));
+                return user;
+            }),
+
     // Keep user in-process entries untouched
     USER_IN_PROCESS((user, admin) ->
             user != null && SyncStatusWorktime.USER_IN_PROCESS.equals(user.getAdminSync()),

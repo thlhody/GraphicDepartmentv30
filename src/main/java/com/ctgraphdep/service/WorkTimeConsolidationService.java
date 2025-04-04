@@ -98,40 +98,79 @@ public class WorkTimeConsolidationService {
                 userEntries = new ArrayList<>();
             }
 
-            Map<LocalDate, WorkTimeTable> userEntriesMap = new HashMap<>();
-
-            // Safely create map of user entries
-            if (!userEntries.isEmpty()) {
-                userEntriesMap = userEntries.stream()
-                        .collect(Collectors.toMap(
-                                WorkTimeTable::getWorkDate,
-                                entry -> entry,
-                                (e1, e2) -> e2));  // Keep latest in case of duplicates
-            }
-
             List<WorkTimeTable> processedEntries = new ArrayList<>();
+            Map<String, WorkTimeTable> processedEntriesMap = new HashMap<>();
 
-            // Process admin entries first
-            if (adminEntriesMap != null) {
-                for (WorkTimeTable adminEntry : adminEntriesMap.values()) {
-                    if (adminEntry.getUserId().equals(user.getUserId())) {
-                        if (SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync())
-                                && !userEntriesMap.containsKey(adminEntry.getWorkDate())) {
-                            continue;
-                        }
-                        processedEntries.add(adminEntry);
+            // First, check for resolved entries that should replace unresolved admin entries
+            for (WorkTimeTable userEntry : userEntries) {
+                if (SyncStatusWorktime.USER_INPUT.equals(userEntry.getAdminSync())) {
+                    // This is a resolved entry from the user
+                    String entryKey = createEntryKey(userEntry.getUserId(), userEntry.getWorkDate());
+
+                    // Check if admin has an unresolved entry for this date
+                    WorkTimeTable adminEntry = adminEntriesMap != null ? adminEntriesMap.get(entryKey) : null;
+
+                    if (adminEntry != null && SyncStatusWorktime.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
+                        LoggerUtil.info(this.getClass(),
+                                String.format("Admin consolidation: Updating admin USER_IN_PROCESS entry with user's resolved entry for %s",
+                                        userEntry.getWorkDate()));
+
+                        // Use the resolved user entry instead of the unresolved admin entry
+                        processedEntries.add(userEntry);
+                        processedEntriesMap.put(entryKey, userEntry);
                     }
                 }
             }
 
-            // Process user entries
+            // Next, process remaining admin entries (except those we just replaced)
+            if (adminEntriesMap != null) {
+                for (Map.Entry<String, WorkTimeTable> entry : adminEntriesMap.entrySet()) {
+                    String entryKey = entry.getKey();
+                    WorkTimeTable adminEntry = entry.getValue();
+
+                    // Skip if we already processed this entry
+                    if (processedEntriesMap.containsKey(entryKey)) {
+                        continue;
+                    }
+
+                    // Only include admin entry if it's for this user
+                    if (adminEntry.getUserId().equals(user.getUserId())) {
+                        if (SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
+                            // Keep ADMIN_BLANK entries to ensure they're properly handled
+                            processedEntries.add(adminEntry);
+                            processedEntriesMap.put(entryKey, adminEntry);
+                        }
+                        else if (!SyncStatusWorktime.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
+                            // Include all admin entries EXCEPT USER_IN_PROCESS
+                            processedEntries.add(adminEntry);
+                            processedEntriesMap.put(entryKey, adminEntry);
+                        }
+                    }
+                }
+            }
+
+            // Finally, process remaining user entries
             for (WorkTimeTable userEntry : userEntries) {
                 String entryKey = createEntryKey(userEntry.getUserId(), userEntry.getWorkDate());
-                if (adminEntriesMap == null || !adminEntriesMap.containsKey(entryKey)) {
-                    WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, null);
-                    if (mergedEntry != null) {
-                        processedEntries.add(mergedEntry);
-                    }
+
+                // Skip entries we already processed
+                if (processedEntriesMap.containsKey(entryKey)) {
+                    continue;
+                }
+
+                // Skip USER_IN_PROCESS entries - they should remain in user file only
+                if (SyncStatusWorktime.USER_IN_PROCESS.equals(userEntry.getAdminSync())) {
+                    LoggerUtil.debug(this.getClass(),
+                            String.format("Admin consolidation: Skipping USER_IN_PROCESS entry for date %s",
+                                    userEntry.getWorkDate()));
+                    continue;
+                }
+
+                // For all other user entries, apply merge rules and add to result
+                WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, null);
+                if (mergedEntry != null) {
+                    processedEntries.add(mergedEntry);
+                    processedEntriesMap.put(entryKey, mergedEntry);
                 }
             }
 

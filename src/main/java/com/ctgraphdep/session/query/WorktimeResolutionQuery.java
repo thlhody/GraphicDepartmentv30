@@ -25,7 +25,7 @@ public class WorktimeResolutionQuery implements SessionQuery<WorktimeResolutionQ
     public ResolutionStatus execute(SessionContext context) {
         try {
             // Find unresolved worktime entries using the existing query
-            UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username, userId);
+            UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username);
             List<WorkTimeTable> unresolvedEntries = context.executeQuery(unresolvedQuery);
 
             boolean needsResolution = !unresolvedEntries.isEmpty();

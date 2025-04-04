@@ -87,10 +87,24 @@ public class WorkTimeEntrySyncService {
             WorkTimeTable userEntry = userEntriesMap != null ? userEntriesMap.get(date) : null;
             WorkTimeTable adminEntry = adminEntriesMap != null ? adminEntriesMap.get(date) : null;
 
-            boolean isUserInProcess = userEntry != null &&
-                    SyncStatusWorktime.USER_IN_PROCESS.equals(userEntry.getAdminSync());
-            boolean isAdminBlank = adminEntry != null &&
-                    SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync());
+            // Add specific handling for USER_INPUT vs USER_IN_PROCESS conflict
+            if (userEntry != null && adminEntry != null &&
+                    SyncStatusWorktime.USER_INPUT.equals(userEntry.getAdminSync()) &&
+                    SyncStatusWorktime.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
+
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Conflict detected: User has resolved entry (USER_INPUT) for %s, " +
+                                "but admin has unresolved entry (USER_IN_PROCESS). " +
+                                "Keeping user's resolved entry.", date));
+
+                // Always keep the user's resolved entry in this case
+                mergedEntries.add(userEntry);
+                continue;  // Skip the normal merge process for this entry
+            }
+
+
+            boolean isUserInProcess = userEntry != null && SyncStatusWorktime.USER_IN_PROCESS.equals(userEntry.getAdminSync());
+            boolean isAdminBlank = adminEntry != null && SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync());
 
             try {
                 WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, adminEntry);
