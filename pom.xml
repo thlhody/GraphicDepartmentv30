@@ -6,7 +6,7 @@
 
     <groupId>com.ctgraphdep</groupId>
     <artifactId>ctgraphdep-web</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>6.7.2</version>
     <name>CTGraphDep Web Application</name>
 
     <parent>
