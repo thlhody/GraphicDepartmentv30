@@ -55,7 +55,7 @@ public class Application {
                     if (systemTray.getTrayIcon() == null) {
                         LoggerUtil.error(this.getClass(), "System tray initialization failed - tray icon is null");
                     } else {
-                        LoggerUtil.info(this.getClass(), "System Tray successfully initialized with icon. Quick Register feature is available");
+                        LoggerUtil.info(this.getClass(), "System Tray successfully initialized with icon.");
                     }
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Failed to initialize system tray: " + e.getMessage(), e);
