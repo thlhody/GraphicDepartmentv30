@@ -79,6 +79,25 @@ public class SchedulerHealthMonitor {
     }
 
     /**
+     * Records a warning for a task without marking it as failed
+     * This helps track issues that need investigation without triggering recovery actions
+     *
+     * @param taskId Unique identifier for the task
+     * @param warning The warning message
+     */
+    public void recordTaskWarning(String taskId, String warning) {
+        TaskStatus status = monitoredTasks.get(taskId);
+        if (status != null) {
+            status.setLastWarning(warning);
+            status.incrementWarningCount();
+            LoggerUtil.warn(this.getClass(),
+                    String.format("Warning for task %s: %s (total warnings: %d)",
+                            taskId, warning, status.getWarningCount()));
+        }
+    }
+
+
+    /**
      * Check if a task is healthy (executing within expected interval)
      *
      * @param taskId Unique identifier for the task
@@ -156,8 +175,10 @@ public class SchedulerHealthMonitor {
         private LocalDateTime lastExecutionTime;
         private final AtomicLong executionCount = new AtomicLong(0);
         private final AtomicLong consecutiveFailures = new AtomicLong(0);
+        private final AtomicLong warningCount = new AtomicLong(0);
         private final int expectedIntervalMinutes;
         private String lastError;
+        private String lastWarning;
 
         public TaskStatus(int expectedIntervalMinutes) {
             this.expectedIntervalMinutes = expectedIntervalMinutes;
@@ -175,6 +196,14 @@ public class SchedulerHealthMonitor {
 
         public void resetConsecutiveFailures() {
             consecutiveFailures.set(0);
+        }
+
+        public void incrementWarningCount() {
+            warningCount.incrementAndGet();
+        }
+
+        public long getWarningCount() {
+            return warningCount.get();
         }
 
         public boolean isHealthy() {

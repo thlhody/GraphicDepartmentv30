@@ -31,6 +31,12 @@ param (
     [switch]$Purge
 )
 
+# Automatically apply Force parameter if running from uninstaller
+if ($MyInvocation.Line -like "*unins000.exe*") {
+    Write-Host "Running from uninstaller executable, enabling Force mode automatically" -ForegroundColor Cyan
+    $Force = $true
+}
+
 # Global error trap to catch unhandled exceptions
 trap {
     Write-Host "CRITICAL ERROR: $($_.Exception.Message)" -ForegroundColor Red
@@ -270,11 +276,11 @@ function Remove-SSLCertificates {
         # Find certificates by subject name containing CTTT
         $myStoreCerts = @(Get-ChildItem -Path "Cert:\LocalMachine\My" -Recurse | Where-Object { 
             ($_.Subject -like "*CTTT*") -or ($_.FriendlyName -like "*CTTT*") 
-        })
+            })
         
         $rootStoreCerts = @(Get-ChildItem -Path "Cert:\LocalMachine\Root" -Recurse | Where-Object { 
             ($_.Subject -like "*CTTT*") -or ($_.FriendlyName -like "*CTTT*") 
-        })
+            })
         
         $certs = $myStoreCerts + $rootStoreCerts
         
@@ -377,19 +383,40 @@ function Remove-RegistryEntries {
     # Combine all registry paths
     $allPaths = $regPaths + $uninstallerPaths
     
+    $successCount = 0
+    $totalCount = 0
+    
     foreach ($path in $allPaths) {
         if (Test-Path $path) {
+            $totalCount++
             try {
+                # First try normal removal
                 Remove-Item -Path $path -Force -Recurse -ErrorAction Stop
+                $successCount++
                 Write-UninstallLog "Removed registry key: $path" -Level "SUCCESS"
             }
             catch {
-                Write-UninstallLog "Failed to remove registry key $path : $_" -Level "WARN"
+                Write-UninstallLog "Failed with standard method, trying REG DELETE command: $path" -Level "WARN"
+                try {
+                    # Try using REG DELETE as a fallback
+                    $regPath = $path.Replace('HKLM:\', 'HKEY_LOCAL_MACHINE\').Replace('HKCU:\', 'HKEY_CURRENT_USER\')
+                    $result = cmd.exe /c "reg delete `"$regPath`" /f" 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        $successCount++
+                        Write-UninstallLog "Successfully removed registry key with REG DELETE: $path" -Level "SUCCESS"
+                    } else {
+                        Write-UninstallLog "REG DELETE failed: $result" -Level "WARN"
+                    }
+                }
+                catch {
+                    Write-UninstallLog "All methods failed to remove registry key $path : $_" -Level "WARN"
+                }
             }
         }
     }
     
-    return $true
+    Write-UninstallLog "Registry cleanup: Removed $successCount of $totalCount keys" -Level "INFO"
+    return $true  # Always return true to continue uninstallation
 }
 
 # ===== Installation Directory Removal =====
@@ -497,32 +524,94 @@ function Start-Uninstallation {
         Write-UninstallLog "Keep logs: $KeepLogs" -Level "INFO"
         Write-UninstallLog "Purge mode: $Purge" -Level "INFO"
         
+        # Create a variable to track if any step fails but we're continuing with Force
+        $continueWithWarnings = $false
+        
         # Step 1: Stop processes
         $processResult = Stop-CTTTProcesses
-        if (-not $processResult -and -not $Force) {
-            Write-UninstallLog "Process termination failed. Use -Force to proceed anyway." -Level "ERROR"
-            return $false
+        if (-not $processResult) {
+            if ($Force) {
+                Write-UninstallLog "Process termination had issues, continuing anyway due to Force parameter." -Level "WARN"
+                $continueWithWarnings = $true
+            }
+            else {
+                Write-UninstallLog "Process termination failed. Use -Force to proceed anyway." -Level "ERROR"
+                return $false
+            }
         }
         
+        # Continue with the other steps, with similar error handling
         # Step 2: Remove shortcuts
-        Remove-CTTTShortcuts | Out-Null
+        try {
+            Remove-CTTTShortcuts | Out-Null
+        }
+        catch {
+            Write-UninstallLog "Error removing shortcuts: $_" -Level "WARN"
+            $continueWithWarnings = $true
+        }
         
         # Step 3: Restore hosts file
-        Restore-HostsFile | Out-Null
-        
-        # Step 4: Remove SSL certificates
-        Remove-SSLCertificates | Out-Null
-        
-        # Step 5: Remove registry entries
-        Remove-RegistryEntries | Out-Null
-        
-        # Step 6: Remove installation directory
-        $directoryResult = Remove-InstallationDirectory
-        if (-not $directoryResult -and (-not $Force)) {
-            Write-UninstallLog "Failed to remove installation directory. Use -Force to ignore." -Level "ERROR"
-            return $false
+        try {
+            Restore-HostsFile | Out-Null
+        }
+        catch {
+            Write-UninstallLog "Error restoring hosts file: $_" -Level "WARN"
+            $continueWithWarnings = $true
         }
         
+        # Step 4: Remove SSL certificates
+        try {
+            Remove-SSLCertificates | Out-Null
+        }
+        catch {
+            Write-UninstallLog "Error removing SSL certificates: $_" -Level "WARN"
+            $continueWithWarnings = $true
+        }
+        
+        # Step 5: Remove registry entries
+        try {
+            Remove-RegistryEntries | Out-Null
+        }
+        catch {
+            Write-UninstallLog "Error removing registry entries: $_" -Level "WARN"
+            $continueWithWarnings = $true
+        }
+        
+        # Step 6: Remove installation directory
+        try {
+            $directoryResult = Remove-InstallationDirectory
+            if (-not $directoryResult) {
+                if ($Force) {
+                    Write-UninstallLog "Directory removal had issues, continuing anyway due to Force parameter." -Level "WARN"
+                    $continueWithWarnings = $true
+                }
+                else {
+                    Write-UninstallLog "Failed to remove installation directory. Use -Force to ignore." -Level "ERROR"
+                    return $false
+                }
+            }
+        }
+        catch {
+            if ($Force) {
+                Write-UninstallLog "Error removing directory: $_" -Level "WARN"
+                $continueWithWarnings = $true
+            }
+            else {
+                Write-UninstallLog "Critical error removing directory: $_" -Level "ERROR"
+                return $false
+            }
+        }
+        
+        # Final status report
+        if ($continueWithWarnings) {
+            Write-UninstallLog "Uninstallation completed with warnings or non-critical errors" -Level "WARN"
+            $success = $true  # Still consider it a success if we're using Force
+        }
+        else {
+            Write-UninstallLog "Uninstallation completed successfully" -Level "SUCCESS"
+            $success = $true
+        }
+
         # Final check to report success
         if ((-not $directoryResult) -or (-not $processResult)) {
             Write-UninstallLog "Uninstallation completed with warnings or errors" -Level "WARN"
@@ -584,7 +673,65 @@ function Start-Uninstallation {
 try {
     $result = Start-Uninstallation
     
-    # Schedule a delayed cleanup of the uninstaller files
+    # If Force was enabled, always return success to the caller
+    if ($Force) {
+        Write-UninstallLog "Force mode was enabled, returning success exit code regardless of issues" -Level "INFO"
+        
+        # Schedule a more robust delayed cleanup of the uninstaller files
+        Write-UninstallLog "Scheduling delayed cleanup of uninstaller files..." -Level "INFO"
+        
+        try {
+            # Create a more robust cleanup script
+            $cleanupScript = @"
+Start-Sleep -Seconds 30
+
+# Try multiple methods to remove uninstaller files
+try {
+    # Method 1: Direct removal
+    Remove-Item -Path "$InstallDir" -Force -Recurse -ErrorAction SilentlyContinue
+} catch {}
+
+try {
+    # Method 2: Command line removal
+    cmd.exe /c "rd /s /q `"$InstallDir`"" 2>&1
+} catch {}
+
+try {
+    # Method 3: Targeted file removal
+    Remove-Item -Path "$InstallDir\unins000.exe" -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$InstallDir\unins000.dat" -Force -ErrorAction SilentlyContinue
+} catch {}
+
+# Additional registry cleanup
+try {
+    \$regPaths = @(
+        "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{38166b65-a6ca-4a09-a9cb-0f5f497c5dca}",
+        "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{38166b65-a6ca-4a09-a9cb-0f5f497c5dca}_is1"
+    )
+    foreach (\$path in \$regPaths) {
+        if (Test-Path \$path) {
+            Remove-Item -Path \$path -Force -Recurse -ErrorAction SilentlyContinue
+        }
+    }
+} catch {}
+"@
+            
+            $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanupScript))
+            
+            # Execute the delayed cleanup in a separate PowerShell process
+            Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-WindowStyle", "Hidden", "-EncodedCommand", $encodedCommand -WindowStyle Hidden
+            
+            Write-UninstallLog "Delayed cleanup scheduled" -Level "SUCCESS"
+        }
+        catch {
+            Write-UninstallLog "Failed to schedule delayed cleanup: $_" -Level "WARN"
+        }
+        
+        # Force success exit code
+        exit 0
+    }
+    
+    # For normal operation (not Force mode), schedule a simple cleanup
     Write-UninstallLog "Scheduling delayed cleanup of uninstaller files..." -Level "INFO"
     
     try {
@@ -614,6 +761,11 @@ catch {
     # The rest of your catch block remains unchanged
     Write-UninstallLog "Fatal error during uninstallation: $_" -Level "ERROR"
     Write-UninstallLog "Stack trace: $($_.ScriptStackTrace)" -Level "ERROR"
+    
+    # Even in case of fatal errors, if Force is enabled, exit with success
+    if ($Force) {
+        exit 0
+    }
     
     exit 1
 }

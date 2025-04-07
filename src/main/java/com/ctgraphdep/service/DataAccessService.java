@@ -9,7 +9,6 @@ import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -901,7 +900,7 @@ public class DataAccessService {
             // Try network first if available
             if (pathConfig.isNetworkAvailable()) {
                 Path networkPath = pathConfig.getNetworkTimeOffTrackerPath(username, userId, year);
-                TimeOffTracker tracker = readFileReadOnly(networkPath, new TypeReference<TimeOffTracker>() {});
+                TimeOffTracker tracker = readFileReadOnly(networkPath, new TypeReference<>() {});
                 if (tracker != null) {
                     return tracker;
                 }
@@ -909,7 +908,7 @@ public class DataAccessService {
 
             // Fall back to local file
             Path localPath = pathConfig.getLocalTimeOffTrackerPath(username, userId, year);
-            return readFileReadOnly(localPath, new TypeReference<TimeOffTracker>() {});
+            return readFileReadOnly(localPath, new TypeReference<>() {});
         } catch (Exception e) {
             LoggerUtil.debug(this.getClass(),
                     String.format("Read-only time-off tracker access failed for %s (%d): %s",
@@ -979,22 +978,8 @@ public class DataAccessService {
                 return;
             }
 
-            // Get current username from security context to check if this is the current user
-            String currentUsername = null;
-            try {
-                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-                if (auth != null) {
-                    currentUsername = auth.getName();
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), "Could not get current username: " + e.getMessage());
-            }
-
-            // Only create flag if this is the current user or we're in a user action
-            if (currentUsername == null || !currentUsername.equals(username)) {
-                LoggerUtil.debug(this.getClass(), "Skipping flag creation for " + username + " as not current user");
-                return;
-            }
+            // REMOVED: Security context check to allow notifications to update status
+            // This allows notification system and background processes to update status flags
 
             // Create the network directory if it doesn't exist
             Path networkFlagsDir = pathConfig.getNetworkStatusFlagsDirectory();

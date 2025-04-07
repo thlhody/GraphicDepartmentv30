@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -454,6 +455,10 @@ public class SessionMonitorService {
     /**
      * Shows start day reminder if user hasn't started their workday
      */
+    /**
+     * Shows start day reminder if user hasn't started their workday
+     * Also checks for and resets stale sessions from previous days
+     */
     public void checkStartDayReminder() {
         if (!isInitialized) {
             return;
@@ -461,16 +466,18 @@ public class SessionMonitorService {
 
         try {
             // Only check during working hours on weekdays
-            // Use validation commands for checking
             IsWeekdayCommand weekdayCommand = validationFactory.createIsWeekdayCommand();
             IsWorkingHoursCommand workingHoursCommand = validationFactory.createIsWorkingHoursCommand();
 
             boolean isWeekday = validationService.execute(weekdayCommand);
             boolean isWorkingHours = validationService.execute(workingHoursCommand);
 
-            if (!isWeekday || !isWorkingHours) {
-                return;
-            }
+            // Get standardized time values
+            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+
+            LocalDate today = timeValues.getCurrentDate();
+            LocalDateTime now = timeValues.getCurrentTime();
 
             // Get current user
             String username = getCurrentActiveUser();
@@ -479,27 +486,64 @@ public class SessionMonitorService {
             }
 
             // Check if we already showed notification today
-            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-
-            LocalDate today = timeValues.getCurrentDate();
             if (lastStartDayCheck.containsKey(username) && lastStartDayCheck.get(username).equals(today)) {
                 return;
             }
 
             User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
 
-            // Check for unresolved worktime entries using the new WorktimeResolutionQuery
+            // Get current session
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
+            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
+
+            // *** KEY ADDITION: STALE SESSION CHECK ***
+            // If there's an active session, check if it's from a previous day
+            if (session != null && session.getDayStartTime() != null) {
+                LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+                boolean isActive = WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
+                        WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
+
+                // If the session is active and from a previous day, reset it
+                if (isActive && !sessionDate.equals(today)) {
+                    LoggerUtil.warn(this.getClass(),
+                            String.format("Found stale active session from %s for user %s - resetting during morning check",
+                                    sessionDate, username));
+
+                    // Create fresh session
+                    WorkUsersSessionsStates freshSession = createFreshSession(username, user.getUserId());
+
+                    // Save the fresh session
+                    SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(freshSession);
+                    commandService.executeCommand(saveCommand);
+
+                    // Update our session reference to the fresh session
+                    session = freshSession;
+
+                    LoggerUtil.info(this.getClass(),
+                            String.format("Reset stale session for user %s during morning check", username));
+
+                    // Record in health monitor
+                    healthMonitor.recordTaskWarning("session-midnight-handler",
+                            "Stale session detected and reset during morning check");
+                }
+            }
+            // *** END OF STALE SESSION CHECK ***
+
+            // Only continue with normal checks if it's a weekday during working hours
+            if (!isWeekday || !isWorkingHours) {
+                return;
+            }
+
+            // Check for unresolved worktime entries - this has priority
             WorktimeResolutionQuery resolutionQuery = commandFactory.createWorktimeResolutionQuery(username);
             WorktimeResolutionQuery.ResolutionStatus resolutionStatus = commandService.executeQuery(resolutionQuery);
-
-            // Get current session separately (no longer part of ResolutionStatus)
-            WorkUsersSessionsStates session = commandService.executeQuery(commandFactory.createGetCurrentSessionQuery(username, user.getUserId()));
 
             // Check if the user has completed a session today
             boolean hasCompletedSessionToday = false;
             if (session != null && session.getDayStartTime() != null) {
-                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && session.getWorkdayCompleted();
+                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) &&
+                        WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
+                        session.getWorkdayCompleted();
             }
 
             // If they already completed a session today, don't show reminder
@@ -511,7 +555,7 @@ public class SessionMonitorService {
             if (resolutionStatus.isNeedsResolution()) {
                 LoggerUtil.info(this.getClass(), String.format("User %s has unresolved worktime entries - showing resolution notification", username));
 
-                // Show resolution notification instead of regular start day
+                // Show resolution notification
                 notificationQueue.enqueueResolutionReminder(
                         username,
                         user.getUserId(),
@@ -544,6 +588,30 @@ public class SessionMonitorService {
         }
     }
 
+    /**
+     * Creates a fresh session
+     */
+    private WorkUsersSessionsStates createFreshSession(String username, Integer userId) {
+        WorkUsersSessionsStates freshSession = new WorkUsersSessionsStates();
+        freshSession.setUserId(userId);
+        freshSession.setUsername(username);
+        freshSession.setSessionStatus(WorkCode.WORK_OFFLINE);
+        freshSession.setDayStartTime(null);
+        freshSession.setDayEndTime(null);
+        freshSession.setCurrentStartTime(null);
+        freshSession.setTotalWorkedMinutes(0);
+        freshSession.setFinalWorkedMinutes(0);
+        freshSession.setTotalOvertimeMinutes(0);
+        freshSession.setLunchBreakDeducted(true);
+        freshSession.setWorkdayCompleted(false);
+        freshSession.setTemporaryStopCount(0);
+        freshSession.setTotalTemporaryStopMinutes(0);
+        freshSession.setTemporaryStops(List.of());
+        freshSession.setLastTemporaryStopTime(null);
+        freshSession.setLastActivity(LocalDateTime.now());
+
+        return freshSession;
+    }
     /**
      * Gets the currently active user by scanning session files
      */

@@ -33,8 +33,7 @@ public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStat
             // This ensures that the status is always in sync with the session file
             ctx.getSessionStatusService().updateSessionStatus(session);
 
-            info(String.format("Saved session for user %s with status %s",
-                    username, session.getSessionStatus()));
+            info(String.format("Saved session for user %s with status %s", username, session.getSessionStatus()));
 
             return session;
         });
