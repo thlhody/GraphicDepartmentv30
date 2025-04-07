@@ -44,7 +44,7 @@ public class ShowStartDayReminderCommand extends BaseNotificationCommand<Boolean
             }
 
             // Check for unresolved worktime entries FIRST - this has priority
-            WorktimeResolutionQuery resolutionQuery = ctx.getCommandFactory().createWorktimeResolutionQuery(username, userId);
+            WorktimeResolutionQuery resolutionQuery = ctx.getCommandFactory().createWorktimeResolutionQuery(username);
             WorktimeResolutionQuery.ResolutionStatus resolutionStatus = ctx.executeQuery(resolutionQuery);
 
             // If there are unresolved entries, show resolution notification regardless of session state

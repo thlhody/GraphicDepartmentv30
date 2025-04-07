@@ -34,7 +34,7 @@ public class ResolveSessionQuery implements SessionQuery<WorkUsersSessionsStates
             WorkUsersSessionsStates newSession = SessionEntityBuilder.createSession(username, userId);
 
             // Update status to offline
-            SessionEntityBuilder.updateSession(newSession, builder -> {builder.status(WorkCode.WORK_OFFLINE);});
+            SessionEntityBuilder.updateSession(newSession, builder -> builder.status(WorkCode.WORK_OFFLINE));
 
             // Save the new session
             context.saveSession(newSession);
@@ -49,7 +49,7 @@ public class ResolveSessionQuery implements SessionQuery<WorkUsersSessionsStates
             WorkUsersSessionsStates fallbackSession = SessionEntityBuilder.createSession(username, userId);
 
             // Update status to offline
-            SessionEntityBuilder.updateSession(fallbackSession, builder -> {builder.status(WorkCode.WORK_OFFLINE);});
+            SessionEntityBuilder.updateSession(fallbackSession, builder -> builder.status(WorkCode.WORK_OFFLINE));
 
             context.saveSession(fallbackSession);
 

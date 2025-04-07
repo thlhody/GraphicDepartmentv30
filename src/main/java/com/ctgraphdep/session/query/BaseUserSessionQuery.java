@@ -53,18 +53,4 @@ public abstract class BaseUserSessionQuery<T> extends BaseSessionQuery<T> {
             return null;
         }
     }
-
-    /**
-     * Checks if session is valid (not null).
-     *
-     * @param session The session to check
-     * @return true if the session is valid, false otherwise
-     */
-    protected boolean isValidSession(WorkUsersSessionsStates session) {
-        if (session == null) {
-            warn("Invalid session: null");
-            return false;
-        }
-        return true;
-    }
 }

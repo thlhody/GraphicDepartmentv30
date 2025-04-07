@@ -28,14 +28,6 @@ public class ValidateTimeOffRequestCommand implements TimeValidationCommand<Void
         this.currentDate = currentDate;
     }
 
-    public ValidateTimeOffRequestCommand(
-            LocalDate startDate,
-            LocalDate endDate,
-            int maxMonthsAhead,
-            int maxMonthsBehind) {
-        this(startDate, endDate, maxMonthsAhead, maxMonthsBehind, LocalDate.now());
-    }
-
     @Override
     public Void execute() {
         try {

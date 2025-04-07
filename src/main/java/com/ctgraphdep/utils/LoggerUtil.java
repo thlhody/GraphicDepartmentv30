@@ -38,10 +38,6 @@ public final class LoggerUtil {
         LoggerFactory.getLogger(clazz).debug(message);
     }
 
-    public static void trace(Class<?> clazz, String message) {
-        LoggerFactory.getLogger(clazz).trace(message);
-    }
-
     public static void logAndThrow(Class<?> clazz, String message, Exception e) {
         LoggerFactory.getLogger(clazz).error(message, e);
         throw new RuntimeException(message, e);

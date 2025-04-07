@@ -59,8 +59,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
             // Start session monitoring
             ctx.getSessionMonitorService().startMonitoring(username);
 
-            info(String.format("Started new session for user %s (start time set to %s)",
-                    username, timeValues.getStartTime()));
+            info(String.format("Started new session for user %s (start time set to %s)", username, timeValues.getStartTime()));
 
             return newSession;
         });

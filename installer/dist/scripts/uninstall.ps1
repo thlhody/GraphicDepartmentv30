@@ -1,237 +1,619 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
+<#
+.SYNOPSIS
+    Uninstaller for CTTT application
+.DESCRIPTION
+    This script removes the CTTT application, including files, shortcuts, registry entries, hosts entries, and SSL certificates
+.PARAMETER InstallDir
+    The installation directory of CTTT
+.PARAMETER Force
+    If specified, forces removal even if errors occur
+.PARAMETER KeepLogs
+    If specified, preserves the logs directory
+.PARAMETER Purge
+    If specified, removes all data files and user configurations
+#>
+
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$InstallDir,
     
     [Parameter()]
-    [switch]$Force
+    [switch]$Force,
+    
+    [Parameter()]
+    [switch]$KeepLogs,
+    
+    [Parameter()]
+    [switch]$Purge
 )
 
-# Script Variables
-$logPath = Join-Path $InstallDir "logs"
-$logFile = Join-Path $logPath "uninstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+# Global error trap to catch unhandled exceptions
+trap {
+    Write-Host "CRITICAL ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Error occurred at line: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Red
+    Write-Host "Stack Trace: $($_.ScriptStackTrace)" -ForegroundColor Red
+    
+    # Try to log to temp file as well
+    try {
+        $errorLogFile = "$env:TEMP\cttt_uninstall_error_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+        "CRITICAL ERROR: $($_.Exception.Message)" | Out-File -FilePath $errorLogFile -Append
+        "Error occurred at line: $($_.InvocationInfo.ScriptLineNumber)" | Out-File -FilePath $errorLogFile -Append
+        "Stack Trace: $($_.ScriptStackTrace)" | Out-File -FilePath $errorLogFile -Append
+        Write-Host "Error details logged to: $errorLogFile" -ForegroundColor Yellow
+    }
+    catch {
+        # If we can't even log the error, just continue
+    }
+    
+    # Even in case of errors, try to continue if Force is enabled
+    if ($Force) {
+        Write-Host "Continuing despite error due to Force parameter..." -ForegroundColor Yellow
+        continue
+    }
+    
+    # Otherwise exit
+    exit 1
+}
 
-# System paths
-$userDesktop = [Environment]::GetFolderPath('Desktop')
-$startupFolder = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup"
+# Initialize essential variables
+$ErrorActionPreference = "Stop"
+$Host.UI.RawUI.WindowTitle = "CTTT Uninstaller"
+$tempLogFile = "$env:TEMP\cttt_uninstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$shortcutLocations = @(
+    [Environment]::GetFolderPath('Desktop'),
+    [Environment]::GetFolderPath('StartMenu'),
+    [Environment]::GetFolderPath('Startup')
+)
+$hostEntryText = "127.0.0.1 CTTT"
 $systemHostsFile = "$env:SystemRoot\System32\drivers\etc\hosts"
 
-# Application paths
-$hostsFolder = Join-Path $InstallDir "hosts"
-$hostsBackup = Join-Path $hostsFolder "hosts.bkp"
-$desktopShortcut = Join-Path $userDesktop "Start CTTT.lnk"
-$startupShortcut = Join-Path $startupFolder "CTTT-Startup.lnk"
-
-# Protected directories
-$protectedFolders = @(
-    (Join-Path $InstallDir "logs"),
-    (Join-Path $InstallDir "CTTT"),
-    (Join-Path $InstallDir "config"),
-    (Join-Path $InstallDir "config\ssl")
-)
-
-# Log configuration
-$LogLevels = @{
-    INFO    = @{ Color = 'White';   Prefix = 'INFO' }
-    WARN    = @{ Color = 'Yellow';  Prefix = 'WARN' }
-    ERROR   = @{ Color = 'Red';     Prefix = 'ERROR' }
-    SUCCESS = @{ Color = 'Green';   Prefix = 'SUCCESS' }
-}
-
-function Write-Log {
+# ===== Logging Functions =====
+function Write-UninstallLog {
     param(
-        [Parameter(Mandatory=$true)]
         [string]$Message,
-        
-        [Parameter()]
-        [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS')]
-        [string]$Level = 'INFO'
+        [string]$Level = "INFO"
     )
     
+    # Format timestamp and message
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "$timestamp [$Level] $Message"
+    $logEntry = "$timestamp [$Level] $Message"
     
-    if (-not (Test-Path $logPath)) {
-        New-Item -ItemType Directory -Path $logPath -Force | Out-Null
+    # Display with color
+    switch ($Level) {
+        "ERROR" { $color = "Red" }
+        "WARN" { $color = "Yellow" }
+        "SUCCESS" { $color = "Green" }
+        "DEBUG" { $color = "Cyan" }
+        default { $color = "White" }
     }
     
-    Add-Content -Path $logFile -Value $logMessage
-    Write-Host $logMessage -ForegroundColor $LogLevels[$Level].Color
+    Write-Host $logEntry -ForegroundColor $color
+    
+    # Write to temp log file
+    try {
+        Add-Content -Path $tempLogFile -Value $logEntry -Force -ErrorAction SilentlyContinue
+    }
+    catch {
+        # Silent continue if log write fails
+    }
 }
 
-function Initialize-Environment {
-    Write-Log "Initializing uninstallation environment..." -Level INFO
+# ===== Process Handling =====
+function Stop-CTTTProcesses {
+    Write-UninstallLog "Terminating CTTT processes..." -Level "INFO"
     
     try {
-        # Verify installation directory
-        if (-not (Test-Path $InstallDir)) {
-            Write-Log "Installation directory not found: $InstallDir" -Level ERROR
-            return $false
+        # Method 1: Find processes by Java command line that contains the JAR name
+        $javaProcesses = Get-WmiObject Win32_Process | Where-Object {
+            $_.CommandLine -like "*ctgraphdep-web.jar*"
+        }
+
+        if ($javaProcesses) {
+            foreach ($process in $javaProcesses) {
+                try {
+                    Write-UninstallLog "Stopping Java process with ID: $($process.ProcessId)" -Level "INFO"
+                    Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+                    Start-Sleep -Milliseconds 500
+                }
+                catch {
+                    Write-UninstallLog "Error stopping process $($process.ProcessId): $_" -Level "WARN"
+                }
+            }
+        }
+        else {
+            Write-UninstallLog "No CTTT application processes found" -Level "INFO"
+        }
+
+        # Method 2: Also kill any Java processes that might be related
+        $otherJavaProcesses = Get-Process java -ErrorAction SilentlyContinue | Where-Object {
+            $_.MainWindowTitle -like "*CTTT*" -or $_.Path -like "*$InstallDir*"
+        }
+
+        if ($otherJavaProcesses) {
+            foreach ($proc in $otherJavaProcesses) {
+                try {
+                    Write-UninstallLog "Stopping additional Java process with ID: $($proc.Id)" -Level "INFO"
+                    $proc | Stop-Process -Force
+                    Start-Sleep -Milliseconds 500
+                }
+                catch {
+                    Write-UninstallLog "Error stopping additional process $($proc.Id): $_" -Level "WARN"
+                }
+            }
         }
         
-        # Verify hosts backup
-        if (-not (Test-Path $hostsBackup)) {
-            Write-Log "Hosts backup not found: $hostsBackup" -Level ERROR
-            return $false
+        # Final attempt with taskkill for any stubborn processes
+        try {
+            $result = cmd.exe /c "taskkill /F /IM java.exe /FI ""WINDOWTITLE eq *CTTT*""" 2>&1
+            Write-UninstallLog "Task kill result: $result" -Level "DEBUG"
         }
-        
-        Write-Log "Environment verification completed" -Level SUCCESS
+        catch {
+            Write-UninstallLog "Error with taskkill: $_" -Level "WARN"
+        }
+
+        Write-UninstallLog "Process termination completed" -Level "SUCCESS"
         return $true
     }
     catch {
-        Write-Log "Environment initialization failed: $_" -Level ERROR
+        Write-UninstallLog "Error in process stopping operation: $_" -Level "ERROR"
+        if ($Force) {
+            return $true
+        }
         return $false
     }
 }
 
-function Stop-ApplicationProcesses {
-    Write-Log "Stopping application processes..." -Level INFO
+# ===== Shortcut Removal =====
+function Remove-CTTTShortcuts {
+    Write-UninstallLog "Removing CTTT shortcuts..." -Level "INFO"
     
-    try {
-        $processes = Get-Process | Where-Object { $_.CommandLine -like "*ctgraphdep-web.jar*" }
-        
-        foreach ($process in $processes) {
-            $process.Kill()
-            $process.WaitForExit()
-            Write-Log "Stopped process: $($process.Id)" -Level SUCCESS
+    $shortcutNames = @(
+        "Start CTTT.lnk",
+        "CTTT.lnk",
+        "Creative Time And Task Tracking.lnk",
+        "StartCTTTNotification.lnk",
+        "CTTT-Startup.lnk"
+    )
+    
+    $successCount = 0
+    $totalShortcuts = 0
+    
+    foreach ($location in $shortcutLocations) {
+        if (-not (Test-Path $location)) {
+            continue
         }
         
-        return $true
+        foreach ($name in $shortcutNames) {
+            $shortcutPath = Join-Path $location $name
+            if (Test-Path $shortcutPath) {
+                $totalShortcuts++
+                try {
+                    Remove-Item -Path $shortcutPath -Force
+                    Write-UninstallLog "Removed shortcut: $shortcutPath" -Level "SUCCESS"
+                    $successCount++
+                }
+                catch {
+                    Write-UninstallLog "Failed to remove shortcut: $shortcutPath" -Level "WARN"
+                }
+            }
+        }
     }
-    catch {
-        Write-Log "Failed to stop processes: $_" -Level ERROR
-        return $false
+    
+    if ($totalShortcuts -gt 0) {
+        Write-UninstallLog "Removed $successCount of $totalShortcuts shortcuts" -Level "INFO"
     }
+    else {
+        Write-UninstallLog "No shortcuts found to remove" -Level "INFO"
+    }
+    
+    return $true
 }
 
-function Restore-SystemHostsFile {
-    Write-Log "Restoring original hosts file..." -Level INFO
+# ===== Hosts File Restoration =====
+function Restore-HostsFile {
+    Write-UninstallLog "Checking hosts file for CTTT entries..." -Level "INFO"
+    
+    if (-not (Test-Path $systemHostsFile)) {
+        Write-UninstallLog "Hosts file not found!" -Level "WARN"
+        return $true
+    }
+    
+    # Look for backup and restore if found
+    $hostsBackupPath = Join-Path $InstallDir "hosts\hosts.bkp"
+    if (Test-Path $hostsBackupPath) {
+        try {
+            Copy-Item -Path $hostsBackupPath -Destination $systemHostsFile -Force
+            Write-UninstallLog "Restored original hosts file from backup" -Level "SUCCESS"
+            return $true
+        }
+        catch {
+            Write-UninstallLog "Failed to restore hosts file from backup: $_" -Level "WARN"
+        }
+    }
+    
+    # If no backup or restore failed, try to remove entry manually
+    try {
+        $content = Get-Content -Path $systemHostsFile -Raw
+        
+        if ($content -match "CTTT Application Entries") {
+            # Remove section and entry
+            $updatedContent = $content -replace "# CTTT Application Entries\r?\n$([regex]::Escape($hostEntryText))\r?\n", ""
+            Set-Content -Path $systemHostsFile -Value $updatedContent -Force
+            Write-UninstallLog "Removed CTTT entries from hosts file" -Level "SUCCESS"
+        }
+        elseif ($content -match "127\.0\.0\.1 CTTT") {
+            # Just remove the entry if section header isn't present
+            $updatedContent = $content -replace "$([regex]::Escape($hostEntryText))\r?\n", ""
+            Set-Content -Path $systemHostsFile -Value $updatedContent -Force
+            Write-UninstallLog "Removed CTTT entry from hosts file" -Level "SUCCESS"
+        }
+        else {
+            Write-UninstallLog "No CTTT entries found in hosts file" -Level "INFO"
+        }
+    }
+    catch {
+        Write-UninstallLog "Error updating hosts file: $_" -Level "WARN"
+    }
+    
+    return $true
+}
+
+# ===== SSL Certificate Removal =====
+function Remove-SSLCertificates {
+    Write-UninstallLog "Removing SSL certificates..." -Level "INFO"
     
     try {
-        if (Test-Path $hostsBackup) {
-            Copy-Item -Path $hostsBackup -Destination $systemHostsFile -Force
-            Write-Log "Original hosts file restored" -Level SUCCESS
+        # Find certificates by subject name containing CTTT
+        $myStoreCerts = @(Get-ChildItem -Path "Cert:\LocalMachine\My" -Recurse | Where-Object { 
+            ($_.Subject -like "*CTTT*") -or ($_.FriendlyName -like "*CTTT*") 
+        })
+        
+        $rootStoreCerts = @(Get-ChildItem -Path "Cert:\LocalMachine\Root" -Recurse | Where-Object { 
+            ($_.Subject -like "*CTTT*") -or ($_.FriendlyName -like "*CTTT*") 
+        })
+        
+        $certs = $myStoreCerts + $rootStoreCerts
+        
+        if ($certs.Count -eq 0) {
+            Write-UninstallLog "No CTTT certificates found by name, searching by DNS attributes..." -Level "INFO"
+            
+            # Search for certificates with CTTT in DNS names
+            $dnsNameCerts = @()
+            
+            # Search My store
+            $allMyCerts = Get-ChildItem -Path "Cert:\LocalMachine\My" -Recurse
+            foreach ($cert in $allMyCerts) {
+
+                foreach ($extension in $cert.Extensions) {
+                    if ($extension.Oid.FriendlyName -eq "Subject Alternative Name") {
+                        $sanData = $extension.Format($true)
+                        if ($sanData -match "DNS Name=") {
+                            if (($sanData -like "*CTTT*") -or ($sanData -like "*localhost*")) {
+                                $dnsNameCerts += $cert
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            
+            # Search Root store
+            $allRootCerts = Get-ChildItem -Path "Cert:\LocalMachine\Root" -Recurse
+            foreach ($cert in $allRootCerts) {
+
+                foreach ($extension in $cert.Extensions) {
+                    if ($extension.Oid.FriendlyName -eq "Subject Alternative Name") {
+                        $sanData = $extension.Format($true)
+                        if ($sanData -match "DNS Name=") {
+                            if (($sanData -like "*CTTT*") -or ($sanData -like "*localhost*")) {
+                                $dnsNameCerts += $cert
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            
+            $certs = $dnsNameCerts
+        }
+        
+        if ($certs.Count -eq 0) {
+            Write-UninstallLog "No CTTT certificates found in certificate stores" -Level "INFO"
             return $true
         }
         
-        Write-Log "Hosts backup file not found" -Level ERROR
-        return $false
-    }
-    catch {
-        Write-Log "Failed to restore hosts file: $_" -Level ERROR
-        return $false
-    }
-}
-
-function Remove-Shortcuts {
-    Write-Log "Removing application shortcuts..." -Level INFO
-    
-    try {
-        # Remove desktop shortcut
-        if (Test-Path $desktopShortcut) {
-            Remove-Item -Path $desktopShortcut -Force
-            Write-Log "Desktop shortcut removed" -Level SUCCESS
+        $removedCount = 0
+        foreach ($cert in $certs) {
+            try {
+                $storePath = $cert.PSParentPath.Replace("Microsoft.PowerShell.Security\Certificate::", "Cert:")
+                $thumbprint = $cert.Thumbprint
+                
+                Write-UninstallLog "Removing certificate: $($cert.Subject) from $storePath" -Level "INFO"
+                Remove-Item -Path "$storePath\$thumbprint" -Force
+                $removedCount++
+            }
+            catch {
+                Write-UninstallLog "Failed to remove certificate: $($cert.Subject) - $($_)" -Level "WARN"
+            }
         }
         
-        # Remove startup shortcut
-        if (Test-Path $startupShortcut) {
-            Remove-Item -Path $startupShortcut -Force
-            Write-Log "Startup shortcut removed" -Level SUCCESS
-        }
-        
+        Write-UninstallLog "Removed $removedCount certificates" -Level "SUCCESS"
+        Write-UninstallLog "SSL certificate cleanup completed" -Level "SUCCESS"
         return $true
     }
     catch {
-        Write-Log "Failed to remove shortcuts: $_" -Level ERROR
+        Write-UninstallLog "Certificate removal error: $_" -Level "ERROR"
+        if ($Force) {
+            return $true
+        }
         return $false
     }
 }
 
-function Remove-Installation {
-    Write-Log "Removing installation files..." -Level INFO
+# ===== Registry Cleanup =====
+function Remove-RegistryEntries {
+    Write-UninstallLog "Removing registry entries..." -Level "INFO"
     
-    try {
-        # Remove hosts folder
-        if (Test-Path $hostsFolder) {
-            Remove-Item -Path $hostsFolder -Recurse -Force
-            Write-Log "Hosts folder removed" -Level SUCCESS
-        }
-        
-        # Remove installation files except protected folders
-        Get-ChildItem -Path $InstallDir -Force | ForEach-Object {
-            $path = $_.FullName
-            $isProtected = $false
-            
-            # Check if the path or any of its parents are protected
-            foreach ($protectedFolder in $protectedFolders) {
-                if ($path -eq $protectedFolder -or $path.StartsWith($protectedFolder)) {
-                    $isProtected = $true
-                    break
-                }
-            }
-            
-            if (-not $isProtected) {
-                if (Test-Path $path) {
-                    Remove-Item -Path $path -Recurse -Force
-                    Write-Log "Removed: $path" -Level SUCCESS
-                }
-            }
-            else {
-                Write-Log "Protected folder preserved: $path" -Level INFO
-            }
-        }
-        
-        Write-Log "Installation files removed successfully" -Level SUCCESS
-        return $true
-    }
-    catch {
-        Write-Log "Failed to remove installation: $_" -Level ERROR
-        return $false
-    }
-}
-
-# Main execution
-Write-Log "Starting CTTT uninstallation..." -Level INFO
-Write-Log "Installation directory: $InstallDir" -Level INFO
-
-if (-not $Force) {
-    $confirmation = Read-Host "This will uninstall CTTT and remove all program files (except logs and data). Continue? (Y/N)"
-    if ($confirmation -ne 'Y') {
-        Write-Log "Uninstallation cancelled by user" -Level INFO
-        exit 0
-    }
-}
-
-$success = Initialize-Environment
-if ($success) {
-    $uninstallSteps = @(
-        @{ Name = "Stop Processes"; Function = { Stop-ApplicationProcesses } },
-        @{ Name = "Restore Hosts"; Function = { Restore-SystemHostsFile } },
-        @{ Name = "Remove Shortcuts"; Function = { Remove-Shortcuts } },
-        @{ Name = "Remove Files"; Function = { Remove-Installation } }
+    # Original registry paths
+    $regPaths = @(
+        "HKCU:\Software\CTTT",
+        "HKLM:\Software\CTTT",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{38166b65-a6ca-4a09-a9cb-0f5f497c5dca}_is1",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CTTT",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{38166b65-a6ca-4a09-a9cb-0f5f497c5dca}_is1"
     )
     
-    foreach ($step in $uninstallSteps) {
-        Write-Log "Executing step: $($step.Name)" -Level INFO
-        $success = $success -and (& $step.Function)
-        
-        if (-not $success) {
-            Write-Log "Step failed: $($step.Name)" -Level ERROR
-            break
+    # Add uninstaller registry entries
+    $AppId = "{38166b65-a6ca-4a09-a9cb-0f5f497c5dca}"
+    $uninstallerPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$AppId",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$AppId\_is1"
+    )
+    
+    # Combine all registry paths
+    $allPaths = $regPaths + $uninstallerPaths
+    
+    foreach ($path in $allPaths) {
+        if (Test-Path $path) {
+            try {
+                Remove-Item -Path $path -Force -Recurse -ErrorAction Stop
+                Write-UninstallLog "Removed registry key: $path" -Level "SUCCESS"
+            }
+            catch {
+                Write-UninstallLog "Failed to remove registry key $path : $_" -Level "WARN"
+            }
         }
+    }
+    
+    return $true
+}
+
+# ===== Installation Directory Removal =====
+function Remove-InstallationDirectory {
+    Write-UninstallLog "Removing installation directory: $InstallDir" -Level "INFO"
+    
+    if (-not (Test-Path $InstallDir)) {
+        Write-UninstallLog "Installation directory not found, nothing to remove" -Level "INFO"
+        return $true
+    }
+    
+    # Handle logs directory based on KeepLogs parameter
+    $logsDir = Join-Path $InstallDir "logs"
+    if ((Test-Path $logsDir) -and $KeepLogs) {
+        Write-UninstallLog "Preserving logs directory as requested" -Level "INFO"
+        
+        try {
+            # Rename logs directory temporarily
+            $tempLogsDir = "$env:TEMP\CTTT_logs_backup_$(Get-Date -Format 'yyyyMMddHHmmss')"
+            Move-Item -Path $logsDir -Destination $tempLogsDir -Force
+            Write-UninstallLog "Temporarily moved logs to: $tempLogsDir" -Level "INFO"
+            
+            # Now try to remove the rest of the installation directory
+            try {
+                cmd.exe /c "rd /s /q `"$InstallDir`"" | Out-Null
+                
+                # Create installation directory again to restore logs
+                if (-not (Test-Path $InstallDir)) {
+                    New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+                    Move-Item -Path $tempLogsDir -Destination $logsDir -Force
+                    Write-UninstallLog "Logs directory restored to original location" -Level "SUCCESS"
+                }
+                else {
+                    Write-UninstallLog "Failed to remove installation directory while preserving logs" -Level "ERROR"
+                    # Move logs back to original location if directory still exists
+                    if (Test-Path $tempLogsDir) {
+                        Move-Item -Path $tempLogsDir -Destination $logsDir -Force
+                    }
+                }
+            }
+            catch {
+                Write-UninstallLog "Error during directory removal: $_" -Level "ERROR"
+                # Restore logs directory
+                if (Test-Path $tempLogsDir) {
+                    Move-Item -Path $tempLogsDir -Destination $logsDir -Force
+                }
+            }
+        }
+        catch {
+            Write-UninstallLog "Error handling logs directory: $_" -Level "ERROR"
+        }
+    }
+    else {
+        # If not keeping logs or logs don't exist, just remove everything
+        try {
+            # First attempt with PowerShell
+            Remove-Item -Path $InstallDir -Force -Recurse -ErrorAction Stop
+            Write-UninstallLog "Installation directory removed successfully" -Level "SUCCESS"
+        }
+        catch {
+            Write-UninstallLog "PowerShell removal failed, trying cmd.exe approach..." -Level "WARN"
+            
+            try {
+                # Second attempt with cmd.exe
+                $result = cmd.exe /c "rd /s /q `"$InstallDir`"" 2>&1
+                Write-UninstallLog "Command result: $result" -Level "DEBUG"
+                
+                # Check if directory was actually removed
+                if (-not (Test-Path $InstallDir)) {
+                    Write-UninstallLog "Installation directory removed successfully with cmd.exe" -Level "SUCCESS"
+                }
+                else {
+                    Write-UninstallLog "Basic cmd.exe removal failed, trying more aggressive approach" -Level "WARN"
+                    
+                    # If still failing, try the aggressive approach with takeown
+                    cmd.exe /c "takeown /f `"$InstallDir`" /r /d y" | Out-Null
+                    cmd.exe /c "icacls `"$InstallDir`" /grant administrators:F /t" | Out-Null
+                    cmd.exe /c "rd /s /q `"$InstallDir`"" | Out-Null
+                    
+                    if (-not (Test-Path $InstallDir)) {
+                        Write-UninstallLog "Installation directory removed successfully with aggressive approach" -Level "SUCCESS"
+                    }
+                    else {
+                        Write-UninstallLog "Failed to remove installation directory" -Level "ERROR"
+                        return $false
+                    }
+                }
+            }
+            catch {
+                Write-UninstallLog "Command-line removal failed: $_" -Level "ERROR"
+                return $false
+            }
+        }
+    }
+    
+    return $true
+}
+
+# ===== Main Uninstallation Process =====
+function Start-Uninstallation {
+    try {
+        Write-UninstallLog "Starting CTTT uninstallation process..." -Level "INFO"
+        Write-UninstallLog "Installation directory: $InstallDir" -Level "INFO"
+        Write-UninstallLog "Force mode: $Force" -Level "INFO"
+        Write-UninstallLog "Keep logs: $KeepLogs" -Level "INFO"
+        Write-UninstallLog "Purge mode: $Purge" -Level "INFO"
+        
+        # Step 1: Stop processes
+        $processResult = Stop-CTTTProcesses
+        if (-not $processResult -and -not $Force) {
+            Write-UninstallLog "Process termination failed. Use -Force to proceed anyway." -Level "ERROR"
+            return $false
+        }
+        
+        # Step 2: Remove shortcuts
+        Remove-CTTTShortcuts | Out-Null
+        
+        # Step 3: Restore hosts file
+        Restore-HostsFile | Out-Null
+        
+        # Step 4: Remove SSL certificates
+        Remove-SSLCertificates | Out-Null
+        
+        # Step 5: Remove registry entries
+        Remove-RegistryEntries | Out-Null
+        
+        # Step 6: Remove installation directory
+        $directoryResult = Remove-InstallationDirectory
+        if (-not $directoryResult -and (-not $Force)) {
+            Write-UninstallLog "Failed to remove installation directory. Use -Force to ignore." -Level "ERROR"
+            return $false
+        }
+        
+        # Final check to report success
+        if ((-not $directoryResult) -or (-not $processResult)) {
+            Write-UninstallLog "Uninstallation completed with warnings or errors" -Level "WARN"
+            
+            if (-not (Test-Path $InstallDir) -or $Force) {
+                Write-UninstallLog "Main installation directory removal was successful" -Level "SUCCESS"
+                $success = $true
+            }
+            else {
+                Write-UninstallLog "Main installation directory could not be removed" -Level "ERROR"
+                $success = $false
+            }
+        }
+        else {
+            Write-UninstallLog "Uninstallation completed successfully" -Level "SUCCESS"
+            $success = $true
+        }
+        
+        # Copy log to desktop for future reference
+        try {
+            $desktopPath = [Environment]::GetFolderPath('Desktop')
+            $desktopLogFile = Join-Path $desktopPath "CTTT_Uninstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+            Copy-Item -Path $tempLogFile -Destination $desktopLogFile -Force
+            Write-UninstallLog "Log file saved to desktop: $desktopLogFile" -Level "INFO"
+        }
+        catch {
+            Write-UninstallLog "Failed to save log file to desktop: $_" -Level "WARN"
+        }
+        
+        return $success
+    }
+    catch {
+        Write-UninstallLog "Critical error during uninstallation: $_" -Level "ERROR"
+        Write-UninstallLog "Stack trace: $($_.ScriptStackTrace)" -Level "ERROR"
+        
+        if ($Force) {
+            # Try emergency cleanup as last resort
+            try {
+                Write-UninstallLog "Attempting emergency directory removal..." -Level "WARN"
+                cmd.exe /c "rd /s /q `"$InstallDir`"" | Out-Null
+                
+                if (-not (Test-Path $InstallDir)) {
+                    Write-UninstallLog "Emergency cleanup succeeded" -Level "SUCCESS"
+                    return $true
+                }
+            }
+            catch {
+                # Ignore any errors in emergency cleanup
+            }
+            
+            return $false
+        }
+        
+        return $false
     }
 }
 
-# Final status and exit
-if ($success) {
-    Write-Log "CTTT uninstallation completed successfully" -Level SUCCESS
-    Write-Log "Note: The logs and CTTT data folders have been preserved" -Level INFO
-    exit 0
+# Execute uninstallation
+try {
+    $result = Start-Uninstallation
+    
+    # Schedule a delayed cleanup of the uninstaller files
+    Write-UninstallLog "Scheduling delayed cleanup of uninstaller files..." -Level "INFO"
+    
+    try {
+        # Create a scheduled task that will run once after a short delay to clean up remaining files
+        $cleanupScript = @"
+Start-Sleep -Seconds 30
+Remove-Item -Path "$InstallDir" -Force -Recurse -ErrorAction SilentlyContinue
+Remove-Item -Path "$InstallDir\unins000.exe" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$InstallDir\unins000.dat" -Force -ErrorAction SilentlyContinue
+"@
+        
+        $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanupScript))
+        
+        # Execute the delayed cleanup in a separate, hidden PowerShell process
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-WindowStyle", "Hidden", "-EncodedCommand", $encodedCommand -WindowStyle Hidden
+        
+        Write-UninstallLog "Delayed cleanup scheduled" -Level "SUCCESS"
+    }
+    catch {
+        Write-UninstallLog "Failed to schedule delayed cleanup: $_" -Level "WARN"
+    }
+    
+    # Return appropriate exit code
+    exit [int](-not $result)
 }
-else {
-    Write-Log "CTTT uninstallation failed - check logs for details" -Level ERROR
+catch {
+    # The rest of your catch block remains unchanged
+    Write-UninstallLog "Fatal error during uninstallation: $_" -Level "ERROR"
+    Write-UninstallLog "Stack trace: $($_.ScriptStackTrace)" -Level "ERROR"
+    
     exit 1
 }

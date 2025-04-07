@@ -148,11 +148,6 @@ public class SessionCommandFactory {
         return new ActivateHourlyMonitoringCommand(username);
     }
 
-    // Creates a command to check for stalled notifications
-    public CheckStalledNotificationsCommand createCheckStalledNotificationsCommand() {
-        return new CheckStalledNotificationsCommand();
-    }
-
     //========
     // UI/View Commands
     //========
@@ -186,10 +181,6 @@ public class SessionCommandFactory {
         return new NavigationContextQuery(user);
     }
 
-    // Creates a query to extract username from session filename
-    public ExtractUsernameFromSessionFileQuery createExtractUsernameFromSessionFileQuery(String filename) {
-        return new ExtractUsernameFromSessionFileQuery(filename);
-    }
     public GetLocalUserQuery createGetLocalUserQuery() {
         return new GetLocalUserQuery();
     }
@@ -204,13 +195,8 @@ public class SessionCommandFactory {
         return new WorkScheduleQuery(date, userSchedule);
     }
 
-    // Creates a query to get work schedule information for the current date
-    public WorkScheduleQuery createWorkScheduleQuery(Integer userSchedule) {
-        return new WorkScheduleQuery(userSchedule);
-    }
-
-    public WorktimeResolutionQuery createWorktimeResolutionQuery(String username, Integer userId) {
-        return new WorktimeResolutionQuery(username, userId);
+    public WorktimeResolutionQuery createWorktimeResolutionQuery(String username) {
+        return new WorktimeResolutionQuery(username);
     }
     public SessionStatusQuery createSessionStatusQuery(String username, Integer userId){
         return new SessionStatusQuery(username, userId);

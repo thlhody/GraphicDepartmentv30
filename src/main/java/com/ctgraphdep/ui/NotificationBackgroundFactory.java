@@ -139,7 +139,7 @@ public class NotificationBackgroundFactory {
             StringBuilder currentLine = new StringBuilder();
 
             for (String word : words) {
-                String testLine = currentLine.toString() + word + " ";
+                String testLine = currentLine + word + " ";
                 if (fm.stringWidth(testLine) > width - (2 * CONTENT_PADDING)) {
                     lines.add(currentLine.toString().trim());
                     currentLine = new StringBuilder(word + " ");

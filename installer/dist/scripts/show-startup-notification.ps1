@@ -18,7 +18,7 @@ if (-not (Test-Path $logPath)) {
 }
 
 # Simple logging function
-function Log-Message {
+function MessageLogging {
     param([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "$timestamp - $Message"
@@ -31,22 +31,22 @@ function Log-Message {
 }
 
 # Start logging
-Log-Message "Starting CTTT notification script"
-Log-Message "Install directory: $InstallDir"
-Log-Message "Start app script: $startAppScript"
-Log-Message "Log file: $logFile"
+MessageLogging "Starting CTTT notification script"
+MessageLogging "Install directory: $InstallDir"
+MessageLogging "Start app script: $startAppScript"
+MessageLogging "Log file: $logFile"
 
 # Wait to ensure desktop is ready
 Start-Sleep -Seconds 10
-Log-Message "Completed initial delay"
+MessageLogging "Completed initial delay"
 
 # Now show the notification
 try {
-    Log-Message "Loading required assemblies"
+    MessageLogging "Loading required assemblies"
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     
-    Log-Message "Creating notification form"
+    MessageLogging "Creating notification form"
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "CTTT Application Startup"
     $form.Width = 450
@@ -63,10 +63,10 @@ try {
         if (Test-Path $iconPath) {
             $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($iconPath)
             $form.Icon = $icon
-            Log-Message "Loaded application icon"
+            MessageLogging "Loaded application icon"
         }
     } catch {
-        Log-Message "Could not load icon: $_"
+        MessageLogging "Could not load icon: $_"
     }
     
     # Title
@@ -102,21 +102,21 @@ try {
     $startButton.BackColor = [System.Drawing.Color]::LightGreen
     
     $startButton.Add_Click({
-        Log-Message "User clicked Start button"
+        MessageLogging "User clicked Start button"
         try {
-            Log-Message "Preparing to start application"
+            MessageLogging "Preparing to start application"
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = "powershell.exe"
             $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$startAppScript`" -InstallDir `"$InstallDir`""
             $psi.Verb = "runas"
             $psi.UseShellExecute = $true
             
-            Log-Message "Starting process: $($psi.FileName) $($psi.Arguments)"
+            MessageLogging "Starting process: $($psi.FileName) $($psi.Arguments)"
             [System.Diagnostics.Process]::Start($psi) | Out-Null
-            Log-Message "Process start initiated"
+            MessageLogging "Process start initiated"
         }
         catch {
-            Log-Message "Error starting application: $_"
+            MessageLogging "Error starting application: $_"
             [System.Windows.Forms.MessageBox]::Show(
                 "Failed to start CTTT: $_", 
                 "Error", 
@@ -139,13 +139,13 @@ try {
     $cancelButton.Font = New-Object System.Drawing.Font("Segoe UI", 10)
     
     $cancelButton.Add_Click({ 
-        Log-Message "User clicked Cancel button"
+        MessageLogging "User clicked Cancel button"
         $form.Close() 
     })
     $form.Controls.Add($cancelButton)
     
     # Show dialog with activation
-    Log-Message "Displaying notification dialog"
+    MessageLogging "Displaying notification dialog"
     $form.Add_Shown({
         $form.Activate()
         [System.Media.SystemSounds]::Exclamation.Play()
@@ -155,7 +155,7 @@ try {
     $autoCloseTimer = New-Object System.Windows.Forms.Timer
     $autoCloseTimer.Interval = 120000 
     $autoCloseTimer.Add_Tick({
-        Log-Message "Auto-closing notification after timeout"
+        MessageLogging "Auto-closing notification after timeout"
         $form.Close()
         $autoCloseTimer.Stop()
     })
@@ -165,11 +165,11 @@ try {
     $form.ShowDialog()
     $autoCloseTimer.Stop()
     
-    Log-Message "Dialog closed"
+    MessageLogging "Dialog closed"
 }
 catch {
-    Log-Message "Critical error: $_"
-    Log-Message "Stack trace: $($_.ScriptStackTrace)"
+    MessageLogging "Critical error: $_"
+    MessageLogging "Stack trace: $($_.ScriptStackTrace)"
     
     # Try simple message box as last resort
     try {
@@ -184,4 +184,4 @@ catch {
     }
 }
 
-Log-Message "Notification script completed"
+MessageLogging "Notification script completed"

@@ -251,7 +251,7 @@
                                     <arg value="${project.basedir}/installer/setup.iss"/>
                                 </exec>
 
-                                <echo message="Installer created at: ${project.build.directory}/installer-output/CTTT_Setup_6.6.9.exe"/>
+                                <echo message="Installer created at: ${project.build.directory}/installer-output/CTTT_Setup_..."/>
                             </target>
                         </configuration>
                     </execution>

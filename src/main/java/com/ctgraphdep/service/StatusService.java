@@ -5,12 +5,11 @@ import com.ctgraphdep.model.dto.*;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCountsDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
-import lombok.Getter;
-import lombok.Setter;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
@@ -24,32 +23,14 @@ import java.util.stream.Collectors;
 @Service
 public class StatusService {
     private final DataAccessService dataAccessService;
-    private final UserStatusDbService userStatusDbService;
     private final UserRegisterService userRegisterService;
 
     public StatusService(DataAccessService dataAccessService,
-                         UserStatusDbService userStatusDbService,
                          UserRegisterService userRegisterService) {
         this.dataAccessService = dataAccessService;
-        this.userStatusDbService = userStatusDbService;
         this.userRegisterService = userRegisterService;
 
         LoggerUtil.initialize(this.getClass(), null);
-    }
-
-    // Gets user statuses for display on the status page.
-    public List<UserStatusDTO> getUserStatuses() {
-        return userStatusDbService.getAllUserStatuses(); // Updated to use new service
-    }
-
-    // Gets user status count based on status type.
-    public int getUserStatusCount(String statusType) {
-        if ("online".equalsIgnoreCase(statusType)) {
-            return userStatusDbService.getOnlineUserCount(); // Updated to use new service
-        } else if ("active".equalsIgnoreCase(statusType)) {
-            return userStatusDbService.getActiveUserCount(); // Updated to use new service
-        }
-        return 0;
     }
 
     // Load worktime data for a user in view-only mode (optimized read-only operation)
@@ -442,7 +423,7 @@ public class StatusService {
 
         try {
             int totalWorkDays = calculateWorkDays(year, month);
-            WorkTimeCounts counts = calculateWorkTimeCounts(worktimeData);
+            WorkTimeCountsDTO counts = calculateWorkTimeCounts(worktimeData);
 
             return WorkTimeSummary.builder()
                     .totalWorkDays(totalWorkDays)
@@ -463,8 +444,8 @@ public class StatusService {
         }
     }
 
-    private WorkTimeCounts calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
-        WorkTimeCounts counts = new WorkTimeCounts();
+    private WorkTimeCountsDTO calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
+        WorkTimeCountsDTO counts = new WorkTimeCountsDTO();
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
         int totalDiscardedMinutes = 0;
@@ -725,33 +706,4 @@ public class StatusService {
         return sanitized;
     }
 
-
-    //Helper class to track work time counts.
-    @Getter
-    @Setter
-    private static class WorkTimeCounts {
-        private int daysWorked = 0;
-        private int snDays = 0;
-        private int coDays = 0;
-        private int cmDays = 0;
-        private int regularMinutes = 0;
-        private int overtimeMinutes = 0;
-        private int discardedMinutes = 0;
-
-        public void incrementDaysWorked() {
-            daysWorked++;
-        }
-
-        public void incrementSnDays() {
-            snDays++;
-        }
-
-        public void incrementCoDays() {
-            coDays++;
-        }
-
-        public void incrementCmDays() {
-            cmDays++;
-        }
-    }
 }

@@ -135,7 +135,7 @@ function formatDateDisplays() {
 }
 
 /**
- * Refreshes the status data via AJAX
+ * Refreshes the status data via AJAX with improved URL handling
  */
 function autoRefreshStatus() {
     // Show a small loading indicator
@@ -145,19 +145,8 @@ function autoRefreshStatus() {
         refreshButton.classList.add('disabled');
     }
 
-    // Build the correct URL for AJAX request
-    let ajaxUrl = 'status/ajax-refresh';
-
-    // Make the URL absolute if it's not already
-    if (!ajaxUrl.startsWith('/') && !ajaxUrl.startsWith('http')) {
-        const baseUrl = window.location.pathname;
-        // Remove 'status' if it's already in the path to prevent duplication
-        const basePath = baseUrl.endsWith('/status') ? baseUrl :
-        baseUrl.endsWith('/status/') ? baseUrl.slice(0, -1) :
-        baseUrl;
-
-        ajaxUrl = basePath + '/' + ajaxUrl;
-    }
+    // Construct the absolute URL - fix the path issue
+    let ajaxUrl = '/status/ajax-refresh';
 
     // Make AJAX request to get fresh status data
     fetch(ajaxUrl, {

@@ -4,8 +4,6 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
 
-import java.time.LocalDate;
-
 /**
  * Utility class for validating session states
  */

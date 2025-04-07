@@ -91,8 +91,6 @@ public class SessionEntityBuilder {
         return entry;
     }
 
-    // Inner builder class for flexible session updates
-    @Deprecated
     public static class SessionUpdateBuilder {
         private final WorkUsersSessionsStates session;
 

@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -286,7 +285,7 @@ public class TimeOffTrackerService {
                 // Check if this date exists as time off in worktime files
                 String worktimeType = worktimeOffDates.get(requestDate);
 
-                if (!dateExistsInWorktime || worktimeType == null) {
+                if (!dateExistsInWorktime) {
                     // Date no longer exists in worktime or is not marked as time off
                     // Only count as removed if it was previously approved
                     if ("APPROVED".equals(request.getStatus())) {
@@ -463,168 +462,6 @@ public class TimeOffTrackerService {
                     String.format("Error getting upcoming time off for %s: %s",
                             user.getUsername(), e.getMessage()));
             return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Calculate time off summary for a year.
-     * This reads directly from the tracker and does not modify anything.
-     */
-    public TimeOffSummaryDTO calculateTimeOffSummary(User user, int year) {
-        try {
-            // Load the tracker directly (no sync)
-            TimeOffTracker tracker = loadTimeOffTracker(user.getUsername(), user.getUserId(), year);
-
-            // Count by type from approved entries
-            int snDays = 0, coDays = 0, cmDays = 0;
-
-            for (TimeOffTracker.TimeOffRequest request : tracker.getRequests()) {
-                // Only count approved requests
-                if (!"APPROVED".equals(request.getStatus())) {
-                    continue;
-                }
-
-                // Count by type
-                switch (request.getTimeOffType()) {
-                    case "SN" -> snDays++;
-                    case "CO" -> coDays++;
-                    case "CM" -> cmDays++;
-                }
-            }
-
-            // Get the available and used CO days from the tracker
-            int availablePaidDays = tracker.getAvailableHolidayDays();
-            int usedPaidDays = tracker.getUsedHolidayDays();
-
-            // Build and return the summary
-            return TimeOffSummaryDTO.builder()
-                    .snDays(snDays)
-                    .coDays(coDays)
-                    .cmDays(cmDays)
-                    .availablePaidDays(availablePaidDays + usedPaidDays) // Total available+used
-                    .paidDaysTaken(usedPaidDays)
-                    .remainingPaidDays(availablePaidDays)
-                    .build();
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error calculating time off summary for %s (year %d): %s",
-                            user.getUsername(), year, e.getMessage()));
-            return TimeOffSummaryDTO.builder()
-                    .snDays(0)
-                    .coDays(0)
-                    .cmDays(0)
-                    .availablePaidDays(21)
-                    .paidDaysTaken(0)
-                    .remainingPaidDays(21)
-                    .build();
-        }
-    }
-
-    /**
-     * Cancel a specific time off request and update the holiday balance if needed.
-     * This does NOT modify worktime files.
-     */
-    public TimeOffTracker.TimeOffRequest cancelTimeOffRequest(User user, String requestId) {
-        LocalDate today = timeProvider.getCurrentDate();
-        int currentYear = today.getYear();
-
-        ReentrantReadWriteLock.WriteLock writeLock = getTrackerLock(user.getUsername()).writeLock();
-        writeLock.lock();
-        try {
-            // Load tracker for current year
-            TimeOffTracker tracker = loadTimeOffTracker(user.getUsername(), user.getUserId(), currentYear);
-
-            // Find the request to cancel
-            Optional<TimeOffTracker.TimeOffRequest> requestOpt = tracker.getRequests().stream()
-                    .filter(r -> r.getRequestId().equals(requestId))
-                    .findFirst();
-
-            if (requestOpt.isEmpty()) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Request %s not found for user %s",
-                                requestId, user.getUsername()));
-                return null;
-            }
-
-            TimeOffTracker.TimeOffRequest request = requestOpt.get();
-
-            // Skip if already canceled
-            if ("CANCELED".equals(request.getStatus())) {
-                return request;
-            }
-
-            // Update status
-            request.setStatus("CANCELED");
-            request.setNotes("Canceled by user");
-            request.setLastUpdated(getStandardTimeValues().getCurrentTime());
-
-            // If this was a CO request, update the balance
-            if ("CO".equals(request.getTimeOffType())) {
-                int newUsedDays = tracker.getUsedHolidayDays() - 1;
-                int newAvailableDays = tracker.getAvailableHolidayDays() + 1;
-
-                tracker.setUsedHolidayDays(newUsedDays);
-                tracker.setAvailableHolidayDays(newAvailableDays);
-
-                // Also update the holiday service
-                holidayService.updateUserHolidayDays(user.getUserId(), newAvailableDays);
-
-                LoggerUtil.info(this.getClass(),
-                        String.format("Restored 1 CO day for user %s when canceling request %s",
-                                user.getUsername(), requestId));
-            }
-
-            // Save updated tracker
-            saveTimeOffTracker(tracker, currentYear);
-
-            return request;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error canceling time off request %s for user %s: %s",
-                            requestId, user.getUsername(), e.getMessage()));
-            return null;
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    /**
-     * Get a specific time off request by ID
-     */
-    public TimeOffTracker.TimeOffRequest getTimeOffRequest(User user, String requestId) {
-        // Try current year first
-        int currentYear = timeProvider.getCurrentDate().getYear();
-
-        ReentrantReadWriteLock.ReadLock readLock = getTrackerLock(user.getUsername()).readLock();
-        readLock.lock();
-        try {
-            // Load tracker for current year
-            TimeOffTracker tracker = loadTimeOffTracker(user.getUsername(), user.getUserId(), currentYear);
-
-            // Try to find the request
-            Optional<TimeOffTracker.TimeOffRequest> request = tracker.getRequests().stream()
-                    .filter(r -> r.getRequestId().equals(requestId))
-                    .findFirst();
-
-            if (request.isPresent()) {
-                return request.get();
-            }
-
-            // If not found, try previous year
-            TimeOffTracker prevYearTracker = loadTimeOffTracker(user.getUsername(), user.getUserId(), currentYear - 1);
-            return prevYearTracker.getRequests().stream()
-                    .filter(r -> r.getRequestId().equals(requestId))
-                    .findFirst()
-                    .orElse(null);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error getting time off request %s for user %s: %s",
-                            requestId, user.getUsername(), e.getMessage()));
-            return null;
-        } finally {
-            readLock.unlock();
         }
     }
 }

@@ -35,10 +35,12 @@ public class PathConfig {
     private String appTitle;
 
     //Status db paths
-    @Value("${dbj.user.status:dbj/user/usersession/status_db}")
+    @Value("${dbj.user.status}")
     private String userStatus;
-    @Value("${dbj.dir.format.status:status_%s_%d.json}")
-    private String statusFormat;
+    @Value("${dbj.dir.format.status}")
+    private String localStatusFileFormat;
+    @Value("${dbj.dir.format.status.flag}")
+    private String statusFlagFormat;
 
     // Directory paths
     @Value("${dbj.user.session}")
@@ -152,7 +154,6 @@ public class PathConfig {
     public Path getNetworkUsersPath() {
         return networkPath.resolve(loginPath).resolve(usersFilename);
     }
-
     public Path getNetworkHolidayPath() {
         return networkPath.resolve(loginPath).resolve(holidayFilename);
     }
@@ -161,7 +162,6 @@ public class PathConfig {
     public Path getLocalUsersPath() {
         return localPath.resolve(loginPath).resolve(localUsersFilename);
     }
-
     public Path getLocalBonusPath(int year, int month) {
         return localPath.resolve(adminBonus).resolve(String.format(adminBonusFormat, year, month));
     }
@@ -171,33 +171,15 @@ public class PathConfig {
         return localPath.resolve(userSession)
                 .resolve(String.format(sessionFormat, username, userId));
     }
-
     public Path getNetworkSessionPath(String username, Integer userId) {
         return networkPath.resolve(userSession)
                 .resolve(String.format(sessionFormat, username, userId));
-    }
-
-    public Path getLocalStatusDbDirectory() {
-        return localPath.resolve(userStatus);
-    }
-
-    public Path getNetworkStatusDbDirectory() {
-        return networkPath.resolve(userStatus);
-    }
-
-    public Path getLocalStatusFilePath(String username, Integer userId) {
-        return getLocalStatusDbDirectory().resolve(String.format(statusFormat, username, userId));
-    }
-
-    public Path getNetworkStatusFilePath(String username, Integer userId) {
-        return getNetworkStatusDbDirectory().resolve(String.format(statusFormat, username, userId));
     }
 
     // Worktime paths - local and network for sync
     public Path getLocalWorktimePath(String username, int year, int month) {
         return localPath.resolve(userWorktime).resolve(String.format(worktimeFormat, username, year, month));
     }
-
     public Path getNetworkWorktimePath(String username, int year, int month) {
         return networkPath.resolve(userWorktime).resolve(String.format(worktimeFormat, username, year, month));
     }
@@ -206,7 +188,6 @@ public class PathConfig {
     public Path getLocalRegisterPath(String username, Integer userId, int year, int month) {
         return localPath.resolve(userRegister).resolve(String.format(registerFormat, username, userId, year, month));
     }
-
     public Path getNetworkRegisterPath(String username, Integer userId, int year, int month) {
         return networkPath.resolve(userRegister).resolve(String.format(registerFormat, username, userId, year, month));
     }
@@ -215,7 +196,6 @@ public class PathConfig {
     public Path getLocalAdminWorktimePath(int year, int month) {
         return localPath.resolve(adminWorktime).resolve(String.format(adminWorktimeFormat, year, month));
     }
-
     public Path getNetworkAdminWorktimePath(int year, int month) {
         return networkPath.resolve(adminWorktime).resolve(String.format(adminWorktimeFormat, year, month));
     }
@@ -224,7 +204,6 @@ public class PathConfig {
     public Path getLocalAdminRegisterPath(String username, Integer userId, int year, int month) {
         return localPath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
-
     public Path getNetworkAdminRegisterPath(String username, Integer userId, int year, int month) {
         return networkPath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
@@ -232,7 +211,6 @@ public class PathConfig {
     public Path getTeamJsonPath(String teamLeadUsername, int year, int month) {
         return localPath.resolve(loginPath).resolve(String.format(teamFileFormat, teamLeadUsername, year, month));
     }
-
     public Path getHolidayCachePath() {
         return networkPath.resolve(loginPath).resolve(holidayCacheFile);
     }
@@ -247,7 +225,6 @@ public class PathConfig {
     public Path getNotificationsPath() {
         return localPath.resolve("notifications");
     }
-
     public Path getNotificationTrackingFilePath(String username, String notificationType) {
         Path notificationsDir = getNotificationsPath();
         return notificationsDir.resolve(
@@ -262,7 +239,6 @@ public class PathConfig {
         return localPath.resolve(userTimeoff)
                 .resolve(String.format(timeoffFormat, username, userId, year));
     }
-
     /**
      * Get the network path for a user's time off tracker file with year
      */
@@ -270,6 +246,29 @@ public class PathConfig {
         return networkPath.resolve(userTimeoff)
                 .resolve(String.format(timeoffFormat, username, userId, year));
     }
+
+    /**
+     * Get the path to the local status cache file
+     */
+    public Path getLocalStatusCachePath() {
+        return localPath.resolve(userStatus).resolve(localStatusFileFormat);
+    }
+
+    /**
+     * Get the path to the network status directory for flag files
+     */
+    public Path getNetworkStatusFlagsDirectory() {
+        return networkPath.resolve(userStatus);
+    }
+
+    /**
+     * Get the path for a specific flag file on the network
+     */
+    public Path getNetworkStatusFlagPath(String username, String dateCode, String timeCode, String statusCode) {
+        String flagFilename = String.format(statusFlagFormat, username, dateCode, timeCode, statusCode);
+        return getNetworkStatusFlagsDirectory().resolve(flagFilename);
+    }
+
 
     // Network status management
     public boolean isNetworkAvailable() {

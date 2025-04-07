@@ -15,6 +15,6 @@ public class TimeOffSummaryDTO {
     private int cmDays;
     private int availablePaidDays;
     private int paidDaysTaken;  // Total CO days taken
-    private int remainingPaidDays; // Remaing CO days
+    private int remainingPaidDays; // Remaining CO days
 
 }

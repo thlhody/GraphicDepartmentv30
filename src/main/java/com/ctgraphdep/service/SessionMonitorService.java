@@ -26,7 +26,6 @@ import com.ctgraphdep.validation.commands.IsWeekdayCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
@@ -49,7 +48,6 @@ import java.util.stream.Stream;
 public class SessionMonitorService {
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
-    private final SystemNotificationService notificationService;
     private final UserService userService;
     private final TaskScheduler taskScheduler;
     private final PathConfig pathConfig;
@@ -77,7 +75,6 @@ public class SessionMonitorService {
     public SessionMonitorService(
             SessionCommandService commandService,
             SessionCommandFactory commandFactory,
-            @Lazy SystemNotificationService notificationService,
             UserService userService,
             @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             PathConfig pathConfig,
@@ -87,7 +84,6 @@ public class SessionMonitorService {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
-        this.notificationService = notificationService;
         this.userService = userService;
         this.taskScheduler = taskScheduler;
         this.pathConfig = pathConfig;
@@ -494,7 +490,7 @@ public class SessionMonitorService {
             User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
 
             // Check for unresolved worktime entries using the new WorktimeResolutionQuery
-            WorktimeResolutionQuery resolutionQuery = commandFactory.createWorktimeResolutionQuery(username, user.getUserId());
+            WorktimeResolutionQuery resolutionQuery = commandFactory.createWorktimeResolutionQuery(username);
             WorktimeResolutionQuery.ResolutionStatus resolutionStatus = commandService.executeQuery(resolutionQuery);
 
             // Get current session separately (no longer part of ResolutionStatus)

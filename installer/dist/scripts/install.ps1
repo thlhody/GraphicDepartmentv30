@@ -120,7 +120,6 @@ function Update-ApplicationProperties {
         return $false
     }
 }
-
 function Initialize-Environment {
     Write-Log "Initializing CTTT environment..." -Level INFO
     
@@ -197,7 +196,6 @@ function Test-PrerequisitesAsync {
     
     return $results.Values -notcontains $false
 }
-
 function Install-Components {
     param (
         [Parameter(Mandatory=$true)]
@@ -252,7 +250,6 @@ function Install-Components {
     
     return $true
 }
-
 function NewStartupShortcut {
     param (
         [Parameter(Mandatory=$true)]
@@ -309,7 +306,6 @@ function NewStartupShortcut {
         return $false
     }
 }
-
 function Start-CTTTApplication {
     try {
         $startAppScript = Join-Path $InstallDir "start-app.ps1"

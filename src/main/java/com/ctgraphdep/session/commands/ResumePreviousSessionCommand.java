@@ -96,12 +96,12 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
         }
 
         // Update session state using builder
-        SessionEntityBuilder.updateSession(session, builder -> {
+        SessionEntityBuilder.updateSession(session, builder ->
             builder.status(WorkCode.WORK_ONLINE)
                     .currentStartTime(resumeTime)
                     .dayEndTime(null)
-                    .workdayCompleted(false);
-        });
+                    .workdayCompleted(false)
+        );
 
         debug("Session state updated to WORK_ONLINE");
     }

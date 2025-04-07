@@ -59,31 +59,6 @@ public abstract class BaseSessionQuery<T> implements SessionQuery<T> {
     }
 
     /**
-     * Validates that a user ID is not null.
-     *
-     * @param userId The user ID to validate
-     * @throws RuntimeException if user ID is null
-     */
-    protected void validateUserId(Integer userId) {
-        if (userId == null) {
-            logAndThrow("User ID cannot be null");
-        }
-    }
-
-    /**
-     * Validates a condition and throws an exception with the specified message if false.
-     *
-     * @param condition The condition to validate
-     * @param message The error message if condition is false
-     * @throws RuntimeException if condition is false
-     */
-    protected void validateCondition(boolean condition, String message) {
-        if (!condition) {
-            logAndThrow(message);
-        }
-    }
-
-    /**
      * Logs an error message and throws a RuntimeException.
      *
      * @param message The error message

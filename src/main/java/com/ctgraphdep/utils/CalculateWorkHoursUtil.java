@@ -12,7 +12,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.stream.IntStream;
 
 public class CalculateWorkHoursUtil {
@@ -228,33 +227,4 @@ public class CalculateWorkHoursUtil {
         return Math.max(0, totalMinutes);
     }
 
-    /**
-     * Calculates raw work minutes between two times with a list of temporary stops
-     *
-     * @param startTime The start time
-     * @param endTime The end time
-     * @param stops List of temporary stops during the period
-     * @return Total worked minutes excluding stops
-     */
-    public static int calculateRawWorkMinutes(LocalDateTime startTime, LocalDateTime endTime, List<TemporaryStop> stops) {
-        if (startTime == null || endTime == null) {
-            return 0;
-        }
-
-        // Total minutes between start and end
-        int totalMinutes = (int) ChronoUnit.MINUTES.between(startTime, endTime);
-
-        // Subtract temporary stop minutes if any
-        if (stops != null && !stops.isEmpty()) {
-            int totalStopMinutes = 0;
-            for (TemporaryStop stop : stops) {
-                if (stop.getStartTime() != null && stop.getEndTime() != null) {
-                    totalStopMinutes += calculateMinutesBetween(stop.getStartTime(), stop.getEndTime());
-                }
-            }
-            totalMinutes -= totalStopMinutes;
-        }
-
-        return Math.max(0, totalMinutes);
-    }
 }

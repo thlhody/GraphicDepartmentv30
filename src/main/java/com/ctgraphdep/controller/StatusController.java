@@ -5,7 +5,6 @@ import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
-import com.ctgraphdep.model.dto.UserStatusDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.service.*;
@@ -43,7 +42,7 @@ public class StatusController extends BaseController {
     private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     private final StatusService statusService;
-    private final UserStatusDbService userStatusDbService;
+    private final ReadFileNameStatusService readFileNameStatusService; // Use new service
     private final ThymeleafService thymeleafService;
     private final UserRegisterExcelExporter excelExporter;
     private final UserWorktimeExcelExporter userWorktimeExcelExporter;
@@ -51,14 +50,12 @@ public class StatusController extends BaseController {
     public StatusController(UserService userService,
                             FolderStatus folderStatus,
                             StatusService statusService,
-                            UserStatusDbService userStatusDbService,
+                            ReadFileNameStatusService readFileNameStatusService, // Inject the new service
                             ThymeleafService thymeleafService,
-                            UserRegisterExcelExporter excelExporter,
-                            UserWorktimeExcelExporter userWorktimeExcelExporter,
-                            TimeValidationService timeValidationService) {
+                            TimeValidationService timeValidationService, UserRegisterExcelExporter excelExporter, UserWorktimeExcelExporter userWorktimeExcelExporter) {
         super(userService, folderStatus, timeValidationService);
         this.statusService = statusService;
-        this.userStatusDbService = userStatusDbService;
+        this.readFileNameStatusService = readFileNameStatusService;
         this.thymeleafService = thymeleafService;
         this.excelExporter = excelExporter;
         this.userWorktimeExcelExporter = userWorktimeExcelExporter;
@@ -73,9 +70,9 @@ public class StatusController extends BaseController {
         // Determine dashboard URL based on user role
         String dashboardUrl = getDashboardUrl(currentUser);
 
-        // Get filtered status list using the StatusService
-        List<UserStatusDTO> userStatuses = statusService.getUserStatuses();
-        long onlineCount = statusService.getUserStatusCount("online");
+        // Get filtered status list using the ReadFileNameStatusService instead of StatusService
+        var userStatuses = readFileNameStatusService.getAllUserStatuses();
+        long onlineCount = readFileNameStatusService.getOnlineUserCount();
 
         // Add the flag for admin/team leader role check
         boolean hasAdminTeamLeaderRole = currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER");
@@ -92,11 +89,10 @@ public class StatusController extends BaseController {
         return "status/status";
     }
 
-
     @GetMapping("/refresh")
     public String refreshStatus() {
         // Invalidate the cache to ensure fresh data
-        userStatusDbService.invalidateCache();
+        readFileNameStatusService.invalidateCache(); // Use new service
         LoggerUtil.info(this.getClass(), "Status cache invalidated via manual refresh at " + getStandardCurrentDateTime());
         return "redirect:/status";
     }
@@ -109,13 +105,13 @@ public class StatusController extends BaseController {
 
         try {
             // Force invalidation of the status cache
-            userStatusDbService.invalidateCache();
+            readFileNameStatusService.invalidateCache(); // Use new service
 
             User currentUser = getUser(userDetails);
 
             // Get fresh status list after invalidating cache
-            List<UserStatusDTO> userStatuses = statusService.getUserStatuses();
-            long onlineCount = statusService.getUserStatusCount("online");
+            var userStatuses = readFileNameStatusService.getAllUserStatuses(); // Use new service
+            long onlineCount = readFileNameStatusService.getOnlineUserCount(); // Use new service
 
             // Create a model to generate the HTML for the table body
             Model tableModel = new ConcurrentModel();
@@ -480,6 +476,12 @@ public class StatusController extends BaseController {
             return "/team-lead";
         } else if (user.hasRole("ADMIN")) {
             return "/admin";
+        } else if (user.hasRole("TL_CHECKING")) {
+            return "/team-checking";
+        } else if (user.hasRole("USER_CHECKING")) {
+            return "/user-checking";
+        } else if (user.hasRole("CHECKING")) {
+            return "/checking";
         } else {
             return "/user";
         }

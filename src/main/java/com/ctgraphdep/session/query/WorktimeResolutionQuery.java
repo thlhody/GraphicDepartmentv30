@@ -14,11 +14,9 @@ import java.util.List;
  */
 public class WorktimeResolutionQuery implements SessionQuery<WorktimeResolutionQuery.ResolutionStatus> {
     private final String username;
-    private final Integer userId;
 
-    public WorktimeResolutionQuery(String username, Integer userId) {
+    public WorktimeResolutionQuery(String username) {
         this.username = username;
-        this.userId = userId;
     }
 
     @Override

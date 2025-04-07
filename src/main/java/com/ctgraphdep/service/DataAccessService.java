@@ -3,25 +3,25 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.*;
-import com.ctgraphdep.model.db.UserStatusRecord;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.dto.TeamMemberDTO;
 import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -917,100 +917,6 @@ public class DataAccessService {
             return null;
         }
     }
-
-    // Writes a user status record to its dedicated status file.
-    public void writeUserStatus(String username, Integer userId, UserStatusRecord statusRecord) {
-        try {
-            // Get the path to the user's status file
-            Path statusFilePath = pathConfig.getLocalStatusFilePath(username, userId);
-
-            // Make sure parent directory exists
-            Files.createDirectories(statusFilePath.getParent());
-
-            // Write to temp file first (atomic write)
-            Path tempFile = statusFilePath.resolveSibling(statusFilePath.getFileName() + ".tmp");
-            byte[] content = objectMapper.writeValueAsBytes(statusRecord);
-            Files.write(tempFile, content);
-
-            // Atomically replace the actual file
-            Files.move(tempFile, statusFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-
-            // If network is available, sync to network
-            if (pathConfig.isNetworkAvailable()) {
-                Path networkPath = pathConfig.getNetworkStatusFilePath(username, userId);
-                fileSyncService.syncToNetwork(statusFilePath, networkPath);
-            }
-
-            LoggerUtil.debug(this.getClass(), String.format("Successfully wrote status file for %s", username));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error writing status file for %s: %s", username, e.getMessage()), e);
-        }
-    }
-
-    // Reads all user status records from the status directory.
-    public Map<String, UserStatusRecord> readAllUserStatuses() {
-        Map<String, UserStatusRecord> statusMap = new ConcurrentHashMap<>();
-        Path statusDir = pathConfig.getLocalStatusDbDirectory();
-
-        try {
-            if (!Files.exists(statusDir)) {
-                Files.createDirectories(statusDir);
-            }
-
-            // Read all status files from the local directory
-            try (Stream<Path> files = Files.list(statusDir)) {
-                List<Path> statusFiles = files.filter(path -> path.toString().endsWith(".json") && !path.toString().endsWith(".tmp")).toList();
-
-                for (Path file : statusFiles) {
-                    try {
-                        if (Files.size(file) > 0) {
-                            UserStatusRecord record = objectMapper.readValue(Files.readAllBytes(file), UserStatusRecord.class);
-                            if (record != null && record.getUsername() != null) {
-                                statusMap.put(record.getUsername(), record);
-                            }
-                        }
-                    } catch (Exception e) {
-                        LoggerUtil.debug(this.getClass(), String.format("Skipping invalid status file %s: %s", file.getFileName(), e.getMessage()));
-                    }
-                }
-            }
-
-            // If network is available, also check for network status files that might be newer
-            if (pathConfig.isNetworkAvailable()) {
-                Path networkStatusDir = pathConfig.getNetworkStatusDbDirectory();
-                if (Files.exists(networkStatusDir)) {
-                    try (Stream<Path> files = Files.list(networkStatusDir)) {
-                        List<Path> networkStatusFiles = files.filter(path -> path.toString().endsWith(".json") && !path.toString().endsWith(".tmp")).toList();
-
-                        for (Path file : networkStatusFiles) {
-                            try {
-                                if (Files.size(file) > 0) {
-                                    UserStatusRecord record = objectMapper.readValue(Files.readAllBytes(file), UserStatusRecord.class);
-                                    if (record != null && record.getUsername() != null) {
-                                        // Check if we already have a record for this user
-                                        UserStatusRecord localRecord = statusMap.get(record.getUsername());
-
-                                        // If no local record or network record is newer, use network record
-                                        if (localRecord == null || (record.getLastUpdated() != null && localRecord.getLastUpdated() != null && record.getLastUpdated().isAfter(localRecord.getLastUpdated()))) {
-                                            statusMap.put(record.getUsername(), record);
-                                        }
-                                    }
-                                }
-                            } catch (Exception e) {
-                                LoggerUtil.debug(this.getClass(), String.format("Skipping invalid network status file %s: %s", file.getFileName(), e.getMessage()));
-                            }
-                        }
-                    }
-                }
-            }
-
-            return statusMap;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error reading status records: " + e.getMessage(), e);
-            return statusMap;
-        }
-    }
-
     public void writeNotificationTrackingFile(String username, String notificationType, LocalDateTime timestamp) {
         try {
             Path notificationsDir = pathConfig.getNotificationsPath();
@@ -1026,6 +932,131 @@ public class DataAccessService {
             LoggerUtil.error(this.getClass(),
                     String.format("Error writing notification tracking file for user %s with type %s: %s",
                             username, notificationType, e.getMessage()), e);
+        }
+    }
+
+
+    /**
+     * Reads the local status cache file
+     */
+    public LocalStatusCache readLocalStatusCache() {
+        try {
+            Path cachePath = pathConfig.getLocalStatusCachePath();
+
+            if (!Files.exists(cachePath)) {
+                LoggerUtil.info(this.getClass(), "Local status cache file does not exist yet");
+                return new LocalStatusCache();
+            }
+
+            return readLocal(cachePath, new TypeReference<LocalStatusCache>() {});
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error reading local status cache: " + e.getMessage(), e);
+            return new LocalStatusCache();
+        }
+    }
+
+    /**
+     * Writes the local status cache file
+     */
+    public void writeLocalStatusCache(LocalStatusCache cache) {
+        try {
+            Path cachePath = pathConfig.getLocalStatusCachePath();
+            Files.createDirectories(cachePath.getParent());
+            writeLocal(cachePath, cache);
+            LoggerUtil.debug(this.getClass(), "Successfully wrote local status cache");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error writing local status cache: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Creates a status flag file on the network
+     */
+    public void createNetworkStatusFlag(String username, String dateCode, String timeCode, String statusCode) {
+        try {
+            if (!pathConfig.isNetworkAvailable()) {
+                LoggerUtil.warn(this.getClass(), "Network unavailable, cannot create status flag");
+                return;
+            }
+
+            // Get current username from security context to check if this is the current user
+            String currentUsername = null;
+            try {
+                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null) {
+                    currentUsername = auth.getName();
+                }
+            } catch (Exception e) {
+                LoggerUtil.debug(this.getClass(), "Could not get current username: " + e.getMessage());
+            }
+
+            // Only create flag if this is the current user or we're in a user action
+            if (currentUsername == null || !currentUsername.equals(username)) {
+                LoggerUtil.debug(this.getClass(), "Skipping flag creation for " + username + " as not current user");
+                return;
+            }
+
+            // Create the network directory if it doesn't exist
+            Path networkFlagsDir = pathConfig.getNetworkStatusFlagsDirectory();
+            Files.createDirectories(networkFlagsDir);
+
+            // Delete any existing status flags for this user
+            try (Stream<Path> files = Files.list(networkFlagsDir)) {
+                files.filter(path -> path.getFileName().toString().startsWith("status_" + username + "_"))
+                        .forEach(path -> {
+                            try {
+                                Files.deleteIfExists(path);
+                            } catch (IOException e) {
+                                LoggerUtil.error(this.getClass(), "Error deleting old network status flag: " + e.getMessage());
+                            }
+                        });
+            }
+
+            // Create the new flag file on network
+            String flagFilename = String.format(pathConfig.getStatusFlagFormat(), username, dateCode, timeCode, statusCode);
+            Path networkFlagPath = networkFlagsDir.resolve(flagFilename);
+            Files.createFile(networkFlagPath);
+
+            LoggerUtil.debug(this.getClass(), "Created network status flag: " + flagFilename);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error creating network status flag for " + username + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Reads all status flag files from the network
+     */
+    public List<Path> readNetworkStatusFlags() {
+        try {
+            if (!pathConfig.isNetworkAvailable()) {
+                LoggerUtil.warn(this.getClass(), "Network unavailable, cannot read status flags");
+                return new ArrayList<>();
+            }
+
+            Path networkFlagsDir = pathConfig.getNetworkStatusFlagsDirectory();
+            if (!Files.exists(networkFlagsDir)) {
+                return new ArrayList<>();
+            }
+
+            try (Stream<Path> files = Files.list(networkFlagsDir)) {
+                return files.filter(path -> path.getFileName().toString().matches("status_.*\\.flag"))
+                        .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error reading network status flags: " + e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Deletes a network status flag file
+     */
+    public boolean deleteNetworkStatusFlag(Path flagPath) {
+        try {
+            return Files.deleteIfExists(flagPath);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error deleting network status flag: " + e.getMessage(), e);
+            return false;
         }
     }
 }

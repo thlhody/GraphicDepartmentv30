@@ -165,7 +165,7 @@ public class WorkTimeExcelExporter {
             cell.setCellStyle(cellStyle);
 
             if (shouldProcessEntry(entry)) {
-                processEntry(cell, entry, user, cellStyle);
+                processEntry(cell, entry);
 
                 if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
                     var result = CalculateWorkHoursUtil.calculateWorkTime(
@@ -197,7 +197,7 @@ public class WorkTimeExcelExporter {
         return styles.get("number");
     }
 
-    private void processEntry(Cell cell, WorkTimeTable entry, User user, CellStyle cellStyle) {
+    private void processEntry(Cell cell, WorkTimeTable entry) {
         if (entry.getTimeOffType() != null && !"BLANK".equals(entry.getTimeOffType())) {
             cell.setCellValue(entry.getTimeOffType());
         } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
