@@ -18,6 +18,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import javax.swing.*;
@@ -102,6 +103,17 @@ public class SystemNotificationService {
             healthMonitor.recordTaskFailure("notification-service", e.getMessage());
             LoggerUtil.error(this.getClass(), "Error in notification service: " + e.getMessage(), e);
             return false;
+        }
+    }
+
+    @Scheduled(fixedRate = 240000) // Run every 4 minutes
+    public void heartbeat() {
+        try {
+            // Simply record that the service is still alive
+            healthMonitor.recordTaskExecution("notification-service");
+            LoggerUtil.debug(this.getClass(), "Notification service heartbeat recorded");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error in notification service heartbeat: " + e.getMessage());
         }
     }
 

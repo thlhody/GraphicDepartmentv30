@@ -11,7 +11,7 @@
         <div class="about-container">
             <div class="text-center">
                 <div class="logo-container">
-                    <img th:src="@{/images/ct3text.png}" alt="CT3 Logo" src=""/>
+                    <img th:src="@{/images/ct3text.png}" alt="CT3 Logo" src="" id="logo-image"/>
                 </div>
                 <h1 class="app-title">
                     Creative Time And Task Tracker
@@ -26,5 +26,17 @@
         </div>
     </div>
 </div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        // Add Ctrl+Click handler on logo to access logs
+        document.getElementById('logo-image').addEventListener('click', function(event) {
+            if (event.ctrlKey) {
+                window.location.href = '/logs';
+                event.preventDefault();
+            }
+        });
+    </script>
+</th:block>
 </body>
 </html>

@@ -49,19 +49,14 @@ class RegisterFormHandler {
         this.defaultUrl = '/user/register/entry';
     }
 
-
-    // Simplified and fixed Select2 initialization
+    // Improved Select2 initialization with tab navigation fix
     initializeForm() {
         if (!this.form) return;
 
-        // Destroy any existing select2 instance
-        try {
-            $(this.printPrepSelect).select2('destroy');
-        } catch (e) {
-            // Ignore if not initialized
-        }
+        // Make sure the original select element has a tabindex
+        $(this.printPrepSelect).attr('tabindex', '0');
 
-        // Fixed, simplified configuration
+        // Fixed configuration
         $(this.printPrepSelect).select2({
             theme: 'bootstrap-5',
             width: '100%',
@@ -69,7 +64,10 @@ class RegisterFormHandler {
             multiple: true,
             maximumSelectionLength: 10,
             dropdownParent: $('body'),
-            minimumResultsForSearch: 5,
+            minimumResultsForSearch: 0, // Always show search
+            tags: false,
+            selectOnClose: true,
+            closeOnSelect: false,
 
             // Custom formatting of selection with first letters
             templateSelection: (data, container) => {
@@ -102,9 +100,22 @@ class RegisterFormHandler {
             }
         });
 
-        // Make dropdowns appear correctly
+        // Fix tab navigation - ensure the Select2 container can receive focus
+        const select2Container = $(this.printPrepSelect).next('.select2-container');
+
+        // Make the container focusable
+        select2Container.attr('tabindex', '0');
+
+        // When the container receives focus, open the dropdown
+        select2Container.on('focus', () => {
+            $(this.printPrepSelect).select2('open');
+        });
+
+        // Make sure the search field gets focus when dropdown opens
         $(document).on('select2:open', () => {
-            document.querySelector('.select2-search__field').focus();
+            setTimeout(() => {
+                $('.select2-search__field').focus();
+            }, 0);
         });
 
         // Fix dropdown positioning
@@ -126,6 +137,9 @@ class RegisterFormHandler {
         // Setup other event listeners
         this.setupEventListeners();
         this.initializeDefaultValues();
+
+        // Apply CSS to ensure the Select2 container is visible in tab sequence
+        $('<style>.select2-container:focus { outline: 2px solid #007bff; border-radius: 4px; }</style>').appendTo('head');
     }
 
     initializeSelect2() {
@@ -550,6 +564,58 @@ class RegisterFormHandler {
         // Scroll to form - this will now scroll to the top
         this.scrollToForm();
     }
+
+    // This should be called at the end of your document ready function
+    setupTabNavigation() {
+        // Add event listener for all Select2 dropdowns
+        document.addEventListener('keydown', (e) => {
+            // Check if Tab key was pressed
+            if (e.key === 'Tab') {
+                const activeElement = document.activeElement;
+
+                // Check if we're tabbing to a Select2 element
+                const select2Containers = document.querySelectorAll('.select2-container');
+                select2Containers.forEach((container) => {
+                    // Find the next Select2 in tab order
+                    if (this.isNextTabStop(activeElement, container)) {
+                        // Prevent default tab behavior
+                        e.preventDefault();
+
+                        // Focus the container
+                        container.focus();
+
+                        // Find the original select element
+                        const selectId = container.getAttribute('data-select2-id');
+                        if (selectId) {
+                            const originalSelect = document.getElementById(selectId);
+                            if (originalSelect) {
+                                // Open the dropdown
+                                $(originalSelect).select2('open');
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    // Helper to check if an element is the next tab stop
+    isNextTabStop(currentElement, targetElement) {
+        if (!currentElement || !targetElement) return false;
+
+        // Get all focusable elements
+        const focusableElements = 'a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+        const elements = Array.from(document.querySelectorAll(focusableElements))
+            .filter(el => !el.disabled && el.offsetParent !== null); // Visible and enabled
+
+        // Find current and target indices
+        const currentIndex = elements.indexOf(currentElement);
+        const targetIndex = elements.indexOf(targetElement);
+
+        // Check if target is the next element in tab order
+        return targetIndex === currentIndex + 1;
+    }
+
 }
 
 class RegisterSummaryHandler {
@@ -1186,17 +1252,59 @@ class UnifiedSearchHandler {
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if SPIZED counter elements exist
-    console.log("Checking SPIZED counter elements:");
-    console.log('count-ordin-spized element:', document.getElementById('count-ordin-spized'));
-    console.log('count-campion-spized element:', document.getElementById('count-campion-spized'));
-    console.log('count-proba-s-spized element:', document.getElementById('count-proba-s-spized'));
+    console.log("Initializing RegisterFormHandler...");
 
     window.registerFormHandler = new RegisterFormHandler();
+    window.registerFormHandler.setupTabNavigation();
     window.registerSummaryHandler = new RegisterSummaryHandler();
     window.unifiedSearchHandler = new UnifiedSearchHandler();
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.placeholder = 'Search current page entries (client-side)...';
     }
+
+    // Enhanced keyboard handling for Select2
+    $(document).off('select2:open.kb').on('select2:open.kb', function() {
+        console.log("Select2 opened, focusing search field...");
+        setTimeout(function() {
+            // Focus the search field
+            const searchField = $('.select2-search__field');
+            if (searchField.length) {
+                searchField.focus();
+                console.log("Search field focused");
+            }
+        }, 100);
+    });
+
+    // Improve keyboard navigation in search field
+    $(document).off('keydown.select2nav').on('keydown.select2nav', '.select2-search__field', function(e) {
+        console.log("Key pressed in search field:", e.key);
+
+        // Allow normal typing for filtering
+        if (e.key.length === 1) {
+            return true;
+        }
+
+        // Handle arrow keys and Enter
+        if (e.key === 'Enter') {
+            const highlighted = $('.select2-results__option--highlighted');
+            if (highlighted.length) {
+                console.log("Enter pressed on highlighted option");
+                e.preventDefault();
+                e.stopPropagation();
+                highlighted.trigger('mouseup');
+                return false;
+            }
+        }
+    });
+
+    // Fix for direct tab to select2
+    $('.select2-selection').on('focus', function() {
+        console.log("Selection focused, opening dropdown");
+        const container = $(this).closest('.select2-container');
+        const selectId = container.attr('data-select2-id');
+        if (selectId) {
+            $('#' + selectId).select2('open');
+        }
+    });
 });

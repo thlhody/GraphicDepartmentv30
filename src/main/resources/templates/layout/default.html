@@ -90,6 +90,11 @@
                 <span class="text-muted">© 2024 thlhody. All rights reserved.</span>
             </div>
             <div class="d-flex gap-3">
+                <div sec:authorize="isAuthenticated()">
+                    <a href="#" id="syncLogsBtn" class="text-decoration-none">
+                        <i class="bi bi-cloud-arrow-up me-2"></i>Sync Logs
+                    </a>
+                </div>
                 <a th:href="@{/about}" class="text-decoration-none">
                     <i class="bi bi-info-circle me-2"></i>About
                 </a>
@@ -100,7 +105,67 @@
         </div>
     </div>
 </footer>
+<!-- Toast container for notifications -->
+<div id="toastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11"></div>
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts"><!-- Additional scripts will be inserted here --></th:block>
+<script>
+    // Sync logs functionality
+    $(document).ready(function() {
+        $('#syncLogsBtn').click(function() {
+            const btn = $(this);
+            btn.prop('disabled', true)
+                .html('<i class="bi bi-arrow-repeat spin me-1"></i>Syncing...');
+
+            $.ajax({
+                url: '/logs/sync',
+                method: 'POST',
+                success: function(data) {
+                    showToast('Success', 'Logs synced successfully to network', 'success');
+                },
+                error: function(xhr, status, error) {
+                    showToast('Error', 'Failed to sync logs: ' + error, 'danger');
+                },
+                complete: function() {
+                    btn.prop('disabled', false)
+                        .html('<i class="bi bi-cloud-arrow-up me-1"></i>Sync Logs');
+                }
+            });
+        });
+
+        // Global toast function
+        window.showToast = function(title, message, type) {
+            const toastId = 'toast-' + new Date().getTime();
+            const toast = `
+                <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header bg-${type} text-white">
+                        <strong class="me-auto">${title}</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+
+            $('#toastContainer').append(toast);
+            const toastElement = new bootstrap.Toast(document.getElementById(toastId));
+            toastElement.show();
+
+            // Auto remove after shown
+            $(`#${toastId}`).on('hidden.bs.toast', function() {
+                $(this).remove();
+            });
+        };
+    });
+</script>
+<style>
+    .spin {
+        animation: spinner 1s linear infinite;
+    }
+    @keyframes spinner {
+        to {transform: rotate(360deg);}
+    }
+</style>
 </body>
 </html>

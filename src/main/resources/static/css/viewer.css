@@ -1,0 +1,184 @@
+/* Log Viewer Styles */
+.log-viewer {
+    height: 600px;
+    overflow-y: auto;
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 0;
+    position: relative;
+}
+
+/* Toggle text wrapping */
+.log-viewer.nowrap .log-line {
+    white-space: nowrap;
+}
+
+/* Log line styling */
+.log-lines {
+    padding: 8px 0;
+}
+
+.log-line {
+    padding: 2px 10px;
+    transition: background-color 0.1s;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-left: 3px solid transparent;
+}
+
+.log-line:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid #0d6efd;
+}
+
+/* Log line component styles */
+.log-timestamp {
+    color: #7e9cd8;
+    font-weight: 500;
+    margin-right: 6px;
+}
+
+.log-context {
+    color: #82aaff;
+    font-weight: bold;
+    margin-right: 8px;
+}
+
+.log-message {
+    color: #e0e0e0;
+}
+
+/* Log level styling */
+.log-error {
+    background-color: rgba(255, 80, 80, 0.1);
+    border-left: 3px solid #dc3545 !important;
+}
+
+.log-error .log-message {
+    color: #ff8080;
+}
+
+.log-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid #ffc107 !important;
+}
+
+.log-warning .log-message {
+    color: #ffe083;
+}
+
+.log-info {
+    border-left: 3px solid #0dcaf0 !important;
+}
+
+.log-info .log-message {
+    color: #b8e6ff;
+}
+
+/* User list styling */
+.user-list {
+    height: 500px;
+    overflow-y: auto;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.user-list .list-group-item {
+    padding: 10px 16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.user-list .list-group-item:hover {
+    background-color: #f1f8ff;
+}
+
+.user-list .list-group-item.active {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+/* Placeholder styles */
+.log-placeholder, .log-loading, .log-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #6c757d;
+    text-align: center;
+    padding: 20px;
+}
+
+.log-loading {
+    gap: 15px;
+}
+
+.log-error {
+    color: #dc3545;
+}
+
+/* Controls styling */
+.btn-group .btn {
+    padding: 0.375rem 0.75rem;
+}
+
+/* Filter highlight */
+.highlight {
+    background-color: rgba(255, 255, 0, 0.3);
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+/* Light theme alternative - can be toggled with a class */
+.light-theme {
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+.light-theme .log-timestamp {
+    color: #0d6efd;
+}
+
+.light-theme .log-context {
+    color: #6610f2;
+}
+
+.light-theme .log-message {
+    color: #212529;
+}
+
+.light-theme .log-error {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+.light-theme .log-error .log-message {
+    color: #dc3545;
+}
+
+.light-theme .log-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+.light-theme .log-warning .log-message {
+    color: #fd7e14;
+}
+
+.light-theme .log-info .log-message {
+    color: #0dcaf0;
+}
+
+/* Animation for spinner */
+.spin {
+    animation: spinner 1s linear infinite;
+}
+
+@keyframes spinner {
+    to {transform: rotate(360deg);}
+}

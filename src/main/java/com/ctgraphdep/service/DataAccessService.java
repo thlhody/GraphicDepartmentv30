@@ -285,6 +285,7 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
+
     public void writeLocalUsers(List<User> users) {
         Path localPath = pathConfig.getLocalUsersPath();
         Path lockPath = pathConfig.getUsersLockPath();

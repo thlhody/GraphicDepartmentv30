@@ -93,6 +93,16 @@ public class PathConfig {
     @Value("${app.lock.users}")
     private String usersLockFile;   // users.lock
 
+
+    @Value("${logging.file.name}")
+    private String localLogPath;
+
+    @Value("${app.logs.network}")
+    private String networkLogsPath;
+
+    @Value("${app.logs.file.format}")
+    private String logFileFormat;
+
     // Return the base network path for use by other services
     @Getter
     private Path networkPath;
@@ -392,5 +402,25 @@ public class PathConfig {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to revalidate local access: " + e.getMessage());
         }
+    }
+
+    // Resolve source log file path
+    public Path getLocalLogPath() {
+        Path developmentLogPath = Paths.get("./logs/ctgraphdep-logger.log").toAbsolutePath();
+        if (Files.exists(developmentLogPath)) {
+            return developmentLogPath;
+        }
+        return Paths.get(localLogPath);
+    }
+
+    // Resolve network log directory
+    public Path getNetworkLogDirectory() {
+        return networkPath.resolve(networkLogsPath);
+    }
+
+    // Resolve target log path on network with username
+    public Path getNetworkLogPath(String username) {
+        String formattedLogFilename = String.format(logFileFormat, username);
+        return getNetworkLogDirectory().resolve(formattedLogFilename);
     }
 }

@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Work Registry</title>
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=18805}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=18813}">
     <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
@@ -328,57 +328,51 @@
                                     </span>
                             </td>
                             <td class="text-nowrap mod-column" style="width: 50px; padding: 0.25rem;">
-                                <div class="action-container">
-                                    <button class="action-toggle" type="button">
-                                        <i class="bi bi-three-dots-vertical"></i>
-                                    </button>
-
-                                    <div class="action-buttons">
-                                        <a href="#"
-                                           class="btn btn-sm btn-outline-primary edit-entry btn-custom-outline"
-                                           th:data-entry-id="${entry.entryId}"
-                                           th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
-                                           th:data-order-id="${entry.orderId}"
-                                           th:data-production-id="${entry.productionId}"
-                                           th:data-oms-id="${entry.omsId}"
-                                           th:data-client-name="${entry.clientName}"
-                                           th:data-action-type="${entry.actionType}"
-                                           th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
-                                           th:data-colors-profile="${entry.colorsProfile}"
-                                           th:data-article-numbers="${entry.articleNumbers}"
-                                           th:data-graphic-complexity="${entry.graphicComplexity}"
-                                           th:data-observations="${entry.observations}">
-                                            <i class="bi bi-pencil me-1"></i>Edit
-                                        </a>
-                                        <a href="#"
-                                           class="btn btn-sm btn-outline-secondary copy-entry btn-custom-outline"
-                                           th:data-entry-id="${entry.entryId}"
-                                           th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
-                                           th:data-order-id="${entry.orderId}"
-                                           th:data-production-id="${entry.productionId}"
-                                           th:data-oms-id="${entry.omsId}"
-                                           th:data-client-name="${entry.clientName}"
-                                           th:data-action-type="${entry.actionType}"
-                                           th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
-                                           th:data-colors-profile="${entry.colorsProfile}"
-                                           th:data-article-numbers="${entry.articleNumbers}"
-                                           th:data-graphic-complexity="${entry.graphicComplexity}"
-                                           th:data-observations="${entry.observations}">
-                                            <i class="bi bi-copy me-1"></i>Copy
-                                        </a>
-                                        <form th:action="@{/user/register/delete}"
-                                              method="post"
-                                              class="w-100">
-                                            <input type="hidden" name="entryId" th:value="${entry.entryId}"/>
-                                            <input type="hidden" name="year" th:value="${currentYear}"/>
-                                            <input type="hidden" name="month" th:value="${currentMonth}"/>
-                                            <button type="submit"
-                                                    class="btn btn-sm btn-outline-danger w-100 btn-custom-outline"
-                                                    onclick="return confirm('Are you sure you want to delete this entry?')">
-                                                <i class="bi bi-trash me-1"></i>Delete
-                                            </button>
-                                        </form>
-                                    </div>
+                                <div class="action-icons">
+                                    <a href="#"
+                                       class="btn btn-icon btn-sm edit-entry"
+                                       th:data-entry-id="${entry.entryId}"
+                                       th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                       th:data-order-id="${entry.orderId}"
+                                       th:data-production-id="${entry.productionId}"
+                                       th:data-oms-id="${entry.omsId}"
+                                       th:data-client-name="${entry.clientName}"
+                                       th:data-action-type="${entry.actionType}"
+                                       th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
+                                       th:data-colors-profile="${entry.colorsProfile}"
+                                       th:data-article-numbers="${entry.articleNumbers}"
+                                       th:data-graphic-complexity="${entry.graphicComplexity}"
+                                       th:data-observations="${entry.observations}">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="#"
+                                       class="btn btn-icon btn-sm copy-entry"
+                                       th:data-entry-id="${entry.entryId}"
+                                       th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                       th:data-order-id="${entry.orderId}"
+                                       th:data-production-id="${entry.productionId}"
+                                       th:data-oms-id="${entry.omsId}"
+                                       th:data-client-name="${entry.clientName}"
+                                       th:data-action-type="${entry.actionType}"
+                                       th:data-print-prep-types="${#strings.listJoin(entry.printPrepTypes, ', ')}"
+                                       th:data-colors-profile="${entry.colorsProfile}"
+                                       th:data-article-numbers="${entry.articleNumbers}"
+                                       th:data-graphic-complexity="${entry.graphicComplexity}"
+                                       th:data-observations="${entry.observations}">
+                                        <i class="bi bi-copy"></i>
+                                    </a>
+                                    <form th:action="@{/user/register/delete}"
+                                          method="post"
+                                          class="d-inline">
+                                        <input type="hidden" name="entryId" th:value="${entry.entryId}"/>
+                                        <input type="hidden" name="year" th:value="${currentYear}"/>
+                                        <input type="hidden" name="month" th:value="${currentMonth}"/>
+                                        <button type="submit"
+                                                class="btn btn-icon btn-sm delete-entry"
+                                                onclick="return confirm('Are you sure you want to delete this entry?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -399,7 +393,7 @@
 
         <!-- Page Scripts -->
         <th:block layout:fragment="scripts">
-            <script th:src="@{/js/register-user.js?v=18805}"></script>
+            <script th:src="@{/js/register-user.js?v=18814}"></script>
         </th:block>
     </div>
 </div>

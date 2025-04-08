@@ -33,7 +33,7 @@ public class SecurityConfig {
             http
                     .authenticationProvider(authenticationProvider)
                     .authorizeHttpRequests(authorize -> authorize
-                            .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/api/health/**","/api/system/status", "/update/**").permitAll()
+                            .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/logs/**","/api/system/status", "/update/**").permitAll()
                             .requestMatchers("/admin/**").hasRole("ADMIN")
                             .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
                             .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")
