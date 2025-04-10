@@ -49,14 +49,42 @@ class RegisterFormHandler {
         this.defaultUrl = '/user/register/entry';
     }
 
-    // Improved Select2 initialization with tab navigation fix
     initializeForm() {
         if (!this.form) return;
 
         // Make sure the original select element has a tabindex
         $(this.printPrepSelect).attr('tabindex', '0');
 
-        // Fixed configuration
+        // Add custom CSS to control Select2 styling
+        $('<style>')
+            .text(`
+            /* Select2 focus outline */
+            .select2-container:focus {
+                outline: 2px solid #007bff;
+                border-radius: 4px;
+            }
+
+            /* Override default Select2 hover highlighting behavior */
+            .select2-results__option--highlighted[aria-selected] {
+                background-color: inherit !important;
+                color: inherit !important;
+            }
+
+            /* Custom hover highlighting - only affects the exact option being hovered */
+            .select2-results__option:hover {
+                background-color: #f0f0f0 !important;
+                color: #333 !important;
+            }
+
+            /* Custom highlighting for keyboard navigation */
+            .select2-results__option.keyboard-highlight {
+                background-color: #0d6efd !important;
+                color: #fff !important;
+            }
+        `)
+            .appendTo('head');
+
+        // Fixed Select2 configuration
         $(this.printPrepSelect).select2({
             theme: 'bootstrap-5',
             width: '100%',
@@ -66,7 +94,7 @@ class RegisterFormHandler {
             dropdownParent: $('body'),
             minimumResultsForSearch: 0, // Always show search
             tags: false,
-            selectOnClose: true,
+            selectOnClose: false, // Changed to false to prevent auto-selection
             closeOnSelect: false,
 
             // Custom formatting of selection with first letters
@@ -100,14 +128,48 @@ class RegisterFormHandler {
             }
         });
 
-        // Fix tab navigation - ensure the Select2 container can receive focus
+        // Get the Select2 container
         const select2Container = $(this.printPrepSelect).next('.select2-container');
 
         // Make the container focusable
         select2Container.attr('tabindex', '0');
 
+        // Clean up any existing event handlers to prevent conflicts
+        $(document).off('mouseenter mouseleave', '.select2-results__option');
+
+        // Disable auto-selection behavior by overriding Select2's internal functions
+        $.fn.select2.amd.require(['select2/results'], function(ResultsAdapter) {
+            const origSetClasses = ResultsAdapter.prototype.setClasses;
+
+            // Override the setClasses method to prevent highlighting on hover
+            ResultsAdapter.prototype.setClasses = function() {
+                // Call the original method but modify its behavior
+                const result = origSetClasses.apply(this, arguments);
+
+                // Find elements that got highlighted due to hover and remove the class
+                const $highlighted = this.$results.find('.select2-results__option--highlighted');
+                $highlighted.each(function() {
+                    // Only modify elements that were highlighted by hover, not keyboard
+                    if (!$(this).hasClass('keyboard-highlight')) {
+                        $(this).removeClass('select2-results__option--highlighted');
+                    }
+                });
+
+                return result;
+            };
+        });
+
+        // Set up proper event listeners for the Select2 container
+        this.setupSelect2Events();
+
+        // Setup other event listeners
+        this.setupEventListeners();
+        this.initializeDefaultValues();
+    }
+
+    setupSelect2Events() {
         // When the container receives focus, open the dropdown
-        select2Container.on('focus', () => {
+        $(this.printPrepSelect).next('.select2-container').on('focus', () => {
             $(this.printPrepSelect).select2('open');
         });
 
@@ -129,29 +191,20 @@ class RegisterFormHandler {
             }, 100);
         });
 
+        // Add custom keyboard navigation handling
+        $(document).on('keydown', '.select2-search__field', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                // Add custom class for keyboard navigation highlighting
+                setTimeout(() => {
+                    $('.select2-results__option--highlighted')
+                        .addClass('keyboard-highlight');
+                }, 0);
+            }
+        });
+
         // Prevent click propagation on selections
         $(document).on('click', '.select2-selection__choice__remove', function(e) {
             e.stopPropagation();
-        });
-
-        // Setup other event listeners
-        this.setupEventListeners();
-        this.initializeDefaultValues();
-
-        // Apply CSS to ensure the Select2 container is visible in tab sequence
-        $('<style>.select2-container:focus { outline: 2px solid #007bff; border-radius: 4px; }</style>').appendTo('head');
-    }
-
-    initializeSelect2() {
-        // Initialize Select2 with custom configuration
-        this.printPrepSelect.select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Select print types...',
-            allowClear: true,
-            multiple: true,
-            closeOnSelect: false,
-            dropdownCssClass: 'select2-dropdown-medium'
         });
     }
 
