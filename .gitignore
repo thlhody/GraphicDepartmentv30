@@ -40,9 +40,6 @@ build/
 ### Logs ###
 *.log
 
-log/
-/log/
-
 ### Installer ###
 /installer/dist/bin/
 
