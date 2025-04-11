@@ -1,6 +1,6 @@
 ; Original app definitions preserved
 #define MyAppName "Creative Time And Task Tracking"
-#define MyAppVersion "6.7.5"
+#define MyAppVersion "6.7.6"
 #define MyAppPublisher "THLHody"
 #define MyAppURL ""
 #define MyAppExeName "CTTT.url"
