@@ -21,6 +21,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.nio.file.Path;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing user status information via network flag files.
@@ -144,12 +145,10 @@ public class ReadFileNameStatusService {
             // Update the status
             updateUserStatus(username, currentUser.getUserId(), status, timestamp);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Updated %s's status to %s based on session", username, status));
+            LoggerUtil.info(this.getClass(), String.format("Updated %s's status to %s based on session", username, status));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error updating current user status from session: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error updating current user status from session: %s", e.getMessage()));
         }
     }
 
@@ -197,12 +196,8 @@ public class ReadFileNameStatusService {
     private void updateAllUsersFromUserService() {
         try {
             // Get all non-admin users
-            List<User> allUsers = userService.getAllUsers().stream()
-                    .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals("ADMIN") &&
-                            !user.getRole().equals("ADMINISTRATOR") &&
-                            !user.getUsername().equalsIgnoreCase("admin"))
-                    .toList();
+            List<User> allUsers = userService.getAllUsers().stream().filter(user -> !user.isAdmin() && !user.getRole().equals("ROLE_ADMIN") &&
+                            !user.getUsername().equalsIgnoreCase("admin")).toList();
 
             // Ensure status cache is initialized
             if (statusCache == null) {
@@ -210,10 +205,32 @@ public class ReadFileNameStatusService {
                 statusCache.setUserStatuses(new HashMap<>());
             }
 
-            // Update user information in cache, preserving existing status if already set
+            // Get set of valid usernames for quick lookup
+            Set<String> validUsernames = allUsers.stream().map(User::getUsername).collect(Collectors.toSet());
+
+            // Remove users that no longer exist in UserService and the admin user
+            Set<String> usernamesToRemove = new HashSet<>();
+            for (String username : statusCache.getUserStatuses().keySet()) {
+                if (!validUsernames.contains(username) || username.equalsIgnoreCase("admin")) {
+                    usernamesToRemove.add(username);
+                }
+            }
+
+            // Remove the identified users
+            for (String username : usernamesToRemove) {
+                statusCache.getUserStatuses().remove(username);
+                LoggerUtil.info(this.getClass(), username.equalsIgnoreCase("admin")
+                                ? "Removed admin user from status cache" : "Removed non-existent user from status cache: " + username);
+            }
+
+            // Update user information in cache for existing users
             for (User user : allUsers) {
-                UserStatusInfo statusInfo = statusCache.getUserStatuses()
-                        .computeIfAbsent(user.getUsername(), k -> new UserStatusInfo());
+                // Skip admin user
+                if (user.isAdmin() || user.getUsername().equalsIgnoreCase("admin")) {
+                    continue;
+                }
+
+                UserStatusInfo statusInfo = statusCache.getUserStatuses().computeIfAbsent(user.getUsername(), k -> new UserStatusInfo());
 
                 // Update basic user info
                 statusInfo.setUsername(user.getUsername());
@@ -226,7 +243,7 @@ public class ReadFileNameStatusService {
                 }
             }
 
-            LoggerUtil.info(this.getClass(), "Updated information for " + allUsers.size() + " users");
+            LoggerUtil.info(this.getClass(), "Updated information for " + allUsers.size() + " users and removed " + usernamesToRemove.size() + " non-existent or admin users");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating all users from UserService: " + e.getMessage(), e);
         }
