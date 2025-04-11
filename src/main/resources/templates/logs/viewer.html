@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>Log Viewer</title>
+    <link rel="stylesheet" th:href="@{/css/viewer.css?v=18783}">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1><i class="bi bi-journal-text me-2"></i>Log Viewer</h1>
+            <button id="refreshLogsBtn" class="btn btn-primary">
+                <i class="bi bi-arrow-clockwise me-2"></i>Refresh Logs List
+            </button>
+        </div>
+
+        <div class="row">
+            <!-- Sidebar - User Selection -->
+            <div class="col-md-3 mb-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-people me-2"></i>Users</h5>
+                        <span id="userCount" class="badge bg-light text-primary rounded-pill"></span>
+                    </div>
+
+                    <div class="card-body p-2">
+                        <div class="input-group mb-2">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <label for="userSearch"></label><input type="text" id="userSearch" class="form-control" placeholder="Search users...">
+                        </div>
+                    </div>
+
+                    <div class="user-list">
+                        <div class="list-group list-group-flush" id="usersList">
+                            <a th:each="username : ${usernames}"
+                               th:text="${username}"
+                               th:attr="data-username=${username}"
+                               href="#"
+                               class="list-group-item list-group-item-action user-item">
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content - Log Viewer -->
+            <div class="col-md-9">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 id="currentLogTitle" class="mb-0">
+                            <i class="bi bi-file-text me-2"></i>Select a user to view logs
+                        </h5>
+                        <div class="d-flex gap-2">
+                            <div class="btn-group" role="group">
+                                <button id="autoScrollBtn" class="btn btn-outline-secondary active" title="Auto-scroll to bottom">
+                                    <i class="bi bi-arrow-down-square"></i>
+                                </button>
+                                <button id="wrapTextBtn" class="btn btn-outline-secondary active" title="Toggle text wrapping">
+                                    <i class="bi bi-text-wrap"></i>
+                                </button>
+                                <button id="clearFilterBtn" class="btn btn-outline-secondary" title="Clear filters">
+                                    <i class="bi bi-funnel-fill"></i>
+                                </button>
+                            </div>
+                            <div class="input-group" style="width: 250px;">
+                                <label for="logSearch"></label><input type="text" id="logSearch" class="form-control" placeholder="Filter logs...">
+                                <button id="searchBtn" class="btn btn-outline-secondary">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="logContent" class="log-viewer">
+                            <div class="log-placeholder">
+                                <div class="text-center">
+                                    <i class="bi bi-arrow-left-circle fs-1 mb-3"></i>
+                                    <p>Select a user from the list to view their logs</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light d-flex justify-content-between align-items-center">
+                        <div id="logStats">No logs loaded</div>
+                        <div class="btn-group">
+                            <button id="exportBtn" class="btn btn-sm btn-outline-secondary" disabled>
+                                <i class="bi bi-download me-1"></i>Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+        $(document).ready(function() {
+            let currentUsername = null;
+            let logData = null;
+            let autoScroll = true;
+            let textWrap = true;
+
+            // Update UI counts
+            updateUserCount();
+
+            // Initialize log viewer
+            initializeLogViewer();
+
+            // Refresh logs list
+            $('#refreshLogsBtn').click(function() {
+                refreshLogsList();
+            });
+
+            // Load user log when a user is clicked
+            $(document).on('click', '.user-item', function(e) {
+                e.preventDefault();
+                $('.user-item').removeClass('active');
+                $(this).addClass('active');
+
+                currentUsername = $(this).data('username');
+                loadUserLog(currentUsername);
+            });
+
+            // User search functionality
+            $('#userSearch').on('input', function() {
+                const searchTerm = $(this).val().toLowerCase();
+                $('.user-item').each(function() {
+                    const username = $(this).text().toLowerCase();
+                    $(this).toggle(username.includes(searchTerm));
+                });
+            });
+
+            // Log search functionality
+            $('#searchBtn').click(function() {
+                filterLogs();
+            });
+
+            $('#logSearch').on('keypress', function(e) {
+                if (e.which === 13) {
+                    filterLogs();
+                }
+            });
+
+            // Clear filters
+            $('#clearFilterBtn').click(function() {
+                $('#logSearch').val('');
+                if (logData) {
+                    displayLogData(logData);
+                }
+            });
+
+            // Auto-scroll toggle
+            $('#autoScrollBtn').click(function() {
+                $(this).toggleClass('active');
+                autoScroll = $(this).hasClass('active');
+                if (autoScroll && logData) {
+                    scrollToBottom();
+                }
+            });
+
+            // Text wrap toggle
+            $('#wrapTextBtn').click(function() {
+                $(this).toggleClass('active');
+                textWrap = $(this).hasClass('active');
+                $('#logContent').toggleClass('nowrap', !textWrap);
+            });
+
+            // Export button
+            $('#exportBtn').click(function() {
+                if (!logData || !currentUsername) return;
+
+                const blob = new Blob([logData], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `log_${currentUsername}_${formatDate(new Date())}.log`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+
+            // Function to update user count
+            function updateUserCount() {
+                const count = $('.user-item').length;
+                $('#userCount').text(count + (count === 1 ? ' user' : ' users'));
+            }
+
+            // Function to format date for filename
+            function formatDate(date) {
+                return date.toISOString().split('T')[0];
+            }
+
+            // Initialize log viewer settings
+            function initializeLogViewer() {
+                $('#logContent').toggleClass('nowrap', !textWrap);
+            }
+
+            // Function to scroll to bottom of logs
+            function scrollToBottom() {
+                const logContent = document.getElementById('logContent');
+                logContent.scrollTop = logContent.scrollHeight;
+            }
+
+            // Function to load user log
+            function loadUserLog(username) {
+                $('#currentLogTitle').html(`<i class="bi bi-file-text me-2"></i>Log for <strong>${username}</strong>`);
+                $('#logContent').html('<div class="log-loading"><div class="spinner-border text-primary" role="status"></div><p>Loading logs...</p></div>');
+                $('#exportBtn').prop('disabled', true);
+
+                // Get log data
+                $.ajax({
+                    url: `/logs/${username}`,
+                    method: 'GET',
+                    success: function(data) {
+                        logData = data;
+                        if (data) {
+                            displayLogData(data);
+                            $('#exportBtn').prop('disabled', false);
+                        } else {
+                            $('#logContent').html('<div class="log-placeholder"><div class="text-center"><i class="bi bi-exclamation-circle text-muted fs-1 mb-3"></i><p>No log entries found for this user</p></div></div>');
+                            $('#logStats').text('No log entries found');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        $('#logContent').html(`<div class="log-error"><div class="text-center"><i class="bi bi-exclamation-triangle text-danger fs-1 mb-3"></i><p>Error loading log: ${error}</p></div></div>`);
+                        $('#logStats').text('Error loading log');
+                    }
+                });
+            }
+
+            // Function to display log data with formatting
+            function displayLogData(logText) {
+                if (!logText) {
+                    $('#logContent').html('<div class="log-placeholder"><div class="text-center"><i class="bi bi-exclamation-circle text-muted fs-1 mb-3"></i><p>No log entries found</p></div></div>');
+                    $('#logStats').text('No logs to display');
+                    return;
+                }
+
+                const lines = logText.split('\n');
+                let formattedHtml = '<div class="log-lines">';
+                let lineCount = 0;
+                let errorCount = 0;
+                let warningCount = 0;
+                let infoCount = 0;
+
+                lines.forEach((line, index) => {
+                    if (!line.trim()) return;
+
+                    lineCount++;
+                    let lineClass = '';
+
+                    // Detect log levels
+                    if (line.includes(' ERROR ') || line.includes('[ERROR]')) {
+                        lineClass = 'log-error';
+                        errorCount++;
+                    } else if (line.includes(' WARN ') || line.includes('[WARN]')) {
+                        lineClass = 'log-warning';
+                        warningCount++;
+                    } else if (line.includes(' INFO ') || line.includes('[INFO]')) {
+                        lineClass = 'log-info';
+                        infoCount++;
+                    }
+
+                    // Try to parse timestamp, class name/username, and message
+                    const timestampMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+                    if (timestampMatch) {
+                        const timestamp = timestampMatch[1];
+                        const rest = line.substring(timestamp.length);
+
+                        // Try to extract class name or username
+                        const contextMatch = rest.match(/\[(.*?)\]/);
+                        if (contextMatch) {
+                            const context = contextMatch[1];
+                            const message = rest.substring(contextMatch[0].length);
+
+                            formattedHtml += `<div class="log-line ${lineClass}" data-line="${index}">
+                                <span class="log-timestamp">${timestamp}</span>
+                                <span class="log-context">[${context}]</span>
+                                <span class="log-message">${message}</span>
+                            </div>`;
+                        } else {
+                            formattedHtml += `<div class="log-line ${lineClass}" data-line="${index}">
+                                <span class="log-timestamp">${timestamp}</span>
+                                <span class="log-message">${rest}</span>
+                            </div>`;
+                        }
+                    } else {
+                        formattedHtml += `<div class="log-line ${lineClass}" data-line="${index}">${line}</div>`;
+                    }
+                });
+
+                formattedHtml += '</div>';
+                $('#logContent').html(formattedHtml);
+
+                // Update stats
+                $('#logStats').html(`
+                    <span class="me-3"><i class="bi bi-list-ul me-1"></i>${lineCount} lines</span>
+                    <span class="badge bg-danger me-1">${errorCount} errors</span>
+                    <span class="badge bg-warning text-dark me-1">${warningCount} warnings</span>
+                    <span class="badge bg-info text-dark">${infoCount} info</span>
+                `);
+
+                // Scroll to bottom if auto-scroll is enabled
+                if (autoScroll) {
+                    scrollToBottom();
+                }
+            }
+
+            // Function to filter logs
+            function filterLogs() {
+                if (!logData) return;
+
+                const searchTerm = $('#logSearch').val().toLowerCase();
+                if (!searchTerm) {
+                    displayLogData(logData);
+                    return;
+                }
+
+                const lines = logData.split('\n');
+                let filteredLines = [];
+
+                lines.forEach(line => {
+                    if (line.toLowerCase().includes(searchTerm)) {
+                        filteredLines.push(line);
+                    }
+                });
+
+                if (filteredLines.length === 0) {
+                    $('#logContent').html(`<div class="log-placeholder"><div class="text-center"><i class="bi bi-search text-muted fs-1 mb-3"></i><p>No matching logs found for "${searchTerm}"</p></div></div>`);
+                    $('#logStats').html(`<span>No matches for "${searchTerm}"</span>`);
+                } else {
+                    displayLogData(filteredLines.join('\n'));
+                    $('#logStats').prepend(`<span class="badge bg-primary me-3">Filtered: ${filteredLines.length}/${lines.length}</span> `);
+                }
+            }
+
+            // Function to refresh logs list
+            function refreshLogsList() {
+                $('#refreshLogsBtn').prop('disabled', true).html('<i class="bi bi-arrow-repeat spin me-2"></i>Refreshing...');
+
+                $.ajax({
+                    url: '/logs/list',
+                    method: 'GET',
+                    success: function(data) {
+                        let userListHtml = '';
+                        if (data && data.length > 0) {
+                            data.forEach(function(username) {
+                                const isActive = username === currentUsername ? 'active' : '';
+                                userListHtml += `<a href="#" data-username="${username}"
+                                                class="list-group-item list-group-item-action user-item ${isActive}">
+                                                ${username}</a>`;
+                            });
+                        } else {
+                            userListHtml = '<div class="list-group-item text-muted">No logs available</div>';
+                        }
+                        $('#usersList').html(userListHtml);
+                        updateUserCount();
+
+                        // If current user is still in the list, reload their log
+                        if (currentUsername && data.includes(currentUsername)) {
+                            loadUserLog(currentUsername);
+                        }
+
+                        showToast('Success', 'Log list refreshed from network', 'success');
+                    },
+                    error: function(xhr, status, error) {
+                        showToast('Error', 'Failed to refresh logs: ' + error, 'danger');
+                    },
+                    complete: function() {
+                        $('#refreshLogsBtn').prop('disabled', false).html('<i class="bi bi-arrow-clockwise me-2"></i>Refresh Logs List');
+                    }
+                });
+            }
+
+            // Helper function to show toast notifications
+            function showToast(title, message, type) {
+                // Check if we have a toast container, if not create one
+                if ($('#toastContainer').length === 0) {
+                    $('body').append('<div id="toastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11"></div>');
+                }
+
+                const toastId = 'toast-' + new Date().getTime();
+                const toast = `
+                    <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="toast-header bg-${type} text-white">
+                            <strong class="me-auto">${title}</strong>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                        <div class="toast-body">
+                            ${message}
+                        </div>
+                    </div>
+                `;
+
+                $('#toastContainer').append(toast);
+                const toastElement = new bootstrap.Toast(document.getElementById(toastId));
+                toastElement.show();
+
+                // Auto remove after shown
+                $(`#${toastId}`).on('hidden.bs.toast', function() {
+                    $(this).remove();
+                });
+            }
+        });
+    </script>
+</th:block>
+</body>
+</html>
