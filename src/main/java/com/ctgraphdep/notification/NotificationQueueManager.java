@@ -369,6 +369,29 @@ public class NotificationQueueManager {
     }
 
     /**
+     * Clears all pending notifications from the queue.
+     * Used during system reset to ensure a clean state.
+     *
+     * @return The number of notifications that were cleared
+     */
+    public int clearQueue() {
+        queueLock.lock();
+        try {
+            int count = notificationQueue.size();
+            notificationQueue.clear();
+            pendingNotifications.clear();
+
+            // Record successful operation in health monitor
+            healthMonitor.recordTaskExecution("notification-queue-processor");
+
+            LoggerUtil.info(this.getClass(), "Cleared notification queue with " + count + " pending items");
+            return count;
+        } finally {
+            queueLock.unlock();
+        }
+    }
+
+    /**
      * Gets the current queue size
      */
     public int getQueueSize() {

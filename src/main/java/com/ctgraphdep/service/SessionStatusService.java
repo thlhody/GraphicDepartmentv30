@@ -32,11 +32,9 @@ public class SessionStatusService {
             // Update status using the new ReadFileNameStatusService
             readFileNameStatusService.updateUserStatus(username, userId, status, lastActive);
 
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Updated session status for %s to %s", username, status));
+            LoggerUtil.debug(this.getClass(), String.format("Updated session status for %s to %s", username, status));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error updating session status for %s: %s", username, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error updating session status for %s: %s", username, e.getMessage()), e);
         }
     }
 
@@ -49,16 +47,10 @@ public class SessionStatusService {
             String status = determineStatus(session.getSessionStatus());
 
             // Update status using the new ReadFileNameStatusService
-            readFileNameStatusService.updateUserStatus(
-                    session.getUsername(),
-                    session.getUserId(),
-                    status,
-                    session.getLastActivity()
-            );
+            readFileNameStatusService.updateUserStatus(session.getUsername(), session.getUserId(), status, session.getLastActivity());
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error updating session status from session object: %s", e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error updating session status from session object: %s", e.getMessage()), e);
         }
     }
 

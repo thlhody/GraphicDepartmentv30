@@ -167,6 +167,23 @@ public class SchedulerHealthMonitor {
     }
 
     /**
+     * Resets the consecutive failures counter for a task.
+     * Useful during system reset to clear error states.
+     *
+     * @param taskId The ID of the task to reset
+     */
+    public void resetTaskFailures(String taskId) {
+        TaskStatus status = monitoredTasks.get(taskId);
+        if (status != null) {
+            status.resetConsecutiveFailures();
+            status.setLastError(null);
+            status.setLastWarning(null);
+            status.recordExecution(); // Update the last execution time
+            LoggerUtil.info(this.getClass(), "Reset failure counters for task: " + taskId);
+        }
+    }
+
+    /**
      * Status class for tracked tasks
      */
     @Getter
@@ -223,10 +240,6 @@ public class SchedulerHealthMonitor {
 
         public long getMinutesSinceLastExecution() {
             return Duration.between(lastExecutionTime, LocalDateTime.now()).toMinutes();
-        }
-
-        public long getExecutionCount() {
-            return executionCount.get();
         }
 
         public long getConsecutiveFailures() {

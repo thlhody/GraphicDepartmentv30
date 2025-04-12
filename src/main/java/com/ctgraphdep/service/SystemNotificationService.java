@@ -191,6 +191,9 @@ public class SystemNotificationService {
             // Reset any internal state that might be causing issues
             lastNotificationTimes.clear();
 
+            // Clean up UI resources
+            cleanupUIResources();
+
             // Mark service as healthy again
             healthMonitor.recordTaskExecution("notification-service");
             LoggerUtil.info(this.getClass(), "Notification service reset completed");
@@ -395,17 +398,15 @@ public class SystemNotificationService {
 
         Timer autoCloseTimer = new Timer(timeoutPeriod, e -> {
             if (!respondedFlag.get() && dialog.isDisplayable()) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Auto-dismissing notification for %s after timeout (%d ms)",
-                                username, timeoutPeriod));
-                dialog.dispose();
+                LoggerUtil.info(this.getClass(), String.format("Auto-dismissing notification for %s after timeout (%d ms)", username, timeoutPeriod));
+                // Clean up resources when auto-closing
+                cleanupNotificationResources(dialog);
             }
         });
         autoCloseTimer.setRepeats(false);
         autoCloseTimer.start();
 
-        LoggerUtil.debug(this.getClass(),
-                String.format("Set auto-dismiss timer for %s, %d ms", username, timeoutPeriod));
+        LoggerUtil.debug(this.getClass(), String.format("Set auto-dismiss timer for %s, %d ms", username, timeoutPeriod));
     }
 
     // Method to add a response tracking mechanism
@@ -506,8 +507,9 @@ public class SystemNotificationService {
                 e -> {
                     dialog.dispose();
                     systemTray.openApplication();
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            "User chose to open website from test notification");
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to open website from test notification");
+                    // Clean up resources when auto-closing
+                    cleanupNotificationResources(dialog);
                 },
                 respondedFlag
         );
@@ -519,8 +521,9 @@ public class SystemNotificationService {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            "User dismissed test notification");
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), "User dismissed test notification");
+                    // Clean up resources when auto-closing
+                    cleanupNotificationResources(dialog);
                 },
                 respondedFlag
         );
@@ -544,8 +547,9 @@ public class SystemNotificationService {
                     // Create and execute continue working command
                     ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, isHourly);
                     commandService.executeCommand(command);
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            String.format("User %s chose to continue working - continuation point recorded", username));
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), String.format("User %s chose to continue working - continuation point recorded", username));
+                    // Clean up resources when auto-closing
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -564,15 +568,15 @@ public class SystemNotificationService {
                         // Execute the command through the command service
                         boolean success = commandService.executeCommand(command);
                         if (success) {
-                            LoggerUtil.info(SystemNotificationService.this.getClass(),
-                                    String.format("User chose to end session for user %s", username));
+                            LoggerUtil.info(SystemNotificationService.this.getClass(), String.format("User chose to end session for user %s", username));
                         } else {
-                            LoggerUtil.warn(SystemNotificationService.this.getClass(),
-                                    "Failed to end session from notification");
+                            LoggerUtil.warn(SystemNotificationService.this.getClass(), "Failed to end session from notification");
                         }
                     } catch (Exception ex) {
-                        LoggerUtil.error(SystemNotificationService.this.getClass(),
-                                "Error ending session from notification: " + ex.getMessage());
+                        LoggerUtil.error(SystemNotificationService.this.getClass(), "Error ending session from notification: " + ex.getMessage());
+                    } finally {
+                        //Clean up resources
+                        cleanupNotificationResources(dialog);
                     }
                 },
                 userResponded
@@ -595,11 +599,11 @@ public class SystemNotificationService {
                 e -> {
                     dialog.dispose();
                     // Create and execute continue temp stop command
-                    ContinueTempStopCommand command = commandFactory.createContinueTempStopCommand(
-                            username, userId);
+                    ContinueTempStopCommand command = commandFactory.createContinueTempStopCommand(username, userId);
                     commandService.executeCommand(command);
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            "User chose to continue temporary stop");
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to continue temporary stop");
+                    // Clean up resources
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -612,11 +616,11 @@ public class SystemNotificationService {
                 e -> {
                     dialog.dispose();
                     // Create and execute resume from temp stop command
-                    ResumeFromTempStopCommand command = commandFactory.createResumeFromTempStopCommand(
-                            username, userId);
+                    ResumeFromTempStopCommand command = commandFactory.createResumeFromTempStopCommand(username, userId);
                     commandService.executeCommand(command);
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            "User chose to resume work from temporary stop");
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to resume work from temporary stop");
+                    // Clean up resources
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -629,14 +633,13 @@ public class SystemNotificationService {
                 e -> {
                     dialog.dispose();
                     // First resume from temp stop, then end session - use commands for both
-                    ResumeFromTempStopCommand resumeCommand = commandFactory.createResumeFromTempStopCommand(
-                            username, userId);
+                    ResumeFromTempStopCommand resumeCommand = commandFactory.createResumeFromTempStopCommand(username, userId);
                     commandService.executeCommand(resumeCommand);
-                    EndSessionFromNotificationCommand endCommand = commandFactory.createEndSessionFromNotificationCommand(
-                            username, userId, null);
+                    EndSessionFromNotificationCommand endCommand = commandFactory.createEndSessionFromNotificationCommand(username, userId, null);
                     commandService.executeCommand(endCommand);
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            "User chose to end session from temporary stop");
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to end session from temporary stop");
+                    // Clean up resources
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -661,6 +664,8 @@ public class SystemNotificationService {
                     StartWorkDayCommand command = commandFactory.createStartWorkDayCommand(username, userId);
                     commandService.executeCommand(command);
                     LoggerUtil.info(this.getClass(), "User chose to start work day through notification");
+                    // Clean up resources
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -673,6 +678,8 @@ public class SystemNotificationService {
                 e -> {
                     dialog.dispose();
                     LoggerUtil.info(this.getClass(), "User chose to skip start day reminder");
+                    // Clean up resources
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -695,8 +702,9 @@ public class SystemNotificationService {
                     dialog.dispose();
                     // Open the resolution page in the browser
                     systemTray.openApplication();
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            "User chose to resolve session from notification");
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), "User chose to resolve session from notification");
+                    // Clean up resources
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -708,8 +716,9 @@ public class SystemNotificationService {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
-                    LoggerUtil.info(SystemNotificationService.this.getClass(),
-                            "User dismissed resolution reminder");
+                    LoggerUtil.info(SystemNotificationService.this.getClass(), "User dismissed resolution reminder");
+                    // Clean up resources
+                    cleanupNotificationResources(dialog);
                 },
                 userResponded
         );
@@ -729,6 +738,58 @@ public class SystemNotificationService {
     // Gets a unique key for a notification based on username and type
     private String getNotificationKey(String username, String notificationType) {
         return username + "_" + notificationType;
+    }
+
+    /**
+     * Performs a focused cleanup of notification UI resources
+     * This is called after a notification is dismissed to ensure proper resource release
+     */
+    private void cleanupNotificationResources(JDialog dialog) {
+        try {
+            // 1. Make sure the dialog is disposed
+            if (dialog.isDisplayable()) {
+                dialog.dispose();
+            }
+
+            // 2. Give a hint to garbage collector (optional)
+            if (Math.random() < 0.25) { // Only trigger occasionally to avoid performance impact
+                System.gc();
+            }
+
+            LoggerUtil.debug(this.getClass(), "Notification resources cleaned up");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during notification resource cleanup: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Performs a comprehensive cleanup of notification UI resources
+     */
+    private void cleanupUIResources() {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                // 1. Dispose any visible dialogs
+                Window[] windows = Window.getWindows();
+                for (Window window : windows) {
+                    if (window instanceof JDialog dialog) {
+                        if (dialog.isDisplayable() && dialog.getTitle() != null &&
+                                (dialog.getTitle().contains("Warning") ||
+                                        dialog.getTitle().contains("Schedule") ||
+                                        dialog.getTitle().contains("Session"))) {
+                            LoggerUtil.debug(this.getClass(), "Disposing dialog: " + dialog.getTitle());
+                            dialog.dispose();
+                        }
+                    }
+                }
+
+                // 2. Force a garbage collection hint (optional, system may ignore)
+                System.gc();
+
+                LoggerUtil.debug(this.getClass(), "UI resources cleanup completed");
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error during UI resource cleanup: " + e.getMessage());
+            }
+        });
     }
 
     // Functional interface for providing buttons to dialogs

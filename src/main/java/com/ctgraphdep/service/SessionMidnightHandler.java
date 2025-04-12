@@ -3,6 +3,8 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
+import com.ctgraphdep.notification.NotificationQueueManager;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
@@ -22,12 +24,22 @@ import java.util.List;
 public class SessionMidnightHandler {
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
+    private final SystemNotificationService notificationService;
+    private final SystemNotificationBackupService backupService;
+    private final SessionMonitorService sessionMonitorService;
+    private final NotificationQueueManager notificationQueueManager;
+    private final SchedulerHealthMonitor healthMonitor;
 
     public SessionMidnightHandler(
             SessionCommandService commandService,
-            SessionCommandFactory commandFactory) {
+            SessionCommandFactory commandFactory, SystemNotificationService notificationService, SystemNotificationBackupService backupService, SessionMonitorService sessionMonitorService, NotificationQueueManager notificationQueueManager, SchedulerHealthMonitor healthMonitor) {
         this.commandService = commandService;
         this.commandFactory = commandFactory;
+        this.notificationService = notificationService;
+        this.backupService = backupService;
+        this.sessionMonitorService = sessionMonitorService;
+        this.notificationQueueManager = notificationQueueManager;
+        this.healthMonitor = healthMonitor;
         LoggerUtil.initialize(this.getClass(), null);
     }
     /**
@@ -42,7 +54,6 @@ public class SessionMidnightHandler {
     */
 
     @Scheduled(cron = "0 59 23 * * *")
-    //@Scheduled(cron = "0 */5 * * * *")
     public void resetLocalUserSession() {
         try {
             // Get local user using the new query
@@ -56,10 +67,16 @@ public class SessionMidnightHandler {
 
             // Reset the user's session
             resetUserSession(localUser);
+
+            // Add notification system reset
+            resetNotificationSystem(localUser.getUsername());
+
+            LoggerUtil.info(this.getClass(), "Completed midnight reset for user " + localUser.getUsername());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during session reset: " + e.getMessage(), e);
         }
     }
+
 
     /**
      * Resets a user's session to a fresh state.
@@ -78,6 +95,51 @@ public class SessionMidnightHandler {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error resetting session for user %s: %s",
                     user.getUsername(), e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Resets notification system components.
+     * This ensures a clean notification state after midnight reset.
+     */
+    private void resetNotificationSystem(String username) {
+        try {
+            LoggerUtil.info(this.getClass(), "Resetting notification system for user: " + username);
+
+            // 1. Clear monitoring service state
+            if (sessionMonitorService != null) {
+                sessionMonitorService.clearMonitoring(username);
+                LoggerUtil.info(this.getClass(), "Cleared session monitoring state");
+            }
+
+            // 2. Reset notification service
+            if (notificationService != null) {
+                notificationService.resetService();
+                LoggerUtil.info(this.getClass(), "Reset notification service");
+            }
+
+            // 3. Clear backup service state
+            if (backupService != null) {
+                backupService.cancelBackupTask(username);
+                LoggerUtil.info(this.getClass(), "Cleared backup tasks");
+            }
+
+            // 4. Clear notification queue
+            if (notificationQueueManager != null) {
+                int cleared = notificationQueueManager.clearQueue();
+                LoggerUtil.info(this.getClass(), "Cleared notification queue with " + cleared + " items");
+            }
+
+            // 5. Reset health monitor status
+            if (healthMonitor != null) {
+                healthMonitor.resetTaskFailures("notification-service");
+                healthMonitor.resetTaskFailures("notification-queue-processor");
+                LoggerUtil.info(this.getClass(), "Reset health monitor statuses");
+            }
+
+            LoggerUtil.info(this.getClass(), "Notification system reset completed successfully");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during notification system reset: " + e.getMessage(), e);
         }
     }
 
@@ -102,4 +164,5 @@ public class SessionMidnightHandler {
 
         return freshSession;
     }
+
 }
