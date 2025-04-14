@@ -57,9 +57,7 @@ public class PermissionFilterService {
                 PERMISSION_MANAGE_ADMIN_REGISTER,
                 PERMISSION_MANAGE_BONUS,
                 PERMISSION_MANAGE_STATISTICS,
-                PERMISSION_MANAGE_ADMIN_CHECKING,
-                PERMISSION_VIEW_STATS_CHECKING
-
+                PERMISSION_MANAGE_ADMIN_CHECKING
         ));
 
         // Team Leader permissions
@@ -71,9 +69,8 @@ public class PermissionFilterService {
                 PERMISSION_MANAGE_USER_REGISTER,
                 PERMISSION_REQUEST_TIMEOFF,
                 PERMISSION_VIEW_WORKTIME_USER,
-                PERMISSION_MANAGE_TEAM,
-                PERMISSION_VIEW_TEAM_WORKTIME,
-                PERMISSION_VIEW_TEAM_STATS
+                PERMISSION_VIEW_TEAM_STATS,
+                PERMISSION_MANAGE_TEAM_CHECKING
         ));
 
         // User permissions
@@ -96,7 +93,6 @@ public class PermissionFilterService {
                 PERMISSION_REQUEST_TIMEOFF,
                 PERMISSION_MANAGE_ACCOUNT,
                 PERMISSION_MANAGE_USER_CHECKING
-
         ));
 
         // USER_CHECKING role permissions
@@ -109,7 +105,6 @@ public class PermissionFilterService {
                 PERMISSION_MANAGE_ACCOUNT,
                 PERMISSION_MANAGE_USER_REGISTER,
                 PERMISSION_MANAGE_USER_CHECKING
-
         ));
 
         // TL_CHECKING role permissions
@@ -121,11 +116,8 @@ public class PermissionFilterService {
                 PERMISSION_MANAGE_USER_REGISTER,
                 PERMISSION_REQUEST_TIMEOFF,
                 PERMISSION_VIEW_WORKTIME_USER,
-                PERMISSION_MANAGE_TEAM,
-                PERMISSION_VIEW_TEAM_WORKTIME,
                 PERMISSION_VIEW_TEAM_STATS,
-                PERMISSION_MANAGE_TEAM_CHECKING,
-                PERMISSION_VIEW_STATS_CHECKING
+                PERMISSION_MANAGE_TEAM_CHECKING
         ));
     }
 

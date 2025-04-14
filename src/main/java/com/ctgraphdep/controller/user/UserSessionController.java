@@ -42,8 +42,8 @@ import java.util.Map;
  * All session operations go through the SessionCommandService to ensure consistent handling.
  */
 @Controller
-@PreAuthorize("isAuthenticated()")
 @RequestMapping({"/user/session"})
+@PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserSessionController extends BaseController {
 
     private final SessionCommandService commandService;
@@ -76,22 +76,21 @@ public class UserSessionController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Loading session page at " + getStandardCurrentDateTime());
 
-            // Use checkUserAccess for access control
-            String accessCheck = checkUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (accessCheck != null) {
-                return accessCheck;
+            // Use the new helper method instead of checkUserAccess
+            User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
+            if (currentUser == null) {
+                return "redirect:/login";
             }
 
-            // Execute authentication query using the command pattern
-            AuthenticatedUserQuery authQuery = commandFactory.createAuthenticatedUserQuery(userDetails);
-            User user = commandService.executeQuery(authQuery);
-
             // Configure navigation context
-            NavigationContextQuery navQuery = commandFactory.createNavigationContextQuery(user);
+            NavigationContextQuery navQuery = commandFactory.createNavigationContextQuery(currentUser);
             NavigationContext navContext = commandService.executeQuery(navQuery);
+
+            // Override the dashboard URL from prepareUserAndCommonModelAttributes with the one from NavigationContext
+            // as it might contain additional context-specific logic
+            model.addAttribute("dashboardUrl", navContext.getDashboardUrl());
             model.addAttribute("completedSessionToday", navContext.isCompletedSessionToday());
             model.addAttribute("isTeamLeaderView", navContext.isTeamLeaderView());
-            model.addAttribute("dashboardUrl", navContext.getDashboardUrl());
 
             // Initialize variables at the start:
             List<WorkTimeTable> unresolvedEntries = List.of();
@@ -101,21 +100,19 @@ public class UserSessionController extends BaseController {
             // Check for unresolved work time entries
             if (!skipResolutionCheck) {
                 // Use the UnresolvedWorkTimeQuery to check for entries that need resolution
-                UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(user.getUsername());
+                UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(currentUser.getUsername());
                 unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
                 if (!unresolvedEntries.isEmpty()) {
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Found %d unresolved work time entries for user %s",
-                                    unresolvedEntries.size(), user.getUsername()));
+                    LoggerUtil.info(this.getClass(), String.format("Found %d unresolved work time entries for user %s",
+                            unresolvedEntries.size(), currentUser.getUsername()));
 
                     hasUnresolvedEntries = true;
 
                     // Calculate recommended end times for each entry using the calculation command
                     for (WorkTimeTable entry : unresolvedEntries) {
                         // Use CalculateRecommendedEndTimeQuery
-                        CalculateRecommendedEndTimeQuery endTimeQuery =
-                                calculationFactory.createCalculateRecommendedEndTimeQuery(entry, user.getSchedule());
+                        CalculateRecommendedEndTimeQuery endTimeQuery = calculationFactory.createCalculateRecommendedEndTimeQuery(entry, currentUser.getSchedule());
                         LocalDateTime recommendedTime = calculationService.executeQuery(endTimeQuery);
                         recommendedEndTimes.put(entry.getWorkDate(), recommendedTime);
                     }
@@ -126,7 +123,7 @@ public class UserSessionController extends BaseController {
             model.addAttribute("recommendedEndTimes", recommendedEndTimes);
 
             // Get and process current session (the one we show on the main page)
-            ResolveSessionQuery resolveQuery = commandFactory.createResolveSessionQuery(user.getUsername(), user.getUserId());
+            ResolveSessionQuery resolveQuery = commandFactory.createResolveSessionQuery(currentUser.getUsername(), currentUser.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(resolveQuery);
 
             // Update calculations if session is active
@@ -140,10 +137,11 @@ public class UserSessionController extends BaseController {
             }
 
             // Prepare view model through a dedicated command
-            PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(model, session, user);
+            PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(model, session, currentUser);
             commandService.executeCommand(viewModelCommand);
 
-            // Add current time to model for UI display
+            // Add current time to model for UI display - already done by prepareUserAndCommonModelAttributes
+            // but using a different format, so keep this explicit formatting
             model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             return "user/session";
@@ -161,15 +159,15 @@ public class UserSessionController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Starting session at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for strong role verification
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
                 return "redirect:/login";
             }
 
-            String username = user.getUsername();
-            Integer userId = user.getUserId();
+            String username = currentUser.getUsername();
+            Integer userId = currentUser.getUserId();
 
             // Check for unresolved work time entries
             UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username);
@@ -194,10 +192,8 @@ public class UserSessionController extends BaseController {
                 // If session is from today and in OFFLINE state but not completed, we don't need resolution
                 // Just start a new session instead
                 if (sessionDate.equals(today) &&
-                        WorkCode.WORK_OFFLINE.equals(currentSession.getSessionStatus()) &&
-                        !currentSession.getWorkdayCompleted()) {
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Clearing incomplete session from today for user %s before starting new one", username));
+                        WorkCode.WORK_OFFLINE.equals(currentSession.getSessionStatus()) && !currentSession.getWorkdayCompleted()) {
+                    LoggerUtil.info(this.getClass(), String.format("Clearing incomplete session from today for user %s before starting new one", username));
                 }
             }
 
@@ -218,9 +214,9 @@ public class UserSessionController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Initiating resume previous session at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for strong role verification
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
                 return "redirect:/login";
             }
@@ -241,15 +237,15 @@ public class UserSessionController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Confirming resume session at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for strong role verification
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
                 return "redirect:/login";
             }
 
             // Execute resume command
-            ResumePreviousSessionCommand command = commandFactory.createResumePreviousSessionCommand(user.getUsername(), user.getUserId());
+            ResumePreviousSessionCommand command = commandFactory.createResumePreviousSessionCommand(currentUser.getUsername(), currentUser.getUserId());
             commandService.executeCommand(command);
 
             return "redirect:/user/session?action=resume";
@@ -267,26 +263,26 @@ public class UserSessionController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Toggling temporary stop at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for strong role verification
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
                 return "redirect:/login";
             }
 
             // Get current session state
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(user.getUsername(), user.getUserId());
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(currentUser.getUsername(), currentUser.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
             if (session != null) {
                 if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
                     // Start temporary stop
-                    StartTemporaryStopCommand command = commandFactory.createStartTemporaryStopCommand(user.getUsername(), user.getUserId());
+                    StartTemporaryStopCommand command = commandFactory.createStartTemporaryStopCommand(currentUser.getUsername(), currentUser.getUserId());
                     commandService.executeCommand(command);
                     return "redirect:/user/session?action=pause";
                 } else if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
                     // Resume from temporary stop
-                    ResumeFromTemporaryStopCommand command = commandFactory.createResumeFromTemporaryStopCommand(user.getUsername(), user.getUserId());
+                    ResumeFromTemporaryStopCommand command = commandFactory.createResumeFromTemporaryStopCommand(currentUser.getUsername(), currentUser.getUserId());
                     commandService.executeCommand(command);
                     return "redirect:/user/session?action=resume";
                 }
@@ -307,15 +303,15 @@ public class UserSessionController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Ending session at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for strong role verification
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
                 return "redirect:/login";
             }
 
             // Get current session
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(user.getUsername(), user.getUserId());
+            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(currentUser.getUsername(), currentUser.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
             // Check if session is already offline
@@ -343,8 +339,8 @@ public class UserSessionController extends BaseController {
 
                 // End day using command with current time
                 EndDayCommand command = commandFactory.createEndDayCommand(
-                        user.getUsername(),
-                        user.getUserId(),
+                        currentUser.getUsername(),
+                        currentUser.getUserId(),
                         rawWorkMinutes, // Use the calculated raw work minutes
                         currentTime);  // Pass the standardized current time
 
@@ -373,9 +369,9 @@ public class UserSessionController extends BaseController {
                     String.format("Resolving worktime entry for date %s at %s",
                             entryDate, getStandardCurrentDateTime()));
 
-            // Use validateUserAccess for strong role verification
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
                 return "redirect:/login";
             }
@@ -391,16 +387,14 @@ public class UserSessionController extends BaseController {
             LocalDateTime endTime = LocalDateTime.of(entryDate, LocalTime.of(endHour, endMinute));
 
             // Execute the resolution command
-            ResolveWorkTimeEntryCommand command = new ResolveWorkTimeEntryCommand(
-                    user.getUsername(), user.getUserId(), entryDate, endTime);
+            ResolveWorkTimeEntryCommand command = new ResolveWorkTimeEntryCommand(currentUser.getUsername(), currentUser.getUserId(), entryDate, endTime);
 
             boolean success = commandService.executeCommand(command);
 
             if (success) {
                 LoggerUtil.info(this.getClass(), "Successfully resolved worktime entry for " + entryDate);
                 redirectAttributes.addFlashAttribute("successMessage",
-                        "Work session from " + entryDate.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")) +
-                                " resolved successfully");
+                        "Work session from " + entryDate.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")) + " resolved successfully");
             } else {
                 LoggerUtil.warn(this.getClass(), "Failed to resolve worktime entry for " + entryDate);
                 redirectAttributes.addFlashAttribute("errorMessage", "Failed to resolve work session");
@@ -417,8 +411,7 @@ public class UserSessionController extends BaseController {
     private boolean isActiveSession(WorkUsersSessionsStates session) {
         try {
             // Use the getTimeValidationService to access validation service
-            IsActiveSessionCommand command = getTimeValidationService().getValidationFactory()
-                    .createIsActiveSessionCommand(session);
+            IsActiveSessionCommand command = getTimeValidationService().getValidationFactory().createIsActiveSessionCommand(session);
             return getTimeValidationService().execute(command);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error checking session activity: " + e.getMessage(), e);

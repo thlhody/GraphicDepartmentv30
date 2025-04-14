@@ -2,15 +2,16 @@ package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ActionType;
+import com.ctgraphdep.enums.ApprovalStatusType;
+import com.ctgraphdep.enums.CheckType;
 import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
+import com.ctgraphdep.model.dto.UserStatusDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.service.*;
-import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.UserRegisterExcelExporter;
-import com.ctgraphdep.utils.UserWorktimeExcelExporter;
+import com.ctgraphdep.utils.*;
 import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -46,45 +47,58 @@ public class StatusController extends BaseController {
     private final ThymeleafService thymeleafService;
     private final UserRegisterExcelExporter excelExporter;
     private final UserWorktimeExcelExporter userWorktimeExcelExporter;
+    private final CheckRegisterStatusExcelExporter checkRegisterExcelExporter;
 
     public StatusController(UserService userService,
                             FolderStatus folderStatus,
                             StatusService statusService,
-                            ReadFileNameStatusService readFileNameStatusService, // Inject the new service
+                            ReadFileNameStatusService readFileNameStatusService,
                             ThymeleafService thymeleafService,
-                            TimeValidationService timeValidationService, UserRegisterExcelExporter excelExporter, UserWorktimeExcelExporter userWorktimeExcelExporter) {
+                            TimeValidationService timeValidationService,
+                            UserRegisterExcelExporter excelExporter, UserWorktimeExcelExporter userWorktimeExcelExporter, CheckRegisterStatusExcelExporter checkRegisterExcelExporter) {
         super(userService, folderStatus, timeValidationService);
         this.statusService = statusService;
         this.readFileNameStatusService = readFileNameStatusService;
         this.thymeleafService = thymeleafService;
         this.excelExporter = excelExporter;
         this.userWorktimeExcelExporter = userWorktimeExcelExporter;
+        this.checkRegisterExcelExporter = checkRegisterExcelExporter;
     }
 
     @GetMapping
     public String getStatus(@AuthenticationPrincipal UserDetails userDetails, Model model) {
         LoggerUtil.info(this.getClass(), "Accessing unified status page at " + getStandardCurrentDateTime());
 
-        User currentUser = getUser(userDetails);
+        // Use prepareUserAndCommonModelAttributes to set up common attributes and get current user
+        User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
+        if (currentUser == null) {
+            return "redirect:/login";
+        }
 
-        // Determine dashboard URL based on user role
-        String dashboardUrl = getDashboardUrl(currentUser);
+        List<UserStatusDTO> userStatuses = readFileNameStatusService.getAllUserStatuses();
 
-        // Get filtered status list using the ReadFileNameStatusService instead of StatusService
-        var userStatuses = readFileNameStatusService.getAllUserStatuses();
+        // Enhance each UserStatus object with role information
+        userStatuses.forEach(status -> {
+            // Get user details for this status
+            Optional<User> userOpt = getUserService().getUserByUsername(status.getUsername());
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                // Add role to the UserStatus object
+                status.setRole(user.getRole());
+            }
+        });
+
         long onlineCount = readFileNameStatusService.getOnlineUserCount();
-
-        // Add the flag for admin/team leader role check
-        boolean hasAdminTeamLeaderRole = currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER");
 
         // Add model attributes
         model.addAttribute("userStatuses", userStatuses);
         model.addAttribute("currentUsername", currentUser.getUsername());
         model.addAttribute("onlineCount", onlineCount);
         model.addAttribute("isAdminView", currentUser.isAdmin());
-        model.addAttribute("hasAdminTeamLeaderRole", hasAdminTeamLeaderRole);
-        model.addAttribute("dashboardUrl", dashboardUrl);
-        model.addAttribute("currentSystemTime", formatCurrentDateTime());
+        model.addAttribute("hasAdminTeamLeaderRole",
+                currentUser.hasRole("ADMIN") ||
+                        currentUser.hasRole("TEAM_LEADER") ||
+                        currentUser.hasRole("TL_CHECKING"));
 
         return "status/status";
     }
@@ -470,23 +484,6 @@ public class StatusController extends BaseController {
         return getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN));
     }
 
-    // Determines the appropriate dashboard URL based on user role
-    private String getDashboardUrl(User user) {
-        if (user.hasRole("TEAM_LEADER")) {
-            return "/team-lead";
-        } else if (user.hasRole("ADMIN")) {
-            return "/admin";
-        } else if (user.hasRole("TL_CHECKING")) {
-            return "/team-checking";
-        } else if (user.hasRole("USER_CHECKING")) {
-            return "/user-checking";
-        } else if (user.hasRole("CHECKING")) {
-            return "/checking";
-        } else {
-            return "/user";
-        }
-    }
-
     // Helper method to determine target user based on permissions
     private User determineTargetUser(User currentUser, String requestedUsername) {
         if (requestedUsername == null || requestedUsername.isEmpty()) {
@@ -505,5 +502,169 @@ public class StatusController extends BaseController {
                 (actionType != null && !actionType.trim().isEmpty()) ||
                 (printPrepTypes != null && !printPrepTypes.trim().isEmpty()) ||
                 (clientName != null && !clientName.trim().isEmpty());
+    }
+
+    @GetMapping("/check-register-status")
+    public String getCheckRegister(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) String searchTerm,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
+            @RequestParam(required = false) String checkType,
+            @RequestParam(required = false) String designerName,
+            @RequestParam(required = false) String approvalStatus,
+            Model model,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            LoggerUtil.info(this.getClass(), "Accessing check register search at " + getStandardCurrentDateTime());
+
+            // Get the current user and determine the target user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
+                return "redirect:/login";
+            }
+
+            // Determine target user (whose check register to view)
+            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+
+            // Add user info to model
+            model.addAttribute("user", targetUser);
+
+            // Use determineYear and determineMonth from BaseController
+            int displayYear = determineYear(year);
+            int displayMonth = determineMonth(month);
+
+            // Set current period for the UI
+            model.addAttribute("currentYear", displayYear);
+            model.addAttribute("currentMonth", displayMonth);
+            model.addAttribute("currentDate", getStandardCurrentDate());
+
+            // Add check types and approval status types for dropdowns
+            model.addAttribute("checkTypes", CheckType.getValues());
+            model.addAttribute("approvalStatusTypes", ApprovalStatusType.getValues());
+
+            // Check if we're searching or just viewing default period
+            boolean isSearching = hasCheckRegisterSearchCriteria(searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+
+            // Load appropriate entries
+            List<RegisterCheckEntry> entries;
+
+            // Load the basic entries first
+            entries = statusService.loadViewOnlyCheckRegister(targetUser.getUsername(), targetUser.getUserId(), displayYear, displayMonth);
+
+            // Apply filters if searching
+            if (isSearching) {
+                entries = statusService.filterCheckRegisterEntries(entries, searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+
+                LoggerUtil.info(this.getClass(), String.format("Check register search completed for user %s: found %d entries", targetUser.getUsername(), entries.size()));
+            }
+
+            // Add entries to model
+            model.addAttribute("entries", entries);
+
+            // Add summary statistics
+            Map<String, Object> summary = statusService.calculateCheckRegisterSummary(entries);
+            model.addAttribute("summary", summary);
+
+            // Extract unique designers for filter dropdown
+            Set<String> designers = statusService.extractUniqueDesigners(entries);
+            model.addAttribute("designers", designers);
+
+            // Add system time
+            model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+            return "status/check-register-status";
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error in check register: " + e.getMessage(), e);
+            model.addAttribute("errorMessage", "Error processing check register: " + e.getMessage());
+            model.addAttribute("entries", new ArrayList<>());
+            model.addAttribute("currentDate", getStandardCurrentDate());
+            return "status/check-register-status";
+        }
+    }
+
+    /**
+     * Export check register entries to Excel
+     */
+    @GetMapping("/check-register-status/export")
+    public ResponseEntity<byte[]> exportCheckRegister(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) String searchTerm,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
+            @RequestParam(required = false) String checkType,
+            @RequestParam(required = false) String designerName,
+            @RequestParam(required = false) String approvalStatus) {
+
+        try {
+            LoggerUtil.info(this.getClass(), "Exporting check register at " + getStandardCurrentDateTime());
+
+            // Get current authenticated user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            // Determine target user
+            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
+
+            // Load entries
+            List<RegisterCheckEntry> entries = statusService.loadViewOnlyCheckRegister(targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
+
+            // Apply filters if provided
+            boolean isSearching = hasCheckRegisterSearchCriteria(searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+
+            if (isSearching) {
+                entries = statusService.filterCheckRegisterEntries(entries, searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+            }
+
+            // Use our new exporter
+            byte[] excelData = checkRegisterExcelExporter.exportToExcel(
+                    targetUser, entries, selectedYear, selectedMonth);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            String.format("attachment; filename=\"check_register_%s_%d_%02d.xlsx\"",
+                                    targetUser.getUsername(), selectedYear, selectedMonth))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(excelData);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error exporting check register: " + e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Helper method to check if any search criteria are present
+     */
+    private boolean hasCheckRegisterSearchCriteria(
+            String searchTerm,
+            LocalDate startDate,
+            LocalDate endDate,
+            String checkType,
+            String designerName,
+            String approvalStatus) {
+
+        return (searchTerm != null && !searchTerm.trim().isEmpty()) ||
+                startDate != null || endDate != null ||
+                (checkType != null && !checkType.trim().isEmpty()) ||
+                (designerName != null && !designerName.trim().isEmpty()) ||
+                (approvalStatus != null && !approvalStatus.trim().isEmpty());
     }
 }

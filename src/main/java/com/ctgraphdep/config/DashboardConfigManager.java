@@ -27,7 +27,8 @@ public class DashboardConfigManager {
                         createOMSSystemCard(),
                         createHolidaysCard(),
                         createSettingsCard(),
-                        createAdminStatistics()
+                        createAdminStatistics(),
+                        createAdminCheckRegisterCard()
                 ))
                 .build();
     }
@@ -42,37 +43,39 @@ public class DashboardConfigManager {
                 .refreshEnabled(true)
                 .refreshInterval(45000)
                 .cards(Arrays.asList(
-                        createStatusCard("ADMIN"),
+                        createStatusCard("ADMIN"),  // Using admin view for status
                         createTeamLeadSessionCard(),
                         createTeamLeadRegisterCard(),
                         createTeamLeadWorktimeCard(),
                         createTeamLeadTimeOffCard(),
                         createOMSSystemCard(),
                         createUserSettingsCard(),
-                        createTeamStatisticsCard()
+                        createTeamStatisticsCard(),
+                        createTeamCheckRegisterCard()
                 ))
                 .build();
     }
+
 
     @Bean
     @Qualifier("teamCheckingDashboardConfig")
     public DashboardConfig teamCheckingDashboardConfig() {
         return DashboardConfig.builder()
                 .title("Team Checking Dashboard")
-                .description("Team Management Dashboard")
+                .description("Team Checking Management Dashboard")
                 .role("TL_CHECKING")
                 .refreshEnabled(true)
                 .refreshInterval(45000)
                 .cards(Arrays.asList(
-                        createStatusCard("ADMIN"),
+                        createStatusCard("ADMIN"),  // Using admin view for status
                         createTeamLeadSessionCard(),
                         createTeamLeadRegisterCard(),
                         createTeamLeadWorktimeCard(),
                         createTeamLeadTimeOffCard(),
                         createOMSSystemCard(),
                         createUserSettingsCard(),
-                        createTeamStatisticsCard()
-                        ///need to implement a management checking register card
+                        createTeamStatisticsCard(),
+                        createTeamCheckRegisterCard()
                 ))
                 .build();
     }
@@ -92,9 +95,39 @@ public class DashboardConfigManager {
                         createUserWorktimeCard(),
                         createTimeOffCard(),
                         createOMSSystemCard(),
-                        createUserSettingsCard()
-                        /// needs to implement the checking register
+                        createUserSettingsCard(),
+                        createUserCheckRegisterCard()
                 ))
+                .build();
+    }
+
+    private DashboardCardDTO createAdminCheckRegisterCard() {
+        return DashboardCardDTO.builder()
+                .title("Check Register Manager")
+                .subtitle("Manage checking activities")
+                .color("warning")
+                .icon("check-square")
+                .badge("Admin")
+                .badgeColor("warning")
+                .actionText("Manage Check Register")
+                .actionUrl("/user/check-register")
+                .external(false)
+                .permission("MANAGE_ADMIN_CHECKING")
+                .build();
+    }
+
+    private DashboardCardDTO createTeamCheckRegisterCard() {
+        return DashboardCardDTO.builder()
+                .title("Team Check Register")
+                .subtitle("Manage team checking activities")
+                .color("info")
+                .icon("check-square")
+                .badge("Team")
+                .badgeColor("info")
+                .actionText("Team Check Register")
+                .actionUrl("/user/check-register")
+                .external(false)
+                .permission("MANAGE_TEAM_CHECKING")
                 .build();
     }
 
@@ -114,13 +147,26 @@ public class DashboardConfigManager {
                         createUserWorktimeCard(),
                         createTimeOffCard(),
                         createOMSSystemCard(),
-                        createUserSettingsCard()
-                        /// needs to implement the checking register
+                        createUserSettingsCard(),
+                        createUserCheckRegisterCard()
                 ))
                 .build();
     }
 
-
+    private DashboardCardDTO createUserCheckRegisterCard() {
+        return DashboardCardDTO.builder()
+                .title("Check Register")
+                .subtitle("Manage checking activities")
+                .color("success")  // You can choose a different color
+                .icon("check-square")  // Using the check-square icon to match the page
+                .badge("View")
+                .badgeColor("success")
+                .actionText("Open Check Register")
+                .actionUrl("/user/check-register")
+                .external(false)
+                .permission("MANAGE_USER_CHECKING")
+                .build();
+    }
 
     @Bean
     @Qualifier("userDashboardConfig")

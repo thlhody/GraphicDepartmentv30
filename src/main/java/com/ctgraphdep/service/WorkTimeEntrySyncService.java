@@ -2,7 +2,6 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.enums.WorktimeMergeRule;
-import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;

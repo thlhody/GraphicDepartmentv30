@@ -16,9 +16,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@PreAuthorize("isAuthenticated()")
 @RequestMapping("/user/settings")
-@Secured("USER")
+@PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_ADMIN', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserSettingsController extends BaseController {
 
     public UserSettingsController(
@@ -32,20 +31,11 @@ public class UserSettingsController extends BaseController {
     public String settings(@AuthenticationPrincipal UserDetails userDetails, Model model) {
         LoggerUtil.info(this.getClass(), "Accessing user settings page at " + getStandardCurrentDateTime());
 
-        String accessCheck = checkUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-        if (accessCheck != null) {
-            return accessCheck;
+        // Use the new helper method instead of checkUserAccess
+        User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
+        if (currentUser == null) {
+            return "redirect:/login";
         }
-
-        User user = getUser(userDetails);
-
-        // Determine dashboard URL based on user role
-        String dashboardUrl = user.hasRole("TEAM_LEADER") ? "/team-lead" : user.hasRole("ADMIN") ? "/admin" : "/user";
-
-        model.addAttribute("dashboardUrl", dashboardUrl);
-        model.addAttribute("user", user);
-        model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(
-                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
         return "user/settings";
     }
@@ -60,8 +50,8 @@ public class UserSettingsController extends BaseController {
         LoggerUtil.info(this.getClass(), "Password change attempt at " + getStandardCurrentDateTime());
 
         try {
-            // Use validateUserAccess for more thorough role checking
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
+            // Get user directly
+            User user = getUser(userDetails);
             if (user == null) {
                 return "redirect:/login";
             }
@@ -69,17 +59,14 @@ public class UserSettingsController extends BaseController {
             boolean success = getUserService().changePassword(user.getUserId(), currentPassword, newPassword);
 
             if (success) {
-                LoggerUtil.info(this.getClass(),
-                        "Password changed successfully for user: " + user.getUsername());
+                LoggerUtil.info(this.getClass(), "Password changed successfully for user: " + user.getUsername());
                 redirectAttributes.addFlashAttribute("successMessage", "Password changed successfully");
             } else {
-                LoggerUtil.warn(this.getClass(),
-                        "Failed password change attempt for user: " + user.getUsername() + " - incorrect current password");
+                LoggerUtil.warn(this.getClass(), "Failed password change attempt for user: " + user.getUsername() + " - incorrect current password");
                 redirectAttributes.addFlashAttribute("errorMessage", "Current password is incorrect");
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error changing password: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error changing password: " + e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage", "Error changing password: " + e.getMessage());
         }
 

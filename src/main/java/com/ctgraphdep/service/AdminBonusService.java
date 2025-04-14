@@ -5,11 +5,13 @@ import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.AdminBonusExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 @Service
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminBonusService {
     private final DataAccessService dataAccessService;
     private final UserService userService;

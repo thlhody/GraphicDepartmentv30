@@ -65,8 +65,7 @@ public class UserRegisterService {
     }
     private List<RegisterEntry> mergeEntries(List<RegisterEntry> userEntries, List<RegisterEntry> adminEntries) {
         // Create map of admin entries for quick lookup
-        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream()
-                .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
+        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream().collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
 
         // Update user entries based on admin entries
         return userEntries.stream()
@@ -106,15 +105,13 @@ public class UserRegisterService {
             }
 
             // Sort entries
-            entries.sort(Comparator.comparing(RegisterEntry::getDate).reversed()
-                    .thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()));
+            entries.sort(Comparator.comparing(RegisterEntry::getDate).reversed().thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()));
 
             // Save and sync
             dataAccessService.writeUserRegister(username, userId, entries, year, month);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving entry for user %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error saving entry for user %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to save entry", e);
         }
     }
@@ -126,8 +123,7 @@ public class UserRegisterService {
             List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month);
             if (entries != null) {
                 // Verify entry exists and belongs to user
-                boolean entryExists = entries.stream()
-                        .anyMatch(e -> e.getEntryId().equals(entryId) && e.getUserId().equals(userId));
+                boolean entryExists = entries.stream().anyMatch(e -> e.getEntryId().equals(entryId) && e.getUserId().equals(userId));
 
                 if (!entryExists) {
                     throw new IllegalArgumentException("Entry not found or access denied");
@@ -139,13 +135,10 @@ public class UserRegisterService {
                 // Save and sync
                 dataAccessService.writeUserRegister(username, userId, entries, year, month);
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Deleted register entry %d for user %s", entryId, username));
+                LoggerUtil.info(this.getClass(), String.format("Deleted register entry %d for user %s", entryId, username));
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error deleting entry %d for user %s: %s",
-                            entryId, username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error deleting entry %d for user %s: %s", entryId, username, e.getMessage()));
             throw new RuntimeException("Failed to delete entry", e);
         }
     }

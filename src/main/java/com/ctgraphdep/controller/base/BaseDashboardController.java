@@ -121,8 +121,28 @@ public abstract class BaseDashboardController {
     }
 
     private boolean isUserRoleValid(User user) {
-        return user != null && user.getRole() != null &&
-                user.getRole().equals(dashboardConfig.getRole());
+        if (user == null || user.getRole() == null) {
+            LoggerUtil.warn(this.getClass(), "User or user role is null");
+            return false;
+        }
+
+        // Normalize roles by removing ROLE_ prefix
+        String normalizedUserRole = user.getRole().replace("ROLE_", "");
+        String normalizedRequiredRole = dashboardConfig.getRole().replace("ROLE_", "");
+
+        // Only allow exact matches - no more special compatibility
+        if (normalizedUserRole.equals(normalizedRequiredRole)) {
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Role match for user %s: %s matches required role %s",
+                            user.getUsername(), normalizedUserRole, normalizedRequiredRole));
+            return true;
+        }
+
+        LoggerUtil.debug(this.getClass(),
+                String.format("Role mismatch for user %s: %s does not match required role %s",
+                        user.getUsername(), normalizedUserRole, normalizedRequiredRole));
+
+        return false;
     }
 
     private DashboardViewModelDTO createEmptyDashboardModel() {

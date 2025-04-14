@@ -7,13 +7,14 @@ import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
-import org.apache.commons.math3.util.Pair;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -57,10 +58,59 @@ public abstract class BaseController {
     protected UserService getUserService() {
         return userService;
     }
-    // Add this to BaseController.java
+
     protected TimeValidationService getTimeValidationService() {
         return timeValidationService;
     }
+
+    /**
+     * Determines the appropriate dashboard URL based on user role
+     * @param user The user
+     * @return The dashboard URL for the user's role
+     */
+    protected String getDashboardUrlForUser(User user) {
+        if (user == null) return "/login";
+
+        // Normalize the role by removing any ROLE_ prefix
+        String normalizedRole = user.getRole().replace("ROLE_", "");
+
+        // Map each role to its specific dashboard URL
+        return switch (normalizedRole) {
+            case "ADMIN" -> "/admin";
+            case "TEAM_LEADER" -> "/team-lead";
+            case "TL_CHECKING" -> "/team-checking";
+            case "USER_CHECKING" -> "/user-checking";
+            case "CHECKING" -> "/checking";
+            case "USER" -> "/user";
+            default -> {
+                // Default to user dashboard if role is not recognized
+                LoggerUtil.warn(this.getClass(), "Unrecognized role for dashboard URL: " + normalizedRole);
+                yield "/user";
+            }
+        };
+    }
+
+    /**
+     * Gets the current user and adds common model attributes
+     * @param userDetails Spring Security UserDetails
+     * @param model Spring Model
+     * @return The current user or null if authentication failed
+     */
+    protected User prepareUserAndCommonModelAttributes(UserDetails userDetails, Model model) {
+        if (userDetails == null) return null;
+
+        User currentUser = getUser(userDetails);
+        if (currentUser == null) return null;
+
+        // Add common attributes
+        String dashboardUrl = getDashboardUrlForUser(currentUser);
+        model.addAttribute("dashboardUrl", dashboardUrl);
+        model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        model.addAttribute("user", currentUser);
+
+        return currentUser;
+    }
+
 
     /**
      * Gets standardized current date
@@ -157,68 +207,4 @@ public abstract class BaseController {
     protected int determineMonth(Integer month) {
         return month != null ? month : getStandardCurrentDate().getMonthValue();
     }
-
-    /**
-     * Convenience method to determine both year and month
-     * @param year Input year (can be null)
-     * @param month Input month (can be null)
-     * @return Array with [year, month]
-     */
-    protected int[] determineYearAndMonth(Integer year, Integer month) {
-        return new int[]{
-                determineYear(year),
-                determineMonth(month)
-        };
-    }
-
-
-    /**
-     * Validates user access and provides a default redirect if unauthorized
-     * @param currentUser The current user
-     * @param requiredRoles Roles that are allowed to access the resource
-     * @return Redirect string if unauthorized, null if access is granted
-     */
-    protected String validateUserRoleAccess(User currentUser, String... requiredRoles) {
-        // If no user is provided
-        if (currentUser == null) {
-            LoggerUtil.warn(this.getClass(), "Attempted access by null user");
-            return "redirect:/login";
-        }
-
-        // Check if user has any of the required roles
-        boolean hasAccess = Arrays.stream(requiredRoles)
-                .anyMatch(currentUser::hasRole);
-
-        if (!hasAccess) {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("User %s denied access. Required roles: %s, User role: %s",
-                            currentUser.getUsername(),
-                            Arrays.toString(requiredRoles),
-                            currentUser.getRole())
-            );
-            return "redirect:/user";  // Default redirect
-        }
-
-        return null;  // Access granted
-    }
-
-    /**
-     * Convenience method that combines user retrieval and role validation
-     * @param userDetails Spring Security UserDetails
-     * @param requiredRoles Roles that are allowed to access the resource
-     * @return Tuple of (User, Redirect String)
-     */
-    protected Pair<User, String> checkUserAndRoleAccess(
-            UserDetails userDetails,
-            String... requiredRoles
-    ) {
-        // Get current user
-        User currentUser = getUser(userDetails);
-
-        // Validate role access
-        String redirectPath = validateUserRoleAccess(currentUser, requiredRoles);
-
-        return new Pair<>(currentUser, redirectPath);
-    }
-
 }

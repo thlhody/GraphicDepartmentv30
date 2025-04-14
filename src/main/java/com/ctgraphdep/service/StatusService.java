@@ -706,4 +706,182 @@ public class StatusService {
         return sanitized;
     }
 
+    /**
+     * Loads check register entries for a user in view-only mode (optimized read-only operation)
+     *
+     * @param username The username
+     * @param userId The user ID
+     * @param year The year to retrieve data for
+     * @param month The month to retrieve data for
+     * @return List of RegisterCheckEntry objects
+     */
+    public List<RegisterCheckEntry> loadViewOnlyCheckRegister(String username, Integer userId, int year, int month) {
+        validatePeriod(year, month);
+
+        try {
+            // Use read-only method from DataAccessService (would need to be implemented)
+            List<RegisterCheckEntry> entries = dataAccessService.readCheckRegisterReadOnly(username, userId, year, month);
+
+            if (entries == null || entries.isEmpty()) {
+                // Return empty list instead of null
+                LoggerUtil.info(this.getClass(),
+                        String.format("No check register entries found for user %s (%d/%d)",
+                                username, month, year));
+                return new ArrayList<>();
+            }
+
+            // Sort by date (newest first)
+            return entries.stream()
+                    .sorted(Comparator.comparing(RegisterCheckEntry::getDate).reversed())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error loading view-only check register for user %s: %s",
+                            username, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Filter check register entries based on search criteria.
+     *
+     * @param entries The entries to filter
+     * @param searchTerm Text to search across all text fields
+     * @param startDate Optional start date filter
+     * @param endDate Optional end date filter
+     * @param checkType Optional check type filter
+     * @param designerName Optional designer name filter
+     * @param approvalStatus Optional approval status filter
+     * @return Filtered list of RegisterCheckEntry objects
+     */
+    public List<RegisterCheckEntry> filterCheckRegisterEntries(
+            List<RegisterCheckEntry> entries,
+            String searchTerm,
+            LocalDate startDate,
+            LocalDate endDate,
+            String checkType,
+            String designerName,
+            String approvalStatus) {
+
+        List<RegisterCheckEntry> filteredEntries = new ArrayList<>(entries);
+
+        // Filter by search term (search across multiple fields)
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            String term = searchTerm.toLowerCase();
+            filteredEntries = filteredEntries.stream()
+                    .filter(entry ->
+                            (entry.getOrderId() != null && entry.getOrderId().toLowerCase().contains(term)) ||
+                                    (entry.getProductionId() != null && entry.getProductionId().toLowerCase().contains(term)) ||
+                                    (entry.getOmsId() != null && entry.getOmsId().toLowerCase().contains(term)) ||
+                                    (entry.getDesignerName() != null && entry.getDesignerName().toLowerCase().contains(term)) ||
+                                    (entry.getCheckType() != null && entry.getCheckType().toLowerCase().contains(term)) ||
+                                    (entry.getErrorDescription() != null && entry.getErrorDescription().toLowerCase().contains(term))
+                    )
+                    .collect(Collectors.toList());
+        }
+
+        // Filter by date range
+        if (startDate != null) {
+            filteredEntries = filteredEntries.stream()
+                    .filter(entry -> !entry.getDate().isBefore(startDate))
+                    .collect(Collectors.toList());
+        }
+
+        if (endDate != null) {
+            filteredEntries = filteredEntries.stream()
+                    .filter(entry -> !entry.getDate().isAfter(endDate))
+                    .collect(Collectors.toList());
+        }
+
+        // Filter by check type
+        if (checkType != null && !checkType.isEmpty()) {
+            filteredEntries = filteredEntries.stream()
+                    .filter(entry -> checkType.equals(entry.getCheckType()))
+                    .collect(Collectors.toList());
+        }
+
+        // Filter by designer name
+        if (designerName != null && !designerName.isEmpty()) {
+            filteredEntries = filteredEntries.stream()
+                    .filter(entry -> designerName.equals(entry.getDesignerName()))
+                    .collect(Collectors.toList());
+        }
+
+        // Filter by approval status
+        if (approvalStatus != null && !approvalStatus.isEmpty()) {
+            filteredEntries = filteredEntries.stream()
+                    .filter(entry -> approvalStatus.equals(entry.getApprovalStatus()))
+                    .collect(Collectors.toList());
+        }
+
+        return filteredEntries;
+    }
+
+    /**
+     * Calculate check register summary statistics
+     *
+     * @param entries The entries to analyze
+     * @return Map containing summary statistics
+     */
+    public Map<String, Object> calculateCheckRegisterSummary(List<RegisterCheckEntry> entries) {
+        Map<String, Object> summary = new HashMap<>();
+
+        if (entries == null || entries.isEmpty()) {
+            // Return empty summary for no entries
+            summary.put("totalEntries", 0);
+            summary.put("checkTypeCounts", new HashMap<>());
+            summary.put("avgArticles", 0.0);
+            summary.put("avgFiles", 0.0);
+            summary.put("totalOrderValue", 0.0);
+            return summary;
+        }
+
+        // Count each check type
+        Map<String, Long> checkTypeCounts = entries.stream()
+                .collect(Collectors.groupingBy(
+                        entry -> entry.getCheckType() != null ? entry.getCheckType() : "UNKNOWN",
+                        Collectors.counting()
+                ));
+
+        // Calculate totals and averages
+        int totalEntries = entries.size();
+        int totalArticles = entries.stream()
+                .mapToInt(e -> e.getArticleNumbers() != null ? e.getArticleNumbers() : 0)
+                .sum();
+        int totalFiles = entries.stream()
+                .mapToInt(e -> e.getFilesNumbers() != null ? e.getFilesNumbers() : 0)
+                .sum();
+        double totalOrderValue = entries.stream()
+                .mapToDouble(e -> e.getOrderValue() != null ? e.getOrderValue() : 0.0)
+                .sum();
+
+        // Get average values
+        double avgArticles = (double) totalArticles / totalEntries;
+        double avgFiles = (double) totalFiles / totalEntries;
+
+        // Add to summary map
+        summary.put("totalEntries", totalEntries);
+        summary.put("checkTypeCounts", checkTypeCounts);
+        summary.put("totalArticles", totalArticles);
+        summary.put("totalFiles", totalFiles);
+        summary.put("avgArticles", avgArticles);
+        summary.put("avgFiles", avgFiles);
+        summary.put("totalOrderValue", totalOrderValue);
+
+        return summary;
+    }
+
+    /**
+     * Extract unique designer names from check register entries
+     *
+     * @param entries The entries to analyze
+     * @return Set of unique designer names
+     */
+    public Set<String> extractUniqueDesigners(List<RegisterCheckEntry> entries) {
+        return entries.stream()
+                .map(RegisterCheckEntry::getDesignerName)
+                .filter(name -> name != null && !name.isEmpty())
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
 }

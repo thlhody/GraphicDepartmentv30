@@ -20,6 +20,7 @@ import java.util.Map;
 @RequestMapping("/admin/statistics")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminStatisticsController extends BaseController {
+
     private final AdminStatisticsService statisticsService;
 
     protected AdminStatisticsController(UserService userService,

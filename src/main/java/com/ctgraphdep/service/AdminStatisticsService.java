@@ -6,6 +6,7 @@ import com.ctgraphdep.model.dto.statistics.ChartDataDTO;
 import com.ctgraphdep.model.dto.statistics.RegisterStatisticsDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.time.YearMonth;
@@ -13,6 +14,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminStatisticsService {
     private final DataAccessService dataAccess;
     private final UserService userService;

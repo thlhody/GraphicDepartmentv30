@@ -46,9 +46,8 @@ public class UserTimeOffService {
      */
     @Transactional
     public void processTimeOffRequest(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Processing time off request for user %s: %s to %s (%s)",
-                        user.getUsername(), startDate, endDate, timeOffType));
+        LoggerUtil.info(this.getClass(), String.format("Processing time off request for user %s: %s to %s (%s)",
+                user.getUsername(), startDate, endDate, timeOffType));
 
         validateTimeOffRequest(startDate, endDate, timeOffType);
 
@@ -66,9 +65,7 @@ public class UserTimeOffService {
         // Step 2: Update the tracker (which also updates the holiday balance)
         timeOffTrackerService.addTimeOffRequests(user, eligibleDays, timeOffType);
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Processed %d time off entries for user %s",
-                        entries.size(), user.getUsername()));
+        LoggerUtil.info(this.getClass(), String.format("Processed %d time off entries for user %s", entries.size(), user.getUsername()));
     }
 
     /**
@@ -76,9 +73,7 @@ public class UserTimeOffService {
      */
     public void syncTimeOffTracker(User user, int year) {
         try {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Syncing time off tracker for user %s (year %d)",
-                            user.getUsername(), year));
+            LoggerUtil.info(this.getClass(), String.format("Syncing time off tracker for user %s (year %d)", user.getUsername(), year));
 
             // Get all time off entries from worktime files
             List<WorkTimeTable> allTimeOffEntries = loadAllTimeOffEntries(user.getUsername(), year);
@@ -87,9 +82,8 @@ public class UserTimeOffService {
             timeOffTrackerService.syncWithWorktimeFiles(user, year, allTimeOffEntries);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error syncing time off tracker for user %s (year %d): %s",
-                            user.getUsername(), year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error syncing time off tracker for user %s (year %d): %s",
+                    user.getUsername(), year, e.getMessage()));
         }
     }
 
@@ -98,9 +92,7 @@ public class UserTimeOffService {
      * More efficient than getUserTimeOffHistory for display purposes.
      */
     public List<WorkTimeTable> getUserTimeOffHistoryReadOnly(String username, int year) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Fetching time off history for user %s for year %d (read-only)",
-                        username, year));
+        LoggerUtil.info(this.getClass(), String.format("Fetching time off history for user %s for year %d (read-only)", username, year));
 
         // Use read-only method from DataAccessService to get all worktime entries
         List<WorkTimeTable> timeOffEntries = dataAccessService.readTimeOffReadOnly(username, year);

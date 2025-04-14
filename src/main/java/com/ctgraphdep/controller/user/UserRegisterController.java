@@ -34,8 +34,9 @@ import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/user/register")
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserRegisterController extends BaseController {
+
     private final UserRegisterService userRegisterService;
     private final UserRegisterExcelExporter userRegisterExcelExporter;
 
@@ -58,14 +59,12 @@ public class UserRegisterController extends BaseController {
             Model model) {
 
         try {
-            // Use checkUserAccess for authentication verification
-            String accessCheck = checkUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (accessCheck != null) {
-                return accessCheck;
-            }
 
-            // Get current user - already checked by checkUserAccess
-            User currentUser = getUser(userDetails);
+            // Get user and add common model attributes in one call
+            User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
+            if (currentUser == null) {
+                return "redirect:/login";
+            }
 
             // Use determineYear and determineMonth from BaseController
             int selectedYear = determineYear(year);
@@ -77,52 +76,20 @@ public class UserRegisterController extends BaseController {
             model.addAttribute("currentYear", selectedYear);
             model.addAttribute("currentMonth", selectedMonth);
 
-            // Determine target user with role verification
-            User targetUser = currentUser;
-            if (username != null) {
-                if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                    targetUser = getUserService().getUserByUsername(username)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
-                } else if (!username.equals(currentUser.getUsername())) {
-                    return "redirect:/user/register";
-                }
-            }
-
-            // Set user information
-            model.addAttribute("user", targetUser);
-            model.addAttribute("userName", targetUser.getName());
+            // Set user information (always using current user)
+            model.addAttribute("user", currentUser);
+            model.addAttribute("userName", currentUser.getName());
             model.addAttribute("userDisplayName",
-                    targetUser.getName() != null ? targetUser.getName() : targetUser.getUsername());
+                    currentUser.getName() != null ? currentUser.getName() : currentUser.getUsername());
 
-            // Load entries
+            // Load entries for the current user only
             List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
-                    targetUser.getUsername(),
-                    targetUser.getUserId(),
+                    currentUser.getUsername(),
+                    currentUser.getUserId(),
                     selectedYear,
                     selectedMonth
             );
             model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
-
-            // Add role-specific attributes using consistent hasRole checks
-            if (currentUser.hasRole("ADMIN")) {
-                model.addAttribute("isAdminView", true);
-                model.addAttribute("dashboardUrl", "/admin");
-            } else if (currentUser.hasRole("TEAM_LEADER")) {
-                model.addAttribute("isTeamLeaderView", true);
-                model.addAttribute("dashboardUrl", "/team-lead");
-            } else {
-                model.addAttribute("dashboardUrl", "/user");
-            }
-
-            // Add view control attributes for admin/team leader
-            if (currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER")) {
-                model.addAttribute("isAdminView", true);
-                model.addAttribute("targetUser", targetUser);
-                if (!targetUser.equals(currentUser)) {
-                    model.addAttribute("viewingOtherUser", true);
-                    model.addAttribute("canEdit", true);
-                }
-            }
 
             return "user/register";
 
@@ -170,9 +137,11 @@ public class UserRegisterController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            // Use validateUserAccess for better authorization checking
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            LoggerUtil.info(this.getClass(), "Creating new register entry at " + getStandardCurrentDateTime());
+
+            // Get the user - don't need to add model attributes for action methods
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 return "redirect:/login";
             }
 
@@ -202,7 +171,7 @@ public class UserRegisterController extends BaseController {
             List<String> uniquePrintPrepTypes = new ArrayList<>(new LinkedHashSet<>(printPrepTypes));
 
             RegisterEntry entry = RegisterEntry.builder()
-                    .userId(user.getUserId())
+                    .userId(currentUser.getUserId())
                     .date(date)
                     .orderId(orderId.trim())
                     .productionId(productionId != null ? productionId.trim() : null)
@@ -217,7 +186,7 @@ public class UserRegisterController extends BaseController {
                     .adminSync("USER_INPUT")
                     .build();
 
-            userRegisterService.saveEntry(user.getUsername(), user.getUserId(), entry);
+            userRegisterService.saveEntry(currentUser.getUsername(), currentUser.getUserId(), entry);
             redirectAttributes.addFlashAttribute("successMessage", "Entry added successfully");
 
         } catch (RegisterValidationException e) {
@@ -250,15 +219,15 @@ public class UserRegisterController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            // Use validateUserAccess for better authorization checking
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the user - don't need to add model attributes for action methods
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 return "redirect:/login";
             }
 
             RegisterEntry entry = RegisterEntry.builder()
                     .entryId(entryId)
-                    .userId(user.getUserId())
+                    .userId(currentUser.getUserId())
                     .date(date)
                     .orderId(orderId)
                     .productionId(productionId)
@@ -273,7 +242,7 @@ public class UserRegisterController extends BaseController {
                     .adminSync("USER_INPUT")
                     .build();
 
-            userRegisterService.saveEntry(user.getUsername(), user.getUserId(), entry);
+            userRegisterService.saveEntry(currentUser.getUsername(), currentUser.getUserId(), entry);
             redirectAttributes.addFlashAttribute("successMessage", "Entry updated successfully");
 
         } catch (RegisterValidationException e) {
@@ -296,13 +265,15 @@ public class UserRegisterController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            // Use validateUserAccess for better authorization checking
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            LoggerUtil.info(this.getClass(), "Deleting register entry " + entryId + " at " + getStandardCurrentDateTime());
+
+            // Get the user - don't need to add model attributes for action methods
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 return "redirect:/login";
             }
 
-            userRegisterService.deleteEntry(user.getUsername(), user.getUserId(), entryId, year, month);
+            userRegisterService.deleteEntry(currentUser.getUsername(), currentUser.getUserId(), entryId, year, month);
             redirectAttributes.addFlashAttribute("successMessage", "Entry deleted successfully");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error deleting entry: " + e.getMessage());
@@ -313,39 +284,30 @@ public class UserRegisterController extends BaseController {
     }
 
     @GetMapping("/full-search")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<RegisterSearchResultDTO>> performFullRegisterSearch(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam() String query,
             @RequestParam(required = false) Integer userId
     ) {
         try {
-            // Validate user access
+            LoggerUtil.info(this.getClass(), "Performing register search at " + getStandardCurrentDateTime());
+
+            // Get the user - don't need to add model attributes for API endpoints
             User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
             // If no userId provided, use current user's ID
             if (userId == null) {
                 userId = currentUser.getUserId();
             }
 
-            // Validate access (user can only search their own or team members' entries)
-            if (!currentUser.getUserId().equals(userId) &&
-                    !currentUser.hasRole("ADMIN") &&
-                    !currentUser.hasRole("TEAM_LEADER")) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
-
             // Perform search
-            List<RegisterEntry> searchResults = userRegisterService.performFullRegisterSearch(
-                    currentUser.getUsername(),
-                    userId,
-                    query
-            );
+            List<RegisterEntry> searchResults = userRegisterService.performFullRegisterSearch(currentUser.getUsername(), userId, query);
 
             // Convert to DTO
-            List<RegisterSearchResultDTO> dtoResults = searchResults.stream()
-                    .map(RegisterSearchResultDTO::new)
-                    .collect(Collectors.toList());
+            List<RegisterSearchResultDTO> dtoResults = searchResults.stream().map(RegisterSearchResultDTO::new).collect(Collectors.toList());
 
             return ResponseEntity.ok(dtoResults);
 
@@ -361,19 +323,17 @@ public class UserRegisterController extends BaseController {
             @RequestParam int year,
             @RequestParam int month) {
         try {
-            // Use validateUserAccess for better authorization checking
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the user - don't need to add model attributes for API endpoints
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
-            List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), year, month);
+            List<RegisterEntry> entries = userRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
 
-            byte[] excelData = userRegisterExcelExporter.exportToExcel(user, entries, year, month);
+            byte[] excelData = userRegisterExcelExporter.exportToExcel(currentUser, entries, year, month);
 
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"register_%d_%02d.xlsx\"", year, month))
+            return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"register_%d_%02d.xlsx\"", year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM).body(excelData);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());

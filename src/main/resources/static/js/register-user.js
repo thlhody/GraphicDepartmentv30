@@ -94,7 +94,7 @@ class RegisterFormHandler {
             dropdownParent: $('body'),
             minimumResultsForSearch: 0, // Always show search
             tags: false,
-            selectOnClose: false, // Changed to false to prevent auto-selection
+            selectOnClose: false, // Changed false to prevent auto-selection
             closeOnSelect: false,
 
             // Custom formatting of selection with first letters
@@ -1121,10 +1121,6 @@ class UnifiedSearchHandler {
 
             // Remove loading indicator
             this.loadingIndicator.remove();
-
-            if (!response.ok) {
-                throw new Error('Search failed');
-            }
 
             const results = await response.json();
 

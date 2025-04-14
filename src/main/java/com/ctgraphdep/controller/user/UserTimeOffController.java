@@ -27,9 +27,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Controller
-@PreAuthorize("isAuthenticated()")
 @RequestMapping("/user/timeoff")
+@PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserTimeOffController extends BaseController {
+
     private final UserTimeOffService timeOffService;
     private final AdminPaidHolidayService holidayService;
     private final TimeOffRequestValidator timeOffValidator;
@@ -54,25 +55,18 @@ public class UserTimeOffController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Accessing time off page at " + getStandardCurrentDateTime());
 
-            // Use checkUserAccess for authentication verification
-            String accessCheck = checkUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (accessCheck != null) {
-                return accessCheck;
+            // Get user and add common model attributes with one method call
+            User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
+            if (currentUser == null) {
+                return "redirect:/login";
             }
-
-            User user = getUser(userDetails);
 
             // Trigger a sync of the time off tracker to ensure it's up to date
             // This ensures the user sees the most accurate data including future months
-            timeOffService.syncTimeOffTracker(user, LocalDate.now().getYear());
+            timeOffService.syncTimeOffTracker(currentUser, getStandardCurrentDate().getYear());
 
-            // Determine dashboard URL based on user role
-            String dashboardUrl = getDashboardUrlForUser(user);
-
-            model.addAttribute("dashboardUrl", dashboardUrl);
-            model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-
-            prepareTimeOffPageModel(model, user);
+            // Prepare time off data and add to model
+            prepareTimeOffPageModel(model, currentUser);
             return "user/timeoff";
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error loading time off page: " + e.getMessage(), e);
@@ -93,9 +87,9 @@ public class UserTimeOffController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Processing time off request at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for better role verification
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the user - we only need to get the user here, not add model attributes
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
                 return "redirect:/login";
             }
@@ -116,7 +110,7 @@ public class UserTimeOffController extends BaseController {
             }
 
             // Get available paid days for validation
-            int availableDays = holidayService.getRemainingHolidayDays(user.getUserId());
+            int availableDays = holidayService.getRemainingHolidayDays(currentUser.getUserId());
 
             // Validate the time-off request
             TimeOffRequestValidator.ValidationResult validationResult = timeOffValidator.validateRequest(startDate, endDate, timeOffType, availableDays);
@@ -127,17 +121,15 @@ public class UserTimeOffController extends BaseController {
             }
 
             // Process the validated request
-            timeOffService.processTimeOffRequest(user, startDate, endDate, timeOffType);
+            timeOffService.processTimeOffRequest(currentUser, startDate, endDate, timeOffType);
 
             // Create success message and redirect
             String successMessage = createSuccessMessage(timeOffType, startDate, endDate, validationResult.getEligibleDays());
             redirectAttributes.addFlashAttribute("successMessage", successMessage);
 
-            LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully for user %s (%s to %s)",
-                    user.getUsername(), startDate, endDate));
+            LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully for user %s (%s to %s)", currentUser.getUsername(), startDate, endDate));
 
             return "redirect:/user/timeoff";
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error processing time off request: " + e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage", "Failed to process time off request: " + e.getMessage());
@@ -151,33 +143,20 @@ public class UserTimeOffController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Fetching upcoming time off at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for better authorization checking
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 LoggerUtil.error(this.getClass(), "Unauthorized access to upcoming time off data");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
             // Get all upcoming time off entries including future months
-            List<WorkTimeTable> upcomingTimeOff = timeOffService.getUpcomingTimeOff(user);
+            List<WorkTimeTable> upcomingTimeOff = timeOffService.getUpcomingTimeOff(currentUser);
             return ResponseEntity.ok(upcomingTimeOff);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error getting upcoming time off: " + e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
-     * Get the appropriate dashboard URL based on user role
-     */
-    private String getDashboardUrlForUser(User user) {
-        if (user.hasRole("TEAM_LEADER")) {
-            return "/team-lead";
-        } else if (user.hasRole("ADMIN")) {
-            return "/admin";
-        } else {
-            return "/user";
         }
     }
 

@@ -1,0 +1,160 @@
+/* Check Register specific styles */
+
+/* Badge colors for different check types */
+.badge.bg-layout {
+    background-color: #007bff;
+}
+
+.badge.bg-kipsta-layout {
+    background-color: #6610f2;
+}
+
+.badge.bg-layout-changes {
+    background-color: #17a2b8;
+}
+
+.badge.bg-gpt {
+    background-color: #20c997;
+}
+
+.badge.bg-production {
+    background-color: #6c757d;
+}
+
+.badge.bg-reorder {
+    background-color: #343a40;
+}
+
+.badge.bg-sample {
+    background-color: #28a745;
+}
+
+.badge.bg-oms-production {
+    background-color: #dc3545;
+}
+
+.badge.bg-kipsta-production {
+    background-color: #fd7e14;
+}
+
+/* Badge colors for approval status */
+.badge.bg-approved {
+    background-color: #28a745;
+}
+
+.badge.bg-partially-approved {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.badge.bg-correction {
+    background-color: #dc3545;
+}
+
+/* Metrics cards styling */
+.card .list-group-item {
+    padding: 0.75rem 1.25rem;
+    border-color: rgba(0, 0, 0, 0.05);
+}
+
+.card .badge.rounded-pill {
+    min-width: 30px;
+}
+
+/* Hover effect for metric items */
+.list-group-item:hover {
+    background-color: rgba(0, 0, 0, 0.01);
+}
+
+/* Card header styling */
+.card-header {
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Table styling for better readability */
+.table th {
+    font-weight: 600;
+    white-space: nowrap;
+    color: #495057;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+/* Making numeric columns right-aligned */
+.table td:nth-child(8),
+.table td:nth-child(9),
+.table td:nth-child(12) {
+    text-align: right;
+}
+
+/* Add ellipsis for long text in description */
+.table td:nth-child(10) {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Styling for the efficiency badge */
+#efficiency-level {
+    padding: 0.35em 0.65em;
+    font-weight: 700;
+    transition: background-color 0.3s ease;
+}
+
+/* Style efficiency level based on value */
+#efficiency-level.high-efficiency {
+    background-color: #28a745;
+}
+
+#efficiency-level.medium-efficiency {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+#efficiency-level.low-efficiency {
+    background-color: #dc3545;
+}
+
+/* Add some spacing to the form fields */
+.form-label {
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+}
+
+/* Animation for counts when they change */
+@keyframes countChange {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.badge.count-changed {
+    animation: countChange 0.5s ease;
+}
+
+/* Search Modal Styles */
+.search-result-row div:nth-child(4),  /* Check Type */
+.search-result-row div:nth-child(7) { /* Approval Status */
+    font-weight: 500;
+}
+
+/* Search results responsive layout */
+.search-result-row {
+    transition: background-color 0.15s ease;
+}
+
+@media (max-width: 768px) {
+    .search-result-header,
+    .search-result-row {
+        grid-template-columns: 15% 20% 20% 15% 15% 15%;
+    }
+
+    .search-result-header div:nth-child(3),
+    .search-result-row div:nth-child(3) {
+        display: none;
+    }
+}

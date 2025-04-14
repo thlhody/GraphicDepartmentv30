@@ -35,13 +35,11 @@ public class User {
     public boolean hasRole(String roleToCheck) {
         if (role == null) return false;
 
-        // Handle both with and without ROLE_ prefix
-        String normalizedRole = roleToCheck.startsWith("ROLE_") ?
-                roleToCheck : "ROLE_" + roleToCheck;
-        String userRole = role.startsWith("ROLE_") ?
-                role : "ROLE_" + role;
+        // Strip ROLE_ prefix from both sides for consistent comparison
+        String normalizedRoleToCheck = roleToCheck.replace("ROLE_", "");
+        String normalizedUserRole = role.replace("ROLE_", "");
 
-        return userRole.equals(normalizedRole);
+        return normalizedUserRole.equals(normalizedRoleToCheck);
     }
 
     // Update isAdmin method to use consistent role checking

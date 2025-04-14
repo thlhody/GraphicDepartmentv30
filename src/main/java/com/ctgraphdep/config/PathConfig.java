@@ -51,6 +51,12 @@ public class PathConfig {
     private String userRegister;
     @Value("${dbj.user.timeoff}")
     private String userTimeoff;
+
+    @Value("${dbj.user.check.register}")
+    private String checkRegister;
+    @Value("${dbj.admin.check.register}")
+    private String leadCheckRegister;
+
     @Value("${dbj.admin.worktime}")
     private String adminWorktime;
     @Value("${dbj.admin.register}")
@@ -60,21 +66,34 @@ public class PathConfig {
     @Value("${dbj.login}")
     private String loginPath;
 
-    // File formats
+    // File formats - user
     @Value("${dbj.dir.format.session}")
     private String sessionFormat;
     @Value("${dbj.dir.format.worktime}")
     private String worktimeFormat;
     @Value("${dbj.dir.format.register}")
     private String registerFormat;
+    @Value("${dbj.dir.format.timeoff}")
+    private String timeoffFormat;
+
+    // File formats - admin
     @Value("${dbj.dir.format.admin.worktime}")
     private String adminWorktimeFormat;
     @Value("${dbj.dir.format.admin.register}")
     private String adminRegisterFormat;
     @Value("${dbj.dir.format.admin.bonus}")
     private String adminBonusFormat;
-    @Value("${dbj.dir.format.timeoff}")
-    private String timeoffFormat;
+
+    // File formats - check -admin/lead/user
+    @Value("${dbj.dir.format.check.register}")
+    private String checkRegisterFormat;
+    @Value("${dbj.dir.format.admin.check.register}")
+    private String leadCheckRegisterFormat;
+    @Value("${dbj.dir.format.lead.check.bonus}")
+    private String leadCheckBonusFormat;
+    @Value("${dbj.dir.format.admin.check.bonus}")
+    private String adminCheckBonusFormat;
+
 
     // File names
     @Value("${dbj.users.filename}")
@@ -218,6 +237,28 @@ public class PathConfig {
         return networkPath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
+    //Check - admin/user/check/lead
+    public Path getLocalCheckLeadRegisterPath(String username, Integer userId, int year, int month) {
+        return localPath.resolve(leadCheckRegister).resolve(String.format(leadCheckRegisterFormat, username, userId, year, month));
+    }
+    public Path getNetworkCheckLeadRegisterPath(String username, Integer userId, int year, int month) {
+        return networkPath.resolve(leadCheckRegister).resolve(String.format(leadCheckRegisterFormat, username, userId, year, month));
+    }
+
+    public Path getLocalCheckRegisterPath(String username, Integer userId, int year, int month) {
+        return localPath.resolve(checkRegister).resolve(String.format(checkRegisterFormat, username, userId, year, month));
+    }
+    public Path getNetworkCheckRegisterPath(String username, Integer userId, int year, int month) {
+        return networkPath.resolve(checkRegister).resolve(String.format(checkRegisterFormat, username, userId, year, month));
+    }
+
+    public Path getLocalCheckBonusPath(int year, int month) {
+        return localPath.resolve(adminBonus).resolve(String.format(adminCheckBonusFormat, year, month));
+    }
+    public Path getNetworkCheckBonusPath(int year, int month) {
+        return networkPath.resolve(adminBonus).resolve(String.format(adminCheckBonusFormat, year, month));
+    }
+
     public Path getTeamJsonPath(String teamLeadUsername, int year, int month) {
         return localPath.resolve(loginPath).resolve(String.format(teamFileFormat, teamLeadUsername, year, month));
     }
@@ -270,15 +311,6 @@ public class PathConfig {
     public Path getNetworkStatusFlagsDirectory() {
         return networkPath.resolve(userStatus);
     }
-
-    /**
-     * Get the path for a specific flag file on the network
-     */
-    public Path getNetworkStatusFlagPath(String username, String dateCode, String timeCode, String statusCode) {
-        String flagFilename = String.format(statusFlagFormat, username, dateCode, timeCode, statusCode);
-        return getNetworkStatusFlagsDirectory().resolve(flagFilename);
-    }
-
 
     // Network status management
     public boolean isNetworkAvailable() {

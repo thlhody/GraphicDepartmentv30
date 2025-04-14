@@ -23,9 +23,39 @@ public class NavigationContextQuery implements SessionQuery<NavigationContext> {
 
         boolean completedSessionToday = status.isHasCompletedSessionToday();
 
-        // Determine dashboard URL based on user role
-        boolean isTeamLeaderView = user.hasRole("TEAM_LEADER");
-        String dashboardUrl = isTeamLeaderView ? "/team-lead" : "/user";
+        // Determine dashboard URL based on user role - checking all roles
+        String dashboardUrl;
+        boolean isTeamLeaderView = false;
+
+        // Normalize the role by removing any ROLE_ prefix
+        String normalizedRole = user.getRole().replace("ROLE_", "");
+
+        // Set dashboard URL and team leader flag based on role
+        switch (normalizedRole) {
+            case "ADMIN":
+                dashboardUrl = "/admin";
+                break;
+            case "TEAM_LEADER":
+                dashboardUrl = "/team-lead";
+                isTeamLeaderView = true;
+                break;
+            case "TL_CHECKING":
+                dashboardUrl = "/team-checking";
+                isTeamLeaderView = true;
+                break;
+            case "USER_CHECKING":
+                dashboardUrl = "/user-checking";
+                break;
+            case "CHECKING":
+                dashboardUrl = "/checking";
+                break;
+            case "USER":
+                dashboardUrl = "/user";
+                break;
+            default:
+                // Default to user dashboard if role not recognized
+                dashboardUrl = "/user";
+        }
 
         return new NavigationContext(completedSessionToday, isTeamLeaderView, dashboardUrl);
     }

@@ -3,9 +3,9 @@
  * This script specifically handles keyboard navigation for the Print Prep Types dropdown
  */
 
-(function() {
+(function () {
     // Wait until DOM is fully loaded
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Wait a bit to make sure Select2 is initialized
         setTimeout(initializePrintPrepSelect, 300);
     });
@@ -35,7 +35,7 @@
             closeOnSelect: false, // Don't close after selection
 
             // Custom formatting of selection with first letters
-            templateSelection: function(data) {
+            templateSelection: function (data) {
                 // Get all selected items
                 const selectedItems = $(printPrepSelect).select2('data');
 
@@ -59,25 +59,25 @@
             },
 
             // Clean dropdown formatting
-            templateResult: function(data) {
+            templateResult: function (data) {
                 if (!data.id) return data.text;
                 return $(`<span>${data.text}</span>`);
             }
         });
 
         // Fix dropdown positioning
-        $(printPrepSelect).on('select2:opening', function() {
+        $(printPrepSelect).on('select2:opening', function () {
             $(this).closest('.print-prep-container').css('z-index', 1055);
         });
 
-        $(printPrepSelect).on('select2:closing', function() {
-            setTimeout(function() {
+        $(printPrepSelect).on('select2:closing', function () {
+            setTimeout(function () {
                 $('.print-prep-container').css('z-index', '');
             }, 100);
         });
 
         // Direct keyboard event handling for the search field
-        document.addEventListener('keydown', function(event) {
+        document.addEventListener('keydown', function (event) {
             // Only target the search field in the print prep dropdown
             if (!$(event.target).hasClass('select2-search__field')) {
                 return;
@@ -108,8 +108,8 @@
         }, true); // Use capture phase to ensure our handler runs first
 
         // Focus search field when dropdown opens
-        $(document).on('select2:open', function() {
-            setTimeout(function() {
+        $(document).on('select2:open', function () {
+            setTimeout(function () {
                 const searchField = document.querySelector('.select2-search__field');
                 if (searchField) {
                     searchField.focus();

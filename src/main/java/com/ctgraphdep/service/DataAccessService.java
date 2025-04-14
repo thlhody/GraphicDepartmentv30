@@ -513,6 +513,126 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
+
+    // Register Check file operations - Bidirectional sync UserRegisterService
+    public void writeUserCheckRegister(String username, Integer userId, List<RegisterCheckEntry> entries, int year, int month) {
+        securityRules.validateFileAccess(username, true);
+        Path localPath = pathConfig.getLocalCheckRegisterPath(username, userId, year, month);
+        writeLocal(localPath, entries);
+
+        if (pathConfig.isNetworkAvailable()) {
+            Path networkPath = pathConfig.getNetworkCheckRegisterPath(username, userId, year, month);
+            fileSyncService.syncToNetwork(localPath, networkPath);
+        }
+    }
+    public List<RegisterCheckEntry> readUserCheckRegister(String username, Integer userId, int year, int month) {
+        try {
+            // Get current user from security context
+            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+            // If accessing own data, use local path
+            if (currentUsername.equals(username)) {
+                LoggerUtil.info(this.getClass(), String.format("Reading local register for user %s", username));
+                Path localPath = pathConfig.getLocalCheckRegisterPath(username, userId, year, month);
+                List<RegisterCheckEntry> entries = readLocal(localPath, new TypeReference<>() {
+                });
+                return entries != null ? entries : new ArrayList<>();
+            }
+
+            // If accessing other user's data, try network path (removing security validation)
+            if (pathConfig.isNetworkAvailable()) {
+                LoggerUtil.info(this.getClass(), String.format("Reading network register for user %s by %s", username, currentUsername));
+                Path networkPath = pathConfig.getNetworkCheckRegisterPath(username, userId, year, month);
+                List<RegisterCheckEntry> entries = readNetwork(networkPath, new TypeReference<>() {
+                });
+                return entries != null ? entries : new ArrayList<>();
+            }
+
+            throw new RuntimeException("Network access required but not available");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading register for user %s: %s", username, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    public List<RegisterCheckEntry> readCheckRegisterReadOnly(String username, Integer userId, int year, int month) {
+        try {
+            // Get current user from security context
+            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+            // If accessing own data, use local path
+            if (currentUsername.equals(username)) {
+                LoggerUtil.info(this.getClass(), String.format("Reading local register for user %s", username));
+                Path localPath = pathConfig.getLocalCheckRegisterPath(username, userId, year, month);
+                List<RegisterCheckEntry> entries = readLocal(localPath, new TypeReference<>() {
+                });
+                return entries != null ? entries : new ArrayList<>();
+            }
+
+            // If accessing other user's data, try network path (removing security validation)
+            if (pathConfig.isNetworkAvailable()) {
+                LoggerUtil.info(this.getClass(), String.format("Reading network register for user %s by %s", username, currentUsername));
+                Path networkPath = pathConfig.getNetworkCheckRegisterPath(username, userId, year, month);
+                List<RegisterCheckEntry> entries = readNetwork(networkPath, new TypeReference<>() {
+                });
+                return entries != null ? entries : new ArrayList<>();
+            }
+
+            throw new RuntimeException("Network access required but not available");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading register for user %s: %s", username, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    // Lead Check bonus operations - Local only with Bidirectional sync
+    public void writeLocalLeadCheckBonus(List<BonusEntry> entries, int year, int month) {
+        Path localPath = pathConfig.getLocalCheckBonusPath(year, month);
+        writeLocal(localPath, entries);
+    }
+    public List<BonusEntry> readLocalLeadCheckBonus(int year, int month) {
+        try {
+            Path localPath = pathConfig.getLocalCheckBonusPath(year, month);
+            List<BonusEntry> entries = readLocal(localPath, new TypeReference<>() {
+            });
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading admin bonus data for %d/%d: %s", year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+    public void writeNetworkLeadCheckBonus(List<BonusEntry> entries, int year, int month) {
+        Path networkPath = pathConfig.getNetworkCheckBonusPath(year, month);
+        writeNetwork(networkPath, entries);
+    }
+    public List<BonusEntry> readNetworkLeadCheckBonus(int year, int month) {
+        try {
+            Path networkPath = pathConfig.getNetworkCheckBonusPath(year, month);
+            List<BonusEntry> entries = readNetwork(networkPath, new TypeReference<>() {
+            });
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading admin bonus data for %d/%d: %s", year, month, e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    //Lead read check register network
+    public List<RegisterEntry> readNetworkCheckRegister(String username, Integer userId, int year, int month) {
+        Path networkPath = pathConfig.getNetworkCheckLeadRegisterPath(username, userId, year, month);
+        return readNetwork(networkPath, new TypeReference<>() {
+        });
+    }
+    public void writeLocalLeadCheckRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
+        Path localLeadPath = pathConfig.getLocalCheckLeadRegisterPath(username, userId, year, month);
+        writeLocal(localLeadPath, entries);
+    }
+    public List<RegisterCheckEntry> readLocalLeadCheckRegister(String username, Integer userId, int year, int month) {
+        Path localLeadPath = pathConfig.getLocalCheckLeadRegisterPath(username, userId, year, month);
+        List<RegisterCheckEntry> entries = readLocal(localLeadPath, new TypeReference<>() {
+        });
+        return entries != null ? entries : new ArrayList<>(); // Return empty list instead of null
+    }
+
     // Admin worktime operations - Bidirectional sync - for WorkTimeConsolidationService
     public void writeAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
         Path localPath = pathConfig.getLocalAdminWorktimePath(year, month);

@@ -37,9 +37,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Handles both dialog and system tray notifications with fallback mechanisms
  */
 @Service
+@Getter
 public class SystemNotificationService {
-    // Add a getter for systemTray
-    @Getter
+
     private final CTTTSystemTray systemTray;
     private final AtomicBoolean userResponded;
     private final PathConfig pathConfig;
@@ -48,8 +48,6 @@ public class SystemNotificationService {
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
 
-    // This is used by queries to determine if a notification can be shown
-    @Getter
     private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;

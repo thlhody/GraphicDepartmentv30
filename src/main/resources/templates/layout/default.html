@@ -39,18 +39,24 @@
                 <div sec:authorize="isAuthenticated()" class="me-2">
                     <a class="btn btn-outline-light"
                        th:href="@{${
-           #authorization.expression('hasRole(''ADMIN'')') ? '/admin' :
-           #authorization.expression('hasRole(''TEAM_LEADER'')') ? '/team-lead' :
-           '/user'
-       }}">
+       #authorization.expression('hasRole(''ADMIN'')') ? '/admin' :
+       #authorization.expression('hasRole(''TEAM_LEADER'')') ? '/team-lead' :
+       #authorization.expression('hasRole(''TL_CHECKING'')') ? '/team-checking' :
+       #authorization.expression('hasRole(''USER_CHECKING'')') ? '/user-checking' :
+       #authorization.expression('hasRole(''CHECKING'')') ? '/checking' :
+       '/user'
+   }}">
                         <i class="bi bi-grid me-2"></i>
                         <span th:text="${
-            #authorization.expression('hasRole(''ADMIN'')') ? 'Admin Panel' :
-            #authorization.expression('hasRole(''TEAM_LEADER'')') ? 'Team Dashboard' :
-            'Dashboard'
-        }">
-            Dashboard
-        </span>
+        #authorization.expression('hasRole(''ADMIN'')') ? 'Admin Panel' :
+        #authorization.expression('hasRole(''TEAM_LEADER'')') ? 'Team Dashboard' :
+        #authorization.expression('hasRole(''TL_CHECKING'')') ? 'Team Checking' :
+        #authorization.expression('hasRole(''USER_CHECKING'')') ? 'User Checking' :
+        #authorization.expression('hasRole(''CHECKING'')') ? 'Checking Dashboard' :
+        'Dashboard'
+    }">
+                            Dashboard
+                        </span>
                     </a>
                 </div>
 

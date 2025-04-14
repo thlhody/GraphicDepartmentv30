@@ -25,6 +25,7 @@ import java.util.List;
 @RequestMapping("/admin/settings")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminSettingsController extends BaseController {
+
     private final UserManagementService userManagementService;
     private final HolidayManagementService holidayService;
 

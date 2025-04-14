@@ -31,12 +31,20 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider, AuthenticationService authService) {
         try {
             http
-                    .authenticationProvider(authenticationProvider)
                     .authorizeHttpRequests(authorize -> authorize
                             .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/logs/**","/api/system/status", "/update/**").permitAll()
                             .requestMatchers("/admin/**").hasRole("ADMIN")
                             .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
-                            .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER")
+                            .requestMatchers("/team-checking/**").hasRole("TL_CHECKING")
+                            .requestMatchers("/checking/**").hasRole("CHECKING")
+
+                            // User URLs - multiple roles can access
+                            .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER", "TL_CHECKING", "USER_CHECKING", "CHECKING")
+
+                            // Specialized user paths with more specific access controls
+                            .requestMatchers("/user/check-register/**").hasAnyRole("USER_CHECKING", "CHECKING", "ADMIN", "TL_CHECKING")
+                            .requestMatchers("/team/check-register/**").hasAnyRole("TEAM_LEADER", "TL_CHECKING", "ADMIN")
+                            .requestMatchers("/user-checking/**").hasAnyRole("USER_CHECKING")
                             .anyRequest().authenticated()
                     )
                     .formLogin(form -> form
@@ -63,10 +71,10 @@ public class SecurityConfig {
                                     } else if (roles.contains("ROLE_TL_CHECKING")) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to tl checking...");
                                         response.sendRedirect("/team-checking");
-                                    } else if (roles.contains("USER_CHECKING")) {
+                                    } else if (roles.contains("ROLE_USER_CHECKING")) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to user+checking...");
                                         response.sendRedirect("/user-checking");
-                                    } else if (roles.contains("CHECKING")) {
+                                    } else if (roles.contains("ROLE_CHECKING")) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to checking...");
                                         response.sendRedirect("/checking");
                                     } else if (roles.contains("ROLE_USER")) {

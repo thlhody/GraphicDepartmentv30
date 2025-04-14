@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>Check Register</title>
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=1878222}">
+    <link rel="stylesheet" th:href="@{/css/check-register.css?v=1878222}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=187821}">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Alert System -->
+        <div class="mb-4">
+            <div th:replace="~{alerts/alerts :: alerts}"></div>
+        </div>
+
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-check-square me-2"></i>Check Register
+                </h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
+                    <span th:text="${userName}">Unknown User</span>
+                </div>
+            </div>
+            <a class="btn btn-outline-secondary" th:href="${dashboardUrl}">
+                <i class="bi bi-grid me-1"></i> Dashboard
+            </a>
+        </div>
+
+        <!-- Period Selection -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form th:action="@{/user/check-register}" method="get" class="d-flex gap-3 align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="yearSelect" class="form-label mb-0">Year:</label>
+                        <select id="yearSelect" name="year" class="form-select" style="width: auto;" onchange="this.form.submit()">
+                            <option th:each="y : ${#numbers.sequence(2020, 2030)}"
+                                    th:value="${y}"
+                                    th:text="${y}"
+                                    th:selected="${y == currentYear}">
+                                2024
+                            </option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <a th:each="m : ${#numbers.sequence(1, 12)}"
+                           th:href="@{/user/check-register(year=${currentYear},month=${m})}"
+                           th:text="${T(java.time.Month).of(m)}"
+                           th:class="${'btn btn-outline-primary' + (m == currentMonth ? ' active' : '')}">
+                            Month
+                        </a>
+                    </div>
+                </form>
+
+                <!-- Summary Statistics -->
+                <div class="mt-4">
+                    <h5 class="mb-3">Monthly Summary</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <!-- Check Type Metrics - Single line -->
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                                <h6 class="card-subtitle mb-0 me-3">Check Types:</h6>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="badge bg-layout">LAYOUT: <span id="count-layout">0</span></span>
+                                    <span class="badge bg-kipsta-layout">KIPSTA LAYOUT: <span id="count-kipsta-layout">0</span></span>
+                                    <span class="badge bg-layout-changes">LAYOUT CHANGES: <span id="count-layout-changes">0</span></span>
+                                    <span class="badge bg-gpt">GPT: <span id="count-gpt">0</span></span>
+                                    <span class="badge bg-production">PRODUCTION: <span id="count-production">0</span></span>
+                                    <span class="badge bg-sample">SAMPLE: <span id="count-sample">0</span></span>
+                                    <span class="badge bg-oms-production">OMS PRODUCTION: <span id="count-oms-production">0</span></span>
+                                    <span class="badge bg-kipsta-production">KIPSTA PRODUCTION: <span id="count-kipsta-production">0</span></span>
+                                </div>
+                            </div>
+
+                            <!-- Approval Status Metrics - Single line -->
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                                <h6 class="card-subtitle mb-0 me-3">Approval Status:</h6>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="badge bg-success">APPROVED: <span id="count-approved">0</span></span>
+                                    <span class="badge bg-warning">PARTIALLY APPROVED: <span id="count-partially-approved">0</span></span>
+                                    <span class="badge bg-danger">CORRECTION: <span id="count-correction">0</span></span>
+                                </div>
+                            </div>
+
+                            <!-- Key Metrics - Single line -->
+                            <div class="d-flex flex-wrap align-items-center gap-3">
+                                <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
+                                <div class="d-flex flex-wrap gap-3">
+                                    <span>Total Entries: <strong id="total-entries">0</strong></span>
+                                    <span>Total Articles: <strong id="total-articles">0</strong></span>
+                                    <span>Total Files: <strong id="total-files">0</strong></span>
+                                    <span>Total Value: <strong id="total-order-value">0</strong></span>
+                                    <span>Standard Hours: <strong id="standard-hours" th:text="${standardWorkHours}">0</strong></span>
+                                    <span>Target Units/Hour: <strong id="target-units-hour" th:text="${targetWorkUnitsPerHour}">0</strong></span>
+                                    <span>Efficiency: <strong id="efficiency-level">0%</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Check Register Form -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form id="checkRegisterForm" th:action="@{/user/check-register/entry}" method="post" class="row g-3 needs-validation" novalidate>
+                    <!-- Hidden inputs -->
+                    <input type="hidden" name="year" th:value="${currentYear}">
+                    <input type="hidden" name="month" th:value="${currentMonth}">
+                    <input type="hidden" id="editingId" name="entryId" value="">
+                    <input type="hidden" id="isEdit" name="isEdit" value="false">
+
+                    <!-- Date Field -->
+                    <div class="col-auto" style="width: 130px;">
+                        <label for="dateInput" class="form-label">Date*</label>
+                        <input type="date" class="form-control form-control-sm" id="dateInput" name="date" required>
+                    </div>
+
+                    <!-- Order ID Field -->
+                    <div class="col-auto" style="width: 150px;">
+                        <label for="orderIdInput" class="form-label">Order ID*</label>
+                        <input type="text" class="form-control form-control-sm" id="orderIdInput" name="orderId" required
+                               placeholder="1234/24/AB-GREEN">
+                    </div>
+
+                    <!-- Production ID Field -->
+                    <div class="col-auto" style="width: 140px;">
+                        <label for="productionIdInput" class="form-label">Production ID</label>
+                        <input type="text" class="form-control form-control-sm" id="productionIdInput" name="productionId"
+                               placeholder="CVEX24-123456">
+                    </div>
+
+                    <!-- OMS ID Field -->
+                    <div class="col-auto" style="width: 140px;">
+                        <label for="omsIdInput" class="form-label">OMS ID*</label>
+                        <input type="text" class="form-control form-control-sm" id="omsIdInput" name="omsId" required
+                               placeholder="OMS24-123456">
+                    </div>
+
+                    <!-- Designer Name Field -->
+                    <div class="col" style="min-width: 170px;">
+                        <label for="designerNameInput" class="form-label">Designer Name*</label>
+                        <input type="text" class="form-control form-control-sm" id="designerNameInput" name="designerName" required
+                               placeholder="Designer Name">
+                    </div>
+
+                    <!-- Check Type Field -->
+                    <div class="col-auto" style="width: 160px;">
+                        <label for="checkTypeSelect" class="form-label">Check Type*</label>
+                        <select class="form-select form-select-sm" id="checkTypeSelect" name="checkType" required>
+                            <option value="">Select Type</option>
+                            <option th:each="type : ${checkTypes}" th:value="${type}" th:text="${type}"></option>
+                        </select>
+                    </div>
+
+                    <!-- Articles Number Field -->
+                    <div class="col-auto" style="width: 90px;">
+                        <label for="articleNumbersInput" class="form-label">Articles*</label>
+                        <input type="number" class="form-control form-control-sm" id="articleNumbersInput" name="articleNumbers" required min="1" value="1">
+                    </div>
+
+                    <!-- Files Number Field -->
+                    <div class="col-auto" style="width: 90px;">
+                        <label for="filesNumbersInput" class="form-label">Files*</label>
+                        <input type="number" class="form-control form-control-sm" id="filesNumbersInput" name="filesNumbers" required min="1" value="1">
+                    </div>
+
+                    <!-- Approval Status Field -->
+                    <div class="col-auto" style="width: 160px;">
+                        <label for="approvalStatusSelect" class="form-label">Status*</label>
+                        <select class="form-select form-select-sm" id="approvalStatusSelect" name="approvalStatus" required>
+                            <option value="">Select Status</option>
+                            <option th:each="status : ${approvalStatusTypes}" th:value="${status}" th:text="${status}"></option>
+                        </select>
+                    </div>
+
+                    <!-- Entry Value Field (Auto-calculated) -->
+                    <div class="col-auto" style="width: 90px;">
+                        <label for="orderValueInput" class="form-label">Value</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm" id="orderValueInput" name="orderValue" readonly>
+                    </div>
+
+                    <!-- Error Description Field -->
+                    <div class="col" style="min-width: 170px;">
+                        <label for="errorDescriptionInput" class="form-label">Error Description</label>
+                        <input type="text" class="form-control form-control-sm" id="errorDescriptionInput" name="errorDescription"
+                               placeholder="Error Description">
+                    </div>
+
+                    <!-- Form Buttons -->
+                    <div class="col-auto" style="width: 360px;">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm"
+                                    style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                                <i class="bi bi-plus-circle me-1"></i>Add Entry
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetForm()"
+                                    style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                                <i class="bi bi-x-circle me-1"></i>Clear
+                            </button>
+                            <a th:href="@{/user/check-register/export(year=${currentYear},month=${currentMonth})}"
+                               class="btn btn-outline-success btn-sm"
+                               style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                                <i class="bi bi-file-excel me-1"></i>Export
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Entries Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <h5 class="card-title mb-0">Check Register Entries</h5>
+                        <span class="header-info ms-2">
+                            <button type="button" id="searchModalTrigger" class="btn btn-sm btn-outline-secondary ms-2">
+                                <i class="bi bi-search me-1"></i>Search
+                            </button>
+                            <i class="bi bi-info-circle me-1 align-items-right"></i>Ctrl+F - Find by Order ID/Designer/Type/Status
+                        </span>
+                    </div>
+                    <div class="small text-muted">Total entries: <span id="entries-count">0</span></div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead>
+                        <tr>
+                            <th scope="col" style="width: 40px;">#</th>
+                            <th scope="col" style="width: 90px;">Date</th>
+                            <th scope="col" style="width: 120px;">Order ID</th>
+                            <th scope="col" style="width: 100px;">Production ID</th>
+                            <th scope="col" style="width: 100px;">OMS ID</th>
+                            <th scope="col">Designer</th>
+                            <th scope="col" style="width: 120px;">Check Type</th>
+                            <th scope="col" style="width: 50px;">Art.</th>
+                            <th scope="col" style="width: 50px;">Files</th>
+                            <th scope="col">Error Description</th>
+                            <th scope="col" style="width: 100px;">Status</th>
+                            <th scope="col" style="width: 60px;">Value</th>
+                            <th scope="col" style="width: 60px;">Mod</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <!-- Empty state row -->
+                        <tr th:if="${entries == null || entries.isEmpty()}">
+                            <td colspan="13" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="bi bi-inbox-fill fs-2 d-block mb-2"></i>
+                                    <h5 class="mt-3">No Entries Found</h5>
+                                    <p>No check register entries were found for this month.</p>
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- Entries -->
+                        <tr th:each="entry, stat : ${entries}">
+                            <td th:text="${stat.count}">1</td>
+                            <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">01/01/2023</td>
+                            <td th:text="${entry.orderId}">ORDER123</td>
+                            <td th:text="${entry.productionId}">PROD123</td>
+                            <td th:text="${entry.omsId}">OMS123</td>
+                            <td th:text="${entry.designerName}">Designer Name</td>
+                            <td>
+                                <span th:class="${'badge ' +
+                                    (entry.checkType == 'LAYOUT' ? 'bg-layout' :
+                                     entry.checkType == 'KIPSTA LAYOUT' ? 'bg-kipsta-layout' :
+                                     entry.checkType == 'LAYOUT CHANGES' ? 'bg-layout-changes' :
+                                     entry.checkType == 'GPT' ? 'bg-gpt' :
+                                     entry.checkType == 'SAMPLE' ? 'bg-sample' :
+                                     entry.checkType == 'PRODUCTION' ? 'bg-production' :
+                                     entry.checkType == 'OMS PRODUCTION' ? 'bg-oms-production' :
+                                     entry.checkType == 'KIPSTA PRODUCTION' ? 'bg-kipsta-production' :
+                                     'bg-secondary')}"
+                                      th:text="${entry.checkType}">Check Type</span>
+                            </td>
+                            <td th:text="${entry.articleNumbers}">10</td>
+                            <td th:text="${entry.filesNumbers}">5</td>
+                            <td th:text="${entry.errorDescription}">Error Description</td>
+                            <td>
+                                <span th:class="${'badge ' +
+                                    (entry.approvalStatus == 'APPROVED' ? 'bg-success' :
+                                     entry.approvalStatus == 'PARTIALLY APPROVED' ? 'bg-warning' :
+                                     'bg-danger')}"
+                                      th:text="${entry.approvalStatus}">Status</span>
+                            </td>
+                            <td th:text="${entry.orderValue}">2.5</td>
+                            <td class="mod-column">
+                                <div class="action-icons">
+                                    <button type="button" class="btn-icon edit-entry"
+                                            th:data-entry-id="${entry.entryId}"
+                                            th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                            th:data-order-id="${entry.orderId}"
+                                            th:data-production-id="${entry.productionId}"
+                                            th:data-oms-id="${entry.omsId}"
+                                            th:data-designer-name="${entry.designerName}"
+                                            th:data-check-type="${entry.checkType}"
+                                            th:data-article-numbers="${entry.articleNumbers}"
+                                            th:data-files-numbers="${entry.filesNumbers}"
+                                            th:data-error-description="${entry.errorDescription}"
+                                            th:data-approval-status="${entry.approvalStatus}"
+                                            th:data-order-value="${entry.orderValue}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" class="btn-icon copy-entry"
+                                            th:data-entry-id="${entry.entryId}"
+                                            th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                            th:data-order-id="${entry.orderId}"
+                                            th:data-production-id="${entry.productionId}"
+                                            th:data-oms-id="${entry.omsId}"
+                                            th:data-designer-name="${entry.designerName}"
+                                            th:data-check-type="${entry.checkType}"
+                                            th:data-article-numbers="${entry.articleNumbers}"
+                                            th:data-files-numbers="${entry.filesNumbers}"
+                                            th:data-error-description="${entry.errorDescription}"
+                                            th:data-approval-status="${entry.approvalStatus}"
+                                            th:data-order-value="${entry.orderValue}">
+                                        <i class="bi bi-copy"></i>
+                                    </button>
+                                    <form th:action="@{/user/check-register/delete}" method="post" class="d-inline">
+                                        <input type="hidden" name="entryId" th:value="${entry.entryId}">
+                                        <input type="hidden" name="year" th:value="${currentYear}">
+                                        <input type="hidden" name="month" th:value="${currentMonth}">
+                                        <button type="submit" class="btn-icon delete-entry"
+                                                onclick="return confirm('Are you sure you want to delete this entry?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Modal -->
+        <div id="searchModal" class="search-modal">
+            <div class="search-modal-content">
+                <div class="search-input-container">
+                    <label for="searchInput" class="visually-hidden">Search entries</label>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search entries...">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.searchHandler.closeSearchModal()">
+                        <i class="bi bi-x"></i> Close
+                    </button>
+                </div>
+                <div class="search-results">
+                    <div id="searchResultsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page-specific scripts -->
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/check-register.js?v=187821221}"></script>
+</th:block>
+</body>
+</html>

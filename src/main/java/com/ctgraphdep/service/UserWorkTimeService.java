@@ -34,7 +34,7 @@ public class UserWorkTimeService {
     }
 
     // Load month worktime - local with network sync
-    @PreAuthorize("#username == authentication.name or hasAnyRole('ADMIN', 'TEAM_LEADER')")
+    @PreAuthorize("#username == authentication.name")
     public List<WorkTimeTable> loadMonthWorktime(String username, int year, int month) {
         validatePeriod(year, month);
         Integer userId = getUserId(username);

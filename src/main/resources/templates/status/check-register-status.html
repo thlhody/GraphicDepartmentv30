@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>Check Register View</title>
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Alert System -->
+        <div class="mb-4">
+            <div th:replace="~{alerts/alerts :: alerts}"></div>
+        </div>
+
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-check-square me-2"></i>Check Register View
+                </h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
+                    <span th:text="${user.name}">Unknown User</span>
+                </div>
+            </div>
+            <a class="btn btn-outline-primary" th:href="@{/status}">
+                <i class="bi bi-arrow-left me-2"></i>Back to Status
+            </a>
+        </div>
+
+        <!-- Period and Search Section -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calendar-search me-2"></i>Select Period and Search Options
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="searchForm" th:action="@{/status/check-register}" method="get" class="search-form">
+                    <!-- Hidden fields for preserving context -->
+                    <input type="hidden" id="usernameInput" name="username" th:value="${user.username}">
+
+                    <div class="row g-3 align-items-end">
+                        <!-- Year Selection -->
+                        <div class="col-md-2">
+                            <label for="yearSelect" class="form-label">Year</label>
+                            <select id="yearSelect" name="year" class="form-select">
+                                <option th:each="y : ${#numbers.sequence(2020, 2030)}"
+                                        th:value="${y}"
+                                        th:text="${y}"
+                                        th:selected="${y == currentYear}">
+                                    2025
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Month Selection -->
+                        <div class="col-md-2">
+                            <label for="monthSelect" class="form-label">Month</label>
+                            <select id="monthSelect" name="month" class="form-select">
+                                <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                        th:value="${m}"
+                                        th:text="${T(java.time.Month).of(m)}"
+                                        th:selected="${m == currentMonth}">
+                                    February
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Load Period Button -->
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Load Period
+                            </button>
+                        </div>
+
+                        <!-- Search Terms -->
+                        <div class="col-md-4">
+                            <label for="searchTerm" class="form-label">Search Terms</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="searchTerm" name="searchTerm"
+                                       placeholder="Search by order ID, designer, check type..."
+                                       th:value="${param.searchTerm}">
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="bi bi-search me-1"></i>Search
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Reset and Advanced Options -->
+                        <div class="col-md-2">
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary w-50" id="resetSearchBtn"
+                                        onclick="resetSearch()">
+                                    <i class="bi bi-x-circle me-1"></i>Reset
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary w-50" id="toggleAdvanced">
+                                    <i class="bi bi-sliders me-1"></i>Options
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options -->
+                    <div id="advancedOptions" class="mt-3" style="display: none;">
+                        <div class="row">
+                            <!-- Date range -->
+                            <div class="col-md-6 mb-3">
+                                <label for="startDate" class="form-label">From</label>
+                                <div class="input-group">
+                                    <input type="date" class="form-control form-control-sm" id="startDate"
+                                           name="startDate"
+                                           th:value="${param.startDate}">
+                                    <span class="input-group-text">to</span>
+                                    <label for="endDate" class="visually-hidden">To</label>
+                                    <input type="date" class="form-control form-control-sm" id="endDate" name="endDate"
+                                           th:value="${param.endDate}">
+                                </div>
+                            </div>
+
+                            <!-- Check Type filter -->
+                            <div class="col-md-3 mb-3">
+                                <label for="checkType" class="form-label">Check Type</label>
+                                <select id="checkType" name="checkType" class="form-select form-select-sm">
+                                    <option value="">All Check Types</option>
+                                    <option th:each="type : ${checkTypes}"
+                                            th:value="${type}"
+                                            th:text="${type}"
+                                            th:selected="${param.checkType != null && param.checkType[0] == type}">
+                                        Check Type
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Approval Status filter -->
+                            <div class="col-md-3 mb-3">
+                                <label for="approvalStatus" class="form-label">Approval Status</label>
+                                <select id="approvalStatus" name="approvalStatus"
+                                        class="form-select form-select-sm">
+                                    <option value="">All Approval Statuses</option>
+                                    <option th:each="status : ${approvalStatusTypes}"
+                                            th:value="${status}"
+                                            th:text="${status}"
+                                            th:selected="${param.approvalStatus != null && param.approvalStatus[0] == status}">
+                                        Approval Status
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Designer filter -->
+                            <div class="col-md-4 mb-3">
+                                <label for="designerName" class="form-label">Designer</label>
+                                <select id="designerName" name="designerName"
+                                        class="form-select form-select-sm select2-input">
+                                    <option value="">All Designers</option>
+                                    <option th:each="designer : ${designers}"
+                                            th:value="${designer}"
+                                            th:text="${designer}"
+                                            th:selected="${param.designerName != null && param.designerName[0] == designer}">
+                                        Designer Name
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-8 mb-3">
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-search me-1"></i>Apply Filters
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                                            onclick="resetFilters()">
+                                        <i class="bi bi-x-circle me-1"></i>Clear Filters
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Summary Statistics Card -->
+        <div class="card shadow-sm mb-4" th:if="${entries != null && !entries.empty}">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Summary Statistics</h5>
+            </div>
+            <div class="card-body">
+                <!-- Check Types - Single line -->
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <h6 class="card-subtitle mb-0 me-3">Check Types:</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge bg-primary">GPT: <span id="count-gpt"
+                                                                  th:text="${summary.checkTypeCounts['GPT'] != null ? summary.checkTypeCounts['GPT'] : 0}">0</span></span>
+                        <span class="badge bg-success">LAYOUT: <span id="count-layout"
+                                                                     th:text="${summary.checkTypeCounts['LAYOUT'] != null ? summary.checkTypeCounts['LAYOUT'] : 0}">0</span></span>
+                        <span class="badge bg-info">PRODUCTION: <span id="count-production"
+                                                                      th:text="${summary.checkTypeCounts['PRODUCTION'] != null ? summary.checkTypeCounts['PRODUCTION'] : 0}">0</span></span>
+                        <span class="badge bg-warning">SAMPLE: <span id="count-sample"
+                                                                     th:text="${summary.checkTypeCounts['SAMPLE'] != null ? summary.checkTypeCounts['SAMPLE'] : 0}">0</span></span>
+                        <span class="badge bg-danger">OMS PRODUCTION: <span id="count-oms-production"
+                                                                            th:text="${summary.checkTypeCounts['OMS_PRODUCTION'] != null ? summary.checkTypeCounts['OMS_PRODUCTION'] : 0}">0</span></span>
+                        <span class="badge bg-secondary">Others: <span id="count-others">0</span></span>
+                    </div>
+                </div>
+
+                <!-- Key Metrics - Single line -->
+                <div class="d-flex flex-wrap align-items-center gap-4">
+                    <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
+                    <div class="d-flex flex-wrap gap-4">
+                        <span>Total Entries: <strong id="total-entries"
+                                                     th:text="${summary.totalEntries}">0</strong></span>
+                        <span>Avg Files: <strong id="avg-files"
+                                                 th:text="${#numbers.formatDecimal(summary.avgFiles, 1, 2)}">0.00</strong></span>
+                        <span>Avg Articles: <strong id="avg-articles"
+                                                    th:text="${#numbers.formatDecimal(summary.avgArticles, 1, 2)}">0.00</strong></span>
+                        <span>Total Order Value: <strong id="total-order-value"
+                                                         th:text="${#numbers.formatDecimal(summary.totalOrderValue, 1, 2)}">0.00</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Entries Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <h5 class="card-title mb-0">Check Register Entries</h5>
+                        <span class="badge bg-primary ms-2" th:if="${entries != null}">
+                            <span th:text="${entries.size()}">0</span> entries found
+                        </span>
+                    </div>
+                    <div>
+                        <a th:if="${entries != null && !entries.empty}"
+                           th:href="@{/status/check-register-status/export(username=${user.username},year=${currentYear},month=${currentMonth},searchTerm=${param.searchTerm},startDate=${param.startDate},endDate=${param.endDate},checkType=${param.checkType},designerName=${param.designerName},approvalStatus=${param.approvalStatus})}"
+                           class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-file-excel me-1"></i>Export Results
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0" th:if="${entries != null && !entries.empty}">
+                        <thead>
+                        <tr>
+                            <th class="text-center" style="width: 40px;">ID</th>
+                            <th style="width: 90px;">Date</th>
+                            <th style="width: 120px;">Order ID</th>
+                            <th style="width: 100px;">Prod. ID</th>
+                            <th style="width: 100px;">OMS ID</th>
+                            <th>Designer</th>
+                            <th style="width: 100px;">Check Type</th>
+                            <th style="width: 40px;">Art</th>
+                            <th style="width: 40px;">Files</th>
+                            <th style="width: 90px;">Approval</th>
+                            <th style="width: 80px;">Value</th>
+                            <th>Error Desc</th>
+                            <th style="width: 90px;">Status</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="entry : ${entries}">
+                            <td class="text-center" th:text="${entry.entryId}"></td>
+                            <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
+                            <td th:text="${entry.orderId}"></td>
+                            <td th:text="${entry.productionId}"></td>
+                            <td th:text="${entry.omsId}"></td>
+                            <td th:text="${entry.designerName}"></td>
+                            <td>
+                                <span th:switch="${entry.checkType}" class="badge"
+                                      th:class="${'badge ' +
+                                        (entry.checkType == 'GPT' ? 'bg-primary' :
+                                         entry.checkType == 'LAYOUT' ? 'bg-success' :
+                                         entry.checkType == 'PRODUCTION' ? 'bg-info' :
+                                         entry.checkType == 'SAMPLE' ? 'bg-warning' :
+                                         entry.checkType == 'OMS_PRODUCTION' ? 'bg-danger' :
+                                         'bg-secondary')}">
+                                    <th:block th:text="${entry.checkType}">Check Type</th:block>
+                                </span>
+                            </td>
+                            <td th:text="${entry.articleNumbers}"></td>
+                            <td th:text="${entry.filesNumbers}"></td>
+                            <td>
+                                <span th:switch="${entry.approvalStatus}" class="badge"
+                                      th:class="${'badge ' +
+                                        (entry.approvalStatus == 'APPROVED' ? 'bg-success' :
+                                         entry.approvalStatus == 'CORRECTION' ? 'bg-danger' :
+                                         entry.approvalStatus == 'PARTIALLY APPROVED' ? 'bg-warning' :
+                                         'bg-secondary')}">
+                                    <th:block th:text="${entry.approvalStatus}">Approval Status</th:block>
+                                </span>
+                            </td>
+                            <td th:text="${entry.orderValue != null ? #numbers.formatDecimal(entry.orderValue, 1, 2) : '-'}"></td>
+                            <td th:text="${entry.errorDescription}"></td>
+                            <td>
+                                <span th:switch="${entry.adminSync}">
+                                    <span th:case="'CHECKING_INPUT'" class="badge bg-secondary">In Process</span>
+                                    <span th:case="'CHECKING_DONE'" class="badge bg-success">Complete</span>
+                                    <span th:case="'TL_CHECK_DONE'" class="badge bg-primary">TL Approved</span>
+                                    <span th:case="'TL_EDITED'" class="badge bg-info">TL Edited</span>
+                                    <span th:case="'ADMIN_EDITED'" class="badge bg-warning">Admin Edited</span>
+                                    <span th:case="'ADMIN_DONE'" class="badge bg-success">Admin Approved</span>
+                                </span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Empty State for search results -->
+                    <div th:if="${entries != null && entries.empty}" class="empty-state">
+                        <div class="text-muted">
+                            <i class="bi bi-search"></i>
+                            <h5 class="mt-3">No Results Found</h5>
+                            <p>Try adjusting your search criteria or try a different search term.</p>
+                        </div>
+                    </div>
+
+                    <!-- Loading state -->
+                    <div th:if="${entries == null}" class="empty-state">
+                        <div class="text-muted">
+                            <i class="bi bi-hourglass-split"></i>
+                            <h5 class="mt-3">Loading Check Register Entries</h5>
+                            <p>Please wait while we load the check register entries...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Select2 for searchable dropdowns if available
+            if (typeof $ !== 'undefined' && $('.select2-input').length) {
+                $('.select2-input').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: 'Select...',
+                    allowClear: true
+                });
+            }
+
+            // Toggle advanced options
+            const toggleAdvancedBtn = document.getElementById('toggleAdvanced');
+            if (toggleAdvancedBtn) {
+                toggleAdvancedBtn.addEventListener('click', function() {
+                    const advancedOptions = document.getElementById('advancedOptions');
+                    if (advancedOptions.style.display === 'none') {
+                        advancedOptions.style.display = 'block';
+                        this.innerHTML = '<i class="bi bi-x me-1"></i>Hide';
+                    } else {
+                        advancedOptions.style.display = 'none';
+                        this.innerHTML = '<i class="bi bi-sliders me-1"></i>Options';
+                    }
+                });
+            }
+
+            // Show advanced options if any of them are filled
+            if (hasAdvancedFilters()) {
+                const advancedOptions = document.getElementById('advancedOptions');
+                const toggleAdvancedBtn = document.getElementById('toggleAdvanced');
+                if (advancedOptions) advancedOptions.style.display = 'block';
+                if (toggleAdvancedBtn) toggleAdvancedBtn.innerHTML = '<i class="bi bi-x me-1"></i>Hide';
+            }
+        });
+
+        // Function to check if any advanced filters are being used
+        function hasAdvancedFilters() {
+            return (
+            hasValue('startDate') ||
+            hasValue('endDate') ||
+            hasValue('checkType') ||
+            hasValue('designerName') ||
+            hasValue('approvalStatus') ||
+            hasValue('searchTerm')
+            );
+        }
+
+        function hasValue(paramName) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.has(paramName) && urlParams.get(paramName) !== '';
+        }
+
+        // Reset search functions
+        function resetSearch() {
+            const yearInput = document.getElementById('yearSelect');
+            const monthInput = document.getElementById('monthSelect');
+            const usernameInput = document.getElementById('usernameInput');
+
+            if (!yearInput || !monthInput) {
+                console.error('Year or month input not found');
+                return;
+            }
+
+            const year = yearInput.value;
+            const month = monthInput.value;
+            const username = (usernameInput ? usernameInput.value : '');
+
+            // Construct the redirect URL with preserved username and period
+            let redirectUrl = `/status/check-register?year=${year}&month=${month}`;
+
+            // Add username if present
+            if (username) {
+                redirectUrl += `&username=${username}`;
+            }
+
+            // Redirect with preserved username and period
+            window.location.href = redirectUrl;
+        }
+
+        function resetFilters() {
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            const checkTypeInput = document.getElementById('checkType');
+            const designerNameInput = document.getElementById('designerName');
+            const approvalStatusInput = document.getElementById('approvalStatus');
+            const searchTermInput = document.getElementById('searchTerm');
+            const yearInput = document.getElementById('yearSelect');
+            const monthInput = document.getElementById('monthSelect');
+            const usernameInput = document.getElementById('usernameInput');
+
+            // Clear all form fields
+            if (startDateInput) startDateInput.value = '';
+            if (endDateInput) endDateInput.value = '';
+            if (checkTypeInput) checkTypeInput.value = '';
+            if (designerNameInput) designerNameInput.value = '';
+            if (approvalStatusInput) approvalStatusInput.value = '';
+            if (searchTermInput) searchTermInput.value = '';
+
+            // Get the current period values
+            const year = yearInput ? yearInput.value : '';
+            const month = monthInput ? monthInput.value : '';
+
+            // Get username from hidden field
+            const username = (usernameInput ? usernameInput.value : '');
+
+            // Reset Select2 fields if available
+            if (typeof $ !== 'undefined' && $('.select2-input').length) {
+                $('.select2-input').val(null).trigger('change');
+            }
+
+            // Construct the redirect URL preserving username and period
+            let redirectUrl = `/status/check-register?year=${year}&month=${month}`;
+
+            // Add username if present
+            if (username) {
+                redirectUrl += `&username=${username}`;
+            }
+
+            // Redirect with preserved username and period
+            window.location.href = redirectUrl;
+        }
+    </script>
+</th:block>
+</body>
+</html>

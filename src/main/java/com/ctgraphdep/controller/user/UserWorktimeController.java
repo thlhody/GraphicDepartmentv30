@@ -23,8 +23,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Controller
-@PreAuthorize("isAuthenticated()")
 @RequestMapping("/user/worktime")
+@PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserWorktimeController extends BaseController {
 
     private final UserWorkTimeDisplayService displayService;
@@ -57,23 +57,11 @@ public class UserWorktimeController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Accessing worktime page at " + getStandardCurrentDateTime());
 
-            // Use checkUserAccess for authentication verification
-            String accessCheck = checkUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (accessCheck != null) {
-                return accessCheck;
-            }
 
-            User currentUser = getUser(userDetails);
-
-            // Add role-specific view attributes
-            if (currentUser.hasRole("ADMIN")) {
-                model.addAttribute("isAdminView", true);
-                model.addAttribute("dashboardUrl", "/admin");
-            } else if (currentUser.hasRole("TEAM_LEADER")) {
-                model.addAttribute("isTeamLeaderView", true);
-                model.addAttribute("dashboardUrl", "/team-lead");
-            } else {
-                model.addAttribute("dashboardUrl", "/user");
+            // Get user and add common model attributes in one call
+            User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
+            if (currentUser == null) {
+                return "redirect:/login";
             }
 
             // Use determineYear and determineMonth from BaseController
@@ -81,31 +69,26 @@ public class UserWorktimeController extends BaseController {
             int selectedMonth = determineMonth(month);
 
             // Step 1: Synchronize entries between admin and user files
-            entrySyncService.synchronizeEntries(
-                    currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+            entrySyncService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
             // Step 2: Read the data from disk after sync is complete
-            List<WorkTimeTable> worktimeData = dataAccessService.readUserWorktime(
-                    currentUser.getUsername(), selectedYear, selectedMonth);
+            List<WorkTimeTable> worktimeData = dataAccessService.readUserWorktime(currentUser.getUsername(), selectedYear, selectedMonth);
 
             // Make sure we have data (never null)
             if (worktimeData == null) {
                 worktimeData = new ArrayList<>();
-                LoggerUtil.warn(this.getClass(),
-                        String.format("No worktime data found for user %s (%d/%d) after sync",
-                                currentUser.getUsername(), selectedMonth, selectedYear));
+                LoggerUtil.warn(this.getClass(), String.format("No worktime data found for user %s (%d/%d) after sync",
+                        currentUser.getUsername(), selectedMonth, selectedYear));
             }
 
             // Step 3: Process data with display service to get DTOs
-            Map<String, Object> displayData = displayService.prepareDisplayData(
-                    currentUser, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = displayService.prepareDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
 
             // Step 4: Add display data to the model
             model.addAllAttributes(displayData);
 
             // Add current time to model
-            model.addAttribute("currentSystemTime", getStandardCurrentDateTime()
-                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             return "user/worktime";
 
@@ -124,9 +107,9 @@ public class UserWorktimeController extends BaseController {
         try {
             LoggerUtil.info(this.getClass(), "Exporting worktime data at " + getStandardCurrentDateTime());
 
-            // Use validateUserAccess for better authorization checking
-            User user = validateUserAccess(userDetails, "USER", "ADMIN", "TEAM_LEADER");
-            if (user == null) {
+            // Get the user - don't need to add model attributes for API endpoints
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
                 LoggerUtil.error(this.getClass(), "Unauthorized access attempt to export worktime data");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
@@ -136,30 +119,26 @@ public class UserWorktimeController extends BaseController {
             int selectedMonth = determineMonth(month);
 
             // Get worktime data
-            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(
-                    user.getUsername(), user.getUserId(), selectedYear, selectedMonth);
+            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
             // Log the data details
-            LoggerUtil.info(this.getClass(),
-                    String.format("Exporting worktime data for %s (%d/%d). Total entries: %d",
-                            user.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
+            LoggerUtil.info(this.getClass(), String.format("Exporting worktime data for %s (%d/%d). Total entries: %d",
+                            currentUser.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
 
             // Get display data which includes the summary with DTOs
-            Map<String, Object> displayData = displayService.prepareDisplayData(
-                    user, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = displayService.prepareDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
 
-            // Extract DTO's for Excel export
+            // Extract DTO's for export in Excel
             @SuppressWarnings("unchecked")
             List<WorkTimeEntryDTO> entryDTOs = (List<WorkTimeEntryDTO>) displayData.get("worktimeData");
             WorkTimeSummaryDTO summaryDTO = (WorkTimeSummaryDTO) displayData.get("summary");
 
             // Pass DTOs to the updated Excel exporter
-            byte[] excelData = excelExporter.exportToExcel(user, entryDTOs, summaryDTO, selectedYear, selectedMonth);
+            byte[] excelData = excelExporter.exportToExcel(currentUser, entryDTOs, summaryDTO, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
-                                    user.getUsername(), selectedYear, selectedMonth))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
+                                    currentUser.getUsername(), selectedYear, selectedMonth))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 
