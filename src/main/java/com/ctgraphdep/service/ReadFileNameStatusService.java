@@ -189,15 +189,17 @@ public class ReadFileNameStatusService {
         }
     }
 
+    // Add this method to ReadFileNameStatusService.java
+
     /**
-     * Updates all users' basic information from UserService.
+     * Updates all users' basic information and roles from UserService.
      * This is used for the initial load and midnight refresh.
      */
     private void updateAllUsersFromUserService() {
         try {
             // Get all non-admin users
             List<User> allUsers = userService.getAllUsers().stream().filter(user -> !user.isAdmin() && !user.getRole().equals("ROLE_ADMIN") &&
-                            !user.getUsername().equalsIgnoreCase("admin")).toList();
+                    !user.getUsername().equalsIgnoreCase("admin")).toList();
 
             // Ensure status cache is initialized
             if (statusCache == null) {
@@ -220,7 +222,7 @@ public class ReadFileNameStatusService {
             for (String username : usernamesToRemove) {
                 statusCache.getUserStatuses().remove(username);
                 LoggerUtil.info(this.getClass(), username.equalsIgnoreCase("admin")
-                                ? "Removed admin user from status cache" : "Removed non-existent user from status cache: " + username);
+                        ? "Removed admin user from status cache" : "Removed non-existent user from status cache: " + username);
             }
 
             // Update user information in cache for existing users
@@ -237,13 +239,16 @@ public class ReadFileNameStatusService {
                 statusInfo.setUserId(user.getUserId());
                 statusInfo.setName(user.getName());
 
+                // Add role information to cache
+                statusInfo.setRole(user.getRole());
+
                 // Only set status to offline if not already set
                 if (statusInfo.getStatus() == null) {
                     statusInfo.setStatus(WorkCode.WORK_OFFLINE);
                 }
             }
 
-            LoggerUtil.info(this.getClass(), "Updated information for " + allUsers.size() + " users and removed " + usernamesToRemove.size() + " non-existent or admin users");
+            LoggerUtil.info(this.getClass(), "Updated information and roles for " + allUsers.size() + " users and removed " + usernamesToRemove.size() + " non-existent or admin users");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating all users from UserService: " + e.getMessage(), e);
         }
@@ -252,6 +257,7 @@ public class ReadFileNameStatusService {
     /**
      * Gets all user statuses for display in the UI.
      * This forces a refresh of the cache if it's expired.
+     * This version includes role information directly from the cache.
      */
     public List<UserStatusDTO> getAllUserStatuses() {
         try {
@@ -262,13 +268,14 @@ public class ReadFileNameStatusService {
                 saveStatusCache();
             }
 
-            // Convert cache to DTOs for display
+            // Convert cache to DTOs for display, now including roles
             return convertCacheToUserStatusDTOs();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error getting user statuses: " + e.getMessage(), e);
             return new ArrayList<>();
         }
     }
+
 
     /**
      * Updates a user's status by creating a flag file on the network.
@@ -561,8 +568,7 @@ public class ReadFileNameStatusService {
             statusCache.setUserStatuses(new HashMap<>());
         }
 
-        UserStatusInfo statusInfo = statusCache.getUserStatuses()
-                .computeIfAbsent(username, k -> new UserStatusInfo());
+        UserStatusInfo statusInfo = statusCache.getUserStatuses().computeIfAbsent(username, k -> new UserStatusInfo());
 
         // Update info
         statusInfo.setUsername(username);
@@ -579,6 +585,7 @@ public class ReadFileNameStatusService {
 
     /**
      * Converts the cache to UserStatusDTO objects for display in the UI.
+     * Now includes role information from the cache.
      */
     private List<UserStatusDTO> convertCacheToUserStatusDTOs() {
         List<UserStatusDTO> result = new ArrayList<>();
@@ -594,6 +601,7 @@ public class ReadFileNameStatusService {
                     .name(info.getName())
                     .status(info.getStatus())
                     .lastActive(formatDateTime(info.getLastActive()))
+                    .role(info.getRole()) // Include role from cache
                     .build());
         }
 

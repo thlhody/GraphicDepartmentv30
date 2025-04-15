@@ -36,33 +36,35 @@
     <td>
         <div class="d-flex gap-2 justify-content-end">
 
-            <!-- Check Register Button - Grey -->
+            <!-- Check Register Button - Grey - Using absolute URLs instead of context-relative -->
             <a th:if="${status.hasRole('CHECKING') || status.hasRole('USER_CHECKING')}"
-               th:href="@{status/check-register-status(username=${status.username})}"
+               th:href="${'/status/check-register-status?username=' + status.username}"
                class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-check-square me-1"></i>Checks
             </a>
 
-            <!-- Register Button - Green -->
+            <!-- Register Button - Green - Using absolute URLs instead of context-relative -->
             <a th:if="${!status.hasRole('CHECKING')}"
-               th:href="@{status/register-search(username=${status.username})}"
+               th:href="${'/status/register-search?username=' + status.username}"
                class="btn btn-sm btn-outline-success">
                 <i class="bi bi-search me-1"></i>Register
             </a>
 
-            <!-- Time Off History Button - Orange (using warning) -->
-            <a th:if="${status.userId != null}" th:href="@{status/timeoff-history(userId=${status.userId})}"
+            <!-- Time Off History Button - Orange (using warning) - Using absolute URLs instead of context-relative -->
+            <a th:if="${status.userId != null}"
+               th:href="${'/status/timeoff-history?userId=' + status.userId}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
-            <a th:if="${status.userId == null}" th:href="@{status/timeoff-history(username=${status.username})}"
+            <a th:if="${status.userId == null}"
+               th:href="${'/status/timeoff-history?username=' + status.username}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
 
-            <!-- Work Time Button - Blue (using primary) -->
-            <a th:if="${status.username == currentUsername || #authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'', ''TL_CHECKING'')')}"
-               th:href="@{status/worktime-status(username=${status.username})}"
+            <!-- Work Time Button - Blue (using primary) - Using absolute URLs instead of context-relative -->
+            <a th:if="${status.username == currentUsername || hasAdminTeamLeaderRole}"
+               th:href="${'/status/worktime-status?username=' + status.username}"
                class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-clock me-1"></i>WT
             </a>
@@ -103,33 +105,35 @@
     <td>
         <div class="d-flex gap-2 justify-content-end">
 
-            <!-- Check Register Button - Grey -->
+            <!-- Check Register Button - Grey - Using absolute URLs instead of context-relative -->
             <a th:if="${status.hasRole('CHECKING') || status.hasRole('USER_CHECKING')}"
-               th:href="@{status/check-register-status(username=${status.username})}"
+               th:href="${'/status/check-register-status?username=' + status.username}"
                class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-check-square me-1"></i>Checks
             </a>
 
-            <!-- Register Button - Green -->
+            <!-- Register Button - Green - Using absolute URLs instead of context-relative -->
             <a th:if="${!status.hasRole('CHECKING')}"
-               th:href="@{status/register-search(username=${status.username})}"
+               th:href="${'/status/register-search?username=' + status.username}"
                class="btn btn-sm btn-outline-success">
                 <i class="bi bi-search me-1"></i>Register
             </a>
 
-            <!-- Time Off History Button - Orange (using warning) -->
-            <a th:if="${status.userId != null}" th:href="@{status/timeoff-history(userId=${status.userId})}"
+            <!-- Time Off History Button - Orange (using warning) - Using absolute URLs instead of context-relative -->
+            <a th:if="${status.userId != null}"
+               th:href="${'/status/timeoff-history?userId=' + status.userId}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
-            <a th:if="${status.userId == null}" th:href="@{status/timeoff-history(username=${status.username})}"
+            <a th:if="${status.userId == null}"
+               th:href="${'/status/timeoff-history?username=' + status.username}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
 
-            <!-- Work Time Button - Blue (using primary) -->
-            <a th:if="${status.username == currentUsername || #authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'', ''TL_CHECKING'')')}"
-               th:href="@{status/worktime-status(username=${status.username})}"
+            <!-- Work Time Button - Blue (using primary) - Using absolute URLs instead of context-relative -->
+            <a th:if="${status.username == currentUsername || hasAdminTeamLeaderRole}"
+               th:href="${'/status/worktime-status?username=' + status.username}"
                class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-clock me-1"></i>WT
             </a>
@@ -170,33 +174,35 @@
     <td>
         <div class="d-flex gap-2 justify-content-end">
 
-            <!-- Check Register Button - Grey -->
+            <!-- Check Register Button - Grey - Using absolute URLs instead of context-relative -->
             <a th:if="${status.hasRole('CHECKING') || status.hasRole('USER_CHECKING')}"
-               th:href="@{status/check-register-status(username=${status.username})}"
+               th:href="${'/status/check-register-status?username=' + status.username}"
                class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-check-square me-1"></i>Checks
             </a>
 
-            <!-- Register Button - Green -->
+            <!-- Register Button - Green - Using absolute URLs instead of context-relative -->
             <a th:if="${!status.hasRole('CHECKING')}"
-               th:href="@{status/register-search(username=${status.username})}"
+               th:href="${'/status/register-search?username=' + status.username}"
                class="btn btn-sm btn-outline-success">
                 <i class="bi bi-search me-1"></i>Register
             </a>
 
-            <!-- Time Off History Button - Orange (using warning) -->
-            <a th:if="${status.userId != null}" th:href="@{status/timeoff-history(userId=${status.userId})}"
+            <!-- Time Off History Button - Orange (using warning) - Using absolute URLs instead of context-relative -->
+            <a th:if="${status.userId != null}"
+               th:href="${'/status/timeoff-history?userId=' + status.userId}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
-            <a th:if="${status.userId == null}" th:href="@{status/timeoff-history(username=${status.username})}"
+            <a th:if="${status.userId == null}"
+               th:href="${'/status/timeoff-history?username=' + status.username}"
                class="btn btn-sm btn-outline-warning">
                 <i class="bi bi-calendar-check me-1"></i>Time Off
             </a>
 
-            <!-- Work Time Button - Blue (using primary) -->
-            <a th:if="${status.username == currentUsername || #authorization.expression('hasAnyRole(''ADMIN'', ''TEAM_LEADER'', ''TL_CHECKING'')')}"
-               th:href="@{status/worktime-status(username=${status.username})}"
+            <!-- Work Time Button - Blue (using primary) - Using absolute URLs instead of context-relative -->
+            <a th:if="${status.username == currentUsername || hasAdminTeamLeaderRole}"
+               th:href="${'/status/worktime-status?username=' + status.username}"
                class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-clock me-1"></i>WT
             </a>

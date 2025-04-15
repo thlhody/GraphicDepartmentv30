@@ -75,18 +75,10 @@ public class StatusController extends BaseController {
             return "redirect:/login";
         }
 
+        // Get statuses - now roles are already included from the cache
         List<UserStatusDTO> userStatuses = readFileNameStatusService.getAllUserStatuses();
 
-        // Enhance each UserStatus object with role information
-        userStatuses.forEach(status -> {
-            // Get user details for this status
-            Optional<User> userOpt = getUserService().getUserByUsername(status.getUsername());
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
-                // Add role to the UserStatus object
-                status.setRole(user.getRole());
-            }
-        });
+        // No need to enhance with role information anymore - it's already in the cache!
 
         long onlineCount = readFileNameStatusService.getOnlineUserCount();
 
@@ -119,13 +111,13 @@ public class StatusController extends BaseController {
 
         try {
             // Force invalidation of the status cache
-            readFileNameStatusService.invalidateCache(); // Use new service
+            readFileNameStatusService.invalidateCache();
 
             User currentUser = getUser(userDetails);
 
-            // Get fresh status list after invalidating cache
-            var userStatuses = readFileNameStatusService.getAllUserStatuses(); // Use new service
-            long onlineCount = readFileNameStatusService.getOnlineUserCount(); // Use new service
+            // Get fresh status list after invalidating cache - roles already included!
+            var userStatuses = readFileNameStatusService.getAllUserStatuses();
+            long onlineCount = readFileNameStatusService.getOnlineUserCount();
 
             // Create a model to generate the HTML for the table body
             Model tableModel = new ConcurrentModel();
@@ -134,7 +126,9 @@ public class StatusController extends BaseController {
             tableModel.addAttribute("isAdminView", currentUser.isAdmin());
 
             // Add the flag for admin/team leader role check
-            boolean hasAdminTeamLeaderRole = currentUser.hasRole("ADMIN") || currentUser.hasRole("TEAM_LEADER");
+            boolean hasAdminTeamLeaderRole = currentUser.hasRole("ADMIN") ||
+                    currentUser.hasRole("TEAM_LEADER") ||
+                    currentUser.hasRole("TL_CHECKING");
             tableModel.addAttribute("hasAdminTeamLeaderRole", hasAdminTeamLeaderRole);
 
             // Render the table body fragment using Thymeleaf

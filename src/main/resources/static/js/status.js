@@ -14,11 +14,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set up manual refresh button
     setupRefreshButton();
 
-    // Setup auto-refresh every minute
+    // Setup auto-refresh every 60 seconds (60000 ms)
+    // This replaces the meta refresh tag with a cleaner JavaScript approach
+    const AUTO_REFRESH_INTERVAL = 60000; // 1 minute in milliseconds
     setInterval(function() {
         autoRefreshStatus();
-        updateOnlineCount();
-    }, 60000);
+    }, AUTO_REFRESH_INTERVAL);
 });
 
 /**
@@ -135,7 +136,7 @@ function formatDateDisplays() {
 }
 
 /**
- * Refreshes the status data via AJAX with improved URL handling
+ * Refreshes the status data via AJAX with improved error handling
  */
 function autoRefreshStatus() {
     // Show a small loading indicator
@@ -145,8 +146,8 @@ function autoRefreshStatus() {
         refreshButton.classList.add('disabled');
     }
 
-    // Construct the absolute URL - fix the path issue
-    let ajaxUrl = '/status/ajax-refresh';
+    // Construct the absolute URL - always use absolute path
+    const ajaxUrl = window.location.origin + '/status/ajax-refresh';
 
     // Make AJAX request to get fresh status data
     fetch(ajaxUrl, {
@@ -159,7 +160,7 @@ function autoRefreshStatus() {
     })
         .then(response => {
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error(`Network response error: ${response.status} ${response.statusText}`);
         }
         return response.json();
     })
@@ -193,11 +194,17 @@ function autoRefreshStatus() {
         .catch(error => {
         console.error('Error refreshing status data:', error);
 
-        // Restore refresh button on error
+        // Restore refresh button on error with visual feedback
         if (refreshButton) {
             refreshButton.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Refresh';
             refreshButton.classList.remove('disabled');
             refreshButton.classList.add('btn-danger');
+
+            // Show a toast or notification if available
+            const errorMessage = `Status refresh failed: ${error.message}`;
+            console.error(errorMessage);
+
+            // Reset button style after a delay
             setTimeout(() => {
                 refreshButton.classList.remove('btn-danger');
                 refreshButton.classList.add('btn-outline-secondary');
