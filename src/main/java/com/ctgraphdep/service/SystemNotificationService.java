@@ -1,7 +1,12 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.calculations.CalculationCommandFactory;
+import com.ctgraphdep.calculations.CalculationCommandService;
+import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.User;
+import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.ui.DialogComponents;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
@@ -45,20 +50,33 @@ public class SystemNotificationService {
     private final PathConfig pathConfig;
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
+    private final CalculationCommandService calculationCommandService;
+    private final CalculationCommandFactory calculationCommandFactory;
+    private final NotificationMonitorService notificationMonitorService;
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
 
     private final Map<String, LocalDateTime> lastNotificationTimes = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Integer>> notificationCountMap = new ConcurrentHashMap<>();
+
     private static final int NOTIFICATION_WIDTH = 600;
     private static final int NOTIFICATION_HEIGHT = 400;
     private static final int BUTTONS_PANEL_HEIGHT = 50;
     private static final int BUTTON_SPACING = 20;
 
-    public SystemNotificationService(CTTTSystemTray systemTray, PathConfig pathConfig, @Lazy SessionCommandService commandService, @Lazy SessionCommandFactory commandFactory) {
+    public SystemNotificationService(CTTTSystemTray systemTray, PathConfig pathConfig,
+                                     @Lazy SessionCommandService commandService,
+                                     @Lazy SessionCommandFactory commandFactory,
+                                     @Lazy CalculationCommandService calculationCommandService,
+                                     @Lazy CalculationCommandFactory calculationCommandFactory,
+                                     NotificationMonitorService notificationMonitorService) {
         this.systemTray = systemTray;
         this.pathConfig = pathConfig;
         this.commandService = commandService;
         this.commandFactory = commandFactory;
+        this.calculationCommandService = calculationCommandService;
+        this.calculationCommandFactory = calculationCommandFactory;
+        this.notificationMonitorService = notificationMonitorService;
         this.userResponded = new AtomicBoolean(false);
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -107,12 +125,149 @@ public class SystemNotificationService {
     @Scheduled(fixedRate = 240000) // Run every 4 minutes
     public void heartbeat() {
         try {
-            // Simply record that the service is still alive
+            // Record that the service is still alive
             healthMonitor.recordTaskExecution("notification-service");
+
+            // Check for any pending notifications
+            checkPendingNotifications();
+
             LoggerUtil.debug(this.getClass(), "Notification service heartbeat recorded");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in notification service heartbeat: " + e.getMessage());
         }
+    }
+
+    /**
+     * Checks for any pending notifications that should be displayed
+     */
+    private void checkPendingNotifications() {
+        try {
+            // Get the local user
+            User getUser = commandService.executeQuery(commandFactory.createGetLocalUserQuery());
+            if (getUser == null) {
+                return;
+            }
+
+            String username = getUser.getUsername();
+            Integer userId = getUser.getUserId();
+
+            // Get current session
+            WorkUsersSessionsStates session = commandService.executeQuery(
+                    commandFactory.createGetCurrentSessionQuery(username, userId));
+
+            if (session == null) {
+                return;
+            }
+
+            LocalDateTime now = getStandardCurrentDateTime();
+
+            // Check notification status based on session state
+            if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
+                // Check if this is an active session that needs schedule end notification
+                checkScheduleStatus(session, getUser);
+
+                // Check if hourly notification is needed
+                checkHourlyStatus(session, username, now);
+            }
+            else if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                // Check temporary stop status
+                checkTempStopStatus(session, now);
+            }
+
+            LoggerUtil.debug(this.getClass(), "Pending notification check completed during heartbeat");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking pending notifications: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Checks if schedule end notification is needed
+     */
+    private void checkScheduleStatus(WorkUsersSessionsStates session, User user) {
+        try {
+            String username = session.getUsername();
+
+            // Only check if we haven't shown schedule end notification yet
+            if (notificationMonitorService.isScheduleNotificationShown(username)) {
+                return; // Already shown
+            }
+
+            // Get work schedule info
+            WorkScheduleQuery query = commandFactory.createWorkScheduleQuery(
+                    session.getDayStartTime().toLocalDate(), user.getSchedule()
+            );
+            WorkScheduleQuery.ScheduleInfo scheduleInfo = commandService.executeQuery(query);
+
+            int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
+
+            // Check if schedule is completed but notification hasn't been shown
+            if (scheduleInfo.isScheduleCompleted(workedMinutes)) {
+                // Show schedule end notification
+                boolean success = showSessionWarning(username, session.getUserId(), session.getFinalWorkedMinutes());
+
+                // Record that notification was shown
+                if (success) {
+                    notificationMonitorService.recordScheduleNotificationShown(username);
+                }
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking schedule status: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Checks if hourly notification is needed
+     */
+    private void checkHourlyStatus(WorkUsersSessionsStates session, String username, LocalDateTime now) {
+        try {
+            if (notificationMonitorService.shouldShowHourlyNotification(username, now)) {
+                // Show hourly warning
+                boolean success = showHourlyWarning(username, session.getUserId(), session.getFinalWorkedMinutes());
+
+                // Record new hourly notification time
+                if (success) {
+                    notificationMonitorService.recordHourlyNotification(username, now);
+                }
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking hourly status: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Checks if temporary stop notification is needed
+     */
+    private void checkTempStopStatus(WorkUsersSessionsStates session, LocalDateTime now) {
+        try {
+            LocalDateTime tempStopStart = session.getLastTemporaryStopTime();
+            if (tempStopStart == null) {
+                return;
+            }
+
+            // Calculate minutes in temporary stop
+            CalculateMinutesBetweenQuery minutesQuery = calculationCommandFactory.createCalculateMinutesBetweenQuery(tempStopStart, now);
+            int minutesSinceTempStop = calculationCommandService.executeQuery(minutesQuery);
+
+            // Last notification time for this type
+            String key = getNotificationKey(session.getUsername(), WorkCode.TEMP_STOP_TYPE);
+            LocalDateTime lastTempStopNotification = lastNotificationTimes.get(key);
+
+            // Check if temporary stop notification should be shown
+            if (notificationMonitorService.shouldShowTempStopNotification(
+                    session.getUsername(), tempStopStart, minutesSinceTempStop,
+                    lastTempStopNotification, now)) {
+
+                // Show temporary stop warning
+                showLongTempStopWarning(session.getUsername(), session.getUserId(), tempStopStart);
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking temp stop status: " + e.getMessage());
+        }
+    }
+
+    // Add this modified method to SystemNotificationService
+    private LocalDateTime getStandardCurrentDateTime() {
+        return LocalDateTime.now();
     }
 
     // Shows hourly overtime warning to the user
@@ -242,7 +397,7 @@ public class SystemNotificationService {
                 LoggerUtil.info(this.getClass(), "Test dialog displayed successfully");
 
                 // Add auto-close timer
-                setupAutoCloseTimer(components.dialog(), username, WorkCode.ON_FOR_TEN_SECONDS, testResponded);
+                setupAutoCloseTimer(components.dialog(), username, WorkCode.ON_FOR_TEN_SECONDS, "TEST", testResponded);
 
             } catch (Exception e) {
                 LoggerUtil.error(this.getClass(), "Failed to display test dialog: " + e.getMessage());
@@ -374,8 +529,18 @@ public class SystemNotificationService {
             showDialog(components.dialog());
             dialogDisplayed = true;
 
-            // Set up auto-close timer for the notification
-            setupAutoCloseTimer(components.dialog(), username, timeoutPeriod, userResponded);
+
+            String notificationType;
+            if (isTempStop) {
+                notificationType = WorkCode.TEMP_STOP_TYPE;
+            } else if (isHourly) {
+                notificationType = WorkCode.OVERTIME_TYPE;
+            } else {
+                notificationType = WorkCode.SCHEDULE_END_TYPE;
+            }
+
+            // Set up auto-close timer for the notification with proper type
+            setupAutoCloseTimer(components.dialog(), username, timeoutPeriod, notificationType, userResponded);
 
             // Track notification display
             trackNotificationDisplay(username, userId, timeoutPeriod, isTempStop);
@@ -387,37 +552,121 @@ public class SystemNotificationService {
         return dialogDisplayed;
     }
 
-    // Sets up an auto-close timer for a notification dialog
-    private void setupAutoCloseTimer(JDialog dialog, String username, int timeoutPeriod, AtomicBoolean respondedFlag) {
+    /**
+     * Sets up an auto-close timer for a notification dialog with improved handling for different notification types
+     * and proper notification cycling
+     *
+     * @param dialog The dialog to auto-close
+     * @param username The username associated with the notification
+     * @param timeoutPeriod The timeout period in milliseconds
+     * @param notificationType The type of notification (schedule end, hourly, temp stop, test)
+     * @param respondedFlag Flag to track user response
+     */
+    private void setupAutoCloseTimer(JDialog dialog, String username, int timeoutPeriod,
+                                     String notificationType, AtomicBoolean respondedFlag) {
         if (timeoutPeriod <= 0) {
-            LoggerUtil.debug(this.getClass(), "No auto-close timer needed for " + username + " (timeoutPeriod: " + timeoutPeriod + ")");
+            LoggerUtil.debug(this.getClass(), "No auto-close timer needed for " + username +
+                    " (timeoutPeriod: " + timeoutPeriod + ")");
             return; // No timer needed
         }
 
+        // Track notification count in a static map to limit cycles
+        if (!notificationCountMap.containsKey(username)) {
+            notificationCountMap.put(username, new ConcurrentHashMap<>());
+        }
+
+        Map<String, Integer> userNotificationCounts = notificationCountMap.get(username);
+        int currentCount = userNotificationCounts.getOrDefault(notificationType, 0);
+        userNotificationCounts.put(notificationType, currentCount + 1);
+
+        // Max notification count (stop after 8 notifications)
+        final int MAX_NOTIFICATION_COUNT = 8;
+
         Timer autoCloseTimer = new Timer(timeoutPeriod, e -> {
             if (!respondedFlag.get() && dialog.isDisplayable()) {
-                LoggerUtil.info(this.getClass(), String.format("Auto-dismissing notification for %s after timeout (%d ms)", username, timeoutPeriod));
-                try {
-                    // Use the same activation process as when user clicks "Continue Working"
-                    ActivateHourlyMonitoringCommand command = commandFactory.createActivateHourlyMonitoringCommand(username);
-                    boolean result = commandService.executeCommand(command);
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Auto-dismissing %s notification for %s after timeout (%d ms), count: %d/%d",
+                        notificationType, username, timeoutPeriod, currentCount + 1, MAX_NOTIFICATION_COUNT));
 
-                    if (result) {
-                        LoggerUtil.info(this.getClass(), String.format("Successfully activated hourly monitoring for user %s after notification timeout", username));
-                    } else {
-                        LoggerUtil.warn(this.getClass(), String.format("Failed to activate hourly monitoring for user %s after notification timeout", username));
+                try {
+                    // Check if we've reached the max notification count
+                    if (currentCount >= MAX_NOTIFICATION_COUNT - 1) {
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "Reached maximum notification count (%d) for %s - stopping notification cycle",
+                                MAX_NOTIFICATION_COUNT, username));
+
+                        // Clear notification count after reaching max
+                        userNotificationCounts.remove(notificationType);
+                        if (userNotificationCounts.isEmpty()) {
+                            notificationCountMap.remove(username);
+                        }
+
+                        // Just close dialog without activating next cycle
+                        dialog.dispose();
+                        return;
                     }
+
+                    // Handle notification-specific logic
+                    switch (notificationType) {
+                        case WorkCode.SCHEDULE_END_TYPE:
+                            // For end of schedule notifications, activate hourly monitoring
+                            ActivateHourlyMonitoringCommand command =
+                                    commandFactory.createActivateHourlyMonitoringCommand(username);
+                            boolean result = commandService.executeCommand(command);
+
+                            if (result) {
+                                LoggerUtil.info(this.getClass(), String.format(
+                                        "Successfully activated hourly monitoring for user %s after notification timeout",
+                                        username));
+                            } else {
+                                LoggerUtil.warn(this.getClass(), String.format(
+                                        "Failed to activate hourly monitoring for user %s after notification timeout",
+                                        username));
+                            }
+                            break;
+
+                        case WorkCode.OVERTIME_TYPE:
+                            // For hourly warnings, continue the hourly monitoring cycle
+                            LoggerUtil.info(this.getClass(), String.format(
+                                    "Auto-continuing hourly monitoring for user %s", username));
+                            // No need to activate hourly monitoring as it's already active
+                            break;
+
+                        case WorkCode.TEMP_STOP_TYPE:
+                            // For temporary stop warnings, continue temporary stop monitoring
+                            LoggerUtil.info(this.getClass(), String.format(
+                                    "Auto-continuing temporary stop monitoring for user %s", username));
+                            // TempStopCommand would already be running from the session monitor
+                            break;
+
+                        case "TEST":
+                            // For test notifications, log that we're completing the test
+                            LoggerUtil.info(this.getClass(), String.format(
+                                    "Auto-dismissing test notification for user %s", username));
+                            break;
+
+                        default:
+                            LoggerUtil.warn(this.getClass(), String.format(
+                                    "Unknown notification type: %s for user %s", notificationType, username));
+                    }
+
                 } catch (Exception ex) {
-                    LoggerUtil.error(this.getClass(), String.format("Error activating hourly monitoring after timeout: %s", ex.getMessage()), ex);
+                    LoggerUtil.error(this.getClass(), String.format(
+                            "Error handling auto-close for %s notification: %s",
+                            notificationType, ex.getMessage()), ex);
+                } finally {
+                    // Clean up resources when auto-closing
+                    cleanupNotificationResources(dialog);
                 }
-                // Clean up resources when auto-closing
-                cleanupNotificationResources(dialog);
             }
         });
+
         autoCloseTimer.setRepeats(false);
         autoCloseTimer.start();
 
-        LoggerUtil.debug(this.getClass(), String.format("Set auto-dismiss timer for %s, %d ms", username, timeoutPeriod));
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Set auto-dismiss timer for %s notification, user: %s, timeout: %d ms, count: %d/%d",
+                notificationType, username, timeoutPeriod, currentCount + 1, MAX_NOTIFICATION_COUNT));
     }
 
     // Method to add a response tracking mechanism

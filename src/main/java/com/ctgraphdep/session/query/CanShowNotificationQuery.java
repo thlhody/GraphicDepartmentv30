@@ -50,11 +50,9 @@ public class CanShowNotificationQuery implements SessionQuery<Boolean> {
     @Override
     public Boolean execute(SessionContext context) {
         // Get standardized time values using the validation system
-        GetStandardTimeValuesCommand timeCommand = context.getValidationService()
-                .getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
 
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                context.getValidationService().execute(timeCommand);
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
 
         // Generate a unique notification key
         String key = String.format("%s_%s", username, notificationType);
