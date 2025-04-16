@@ -21,6 +21,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -38,12 +39,36 @@ public class ReadFileNameStatusService {
     private final PathConfig pathConfig;
     private final DataAccessService dataAccessService;
 
+    // Add local user tracking
+    private volatile User localUser;
+    private final AtomicBoolean initializedLocalUser = new AtomicBoolean(false);
+
+    // Queue for status updates that need to wait for user information
+    private final List<PendingStatusUpdate> pendingStatusUpdates = new ArrayList<>();
+
     // In-memory cache
     private volatile LocalStatusCache statusCache;
     private volatile LocalDateTime cacheLastUpdated;
 
     // Cache expiration time: 5 minutes in milliseconds
     private static final long CACHE_TTL = 5 * 60 * 1000;
+
+    // Class to hold pending status updates
+    private static class PendingStatusUpdate {
+        final String username;
+        final Integer userId;
+        final String status;
+        final LocalDateTime timestamp;
+        final LocalDateTime createdAt;
+
+        PendingStatusUpdate(String username, Integer userId, String status, LocalDateTime timestamp) {
+            this.username = username;
+            this.userId = userId;
+            this.status = status;
+            this.timestamp = timestamp;
+            this.createdAt = LocalDateTime.now();
+        }
+    }
 
     @Autowired
     public ReadFileNameStatusService(
@@ -54,6 +79,88 @@ public class ReadFileNameStatusService {
         this.pathConfig = pathConfig;
         this.dataAccessService = dataAccessService;
         LoggerUtil.initialize(this.getClass(), null);
+    }
+
+    /**
+     * Loads the local user on initialization or when needed
+     */
+    private synchronized void loadLocalUser() {
+        try {
+            // Only attempt to load if not already loaded
+            if (localUser == null) {
+                List<User> localUsers = dataAccessService.readLocalUsers();
+                if (localUsers != null && !localUsers.isEmpty()) {
+                    User user = localUsers.get(0);
+                    localUser = user;
+                    LoggerUtil.info(this.getClass(), "Local user loaded: " + user.getUsername());
+
+                    // Process any pending status updates
+                    processPendingStatusUpdates();
+                } else {
+                    LoggerUtil.info(this.getClass(), "No local users found in file");
+                }
+            }
+            // Mark that we've attempted initialization
+            initializedLocalUser.set(true);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to load local user: " + e.getMessage(), e);
+            initializedLocalUser.set(true); // Still mark as initialized to prevent repeated attempts
+        }
+    }
+
+    /**
+     * Process any pending status updates now that we have the local user
+     */
+    private synchronized void processPendingStatusUpdates() {
+        if (localUser == null || pendingStatusUpdates.isEmpty()) {
+            return;
+        }
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Processing %d pending status updates for user %s",
+                        pendingStatusUpdates.size(), localUser.getUsername()));
+
+        // Create a copy to avoid concurrent modification
+        List<PendingStatusUpdate> updates = new ArrayList<>(pendingStatusUpdates);
+
+        // Process each pending update if it's for the local user
+        for (PendingStatusUpdate update : updates) {
+            if (localUser.getUsername().equals(update.username)) {
+                // Process this update now
+                createNetworkStatusFlagInternal(
+                        update.username,
+                        update.status,
+                        update.timestamp
+                );
+                LoggerUtil.info(this.getClass(),
+                        String.format("Processed pending status update for %s: %s",
+                                update.username, update.status));
+            } else {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Skipping pending update for %s as it doesn't match local user %s",
+                                update.username, localUser.getUsername()));
+            }
+        }
+
+        // Clear all processed updates
+        pendingStatusUpdates.clear();
+    }
+
+    /**
+     * Checks if the given username matches the local user
+     */
+    private boolean isLocalUser(String username) {
+        // If local user is not initialized yet, try to load it
+        if (!initializedLocalUser.get()) {
+            loadLocalUser();
+        }
+
+        // After attempting to load, check if we have a user
+        if (localUser == null) {
+            return false;
+        }
+
+        return username != null && username.equals(localUser.getUsername());
     }
 
     /**
@@ -74,18 +181,20 @@ public class ReadFileNameStatusService {
             // Load the local status cache
             loadStatusCache();
 
+            // Load the local user
+            loadLocalUser();
+
             // Get user list from users.json (only done once at startup)
             updateAllUsersFromUserService();
 
             // Initial loading of all status flags to populate the cache
             updateAllStatusFromNetworkFlags();
+
+            // Only update local user's status from session
             updateCurrentUserStatusFromSession();
 
             // Save the updated cache to local file
             saveStatusCache();
-
-            // Don't update user statuses during initialization
-            // Only current user's status will be updated during login or session actions
 
             LoggerUtil.info(this.getClass(), "ReadFileNameStatusService initialized successfully");
         } catch (Exception e) {
@@ -189,8 +298,6 @@ public class ReadFileNameStatusService {
         }
     }
 
-    // Add this method to ReadFileNameStatusService.java
-
     /**
      * Updates all users' basic information and roles from UserService.
      * This is used for the initial load and midnight refresh.
@@ -276,33 +383,60 @@ public class ReadFileNameStatusService {
         }
     }
 
-
     /**
      * Updates a user's status by creating a flag file on the network.
      * This is used by session commands to update status during actions.
+     * MODIFIED: Only create network flag for local user and check if local user is initialized
      */
     public void updateUserStatus(String username, Integer userId, String status, LocalDateTime timestamp) {
         try {
-            // Convert status to code for flag filename
-            String statusCode = getStatusCode(status);
-
-            // Get date and time codes for filename
-            String dateCode = getDateCode(timestamp.toLocalDate());
-            String timeCode = "T" + timestamp.format(DateTimeFormatter.ofPattern("HHmm"));
-
-            // Create flag file on network
-            dataAccessService.createNetworkStatusFlag(username, dateCode, timeCode, statusCode);
-
-            // Update local cache
+            // Always update the local cache regardless of whether network flag is created
             updateLocalCache(username, userId, status, timestamp);
+
+            // Check if we need to create a network flag (only for local user)
+            if (isLocalUser(username)) {
+                createNetworkStatusFlagInternal(username, status, timestamp);
+                LoggerUtil.info(this.getClass(), String.format("Updated status for local user %s to %s", username, status));
+            } else if (!initializedLocalUser.get()) {
+                // If local user is not initialized yet, try to load it
+                loadLocalUser();
+
+                // After loading, check again if this is the local user
+                if (localUser != null && username.equals(localUser.getUsername())) {
+                    createNetworkStatusFlagInternal(username, status, timestamp);
+                    LoggerUtil.info(this.getClass(), String.format("Updated status for newly loaded local user %s to %s", username, status));
+                } else {
+                    // Queue this update for later if we couldn't load user' and it might be local user
+                    // This handles the case where local_users.json doesn't exist yet but will soon
+                    LoggerUtil.debug(this.getClass(), String.format("Queueing status update for user %s until local user is known", username));
+                    pendingStatusUpdates.add(new PendingStatusUpdate(username, userId, status, timestamp));
+                }
+            } else {
+                // Just log without creating network flag for non-local users
+                LoggerUtil.debug(this.getClass(), String.format("Updated local cache only for non-local user %s to %s", username, status));
+            }
 
             // Save the updated cache
             saveStatusCache();
-
-            LoggerUtil.debug(this.getClass(), "Updated status for " + username + " to " + status);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating user status: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Internal method to create a network flag file
+     */
+    private void createNetworkStatusFlagInternal(String username, String status, LocalDateTime timestamp) {
+        // Convert status to code for flag filename
+        String statusCode = getStatusCode(status);
+
+        // Get date and time codes for filename
+        String dateCode = getDateCode(timestamp.toLocalDate());
+        String timeCode = "T" + timestamp.format(DateTimeFormatter.ofPattern("HHmm"));
+
+        // Create flag file on network
+        dataAccessService.createNetworkStatusFlag(username, dateCode, timeCode, statusCode);
+        LoggerUtil.debug(this.getClass(), String.format("Created network status flag for user %s with status %s", username, status));
     }
 
     /**
@@ -398,6 +532,30 @@ public class ReadFileNameStatusService {
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating current user timestamp: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Scheduled task to check for pending status updates that are old
+     * and clean them up if they're over 24 hours old
+     */
+    @Scheduled(fixedRate = 3600000) // Run hourly
+    public void cleanPendingStatusUpdates() {
+        synchronized (pendingStatusUpdates) {
+            LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+
+            // Create a new list with only non-expired updates
+            List<PendingStatusUpdate> validUpdates = pendingStatusUpdates.stream()
+                    .filter(update -> update.createdAt.isAfter(cutoff))
+                    .toList();
+
+            int removed = pendingStatusUpdates.size() - validUpdates.size();
+
+            if (removed > 0) {
+                LoggerUtil.info(this.getClass(), String.format("Cleaned up %d expired pending status updates", removed));
+                pendingStatusUpdates.clear();
+                pendingStatusUpdates.addAll(validUpdates);
+            }
         }
     }
 

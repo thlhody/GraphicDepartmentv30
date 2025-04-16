@@ -285,7 +285,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
     public void writeLocalUsers(List<User> users) {
         Path localPath = pathConfig.getLocalUsersPath();
         Path lockPath = pathConfig.getUsersLockPath();
@@ -936,6 +935,8 @@ public class DataAccessService {
 
     /**
      * Read a time off tracker file for a user for a specific year
+     * Write a time off tracker file for a user for a specific year
+     * Read a time off tracker in read-only mode
      */
     public TimeOffTracker readTimeOffTracker(String username, Integer userId, int year) {
         try {
@@ -980,10 +981,6 @@ public class DataAccessService {
             return null;
         }
     }
-
-    /**
-     * Write a time off tracker file for a user for a specific year
-     */
     public void writeTimeOffTracker(TimeOffTracker tracker, int year) {
         if (tracker == null || tracker.getUsername() == null) {
             LoggerUtil.error(this.getClass(), "Cannot save null tracker or tracker without username");
@@ -1012,10 +1009,6 @@ public class DataAccessService {
                             tracker.getUsername(), year, e.getMessage()));
         }
     }
-
-    /**
-     * Read a time off tracker in read-only mode
-     */
     public TimeOffTracker readTimeOffTrackerReadOnly(String username, Integer userId, int year) {
         try {
             // Try network first if available
@@ -1037,11 +1030,10 @@ public class DataAccessService {
             return null;
         }
     }
+
+
     public void writeNotificationTrackingFile(String username, String notificationType, LocalDateTime timestamp) {
         try {
-            Path notificationsDir = pathConfig.getNotificationsPath();
-            Files.createDirectories(notificationsDir);
-
             Path trackingFile = pathConfig.getNotificationTrackingFilePath(username, notificationType);
 
             // Write timestamp to file
@@ -1055,9 +1047,9 @@ public class DataAccessService {
         }
     }
 
-
     /**
      * Reads the local status cache file
+     * Writes the local status cache file
      */
     public LocalStatusCache readLocalStatusCache() {
         try {
@@ -1074,10 +1066,6 @@ public class DataAccessService {
             return new LocalStatusCache();
         }
     }
-
-    /**
-     * Writes the local status cache file
-     */
     public void writeLocalStatusCache(LocalStatusCache cache) {
         try {
             Path cachePath = pathConfig.getLocalStatusCachePath();
@@ -1091,6 +1079,8 @@ public class DataAccessService {
 
     /**
      * Creates a status flag file on the network
+     * Reads all status flag files from the network
+     * Deletes a network status flag file
      */
     public void createNetworkStatusFlag(String username, String dateCode, String timeCode, String statusCode) {
         try {
@@ -1098,9 +1088,6 @@ public class DataAccessService {
                 LoggerUtil.warn(this.getClass(), "Network unavailable, cannot create status flag");
                 return;
             }
-
-            // REMOVED: Security context check to allow notifications to update status
-            // This allows notification system and background processes to update status flags
 
             // Create the network directory if it doesn't exist
             Path networkFlagsDir = pathConfig.getNetworkStatusFlagsDirectory();
@@ -1128,10 +1115,6 @@ public class DataAccessService {
             LoggerUtil.error(this.getClass(), "Error creating network status flag for " + username + ": " + e.getMessage(), e);
         }
     }
-
-    /**
-     * Reads all status flag files from the network
-     */
     public List<Path> readNetworkStatusFlags() {
         try {
             if (!pathConfig.isNetworkAvailable()) {
@@ -1153,10 +1136,6 @@ public class DataAccessService {
             return new ArrayList<>();
         }
     }
-
-    /**
-     * Deletes a network status flag file
-     */
     public boolean deleteNetworkStatusFlag(Path flagPath) {
         try {
             return Files.deleteIfExists(flagPath);

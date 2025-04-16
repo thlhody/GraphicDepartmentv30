@@ -72,7 +72,7 @@ public class SystemNotificationService {
                 status -> {
                     // Recovery action when notification service is unhealthy
                     LoggerUtil.warn(this.getClass(), String.format("Attempting to recover unhealthy notification service. Last execution: %s, Minutes since: %d",
-                                    status.getLastExecutionTime(), status.getMinutesSinceLastExecution()));
+                            status.getLastExecutionTime(), status.getMinutesSinceLastExecution()));
                     resetService();
                 }
         );
@@ -397,6 +397,19 @@ public class SystemNotificationService {
         Timer autoCloseTimer = new Timer(timeoutPeriod, e -> {
             if (!respondedFlag.get() && dialog.isDisplayable()) {
                 LoggerUtil.info(this.getClass(), String.format("Auto-dismissing notification for %s after timeout (%d ms)", username, timeoutPeriod));
+                try {
+                    // Use the same activation process as when user clicks "Continue Working"
+                    ActivateHourlyMonitoringCommand command = commandFactory.createActivateHourlyMonitoringCommand(username);
+                    boolean result = commandService.executeCommand(command);
+
+                    if (result) {
+                        LoggerUtil.info(this.getClass(), String.format("Successfully activated hourly monitoring for user %s after notification timeout", username));
+                    } else {
+                        LoggerUtil.warn(this.getClass(), String.format("Failed to activate hourly monitoring for user %s after notification timeout", username));
+                    }
+                } catch (Exception ex) {
+                    LoggerUtil.error(this.getClass(), String.format("Error activating hourly monitoring after timeout: %s", ex.getMessage()), ex);
+                }
                 // Clean up resources when auto-closing
                 cleanupNotificationResources(dialog);
             }

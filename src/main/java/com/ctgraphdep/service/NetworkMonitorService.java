@@ -174,7 +174,21 @@ public class NetworkMonitorService {
 
         try {
             Path networkPath = pathConfig.getNetworkPath();
-            boolean currentStatus = Files.exists(networkPath) && Files.isWritable(networkPath);
+
+            boolean currentStatus = false;
+            if (Files.exists(networkPath) && Files.isDirectory(networkPath)) {
+                try {
+                    // Use same test file method as the aggressive check
+                    Path testFile = networkPath.resolve(".test_" + System.currentTimeMillis());
+                    Files.createFile(testFile);
+                    Files.delete(testFile);
+                    currentStatus = true;
+                    LoggerUtil.debug(this.getClass(), "Network write test successful in regular check");
+                } catch (Exception e) {
+                    LoggerUtil.debug(this.getClass(), "Network write test failed in regular check: " + e.getMessage());
+                    currentStatus = false;
+                }
+            }
 
             // If status changed, update it
             if (currentStatus != lastKnownNetworkStatus) {
@@ -193,6 +207,16 @@ public class NetworkMonitorService {
             if (currentStatus) {
                 consecutiveFailures = 0;
                 attemptPendingSyncs();
+            }
+
+            if (Files.exists(networkPath)) {
+                boolean isReadable = Files.isReadable(networkPath);
+                boolean isWritable = Files.isWritable(networkPath);
+                boolean isDirectory = Files.isDirectory(networkPath);
+
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Network path checks - Exists: true, Readable: %b, Writable: %b, Directory: %b",
+                        isReadable, isWritable, isDirectory));
             }
 
         } catch (Exception e) {

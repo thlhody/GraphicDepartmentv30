@@ -65,6 +65,8 @@ public class PathConfig {
     private String adminBonus;
     @Value("${dbj.login}")
     private String loginPath;
+    @Value("${dbj.notification}")
+    private String notificationPath;
 
     // File formats - user
     @Value("${dbj.dir.format.session}")
@@ -94,7 +96,6 @@ public class PathConfig {
     @Value("${dbj.dir.format.admin.check.bonus}")
     private String adminCheckBonusFormat;
 
-
     // File names
     @Value("${dbj.users.filename}")
     private String usersFilename;
@@ -106,24 +107,25 @@ public class PathConfig {
     private String holidayFilename;
 
     @Value("${app.cache.holiday}")
-    private String holidayCacheFile;  // holiday_cache.json
+    private String holidayCacheFile;
     @Value("${app.lock.holiday}")
-    private String holidayLockFile;   // holiday.lock
+    private String holidayLockFile;
     @Value("${app.lock.users}")
-    private String usersLockFile;   // users.lock
+    private String usersLockFile;
+    @Value("${app.lock.notification}")
+    private String notificationLockFile;
 
-
+    //Log File Name / File Path
     @Value("${logging.file.name}")
     private String localLogPath;
-
     @Value("${app.logs.network}")
     private String networkLogsPath;
-
     @Value("${app.logs.file.format}")
     private String logFileFormat;
+    @Value("${app.logs.path.sync}")
+    private String appLogPathFormat;
 
     // Return the base network path for use by other services
-    @Getter
     private Path networkPath;
     private Path localPath;
     private final AtomicBoolean networkAvailable = new AtomicBoolean(false);
@@ -132,7 +134,6 @@ public class PathConfig {
 
     @PostConstruct
     public void init() {
-        // Add at beginning of init() in PathConfig
         LoggerUtil.info(this.getClass(), "Raw network path: " + networkBasePath);
         try {
             // Fix network path format - ensure proper UNC path format
@@ -149,8 +150,7 @@ public class PathConfig {
             // Check network availability (this will be updated by NetworkMonitorService)
             updateNetworkStatus();
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Initialized paths - Network: %s, Local: %s, Network Available: %b, Local Available: %b",
+            LoggerUtil.info(this.getClass(), String.format("Initialized paths - Network: %s, Local: %s, Network Available: %b, Local Available: %b",
                     networkPath, localPath, networkAvailable.get(), localAvailable.get()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during initialization: " + e.getMessage());
@@ -158,33 +158,65 @@ public class PathConfig {
         }
     }
 
-    private String normalizeNetworkPath(String path) {
-        if (path == null || path.trim().isEmpty()) {
-            return path;
+    private void initializeLocalDirectories() {
+        try {
+            // Ensure local path exists
+            if (!Files.exists(localPath)) {
+                Files.createDirectories(localPath);
+            }
+
+            // Create all required local directories
+            List<String> directories = Arrays.asList(
+                    loginPath,
+                    userSession,
+                    userStatus,
+                    userWorktime,
+                    userRegister,
+                    userTimeoff,
+                    adminWorktime,
+                    adminRegister,
+                    adminBonus,
+                    notificationPath
+            );
+
+            for (String dir : directories) {
+                Path dirPath = localPath.resolve(dir);
+                Files.createDirectories(dirPath);
+            }
+
+            localAvailable.set(true);
+            LoggerUtil.info(this.getClass(), "Initialized local directories");
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Failed to initialize local directories: " + e.getMessage());
+            localAvailable.set(false);
         }
-
-        // Remove any quotes, brackets or parentheses
-        path = path.replaceAll("[\"'()]", "");
-
-        // Fix UNC path format - must start with \\
-        if (path.startsWith("\\") && !path.startsWith("\\\\")) {
-            path = "\\" + path;
-        }
-
-        // Normalize excessive backslashes
-        if (path.matches("^\\\\\\\\+.*")) {
-            path = "\\\\" + path.replaceAll("^\\\\+", "");
-        }
-
-        return path;
     }
 
     // Network-only paths
     public Path getNetworkUsersPath() {
         return networkPath.resolve(loginPath).resolve(usersFilename);
     }
+    public Path getUsersLockPath() {
+        return networkPath.resolve(loginPath).resolve(usersLockFile);
+    }
     public Path getNetworkHolidayPath() {
         return networkPath.resolve(loginPath).resolve(holidayFilename);
+    }
+    public Path getHolidayCachePath() {
+        return networkPath.resolve(loginPath).resolve(holidayCacheFile);
+    }
+    public Path getHolidayLockPath() {
+        return networkPath.resolve(loginPath).resolve(holidayLockFile);
+    }
+    public Path getNetworkStatusFlagsDirectory() {
+        return networkPath.resolve(userStatus);
+    }
+    public Path getNetworkLogDirectory() {
+        return networkPath.resolve(networkLogsPath);
+    }
+    public Path getNetworkLogPath(String username) {
+        String formattedLogFilename = String.format(logFileFormat, username);
+        return getNetworkLogDirectory().resolve(formattedLogFilename);
     }
 
     // Local-only paths
@@ -193,6 +225,22 @@ public class PathConfig {
     }
     public Path getLocalBonusPath(int year, int month) {
         return localPath.resolve(adminBonus).resolve(String.format(adminBonusFormat, year, month));
+    }
+    public Path getTeamJsonPath(String teamLeadUsername, int year, int month) {
+        return localPath.resolve(loginPath).resolve(String.format(teamFileFormat, teamLeadUsername, year, month));
+    }
+    public Path getNotificationTrackingFilePath(String username, String notificationType) {
+        return localPath.resolve(notificationPath).resolve(String.format(notificationLockFile, username, notificationType.toLowerCase()));
+    }
+    public Path getLocalStatusCachePath() {
+        return localPath.resolve(userStatus).resolve(localStatusFileFormat);
+    }
+    public Path getLocalLogPath() {
+        Path developmentLogPath = Paths.get(appLogPathFormat).toAbsolutePath();
+        if (Files.exists(developmentLogPath)) {
+            return developmentLogPath;
+        }
+        return Paths.get(localLogPath);
     }
 
     // Session paths - primarily local with network sync
@@ -237,7 +285,7 @@ public class PathConfig {
         return networkPath.resolve(adminRegister).resolve(String.format(adminRegisterFormat, username, userId, year, month));
     }
 
-    //Check - admin/user/check/lead
+    // Check Lead register path - local and network for sync
     public Path getLocalCheckLeadRegisterPath(String username, Integer userId, int year, int month) {
         return localPath.resolve(leadCheckRegister).resolve(String.format(leadCheckRegisterFormat, username, userId, year, month));
     }
@@ -245,6 +293,7 @@ public class PathConfig {
         return networkPath.resolve(leadCheckRegister).resolve(String.format(leadCheckRegisterFormat, username, userId, year, month));
     }
 
+    //Check register path - local and network for sync
     public Path getLocalCheckRegisterPath(String username, Integer userId, int year, int month) {
         return localPath.resolve(checkRegister).resolve(String.format(checkRegisterFormat, username, userId, year, month));
     }
@@ -252,6 +301,7 @@ public class PathConfig {
         return networkPath.resolve(checkRegister).resolve(String.format(checkRegisterFormat, username, userId, year, month));
     }
 
+    //Check Bonus path - local and network for sync
     public Path getLocalCheckBonusPath(int year, int month) {
         return localPath.resolve(adminBonus).resolve(String.format(adminCheckBonusFormat, year, month));
     }
@@ -259,92 +309,51 @@ public class PathConfig {
         return networkPath.resolve(adminBonus).resolve(String.format(adminCheckBonusFormat, year, month));
     }
 
-    public Path getTeamJsonPath(String teamLeadUsername, int year, int month) {
-        return localPath.resolve(loginPath).resolve(String.format(teamFileFormat, teamLeadUsername, year, month));
-    }
-    public Path getHolidayCachePath() {
-        return networkPath.resolve(loginPath).resolve(holidayCacheFile);
-    }
-
-    public Path getHolidayLockPath() {
-        return networkPath.resolve(loginPath).resolve(holidayLockFile);
-    }
-    public Path getUsersLockPath() {
-        return networkPath.resolve(loginPath).resolve(usersLockFile);
-    }
-
-    public Path getNotificationsPath() {
-        return localPath.resolve("notifications");
-    }
-    public Path getNotificationTrackingFilePath(String username, String notificationType) {
-        Path notificationsDir = getNotificationsPath();
-        return notificationsDir.resolve(
-                String.format("%s_%s_notification.lock", username, notificationType.toLowerCase())
-        );
-    }
-
-    /**
-     * Get the local path for a user's time off tracker file with year
-     */
+    //Time Off Tracker path - local and network for sync
     public Path getLocalTimeOffTrackerPath(String username, Integer userId, int year) {
-        return localPath.resolve(userTimeoff)
-                .resolve(String.format(timeoffFormat, username, userId, year));
+        return localPath.resolve(userTimeoff).resolve(String.format(timeoffFormat, username, userId, year));
     }
-    /**
-     * Get the network path for a user's time off tracker file with year
-     */
     public Path getNetworkTimeOffTrackerPath(String username, Integer userId, int year) {
-        return networkPath.resolve(userTimeoff)
-                .resolve(String.format(timeoffFormat, username, userId, year));
-    }
-
-    /**
-     * Get the path to the local status cache file
-     */
-    public Path getLocalStatusCachePath() {
-        return localPath.resolve(userStatus).resolve(localStatusFileFormat);
-    }
-
-    /**
-     * Get the path to the network status directory for flag files
-     */
-    public Path getNetworkStatusFlagsDirectory() {
-        return networkPath.resolve(userStatus);
+        return networkPath.resolve(userTimeoff).resolve(String.format(timeoffFormat, username, userId, year));
     }
 
     // Network status management
     public boolean isNetworkAvailable() {
+        forceNetworkAvailable();
         synchronized (networkStatusLock) {
             return networkAvailable.get();
         }
     }
-
+    public void forceNetworkAvailable() {
+        synchronized (networkStatusLock) {
+            if (!networkAvailable.get()) {
+                networkAvailable.set(true);
+                LoggerUtil.info(this.getClass(), "Manually forced network status to available");
+            }
+        }
+    }
     public void updateNetworkStatus() {
         synchronized (networkStatusLock) {
             boolean previous = networkAvailable.get();
             boolean current = checkNetworkAccess();
             networkAvailable.set(current);
-
             if (previous != current) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Network status changed from %b to %b", previous, current));
+                LoggerUtil.info(this.getClass(), String.format("Network status changed from %b to %b", previous, current));
             }
         }
     }
-
     private boolean checkNetworkAccess() {
         try {
             // Validate network path
-            // For development, allow local paths
             if (networkPath == null) {
                 return false;
             }
 
-            // Skip UNC path check for development
-            // if (!networkPath.toString().startsWith("\\\\")) {
-            //    LoggerUtil.warn(this.getClass(), "Invalid network path format");
-            //    return false;
-            // }
+             //Skip UNC path check for development
+             if (!networkPath.toString().startsWith("\\\\")) {
+                LoggerUtil.warn(this.getClass(), "Invalid network path format");
+                return false;
+             }
 
             if (!Files.exists(networkPath) || !Files.isDirectory(networkPath)) {
                 LoggerUtil.debug(this.getClass(), "Network path not available or not a directory");
@@ -373,17 +382,14 @@ public class PathConfig {
             return false;
         }
     }
-
-    // Add periodic network status checker
-    @Scheduled(fixedDelay = 600000) // Check every minute
+    @Scheduled(fixedDelay = 600000) // Check every 10 minutes - periodic checker
     public void scheduledNetworkCheck() {
         try {
             boolean previous = networkAvailable.get();
             boolean current = checkNetworkAccess();
 
             if (previous != current) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Network status changed from %b to %b", previous, current));
+                LoggerUtil.info(this.getClass(), String.format("Network status changed from %b to %b", previous, current));
                 networkAvailable.set(current);
             }
         } catch (Exception e) {
@@ -391,43 +397,10 @@ public class PathConfig {
         }
     }
 
-    private void initializeLocalDirectories() {
-        try {
-            // Ensure local path exists
-            if (!Files.exists(localPath)) {
-                Files.createDirectories(localPath);
-            }
-
-            // Create all required local directories
-            List<String> directories = Arrays.asList(
-                    loginPath,
-                    userSession,
-                    userStatus,
-                    userWorktime,
-                    userRegister,
-                    userTimeoff,
-                    adminWorktime,
-                    adminRegister,
-                    adminBonus
-            );
-
-            for (String dir : directories) {
-                Path dirPath = localPath.resolve(dir);
-                Files.createDirectories(dirPath);
-            }
-
-            localAvailable.set(true);
-            LoggerUtil.info(this.getClass(), "Initialized local directories");
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Failed to initialize local directories: " + e.getMessage());
-            localAvailable.set(false);
-        }
-    }
-
+    // Local check
     public boolean isLocalAvailable() {
         return localAvailable.get();
     }
-
     public void revalidateLocalAccess() {
         try {
             initializeLocalDirectories();
@@ -436,23 +409,26 @@ public class PathConfig {
         }
     }
 
-    // Resolve source log file path
-    public Path getLocalLogPath() {
-        Path developmentLogPath = Paths.get("./logs/ctgraphdep-logger.log").toAbsolutePath();
-        if (Files.exists(developmentLogPath)) {
-            return developmentLogPath;
+    //Helper methods
+    private String normalizeNetworkPath(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return path;
         }
-        return Paths.get(localLogPath);
+
+        // Remove any quotes, brackets or parentheses
+        path = path.replaceAll("[\"'()]", "");
+
+        // Fix UNC path format - must start with \\
+        if (path.startsWith("\\") && !path.startsWith("\\\\")) {
+            path = "\\" + path;
+        }
+
+        // Normalize excessive backslashes
+        if (path.matches("^\\\\\\\\+.*")) {
+            path = "\\\\" + path.replaceAll("^\\\\+", "");
+        }
+
+        return path;
     }
 
-    // Resolve network log directory
-    public Path getNetworkLogDirectory() {
-        return networkPath.resolve(networkLogsPath);
-    }
-
-    // Resolve target log path on network with username
-    public Path getNetworkLogPath(String username) {
-        String formattedLogFilename = String.format(logFileFormat, username);
-        return getNetworkLogDirectory().resolve(formattedLogFilename);
-    }
 }

@@ -43,7 +43,7 @@ public class SystemNotificationBackupService {
     private final Map<String, LocalDateTime> tempStopNotificationTimes = new ConcurrentHashMap<>();
 
     public SystemNotificationBackupService(@Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
-            PathConfig pathConfig, @Lazy SessionCommandService sessionCommandService, @Lazy SessionCommandFactory commandFactory) {
+                                           PathConfig pathConfig, @Lazy SessionCommandService sessionCommandService, @Lazy SessionCommandFactory commandFactory) {
         this.taskScheduler = taskScheduler;
         this.pathConfig = pathConfig;
         this.sessionCommandService = sessionCommandService;

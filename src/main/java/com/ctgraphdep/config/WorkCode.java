@@ -116,13 +116,13 @@ public class WorkCode {
             Maximum allowed temporary stop is 15 hours.""";
 
     public static final String SESSION_WARNING_MESSAGE = """
-            Your work session has reached 8 hours and 30 minutes.
+            Your work session has reached completion.
             
-            If you wish to work overtime, please press 'Continue'.
-            If you want to end your workday, you can press the 'Close' button.
+            If you wish to work overtime, please press 'Continue Working' button.
+            If you want to end your workday, you can press the 'End Session' button.
             
-            Note: If no button is pressed, your work session will automatically
-            close the session after 10 minutes.""";
+            Note: If no selection is made within 10 minutes, your session will
+            continue and display hourly Overtime notification""";
 
     public static final String HOURLY_WARNING_MESSAGE = """
             You have completed another hour of overtime work.
@@ -131,12 +131,15 @@ public class WorkCode {
             For your wellbeing, we recommend considering ending your workday.
             
             Note: If no selection is made within 5 minutes, your session will
-            automatically end for your protection.""";
+            continue and hourly Overtime notification will be displayed""";
 
     public static final String RESOLUTION_MESSAGE = """
             Your previous work session was not properly ended.
             
-            Please resolve it before starting a new day.""";
+            Please resolve it as soon as possible in order to have a accurate 
+            work program. Login and go to Work Session Card to resolve.
+            
+            Please resolve it and start a new day.""";
 
     public static final String TEST_MESSAGE_TRAY = "Session monitoring active. Click to open application.";
     public static final String SESSION_WARNING_TRAY = "Your work session has reached the scheduled time. Click to open app.";
