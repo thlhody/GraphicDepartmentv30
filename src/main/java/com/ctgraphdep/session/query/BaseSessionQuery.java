@@ -2,7 +2,6 @@ package com.ctgraphdep.session.query;
 
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
-import com.ctgraphdep.utils.CommandExecutorUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 
 /**
@@ -21,11 +20,12 @@ public abstract class BaseSessionQuery<T> implements SessionQuery<T> {
      * @return The query result
      */
     protected T executeWithErrorHandling(SessionContext context, QueryExecution<T> queryLogic) {
-        return CommandExecutorUtil.executeCommand(
-                this.getClass().getSimpleName(),
-                this.getClass(),
-                () -> queryLogic.execute(context)
-        );
+        try {
+            return queryLogic.execute(context);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error executing command: " + this.getClass().getSimpleName(), e);
+            throw e;
+        }
     }
 
     /**
@@ -38,12 +38,12 @@ public abstract class BaseSessionQuery<T> implements SessionQuery<T> {
      * @return The query result or default value on error
      */
     protected T executeWithDefault(SessionContext context, QueryExecution<T> queryLogic, T defaultValue) {
-        return CommandExecutorUtil.executeCommandWithDefault(
-                this.getClass().getSimpleName(),
-                this.getClass(),
-                () -> queryLogic.execute(context),
-                defaultValue
-        );
+        try {
+            return queryLogic.execute(context);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error executing command: " + this.getClass().getSimpleName(), e);
+            return defaultValue;
+        }
     }
 
     /**

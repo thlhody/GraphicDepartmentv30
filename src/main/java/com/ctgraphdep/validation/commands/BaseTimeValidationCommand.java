@@ -1,5 +1,7 @@
 package com.ctgraphdep.validation.commands;
 
+import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.query.BaseSessionQuery;
 import com.ctgraphdep.utils.CommandExecutorUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeProvider;
@@ -21,8 +23,7 @@ public abstract class BaseTimeValidationCommand<T> implements TimeValidationComm
      */
     protected BaseTimeValidationCommand(TimeProvider timeProvider) {
         if (timeProvider == null) {
-            LoggerUtil.logAndThrow(this.getClass(), "TimeProvider cannot be null",
-                    new IllegalArgumentException("TimeProvider cannot be null"));
+            LoggerUtil.logAndThrow(this.getClass(), "TimeProvider cannot be null", new IllegalArgumentException("TimeProvider cannot be null"));
         }
         this.timeProvider = timeProvider;
     }
@@ -33,22 +34,29 @@ public abstract class BaseTimeValidationCommand<T> implements TimeValidationComm
      * @param execution The execution logic
      * @return The execution result
      */
-    protected T executeValidation(Class<?> loggerClass, String commandName, CommandExecution<T> execution) {
-        return CommandExecutorUtil.executeCommand(commandName, loggerClass, execution::execute);
+    protected T executeValidation(CommandExecution<T> execution) {
+        try {
+            return execution.execute();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error in validation: " + e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
      * Template method for executing validation commands with default value on error.
      *
-     * @param loggerClass Class to use for logging
-     * @param commandName Name of the command for logging
      * @param execution The execution logic
      * @param defaultValue Default value to return on error
      * @return The execution result or default value on error
      */
-    protected T executeValidationWithDefault(Class<?> loggerClass, String commandName,
-                                             CommandExecution<T> execution, T defaultValue) {
-        return CommandExecutorUtil.executeCommandWithDefault(commandName, loggerClass, execution::execute, defaultValue);
+    protected T executeValidationWithDefault(CommandExecution<T> execution, T defaultValue) {
+        try {
+            return execution.execute();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error in validation: " + e.getMessage(), e);
+            return defaultValue;
+        }
     }
 
     /**

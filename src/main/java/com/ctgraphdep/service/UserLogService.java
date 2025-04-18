@@ -175,7 +175,7 @@ public class UserLogService {
     private String getLocalUsername() {
         try {
             // Read local users file using existing method
-            List<User> users = dataAccessService.readLocalUsers();
+            List<User> users = dataAccessService.readLocalUser();
 
             // If users exist, return the first user's username
             if (users != null && !users.isEmpty()) {

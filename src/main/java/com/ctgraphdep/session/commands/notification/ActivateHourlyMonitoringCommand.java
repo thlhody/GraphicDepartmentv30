@@ -29,9 +29,6 @@ public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boo
             // Use the service method instead of direct map manipulation
             ctx.getSessionMonitorService().activateHourlyMonitoring(username, timeValues.getCurrentTime());
 
-            // Cancel any backup tasks
-            ctx.getBackupService().cancelBackupTask(username);
-
             info(String.format("Successfully activated hourly monitoring for user %s", username));
 
             return true;

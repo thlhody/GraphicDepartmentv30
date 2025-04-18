@@ -62,7 +62,7 @@ public class UserWorkTimeService {
 
         // For admin/team leader viewing others, read directly from network
         if (pathConfig.isNetworkAvailable()) {
-            return dataAccess.readNetworkUserWorktime(username, year, month);
+            return dataAccess.readNetworkUserWorktimeReadOnly(username, year, month);
         }
         throw new RuntimeException("Network access required to view other users' worktime");
     }
@@ -73,7 +73,7 @@ public class UserWorkTimeService {
         Integer userId = getUserId(username);
 
         // Only read from network for admins/team leaders viewing others
-        List<WorkTimeTable> userEntries = dataAccess.readNetworkUserWorktime(username, year, month);
+        List<WorkTimeTable> userEntries = dataAccess.readNetworkUserWorktimeReadOnly(username, year, month);
         List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
 
         Map<LocalDate, WorkTimeTable> mergedMap = new HashMap<>();
@@ -260,8 +260,7 @@ public class UserWorkTimeService {
                                     WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType()) &&
                                     SyncStatusWorktime.ADMIN_EDITED.equals(entry.getAdminSync()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error checking national holiday for %s: %s", date, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error checking national holiday for %s: %s", date, e.getMessage()));
             return false;
         } finally {
             lock.readLock().unlock();

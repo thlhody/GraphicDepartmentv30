@@ -25,16 +25,35 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ConfigurationProperties(prefix = "dbj")
 public class PathConfig {
 
+    //App Title
+    @Value("${app.title:CTTT}")
+    private String appTitle;
+
     // Base paths
     @Value("${app.paths.network}")
     private String networkBasePath;
     @Value("${app.local}")
     private String localBasePath;
 
-    @Value("${app.title:CTTT}")
-    private String appTitle;
+    //Login/Users Path and Format
+    @Value("${dbj.login}")
+    private String loginPath;
+    @Value("${dbj.users.filename}")
+    private String usersFilename;
+    @Value("${dbj.users.local.filename}")
+    private String localUsersFilename;
+    @Value("${app.lock.users}")
+    private String usersLockFile;
 
-    //Status db paths
+    //Holiday Path and Format
+    @Value("${dbj.users.holiday}")
+    private String holidayFilename;
+    @Value("${app.cache.holiday}")
+    private String holidayCacheFile;
+    @Value("${app.lock.holiday}")
+    private String holidayLockFile;
+
+    //Status Path and Format
     @Value("${dbj.user.status}")
     private String userStatus;
     @Value("${dbj.dir.format.status}")
@@ -42,80 +61,78 @@ public class PathConfig {
     @Value("${dbj.dir.format.status.flag}")
     private String statusFlagFormat;
 
-    // Directory paths
-    @Value("${dbj.user.session}")
-    private String userSession;
-    @Value("${dbj.user.worktime}")
-    private String userWorktime;
-    @Value("${dbj.user.register}")
-    private String userRegister;
-    @Value("${dbj.user.timeoff}")
-    private String userTimeoff;
-
-    @Value("${dbj.user.check.register}")
-    private String checkRegister;
-    @Value("${dbj.admin.check.register}")
-    private String leadCheckRegister;
-
-    @Value("${dbj.admin.worktime}")
-    private String adminWorktime;
-    @Value("${dbj.admin.register}")
-    private String adminRegister;
-    @Value("${dbj.admin.bonus}")
-    private String adminBonus;
-    @Value("${dbj.login}")
-    private String loginPath;
+    //Notification Path and Format
     @Value("${dbj.notification}")
     private String notificationPath;
+    @Value("${app.lock.notification}")
+    private String notificationLockFile;
+    @Value("${app.local.notification.count}")
+    private String notificationLockCountFile;
 
-    // File formats - user
+    //Session Path and Format
+    @Value("${dbj.user.session}")
+    private String userSession;
     @Value("${dbj.dir.format.session}")
     private String sessionFormat;
+
+    //User Worktime Path and Format
+    @Value("${dbj.user.worktime}")
+    private String userWorktime;
     @Value("${dbj.dir.format.worktime}")
     private String worktimeFormat;
-    @Value("${dbj.dir.format.register}")
-    private String registerFormat;
+
+    //User Time Off Tracker Path and Format
+    @Value("${dbj.user.timeoff}")
+    private String userTimeoff;
     @Value("${dbj.dir.format.timeoff}")
     private String timeoffFormat;
 
-    // File formats - admin
-    @Value("${dbj.dir.format.admin.worktime}")
-    private String adminWorktimeFormat;
-    @Value("${dbj.dir.format.admin.register}")
-    private String adminRegisterFormat;
-    @Value("${dbj.dir.format.admin.bonus}")
-    private String adminBonusFormat;
+    //User Register Path and Format
+    @Value("${dbj.user.register}")
+    private String userRegister;
+    @Value("${dbj.dir.format.register}")
+    private String registerFormat;
 
-    // File formats - check -admin/lead/user
+    //User Check Register Path and Format
+    @Value("${dbj.user.check.register}")
+    private String checkRegister;
     @Value("${dbj.dir.format.check.register}")
     private String checkRegisterFormat;
-    @Value("${dbj.dir.format.admin.check.register}")
-    private String leadCheckRegisterFormat;
+
+    //Team Lead Check Register Path and Format
+    @Value("${dbj.admin.check.register}")
+    private String leadCheckRegister;
     @Value("${dbj.dir.format.lead.check.bonus}")
     private String leadCheckBonusFormat;
+
+
+    //Admin Register Path and Format
+    @Value("${dbj.admin.register}")
+    private String adminRegister;
+    @Value("${dbj.dir.format.admin.register}")
+    private String adminRegisterFormat;
+    @Value("${dbj.dir.format.admin.check.register}")
+    private String leadCheckRegisterFormat;
+
+    //Admin Bonus Path and Format
+    @Value("${dbj.admin.bonus}")
+    private String adminBonus;
+    @Value("${dbj.dir.format.admin.bonus}")
+    private String adminBonusFormat;
     @Value("${dbj.dir.format.admin.check.bonus}")
     private String adminCheckBonusFormat;
 
-    // File names
-    @Value("${dbj.users.filename}")
-    private String usersFilename;
-    @Value("${dbj.users.local.filename}")
-    private String localUsersFilename;
+    //Admin Worktime Path and Format
+    @Value("${dbj.dir.format.admin.worktime}")
+    private String adminWorktimeFormat;
+    @Value("${dbj.admin.worktime}")
+    private String adminWorktime;
+
+    //Team Lead Statistics Format
     @Value("${dbj.dir.format.team}")
     private String teamFileFormat;
-    @Value("${dbj.users.holiday}")
-    private String holidayFilename;
 
-    @Value("${app.cache.holiday}")
-    private String holidayCacheFile;
-    @Value("${app.lock.holiday}")
-    private String holidayLockFile;
-    @Value("${app.lock.users}")
-    private String usersLockFile;
-    @Value("${app.lock.notification}")
-    private String notificationLockFile;
-
-    //Log File Name / File Path
+    //Logging Path and Format
     @Value("${logging.file.name}")
     private String localLogPath;
     @Value("${app.logs.network}")
@@ -203,7 +220,7 @@ public class PathConfig {
         return networkPath.resolve(loginPath).resolve(holidayFilename);
     }
     public Path getHolidayCachePath() {
-        return networkPath.resolve(loginPath).resolve(holidayCacheFile);
+        return localPath.resolve(loginPath).resolve(holidayCacheFile);
     }
     public Path getHolidayLockPath() {
         return networkPath.resolve(loginPath).resolve(holidayLockFile);
@@ -231,6 +248,9 @@ public class PathConfig {
     }
     public Path getNotificationTrackingFilePath(String username, String notificationType) {
         return localPath.resolve(notificationPath).resolve(String.format(notificationLockFile, username, notificationType.toLowerCase()));
+    }
+    public Path getNotificationCountFilePath(String username, String notificationType) {
+        return localPath.resolve(notificationPath).resolve(String.format(notificationLockCountFile, username, notificationType.toLowerCase()));
     }
     public Path getLocalStatusCachePath() {
         return localPath.resolve(userStatus).resolve(localStatusFileFormat);

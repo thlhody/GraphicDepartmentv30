@@ -1,6 +1,7 @@
 package com.ctgraphdep.session;
 
 import com.ctgraphdep.utils.CommandExecutorUtil;
+import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,11 +26,7 @@ public class SessionCommandService {
      */
     @Transactional
     public <T> T executeCommand(SessionCommand<T> command) {
-        return CommandExecutorUtil.executeCommand(
-                command.getClass().getSimpleName(),
-                this.getClass(),
-                () -> command.execute(context)
-        );
+        return CommandExecutorUtil.executeCommand(command.getClass().getSimpleName(), this.getClass(), () -> command.execute(context));
     }
 
     /**

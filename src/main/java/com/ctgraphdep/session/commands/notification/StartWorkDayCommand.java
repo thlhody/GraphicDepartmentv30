@@ -24,9 +24,6 @@ public class StartWorkDayCommand extends BaseNotificationCommand<Boolean> {
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Starting work day from notification for user %s", username));
 
-            // Cancel any pending notification backup tasks
-            ctx.getBackupService().cancelBackupTask(username);
-
             // Use the core StartDayCommand to perform the actual day start
             StartDayCommand startDayCommand = ctx.getCommandFactory().createStartDayCommand(username, userId);
             ctx.executeCommand(startDayCommand);

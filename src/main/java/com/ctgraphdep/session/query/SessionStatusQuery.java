@@ -34,10 +34,8 @@ public class SessionStatusQuery extends BaseUserSessionQuery<SessionStatusQuery.
             WorkUsersSessionsStates session = ctx.executeQuery(sessionQuery);
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory()
-                    .createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
             LocalDate today = timeValues.getCurrentDate();
 
             // Check for unresolved worktime entries
@@ -55,14 +53,10 @@ public class SessionStatusQuery extends BaseUserSessionQuery<SessionStatusQuery.
             ));
 
             // Construct comprehensive session status
-            return new SessionStatus(
-                    session,
-                    session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()),
+            return new SessionStatus(session, session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()),
                     session != null && WorkCode.WORK_ONLINE.equals(session.getSessionStatus()),
-                    session != null && session.getDayStartTime() != null &&
-                            session.getDayStartTime().toLocalDate().equals(today) &&
-                            WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
-                            Boolean.TRUE.equals(session.getWorkdayCompleted()),
+                    session != null && session.getDayStartTime() != null && session.getDayStartTime().toLocalDate().equals(today) &&
+                            WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && Boolean.TRUE.equals(session.getWorkdayCompleted()),
                     !unresolvedEntries.isEmpty()
             );
         }, new SessionStatus(null, false, false, false, false));

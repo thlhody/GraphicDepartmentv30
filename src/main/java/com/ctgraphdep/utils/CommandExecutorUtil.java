@@ -25,7 +25,7 @@ public final class CommandExecutorUtil {
         try {
             LoggerUtil.debug(loggerClass, "Executing command: " + commandName);
             T result = execution.get();
-            LoggerUtil.debug(loggerClass, "Command executed successfully: " + commandName);
+            LoggerUtil.debug(loggerClass, "Command executed successfully A: " + commandName);
             return result;
         } catch (Exception e) {
             LoggerUtil.error(loggerClass, "Error executing command " + commandName + ": " + e.getMessage(), e);
@@ -43,12 +43,11 @@ public final class CommandExecutorUtil {
      * @param <T> Type of result
      * @return Command execution result or default value on error
      */
-    public static <T> T executeCommandWithDefault(String commandName, Class<?> loggerClass,
-                                                  Supplier<T> execution, T defaultValue) {
+    public static <T> T executeCommandWithDefault(String commandName, Class<?> loggerClass, Supplier<T> execution, T defaultValue) {
         try {
             LoggerUtil.debug(loggerClass, "Executing command: " + commandName);
             T result = execution.get();
-            LoggerUtil.debug(loggerClass, "Command executed successfully: " + commandName);
+            LoggerUtil.debug(loggerClass, "Command executed successfully B: " + commandName);
             return result;
         } catch (Exception e) {
             LoggerUtil.error(loggerClass, "Error executing command " + commandName + ": " + e.getMessage(), e);

@@ -50,8 +50,7 @@ public class ValidatePeriodCommand implements TimeValidationCommand<Void> {
             YearMonth maxAllowed = current.plusMonths(maxMonthsAhead);
 
             if (requested.isAfter(maxAllowed)) {
-                throw new IllegalArgumentException(
-                        String.format("Cannot view future periods beyond %d months", maxMonthsAhead));
+                throw new IllegalArgumentException(String.format("Cannot view future periods beyond %d months", maxMonthsAhead));
             }
 
             return null;

@@ -40,7 +40,7 @@ public class HolidayHistoryService {
 
     // Load time off entries for a specific month
     private List<WorkTimeTable> loadMonthlyTimeoffs(String username, YearMonth yearMonth) {
-        List<WorkTimeTable> monthEntries = dataAccess.readNetworkUserWorktime(
+        List<WorkTimeTable> monthEntries = dataAccess.readNetworkUserWorktimeReadOnly(
                 username,
                 yearMonth.getYear(),
                 yearMonth.getMonthValue()

@@ -46,7 +46,7 @@ public class StatusConfig {
                             WorkCode.WORK_OFFLINE,
                             LocalDateTime.now()
                     );
-                    LoggerUtil.debug(this.getClass(), String.format("Initialized status for user: %s", user.getUsername()));
+                    //LoggerUtil.debug(this.getClass(), String.format("Initialized status for user: %s", user.getUsername()));
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), String.format("Error initializing status for user %s: %s", user.getUsername(), e.getMessage()));
                 }

@@ -53,7 +53,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         try {
             // Read from local local_users.json
-            List<User> localUsers = dataAccess.readLocalUsers();
+            List<User> localUsers = dataAccess.readLocalUser();
 
             if (localUsers != null && !localUsers.isEmpty()) {
                 return localUsers.stream()

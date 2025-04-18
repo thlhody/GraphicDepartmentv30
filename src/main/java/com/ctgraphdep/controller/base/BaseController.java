@@ -170,9 +170,7 @@ public abstract class BaseController {
         boolean hasAccess = Arrays.stream(requiredRoles).anyMatch(currentUser::hasRole);
 
         if (!hasAccess) {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("User %s denied access. Required roles: %s, User role: %s", currentUser.getUsername(), Arrays.toString(requiredRoles), currentUser.getRole())
-            );
+            LoggerUtil.warn(this.getClass(), String.format("User %s denied access. Required roles: %s, User role: %s", currentUser.getUsername(), Arrays.toString(requiredRoles), currentUser.getRole()));
             return null;
         }
 

@@ -1,13 +1,10 @@
 package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.ui.DialogComponents;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
 import com.ctgraphdep.session.query.SessionStatusQuery;
 import com.ctgraphdep.session.query.WorktimeResolutionQuery;
-
-import java.awt.*;
 
 /**
  * Command to show start day reminder
@@ -34,8 +31,7 @@ public class ShowStartDayReminderCommand extends BaseNotificationCommand<Boolean
             CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
                     username,
                     WorkCode.START_DAY_TYPE,
-                    WorkCode.ONCE_PER_DAY_TIMER,
-                    ctx.getNotificationService().getLastNotificationTimes()
+                    WorkCode.ONCE_PER_DAY_TIMER
             );
 
             if (!ctx.executeQuery(canShowQuery)) {
@@ -52,7 +48,7 @@ public class ShowStartDayReminderCommand extends BaseNotificationCommand<Boolean
                 info(String.format("User %s has unresolved worktime entries - showing resolution notification", username));
 
                 // Show resolution notification
-                return ctx.getNotificationService().showResolutionReminder(
+                boolean success = ctx.getNotificationService().showResolutionReminder(
                         username,
                         userId,
                         WorkCode.RESOLUTION_TITLE,
@@ -60,6 +56,12 @@ public class ShowStartDayReminderCommand extends BaseNotificationCommand<Boolean
                         WorkCode.RESOLUTION_MESSAGE_TRAY,
                         WorkCode.ON_FOR_TWELVE_HOURS
                 );
+
+                if (success) {
+                    recordNotificationDisplay(ctx, WorkCode.RESOLUTION_REMINDER_TYPE);
+                }
+
+                return success;
             }
 
             // Check session status
@@ -75,20 +77,13 @@ public class ShowStartDayReminderCommand extends BaseNotificationCommand<Boolean
             // Show regular start day notification
             info(String.format("User %s has offline session with no unresolved entries - showing start day reminder", username));
 
-            return ctx.getNotificationService().showNotificationWithFallback(
-                    username,
-                    userId,
-                    WorkCode.START_DAY_TITLE,
-                    WorkCode.START_DAY_MESSAGE,
-                    WorkCode.START_DAY_MESSAGE_TRAY,
-                    WorkCode.ON_FOR_TWELVE_HOURS,
-                    false,
-                    false,
-                    null,
-                    (DialogComponents components, String u, Integer id, Integer minutes) ->
-                            ctx.getNotificationService().addStartDayButtons(components, u, id),
-                    TrayIcon.MessageType.INFO
-            );
+            boolean success = ctx.getNotificationService().showStartDayReminder(username, userId);
+
+            if (success) {
+                recordNotificationDisplay(ctx, WorkCode.START_DAY_TYPE);
+            }
+
+            return success;
         });
     }
 }

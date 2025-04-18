@@ -199,9 +199,9 @@ public class UserServiceImpl implements UserService {
             }
 
             // Log sanitization results
-            LoggerUtil.debug(this.getClass(), String.format("Found user by username '%s': Yes", user.getUsername()));
-            LoggerUtil.debug(this.getClass(), String.format("User details - ID: %d, Name: %s", user.getUserId(), user.getName()));
-            LoggerUtil.debug(this.getClass(), String.format("Sanitized user details - ID: %d, Name: %s", sanitized.getUserId(), sanitized.getName()));
+//            LoggerUtil.debug(this.getClass(), String.format("Found user by username '%s': Yes", user.getUsername()));
+//            LoggerUtil.debug(this.getClass(), String.format("User details - ID: %d, Name: %s", user.getUserId(), user.getName()));
+//            LoggerUtil.debug(this.getClass(), String.format("Sanitized user details - ID: %d, Name: %s", sanitized.getUserId(), sanitized.getName()));
 
             return sanitized;
         } catch (Exception e) {

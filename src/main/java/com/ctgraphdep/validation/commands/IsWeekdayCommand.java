@@ -36,12 +36,12 @@ public class IsWeekdayCommand extends BaseTimeValidationCommand<Boolean> {
     @Override
     public Boolean execute() {
         return executeValidationWithDefault(
-                this.getClass(),
-                "IsWeekdayCommand",
                 () -> {
                     LocalDate currentDate = timeProvider.getCurrentDate();
                     DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
-                    return !(dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY);
+                    boolean isWeekday = !(dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY);
+                    debug("Current day is " + (isWeekday ? "a weekday" : "a weekend"));
+                    return isWeekday;
                 },
                 defaultOnError
         );

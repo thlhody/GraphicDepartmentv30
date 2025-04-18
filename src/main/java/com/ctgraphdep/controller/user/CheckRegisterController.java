@@ -44,12 +44,8 @@ public class CheckRegisterController extends BaseController {
     private final CheckRegisterExcelExporter checkRegisterExcelExporter;
     private final WorkScheduleService workScheduleService;
 
-    public CheckRegisterController(UserService userService,
-                                   FolderStatus folderStatus,
-                                   CheckRegisterService checkRegisterService,
-                                   TimeValidationService timeValidationService,
-                                   CheckRegisterExcelExporter checkRegisterExcelExporter,
-                                   WorkScheduleService workScheduleService) {
+    public CheckRegisterController(UserService userService, FolderStatus folderStatus, CheckRegisterService checkRegisterService,
+                                   TimeValidationService timeValidationService, CheckRegisterExcelExporter checkRegisterExcelExporter, WorkScheduleService workScheduleService) {
         super(userService, folderStatus, timeValidationService);
         this.checkRegisterService = checkRegisterService;
         this.checkRegisterExcelExporter = checkRegisterExcelExporter;
@@ -97,12 +93,7 @@ public class CheckRegisterController extends BaseController {
             model.addAttribute("userDisplayName", currentUser.getName() != null ? currentUser.getName() : currentUser.getUsername());
 
             // Load entries
-            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(
-                    currentUser.getUsername(),
-                    currentUser.getUserId(),
-                    selectedYear,
-                    selectedMonth
-            );
+            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
             model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
 
             return "user/check-register";
@@ -363,8 +354,7 @@ public class CheckRegisterController extends BaseController {
                     month);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"check_register_%d_%02d.xlsx\"", year, month))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%d_%02d.xlsx\"", year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
         } catch (Exception e) {

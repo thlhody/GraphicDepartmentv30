@@ -51,9 +51,7 @@ public class StatusService {
                     .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading view-only worktime for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading view-only worktime for user %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -72,7 +70,8 @@ public class StatusService {
             WorkTimeSummary summary = calculateMonthSummary(
                     displayableEntries,
                     year,
-                    month
+                    month,
+                    user
             );
 
             // Convert to DTOs
@@ -94,9 +93,7 @@ public class StatusService {
             return displayData;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error preparing worktime display data for user %s: %s",
-                            user.getUsername(), e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error preparing worktime display data for user %s: %s", user.getUsername(), e.getMessage()));
             throw new RuntimeException("Failed to prepare worktime display data", e);
         }
     }
@@ -335,16 +332,13 @@ public class StatusService {
         YearMonth current = start;
         while (!current.isAfter(end)) {
             try {
-                List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                        user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+                List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
 
                 if (monthEntries != null) {
                     allEntries.addAll(monthEntries);
                 }
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Error loading entries for %s - %d/%d: %s",
-                                user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
+                LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
             }
 
             current = current.plusMonths(1);
@@ -416,27 +410,36 @@ public class StatusService {
         return displayEntry;
     }
 
-    private WorkTimeSummary calculateMonthSummary(
-            List<WorkTimeTable> worktimeData,
-            int year,
-            int month) {
+    private WorkTimeSummary calculateMonthSummary(List<WorkTimeTable> worktimeData, int year, int month, User user) {
 
         try {
             int totalWorkDays = calculateWorkDays(year, month);
             WorkTimeCountsDTO counts = calculateWorkTimeCounts(worktimeData);
+            int availablePaidDays = 0; // Default fallback value
+            try {
+                TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(user.getUsername(), user.getUserId(), year);
+                if (tracker != null) {
+                    // Get available days from tracker
+                    availablePaidDays = tracker.getAvailableHolidayDays();
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format("Could not read time off tracker for user %s: %s", user.getUsername(), e.getMessage()));
+                // Keep using the default value
+            }
+
 
             return WorkTimeSummary.builder()
                     .totalWorkDays(totalWorkDays)
                     .daysWorked(counts.getDaysWorked())
                     .remainingWorkDays(totalWorkDays - (counts.getDaysWorked() + counts.getSnDays() + counts.getCoDays() + counts.getCmDays()))
                     .snDays(counts.getSnDays())
-                    .coDays(counts.getCoDays())
+                    .coDays(getTimeOffSummaryFromTracker(user.getUsername(), user.getUserId(), year).getCoDays())
                     .cmDays(counts.getCmDays())
                     .totalRegularMinutes(counts.getRegularMinutes())
                     .totalOvertimeMinutes(counts.getOvertimeMinutes())
                     .totalMinutes(counts.getRegularMinutes() + counts.getOvertimeMinutes())
                     .discardedMinutes(counts.getDiscardedMinutes()) // Now including discarded minutes
-                    .availablePaidDays(21) // Default value to avoid file reads
+                    .availablePaidDays(availablePaidDays) // Default value to avoid file reads
                     .build();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error calculating month summary", e);
@@ -480,8 +483,7 @@ public class StatusService {
 
                 // Calculate discarded minutes - partial hour not counted in processed minutes
                 // Get adjusted minutes (after lunch deduction)
-                int adjustedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(
-                        entry.getTotalWorkedMinutes(), userSchedule);
+                int adjustedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(entry.getTotalWorkedMinutes(), userSchedule);
 
                 // Discarded minutes are the remainder after dividing by 60 (partial hour)
                 int discardedMinutes = adjustedMinutes % 60;
@@ -590,17 +592,13 @@ public class StatusService {
      */
     public TimeOffSummaryDTO getTimeOffSummaryFromTracker(String username, Integer userId, int year) {
         try {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Calculating time off summary from tracker for user %s for year %d",
-                            username, year));
+            LoggerUtil.info(this.getClass(), String.format("Calculating time off summary from tracker for user %s for year %d", username, year));
 
             // Read tracker directly in read-only mode
             TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
 
             if (tracker != null) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Successfully retrieved time off tracker for %s with %d requests",
-                                username, tracker.getRequests().size()));
+                LoggerUtil.info(this.getClass(), String.format("Successfully retrieved time off tracker for %s with %d requests", username, tracker.getRequests().size()));
 
                 // Count by type from approved requests
                 int snDays = 0, coDays = 0, cmDays = 0;
@@ -617,6 +615,7 @@ public class StatusService {
                     }
                 }
 
+                // Use values from tracker if they're set
                 int availablePaidDays = tracker.getAvailableHolidayDays();
                 int usedPaidDays = tracker.getUsedHolidayDays();
 
@@ -630,32 +629,28 @@ public class StatusService {
                         .build();
             } else {
                 // If no tracker found, return default summary
-                LoggerUtil.info(this.getClass(),
-                        String.format("No time off tracker found for user %s for year %d, returning default summary",
-                                username, year));
+                LoggerUtil.info(this.getClass(), String.format("No time off tracker found for user %s for year %d, returning default summary", username, year));
 
                 return TimeOffSummaryDTO.builder()
                         .snDays(0)
                         .coDays(0)
                         .cmDays(0)
-                        .availablePaidDays(21) // Default value
+                        .availablePaidDays(0) // Default value
                         .paidDaysTaken(0)
-                        .remainingPaidDays(21) // Default value
+                        .remainingPaidDays(0) // Default value
                         .build();
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error calculating time off summary from tracker for %s (%d): %s",
-                            username, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error calculating time off summary from tracker for %s (%d): %s", username, year, e.getMessage()));
 
             // Return default summary on error
             return TimeOffSummaryDTO.builder()
                     .snDays(0)
                     .coDays(0)
                     .cmDays(0)
-                    .availablePaidDays(21) // Default value
+                    .availablePaidDays(0)
                     .paidDaysTaken(0)
-                    .remainingPaidDays(21) // Default value
+                    .remainingPaidDays(0)
                     .build();
         }
     }

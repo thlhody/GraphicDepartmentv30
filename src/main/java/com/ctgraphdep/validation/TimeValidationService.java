@@ -24,13 +24,14 @@ public class TimeValidationService {
      * @return The command result
      */
     public <T> T execute(TimeValidationCommand<T> command) {
+        String commandName = command.getClass().getSimpleName();
         try {
-            LoggerUtil.debug(this.getClass(), "Executing time validation command: " + command.getClass().getSimpleName());
-            return command.execute();
+            LoggerUtil.debug(this.getClass(), "Executing time validation command: " + commandName);
+            T result = command.execute();
+            LoggerUtil.debug(this.getClass(), "Command executed successfully: " + commandName);
+            return result;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error executing time validation command " + command.getClass().getSimpleName() + ": " + e.getMessage(),
-                    e);
+            LoggerUtil.error(this.getClass(), "Error executing time validation command " + commandName + ": " + e.getMessage(), e);
             throw e;
         }
     }

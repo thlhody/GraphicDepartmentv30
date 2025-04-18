@@ -6,6 +6,7 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.service.AdminPaidHolidayService;
 import com.ctgraphdep.model.FolderStatus;
+import com.ctgraphdep.service.TimeOffTrackerService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.UserTimeOffService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -34,6 +35,7 @@ public class UserTimeOffController extends BaseController {
     private final UserTimeOffService timeOffService;
     private final AdminPaidHolidayService holidayService;
     private final TimeOffRequestValidator timeOffValidator;
+    private final TimeOffTrackerService timeOffTrackerService;
 
     public UserTimeOffController(
             UserService userService,
@@ -41,17 +43,16 @@ public class UserTimeOffController extends BaseController {
             UserTimeOffService timeOffService,
             AdminPaidHolidayService holidayService,
             TimeValidationService timeValidationService,
-            TimeOffRequestValidator timeOffValidator) {
+            TimeOffRequestValidator timeOffValidator, TimeOffTrackerService timeOffTrackerService) {
         super(userService, folderStatus, timeValidationService);
         this.timeOffService = timeOffService;
         this.holidayService = holidayService;
         this.timeOffValidator = timeOffValidator;
+        this.timeOffTrackerService = timeOffTrackerService;
     }
 
     @GetMapping
-    public String showTimeOffPage(
-            @AuthenticationPrincipal UserDetails userDetails,
-            Model model) {
+    public String showTimeOffPage(@AuthenticationPrincipal UserDetails userDetails, Model model) {
         try {
             LoggerUtil.info(this.getClass(), "Accessing time off page at " + getStandardCurrentDateTime());
 
@@ -60,7 +61,8 @@ public class UserTimeOffController extends BaseController {
             if (currentUser == null) {
                 return "redirect:/login";
             }
-
+            // Ensure tracker exists and is up to date
+            timeOffTrackerService.ensureTrackerExists(currentUser, currentUser.getUserId(), getStandardCurrentDate().getYear());
             // Trigger a sync of the time off tracker to ensure it's up to date
             // This ensures the user sees the most accurate data including future months
             timeOffService.syncTimeOffTracker(currentUser, getStandardCurrentDate().getYear());
@@ -138,8 +140,7 @@ public class UserTimeOffController extends BaseController {
     }
 
     @GetMapping("/upcoming")
-    public ResponseEntity<List<WorkTimeTable>> getUpcomingTimeOff(
-            @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<List<WorkTimeTable>> getUpcomingTimeOff(@AuthenticationPrincipal UserDetails userDetails) {
         try {
             LoggerUtil.info(this.getClass(), "Fetching upcoming time off at " + getStandardCurrentDateTime());
 
@@ -164,16 +165,12 @@ public class UserTimeOffController extends BaseController {
      * Create a success message for the time off request
      */
     private String createSuccessMessage(String timeOffType, LocalDate startDate, LocalDate endDate, int daysCount) {
-        String dateInfo = startDate.equals(endDate) ?
-                startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) :
-                String.format("%s to %s",
-                        startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
-                        endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        String dateInfo = startDate.equals(endDate) ? startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) :
+                String.format("%s to %s", startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
 
         String typeLabel = "CO".equals(timeOffType) ? "vacation" : "medical leave";
 
-        return String.format("Successfully requested %s for %s (%d working day%s)",
-                typeLabel, dateInfo, daysCount, daysCount > 1 ? "s" : "");
+        return String.format("Successfully requested %s for %s (%d working day%s)", typeLabel, dateInfo, daysCount, daysCount > 1 ? "s" : "");
     }
 
     /**
@@ -184,12 +181,11 @@ public class UserTimeOffController extends BaseController {
         LocalDate currentDate = getStandardCurrentDate();
         LocalDate twoMonthsAgo = currentDate.minusMonths(2).withDayOfMonth(1);
         LocalDate maxDate = currentDate.plusMonths(6);
-
-        // Get available paid days
-        int availablePaidDays = holidayService.getRemainingHolidayDays(user.getUserId());
-
         // Get current year for time off summary
         int currentYear = currentDate.getYear();
+
+        // Get available paid days
+        int availablePaidDays = timeOffTrackerService.loadTimeOffTracker(user.getUsername(),user.getUserId(),currentYear).getAvailableHolidayDays();
 
         // Get time off summary for the current year (using read-only method for better performance)
         // This now uses the tracker service which shows time-off across all months

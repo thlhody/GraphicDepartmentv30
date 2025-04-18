@@ -49,10 +49,8 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             info(String.format("Executing EndDayCommand for user %s with %d minutes", username, finalMinutes));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Get and validate session
             WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
@@ -65,7 +63,6 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
 
             // Use explicit end time if provided, otherwise use standardized current time
             LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
-
             info(String.format("Using end time: %s for user %s", endTime, username));
 
             // Process end session operation using calculation command
@@ -83,7 +80,6 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
 
             // Clean up monitoring
             ctx.getSessionMonitorService().stopMonitoring(username);
-
             info(String.format("Successfully ended session for user %s with %d minutes", username, finalMinutes));
 
             return session;
@@ -100,8 +96,7 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
         // Use the context method which delegates to the calculation command
         WorkUsersSessionsStates updatedSession = context.calculateEndDayValues(session, endTime, finalMinutes);
 
-        debug(String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d",
-                currentWorkedMinutes, finalMinutes, currentOvertimeMinutes));
+        debug(String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d", currentWorkedMinutes, finalMinutes, currentOvertimeMinutes));
 
         return updatedSession;
     }
@@ -125,8 +120,7 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
 
             // Create worktime entry using the command
-            CreateWorktimeEntryCommand createCommand = context.getCommandFactory()
-                    .createWorktimeEntryCommand(username, session, username);
+            CreateWorktimeEntryCommand createCommand = context.getCommandFactory().createWorktimeEntryCommand(username, session, username);
 
             // Execute the command to get a properly created worktime entry
             WorkTimeTable entry = context.executeCommand(createCommand);
@@ -145,26 +139,11 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             }
 
             // Save the worktime entry
-            context.getWorkTimeService().saveWorkTimeEntry(
-                    username,
-                    entry,
-                    workDate.getYear(),
-                    workDate.getMonthValue(),
-                    username
-            );
+            context.getWorkTimeService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
 
-            info(String.format(
-                    "Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
-                    username,
-                    entry.getTotalWorkedMinutes(),
-                    entry.getTotalOvertimeMinutes()
-            ));
+            info(String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d", username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
         } catch (Exception e) {
-            error(String.format(
-                    "Failed to update worktime entry for user %s: %s",
-                    username,
-                    e.getMessage()
-            ), e);
+            error(String.format("Failed to update worktime entry for user %s: %s", username, e.getMessage()), e);
         }
     }
 }

@@ -3,8 +3,6 @@ package com.ctgraphdep.session.commands.notification;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.session.SessionContext;
 
-import java.awt.*;
-
 /**
  * Command to show schedule completion notification
  */
@@ -30,30 +28,26 @@ public class ShowSessionWarningCommand extends BaseNotificationCommand<Boolean> 
 
             // Check if notification can be shown (rate limiting logic)
             if (!ctx.getNotificationService().canShowNotification(username, WorkCode.SCHEDULE_END_TYPE, 24 * 60)) {
+                info(String.format("Skipping schedule completion notification for user %s due to rate limiting", username));
                 return false;
             }
 
-            // Register backup notification
-            ctx.getBackupService().registerScheduleEndNotification(username, userId);
-
-            // Record the notification display
-            recordNotificationDisplay(ctx, WorkCode.SCHEDULE_END_TYPE);
-
-            // Show notification with fallback
-            boolean result = ctx.getNotificationService().showNotificationWithFallback(
-                    username, userId,
-                    WorkCode.END_SCHEDULE_TITLE,
-                    WorkCode.SESSION_WARNING_MESSAGE,
-                    WorkCode.SESSION_WARNING_TRAY,
-                    WorkCode.ON_FOR_TEN_MINUTES,
-                    false, false, finalMinutes,
-                    (components, u, id, minutes) -> ctx.getNotificationService()
-                            .addStandardButtons(components, u, id, minutes, false),
-                    TrayIcon.MessageType.INFO
+            // Show schedule end notification using the notification service
+            boolean success = ctx.getNotificationService().showScheduleEndNotification(
+                    username,
+                    userId,
+                    finalMinutes
             );
 
-            info("Schedule completion dialog display result: " + result);
-            return result;
+            if (success) {
+                // Record notification display
+                recordNotificationDisplay(ctx, WorkCode.SCHEDULE_END_TYPE);
+                info("Successfully showed schedule completion notification for user: " + username);
+            } else {
+                warn("Failed to show schedule completion notification for user: " + username);
+            }
+
+            return success;
         });
     }
 }

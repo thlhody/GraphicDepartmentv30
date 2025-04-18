@@ -38,6 +38,11 @@
         <appender-ref ref="Console" />
     </logger>
 
+    <logger name="com.ctgraphdep.utils" level="debug" additivity="false">
+        <appender-ref ref="RollingFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
     <!-- Specific loggers -->
     <logger name="UserActions" level="info" additivity="false">
         <appender-ref ref="RollingFile" />

@@ -35,15 +35,18 @@ public class IsWorkingHoursCommand extends BaseTimeValidationCommand<Boolean> {
 
     @Override
     public Boolean execute() {
-        return executeValidationWithDefault(
-                this.getClass(),
-                "IsWorkingHoursCommand",
-                () -> {
-                    LocalDateTime currentTime = timeProvider.getCurrentDateTime();
-                    int hour = currentTime.getHour();
-                    return hour >= WorkCode.WORK_START_HOUR && hour < WorkCode.WORK_END_HOUR;
-                },
-                defaultOnError
-        );
+        try {
+            LocalDateTime currentTime = timeProvider.getCurrentDateTime();
+            int hour = currentTime.getHour();
+            boolean isWorkingHours = hour >= WorkCode.WORK_START_HOUR && hour < WorkCode.WORK_END_HOUR;
+
+            // Only log the business outcome, not the execution flow
+            debug("Current time " + currentTime + " is " + (isWorkingHours ? "within" : "outside") + " working hours");
+
+            return isWorkingHours;
+        } catch (Exception e) {
+            error("Error checking working hours", e);
+            return defaultOnError;
+        }
     }
 }

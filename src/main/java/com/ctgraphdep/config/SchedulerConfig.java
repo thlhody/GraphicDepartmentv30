@@ -26,14 +26,9 @@ public class SchedulerConfig {
         scheduler.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 
         // Detailed error tracking
-        scheduler.setErrorHandler(throwable -> {
-            LoggerUtil.error(this.getClass(),
-                    "Scheduler task execution error", throwable);
-        });
-
+        scheduler.setErrorHandler(throwable -> {LoggerUtil.error(this.getClass(), "Scheduler task execution error", throwable);});
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
         scheduler.setAwaitTerminationSeconds(5);
-
         scheduler.initialize();
         return scheduler;
     }
@@ -48,11 +43,7 @@ public class SchedulerConfig {
 
         // Similar error handling
         scheduler.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        scheduler.setErrorHandler(throwable -> {
-            LoggerUtil.error(this.getClass(),
-                    "Stalled notification task execution error", throwable);
-        });
-
+        scheduler.setErrorHandler(throwable -> {LoggerUtil.error(this.getClass(), "Stalled notification task execution error", throwable);});
         scheduler.initialize();
         return scheduler;
     }

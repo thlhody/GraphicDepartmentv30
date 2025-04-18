@@ -44,7 +44,7 @@ public class AuthenticationService {
             boolean networkAvailable = pathConfig.isNetworkAvailable();
 
             // Use DataAccessService for checking local files
-            List<User> localUsers = dataAccess.readLocalUsers();
+            List<User> localUsers = dataAccess.readLocalUser();
             boolean offlineModeAvailable = localUsers != null && !localUsers.isEmpty();
 
             String status = networkAvailable ? "ONLINE" : offlineModeAvailable ? "OFFLINE" : "UNAVAILABLE";
@@ -110,7 +110,7 @@ public class AuthenticationService {
 
     private Optional<User> getUserFromLocalStorage(String username) {
         try {
-            List<User> localUsers = dataAccess.readLocalUsers();
+            List<User> localUsers = dataAccess.readLocalUser();
             if (localUsers != null) {
                 return localUsers.stream().filter(u -> u.getUsername().equals(username)).findFirst();
             }
@@ -150,18 +150,17 @@ public class AuthenticationService {
 
     private void storeUserDataLocally(User user) {
         try {
-            // Get the full, user data
+            // Get the full user data
             Optional<User> fullUserData = userService.getCompleteUserByUsername(user.getUsername());
 
             if (fullUserData.isPresent()) {
-                // Store the complete user object including password
-                dataAccess.writeLocalUsers(fullUserData.get());
+                // Store the complete user object
+                dataAccess.writeLocalUser(fullUserData.get());
                 LoggerUtil.info(this.getClass(), String.format("Stored complete user data locally for: %s", user.getUsername()));
             } else {
                 LoggerUtil.error(this.getClass(), String.format("Could not find complete user data for: %s", user.getUsername()));
                 throw new RuntimeException("Failed to store complete user data locally");
             }
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error storing user data locally: %s", e.getMessage()));
             throw new RuntimeException("Failed to store user data locally", e);

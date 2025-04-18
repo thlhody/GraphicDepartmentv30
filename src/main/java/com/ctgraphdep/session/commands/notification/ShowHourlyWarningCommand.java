@@ -1,12 +1,9 @@
 package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.ui.DialogComponents;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
 import com.ctgraphdep.session.query.SessionStatusQuery;
-
-import java.awt.*;
 
 /**
  * Command to show hourly overtime warning
@@ -32,8 +29,11 @@ public class ShowHourlyWarningCommand extends BaseNotificationCommand<Boolean> {
             info(String.format("Attempting to show hourly warning for user %s", username));
 
             // Check if notification can be shown based on rate limiting
-            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(username, WorkCode.OVERTIME_TYPE,
-                    WorkCode.HOURLY_INTERVAL, ctx.getNotificationService().getLastNotificationTimes());
+            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
+                    username,
+                    WorkCode.OVERTIME_TYPE,
+                    WorkCode.HOURLY_INTERVAL
+            );
 
             if (!ctx.executeQuery(canShowQuery)) {
                 info(String.format("Skipping hourly warning for user %s due to rate limiting", username));
@@ -49,17 +49,19 @@ public class ShowHourlyWarningCommand extends BaseNotificationCommand<Boolean> {
                 return false;
             }
 
-            // Show notification with fallback
-            return ctx.getNotificationService().showNotificationWithFallback(
-                    username, userId,
-                    WorkCode.OVERTIME_TITLE,
-                    WorkCode.HOURLY_WARNING_MESSAGE,
-                    WorkCode.HOURLY_WARNING_TRAY,
-                    WorkCode.ON_FOR_FIVE_MINUTES,
-                    true, false, finalMinutes,
-                    (DialogComponents components, String u, Integer id, Integer minutes) -> ctx.getNotificationService().addStandardButtons(components, u, id, minutes, true),
-                    TrayIcon.MessageType.WARNING
+            // Show hourly warning using the notification service
+            boolean success = ctx.getNotificationService().showHourlyWarning(
+                    username,
+                    userId,
+                    finalMinutes
             );
+
+            if (success) {
+                // Record notification display
+                recordNotificationDisplay(ctx, WorkCode.OVERTIME_TYPE);
+            }
+
+            return success;
         });
     }
 }

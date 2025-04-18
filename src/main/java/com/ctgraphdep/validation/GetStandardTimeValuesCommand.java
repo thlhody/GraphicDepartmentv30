@@ -28,28 +28,14 @@ public class GetStandardTimeValuesCommand implements TimeValidationCommand<GetSt
             // Calculate scheduled notification times based on current time
             LocalDateTime nextHourlyCheck = now.plusMinutes(WorkCode.HOURLY_INTERVAL);
 
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Generated standard time values - Now: %s, Start time: %s, Today: %s",
-                            now, startTime, today));
+            //LoggerUtil.debug(this.getClass(), String.format("Generated standard time values - Now: %s, Start time: %s, Today: %s", now, startTime, today));
 
-            return new StandardTimeValues(
-                    now,
-                    startTime,
-                    today,
-                    notificationTimestamp,
-                    continuationTimestamp,
-                    nextHourlyCheck);
+            return new StandardTimeValues(now, startTime, today, notificationTimestamp, continuationTimestamp, nextHourlyCheck);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error generating standard time values: " + e.getMessage());
             // Fallback to basic values if something goes wrong
             LocalDateTime now = LocalDateTime.now();
-            return new StandardTimeValues(
-                    now,
-                    now,
-                    now.toLocalDate(),
-                    now,
-                    now,
-                    now.plusMinutes(WorkCode.HOURLY_INTERVAL));
+            return new StandardTimeValues(now, now, now.toLocalDate(), now, now, now.plusMinutes(WorkCode.HOURLY_INTERVAL));
         }
     }
 

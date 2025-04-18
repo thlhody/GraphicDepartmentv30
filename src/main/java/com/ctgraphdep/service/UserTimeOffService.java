@@ -6,10 +6,13 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Year;
 import java.time.YearMonth;
 import java.util.*;
@@ -27,11 +30,8 @@ public class UserTimeOffService {
     private final UserService userService;
     private final TimeOffTrackerService timeOffTrackerService;
 
-    public UserTimeOffService(DataAccessService dataAccessService,
-                              HolidayManagementService holidayService,
-                              UserWorkTimeService userWorkTimeService,
-                              UserService userService,
-                              TimeOffTrackerService timeOffTrackerService) {
+    public UserTimeOffService(DataAccessService dataAccessService, HolidayManagementService holidayService, UserWorkTimeService userWorkTimeService,
+                              UserService userService, TimeOffTrackerService timeOffTrackerService) {
         this.dataAccessService = dataAccessService;
         this.holidayService = holidayService;
         this.userWorkTimeService = userWorkTimeService;
@@ -46,8 +46,7 @@ public class UserTimeOffService {
      */
     @Transactional
     public void processTimeOffRequest(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
-        LoggerUtil.info(this.getClass(), String.format("Processing time off request for user %s: %s to %s (%s)",
-                user.getUsername(), startDate, endDate, timeOffType));
+        LoggerUtil.info(this.getClass(), String.format("Processing time off request for user %s: %s to %s (%s)", user.getUsername(), startDate, endDate, timeOffType));
 
         validateTimeOffRequest(startDate, endDate, timeOffType);
 
@@ -64,7 +63,6 @@ public class UserTimeOffService {
 
         // Step 2: Update the tracker (which also updates the holiday balance)
         timeOffTrackerService.addTimeOffRequests(user, eligibleDays, timeOffType);
-
         LoggerUtil.info(this.getClass(), String.format("Processed %d time off entries for user %s", entries.size(), user.getUsername()));
     }
 
@@ -82,8 +80,7 @@ public class UserTimeOffService {
             timeOffTrackerService.syncWithWorktimeFiles(user, year, allTimeOffEntries);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error syncing time off tracker for user %s (year %d): %s",
-                    user.getUsername(), year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error syncing time off tracker for user %s (year %d): %s", user.getUsername(), year, e.getMessage()));
         }
     }
 
@@ -98,9 +95,7 @@ public class UserTimeOffService {
         List<WorkTimeTable> timeOffEntries = dataAccessService.readTimeOffReadOnly(username, year);
 
         // Sort descending by date
-        return timeOffEntries.stream()
-                .sorted((a, b) -> b.getWorkDate().compareTo(a.getWorkDate()))
-                .collect(Collectors.toList());
+        return timeOffEntries.stream().sorted((a, b) -> b.getWorkDate().compareTo(a.getWorkDate())).collect(Collectors.toList());
     }
 
     /**
@@ -109,8 +104,7 @@ public class UserTimeOffService {
      */
     public List<WorkTimeTable> getUpcomingTimeOff(User user) {
         // Get tracker requests
-        List<TimeOffTracker.TimeOffRequest> upcomingRequests =
-                timeOffTrackerService.getUpcomingTimeOffRequests(user);
+        List<TimeOffTracker.TimeOffRequest> upcomingRequests = timeOffTrackerService.getUpcomingTimeOffRequests(user);
 
         // Convert to WorkTimeTable entries for compatibility with existing UI
         List<WorkTimeTable> result = new ArrayList<>();
@@ -129,9 +123,7 @@ public class UserTimeOffService {
         }
 
         // Sort by date
-        return result.stream()
-                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                .collect(Collectors.toList());
+        return result.stream().sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
     }
 
     /**
@@ -181,9 +173,7 @@ public class UserTimeOffService {
                         .build();
             }
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("Error reading tracker, falling back to worktime files: %s",
-                            e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Error reading tracker, falling back to worktime files: %s", e.getMessage()));
         }
 
         // Fallback to worktime files if tracker not available
@@ -205,9 +195,7 @@ public class UserTimeOffService {
                 remainingPaidDays = Math.max(0, availablePaidDays - counts.coDays);
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error getting paid holiday days for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error getting paid holiday days for %s: %s", username, e.getMessage()));
             availablePaidDays = counts.coDays;
         }
 
@@ -229,9 +217,9 @@ public class UserTimeOffService {
                 .snDays(0)
                 .coDays(0)
                 .cmDays(0)
-                .availablePaidDays(21)
+                .availablePaidDays(0)
                 .paidDaysTaken(0)
-                .remainingPaidDays(21)
+                .remainingPaidDays(0)
                 .build();
     }
 
@@ -316,34 +304,20 @@ public class UserTimeOffService {
     private List<WorkTimeTable> loadAllTimeOffEntries(String username, int year) {
         List<WorkTimeTable> allTimeOffEntries = new ArrayList<>();
 
-        // Get current date to determine which months to process
-        LocalDate currentDate = LocalDate.now();
-        int currentYear = currentDate.getYear();
-        int currentMonth = currentDate.getMonthValue();
-
         // Process each month in the year
         for (int month = 1; month <= 12; month++) {
-            // Skip future months (except current month)
-            if (year > currentYear || (year == currentYear && month > currentMonth)) {
-                continue;
-            }
-
             try {
                 // Load worktime entries for the month
                 List<WorkTimeTable> entries = userWorkTimeService.loadMonthWorktime(username, year, month);
 
                 if (entries != null) {
                     // Filter for time off entries only
-                    List<WorkTimeTable> timeOffEntries = entries.stream()
-                            .filter(entry -> entry.getTimeOffType() != null)
-                            .toList();
+                    List<WorkTimeTable> timeOffEntries = entries.stream().filter(entry -> entry.getTimeOffType() != null).toList();
 
                     allTimeOffEntries.addAll(timeOffEntries);
                 }
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Error loading worktime for %s - %d/%d: %s",
-                                username, year, month, e.getMessage()));
+                LoggerUtil.warn(this.getClass(), String.format("Error loading worktime for %s - %d/%d: %s", username, year, month, e.getMessage()));
             }
         }
 
@@ -373,8 +347,7 @@ public class UserTimeOffService {
             // First get username from userId
             Optional<User> userOpt = userService.getUserById(userId);
             if (userOpt.isEmpty()) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("User not found for ID: %d when checking existing entry", userId));
+                LoggerUtil.warn(this.getClass(), String.format("User not found for ID: %d when checking existing entry", userId));
                 return null;
             }
 
@@ -382,17 +355,11 @@ public class UserTimeOffService {
             YearMonth yearMonth = YearMonth.from(date);
 
             // Now use the username instead of the userId as string
-            List<WorkTimeTable> existingEntries = loadMonthEntries(
-                    username, yearMonth.getYear(), yearMonth.getMonthValue());
+            List<WorkTimeTable> existingEntries = loadMonthEntries(username, yearMonth.getYear(), yearMonth.getMonthValue());
 
-            return existingEntries.stream()
-                    .filter(entry -> entry.getWorkDate().equals(date))
-                    .findFirst()
-                    .orElse(null);
+            return existingEntries.stream().filter(entry -> entry.getWorkDate().equals(date)).findFirst().orElse(null);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error getting existing entry for user ID %d on date %s: %s",
-                            userId, date, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error getting existing entry for user ID %d on date %s: %s", userId, date, e.getMessage()));
             return null;
         }
     }
@@ -435,22 +402,17 @@ public class UserTimeOffService {
      */
     private void saveTimeOffEntries(String username, List<WorkTimeTable> newEntries) {
         // Group entries by month for processing
-        Map<YearMonth, List<WorkTimeTable>> entriesByMonth = newEntries.stream()
-                .collect(Collectors.groupingBy(entry -> YearMonth.from(entry.getWorkDate())));
+        Map<YearMonth, List<WorkTimeTable>> entriesByMonth = newEntries.stream().collect(Collectors.groupingBy(entry -> YearMonth.from(entry.getWorkDate())));
 
         entriesByMonth.forEach((yearMonth, monthEntries) -> {
             // Get existing entries for this month
-            List<WorkTimeTable> existingEntries = loadMonthEntries(
-                    username, yearMonth.getYear(), yearMonth.getMonthValue());
+            List<WorkTimeTable> existingEntries = loadMonthEntries(username, yearMonth.getYear(), yearMonth.getMonthValue());
 
             // Create a map of new entries by date
-            Map<LocalDate, WorkTimeTable> newEntriesMap = monthEntries.stream()
-                    .collect(Collectors.toMap(WorkTimeTable::getWorkDate, entry -> entry));
+            Map<LocalDate, WorkTimeTable> newEntriesMap = monthEntries.stream().collect(Collectors.toMap(WorkTimeTable::getWorkDate, entry -> entry));
 
             // Filter out existing entries that will be replaced
-            List<WorkTimeTable> remainingEntries = existingEntries.stream()
-                    .filter(entry -> !shouldReplaceEntry(entry, newEntriesMap.get(entry.getWorkDate())))
-                    .collect(Collectors.toList());
+            List<WorkTimeTable> remainingEntries = existingEntries.stream().filter(entry -> !shouldReplaceEntry(entry, newEntriesMap.get(entry.getWorkDate()))).collect(Collectors.toList());
 
             // Add new entries
             remainingEntries.addAll(monthEntries);
@@ -510,17 +472,10 @@ public class UserTimeOffService {
      */
     private void saveMonthEntries(String username, int year, int month, List<WorkTimeTable> entries) {
         try {
-            // Use UserWorkTimeService to handle proper updates including admin entries
             userWorkTimeService.saveWorkTimeEntries(username, entries);
-
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved %d worktime entries for %s - %d/%d",
-                            entries.size(), username, year, month));
-
+            LoggerUtil.info(this.getClass(), String.format("Saved %d worktime entries for %s - %d/%d", entries.size(), username, year, month));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving worktime entries for %s - %d/%d: %s",
-                            username, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error saving worktime entries for %s - %d/%d: %s", username, year, month, e.getMessage()));
             throw new RuntimeException("Failed to save time off entries", e);
         }
     }

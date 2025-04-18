@@ -8,6 +8,7 @@ import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.validation.TimeValidationService;
 import lombok.Getter;
@@ -22,13 +23,12 @@ public class SessionContext {
     private final UserWorkTimeService workTimeService;
     private final UserService userService;
     private final SessionStatusService sessionStatusService;
-    private final SystemNotificationService notificationService;
-    private final SystemNotificationBackupService backupService;
     private final SessionMonitorService sessionMonitorService;
     private final PathConfig pathConfig;
     private final FolderStatus folderStatus;
     private final SessionCommandFactory commandFactory;
     private final TimeValidationService validationService;
+    private final NotificationService notificationService;
 
     // Calculation dependencies
     private final CalculationCommandFactory calculationFactory;
@@ -41,24 +41,21 @@ public class SessionContext {
             UserWorkTimeService workTimeService,
             UserService userService,
             SessionStatusService sessionStatusService,
-            SystemNotificationService notificationService,
-            SystemNotificationBackupService backupService,
             @Lazy SessionMonitorService sessionMonitorService,
             PathConfig pathConfig,
             FolderStatus folderStatus,
-            SessionCommandFactory commandFactory, TimeValidationService validationService) {
+            SessionCommandFactory commandFactory, TimeValidationService validationService, NotificationService notificationService) {
 
         this.dataAccessService = dataAccessService;
         this.workTimeService = workTimeService;
         this.userService = userService;
         this.sessionStatusService = sessionStatusService;
-        this.notificationService = notificationService;
-        this.backupService = backupService;
         this.sessionMonitorService = sessionMonitorService;
         this.pathConfig = pathConfig;
         this.folderStatus = folderStatus;
         this.commandFactory = commandFactory;
         this.validationService = validationService;
+        this.notificationService = notificationService;
 
         // Initialize calculation components
         this.calculationFactory = new CalculationCommandFactory();

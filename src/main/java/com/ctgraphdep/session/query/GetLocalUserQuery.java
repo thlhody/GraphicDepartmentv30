@@ -12,7 +12,7 @@ public class GetLocalUserQuery implements SessionQuery<User> {
     public User execute(SessionContext context) {
         try {
             // Use DataAccessService to read local users
-            List<User> localUsers = context.getDataAccessService().readLocalUsers();
+            List<User> localUsers = context.getDataAccessService().readLocalUser();
 
             // Return the first user (since it's a single-user application)
             if (!localUsers.isEmpty()) {

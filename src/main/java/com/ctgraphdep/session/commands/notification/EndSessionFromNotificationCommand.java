@@ -43,9 +43,6 @@ public class EndSessionFromNotificationCommand extends BaseNotificationCommand<B
                 return false;
             }
 
-            // Cancel any pending notification backup tasks
-            ctx.getBackupService().cancelBackupTask(username);
-
             LocalDateTime currentTime = timeValues.getCurrentTime();
 
             // Use the core EndDayCommand to perform the actual session end with explicit time

@@ -23,9 +23,6 @@ public class ContinueTempStopCommand extends BaseNotificationCommand<Boolean> {
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Continuing temporary stop for user %s", username));
 
-            // Cancel any backup tasks
-            ctx.getBackupService().cancelBackupTask(username);
-
             // Update the session if needed (e.g., refresh last activity timestamp)
             UpdateSessionActivityCommand updateCommand = ctx.getCommandFactory().createUpdateSessionActivityCommand(username, userId);
             ctx.executeCommand(updateCommand);

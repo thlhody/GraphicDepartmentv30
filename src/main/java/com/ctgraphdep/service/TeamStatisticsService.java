@@ -326,7 +326,7 @@ public class TeamStatisticsService {
     }
 
     private void updateSessionDetails(TeamMemberDTO member) {
-        WorkUsersSessionsStates session = dataAccessService.readNetworkSessionFile(
+        WorkUsersSessionsStates session = dataAccessService.readNetworkSessionFileReadOnly(
                 member.getUsername(), member.getUserId());
 
         if (session != null && session.getSessionStatus() != null) {
@@ -342,8 +342,7 @@ public class TeamStatisticsService {
                 normalizedStatus = "WORK_OFFLINE";
             }
 
-            LoggerUtil.info(this.getClass(),
-                    "Original session status for " + member.getUsername() + ": " + originalStatus +
+            LoggerUtil.info(this.getClass(), "Original session status for " + member.getUsername() + ": " + originalStatus +
                             ", Normalized status: " + normalizedStatus);
 
             member.setSessionDetailsDTO(SessionDetailsDTO.builder()

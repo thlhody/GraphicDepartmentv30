@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
  * Command to track when a notification is displayed
  */
 public class TrackNotificationDisplayCommand extends BaseNotificationCommand<Void> {
-    private final int timeoutPeriod;
     private final boolean isTempStop;
 
     /**
@@ -18,12 +17,11 @@ public class TrackNotificationDisplayCommand extends BaseNotificationCommand<Voi
      *
      * @param username The username
      * @param userId The user ID
-     * @param timeoutPeriod The timeout period for the notification
+
      * @param isTempStop Whether this is a temporary stop notification
      */
-    public TrackNotificationDisplayCommand(String username, Integer userId, int timeoutPeriod, boolean isTempStop) {
+    public TrackNotificationDisplayCommand(String username, Integer userId, boolean isTempStop) {
         super(username, userId);
-        this.timeoutPeriod = timeoutPeriod;
         this.isTempStop = isTempStop;
     }
 
@@ -45,31 +43,8 @@ public class TrackNotificationDisplayCommand extends BaseNotificationCommand<Voi
             // Record notification display time for rate limiting
             ctx.getNotificationService().recordNotificationTime(username, notificationType);
 
-            // Create file-based tracking mechanism
-
+            // Create file-based tracking mechanism for backup recovery
             ctx.getDataAccessService().writeNotificationTrackingFile(username, notificationType, timeValues.getCurrentTime());
-            // Register backup task if applicable
-            if (timeoutPeriod > 0) {
-                if (isTempStop) {
-                    // Get the last temporary stop time from the session
-                    LocalDateTime tempStopStartTime = null;
-                    WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
-                    if (session != null) {
-                        tempStopStartTime = session.getLastTemporaryStopTime();
-                    }
-
-                    // Use current time as fallback if temp stop start time not available
-                    if (tempStopStartTime == null) {
-                        tempStopStartTime = timeValues.getCurrentTime();
-                    }
-
-                    // Register temp stop notification
-                    ctx.getBackupService().registerTempStopNotification(username, userId, tempStopStartTime);
-                } else {
-                    // Register schedule end notification
-                    ctx.getBackupService().registerScheduleEndNotification(username, userId);
-                }
-            }
 
             info(String.format("Successfully tracked notification for user %s", username));
 

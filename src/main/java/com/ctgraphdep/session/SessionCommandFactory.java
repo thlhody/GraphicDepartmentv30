@@ -139,8 +139,8 @@ public class SessionCommandFactory {
     }
 
     // Creates a command to track notification display
-    public TrackNotificationDisplayCommand createTrackNotificationDisplayCommand(String username, Integer userId, int timeoutPeriod, boolean isTempStop) {
-        return new TrackNotificationDisplayCommand(username, userId, timeoutPeriod, isTempStop);
+    public TrackNotificationDisplayCommand createTrackNotificationDisplayCommand(String username, Integer userId, boolean isTempStop) {
+        return new TrackNotificationDisplayCommand(username, userId, isTempStop);
     }
 
     // Creates a command to activate hourly monitoring for a user
@@ -186,8 +186,8 @@ public class SessionCommandFactory {
     }
 
     // Creates a query to check if a notification can be shown
-    public CanShowNotificationQuery createCanShowNotificationQuery(String username, String notificationType, Integer intervalMinutes, Map<String, LocalDateTime> lastNotificationTimes) {
-        return new CanShowNotificationQuery(username, notificationType, intervalMinutes, lastNotificationTimes);
+    public CanShowNotificationQuery createCanShowNotificationQuery(String username, String notificationType, Integer intervalMinutes) {
+        return new CanShowNotificationQuery(username, notificationType, intervalMinutes);
     }
 
     // Creates a query to get work schedule information

@@ -1,6 +1,7 @@
 package com.ctgraphdep.config;
 
 import com.ctgraphdep.model.FolderStatus;
+import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,22 +18,19 @@ public class SessionCommandConfig {
 
     @Bean
     public SessionContext sessionContext(DataAccessService dataAccessService, UserWorkTimeService workTimeService,
-                                         UserService userService, SessionStatusService sessionStatusService, SystemNotificationService notificationService,
-                                         SystemNotificationBackupService backupService, @Lazy SessionMonitorService sessionMonitorService,
+                                         UserService userService, SessionStatusService sessionStatusService, NotificationService notificationService,
+                                         @Lazy SessionMonitorService sessionMonitorService,
                                          PathConfig pathConfig, FolderStatus folderStatus, SessionCommandFactory commandFactory,
                                          TimeValidationService timeValidationService) {
 
-        return new SessionContext(
-                dataAccessService,
+        return new SessionContext(dataAccessService,
                 workTimeService,
                 userService,
                 sessionStatusService,
-                notificationService,
-                backupService,
                 sessionMonitorService,
-                pathConfig,
-                folderStatus,
+                pathConfig, folderStatus,
                 commandFactory,
-                timeValidationService);
+                timeValidationService,
+                notificationService);
     }
 }

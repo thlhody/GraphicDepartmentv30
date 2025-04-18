@@ -12,10 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class HomeController extends BaseController {
 
-    public HomeController(
-            UserService userService,
-            FolderStatus folderStatus,
-            TimeValidationService timeValidationService) {
+    public HomeController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService) {
         super(userService, folderStatus, timeValidationService);
     }
 
@@ -33,10 +30,21 @@ public class HomeController extends BaseController {
                 LoggerUtil.info(this.getClass(), "Redirecting to admin dashboard");
                 return "redirect:/admin";
             }
-
             if (hasRole(authentication, "ROLE_TEAM_LEADER")) {
                 LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
                 return "redirect:/team-lead";
+            }
+            if (hasRole(authentication, "ROLE_TL_CHECKING")) {
+                LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
+                return "redirect:/team-checking";
+            }
+            if (hasRole(authentication, "ROLE_USER_CHECKING")) {
+                LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
+                return "redirect:/user-checking";
+            }
+            if (hasRole(authentication, "ROLE_CHECKING")) {
+                LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
+                return "redirect:/checking";
             }
 
             LoggerUtil.info(this.getClass(), "Redirecting to user dashboard");
@@ -49,7 +57,6 @@ public class HomeController extends BaseController {
 
     // Helper method to check for specific roles
     private boolean hasRole(Authentication authentication, String role) {
-        return authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals(role));
+        return authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals(role));
     }
 }

@@ -24,9 +24,6 @@ public class ResumeFromTempStopCommand extends BaseNotificationCommand<Boolean> 
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Resuming from temporary stop for user %s via notification", username));
 
-            // Cancel any pending notification backup tasks
-            ctx.getBackupService().cancelBackupTask(username);
-
             // Use the core ResumeFromTemporaryStopCommand to perform the actual resumption
             ResumeFromTemporaryStopCommand resumeCommand = ctx.getCommandFactory().createResumeFromTemporaryStopCommand(username, userId);
             ctx.executeCommand(resumeCommand);

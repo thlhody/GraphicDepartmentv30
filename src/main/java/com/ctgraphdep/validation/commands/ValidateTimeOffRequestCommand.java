@@ -47,13 +47,11 @@ public class ValidateTimeOffRequestCommand implements TimeValidationCommand<Void
             LocalDate minAllowedDate = currentDate.minusMonths(maxMonthsBehind);
 
             if (startDate.isBefore(minAllowedDate)) {
-                throw new IllegalArgumentException(
-                        String.format("Cannot request time off more than %d month(s) in the past", maxMonthsBehind));
+                throw new IllegalArgumentException(String.format("Cannot request time off more than %d month(s) in the past", maxMonthsBehind));
             }
 
             if (startDate.isAfter(maxAllowedDate)) {
-                throw new IllegalArgumentException(
-                        String.format("Cannot request time off more than %d month(s) in advance", maxMonthsAhead));
+                throw new IllegalArgumentException(String.format("Cannot request time off more than %d month(s) in advance", maxMonthsAhead));
             }
 
             return null;

@@ -9,7 +9,7 @@ import com.ctgraphdep.enums.NotificationType;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
-import com.ctgraphdep.notification.NotificationQueueManager;
+import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
@@ -52,13 +52,12 @@ public class SessionMonitorService {
     private final UserService userService;
     private final TaskScheduler taskScheduler;
     private final PathConfig pathConfig;
-    private final SystemNotificationBackupService backupService;
     private final TimeValidationService validationService;
     private final TimeValidationFactory validationFactory;
     private final CalculationCommandFactory calculationFactory;
     private final CalculationCommandService calculationService;
-    @Autowired
-    private NotificationQueueManager notificationQueue;
+    private final NotificationService notificationService;
+
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
 
@@ -79,20 +78,19 @@ public class SessionMonitorService {
             UserService userService,
             @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             PathConfig pathConfig,
-            SystemNotificationBackupService backupService,
             TimeValidationService validationService,
-            TimeValidationFactory validationFactory, CalculationCommandFactory calculationFactory, CalculationCommandService calculationService) {
+            TimeValidationFactory validationFactory, CalculationCommandFactory calculationFactory, CalculationCommandService calculationService, NotificationService notificationService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.userService = userService;
         this.taskScheduler = taskScheduler;
         this.pathConfig = pathConfig;
-        this.backupService = backupService;
         this.validationService = validationService;
         this.validationFactory = validationFactory;
         this.calculationFactory = calculationFactory;
         this.calculationService = calculationService;
+        this.notificationService = notificationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -333,12 +331,11 @@ public class SessionMonitorService {
             CalculateMinutesBetweenQuery minutesQuery = calculationFactory.createCalculateMinutesBetweenQuery(
                     tempStopStart, now);
             int minutesSinceTempStop = calculationService.executeQuery(minutesQuery);
+
             // Show warning every hour of temporary stop
             if (minutesSinceTempStop >= WorkCode.HOURLY_INTERVAL) {
-                // First register backup action
-                backupService.registerTempStopNotification(username, session.getUserId(), tempStopStart);
-                // Then show notification
-                notificationQueue.enqueueTempStopNotification(
+                // Use the new notification service instead
+                notificationService.showTempStopWarning(
                         username,
                         session.getUserId(),
                         tempStopStart
@@ -372,41 +369,40 @@ public class SessionMonitorService {
         int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
 
         // Add this debug logging
-        LoggerUtil.debug(this.getClass(), String.format("Schedule check - User: %s, Schedule: %d hours, " + "Is 8-hour schedule: %b, Required minutes: %d, " +
+        LoggerUtil.debug(this.getClass(), String.format("Schedule check - User: %s, Schedule: %d hours, " +
+                        "Is 8-hour schedule: %b, Required minutes: %d, " +
                         "Current worked minutes: %d, Notified already: %b",
-                session.getUsername(), scheduleInfo.getScheduleHours(), scheduleInfo.isStandardEightHourSchedule(), scheduleInfo.getFullDayDuration(),
+                session.getUsername(), scheduleInfo.getScheduleHours(), scheduleInfo.isStandardEightHourSchedule(),
+                scheduleInfo.getFullDayDuration(),
                 workedMinutes, notificationShown.getOrDefault(session.getUsername(), false)));
 
         // Only show notification if not already shown for this session and schedule is completed
         if (scheduleInfo.isScheduleCompleted(workedMinutes) && !notificationShown.getOrDefault(session.getUsername(), false)) {
 
-            // First register backup action
-            backupService.registerScheduleEndNotification(
-                    session.getUsername(),
-                    session.getUserId()
-            );
-
-            // Replace direct notification with queue
-            notificationQueue.enqueueNotification(
-                    NotificationType.SESSION_WARNING,
+            // Use the new notification service
+            boolean success = notificationService.showScheduleEndNotification(
                     session.getUsername(),
                     session.getUserId(),
                     session.getFinalWorkedMinutes()
             );
 
-            notificationShown.put(session.getUsername(), true);
+            if (success) {
+                notificationShown.put(session.getUsername(), true);
 
-            // Save the updated session
-            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-            commandService.executeCommand(saveCommand);
-            LoggerUtil.info(this.getClass(), String.format("Schedule completion notification shown for user %s (worked: %d minutes)", session.getUsername(), workedMinutes));
+                // Save the updated session
+                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+                commandService.executeCommand(saveCommand);
+
+                LoggerUtil.info(this.getClass(),
+                        String.format("Schedule completion notification shown for user %s (worked: %d minutes)",
+                                session.getUsername(), workedMinutes));
+            }
         }
     }
 
     /**
      * Shows hourly warnings for users continuing to work after schedule completion
      */
-    // In SessionMonitorService.java, update the checkHourlyWarning method
     public void checkHourlyWarning(WorkUsersSessionsStates session) {
         String username = session.getUsername();
         LocalDateTime lastWarning = lastHourlyWarning.get(username);
@@ -430,31 +426,23 @@ public class SessionMonitorService {
                     lastWarning != null ? lastWarning.toString() : "never",
                     nextHourlyCheckTime));
 
-            // First register backup action
-            backupService.registerHourlyWarningNotification(
-                    username,
-                    session.getUserId()
-            );
-
-            // Then show notification
-            notificationQueue.enqueueNotification(
-                    NotificationType.HOURLY_WARNING,
+            // Show hourly warning using the new notification service
+            boolean success = notificationService.showHourlyWarning(
                     username,
                     session.getUserId(),
                     session.getFinalWorkedMinutes()
             );
 
-            // Save the updated session
-            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-            commandService.executeCommand(saveCommand);
+            if (success) {
+                // Save the updated session
+                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+                commandService.executeCommand(saveCommand);
 
-            // Update the last warning time to current time
-            lastHourlyWarning.put(username, now);
+                // Update the last warning time to current time
+                lastHourlyWarning.put(username, now);
+            }
         }
     }
-    /**
-     * Shows start day reminder if user hasn't started their workday
-     */
     /**
      * Shows start day reminder if user hasn't started their workday
      * Also checks for and resets stale sessions from previous days
@@ -555,8 +543,8 @@ public class SessionMonitorService {
             if (resolutionStatus.isNeedsResolution()) {
                 LoggerUtil.info(this.getClass(), String.format("User %s has unresolved worktime entries - showing resolution notification", username));
 
-                // Show resolution notification
-                notificationQueue.enqueueResolutionReminder(
+                // Show resolution notification using the new notification service
+                notificationService.showResolutionReminder(
                         username,
                         user.getUserId(),
                         WorkCode.RESOLUTION_TITLE,
@@ -570,6 +558,7 @@ public class SessionMonitorService {
                 return;
             }
 
+
             // Use SessionValidator to check if session exists
             if (!SessionValidator.exists(session, this.getClass())) {
                 return;
@@ -577,8 +566,8 @@ public class SessionMonitorService {
 
             // Validate that session is in offline state and no active session for today
             if (session != null && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && !hasActiveSessionToday(session)) {
-                // Show notification
-                notificationQueue.enqueueStartDayReminder(username, user.getUserId());
+                // Show notification using the new notification service
+                notificationService.showStartDayReminder(username, user.getUserId());
                 // Update last check date
                 lastStartDayCheck.put(username, today);
             }
@@ -681,8 +670,6 @@ public class SessionMonitorService {
      */
     public void startMonitoring(String username) {
         clearMonitoring(username);
-        // Cancel any backup tasks since we're starting fresh
-        backupService.cancelBackupTask(username);
         LoggerUtil.info(this.getClass(), "Started monitoring for user: " + username);
     }
 
@@ -691,8 +678,6 @@ public class SessionMonitorService {
      */
     public void stopMonitoring(String username) {
         clearMonitoring(username);
-        // Cancel any backup tasks since we're stopping monitoring
-        backupService.cancelBackupTask(username);
         LoggerUtil.info(this.getClass(), "Stopped monitoring for user: " + username);
     }
 

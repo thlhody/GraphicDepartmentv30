@@ -73,10 +73,8 @@ public class TimeOffRequestValidator {
         }
 
         // Get standardized date from validation service
-        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
-                .createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                timeValidationService.execute(timeCommand);
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
 
         LocalDate today = timeValues.getCurrentDate();
         LocalDate maxAllowedDate = today.plusMonths(6);
@@ -100,8 +98,7 @@ public class TimeOffRequestValidator {
 
         // Validate paid leave availability for CO type
         if ("CO".equals(timeOffType) && eligibleDays > availableDays) {
-            errors.add(String.format("Insufficient paid holiday days. Needed: %d, Available: %d",
-                    eligibleDays, availableDays));
+            errors.add(String.format("Insufficient paid holiday days. Needed: %d, Available: %d", eligibleDays, availableDays));
             return new ValidationResult(false, errors, eligibleDays);
         }
 

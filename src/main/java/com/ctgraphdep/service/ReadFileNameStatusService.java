@@ -88,7 +88,7 @@ public class ReadFileNameStatusService {
         try {
             // Only attempt to load if not already loaded
             if (localUser == null) {
-                List<User> localUsers = dataAccessService.readLocalUsers();
+                List<User> localUsers = dataAccessService.readLocalUser();
                 if (localUsers != null && !localUsers.isEmpty()) {
                     User user = localUsers.get(0);
                     localUser = user;
@@ -210,7 +210,7 @@ public class ReadFileNameStatusService {
         try {
             // Only update local cache, no network flag creation
             updateLocalCache(username, userId, status, timestamp);
-            LoggerUtil.debug(this.getClass(), "Updated status for " + username + " to " + status + " in local cache only");
+            //LoggerUtil.debug(this.getClass(), "Updated status for " + username + " to " + status + " in local cache only");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error initializing user status locally: " + e.getMessage(), e);
         }
@@ -328,8 +328,7 @@ public class ReadFileNameStatusService {
             // Remove the identified users
             for (String username : usernamesToRemove) {
                 statusCache.getUserStatuses().remove(username);
-                LoggerUtil.info(this.getClass(), username.equalsIgnoreCase("admin")
-                        ? "Removed admin user from status cache" : "Removed non-existent user from status cache: " + username);
+                LoggerUtil.info(this.getClass(), username.equalsIgnoreCase("admin") ? "Removed admin user from status cache" : "Removed non-existent user from status cache: " + username);
             }
 
             // Update user information in cache for existing users

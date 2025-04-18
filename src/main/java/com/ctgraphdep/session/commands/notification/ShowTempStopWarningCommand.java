@@ -1,12 +1,10 @@
 package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.ui.DialogComponents;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
-import java.awt.*;
 import java.time.LocalDateTime;
 
 /**
@@ -43,8 +41,7 @@ public class ShowTempStopWarningCommand extends BaseNotificationCommand<Boolean>
             CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
                     username,
                     WorkCode.TEMP_STOP_TYPE,
-                    WorkCode.HOURLY_INTERVAL,
-                    ctx.getNotificationService().getLastNotificationTimes()
+                    WorkCode.HOURLY_INTERVAL
             );
 
             if (!ctx.executeQuery(canShowQuery)) {
@@ -52,30 +49,18 @@ public class ShowTempStopWarningCommand extends BaseNotificationCommand<Boolean>
                 return false;
             }
 
-            // Calculate temporary stop duration
-            int stopMinutes = ctx.calculateWorkedMinutesBetween(tempStopStart, timeValues.getCurrentTime());
-            int hours = stopMinutes / 60;
-            int minutes = stopMinutes % 60;
-
-            // Format messages with the calculated duration
-            String formattedMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING, hours, minutes);
-            String trayMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING_TRAY, hours, minutes);
-
-            // Show notification with fallback
-            return ctx.getNotificationService().showNotificationWithFallback(
+            // Show temporary stop warning using the notification service
+            boolean success = ctx.getNotificationService().showTempStopWarning(
                     username,
                     userId,
-                    WorkCode.TEMPORARY_STOP_TITLE,
-                    formattedMessage,
-                    trayMessage,
-                    WorkCode.ON_FOR_FIVE_MINUTES,
-                    false,
-                    true,
-                    null,
-                    (DialogComponents components, String u, Integer id, Integer min) ->
-                            ctx.getNotificationService().addTempStopButtons(components, u, id),
-                    TrayIcon.MessageType.WARNING
+                    tempStopStart
             );
+
+            if (success) {
+                recordNotificationDisplay(ctx, WorkCode.TEMP_STOP_TYPE);
+            }
+
+            return success;
         });
     }
 }

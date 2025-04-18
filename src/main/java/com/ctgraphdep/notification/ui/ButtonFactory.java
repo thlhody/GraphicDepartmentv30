@@ -1,4 +1,4 @@
-package com.ctgraphdep.ui;
+package com.ctgraphdep.notification.ui;
 
 import javax.swing.*;
 import java.awt.*;

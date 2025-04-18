@@ -21,11 +21,12 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
      * @return The command result
      */
     protected T executeWithErrorHandling(SessionContext context, CommandExecution<T> commandLogic) {
-        return CommandExecutorUtil.executeCommand(
-                this.getClass().getSimpleName(),
-                this.getClass(),
-                () -> commandLogic.execute(context)
-        );
+        try {
+            return commandLogic.execute(context);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error executing command: " + this.getClass().getSimpleName(), e);
+            throw e;
+        }
     }
 
     /**
@@ -38,12 +39,12 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
      * @return The command result or default value on error
      */
     protected T executeWithDefault(SessionContext context, CommandExecution<T> commandLogic, T defaultValue) {
-        return CommandExecutorUtil.executeCommandWithDefault(
-                this.getClass().getSimpleName(),
-                this.getClass(),
-                () -> commandLogic.execute(context),
-                defaultValue
-        );
+        try {
+            return commandLogic.execute(context);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error executing command: " + this.getClass().getSimpleName(), e);
+            return defaultValue;
+        }
     }
 
     /**

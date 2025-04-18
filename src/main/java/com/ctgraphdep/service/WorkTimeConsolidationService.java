@@ -92,7 +92,7 @@ public class WorkTimeConsolidationService {
     private List<WorkTimeTable> processUserEntries(User user, int year, int month, Map<String, WorkTimeTable> adminEntriesMap) {
         try {
             // Load user entries from network with null safety
-            List<WorkTimeTable> userEntries = dataAccessService.readNetworkUserWorktime(user.getUsername(), year, month);
+            List<WorkTimeTable> userEntries = dataAccessService.readNetworkUserWorktimeReadOnly(user.getUsername(), year, month);
 
             if (userEntries == null) {
                 userEntries = new ArrayList<>();

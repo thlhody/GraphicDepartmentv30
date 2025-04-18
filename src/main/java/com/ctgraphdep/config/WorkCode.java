@@ -136,7 +136,7 @@ public class WorkCode {
     public static final String RESOLUTION_MESSAGE = """
             Your previous work session was not properly ended.
             
-            Please resolve it as soon as possible in order to have a accurate 
+            Please resolve it as soon as possible in order to have a accurate
             work program. Login and go to Work Session Card to resolve.
             
             Please resolve it and start a new day.""";

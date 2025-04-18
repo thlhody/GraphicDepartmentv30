@@ -27,20 +27,6 @@ public abstract class BaseNotificationCommand<T> extends BaseSessionCommand<T> {
     }
 
     /**
-     * Cancels any pending notification backup tasks for the user.
-     *
-     * @param context The session context
-     */
-    protected void cancelBackupTasks(SessionContext context) {
-        try {
-            context.getBackupService().cancelBackupTask(username);
-            debug("Canceled backup tasks for user: " + username);
-        } catch (Exception e) {
-            warn("Failed to cancel backup tasks: " + e.getMessage());
-        }
-    }
-
-    /**
      * Records notification display in the tracking system.
      *
      * @param context The session context

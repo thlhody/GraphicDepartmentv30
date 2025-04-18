@@ -9,14 +9,15 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.utils.LoggerUtil;
 
 import java.time.LocalDateTime;
-import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.temporal.ChronoUnit;
+import java.util.stream.Stream;
 
 public class CheckStalledNotificationsCommand implements SessionCommand<Void> {
 
     // Constants for stalled notification thresholds (in minutes)
-    private static final int SCHEDULE_END_THRESHOLD = 15;
-    private static final int HOURLY_WARNING_THRESHOLD = 12;
-    private static final int TEMP_STOP_THRESHOLD = 10;
+    private static final int NOTIFICATION_THRESHOLD = 15;
 
     @Override
     public Void execute(SessionContext context) {
@@ -25,122 +26,80 @@ public class CheckStalledNotificationsCommand implements SessionCommand<Void> {
         GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
         LocalDateTime currentTime = timeValues.getCurrentTime();
 
-        // Handle schedule end notifications
-        checkStalledNotifications(
-                context,
-                context.getBackupService().getStalledScheduleEndNotifications(),
-                "SCHEDULE_END",
-                SCHEDULE_END_THRESHOLD,
-                currentTime
-        );
-
-        // Handle hourly warning notifications
-        checkStalledNotifications(
-                context,
-                context.getBackupService().getStalledHourlyNotifications(),
-                "HOURLY_WARNING",
-                HOURLY_WARNING_THRESHOLD,
-                currentTime
-        );
-
-        // Handle temporary stop notifications
-        checkStalledNotifications(
-                context,
-                context.getBackupService().getStalledTempStopNotifications(),
-                "TEMP_STOP",
-                TEMP_STOP_THRESHOLD,
-                currentTime
-        );
+        // Check for stalled notifications using tracking files
+        checkStalledTrackingFiles(context, currentTime);
 
         return null;
     }
 
     /**
-     * Checks and handles stalled notifications of a specific type
+     * Checks for stalled notifications by examining tracking files
      *
      * @param context The session context
-     * @param notifications Map of username to notification time
-     * @param notificationType The type of notification being checked
-     * @param thresholdMinutes The number of minutes that must pass before considering notification stalled
      * @param currentTime The current time
      */
-    private void checkStalledNotifications(
-            SessionContext context,
-            Map<String, LocalDateTime> notifications,
-            String notificationType,
-            int thresholdMinutes,
-            LocalDateTime currentTime) {
+    private void checkStalledTrackingFiles(SessionContext context, LocalDateTime currentTime) {
+        try {
+            // Get the notification tracking directory
+            Path trackingDir = context.getPathConfig().getLocalPath().resolve("notification");
 
-        notifications.forEach((username, time) -> {
-            // If notification is stalled
-            if (isNotificationStalled(context, time, currentTime, thresholdMinutes)) {
-                try {
-                    // Get user
-                    User user = context.getUserService().getUserByUsername(username).orElse(null);
-                    if (user != null) {
-                        // Get session
-                        WorkUsersSessionsStates session = context.getCurrentSession(username, user.getUserId());
-
-                        // If session is active, handle it based on notification type
-                        if (isSessionActive(session, notificationType)) {
-                            LoggerUtil.warn(this.getClass(),
-                                    String.format("Detected stalled %s notification for user %s",
-                                            notificationType, username));
-
-                            // Remove stalled notification based on type
-                            removeNotification(context, username, notificationType);
-                        }
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            String.format("Error handling stalled %s notification for %s: %s",
-                                    notificationType, username, e.getMessage()));
-                }
+            if (!Files.exists(trackingDir)) {
+                return;
             }
-        });
-    }
 
-    /**
-     * Removes a stalled notification based on its type
-     *
-     * @param context The session context
-     * @param username The username associated with the notification
-     * @param notificationType The type of notification to remove
-     */
-    private void removeNotification(SessionContext context, String username, String notificationType) {
-        switch (notificationType) {
-            case "SCHEDULE_END":
-                context.getBackupService().removeScheduleEndNotification(username);
-                break;
-            case "HOURLY_WARNING":
-                context.getBackupService().removeHourlyNotification(username);
-                context.getBackupService().cancelBackupTask(username);
-                break;
-            case "TEMP_STOP":
-                context.getBackupService().removeTempStopNotification(username);
-                context.getBackupService().cancelBackupTask(username);
-                break;
-            default:
-                LoggerUtil.warn(this.getClass(), "Unknown notification type: " + notificationType);
+            // List all tracking files with proper resource management
+            try (Stream<Path> paths = Files.list(trackingDir)) {
+                paths.filter(path -> path.getFileName().toString().endsWith(".lock"))
+                        .forEach(trackingFile -> {
+                            try {
+                                // Extract username and notification type from filename
+                                String filename = trackingFile.getFileName().toString();
+                                String[] parts = filename.replace(".lock", "").split("_");
+
+                                if (parts.length >= 2) {
+                                    String username = parts[0];
+                                    String notificationType = parts[1];
+
+                                    // Read the timestamp from the file
+                                    String content = new String(Files.readAllBytes(trackingFile));
+                                    LocalDateTime notificationTime = LocalDateTime.parse(content);
+
+                                    // Check if notification is stalled
+                                    long minutesSince = ChronoUnit.MINUTES.between(notificationTime, currentTime);
+
+                                    if (minutesSince >= NOTIFICATION_THRESHOLD) {
+                                        // Get user
+                                        User user = context.getUserService().getUserByUsername(username).orElse(null);
+                                        if (user != null) {
+                                            // Get session
+                                            WorkUsersSessionsStates session = context.getCurrentSession(username, user.getUserId());
+
+                                            // Check if session is in appropriate state
+                                            if (isSessionActive(session, notificationType)) {
+                                                LoggerUtil.warn(this.getClass(),
+                                                        String.format("Detected stalled %s notification for user %s",
+                                                                notificationType, username));
+
+                                                // Clean up stalled tracking file
+                                                Files.deleteIfExists(trackingFile);
+
+                                                LoggerUtil.info(this.getClass(),
+                                                        String.format("Cleaned up stalled notification tracking for %s (%s)",
+                                                                username, notificationType));
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Exception e) {
+                                LoggerUtil.error(this.getClass(),
+                                        String.format("Error processing tracking file %s: %s",
+                                                trackingFile.getFileName(), e.getMessage()));
+                            }
+                        });
+            } // Stream is automatically closed here
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking stalled notifications: " + e.getMessage());
         }
-    }
-
-    /**
-     * Determines if a notification is stalled based on the time threshold
-     *
-     * @param context The session context
-     * @param notificationTime The notification timestamp
-     * @param currentTime The current time
-     * @param thresholdMinutes The number of minutes that must pass
-     * @return true if the notification is stalled, false otherwise
-     */
-    private boolean isNotificationStalled(
-            SessionContext context,
-            LocalDateTime notificationTime,
-            LocalDateTime currentTime,
-            int thresholdMinutes) {
-        int minutesSince = context.calculateMinutesBetween(notificationTime, currentTime);
-        return minutesSince >= thresholdMinutes;
     }
 
     /**

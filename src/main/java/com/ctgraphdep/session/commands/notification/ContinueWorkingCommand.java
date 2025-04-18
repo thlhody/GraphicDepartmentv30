@@ -22,8 +22,6 @@ public class ContinueWorkingCommand extends BaseNotificationCommand<Void> {
     @Override
     public Void execute(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
-            // Cancel any backup tasks
-            ctx.getBackupService().cancelBackupTask(username);
 
             // Activate hourly monitoring if needed (this is a fresh schedule completion, not hourly warning)
             if (!isHourly) {

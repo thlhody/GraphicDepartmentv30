@@ -1,12 +1,9 @@
 package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.ui.DialogComponents;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.CanShowNotificationQuery;
 import com.ctgraphdep.session.query.SessionStatusQuery;
-
-import java.awt.*;
 
 /**
  * Command to show worktime resolution reminder
@@ -51,8 +48,7 @@ public class ShowResolutionReminderCommand extends BaseNotificationCommand<Boole
             CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
                     username,
                     WorkCode.RESOLUTION_REMINDER_TYPE,
-                    WorkCode.CHECK_INTERVAL,
-                    ctx.getNotificationService().getLastNotificationTimes()
+                    WorkCode.CHECK_INTERVAL
             );
 
             if (!ctx.executeQuery(canShowQuery)) {
@@ -69,21 +65,22 @@ public class ShowResolutionReminderCommand extends BaseNotificationCommand<Boole
                 return false;
             }
 
-            // Show notification with fallback mechanism
-            return ctx.getNotificationService().showNotificationWithFallback(
+            // Show resolution reminder using the notification service
+            boolean success = ctx.getNotificationService().showResolutionReminder(
                     username,
                     userId,
                     title,
                     message,
                     trayMessage,
-                    timeoutPeriod,
-                    false,
-                    false,
-                    null,
-                    (DialogComponents components, String u, Integer id, Integer minutes) ->
-                            ctx.getNotificationService().addResolutionButtons(components),
-                    TrayIcon.MessageType.INFO
+                    timeoutPeriod
             );
+
+            if (success) {
+                // Record notification display
+                recordNotificationDisplay(ctx, WorkCode.RESOLUTION_REMINDER_TYPE);
+            }
+
+            return success;
         });
     }
 }
