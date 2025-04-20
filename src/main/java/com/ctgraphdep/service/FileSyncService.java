@@ -8,11 +8,13 @@ import com.ctgraphdep.validation.TimeValidationService;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.*;
 import java.util.concurrent.*;
 @Service
+@EnableAsync(proxyTargetClass = true) //remove this
 public class FileSyncService implements SyncStatusManager.SyncOperation {
 
     @Value("${app.sync.retry.max:3}")
@@ -22,16 +24,14 @@ public class FileSyncService implements SyncStatusManager.SyncOperation {
     private long retryDelay; // Default 1 hour
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private final FileBackupService backupService;
     private final SyncStatusManager statusManager;
     private final TimeValidationService timeValidationService;
+    private final FileBackupService fileBackupService;
 
-    public FileSyncService(FileBackupService backupService,
-                           SyncStatusManager statusManager,
-                           TimeValidationService timeValidationService) {
-        this.backupService = backupService;
+    public FileSyncService(SyncStatusManager statusManager, TimeValidationService timeValidationService, FileBackupService fileBackupService) {
         this.statusManager = statusManager;
         this.timeValidationService = timeValidationService;
+        this.fileBackupService = fileBackupService;
         LoggerUtil.initialize(this.getClass(), null);
 
         // Register this instance as the sync operation implementation
@@ -60,7 +60,7 @@ public class FileSyncService implements SyncStatusManager.SyncOperation {
             Files.createDirectories(networkPath.getParent());
 
             // Step 1: First write the local file as a backup on the network
-            Path backupPath = backupService.getBackupPath(networkPath);
+            Path backupPath = fileBackupService.getBackupPath(networkPath);
             Files.copy(localPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
             LoggerUtil.debug(this.getClass(), "Created backup on network: " + backupPath);
 

@@ -1,5 +1,6 @@
 package com.ctgraphdep.config;
 
+
 import com.ctgraphdep.service.FileBackupService;
 import com.ctgraphdep.service.FileSyncService;
 import com.ctgraphdep.service.SyncStatusManager;
@@ -17,7 +18,7 @@ public class SyncServiceConfig {
     }
 
     @Bean
-    public FileSyncService fileSyncService(FileBackupService backupService, SyncStatusManager statusManager, TimeValidationService timeValidationService) {
-        return new FileSyncService(backupService, statusManager, timeValidationService);
+    public FileSyncService fileSyncService(FileBackupService fileBackupService,SyncStatusManager syncStatusManager, TimeValidationService timeValidationService) {
+        return new FileSyncService(syncStatusManager,timeValidationService,fileBackupService);
     }
 }

@@ -8,34 +8,55 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Service responsible for monitoring network availability and managing network-related status.
+ * This implementation includes debouncing, jitter prevention, and consolidated network checks.
+ */
 @Service
 public class NetworkMonitorService {
 
     @Value("${app.sync.interval:300000}")
     private long monitorInterval; // Default 5 minutes
 
+    @Value("${app.network.debounce.ms:10000}")
+    private long debounceIntervalMs; // Default 10 seconds debounce
+
+    @Value("${app.network.jitter.threshold:3}")
+    private int jitterThreshold; // Default 3 consecutive different results to change status
+
+    @Value("${app.network.check.retry:3}")
+    private int networkCheckRetries; // Number of retries for each network check
+
     private final PathConfig pathConfig;
-    private final FileLocationStrategy locationStrategy;
     private final SyncStatusManager syncStatusManager;
     private final FileSyncService syncService;
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean isRunning = false;
-    private volatile boolean lastKnownNetworkStatus = false;
-    private int consecutiveFailures = 0;
+
+    // Network status tracking
+    private final AtomicBoolean networkStatus = new AtomicBoolean(false);
+    private volatile long lastStatusChangeTimestamp = 0;
+    private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
+    private final AtomicInteger stabilityCounter = new AtomicInteger(0);
+
+    // Synchronization object for network status changes
+    private final Object networkStatusLock = new Object();
 
     public NetworkMonitorService(
             PathConfig pathConfig,
-            FileLocationStrategy locationStrategy,
             SyncStatusManager syncStatusManager,
             FileSyncService syncService) {
         this.pathConfig = pathConfig;
-        this.locationStrategy = locationStrategy;
         this.syncStatusManager = syncStatusManager;
         this.syncService = syncService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -44,111 +65,75 @@ public class NetworkMonitorService {
     @PostConstruct
     public void init() {
         startMonitoring();
-        startAggressiveNetworkDetection();
-
+        // Use a separate thread with proper backoff for initial detection
+        scheduler.execute(this::performInitialNetworkDetection);
     }
 
-    private void startAggressiveNetworkDetection() {
-        Thread aggressiveChecker = new Thread(() -> {
-            try {
-                // Wait 30 seconds to let the system settle
-                Thread.sleep(30000);
-
-                LoggerUtil.info(this.getClass(), "Starting aggressive network detection");
-
-                // Check every 10 seconds for first minute, then every 30 for 5 min, then every minute for 10 min
-                for (int attempt = 0; attempt < 30; attempt++) {
-                    int delay;
-                    if (attempt < 6) {
-                        delay = 10000; // Every 10 seconds for first minute
-                    } else if (attempt < 16) {
-                        delay = 30000; // Every 30 seconds for next 5 minutes
-                    } else {
-                        delay = 60000; // Every minute for remaining time
-                    }
-
-                    // Check network status
-                    checkNetworkStatusAggressively();
-
-                    // Exit if network is now available
-                    if (lastKnownNetworkStatus) {
-                        LoggerUtil.info(this.getClass(),
-                                String.format("Network became available after %d aggressive checks", attempt + 1));
-                        break;
-                    }
-
-                    LoggerUtil.debug(this.getClass(),
-                            String.format("Aggressive check #%d: Network still unavailable, waiting %dms",
-                                    attempt + 1, delay));
-                    Thread.sleep(delay);
-                }
-
-                LoggerUtil.info(this.getClass(), "Completed aggressive network detection phase");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), "Error in aggressive network detection: " + e.getMessage());
-            }
-        });
-
-        aggressiveChecker.setDaemon(true);
-        aggressiveChecker.setName("AggressiveNetworkDetection");
-        aggressiveChecker.start();
-    }
-
-    private synchronized void checkNetworkStatusAggressively() {
+    /**
+     * Initial network detection with progressive backoff
+     */
+    private void performInitialNetworkDetection() {
         try {
-            // Check network path with extra validation
-            Path networkPath = pathConfig.getNetworkPath();
-            String pathStr = networkPath.toString();
+            // Give time for application to initialize
+            Thread.sleep(5000);
 
-            // Check for valid UNC path format
-            if (!pathStr.startsWith("\\\\")) {
-                LoggerUtil.warn(this.getClass(), "Invalid network path format: " + pathStr);
-                return;
-            }
+            LoggerUtil.info(this.getClass(), "Starting initial network detection sequence");
 
-            boolean networkAccessible = Files.exists(networkPath) && Files.isDirectory(networkPath);
+            // Initial backoff parameters
+            int attempt = 0;
+            long[] backoffIntervals = {5000, 10000, 20000, 30000, 60000}; // Increasing backoff
 
-            // Test more thoroughly if exists check passes
-            if (networkAccessible) {
-                try {
-                    Path testFile = networkPath.resolve(".test_" + System.currentTimeMillis() + ".tmp");
-                    Files.createFile(testFile);
-                    Files.delete(testFile);
-                    LoggerUtil.info(this.getClass(), "Network write test successful: " + networkPath);
-                } catch (Exception e) {
-                    networkAccessible = false;
-                    LoggerUtil.debug(this.getClass(), "Network write test failed: " + e.getMessage());
+            // Try to establish initial network status
+            boolean connected = false;
+            while (attempt < backoffIntervals.length) {
+                connected = performNetworkCheck();
+
+                if (connected) {
+                    // Network is available - finish initial detection
+                    // IMPORTANT: Force immediate update without jitter prevention for initial detection
+                    forceNetworkStatusUpdate(true, "Initial detection");
+                    LoggerUtil.info(this.getClass(), "Network detected as available during initial detection");
+                    break;
                 }
+
+                // If we reach here, we know connected is false
+                // Wait before next attempt
+                if (attempt < backoffIntervals.length - 1) { // Only sleep if not the last attempt
+                    long interval = backoffIntervals[attempt];
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Network unavailable during initial detection (attempt %d), waiting %d ms",
+                            attempt + 1, interval));
+                    Thread.sleep(interval);
+                }
+                attempt++;
             }
 
-            if (networkAccessible != lastKnownNetworkStatus) {
-                handleNetworkStatusChange(networkAccessible);
+            if (!connected) {
+                LoggerUtil.warn(this.getClass(), "Network remained unavailable after initial detection sequence");
+                forceNetworkStatusUpdate(false, "Initial detection completion");
             }
 
-            // Reset failure count on success
-            if (networkAccessible) {
-                consecutiveFailures = 0;
-            }
-
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LoggerUtil.warn(this.getClass(), "Initial network detection interrupted: " + e.getMessage());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error checking network status aggressively: " + e.getMessage());
-            handleNetworkStatusChange(false);
+            LoggerUtil.error(this.getClass(), "Error during initial network detection: " + e.getMessage());
         }
     }
 
+    /**
+     * Starts regular network monitoring
+     */
     public void startMonitoring() {
         if (!isRunning) {
             isRunning = true;
             scheduler.scheduleWithFixedDelay(
-                    this::checkNetworkStatus,
-                    0,
+                    this::performScheduledNetworkCheck,
+                    monitorInterval,
                     monitorInterval,
                     TimeUnit.MILLISECONDS
             );
-            LoggerUtil.info(this.getClass(), "Network monitoring started");
+            LoggerUtil.info(this.getClass(), "Network monitoring started with interval: " + monitorInterval + "ms");
         }
     }
 
@@ -166,90 +151,243 @@ public class NetworkMonitorService {
         LoggerUtil.info(this.getClass(), "Network monitoring stopped");
     }
 
+    /**
+     * Scheduled method called at regular intervals to check network status
+     */
     @Scheduled(fixedDelayString = "${app.sync.interval:300000}")
-    public void checkNetworkStatus() {
-        if (!isRunning) {
-            return;
-        }
-
+    public void performScheduledNetworkCheck() {
         try {
-            Path networkPath = pathConfig.getNetworkPath();
+            LoggerUtil.debug(this.getClass(), "Performing scheduled network status check");
 
-            boolean currentStatus = false;
-            if (Files.exists(networkPath) && Files.isDirectory(networkPath)) {
-                try {
-                    // Use same test file method as the aggressive check
-                    Path testFile = networkPath.resolve(".test_" + System.currentTimeMillis());
-                    Files.createFile(testFile);
-                    Files.delete(testFile);
-                    currentStatus = true;
-                    LoggerUtil.debug(this.getClass(), "Network write test successful in regular check");
-                } catch (Exception e) {
-                    LoggerUtil.debug(this.getClass(), "Network write test failed in regular check: " + e.getMessage());
-                    currentStatus = false;
-                }
-            }
+            // Perform the actual network check
+            boolean currentStatus = performNetworkCheck();
 
-            // If status changed, update it
-            if (currentStatus != lastKnownNetworkStatus) {
-                handleNetworkStatusChange(currentStatus);
-            } else if (!currentStatus) {
-                // If still not available, increment failure counter
-                consecutiveFailures++;
+            // Update the status with debouncing
+            updateNetworkStatus(currentStatus);
 
-                // Log with decreasing frequency as failures increase
-                if (consecutiveFailures % getLogFrequency() == 0) {
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Network still unavailable after %d checks", consecutiveFailures));
-                }
-            }
-
+            // Attempt to sync pending files if network is available
             if (currentStatus) {
-                consecutiveFailures = 0;
                 attemptPendingSyncs();
             }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during scheduled network check: " + e.getMessage(), e);
+            consecutiveFailures.incrementAndGet();
+        }
+    }
 
-            if (Files.exists(networkPath)) {
-                boolean isReadable = Files.isReadable(networkPath);
-                boolean isWritable = Files.isWritable(networkPath);
-                boolean isDirectory = Files.isDirectory(networkPath);
+    /**
+     * Centralized method to perform network availability check using CompletableFuture
+     * to avoid Thread.sleep() in a loop
+     */
+    private boolean performNetworkCheck() {
+        Path networkPath = pathConfig.getNetworkPath();
 
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Network path checks - Exists: true, Readable: %b, Writable: %b, Directory: %b",
-                        isReadable, isWritable, isDirectory));
+        // Verify path is in UNC format
+        String pathStr = networkPath.toString();
+        if (!pathStr.startsWith("\\\\")) {
+            LoggerUtil.warn(this.getClass(), "Invalid network path format: " + pathStr);
+            return false;
+        }
+
+        // Create an executor service for our async tasks
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            for (int attempt = 0; attempt < networkCheckRetries; attempt++) {
+                // Calculate timeout with exponential backoff
+                long timeout = Math.min(100 * (long)Math.pow(2, attempt), 2000); // Cap at 2 seconds
+
+                // Create and execute the network check task
+                boolean result = executeNetworkCheckAttempt(networkPath, attempt, timeout, executor);
+                if (result) {
+                    return true; // Network is available
+                }
+
+                // Log that we're moving to the next attempt
+                if (attempt < networkCheckRetries - 1) {
+                    LoggerUtil.debug(this.getClass(), String.format("Moving to next network check attempt after waiting %d ms", timeout));
+                }
             }
 
+            LoggerUtil.debug(this.getClass(), "Network check failed after " + networkCheckRetries + " attempts");
+            return false;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Execute a single network check attempt with timeout
+     */
+    private boolean executeNetworkCheckAttempt(Path networkPath, int attempt, long timeout, ExecutorService executor) {
+        final int currentAttempt = attempt;
+
+        // Create a future task that checks network connectivity
+        CompletableFuture<Boolean> networkCheckTask = CompletableFuture.supplyAsync(() -> performSingleNetworkCheck(networkPath, currentAttempt), executor);
+
+        try {
+            // Wait for the task to complete with the calculated timeout
+            return networkCheckTask.get(timeout, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            LoggerUtil.debug(this.getClass(), String.format("Network check attempt %d timed out after %d ms", attempt + 1, timeout));
+            networkCheckTask.cancel(true);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LoggerUtil.debug(this.getClass(), "Network check interrupted");
+        } catch (ExecutionException e) {
+            LoggerUtil.debug(this.getClass(), String.format("Network check attempt %d threw exception: %s", attempt + 1, e.getCause().getMessage()));
+        }
+
+        return false;
+    }
+
+    /**
+     * Perform a single network connectivity check
+     */
+    private boolean performSingleNetworkCheck(Path networkPath, int attempt) {
+        try {
+            // Basic existence check
+            if (!Files.exists(networkPath) || !Files.isDirectory(networkPath)) {
+                LoggerUtil.debug(this.getClass(), String.format("Network path doesn't exist or isn't a directory, attempt %d", attempt + 1));
+                return false;
+            }
+
+            // Test write access with a unique filename
+            String uniqueFilename = ".test_" + System.currentTimeMillis() + "_" + Thread.currentThread().getId() + "_" + attempt;
+            Path testFile = networkPath.resolve(uniqueFilename);
+
+            try {
+                Files.createFile(testFile);
+                boolean success = Files.exists(testFile);
+
+                // Always try to clean up the test file, regardless of success
+                try {
+                    Files.deleteIfExists(testFile);
+                } catch (IOException deleteEx) {
+                    LoggerUtil.warn(this.getClass(), String.format("Failed to delete test file %s: %s", testFile, deleteEx.getMessage()));
+                    // Continue execution even if delete fails
+                }
+
+                if (success) {
+                    LoggerUtil.debug(this.getClass(), "Network check successful on attempt " + (attempt + 1));
+                    return true;
+                }
+            } catch (IOException createEx) {
+                LoggerUtil.debug(this.getClass(), String.format("Failed to create test file, attempt %d: %s", attempt + 1, createEx.getMessage()));
+            }
+
+            return false;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error checking network status: " + e.getMessage());
-            consecutiveFailures++;
-            handleNetworkStatusChange(false);
+            LoggerUtil.debug(this.getClass(), String.format("Network check attempt %d failed with unexpected error: %s", attempt + 1, e.getMessage()));
+            return false;
         }
     }
 
-    private int getLogFrequency() {
-        // Log less frequently as failures increase: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512
-        return Math.max(1, 1 << Math.min(9, consecutiveFailures / 10));
-    }
+    /**
+     * Force immediate update of network status without jitter prevention
+     * Used for initial detection and critical status changes
+     */
+    private void forceNetworkStatusUpdate(boolean newStatus, String reason) {
+        synchronized (networkStatusLock) {
+            boolean currentStatus = networkStatus.get();
 
-    private void handleNetworkStatusChange(boolean newStatus) {
-        lastKnownNetworkStatus = newStatus;
-        pathConfig.updateNetworkStatus();
-        locationStrategy.setForcedLocalMode(!newStatus);
+            // Skip if no change
+            if (newStatus == currentStatus) {
+                return;
+            }
 
-        LoggerUtil.info(this.getClass(),
-                String.format("Network status changed to: %s", newStatus ? "Available" : "Unavailable"));
-        // Reset failure counter on status change
-        if (newStatus) {
-            consecutiveFailures = 0;
+            // Update immediately without jitter prevention or debouncing
+            networkStatus.set(newStatus);
+            lastStatusChangeTimestamp = System.currentTimeMillis();
+            stabilityCounter.set(0);  // Reset stability counter
+
+            // Reset failure counter on success
+            if (newStatus) {
+                consecutiveFailures.set(0);
+            }
+
+            // Log the change
+            LoggerUtil.info(this.getClass(), String.format("Network status FORCED to: %s (reason: %s)", newStatus ? "Available" : "Unavailable", reason));
+
+            // IMPORTANT: Update the PathConfig status
+            pathConfig.setNetworkAvailable(newStatus);
+
+            // Additional immediate notification to ensure all components are aware
+            broadcastNetworkStatusChange(newStatus);
         }
     }
 
+    /**
+     * Updates network status with debouncing and jitter prevention
+     */
+    private void updateNetworkStatus(boolean newStatus) {
+        synchronized (networkStatusLock) {
+            boolean currentStatus = networkStatus.get();
+
+            // Check if the status is actually changing
+            if (newStatus == currentStatus) {
+                // Status is the same - reset stability counter
+                stabilityCounter.set(0);
+                return;
+            }
+
+            // Status is different - check stability using jitter prevention
+            int stability = stabilityCounter.incrementAndGet();
+
+            // Only log the first observation of a potential status change
+            if (stability == 1) {
+                LoggerUtil.debug(this.getClass(), String.format("Potential network status change to %s observed (%s) - waiting for stability", newStatus ? "available" : "unavailable", "Scheduled check"));
+            }
+
+            // Only apply the change after reaching the stability threshold
+            if (stability < jitterThreshold) {
+                return;
+            }
+
+            // Apply debouncing - only change status after the debounce interval
+            long now = System.currentTimeMillis();
+            if (now - lastStatusChangeTimestamp < debounceIntervalMs) {
+                LoggerUtil.debug(this.getClass(), String.format("Ignoring network status change to %s - within debounce period (%s)", newStatus ? "available" : "unavailable", "Scheduled check"));
+                return;
+            }
+
+            // We can now change the status
+            networkStatus.set(newStatus);
+            lastStatusChangeTimestamp = now;
+            stabilityCounter.set(0);  // Reset stability counter
+
+            // Reset failure counter on success
+            if (newStatus) {
+                consecutiveFailures.set(0);
+            }
+
+            // Log the change
+            LoggerUtil.info(this.getClass(), String.format("Network status changed to: %s (reason: %s)", newStatus ? "Available" : "Unavailable", "Scheduled check"));
+
+            // IMPORTANT: Directly set the PathConfig status
+            pathConfig.setNetworkAvailable(newStatus);
+
+            // Additional broadcast to ensure all components are aware
+            broadcastNetworkStatusChange(newStatus);
+        }
+    }
+
+    /**
+     * Broadcast network status change to ensure all components are aware
+     */
+    private void broadcastNetworkStatusChange(boolean status) {
+        // Log a clear, prominent message about the network status
+        LoggerUtil.info(this.getClass(), "==== NETWORK STATUS BROADCAST: " + (status ? "AVAILABLE" : "UNAVAILABLE") + " ====");
+
+        // This could be extended to use a Spring ApplicationEvent if needed
+    }
+
+    /**
+     * Attempts to sync files that failed to sync previously
+     */
     private void attemptPendingSyncs() {
         Set<String> failedSyncs = syncStatusManager.getFailedSyncs();
         if (!failedSyncs.isEmpty()) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Attempting to sync %d failed files", failedSyncs.size()));
+            LoggerUtil.info(this.getClass(), String.format("Attempting to sync %d failed files", failedSyncs.size()));
 
             for (String filename : failedSyncs) {
                 Path localPath = pathConfig.getLocalPath().resolve(filename);
@@ -257,6 +395,14 @@ public class NetworkMonitorService {
                 syncService.syncToNetwork(localPath, networkPath);
             }
         }
+    }
+
+    /**
+     * Returns current network status. This method should be used by all services
+     * that need to check network availability.
+     */
+    public boolean isNetworkAvailable() {
+        return networkStatus.get();
     }
 
     @PreDestroy

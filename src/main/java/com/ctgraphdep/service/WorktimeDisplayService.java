@@ -42,14 +42,9 @@ public class WorktimeDisplayService {
      * Used by the user interface.
      */
     @PreAuthorize("#user.username == authentication.name or hasRole('ADMIN')")
-    public Map<String, Object> prepareUserDisplayData(
-            User user,
-            List<WorkTimeTable> worktimeData,
-            int year,
-            int month) {
+    public Map<String, Object> prepareUserDisplayData(User user, List<WorkTimeTable> worktimeData, int year, int month) {
 
         validateInput(user, worktimeData, year, month);
-
         LoggerUtil.info(this.getClass(), String.format("Preparing display data for user %s, %d/%d", user.getUsername(), month, year));
 
         try {
@@ -66,9 +61,7 @@ public class WorktimeDisplayService {
 
             // Convert to DTOs with pre-calculated values
             int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8; // Default to 8 hours
-            List<WorkTimeEntryDTO> entryDTOs = displayableEntries.stream()
-                    .map(entry -> WorkTimeEntryDTO.fromWorkTimeTable(entry, userSchedule))
-                    .collect(Collectors.toList());
+            List<WorkTimeEntryDTO> entryDTOs = displayableEntries.stream().map(entry -> WorkTimeEntryDTO.fromWorkTimeTable(entry, userSchedule)).collect(Collectors.toList());
 
             WorkTimeSummaryDTO summaryDTO = WorkTimeSummaryDTO.fromWorkTimeSummary(summary);
 
@@ -105,10 +98,8 @@ public class WorktimeDisplayService {
 
             headerInfo.put("day", String.valueOf(day));
             headerInfo.put("initial", WorkCode.ROMANIAN_DAY_INITIALS.get(date.getDayOfWeek()));
-
             // Check if it's a weekend
             headerInfo.put("isWeekend", WorkTimeEntryUtil.isDateWeekend(date) ? "true" : "false");
-
             dayHeaders.add(headerInfo);
         }
 
@@ -121,19 +112,12 @@ public class WorktimeDisplayService {
      * Calculate work time summaries for each user.
      * Used by the admin interface.
      */
-    public Map<Integer, WorkTimeSummary> calculateUserSummaries(
-            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap,
-            List<User> users,
-            Integer year,
-            Integer month) {
+    public Map<Integer, WorkTimeSummary> calculateUserSummaries(Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap, List<User> users, Integer year, Integer month) {
 
         // Validate the year and month
         WorkTimeEntryUtil.validateYearMonth(YearMonth.of(year, month));
-
         Map<Integer, WorkTimeSummary> summaries = new HashMap<>();
-
-        users.forEach(user -> {Map<LocalDate, WorkTimeTable> userEntries = userEntriesMap.getOrDefault(
-                    user.getUserId(), new HashMap<>());
+        users.forEach(user -> {Map<LocalDate, WorkTimeTable> userEntries = userEntriesMap.getOrDefault(user.getUserId(), new HashMap<>());
             WorkTimeSummary summary = calculateUserSummary(userEntries, year, month, user.getSchedule());
             summaries.put(user.getUserId(), summary);
         });
@@ -146,11 +130,8 @@ public class WorktimeDisplayService {
     // ============= Private Helper Methods =============
 
     private List<WorkTimeTable> filterEntriesForDisplay(List<WorkTimeTable> entries) {
-        return entries.stream()
-                .filter(WorkTimeEntryUtil::isEntryDisplayable)
-                .map(this::prepareEntryForDisplay)
-                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                .toList();
+        return entries.stream().filter(WorkTimeEntryUtil::isEntryDisplayable).map(this::prepareEntryForDisplay)
+                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).toList();
     }
 
     private WorkTimeTable prepareEntryForDisplay(WorkTimeTable entry) {

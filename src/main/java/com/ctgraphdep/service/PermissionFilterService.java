@@ -32,7 +32,6 @@ public class PermissionFilterService {
     // Team Leader Specific Permissions
     public static final String PERMISSION_VIEW_STATUS_TEAM_LEADER = "VIEW_STATUS_TEAM_LEADER";
     public static final String PERMISSION_MANAGE_TEAM = "MANAGE_TEAM";
-    public static final String PERMISSION_VIEW_TEAM_WORKTIME = "VIEW_TEAM_WORKTIME";
     public static final String PERMISSION_VIEW_TEAM_STATS = "VIEW_TEAM_STATS";
 
 

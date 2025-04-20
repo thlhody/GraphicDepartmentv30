@@ -7,7 +7,6 @@ import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -139,11 +138,11 @@ public class PathConfig {
     private String appLogPathFormat;
 
     // Return the base network path for use by other services
+    @Getter
     private Path networkPath;
     private Path localPath;
     private final AtomicBoolean networkAvailable = new AtomicBoolean(false);
-    private final AtomicBoolean localAvailable = new AtomicBoolean(false); // Add this
-    private final Object networkStatusLock = new Object();
+    private final AtomicBoolean localAvailable = new AtomicBoolean(false);
 
     @PostConstruct
     public void init() {
@@ -159,15 +158,28 @@ public class PathConfig {
 
             // Create local directories
             initializeLocalDirectories();
+            // Verify initial network status
+            checkInitialNetworkStatus();
 
-            // Check network availability (this will be updated by NetworkMonitorService)
-            updateNetworkStatus();
-
-            LoggerUtil.info(this.getClass(), String.format("Initialized paths - Network: %s, Local: %s, Network Available: %b, Local Available: %b",
-                    networkPath, localPath, networkAvailable.get(), localAvailable.get()));
+            LoggerUtil.info(this.getClass(), String.format("Initialized paths - Network: %s, Local: %s, Local Available: %b", networkPath, localPath, localAvailable.get()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during initialization: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Perform a quick network check at startup
+     * This is not definitive - the NetworkMonitorService will do a more thorough check
+     */
+    private void checkInitialNetworkStatus() {
+        try {
+            Path testPath = networkPath;
+            boolean exists = Files.exists(testPath) && Files.isDirectory(testPath);
+            networkAvailable.set(exists);
+            LoggerUtil.info(this.getClass(), "Initial network check: " + (exists ? "AVAILABLE" : "UNAVAILABLE"));
+        } catch (Exception e) {
             networkAvailable.set(false);
+            LoggerUtil.warn(this.getClass(), "Initial network check failed: " + e.getMessage());
         }
     }
 
@@ -333,85 +345,35 @@ public class PathConfig {
         return networkPath.resolve(userTimeoff).resolve(String.format(timeoffFormat, username, userId, year));
     }
 
-    // Network status management
+    // Network
+    /**
+     * Simple getter for network availability
+     */
     public boolean isNetworkAvailable() {
-        forceNetworkAvailable();
-        synchronized (networkStatusLock) {
-            return networkAvailable.get();
-        }
+        return networkAvailable.get();
     }
-    public void forceNetworkAvailable() {
-        synchronized (networkStatusLock) {
-            if (!networkAvailable.get()) {
-                networkAvailable.set(true);
-                LoggerUtil.info(this.getClass(), "Manually forced network status to available");
-            }
-        }
-    }
-    public void updateNetworkStatus() {
-        synchronized (networkStatusLock) {
-            boolean previous = networkAvailable.get();
-            boolean current = checkNetworkAccess();
-            networkAvailable.set(current);
-            if (previous != current) {
-                LoggerUtil.info(this.getClass(), String.format("Network status changed from %b to %b", previous, current));
-            }
-        }
-    }
-    private boolean checkNetworkAccess() {
-        try {
-            // Validate network path
-            if (networkPath == null) {
-                return false;
-            }
 
-             //Skip UNC path check for development
-             if (!networkPath.toString().startsWith("\\\\")) {
-                LoggerUtil.warn(this.getClass(), "Invalid network path format");
-                return false;
-             }
-
-            if (!Files.exists(networkPath) || !Files.isDirectory(networkPath)) {
-                LoggerUtil.debug(this.getClass(), "Network path not available or not a directory");
-                return false;
-            }
-
-            // Test write access with retry
-            for (int i = 0; !(i > 2); i++) {
-                try {
-                    Path testFile = networkPath.resolve(".test_" + System.currentTimeMillis());
-                    Files.createFile(testFile);
-                    Files.delete(testFile);
-                    return true;
-                } catch (IOException e) {
-                    if (i < 2) {
-                        Thread.sleep(1000);
-                        continue;
-                    }
-                    LoggerUtil.debug(this.getClass(), "Network write test failed: " + e.getMessage());
-                    return false;
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), "Network check failed: " + e.getMessage());
-            return false;
+    /**
+     * Simple setter for network availability - to be called by NetworkMonitorService only
+     */
+    public void setNetworkAvailable(boolean available) {
+        boolean previous = networkAvailable.getAndSet(available);
+        if (previous != available) {
+            LoggerUtil.info(this.getClass(),
+                    String.format("Network status updated to: %s", available ? "Available" : "Unavailable"));
+            // Broadcast status change to any listeners
+            notifyNetworkStatusChange(available);
         }
     }
-    @Scheduled(fixedDelay = 600000) // Check every 10 minutes - periodic checker
-    public void scheduledNetworkCheck() {
-        try {
-            boolean previous = networkAvailable.get();
-            boolean current = checkNetworkAccess();
-
-            if (previous != current) {
-                LoggerUtil.info(this.getClass(), String.format("Network status changed from %b to %b", previous, current));
-                networkAvailable.set(current);
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Scheduled network check failed: " + e.getMessage());
-        }
+    /**
+     * Notify any interested components about network status changes
+     */
+    private void notifyNetworkStatusChange(boolean available) {
+        // This could be expanded to use Spring events if needed
+        LoggerUtil.info(this.getClass(),
+                "==== NETWORK STATUS CHANGED: " + (available ? "AVAILABLE" : "UNAVAILABLE") + " ====");
     }
+
 
     // Local check
     public boolean isLocalAvailable() {
@@ -425,8 +387,9 @@ public class PathConfig {
         }
     }
 
-    //Helper methods
+    // Helper methods
     private String normalizeNetworkPath(String path) {
+        // Existing code unchanged
         if (path == null || path.trim().isEmpty()) {
             return path;
         }
@@ -446,5 +409,4 @@ public class PathConfig {
 
         return path;
     }
-
 }

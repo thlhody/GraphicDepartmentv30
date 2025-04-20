@@ -3,7 +3,6 @@ package com.ctgraphdep.security;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.service.DataAccessService;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -13,7 +12,6 @@ import java.util.List;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
-    private static final TypeReference<List<User>> USER_LIST_TYPE = new TypeReference<>() {};
     private final DataAccessService dataAccess;
 
     public CustomUserDetailsService(DataAccessService dataAccess) {

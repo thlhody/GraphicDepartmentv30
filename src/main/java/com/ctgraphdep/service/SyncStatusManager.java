@@ -222,8 +222,7 @@ public class SyncStatusManager {
         }
 
         // Get current standardized time
-        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
-                .createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
         GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
         LocalDateTime currentTime = timeValues.getCurrentTime();
 
@@ -232,20 +231,17 @@ public class SyncStatusManager {
         // Cap the maximum delay at 1 hour
         long actualDelay = Math.min(currentBackoff, 3600000);
 
-        LocalDateTime nextRetryTime = status.getLastAttempt()
-                .plusNanos(actualDelay * 1_000_000);
+        LocalDateTime nextRetryTime = status.getLastAttempt().plusNanos(actualDelay * 1_000_000);
         return currentTime.isAfter(nextRetryTime);
     }
 
     private void retrySync(String filename, SyncStatus status) {
         if (pathConfig.isNetworkAvailable() && syncOperation != null) {
             int attempt = status.incrementRetryCount();
-            LoggerUtil.info(this.getClass(),
-                    String.format("Retrying sync for file: %s (attempt #%d)", filename, attempt));
+            LoggerUtil.info(this.getClass(), String.format("Retrying sync for file: %s (attempt #%d)", filename, attempt));
 
             // Update last attempt time with standardized time
-            GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
-                    .createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
             status.setLastAttempt(timeValues.getCurrentTime());
 

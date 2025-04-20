@@ -83,9 +83,7 @@ public class WorktimeManagementService {
                     dataAccessService.writeUserWorktime(username, mergedEntries, year, month);
                 }
 
-                return mergedEntries.stream()
-                        .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                        .collect(Collectors.toList());
+                return mergedEntries.stream().sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
             } finally {
                 userLock.readLock().unlock();
             }
@@ -159,9 +157,7 @@ public class WorktimeManagementService {
             });
         }
 
-        return new ArrayList<>(mergedMap.values()).stream()
-                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                .collect(Collectors.toList());
+        return new ArrayList<>(mergedMap.values()).stream().sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
     }
 
     /**
@@ -218,19 +214,13 @@ public class WorktimeManagementService {
             List<WorkTimeTable> existingEntries = loadUserEntries(username, year, month);
 
             // Remove existing entries for these dates
-            Set<LocalDate> newDates = newEntries.stream()
-                    .map(WorkTimeTable::getWorkDate)
-                    .collect(Collectors.toSet());
+            Set<LocalDate> newDates = newEntries.stream().map(WorkTimeTable::getWorkDate).collect(Collectors.toSet());
 
-            List<WorkTimeTable> remainingEntries = existingEntries.stream()
-                    .filter(entry -> !entry.getUserId().equals(userId) ||
-                            !newDates.contains(entry.getWorkDate()))
+            List<WorkTimeTable> remainingEntries = existingEntries.stream().filter(entry -> !entry.getUserId().equals(userId) || !newDates.contains(entry.getWorkDate()))
                     .collect(Collectors.toList());
 
             remainingEntries.addAll(newEntries);
-            remainingEntries.sort(Comparator
-                    .comparing(WorkTimeTable::getWorkDate)
-                    .thenComparing(WorkTimeTable::getUserId));
+            remainingEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparing(WorkTimeTable::getUserId));
 
             dataAccessService.writeUserWorktime(username, remainingEntries, year, month);
 
@@ -301,7 +291,6 @@ public class WorktimeManagementService {
             if (!holidayEntries.isEmpty()) {
                 entries.addAll(holidayEntries);
                 saveAdminEntry(entries, date.getYear(), date.getMonthValue());
-
                 LoggerUtil.info(this.getClass(), String.format("Added national holiday for %s with %d entries", date, holidayEntries.size()));
             }
         } finally {
@@ -314,12 +303,8 @@ public class WorktimeManagementService {
      */
     @PreAuthorize("hasRole('ADMIN')")
     public int getWorkedDays(Integer userId, int year, int month) {
-        return (int) loadAdminEntries(year, month).stream()
-                .filter(entry -> entry.getUserId().equals(userId))
-                .filter(entry -> entry.getTimeOffType() == null &&
-                        entry.getTotalWorkedMinutes() != null &&
-                        entry.getTotalWorkedMinutes() > 0)
-                .count();
+        return (int) loadAdminEntries(year, month).stream().filter(entry -> entry.getUserId().equals(userId))
+                .filter(entry -> entry.getTimeOffType() == null && entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0).count();
     }
 
     // ============= WORKTIME CONSOLIDATION OPERATIONS =============
@@ -345,6 +330,7 @@ public class WorktimeManagementService {
 
             // Create a map of admin entries by user and date for efficient lookup
             assert adminEntries != null;
+//            if(adminEntries != null){}
             Map<String, WorkTimeTable> adminEntriesMap = createAdminEntriesMap(adminEntries);
 
             // Process each user's entries
