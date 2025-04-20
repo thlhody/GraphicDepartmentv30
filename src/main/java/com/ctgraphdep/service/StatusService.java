@@ -1,15 +1,10 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.dto.*;
-import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
-import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
-import com.ctgraphdep.model.dto.worktime.WorkTimeCountsDTO;
-import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
-import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
@@ -19,23 +14,28 @@ import java.util.stream.Collectors;
 /**
  * Centralized service for status-related operations.
  * Focuses on read-only operations for displaying user status, worktime, and register data.
+ * Delegates to specialized services for domain-specific operations.
  */
 @Service
 public class StatusService {
     private final DataAccessService dataAccessService;
     private final UserRegisterService userRegisterService;
+    private final WorktimeDisplayService worktimeDisplayService;
+    private final TimeOffManagementService timeOffManagementService;
+    private final TimeValidationService timeValidationService;
 
-    public StatusService(DataAccessService dataAccessService,
-                         UserRegisterService userRegisterService) {
+    public StatusService(DataAccessService dataAccessService, UserRegisterService userRegisterService,
+                         WorktimeDisplayService worktimeDisplayService, TimeOffManagementService timeOffManagementService, TimeValidationService timeValidationService) {
         this.dataAccessService = dataAccessService;
         this.userRegisterService = userRegisterService;
-
+        this.worktimeDisplayService = worktimeDisplayService;
+        this.timeOffManagementService = timeOffManagementService;
+        this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     // Load worktime data for a user in view-only mode (optimized read-only operation)
     public List<WorkTimeTable> loadViewOnlyWorktime(String username, Integer userId, int year, int month) {
-        validatePeriod(year, month);
 
         try {
             // Use read-only method from DataAccessService
@@ -46,58 +46,26 @@ public class StatusService {
             }
 
             // Filter for requested user and sort by date
-            return userEntries.stream()
-                    .filter(entry -> entry.getUserId().equals(userId))
-                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                    .collect(Collectors.toList());
+            return userEntries.stream().filter(entry -> entry.getUserId().equals(userId))
+                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading view-only worktime for user %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
-    // Prepares worktime display data without modifying any files, now using DTOs
+    // Prepares worktime display data without modifying any files - now delegates to WorktimeDisplayService
     public Map<String, Object> prepareWorktimeDisplayData(User user, List<WorkTimeTable> worktimeData, int year, int month) {
-        validateInput(user, worktimeData, year, month);
+        validateInput(user, worktimeData);
 
         try {
-            Map<String, Object> displayData = new HashMap<>();
-
-            // Filter entries for display
-            List<WorkTimeTable> displayableEntries = filterWorktimeEntriesForDisplay(worktimeData);
-
-            // Calculate summary using domain model
-            WorkTimeSummary summary = calculateMonthSummary(
-                    displayableEntries,
-                    year,
-                    month,
-                    user
-            );
-
-            // Convert to DTOs
-            int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8; // Default to 8 hours
-            List<WorkTimeEntryDTO> entryDTOs = displayableEntries.stream()
-                    .map(entry -> WorkTimeEntryDTO.fromWorkTimeTable(entry, userSchedule))
-                    .collect(Collectors.toList());
-
-            // Convert summary to DTO
-            WorkTimeSummaryDTO summaryDTO = WorkTimeSummaryDTO.fromWorkTimeSummary(summary);
-
-            // Prepare display data with DTOs
-            displayData.put("worktimeData", entryDTOs);
-            displayData.put("currentYear", year);
-            displayData.put("currentMonth", month);
-            displayData.put("user", sanitizeUserData(user));
-            displayData.put("summary", summaryDTO);
-
-            return displayData;
-
+            // Delegate to WorktimeDisplayService for consistent display logic
+            return worktimeDisplayService.prepareUserDisplayData(user, worktimeData, year, month);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error preparing worktime display data for user %s: %s", user.getUsername(), e.getMessage()));
             throw new RuntimeException("Failed to prepare worktime display data", e);
         }
     }
-
 
     // Loads register entries for search functionality.
     public List<RegisterEntry> loadRegisterEntriesForSearch(User user, String searchTerm, LocalDate startDate,
@@ -132,17 +100,13 @@ public class StatusService {
                 clientName);
     }
 
-
     // Load register entries for a period using an optimized read-only approach
     public List<RegisterEntry> loadRegisterEntriesForPeriod(User user, int year, int month) {
         try {
             // Use read-only method from DataAccessService
-            return dataAccessService.readRegisterReadOnly(
-                    user.getUsername(), user.getUserId(), year, month);
+            return dataAccessService.readRegisterReadOnly(user.getUsername(), user.getUserId(), year, month);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading register entries for user %s: %s",
-                            user.getUsername(), e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading register entries for user %s: %s", user.getUsername(), e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -151,11 +115,11 @@ public class StatusService {
     public List<RegisterEntry> loadAllRelevantEntries(User user, Integer year, Integer month,
                                                       LocalDate startDate, LocalDate endDate) {
         List<RegisterEntry> allEntries = new ArrayList<>();
+        LocalDate currentDate = getStandardCurrentDate();
 
         // If specific year and month provided
         if (year != null && month != null) {
-            List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), year, month);
+            List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), year, month);
             if (monthEntries != null) {
                 allEntries.addAll(monthEntries);
             }
@@ -170,15 +134,12 @@ public class StatusService {
             YearMonth current = start;
             while (!current.isAfter(end)) {
                 try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                            user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
                     if (monthEntries != null) {
                         allEntries.addAll(monthEntries);
                     }
                 } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Error loading entries for %s - %d/%d: %s",
-                                    user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
+                    LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
                 }
                 current = current.plusMonths(1);
             }
@@ -188,20 +149,17 @@ public class StatusService {
         // If only start date provided
         if (startDate != null) {
             YearMonth start = YearMonth.from(startDate);
-            YearMonth now = YearMonth.now();
+            YearMonth now = YearMonth.from(currentDate);
 
             YearMonth current = start;
             while (!current.isAfter(now)) {
                 try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                            user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
                     if (monthEntries != null) {
                         allEntries.addAll(monthEntries);
                     }
                 } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Error loading entries for %s - %d/%d: %s",
-                                    user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
+                    LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
                 }
                 current = current.plusMonths(1);
             }
@@ -212,45 +170,37 @@ public class StatusService {
         if (year != null) {
             for (int m = 1; m <= 12; m++) {
                 try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(
-                            user.getUsername(), user.getUserId(), year, m);
+                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), year, m);
                     if (monthEntries != null) {
                         allEntries.addAll(monthEntries);
                     }
                 } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Error loading entries for %s - %d/%d: %s",
-                                    user.getUsername(), year, m, e.getMessage()));
+                    LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), year, m, e.getMessage()));
                 }
             }
             return allEntries;
         }
 
         // Default: load current month and previous month
-        LocalDate now = LocalDate.now();
+
         try {
-            List<RegisterEntry> currentMonthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), now.getYear(), now.getMonthValue());
+            List<RegisterEntry> currentMonthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), currentDate.getYear(), currentDate.getMonthValue());
             if (currentMonthEntries != null) {
                 allEntries.addAll(currentMonthEntries);
             }
 
             // Previous month
-            LocalDate prevMonth = now.minusMonths(1);
-            List<RegisterEntry> prevMonthEntries = userRegisterService.loadMonthEntries(
-                    user.getUsername(), user.getUserId(), prevMonth.getYear(), prevMonth.getMonthValue());
+            LocalDate prevMonth = currentDate.minusMonths(1);
+            List<RegisterEntry> prevMonthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), prevMonth.getYear(), prevMonth.getMonthValue());
             if (prevMonthEntries != null) {
                 allEntries.addAll(prevMonthEntries);
             }
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("Error loading recent entries for %s: %s",
-                            user.getUsername(), e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Error loading recent entries for %s: %s", user.getUsername(), e.getMessage()));
         }
 
         return allEntries;
     }
-
 
     // Filter register entries based on search criteria.
     public List<RegisterEntry> filterRegisterEntries(List<RegisterEntry> entries,
@@ -279,37 +229,27 @@ public class StatusService {
 
         // Filter by date range
         if (startDate != null) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> !entry.getDate().isBefore(startDate))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> !entry.getDate().isBefore(startDate)).collect(Collectors.toList());
         }
 
         if (endDate != null) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> !entry.getDate().isAfter(endDate))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> !entry.getDate().isAfter(endDate)).collect(Collectors.toList());
         }
 
         // Filter by action type
         if (actionType != null && !actionType.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> actionType.equals(entry.getActionType()))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> actionType.equals(entry.getActionType())).collect(Collectors.toList());
         }
 
         // Filter by print prep type
         if (printPrepTypes != null && !printPrepTypes.isEmpty()) {
             filteredEntries = filteredEntries.stream()
-                    .filter(entry -> entry.getPrintPrepTypes() != null &&
-                            entry.getPrintPrepTypes().contains(printPrepTypes))
-                    .collect(Collectors.toList());
+                    .filter(entry -> entry.getPrintPrepTypes() != null && entry.getPrintPrepTypes().contains(printPrepTypes)).collect(Collectors.toList());
         }
 
         // Filter by client name
         if (clientName != null && !clientName.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> clientName.equals(entry.getClientName()))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> clientName.equals(entry.getClientName())).collect(Collectors.toList());
         }
 
         return filteredEntries;
@@ -317,10 +257,7 @@ public class StatusService {
 
     // Extracts unique clients from register entries.
     public Set<String> extractUniqueClients(List<RegisterEntry> entries) {
-        return entries.stream()
-                .map(RegisterEntry::getClientName)
-                .filter(name -> name != null && !name.isEmpty())
-                .collect(Collectors.toCollection(HashSet::new));
+        return entries.stream().map(RegisterEntry::getClientName).filter(name -> name != null && !name.isEmpty()).collect(Collectors.toCollection(HashSet::new));
     }
 
     private List<RegisterEntry> loadRegisterEntriesForDateRange(User user, LocalDate startDate, LocalDate endDate) {
@@ -347,299 +284,57 @@ public class StatusService {
         return allEntries;
     }
 
-    private List<WorkTimeTable> filterWorktimeEntriesForDisplay(List<WorkTimeTable> entries) {
-        return entries.stream()
-                .filter(this::isWorktimeEntryDisplayable)
-                .map(this::prepareWorktimeEntryForDisplay)
-                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                .collect(Collectors.toList());
-    }
-
-    private boolean isWorktimeEntryDisplayable(WorkTimeTable entry) {
-        if (entry == null) return false;
-
-        // Never display ADMIN_BLANK entries
-        if (SyncStatusWorktime.ADMIN_BLANK.equals(entry.getAdminSync())) {
-            return false;
-        }
-
-        // Display USER_IN_PROCESS entries with partial info
-        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
-            return true;
-        }
-
-        // Show all other valid entries
-        return entry.getAdminSync() != null;
-    }
-
-    private WorkTimeTable prepareWorktimeEntryForDisplay(WorkTimeTable entry) {
-        WorkTimeTable displayEntry = new WorkTimeTable();
-        displayEntry.setUserId(entry.getUserId());
-        displayEntry.setWorkDate(entry.getWorkDate());
-        displayEntry.setDayStartTime(entry.getDayStartTime());
-        displayEntry.setDayEndTime(entry.getDayEndTime());
-        displayEntry.setTemporaryStopCount(entry.getTemporaryStopCount());
-        displayEntry.setTotalTemporaryStopMinutes(entry.getTotalTemporaryStopMinutes());
-        displayEntry.setLunchBreakDeducted(entry.isLunchBreakDeducted());
-        displayEntry.setTimeOffType(entry.getTimeOffType());
-        displayEntry.setAdminSync(entry.getAdminSync());
-
-        // For USER_IN_PROCESS entries, show only partial information
-        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
-            // Keep information that is already available
-            if (displayEntry.getTotalWorkedMinutes() == null || displayEntry.getTotalWorkedMinutes() == 0) {
-                displayEntry.setTotalWorkedMinutes(null);
-            }
-
-            if (displayEntry.getTotalOvertimeMinutes() == null || displayEntry.getTotalOvertimeMinutes() == 0) {
-                displayEntry.setTotalOvertimeMinutes(null);
-            }
-
-            // Always hide end time for in-process entries
-            displayEntry.setDayEndTime(null);
-
-            // Don't apply lunch break for in-process entries unless explicitly set
-            if (!displayEntry.isLunchBreakDeducted()) {
-                displayEntry.setLunchBreakDeducted(false);
-            }
-        } else {
-            displayEntry.setTotalWorkedMinutes(entry.getTotalWorkedMinutes());
-            displayEntry.setTotalOvertimeMinutes(entry.getTotalOvertimeMinutes());
-        }
-
-        return displayEntry;
-    }
-
-    private WorkTimeSummary calculateMonthSummary(List<WorkTimeTable> worktimeData, int year, int month, User user) {
-
-        try {
-            int totalWorkDays = calculateWorkDays(year, month);
-            WorkTimeCountsDTO counts = calculateWorkTimeCounts(worktimeData);
-            int availablePaidDays = 0; // Default fallback value
-            try {
-                TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(user.getUsername(), user.getUserId(), year);
-                if (tracker != null) {
-                    // Get available days from tracker
-                    availablePaidDays = tracker.getAvailableHolidayDays();
-                }
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), String.format("Could not read time off tracker for user %s: %s", user.getUsername(), e.getMessage()));
-                // Keep using the default value
-            }
-
-
-            return WorkTimeSummary.builder()
-                    .totalWorkDays(totalWorkDays)
-                    .daysWorked(counts.getDaysWorked())
-                    .remainingWorkDays(totalWorkDays - (counts.getDaysWorked() + counts.getSnDays() + counts.getCoDays() + counts.getCmDays()))
-                    .snDays(counts.getSnDays())
-                    .coDays(getTimeOffSummaryFromTracker(user.getUsername(), user.getUserId(), year).getCoDays())
-                    .cmDays(counts.getCmDays())
-                    .totalRegularMinutes(counts.getRegularMinutes())
-                    .totalOvertimeMinutes(counts.getOvertimeMinutes())
-                    .totalMinutes(counts.getRegularMinutes() + counts.getOvertimeMinutes())
-                    .discardedMinutes(counts.getDiscardedMinutes()) // Now including discarded minutes
-                    .availablePaidDays(availablePaidDays) // Default value to avoid file reads
-                    .build();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error calculating month summary", e);
-            throw e;
-        }
-    }
-
-    private WorkTimeCountsDTO calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
-        WorkTimeCountsDTO counts = new WorkTimeCountsDTO();
-        int totalRegularMinutes = 0;
-        int totalOvertimeMinutes = 0;
-        int totalDiscardedMinutes = 0;
-
-        for (WorkTimeTable entry : worktimeData) {
-            // Skip in-process entries
-            if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
-                continue;
-            }
-
-            if (entry.getTimeOffType() != null) {
-                switch (entry.getTimeOffType()) {
-                    case "SN" -> counts.incrementSnDays();
-                    case "CO" -> counts.incrementCoDays();
-                    case "CM" -> counts.incrementCmDays();
-                }
-            } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
-                counts.incrementDaysWorked();
-
-                // Get user schedule (default to 8 hours)
-                int userSchedule = 8;
-
-                // Use CalculateWorkHoursUtil for consistent calculation
-                WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(
-                        entry.getTotalWorkedMinutes(),
-                        userSchedule
-                );
-
-                // Use the calculation results directly
-                totalRegularMinutes += result.getProcessedMinutes();
-                totalOvertimeMinutes += result.getOvertimeMinutes();
-
-                // Calculate discarded minutes - partial hour not counted in processed minutes
-                // Get adjusted minutes (after lunch deduction)
-                int adjustedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(entry.getTotalWorkedMinutes(), userSchedule);
-
-                // Discarded minutes are the remainder after dividing by 60 (partial hour)
-                int discardedMinutes = adjustedMinutes % 60;
-                totalDiscardedMinutes += discardedMinutes;
-            }
-        }
-
-        counts.setRegularMinutes(totalRegularMinutes);
-        counts.setOvertimeMinutes(totalOvertimeMinutes);
-        counts.setDiscardedMinutes(totalDiscardedMinutes);
-
-        return counts;
-    }
-
-    /**
-     * Gets TimeOffTracker data for a user for a specific year in read-only mode.
-     * This method reads directly from the network or local storage without any data manipulation.
-     *
-     * @param username The username
-     * @param userId   The user ID
-     * @param year     The year to retrieve data for
-     * @return TimeOffTracker data or null if not found
-     */
+    // Gets TimeOffTracker data for a user for a specific year in read-only mode. This method reads directly from the network or local storage without any data manipulation.
     public TimeOffTracker getTimeOffTrackerReadOnly(String username, Integer userId, int year) {
         try {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Retrieving time off tracker for user %s for year %d in read-only mode",
-                            username, year));
+            LoggerUtil.info(this.getClass(), String.format("Retrieving time off tracker for user %s for year %d in read-only mode", username, year));
 
             // Directly use DataAccessService to read the tracker
             TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
 
             if (tracker != null) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("Successfully retrieved time off tracker for %s with %d requests",
-                                username, tracker.getRequests().size()));
+                LoggerUtil.info(this.getClass(), String.format("Successfully retrieved time off tracker for %s with %d requests", username, tracker.getRequests().size()));
             } else {
-                LoggerUtil.info(this.getClass(),
-                        String.format("No time off tracker found for user %s for year %d",
-                                username, year));
+                LoggerUtil.info(this.getClass(), String.format("No time off tracker found for user %s for year %d", username, year));
             }
 
             return tracker;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error retrieving time off tracker for %s (%d): %s",
-                            username, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error retrieving time off tracker for %s (%d): %s", username, year, e.getMessage()));
             return null;
         }
     }
 
-    /**
-     * Gets time off data from TimeOffTracker file in a format compatible with the existing view.
-     * Only returns APPROVED records.
-     *
-     * @param username The username
-     * @param userId   The user ID
-     * @param year     The year to retrieve data for
-     * @return List of WorkTimeTable entries created from tracker data
-     */
+    // Gets time off data from TimeOffTracker file in a format compatible with the existing view. Only returns APPROVED records.
     public List<WorkTimeTable> getApprovedTimeOffFromTracker(String username, Integer userId, int year) {
         try {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Getting approved time off from tracker for user %s for year %d",
-                            username, year));
+            LoggerUtil.info(this.getClass(), String.format("Getting approved time off from tracker for user %s for year %d", username, year));
 
-            // Read tracker directly in read-only mode
-            TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+            // Get the user to properly call the service
+            User user = new User();
+            user.setUsername(username);
+            user.setUserId(userId);
 
-            if (tracker == null || tracker.getRequests() == null || tracker.getRequests().isEmpty()) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("No time off tracker found for user %s for year %d",
-                                username, year));
-                return new ArrayList<>();
-            }
+            // Delegate to TimeOffManagementService
+            // This will get all upcoming time off, then filter for the specific year
+            List<WorkTimeTable> allTimeOffs = timeOffManagementService.getUpcomingTimeOff(user);
 
-            // Convert approved entries to WorkTimeTable format for compatibility with view
-            return tracker.getRequests().stream()
-                    .filter(request -> "APPROVED".equals(request.getStatus()))
-                    .map(request -> {
-                        WorkTimeTable entry = new WorkTimeTable();
-                        entry.setUserId(userId);
-                        entry.setWorkDate(request.getDate());
-                        entry.setTimeOffType(request.getTimeOffType());
-                        // Additional fields could be set here if needed
-                        return entry;
-                    })
-                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                    .collect(Collectors.toList());
+            // Filter just for the requested year
+            return allTimeOffs.stream().filter(entry -> entry.getWorkDate().getYear() == year)
+                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error getting approved time off from tracker for %s (%d): %s",
-                            username, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error getting approved time off from tracker for %s (%d): %s", username, year, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
-    /**
-     * Gets time off summary directly from TimeOffTracker file.
-     * This only counts APPROVED requests.
-     *
-     * @param username The username
-     * @param userId   The user ID
-     * @param year     The year to retrieve data for
-     * @return TimeOffSummaryDTO calculated from tracker data
-     */
-    public TimeOffSummaryDTO getTimeOffSummaryFromTracker(String username, Integer userId, int year) {
+    // Gets time off summary directly from TimeOffTracker file. This only counts APPROVED requests.
+    public TimeOffSummaryDTO getTimeOffSummaryFromTracker(String username, int year) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Calculating time off summary from tracker for user %s for year %d", username, year));
 
-            // Read tracker directly in read-only mode
-            TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
-
-            if (tracker != null) {
-                LoggerUtil.info(this.getClass(), String.format("Successfully retrieved time off tracker for %s with %d requests", username, tracker.getRequests().size()));
-
-                // Count by type from approved requests
-                int snDays = 0, coDays = 0, cmDays = 0;
-
-                for (TimeOffTracker.TimeOffRequest request : tracker.getRequests()) {
-                    if (!"APPROVED".equals(request.getStatus())) {
-                        continue;
-                    }
-
-                    switch (request.getTimeOffType()) {
-                        case "SN" -> snDays++;
-                        case "CO" -> coDays++;
-                        case "CM" -> cmDays++;
-                    }
-                }
-
-                // Use values from tracker if they're set
-                int availablePaidDays = tracker.getAvailableHolidayDays();
-                int usedPaidDays = tracker.getUsedHolidayDays();
-
-                return TimeOffSummaryDTO.builder()
-                        .snDays(snDays)
-                        .coDays(coDays)
-                        .cmDays(cmDays)
-                        .availablePaidDays(availablePaidDays + usedPaidDays)
-                        .paidDaysTaken(usedPaidDays)
-                        .remainingPaidDays(availablePaidDays)
-                        .build();
-            } else {
-                // If no tracker found, return default summary
-                LoggerUtil.info(this.getClass(), String.format("No time off tracker found for user %s for year %d, returning default summary", username, year));
-
-                return TimeOffSummaryDTO.builder()
-                        .snDays(0)
-                        .coDays(0)
-                        .cmDays(0)
-                        .availablePaidDays(0) // Default value
-                        .paidDaysTaken(0)
-                        .remainingPaidDays(0) // Default value
-                        .build();
-            }
+            // Delegate to TimeOffManagementService for calculation
+            return timeOffManagementService.calculateTimeOffSummaryReadOnly(username, year);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error calculating time off summary from tracker for %s (%d): %s", username, year, e.getMessage()));
 
@@ -655,63 +350,8 @@ public class StatusService {
         }
     }
 
-    private int calculateWorkDays(int year, int month) {
-        YearMonth yearMonth = YearMonth.of(year, month);
-        LocalDate startOfMonth = yearMonth.atDay(1);
-        LocalDate endOfMonth = yearMonth.atEndOfMonth();
-
-        int workDays = 0;
-        LocalDate current = startOfMonth;
-        while (!current.isAfter(endOfMonth)) {
-            DayOfWeek dayOfWeek = current.getDayOfWeek();
-            if (!(dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY)) {
-                workDays++;
-            }
-            current = current.plusDays(1);
-        }
-        return workDays;
-    }
-
-    private void validatePeriod(int year, int month) {
-        if (year < 2000 || year > 2100) {
-            throw new IllegalArgumentException("Invalid year: " + year);
-        }
-        if (month < 1 || month > 12) {
-            throw new IllegalArgumentException("Invalid month: " + month);
-        }
-    }
-
-    private void validateInput(User user, List<WorkTimeTable> worktimeData, int year, int month) {
-        if (user == null) {
-            throw new IllegalArgumentException("User cannot be null");
-        }
-        if (worktimeData == null) {
-            throw new IllegalArgumentException("Worktime data cannot be null");
-        }
-        validatePeriod(year, month);
-    }
-
-    private User sanitizeUserData(User user) {
-        User sanitized = new User();
-        sanitized.setUserId(user.getUserId());
-        sanitized.setName(user.getName());
-        sanitized.setUsername(user.getUsername());
-        sanitized.setEmployeeId(user.getEmployeeId());
-        sanitized.setSchedule(user.getSchedule());
-        return sanitized;
-    }
-
-    /**
-     * Loads check register entries for a user in view-only mode (optimized read-only operation)
-     *
-     * @param username The username
-     * @param userId The user ID
-     * @param year The year to retrieve data for
-     * @param month The month to retrieve data for
-     * @return List of RegisterCheckEntry objects
-     */
+    // Loads check register entries for a user in view-only mode (optimized read-only operation)
     public List<RegisterCheckEntry> loadViewOnlyCheckRegister(String username, Integer userId, int year, int month) {
-        validatePeriod(year, month);
 
         try {
             // Use read-only method from DataAccessService (would need to be implemented)
@@ -719,36 +359,19 @@ public class StatusService {
 
             if (entries == null || entries.isEmpty()) {
                 // Return empty list instead of null
-                LoggerUtil.info(this.getClass(),
-                        String.format("No check register entries found for user %s (%d/%d)",
-                                username, month, year));
+                LoggerUtil.info(this.getClass(), String.format("No check register entries found for user %s (%d/%d)", username, month, year));
                 return new ArrayList<>();
             }
 
             // Sort by date (newest first)
-            return entries.stream()
-                    .sorted(Comparator.comparing(RegisterCheckEntry::getDate).reversed())
-                    .collect(Collectors.toList());
+            return entries.stream().sorted(Comparator.comparing(RegisterCheckEntry::getDate).reversed()).collect(Collectors.toList());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading view-only check register for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading view-only check register for user %s: %s", username, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
-    /**
-     * Filter check register entries based on search criteria.
-     *
-     * @param entries The entries to filter
-     * @param searchTerm Text to search across all text fields
-     * @param startDate Optional start date filter
-     * @param endDate Optional end date filter
-     * @param checkType Optional check type filter
-     * @param designerName Optional designer name filter
-     * @param approvalStatus Optional approval status filter
-     * @return Filtered list of RegisterCheckEntry objects
-     */
+    // Filter check register entries based on search criteria.
     public List<RegisterCheckEntry> filterCheckRegisterEntries(
             List<RegisterCheckEntry> entries,
             String searchTerm,
@@ -777,47 +400,32 @@ public class StatusService {
 
         // Filter by date range
         if (startDate != null) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> !entry.getDate().isBefore(startDate))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> !entry.getDate().isBefore(startDate)).collect(Collectors.toList());
         }
 
         if (endDate != null) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> !entry.getDate().isAfter(endDate))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> !entry.getDate().isAfter(endDate)).collect(Collectors.toList());
         }
 
         // Filter by check type
         if (checkType != null && !checkType.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> checkType.equals(entry.getCheckType()))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> checkType.equals(entry.getCheckType())).collect(Collectors.toList());
         }
 
         // Filter by designer name
         if (designerName != null && !designerName.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> designerName.equals(entry.getDesignerName()))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> designerName.equals(entry.getDesignerName())).collect(Collectors.toList());
         }
 
         // Filter by approval status
         if (approvalStatus != null && !approvalStatus.isEmpty()) {
-            filteredEntries = filteredEntries.stream()
-                    .filter(entry -> approvalStatus.equals(entry.getApprovalStatus()))
-                    .collect(Collectors.toList());
+            filteredEntries = filteredEntries.stream().filter(entry -> approvalStatus.equals(entry.getApprovalStatus())).collect(Collectors.toList());
         }
 
         return filteredEntries;
     }
 
-    /**
-     * Calculate check register summary statistics
-     *
-     * @param entries The entries to analyze
-     * @return Map containing summary statistics
-     */
+    // Calculate check register summary statistics
     public Map<String, Object> calculateCheckRegisterSummary(List<RegisterCheckEntry> entries) {
         Map<String, Object> summary = new HashMap<>();
 
@@ -840,15 +448,9 @@ public class StatusService {
 
         // Calculate totals and averages
         int totalEntries = entries.size();
-        int totalArticles = entries.stream()
-                .mapToInt(e -> e.getArticleNumbers() != null ? e.getArticleNumbers() : 0)
-                .sum();
-        int totalFiles = entries.stream()
-                .mapToInt(e -> e.getFilesNumbers() != null ? e.getFilesNumbers() : 0)
-                .sum();
-        double totalOrderValue = entries.stream()
-                .mapToDouble(e -> e.getOrderValue() != null ? e.getOrderValue() : 0.0)
-                .sum();
+        int totalArticles = entries.stream().mapToInt(e -> e.getArticleNumbers() != null ? e.getArticleNumbers() : 0).sum();
+        int totalFiles = entries.stream().mapToInt(e -> e.getFilesNumbers() != null ? e.getFilesNumbers() : 0).sum();
+        double totalOrderValue = entries.stream().mapToDouble(e -> e.getOrderValue() != null ? e.getOrderValue() : 0.0).sum();
 
         // Get average values
         double avgArticles = (double) totalArticles / totalEntries;
@@ -866,17 +468,27 @@ public class StatusService {
         return summary;
     }
 
-    /**
-     * Extract unique designer names from check register entries
-     *
-     * @param entries The entries to analyze
-     * @return Set of unique designer names
-     */
+    // Extract unique designer names from check register entries
     public Set<String> extractUniqueDesigners(List<RegisterCheckEntry> entries) {
-        return entries.stream()
-                .map(RegisterCheckEntry::getDesignerName)
-                .filter(name -> name != null && !name.isEmpty())
-                .collect(Collectors.toCollection(HashSet::new));
+        return entries.stream().map(RegisterCheckEntry::getDesignerName).filter(name -> name != null && !name.isEmpty()).collect(Collectors.toCollection(HashSet::new));
     }
 
+
+    private void validateInput(User user, List<WorkTimeTable> worktimeData) {
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        if (worktimeData == null) {
+            throw new IllegalArgumentException("Worktime data cannot be null");
+        }
+    }
+
+    // And a convenience method for just the date:
+    private LocalDate getStandardCurrentDate() {
+        // Use TimeValidationService to get standardized time values
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
+                .createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        return timeValues.getCurrentDate();
+    }
 }

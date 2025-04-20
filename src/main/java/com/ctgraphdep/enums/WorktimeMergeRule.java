@@ -94,17 +94,14 @@ public enum WorktimeMergeRule {
     private final BiPredicate<WorkTimeTable, WorkTimeTable> condition;
     private final BiFunction<WorkTimeTable, WorkTimeTable, WorkTimeTable> action;
 
-    WorktimeMergeRule(BiPredicate<WorkTimeTable, WorkTimeTable> condition,
-                      BiFunction<WorkTimeTable, WorkTimeTable, WorkTimeTable> action) {
+    WorktimeMergeRule(BiPredicate<WorkTimeTable, WorkTimeTable> condition, BiFunction<WorkTimeTable, WorkTimeTable, WorkTimeTable> action) {
         this.condition = condition;
         this.action = action;
     }
 
     public static WorkTimeTable apply(WorkTimeTable user, WorkTimeTable admin) {
         LoggerUtil.debug(WorktimeMergeRule.class,
-                String.format("Merging - User: %s, Admin: %s",
-                        user != null ? user.getAdminSync() : "null",
-                        admin != null ? admin.getAdminSync() : "null"));
+                String.format("Merging - User: %s, Admin: %s", user != null ? user.getAdminSync() : "null", admin != null ? admin.getAdminSync() : "null"));
 
         // First priority: USER_IN_PROCESS must always be preserved
         if (user != null && SyncStatusWorktime.USER_IN_PROCESS.equals(user.getAdminSync())) {
@@ -113,8 +110,7 @@ public enum WorktimeMergeRule {
         }
 
         // Second priority: ADMIN_BLANK should remove entries (except USER_EDITED)
-        if (admin != null && SyncStatusWorktime.ADMIN_BLANK.equals(admin.getAdminSync()) &&
-                (user == null || !SyncStatusWorktime.USER_EDITED.equals(user.getAdminSync()))) {
+        if (admin != null && SyncStatusWorktime.ADMIN_BLANK.equals(admin.getAdminSync()) && (user == null || !SyncStatusWorktime.USER_EDITED.equals(user.getAdminSync()))) {
             LoggerUtil.debug(WorktimeMergeRule.class, "ADMIN_BLANK rule matched - entry will be removed");
             return null;
         }

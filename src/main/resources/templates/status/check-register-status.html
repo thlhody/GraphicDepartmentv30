@@ -38,7 +38,7 @@
                 </h5>
             </div>
             <div class="card-body">
-                <form id="searchForm" th:action="@{/status/check-register}" method="get" class="search-form">
+                <form id="searchForm" th:action="@{/status/check-register-status}" method="get" class="search-form">
                     <!-- Hidden fields for preserving context -->
                     <input type="hidden" id="usernameInput" name="username" th:value="${user.username}">
 
@@ -194,17 +194,23 @@
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                     <h6 class="card-subtitle mb-0 me-3">Check Types:</h6>
                     <div class="d-flex flex-wrap gap-2">
-                        <span class="badge bg-primary">GPT: <span id="count-gpt"
-                                                                  th:text="${summary.checkTypeCounts['GPT'] != null ? summary.checkTypeCounts['GPT'] : 0}">0</span></span>
-                        <span class="badge bg-success">LAYOUT: <span id="count-layout"
-                                                                     th:text="${summary.checkTypeCounts['LAYOUT'] != null ? summary.checkTypeCounts['LAYOUT'] : 0}">0</span></span>
-                        <span class="badge bg-info">PRODUCTION: <span id="count-production"
-                                                                      th:text="${summary.checkTypeCounts['PRODUCTION'] != null ? summary.checkTypeCounts['PRODUCTION'] : 0}">0</span></span>
-                        <span class="badge bg-warning">SAMPLE: <span id="count-sample"
-                                                                     th:text="${summary.checkTypeCounts['SAMPLE'] != null ? summary.checkTypeCounts['SAMPLE'] : 0}">0</span></span>
-                        <span class="badge bg-danger">OMS PRODUCTION: <span id="count-oms-production"
-                                                                            th:text="${summary.checkTypeCounts['OMS_PRODUCTION'] != null ? summary.checkTypeCounts['OMS_PRODUCTION'] : 0}">0</span></span>
-                        <span class="badge bg-secondary">Others: <span id="count-others">0</span></span>
+                        <span class="badge bg-primary">GPT:
+                            <span id="count-gpt"
+                                  th:text="${summary.checkTypeCounts['GPT'] != null ? summary.checkTypeCounts['GPT'] : 0}">0</span></span>
+                        <span class="badge bg-success">LAYOUT:
+                            <span id="count-layout"
+                                  th:text="${summary.checkTypeCounts['LAYOUT'] != null ? summary.checkTypeCounts['LAYOUT'] : 0}">0</span></span>
+                        <span class="badge bg-info">PRODUCTION:
+                            <span id="count-production"
+                                  th:text="${summary.checkTypeCounts['PRODUCTION'] != null ? summary.checkTypeCounts['PRODUCTION'] : 0}">0</span></span>
+                        <span class="badge bg-warning">SAMPLE:
+                            <span id="count-sample"
+                                  th:text="${summary.checkTypeCounts['SAMPLE'] != null ? summary.checkTypeCounts['SAMPLE'] : 0}">0</span></span>
+                        <span class="badge bg-danger">OMS PRODUCTION:
+                            <span id="count-oms-production"
+                                  th:text="${summary.checkTypeCounts['OMS_PRODUCTION'] != null ? summary.checkTypeCounts['OMS_PRODUCTION'] : 0}">0</span></span>
+                        <span class="badge bg-secondary">Others:
+                            <span id="count-others">0</span></span>
                     </div>
                 </div>
 
@@ -212,14 +218,14 @@
                 <div class="d-flex flex-wrap align-items-center gap-4">
                     <h6 class="card-subtitle mb-0 me-3">Key Metrics:</h6>
                     <div class="d-flex flex-wrap gap-4">
-                        <span>Total Entries: <strong id="total-entries"
-                                                     th:text="${summary.totalEntries}">0</strong></span>
-                        <span>Avg Files: <strong id="avg-files"
-                                                 th:text="${#numbers.formatDecimal(summary.avgFiles, 1, 2)}">0.00</strong></span>
-                        <span>Avg Articles: <strong id="avg-articles"
-                                                    th:text="${#numbers.formatDecimal(summary.avgArticles, 1, 2)}">0.00</strong></span>
-                        <span>Total Order Value: <strong id="total-order-value"
-                                                         th:text="${#numbers.formatDecimal(summary.totalOrderValue, 1, 2)}">0.00</strong></span>
+                        <span>Total Entries:
+                            <strong id="total-entries" th:text="${summary.totalEntries}">0</strong></span>
+                        <span>Avg Files:
+                            <strong id="avg-files" th:text="${#numbers.formatDecimal(summary.avgFiles, 1, 2)}">0.00</strong></span>
+                        <span>Avg Articles:
+                            <strong id="avg-articles" th:text="${#numbers.formatDecimal(summary.avgArticles, 1, 2)}">0.00</strong></span>
+                        <span>Total Order Value:
+                            <strong id="total-order-value" th:text="${#numbers.formatDecimal(summary.totalOrderValue, 1, 2)}">0.00</strong></span>
                     </div>
                 </div>
             </div>
@@ -302,10 +308,10 @@
                                 <span th:switch="${entry.adminSync}">
                                     <span th:case="'CHECKING_INPUT'" class="badge bg-secondary">In Process</span>
                                     <span th:case="'CHECKING_DONE'" class="badge bg-success">Complete</span>
-                                    <span th:case="'TL_CHECK_DONE'" class="badge bg-primary">TL Approved</span>
-                                    <span th:case="'TL_EDITED'" class="badge bg-info">TL Edited</span>
-                                    <span th:case="'ADMIN_EDITED'" class="badge bg-warning">Admin Edited</span>
-                                    <span th:case="'ADMIN_DONE'" class="badge bg-success">Admin Approved</span>
+                                    <span th:case="'TL_CHECK_DONE'" class="badge bg-primary">TL.Approved</span>
+                                    <span th:case="'TL_EDITED'" class="badge bg-info">TL.Edited</span>
+                                    <span th:case="'ADMIN_EDITED'" class="badge bg-warning">A.Edited</span>
+                                    <span th:case="'ADMIN_DONE'" class="badge bg-success">A.Done</span>
                                 </span>
                             </td>
                         </tr>
@@ -406,7 +412,7 @@
             const username = (usernameInput ? usernameInput.value : '');
 
             // Construct the redirect URL with preserved username and period
-            let redirectUrl = `/status/check-register?year=${year}&month=${month}`;
+            let redirectUrl = `/status/check-register-status?year=${year}&month=${month}`;
 
             // Add username if present
             if (username) {
@@ -449,7 +455,7 @@
             }
 
             // Construct the redirect URL preserving username and period
-            let redirectUrl = `/status/check-register?year=${year}&month=${month}`;
+            let redirectUrl = `/status/check-register-status?year=${year}&month=${month}`;
 
             // Add username if present
             if (username) {

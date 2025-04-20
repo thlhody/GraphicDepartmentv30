@@ -30,7 +30,12 @@ public class TimeValidationService {
             T result = command.execute();
             LoggerUtil.debug(this.getClass(), "Command executed successfully: " + commandName);
             return result;
+        } catch (IllegalArgumentException e) {
+            // For validation exceptions, use info level without stack trace
+            // No need to log here since the command already logged appropriately
+            throw e;
         } catch (Exception e) {
+            // For unexpected exceptions, use error level with stack trace
             LoggerUtil.error(this.getClass(), "Error executing time validation command " + commandName + ": " + e.getMessage(), e);
             throw e;
         }

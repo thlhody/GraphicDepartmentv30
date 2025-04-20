@@ -5,7 +5,7 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.service.UserWorkTimeService;
+import com.ctgraphdep.service.WorktimeManagementService;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -115,11 +115,11 @@ public class CalculateWorkHoursUtil {
     }
 
     // New method that also considers national holidays
-    public static int calculateWorkDays(LocalDate startDate, LocalDate endDate, UserWorkTimeService workTimeService) {
+    public static int calculateWorkDays(LocalDate startDate, LocalDate endDate, WorktimeManagementService worktimeManagementService) {
         return (int) startDate.datesUntil(endDate.plusDays(1))
                 .filter(date -> date.getDayOfWeek() != DayOfWeek.SATURDAY &&
                         date.getDayOfWeek() != DayOfWeek.SUNDAY)
-                .filter(date -> !workTimeService.isNationalHoliday(date))  // Changed to NOT
+                .filter(worktimeManagementService::isNotHoliday)  // Changed to NOT
                 .count();
     }
 

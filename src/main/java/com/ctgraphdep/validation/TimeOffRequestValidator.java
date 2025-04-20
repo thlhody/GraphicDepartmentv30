@@ -1,6 +1,6 @@
 package com.ctgraphdep.validation;
 
-import com.ctgraphdep.service.UserWorkTimeService;
+import com.ctgraphdep.service.WorktimeManagementService;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -19,13 +19,13 @@ import java.util.List;
 public class TimeOffRequestValidator {
 
     private final TimeValidationService timeValidationService;
-    private final UserWorkTimeService userWorkTimeService;
+    private final WorktimeManagementService worktimeManagementService;
 
     public TimeOffRequestValidator(
             TimeValidationService timeValidationService,
-            UserWorkTimeService userWorkTimeService) {
+            WorktimeManagementService worktimeManagementService) {
         this.timeValidationService = timeValidationService;
-        this.userWorkTimeService = userWorkTimeService;
+        this.worktimeManagementService = worktimeManagementService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -109,7 +109,7 @@ public class TimeOffRequestValidator {
      * Calculates the number of eligible workdays between two dates, excluding weekends and holidays.
      */
     private int calculateEligibleDays(LocalDate startDate, LocalDate endDate) {
-        return CalculateWorkHoursUtil.calculateWorkDays(startDate, endDate, userWorkTimeService);
+        return CalculateWorkHoursUtil.calculateWorkDays(startDate, endDate, worktimeManagementService);
     }
 
     /**

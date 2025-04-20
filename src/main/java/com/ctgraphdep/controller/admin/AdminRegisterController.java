@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 public class AdminRegisterController extends BaseController {
 
     private final AdminRegisterService adminRegisterService;
-    private final WorkTimeManagementService workTimeManagementService;
+    private final WorktimeManagementService worktimeManagementService;
     private final AdminRegisterExcelExporter adminRegisterExcelExporter;
 
     @Autowired
@@ -44,11 +44,11 @@ public class AdminRegisterController extends BaseController {
             FolderStatus folderStatus,
             TimeValidationService timeValidationService,
             AdminRegisterService adminRegisterService,
-            WorkTimeManagementService workTimeManagementService,
+            WorktimeManagementService worktimeManagementService,
             AdminRegisterExcelExporter adminRegisterExcelExporter) {
         super(userService, folderStatus, timeValidationService);
         this.adminRegisterService = adminRegisterService;
-        this.workTimeManagementService = workTimeManagementService;
+        this.worktimeManagementService = worktimeManagementService;
         this.adminRegisterExcelExporter = adminRegisterExcelExporter;
     }
 
@@ -82,23 +82,19 @@ public class AdminRegisterController extends BaseController {
 
             // If userId is provided, look up user and load entries
             if (userId != null) {
-                User selectedUser = getUserService().getUserById(userId)
-                        .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+                User selectedUser = getUserService().getUserById(userId).orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
 
-                List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(
-                        selectedUser.getUsername(), userId, selectedYear, selectedMonth);
+                List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(selectedUser.getUsername(), userId, selectedYear, selectedMonth);
 
                 // Get worked days from workTimeManagementService
-                int workedDays = workTimeManagementService.getWorkedDays(userId, selectedYear, selectedMonth);
+                int workedDays = worktimeManagementService.getWorkedDays(userId, selectedYear, selectedMonth);
 
                 // Add to model
                 model.addAttribute("entries", entries);
                 model.addAttribute("selectedUser", selectedUser);
                 model.addAttribute("workedDays", workedDays);
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Loaded %d entries and %d worked days for user %s",
-                                entries.size(), workedDays, selectedUser.getUsername()));
+                LoggerUtil.info(this.getClass(), String.format("Loaded %d entries and %d worked days for user %s", entries.size(), workedDays, selectedUser.getUsername()));
             } else {
                 LoggerUtil.info(this.getClass(), "No user selected, adding empty entries list");
                 model.addAttribute("entries", new ArrayList<>());
@@ -133,7 +129,7 @@ public class AdminRegisterController extends BaseController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        int workedDays = workTimeManagementService.getWorkedDays(userId, year, month);
+        int workedDays = worktimeManagementService.getWorkedDays(userId, year, month);
         return ResponseEntity.ok(workedDays);
     }
 

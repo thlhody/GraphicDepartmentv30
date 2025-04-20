@@ -17,12 +17,15 @@ import com.ctgraphdep.session.query.WorktimeResolutionQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.commands.IsWeekdayCommand;
+import com.ctgraphdep.validation.commands.IsWorkingHoursCommand;
 import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -113,6 +116,57 @@ public class NotificationCheckerService {
             // Record execution
             healthMonitor.recordTaskExecution("notification-checker");
 
+            // NEW CODE: Quick pre-check for weekend or non-working hours
+            IsWeekdayCommand weekdayCommand = timeValidationService.getValidationFactory().createIsWeekdayCommand();
+            IsWorkingHoursCommand workingHoursCommand = timeValidationService.getValidationFactory().createIsWorkingHoursCommand();
+
+            boolean isWeekday = timeValidationService.execute(weekdayCommand);
+            boolean isWorkingHours = timeValidationService.execute(workingHoursCommand);
+
+            // If it's not a weekday or not working hours, just log and exit early
+            if (!isWeekday || !isWorkingHours) {
+                // Calculate time until next business hours check
+                GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+                GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+
+                LocalDateTime now = timeValues.getCurrentTime();
+                LocalDateTime nextCheck;
+
+                if (!isWeekday) {
+                    // If weekend, calculate time until Monday 5 AM
+                    int daysUntilMonday = 8 - now.getDayOfWeek().getValue(); // Monday is 1, so 8-day = days until next Monday
+                    if (daysUntilMonday > 7) daysUntilMonday -= 7; // Make sure we're getting the next Monday
+
+                    nextCheck = now.plusDays(daysUntilMonday)
+                            .withHour(WorkCode.WORK_START_HOUR)
+                            .withMinute(0)
+                            .withSecond(0);
+
+                    LoggerUtil.debug(this.getClass(), String.format("Weekend detected, skipping notification checks until %s", nextCheck.format(DateTimeFormatter.ISO_DATE_TIME)));
+                } else {
+                    // Not working hours but weekday - calculate until next working hours start
+                    if (now.getHour() < WorkCode.WORK_START_HOUR) {
+                        // Before start of day - wait until 5 AM
+                        nextCheck = now.withHour(WorkCode.WORK_START_HOUR)
+                                .withMinute(0)
+                                .withSecond(0);
+                    } else {
+                        // After end of day - wait until tomorrow 5 AM
+                        nextCheck = now.plusDays(1)
+                                .withHour(WorkCode.WORK_START_HOUR)
+                                .withMinute(0)
+                                .withSecond(0);
+                    }
+
+                    LoggerUtil.debug(this.getClass(),
+                            String.format("Outside working hours, skipping notification checks until %s",
+                                    nextCheck.format(DateTimeFormatter.ISO_DATE_TIME)));
+                }
+
+                return;
+            }
+
+
             // Get the current active user
             User user = getCurrentActiveUser();
             if (user == null) {
@@ -189,6 +243,7 @@ public class NotificationCheckerService {
      */
     private void checkForStartDayReminder(String username, Integer userId) {
         try {
+
             // Check if notification can be shown (rate limiting)
             if (!notificationService.canShowNotification(username, WorkCode.START_DAY_TYPE, WorkCode.ONCE_PER_DAY_TIMER)) {
                 return;
@@ -319,6 +374,7 @@ public class NotificationCheckerService {
             return null;
         }
     }
+
     /**
      * Resets the service state (for health monitor recovery)
      */

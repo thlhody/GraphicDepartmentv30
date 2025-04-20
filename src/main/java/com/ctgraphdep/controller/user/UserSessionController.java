@@ -185,6 +185,7 @@ public class UserSessionController extends BaseController {
 
             // If there's a session from today in OFFLINE state, clear it to start a fresh one
             if (currentSession != null && currentSession.getDayStartTime() != null) {
+
                 // Use standardized time from the base controller
                 LocalDate today = getStandardCurrentDate();
                 LocalDate sessionDate = currentSession.getDayStartTime().toLocalDate();
@@ -388,7 +389,6 @@ public class UserSessionController extends BaseController {
 
             // Execute the resolution command
             ResolveWorkTimeEntryCommand command = new ResolveWorkTimeEntryCommand(currentUser.getUsername(), currentUser.getUserId(), entryDate, endTime);
-
             boolean success = commandService.executeCommand(command);
 
             if (success) {

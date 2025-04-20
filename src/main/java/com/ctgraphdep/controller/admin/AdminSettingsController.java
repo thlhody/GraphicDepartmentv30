@@ -27,7 +27,7 @@ import java.util.List;
 public class AdminSettingsController extends BaseController {
 
     private final UserManagementService userManagementService;
-    private final HolidayManagementService holidayService;
+    private final HolidayManagementService holidayManagementService;
 
     @Autowired
     public AdminSettingsController(
@@ -35,10 +35,10 @@ public class AdminSettingsController extends BaseController {
             FolderStatus folderStatus,
             TimeValidationService timeValidationService,
             UserManagementService userManagementService,
-            HolidayManagementService holidayService) {
+            HolidayManagementService holidayManagementService) {
         super(userService, folderStatus, timeValidationService);
         this.userManagementService = userManagementService;
-        this.holidayService = holidayService;
+        this.holidayManagementService = holidayManagementService;
     }
 
     @GetMapping
@@ -56,7 +56,7 @@ public class AdminSettingsController extends BaseController {
         LoggerUtil.info(this.getClass(), "Accessing admin settings at " + getStandardCurrentDateTime());
 
         List<User> users = userManagementService.getNonAdminUsers();
-        List<PaidHolidayEntryDTO> holidayEntries = holidayService.getHolidayList();
+        List<PaidHolidayEntryDTO> holidayEntries = holidayManagementService.loadHolidayList();
 
         model.addAttribute("users", users);
         model.addAttribute("holidayEntries", holidayEntries);
@@ -104,14 +104,10 @@ public class AdminSettingsController extends BaseController {
             return accessCheck;
         }
 
-        LoggerUtil.info(this.getClass(),
-                String.format("%s user with %d holiday days at %s",
-                        isNewUser ? "Creating new" : "Updating",
-                        paidHolidayDays,
-                        getStandardCurrentDateTime()));
+        LoggerUtil.info(this.getClass(), String.format("%s user with %d holiday days at %s", isNewUser ? "Creating new" : "Updating", paidHolidayDays, getStandardCurrentDateTime()));
 
         try {
-            if (Boolean.TRUE.equals(isNewUser)) {
+            if (isNewUser) {
                 userManagementService.saveUser(user, paidHolidayDays);
                 redirectAttributes.addFlashAttribute("successMessage", "User created successfully");
             } else {
@@ -119,7 +115,6 @@ public class AdminSettingsController extends BaseController {
                 redirectAttributes.addFlashAttribute("successMessage", "User updated successfully");
             }
         } catch (IllegalArgumentException e) {
-            LoggerUtil.error(this.getClass(), "Validation error: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
             return "redirect:/admin/settings" +
                     (isNewUser ? "" : "?userId=" + user.getUserId());
@@ -151,7 +146,6 @@ public class AdminSettingsController extends BaseController {
             userManagementService.deleteUser(userId);
             redirectAttributes.addFlashAttribute("successMessage", "User deleted successfully");
         } catch (IllegalArgumentException e) {
-            LoggerUtil.error(this.getClass(), "Validation error: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error deleting user: " + e.getMessage());

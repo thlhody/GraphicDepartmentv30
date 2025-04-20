@@ -17,14 +17,14 @@ import org.springframework.context.annotation.Lazy;
 public class SessionCommandConfig {
 
     @Bean
-    public SessionContext sessionContext(DataAccessService dataAccessService, UserWorkTimeService workTimeService,
+    public SessionContext sessionContext(DataAccessService dataAccessService, WorktimeManagementService worktimeManagementService,
                                          UserService userService, SessionStatusService sessionStatusService, NotificationService notificationService,
                                          @Lazy SessionMonitorService sessionMonitorService,
                                          PathConfig pathConfig, FolderStatus folderStatus, SessionCommandFactory commandFactory,
                                          TimeValidationService timeValidationService) {
 
         return new SessionContext(dataAccessService,
-                workTimeService,
+                worktimeManagementService,
                 userService,
                 sessionStatusService,
                 sessionMonitorService,

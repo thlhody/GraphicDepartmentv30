@@ -13,6 +13,7 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.*;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -338,12 +339,10 @@ public class StatusController extends BaseController {
                     user.getUsername(), user.getUserId(), selectedYear);
 
             // Also get the raw tracker using the StatusService method
-            TimeOffTracker tracker = statusService.getTimeOffTrackerReadOnly(
-                    user.getUsername(), user.getUserId(), selectedYear);
+            TimeOffTracker tracker = statusService.getTimeOffTrackerReadOnly(user.getUsername(), user.getUserId(), selectedYear);
 
             // Calculate time off summary directly from tracker
-            TimeOffSummaryDTO summary = statusService.getTimeOffSummaryFromTracker(
-                    user.getUsername(), user.getUserId(), selectedYear);
+            TimeOffSummaryDTO summary = statusService.getTimeOffSummaryFromTracker(user.getUsername(), selectedYear);
 
             // Add data to model
             model.addAttribute("user", user);
@@ -524,8 +523,7 @@ public class StatusController extends BaseController {
             }
 
             // Determine target user (whose check register to view)
-            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
 
             // Add user info to model
             model.addAttribute("user", targetUser);
@@ -533,6 +531,22 @@ public class StatusController extends BaseController {
             // Use determineYear and determineMonth from BaseController
             int displayYear = determineYear(year);
             int displayMonth = determineMonth(month);
+
+            // Validate period directly here before making service call
+            try {
+                // Create and execute validation command directly
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(displayYear, displayMonth, 4); // 4 months ahead max
+                getTimeValidationService().execute(validateCommand);
+            } catch (IllegalArgumentException e) {
+                // Handle validation failure gracefully
+                String userMessage = "The selected period is not valid. " + "You can only view periods up to 4 months in the future.";
+                redirectAttributes.addFlashAttribute("periodError", userMessage);
+                // Reset to current period (or adjust as needed)
+                LocalDate currentDate = getStandardCurrentDate();
+                return "redirect:/status/check-register-status?username=" + (username != null ? username : "") +
+                        "&year=" + currentDate.getYear() +
+                        "&month=" + currentDate.getMonthValue();
+            }
 
             // Set current period for the UI
             model.addAttribute("currentYear", displayYear);
@@ -580,7 +594,7 @@ public class StatusController extends BaseController {
             model.addAttribute("errorMessage", "Error processing check register: " + e.getMessage());
             model.addAttribute("entries", new ArrayList<>());
             model.addAttribute("currentDate", getStandardCurrentDate());
-            return "status/check-register-status";
+            return "redirect:/status";
         }
     }
 

@@ -27,22 +27,22 @@ import java.util.*;
 @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserWorktimeController extends BaseController {
 
-    private final UserWorkTimeDisplayService displayService;
-    private final WorkTimeEntrySyncService entrySyncService;
+    private final WorktimeDisplayService worktimeDisplayService;
+    private final WorktimeManagementService worktimeManagementService;
     private final UserWorktimeExcelExporter excelExporter;
     private final DataAccessService dataAccessService;
 
     public UserWorktimeController(
             UserService userService,
             FolderStatus folderStatus,
-            UserWorkTimeDisplayService displayService,
-            WorkTimeEntrySyncService entrySyncService,
+            WorktimeDisplayService worktimeDisplayService,
+            WorktimeManagementService worktimeManagementService,
             UserWorktimeExcelExporter excelExporter,
             TimeValidationService validationService,
             DataAccessService dataAccessService) {
         super(userService, folderStatus, validationService);
-        this.displayService = displayService;
-        this.entrySyncService = entrySyncService;
+        this.worktimeDisplayService = worktimeDisplayService;
+        this.worktimeManagementService = worktimeManagementService;
         this.excelExporter = excelExporter;
         this.dataAccessService = dataAccessService;
     }
@@ -69,7 +69,7 @@ public class UserWorktimeController extends BaseController {
             int selectedMonth = determineMonth(month);
 
             // Step 1: Synchronize entries between admin and user files
-            entrySyncService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+            worktimeManagementService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
             // Step 2: Read the data from disk after sync is complete
             List<WorkTimeTable> worktimeData = dataAccessService.readUserWorktime(currentUser.getUsername(), selectedYear, selectedMonth);
@@ -82,7 +82,7 @@ public class UserWorktimeController extends BaseController {
             }
 
             // Step 3: Process data with display service to get DTOs
-            Map<String, Object> displayData = displayService.prepareDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = worktimeDisplayService.prepareUserDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
 
             // Step 4: Add display data to the model
             model.addAllAttributes(displayData);
@@ -119,14 +119,14 @@ public class UserWorktimeController extends BaseController {
             int selectedMonth = determineMonth(month);
 
             // Get worktime data
-            List<WorkTimeTable> worktimeData = entrySyncService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+            List<WorkTimeTable> worktimeData = worktimeManagementService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
             // Log the data details
             LoggerUtil.info(this.getClass(), String.format("Exporting worktime data for %s (%d/%d). Total entries: %d",
                             currentUser.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
 
             // Get display data which includes the summary with DTOs
-            Map<String, Object> displayData = displayService.prepareDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = worktimeDisplayService.prepareUserDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
 
             // Extract DTO's for export in Excel
             @SuppressWarnings("unchecked")

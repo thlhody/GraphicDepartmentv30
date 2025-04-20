@@ -46,12 +46,14 @@ public class FileSyncService implements SyncStatusManager.SyncOperation {
 
     @Async
     public boolean syncToNetwork(Path localPath, Path networkPath) {
-        LoggerUtil.info(this.getClass(),
-                String.format("Syncing file\nFrom: %s\nTo: %s", localPath, networkPath));
+        LoggerUtil.info(this.getClass(), String.format("Syncing file\nFrom: %s\nTo: %s", localPath, networkPath));
 
         String filename = localPath.getFileName().toString();
         SyncStatus status = statusManager.createSyncStatus(filename, localPath, networkPath);
-        status.setSyncInProgress(true);
+        // Add null check before using status
+        if (status != null) {
+            status.setSyncInProgress(true);
+        }
 
         try {
             // Ensure network parent directory exists
@@ -71,16 +73,18 @@ public class FileSyncService implements SyncStatusManager.SyncOperation {
             LoggerUtil.info(this.getClass(), "File sync completed successfully");
 
             // Get standardized time
-            GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
-                    .createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
 
             // Update status
-            status.setSyncInProgress(false);
-            status.setSyncPending(false);
-            status.setLastSuccessfulSync(timeValues.getCurrentTime());
-            status.resetRetryCount();
-            status.setErrorMessage(null);
+            if (status != null) {
+                status.setSyncInProgress(false);
+                status.setSyncPending(false);
+                status.setLastSuccessfulSync(timeValues.getCurrentTime());
+                status.resetRetryCount();
+                status.setErrorMessage(null);
+            }
+
 
             return true;  // Return success
 
@@ -89,9 +93,11 @@ public class FileSyncService implements SyncStatusManager.SyncOperation {
             LoggerUtil.error(this.getClass(), String.format("Failed to sync file: %s", e.getMessage()), e);
 
             // Update status
-            status.setSyncInProgress(false);
-            status.setSyncPending(true);
-            status.setErrorMessage(e.getMessage());
+            if (status != null) {
+                status.setSyncInProgress(false);
+                status.setSyncPending(true);
+                status.setErrorMessage(e.getMessage());
+            }
 
             return false;  // Return failure
         }

@@ -139,7 +139,7 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             }
 
             // Save the worktime entry
-            context.getWorkTimeService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
+            context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
 
             info(String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d", username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
         } catch (Exception e) {

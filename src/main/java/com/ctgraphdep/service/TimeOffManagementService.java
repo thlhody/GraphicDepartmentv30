@@ -1,53 +1,70 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.model.TimeOffTracker;
-import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeTable;
+import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.model.*;
+import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.validation.TimeProvider;
-import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.utils.WorktimeEntryUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeOffRequestValidator;
+import com.ctgraphdep.validation.TimeValidationService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
- * Service for managing time off tracker files that store per-day time off requests.
- * This service handles only the tracker files, not the worktime files.
+ * Comprehensive service for managing time-off related operations.
+ * This consolidated service combines functionality from:
+ * - TimeOffTrackerService
+ * - UserTimeOffService
+ * - HolidayManagementService (partial)
  */
 @Service
-public class TimeOffTrackerService {
+public class TimeOffManagementService {
+
     private final DataAccessService dataAccessService;
-    private final TimeProvider timeProvider;
+    private final HolidayManagementService holidayManagementService;
     private final TimeValidationService timeValidationService;
-    private final HolidayManagementService holidayService;
+    private final WorktimeManagementService worktimeManagementService;
+    private final TimeOffRequestValidator timeOffValidator;
+    private final UserService userService;
 
-    // Lock for file operations
-    private final Map<String, ReentrantReadWriteLock> trackerLocks = new HashMap<>();
+    private final Map<String, ReentrantReadWriteLock> userTrackerLocks = new HashMap<>();
 
-    public TimeOffTrackerService(
+    public TimeOffManagementService(
             DataAccessService dataAccessService,
-            TimeProvider timeProvider,
+            HolidayManagementService holidayManagementService,
             TimeValidationService timeValidationService,
-            HolidayManagementService holidayService) {
+            WorktimeManagementService worktimeManagementService,
+            TimeOffRequestValidator timeOffValidator, UserService userService) {
         this.dataAccessService = dataAccessService;
-        this.timeProvider = timeProvider;
+        this.holidayManagementService = holidayManagementService;
         this.timeValidationService = timeValidationService;
-        this.holidayService = holidayService;
+        this.worktimeManagementService = worktimeManagementService;
+        this.timeOffValidator = timeOffValidator;
+        this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    // ============= TRACKER MANAGEMENT =============
+
+    /**
+     * Ensures a tracker exists for a user for a specific year
+     */
     public void ensureTrackerExists(User user, Integer userId, int year) {
         // Try to load existing tracker
         TimeOffTracker tracker = dataAccessService.readTimeOffTracker(user.getUsername(), userId, year);
 
         // If tracker doesn't exist, initialize it
         if (tracker == null) {
-            int availableDays = holidayService.getRemainingHolidayDays(user.getUsername(),userId);
+            int availableDays = holidayManagementService.getRemainingHolidayDays(user.getUsername(), userId);
 
             // Create new tracker with holiday balance
             tracker = TimeOffTracker.builder()
@@ -63,60 +80,17 @@ public class TimeOffTrackerService {
             // Save the new tracker
             dataAccessService.writeTimeOffTracker(tracker, year);
         }
+
+        // Sync tracker with worktime files
         List<WorkTimeTable> timeOffEntries = loadAllTimeOffEntries(user.getUsername(), year);
-        // Sync with worktime files to ensure consistency
-        syncWithWorktimeFiles(user, year, timeOffEntries);
-
-    }
-
-    // Helper method to load all time off entries for a year
-    private List<WorkTimeTable> loadAllTimeOffEntries(String username, int year) {
-        List<WorkTimeTable> allTimeOffEntries = new ArrayList<>();
-
-        // Process each month in the year
-        for (int month = 1; month <= 12; month++) {
-            try {
-                // Load worktime entries for the month - use read-only approach
-                List<WorkTimeTable> entries = dataAccessService.readWorktimeReadOnly(username, year, month);
-
-                if (entries != null && !entries.isEmpty()) {
-                    // Filter for time off entries only
-                    List<WorkTimeTable> timeOffEntries = entries.stream()
-                            .filter(entry -> entry.getTimeOffType() != null)
-                            .toList();
-
-                    allTimeOffEntries.addAll(timeOffEntries);
-                }
-            } catch (Exception e) {
-                // Just log warnings - don't fail the whole operation
-                LoggerUtil.warn(this.getClass(), String.format("Error loading worktime for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            }
-        }
-
-        return allTimeOffEntries;
-    }
-
-    /**
-     * Helper method to get standard time values
-     */
-    private GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues() {
-        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
-                .createGetStandardTimeValuesCommand();
-        return timeValidationService.execute(timeCommand);
-    }
-
-    /**
-     * Get the lock for a user's tracker file
-     */
-    private ReentrantReadWriteLock getTrackerLock(String username) {
-        return trackerLocks.computeIfAbsent(username, k -> new ReentrantReadWriteLock());
+        syncTimeOffTracker(user, year, timeOffEntries);
     }
 
     /**
      * Load the time off tracker for a user for a specific year
      */
     public TimeOffTracker loadTimeOffTracker(String username, Integer userId, int year) {
-        ReentrantReadWriteLock.ReadLock readLock = getTrackerLock(username).readLock();
+        ReentrantReadWriteLock.ReadLock readLock = getUserTrackerLock(username).readLock();
         readLock.lock();
         try {
             // Read the tracker using DataAccessService
@@ -127,7 +101,7 @@ public class TimeOffTrackerService {
                 LocalDateTime currentTime = getStandardTimeValues().getCurrentTime();
 
                 // Initialize with holiday days from the holiday service
-                int availableDays = holidayService.getRemainingHolidayDays(username, userId);
+                int availableDays = holidayManagementService.getRemainingHolidayDays(username, userId);
 
                 TimeOffTracker newTracker = TimeOffTracker.builder()
                         .userId(userId)
@@ -145,17 +119,14 @@ public class TimeOffTrackerService {
             }
 
             // Get the latest available days from holiday service
-            int currentAvailableDays = holidayService.getRemainingHolidayDays(username, userId);
+            int currentAvailableDays = holidayManagementService.getRemainingHolidayDays(username, userId);
 
             // Check if holiday allocation has changed
             int totalDays = tracker.getAvailableHolidayDays() + tracker.getUsedHolidayDays();
             if (currentAvailableDays != totalDays - tracker.getUsedHolidayDays()) {
                 // Days have been updated by admin, update the tracker
-                int newAvailableDays = currentAvailableDays;
-
-                LoggerUtil.info(this.getClass(), String.format("Holiday allocation updated for user %s. Old: %d, New: %d", username, tracker.getAvailableHolidayDays(), newAvailableDays));
-
-                tracker.setAvailableHolidayDays(newAvailableDays);
+                LoggerUtil.info(this.getClass(), String.format("Holiday allocation updated for user %s. Old: %d, New: %d", username, tracker.getAvailableHolidayDays(), currentAvailableDays));
+                tracker.setAvailableHolidayDays(currentAvailableDays);
 
                 // Save the updated tracker
                 dataAccessService.writeTimeOffTracker(tracker, year);
@@ -170,7 +141,7 @@ public class TimeOffTrackerService {
             LocalDateTime currentTime = getStandardTimeValues().getCurrentTime();
             int availableDays = 0;
             try {
-                availableDays = holidayService.getRemainingHolidayDays(username, userId);
+                availableDays = holidayManagementService.getRemainingHolidayDays(username, userId);
             } catch (Exception ex) {
                 LoggerUtil.error(this.getClass(), "Failed to get holiday days: " + ex.getMessage());
             }
@@ -198,44 +169,64 @@ public class TimeOffTrackerService {
             return;
         }
 
-        ReentrantReadWriteLock.WriteLock writeLock = getTrackerLock(tracker.getUsername()).writeLock();
+        ReentrantReadWriteLock.WriteLock writeLock = getUserTrackerLock(tracker.getUsername()).writeLock();
         writeLock.lock();
         try {
             dataAccessService.writeTimeOffTracker(tracker, year);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error saving time off tracker for %s (year %d): %s", tracker.getUsername(), year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error saving time off tracker for %s (year %d): %s",
+                    tracker.getUsername(), year, e.getMessage()));
         } finally {
             writeLock.unlock();
         }
     }
 
     /**
-     * Create a new individual time off request
+     * Get the lock for a user's tracker file
      */
-    public TimeOffTracker.TimeOffRequest createTimeOffRequest(
-            LocalDate date,
-            String timeOffType) {
+    private ReentrantReadWriteLock getUserTrackerLock(String username) {
+        return userTrackerLocks.computeIfAbsent(username, k -> new ReentrantReadWriteLock());
+    }
 
-        // Use helper method for standardized time
-        LocalDateTime now = getStandardTimeValues().getCurrentTime();
-        String requestId = UUID.randomUUID().toString();
+    // ============= TIME OFF REQUEST HANDLING =============
 
-        return TimeOffTracker.TimeOffRequest.builder()
-                .requestId(requestId)
-                .date(date)
-                .timeOffType(timeOffType)
-                .status("APPROVED") // Auto-approve for now
-                .createdAt(now)
-                .lastUpdated(now)
-                .build();
+    /**
+     * Process a time-off request for a user
+     */
+    @PreAuthorize("#user.username == authentication.name")
+    public void processTimeOffRequest(User user, LocalDate startDate, LocalDate endDate, String timeOffType) {
+        if (startDate == null || endDate == null || timeOffType == null) {
+            throw new IllegalArgumentException("Start date, end date, and time-off type are required");
+        }
+
+        int availableDays = holidayManagementService.getRemainingHolidayDays(user.getUserId());
+
+        // Validate request using validator
+        TimeOffRequestValidator.ValidationResult validationResult =
+                timeOffValidator.validateRequest(startDate, endDate, timeOffType, availableDays);
+
+        if (!validationResult.isValid()) {
+            throw new IllegalArgumentException(validationResult.getErrorMessage());
+        }
+
+        // Get valid workdays in the range (excluding weekends and holidays)
+        List<LocalDate> validWorkDays = calculateValidWorkDays(startDate, endDate);
+
+        // Add time off entries to the tracker
+        addTimeOffRequests(user, validWorkDays, timeOffType);
+
+        // Update worktime files for each day
+        updateWorktimeWithTimeOff(user, validWorkDays, timeOffType);
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Time off request processed for %s from %s to %s (%d days)",
+                        user.getUsername(), startDate, endDate, validWorkDays.size()));
     }
 
     /**
-     * Add time off requests for specific dates
-     * This adds the requests to the tracker and updates the holiday balance
-     * but DOES NOT modify any worktime files
+     * Add time off requests to the tracker
      */
-    public void addTimeOffRequests(User user, List<LocalDate> validDates, String timeOffType) {
+    private void addTimeOffRequests(User user, List<LocalDate> validDates, String timeOffType) {
         if (validDates.isEmpty()) {
             return;
         }
@@ -243,7 +234,7 @@ public class TimeOffTrackerService {
         // Extract year from first date (all dates should be in same year)
         int year = validDates.get(0).getYear();
 
-        ReentrantReadWriteLock.WriteLock writeLock = getTrackerLock(user.getUsername()).writeLock();
+        ReentrantReadWriteLock.WriteLock writeLock = getUserTrackerLock(user.getUsername()).writeLock();
         writeLock.lock();
         try {
             // Load current tracker for the relevant year
@@ -265,7 +256,7 @@ public class TimeOffTrackerService {
                 tracker.setAvailableHolidayDays(newAvailableDays);
 
                 // Also update the holiday service (will write to holiday.json)
-                holidayService.updateUserHolidayDays(user.getUserId(), newAvailableDays);
+                holidayManagementService.updateUserHolidayDays(user.getUserId(), newAvailableDays);
             }
 
             // Create individual requests for each day
@@ -288,27 +279,138 @@ public class TimeOffTrackerService {
             LoggerUtil.error(this.getClass(),
                     String.format("Error adding time off requests for %s: %s",
                             user.getUsername(), e.getMessage()));
+            throw new RuntimeException("Failed to process time off requests", e);
         } finally {
             writeLock.unlock();
         }
     }
 
     /**
-     * Synchronize the tracker with worktime files for a specific year.
-     * This updates the tracker based on worktime files but DOES NOT modify worktime files.
+     * Update worktime files with time off entries
      */
-    public void syncWithWorktimeFiles(User user, int year, List<WorkTimeTable> timeOffEntries) {
-        ReentrantReadWriteLock.WriteLock writeLock = getTrackerLock(user.getUsername()).writeLock();
+    private void updateWorktimeWithTimeOff(User user, List<LocalDate> dates, String timeOffType) {
+        // Group dates by month for efficient processing
+        Map<YearMonth, List<LocalDate>> datesByMonth = dates.stream()
+                .collect(Collectors.groupingBy(YearMonth::from));
+
+        // Process each month
+        datesByMonth.forEach((yearMonth, monthDates) -> {
+            try {
+                int year = yearMonth.getYear();
+                int month = yearMonth.getMonthValue();
+
+                // Load existing worktime entries for the month
+                List<WorkTimeTable> entries = dataAccessService.readUserWorktime(user.getUsername(), year, month);
+                if (entries == null) {
+                    entries = new ArrayList<>();
+                }
+
+                // Create map for efficient lookup
+                Map<LocalDate, WorkTimeTable> entriesMap = entries.stream()
+                        .collect(Collectors.toMap(
+                                WorkTimeTable::getWorkDate,
+                                entry -> entry,
+                                (e1, e2) -> e2 // Keep the latest in case of duplicates
+                        ));
+
+                // Create or update entries for each date
+                for (LocalDate date : monthDates) {
+                    WorkTimeTable entry = entriesMap.getOrDefault(date, new WorkTimeTable());
+
+                    // Update or create time off entry
+                    entry.setUserId(user.getUserId());
+                    entry.setWorkDate(date);
+                    entry.setTimeOffType(timeOffType);
+                    entry.setAdminSync(SyncStatusWorktime.USER_INPUT);
+
+                    // Reset work-related fields for time off
+                    WorktimeEntryUtil.resetWorkFields(entry);
+
+                    // Update map
+                    entriesMap.put(date, entry);
+                }
+
+                // Convert back to list and save
+                List<WorkTimeTable> updatedEntries = new ArrayList<>(entriesMap.values());
+                dataAccessService.writeUserWorktime(user.getUsername(), updatedEntries, year, month);
+
+                LoggerUtil.info(this.getClass(),
+                        String.format("Updated worktime entries for %s - %d/%d with %d time off days",
+                                user.getUsername(), year, month, monthDates.size()));
+
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(),
+                        String.format("Error updating worktime for %s - %s: %s",
+                                user.getUsername(), yearMonth, e.getMessage()));
+            }
+        });
+    }
+
+    /**
+     * Create a new individual time off request
+     */
+    private TimeOffTracker.TimeOffRequest createTimeOffRequest(
+            LocalDate date,
+            String timeOffType) {
+
+        // Use helper method for standardized time
+        LocalDateTime now = getStandardTimeValues().getCurrentTime();
+        String requestId = UUID.randomUUID().toString();
+
+        return TimeOffTracker.TimeOffRequest.builder()
+                .requestId(requestId)
+                .date(date)
+                .timeOffType(timeOffType)
+                .status("APPROVED") // Auto-approve for now
+                .createdAt(now)
+                .lastUpdated(now)
+                .build();
+    }
+    /**
+     * Calculate valid workdays between start and end date, excluding weekends and holidays
+     * Updated to use the new isNotHoliday method to fix the inverted logic issue
+     */
+    private List<LocalDate> calculateValidWorkDays(LocalDate startDate, LocalDate endDate) {
+        List<LocalDate> validDays = new ArrayList<>();
+
+        LocalDate current = startDate;
+        while (!current.isAfter(endDate)) {
+            // Skip weekends
+            if (!WorktimeEntryUtil.isDateWeekend(current)) {
+                // Skip national holidays
+                if (worktimeManagementService.isNotHoliday(current)) {
+                    validDays.add(current);
+                }
+            }
+            current = current.plusDays(1);
+        }
+
+        return validDays;
+    }
+
+    // ============= TIME OFF TRACKER SYNCHRONIZATION =============
+
+    /**
+     * Synchronize the tracker with worktime files for a specific year
+     */
+    public void syncTimeOffTracker(User user, int year) {
+        // Load all time off entries from worktime files
+        List<WorkTimeTable> timeOffEntries = loadAllTimeOffEntries(user.getUsername(), year);
+        syncTimeOffTracker(user, year, timeOffEntries);
+    }
+
+    /**
+     * Synchronize the tracker with provided worktime entries
+     */
+    public void syncTimeOffTracker(User user, int year, List<WorkTimeTable> timeOffEntries) {
+        ReentrantReadWriteLock.WriteLock writeLock = getUserTrackerLock(user.getUsername()).writeLock();
         writeLock.lock();
         try {
-            // Load or reload all time off entries for the year to ensure we have complete data
-            List<WorkTimeTable> allTimeOffEntries = ensureCompleteTimeOffData(user.getUsername(), year, timeOffEntries);
-
             // Get the current tracker for the specified year
             TimeOffTracker tracker = loadTimeOffTracker(user.getUsername(), user.getUserId(), year);
 
             // Process tracker entries against worktime data
-            List<TimeOffTracker.TimeOffRequest> updatedRequests = processTimeOffRequests(user, tracker, allTimeOffEntries, year);
+            List<TimeOffTracker.TimeOffRequest> updatedRequests = processTimeOffRequests(user, tracker, timeOffEntries, year);
 
             // Update the tracker with the processed requests
             tracker.setRequests(updatedRequests);
@@ -329,44 +431,6 @@ public class TimeOffTrackerService {
         } finally {
             writeLock.unlock();
         }
-    }
-
-    /**
-     * Ensures we have a complete set of time off data for the year by loading any missing months
-     */
-    private List<WorkTimeTable> ensureCompleteTimeOffData(String username, int year, List<WorkTimeTable> providedEntries) {
-        // Extract the months we already have data for
-        Set<Integer> loadedMonths = providedEntries.stream()
-                .map(entry -> entry.getWorkDate().getMonthValue())
-                .collect(Collectors.toSet());
-
-        // Start with the provided entries
-        List<WorkTimeTable> completeEntries = new ArrayList<>(providedEntries);
-
-        // Check if we need to load more months
-        boolean needsMoreData = loadedMonths.size() < 12;
-
-        // If we need more data we're in the first month of loading, load all months
-        if (needsMoreData) {
-            LoggerUtil.info(this.getClass(), String.format("Loading all months for complete time off data for user %s (year %d)", username, year));
-
-            // Load data for all months we don't already have
-            for (int month = 1; month <= 12; month++) {
-                if (!loadedMonths.contains(month)) {
-                    try {
-                        List<WorkTimeTable> monthEntries = dataAccessService.readWorktimeReadOnly(username, year, month);
-                        if (monthEntries != null && !monthEntries.isEmpty()) {
-                            completeEntries.addAll(monthEntries);
-                            LoggerUtil.debug(this.getClass(), String.format("Loaded %d entries for month %d/%d", monthEntries.size(), month, year));
-                        }
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(), String.format("Could not load data for month %d/%d: %s", month, year, e.getMessage()));
-                    }
-                }
-            }
-        }
-
-        return completeEntries;
     }
 
     /**
@@ -409,29 +473,6 @@ public class TimeOffTrackerService {
         updatedRequests.sort(Comparator.comparing(TimeOffTracker.TimeOffRequest::getDate));
 
         return updatedRequests;
-    }
-
-    /**
-     * Creates a map of dates to time off types from worktime entries
-     */
-    private Map<LocalDate, String> createWorktimeOffDatesMap(List<WorkTimeTable> entries, int year) {
-        return entries.stream()
-                .filter(entry -> entry.getTimeOffType() != null)
-                .filter(entry -> entry.getWorkDate().getYear() == year)
-                .collect(Collectors.toMap(
-                        WorkTimeTable::getWorkDate,
-                        WorkTimeTable::getTimeOffType,
-                        (existing, replacement) -> replacement // Keep latest if duplicate
-                ));
-    }
-
-    /**
-     * Creates a set of all dates from worktime entries
-     */
-    private Set<LocalDate> createAllWorktimeDatesSet(List<WorkTimeTable> entries) {
-        return entries.stream()
-                .map(WorkTimeTable::getWorkDate)
-                .collect(Collectors.toSet());
     }
 
     /**
@@ -507,7 +548,6 @@ public class TimeOffTrackerService {
      * Mark a request as canceled and log the change
      */
     private TimeOffTracker.TimeOffRequest markRequestAsCanceled(TimeOffTracker.TimeOffRequest request, String username, String reason) {
-
         request.setStatus("CANCELED");
         request.setNotes(reason);
         request.setLastUpdated(getStandardTimeValues().getCurrentTime());
@@ -525,7 +565,6 @@ public class TimeOffTrackerService {
      * Mark a request as approved and log the change
      */
     private TimeOffTracker.TimeOffRequest markRequestAsApproved(TimeOffTracker.TimeOffRequest request, String username) {
-
         request.setStatus("APPROVED");
         request.setNotes("Restored from worktime files during sync");
         request.setLastUpdated(getStandardTimeValues().getCurrentTime());
@@ -586,7 +625,7 @@ public class TimeOffTrackerService {
 
             // Update holiday service
             try {
-                holidayService.updateUserHolidayDays(user.getUserId(), newAvailableDays);
+                holidayManagementService.updateUserHolidayDays(user.getUserId(), newAvailableDays);
             } catch (Exception e) {
                 LoggerUtil.warn(this.getClass(),
                         String.format("Failed to update holiday days in holiday service: %s", e.getMessage()));
@@ -598,13 +637,15 @@ public class TimeOffTrackerService {
         }
     }
 
+    // ============= TIME OFF QUERIES =============
+
     /**
      * Get upcoming time off requests for a user
      */
     public List<TimeOffTracker.TimeOffRequest> getUpcomingTimeOffRequests(User user) {
         try {
             // Get current year
-            int currentYear = timeProvider.getCurrentDate().getYear();
+            int currentYear = getStandardCurrentDate().getYear();
 
             // Load tracker for current year (don't sync here)
             TimeOffTracker tracker = loadTimeOffTracker(user.getUsername(), user.getUserId(), currentYear);
@@ -620,7 +661,7 @@ public class TimeOffTrackerService {
             }
 
             // Get standardized date
-            LocalDate today = timeProvider.getCurrentDate();
+            LocalDate today = getStandardCurrentDate();
 
             // Filter for upcoming and active requests
             return requests.stream()
@@ -634,6 +675,191 @@ public class TimeOffTrackerService {
                     String.format("Error getting upcoming time off for %s: %s",
                             user.getUsername(), e.getMessage()));
             return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Get all time off entries for a user
+     */
+    public List<WorkTimeTable> getUpcomingTimeOff(User user) {
+        try {
+
+            // First get approved requests from tracker for current year
+            List<TimeOffTracker.TimeOffRequest> approvedRequests = getUpcomingTimeOffRequests(user);
+
+            // Convert approved requests to WorkTimeTable format
+            // Sort by date
+            return approvedRequests.stream()
+                    .map(request -> {
+                        WorkTimeTable entry = new WorkTimeTable();
+                        entry.setUserId(user.getUserId());
+                        entry.setWorkDate(request.getDate());
+                        entry.setTimeOffType(request.getTimeOffType());
+                        return entry;
+                    }).sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error getting upcoming time off for %s: %s", user.getUsername(), e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Calculate time off summary from worktime entries
+     */
+    public TimeOffSummaryDTO calculateTimeOffSummaryReadOnly(String username, int year) {
+        try {
+            // Get all time off entries for the year
+            List<WorkTimeTable> timeOffEntries = dataAccessService.readTimeOffReadOnly(username, year);
+
+            // Count by type
+            int snDays = 0, coDays = 0, cmDays = 0;
+
+            for (WorkTimeTable entry : timeOffEntries) {
+                if (entry.getTimeOffType() == null) {
+                    continue;
+                }
+
+                switch (entry.getTimeOffType()) {
+                    case WorkCode.NATIONAL_HOLIDAY_CODE:
+                        snDays++;
+                        break;
+                    case WorkCode.TIME_OFF_CODE:
+                        coDays++;
+                        break;
+                    case WorkCode.MEDICAL_LEAVE_CODE:
+                        cmDays++;
+                        break;
+                }
+            }
+
+            // Get available days from tracker if possible
+            int availablePaidDays = 0;
+            int paidDaysTaken = coDays;
+
+            try {
+                // Try to get from tracker for most accurate data
+                Integer userId = getUserId(username);
+                TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+
+                if (tracker != null) {
+                    availablePaidDays = tracker.getAvailableHolidayDays();
+                    paidDaysTaken = tracker.getUsedHolidayDays();
+                } else {
+                    // Fall back to holiday service
+                    availablePaidDays = holidayManagementService.getRemainingHolidayDays(username, getUserId(username));
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Error getting holiday days for %s: %s", username, e.getMessage()));
+            }
+
+            // Build and return the summary
+            return TimeOffSummaryDTO.builder()
+                    .snDays(snDays)
+                    .coDays(coDays)
+                    .cmDays(cmDays)
+                    .availablePaidDays(availablePaidDays + paidDaysTaken)
+                    .paidDaysTaken(paidDaysTaken)
+                    .remainingPaidDays(availablePaidDays)
+                    .build();
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error calculating time off summary for %s: %s",
+                            username, e.getMessage()));
+
+            // Return empty summary on error
+            return TimeOffSummaryDTO.builder()
+                    .snDays(0)
+                    .coDays(0)
+                    .cmDays(0)
+                    .availablePaidDays(0)
+                    .paidDaysTaken(0)
+                    .remainingPaidDays(0)
+                    .build();
+        }
+    }
+
+    // ============= HELPER METHODS =============
+
+    /**
+     * Helper method to load all time off entries for a year
+     */
+    private List<WorkTimeTable> loadAllTimeOffEntries(String username, int year) {
+        List<WorkTimeTable> allTimeOffEntries = new ArrayList<>();
+
+        // Process each month in the year
+        for (int month = 1; month <= 12; month++) {
+            try {
+                // Load worktime entries for the month - use read-only approach
+                List<WorkTimeTable> entries = dataAccessService.readWorktimeReadOnly(username, year, month);
+
+                if (entries != null && !entries.isEmpty()) {
+                    // Filter for time off entries only
+                    List<WorkTimeTable> timeOffEntries = entries.stream()
+                            .filter(entry -> entry.getTimeOffType() != null)
+                            .toList();
+
+                    allTimeOffEntries.addAll(timeOffEntries);
+                }
+            } catch (Exception e) {
+                // Just log warnings - don't fail the whole operation
+                LoggerUtil.warn(this.getClass(), String.format("Error loading worktime for %s - %d/%d: %s", username, year, month, e.getMessage()));
+            }
+        }
+
+        return allTimeOffEntries;
+    }
+
+    /**
+     * Creates a map of dates to time off types from worktime entries
+     */
+    private Map<LocalDate, String> createWorktimeOffDatesMap(List<WorkTimeTable> entries, int year) {
+        return entries.stream()
+                .filter(entry -> entry.getTimeOffType() != null)
+                .filter(entry -> entry.getWorkDate().getYear() == year)
+                .collect(Collectors.toMap(
+                        WorkTimeTable::getWorkDate,
+                        WorkTimeTable::getTimeOffType,
+                        (existing, replacement) -> replacement // Keep latest if duplicate
+                ));
+    }
+
+    /**
+     * Creates a set of all dates from worktime entries
+     */
+    private Set<LocalDate> createAllWorktimeDatesSet(List<WorkTimeTable> entries) {
+        return entries.stream()
+                .map(WorkTimeTable::getWorkDate)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Helper method to get standard time values
+     */
+    private GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues() {
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory()
+                .createGetStandardTimeValuesCommand();
+        return timeValidationService.execute(timeCommand);
+    }
+
+    /**
+     * Get the standard current date from the time validation service
+     */
+    private LocalDate getStandardCurrentDate() {
+        return getStandardTimeValues().getCurrentDate();
+    }
+
+    /**
+     * Get user ID from username
+     */
+    private Integer getUserId(String username) {
+        try {
+            return userService.getUserByUsername(username)
+                    .map(User::getUserId)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error getting user ID: " + e.getMessage());
         }
     }
 }

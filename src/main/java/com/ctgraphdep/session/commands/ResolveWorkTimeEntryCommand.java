@@ -56,7 +56,7 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             int year = entryDate.getYear();
             int month = entryDate.getMonthValue();
 
-            List<WorkTimeTable> entries = ctx.getWorkTimeService().loadUserEntries(username, year, month, username);
+            List<WorkTimeTable> entries = ctx.getWorktimeManagementService().loadUserEntries(username, year, month, username);
 
             // Find the unresolved entry for this date
             WorkTimeTable entry = entries.stream()
@@ -94,7 +94,7 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             updateWorkTimeEntry(entry, endTime, rawMinutes, result);
 
             // Use existing WorkTimeService method to save the entry and handle network sync
-            ctx.getWorkTimeService().saveWorkTimeEntry(
+            ctx.getWorktimeManagementService().saveWorkTimeEntry(
                     username,
                     entry,
                     year,

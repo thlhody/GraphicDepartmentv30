@@ -24,17 +24,17 @@ import java.util.stream.Collectors;
 public class AdminRegisterService {
     private final DataAccessService dataAccessService;
     private final BonusCalculatorUtil bonusCalculator;
-    private final WorkTimeManagementService workTimeManagementService;
+    private final WorktimeManagementService worktimeManagementService;
     private final UserService userService;
     private final TimeValidationService timeValidationService;
 
     @Autowired
     public AdminRegisterService(DataAccessService dataAccessService,
                                 BonusCalculatorUtil bonusCalculator,
-                                WorkTimeManagementService workTimeManagementService, UserService userService, TimeValidationService timeValidationService) {
+                                WorktimeManagementService worktimeManagementService, UserService userService, TimeValidationService timeValidationService) {
         this.dataAccessService = dataAccessService;
         this.bonusCalculator = bonusCalculator;
-        this.workTimeManagementService = workTimeManagementService;
+        this.worktimeManagementService = worktimeManagementService;
         this.userService = userService;
         this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -69,9 +69,7 @@ public class AdminRegisterService {
             }
         } catch (Exception e) {
             // If no local admin file exists, create it with user entries
-            adminEntries = userEntries.stream()
-                    .map(this::copyEntry)
-                    .collect(Collectors.toList());
+            adminEntries = userEntries.stream().map(this::copyEntry).collect(Collectors.toList());
         }
 
         // 3. Merge entries based on status
@@ -87,16 +85,11 @@ public class AdminRegisterService {
     }
 
     private List<RegisterEntry> mergeEntries(List<RegisterEntry> userEntries, List<RegisterEntry> adminEntries) {
-        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream()
-                .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
-
-        return userEntries.stream()
-                .map(userEntry -> RegisterMergeRule.apply(userEntry, adminEntriesMap.get(userEntry.getEntryId())))
-                .collect(Collectors.toList());
+        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream().collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
+        return userEntries.stream().map(userEntry -> RegisterMergeRule.apply(userEntry, adminEntriesMap.get(userEntry.getEntryId()))).collect(Collectors.toList());
     }
 
-    public void saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month,
-                                         List<RegisterEntry> entries) {
+    public void saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month, List<RegisterEntry> entries) {
         try {
             // First, get any existing entries - this is critical for preserving all previous edits
             List<RegisterEntry> existingEntries;
@@ -205,9 +198,7 @@ public class AdminRegisterService {
 
     private List<RegisterEntry> convertToRegisterEntries(List<Map<String, Object>> entriesData) {
         if (entriesData == null) return new ArrayList<>();
-        return entriesData.stream()
-                .map(this::convertToRegisterEntry)
-                .collect(Collectors.toList());
+        return entriesData.stream().map(this::convertToRegisterEntry).collect(Collectors.toList());
     }
 
     @SuppressWarnings("unchecked")
@@ -217,9 +208,7 @@ public class AdminRegisterService {
         if (data.get("printPrepTypes") instanceof List) {
             printPrepTypes = new ArrayList<>(new LinkedHashSet<>((List<String>) data.get("printPrepTypes")));
         } else if (data.get("printPrepTypes") instanceof String) {
-            printPrepTypes = new ArrayList<>(new LinkedHashSet<>(
-                    Arrays.asList(((String) data.get("printPrepTypes")).split("\\s*,\\s*"))
-            ));
+            printPrepTypes = new ArrayList<>(new LinkedHashSet<>(Arrays.asList(((String) data.get("printPrepTypes")).split("\\s*,\\s*"))));
         }
 
         return RegisterEntry.builder()
@@ -297,28 +286,18 @@ public class AdminRegisterService {
         List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
 
         // Get worked days from worktime service
-        int workedDays = workTimeManagementService.getWorkedDays(userId, year, month);
+        int workedDays = worktimeManagementService.getWorkedDays(userId, year, month);
 
         // Calculate sums
         int numberOfEntries = validEntries.size();
-        double sumArticleNumbers = validEntries.stream()
-                .mapToDouble(RegisterEntry::getArticleNumbers)
-                .sum();
-        double sumComplexity = validEntries.stream()
-                .mapToDouble(RegisterEntry::getGraphicComplexity)
-                .sum();
+        double sumArticleNumbers = validEntries.stream().mapToDouble(RegisterEntry::getArticleNumbers).sum();
+        double sumComplexity = validEntries.stream().mapToDouble(RegisterEntry::getGraphicComplexity).sum();
 
         // Load previous months' data
         PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(userId, year, month);
 
         // Calculate bonus
-        BonusCalculationResultDTO result = bonusCalculator.calculateBonus(
-                numberOfEntries,
-                workedDays,
-                sumArticleNumbers,
-                sumComplexity,
-                config
-        );
+        BonusCalculationResultDTO result = bonusCalculator.calculateBonus(numberOfEntries, workedDays, sumArticleNumbers, sumComplexity, config);
 
         // Create a new result with previous months included
         return BonusCalculationResultDTO.builder()
@@ -338,15 +317,11 @@ public class AdminRegisterService {
     public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResultDTO result, String username) {
         try {
             // Get user's employeeId
-            Integer employeeId = userService.getUserById(userId)
-                    .map(User::getEmployeeId)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
             // Create bonus entry from calculation result
             BonusEntry bonusEntry = BonusEntry.fromBonusCalculationResult(username, employeeId, result);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Created bonus entry for employee %d with amount %f",
-                            employeeId, bonusEntry.getBonusAmount()));
+            LoggerUtil.info(this.getClass(), String.format("Created bonus entry for employee %d with amount %f", employeeId, bonusEntry.getBonusAmount()));
 
             // Load and set previous months' bonuses
             PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(employeeId, year, month);
@@ -367,13 +342,9 @@ public class AdminRegisterService {
             // Save all entries
             dataAccessService.writeAdminBonus(existingEntries, year, month);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Successfully saved bonus calculation for user %s (Employee ID: %d) for %d/%d",
-                            username, employeeId, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Successfully saved bonus calculation for user %s (Employee ID: %d) for %d/%d", username, employeeId, year, month));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error processing bonus calculation for user %d: %s",
-                            userId, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error processing bonus calculation for user %d: %s", userId, e.getMessage()));
             throw new RuntimeException("Failed to process bonus calculation", e);
         }
     }
@@ -389,9 +360,7 @@ public class AdminRegisterService {
                     .orElse(0.0);
 
         } catch (Exception e) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("No bonus entry found for employee %d in %s: %s",
-                            employeeId, month, e.getMessage()));
+            LoggerUtil.info(this.getClass(), String.format("No bonus entry found for employee %d in %s: %s", employeeId, month, e.getMessage()));
             return 0.0;
         }
     }
@@ -399,14 +368,10 @@ public class AdminRegisterService {
     private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, Integer year, Integer month) {
         try {
             // Get employee ID first
-            Integer employeeId = userService.getUserById(userId)
-                    .map(User::getEmployeeId)
-                    .orElse(userId); // Fallback to userId if employeeId not found
+            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElse(userId); // Fallback to userId if employeeId not found
 
             YearMonth currentMonth = YearMonth.of(year, month);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Loading previous months bonuses for employee %d, current month: %s",
-                            employeeId, currentMonth));
+            LoggerUtil.info(this.getClass(), String.format("Loading previous months bonuses for employee %d, current month: %s", employeeId, currentMonth));
 
             // Calculate previous months
             YearMonth month1 = currentMonth.minusMonths(1);
@@ -417,9 +382,7 @@ public class AdminRegisterService {
             Double bonus2 = loadMonthBonus(employeeId, month2);
             Double bonus3 = loadMonthBonus(employeeId, month3);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Previous months bonuses for employee %d: %f, %f, %f",
-                            employeeId, bonus1, bonus2, bonus3));
+            LoggerUtil.info(this.getClass(), String.format("Previous months bonuses for employee %d: %f, %f, %f", employeeId, bonus1, bonus2, bonus3));
 
             return PreviousMonthsBonuses.builder()
                     .month1(bonus1)
@@ -428,9 +391,7 @@ public class AdminRegisterService {
                     .build();
 
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    String.format("Error loading previous bonuses for user %d, returning zeros: %s",
-                            userId, e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Error loading previous bonuses for user %d, returning zeros: %s", userId, e.getMessage()));
             return PreviousMonthsBonuses.builder()
                     .month1(0.0)
                     .month2(0.0)
@@ -442,9 +403,7 @@ public class AdminRegisterService {
     public BonusCalculationResultDTO loadSavedBonusResult(Integer userId, Integer year, Integer month) {
         try {
             // Get user's employeeId
-            Integer employeeId = userService.getUserById(userId)
-                    .map(User::getEmployeeId)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
             Optional<BonusEntry> bonusEntryOpt = loadBonusEntry(employeeId, year, month);
 
@@ -466,18 +425,14 @@ public class AdminRegisterService {
                     .previousMonths(entry.getPreviousMonths())
                     .build();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading bonus result for user %d: %s",
-                            userId, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading bonus result for user %d: %s", userId, e.getMessage()));
             throw new RuntimeException("Failed to load bonus result", e);
         }
     }
 
     private List<RegisterEntry> filterValidEntriesForBonus(List<RegisterEntry> entries) {
         List<String> bonusEligibleTypes = ActionType.getBonusEligibleValues();
-        return entries.stream()
-                .filter(entry -> bonusEligibleTypes.contains(entry.getActionType()))
-                .collect(Collectors.toList());
+        return entries.stream().filter(entry -> bonusEligibleTypes.contains(entry.getActionType())).collect(Collectors.toList());
     }
 
     public RegisterSummaryDTO calculateRegisterSummary(List<RegisterEntry> entries) {
@@ -496,6 +451,4 @@ public class AdminRegisterService {
                         .orElse(0.0))
                 .build();
     }
-
-
 }

@@ -33,14 +33,14 @@ public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>
             List<WorkTimeTable> unresolvedEntries = new ArrayList<>();
 
             // Load current month entries
-            List<WorkTimeTable> currentMonthEntries = context.getWorkTimeService().loadUserEntries(username, currentDate.getYear(), currentDate.getMonthValue(), username);
+            List<WorkTimeTable> currentMonthEntries = context.getWorktimeManagementService().loadUserEntries(username, currentDate.getYear(), currentDate.getMonthValue(), username);
 
             if (currentMonthEntries != null) {
                 unresolvedEntries.addAll(currentMonthEntries);
             }
 
             // Also check previous month
-            List<WorkTimeTable> previousMonthEntries = context.getWorkTimeService().loadUserEntries(username, previousMonth.getYear(), previousMonth.getMonthValue(), username);
+            List<WorkTimeTable> previousMonthEntries = context.getWorktimeManagementService().loadUserEntries(username, previousMonth.getYear(), previousMonth.getMonthValue(), username);
 
             if (previousMonthEntries != null) {
                 unresolvedEntries.addAll(previousMonthEntries);

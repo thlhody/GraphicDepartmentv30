@@ -83,7 +83,7 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
             debug(String.format("Updating worktime entry for date: %s", workDate));
 
             // Find existing worktime entries for the month
-            List<WorkTimeTable> entries = context.getWorkTimeService().loadUserEntries(
+            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(
                     username,
                     workDate.getYear(),
                     workDate.getMonthValue(),
@@ -110,7 +110,7 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
             entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
 
             // Save the updated entry
-            context.getWorkTimeService().saveWorkTimeEntry(
+            context.getWorktimeManagementService().saveWorkTimeEntry(
                     username,
                     entry,
                     workDate.getYear(),

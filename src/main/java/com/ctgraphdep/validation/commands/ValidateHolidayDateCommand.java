@@ -1,18 +1,18 @@
 package com.ctgraphdep.validation.commands;
 
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.validation.TimeValidationCommand;
 import com.ctgraphdep.validation.TimeProvider;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.YearMonth;
 
 /**
  * Command to validate a holiday date
+ * Enhanced to include additional validation rules from WorktimeManagementService
  */
-public class ValidateHolidayDateCommand implements TimeValidationCommand<Void> {
+public class ValidateHolidayDateCommand extends BaseTimeValidationCommand<Void> {
     private final LocalDate date;
-    private final TimeProvider timeProvider;
 
     /**
      * Creates a holiday date validation command
@@ -21,36 +21,31 @@ public class ValidateHolidayDateCommand implements TimeValidationCommand<Void> {
      * @param timeProvider Provider for obtaining current date/time
      */
     public ValidateHolidayDateCommand(LocalDate date, TimeProvider timeProvider) {
+        super(timeProvider);
         if (date == null) {
-            throw new IllegalArgumentException("Date cannot be null");
+            warn("Date cannot be null");
         }
-        if (timeProvider == null) {
-            throw new IllegalArgumentException("TimeProvider cannot be null");
-        }
-
         this.date = date;
-        this.timeProvider = timeProvider;
     }
 
+    // In ValidateHolidayDateCommand.java
     @Override
     public Void execute() {
-        try {
-            LocalDate currentDate = timeProvider.getCurrentDate();
+        LocalDate currentDate = timeProvider.getCurrentDate();
+        YearMonth requested = YearMonth.from(date);
+        YearMonth current = YearMonth.from(currentDate);
 
-            // Cannot add holidays for past months
-            if (date.isBefore(currentDate.withDayOfMonth(1))) {
-                throw new IllegalArgumentException("Cannot add holidays for past months");
-            }
-
-            // Cannot add holidays on weekends
-            if (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                throw new IllegalArgumentException("Cannot add holidays on weekends");
-            }
-
-            return null;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error validating holiday date: " + e.getMessage());
-            throw e;
+        if (requested.isBefore(current)) {
+            // Just log a warning without a stacktrace
+            throw new IllegalArgumentException("Cannot add holidays for past months: " + requested);
         }
+
+        if (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            // Just log a warning without a stacktrace
+            throw new IllegalArgumentException("Cannot add holidays on weekends: " + date.getDayOfWeek());
+        }
+
+        debug("Validated holiday date: " + date);
+        return null;
     }
 }

@@ -12,6 +12,7 @@ import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.WorkTimeExcelExporter;
 import com.ctgraphdep.validation.TimeValidationFactory;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.commands.ValidateHolidayDateCommand;
 import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -31,25 +32,22 @@ import java.util.stream.Collectors;
 @RequestMapping("/admin/worktime")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminWorkTimeController extends BaseController {
-    private final WorkTimeManagementService workTimeManagementService;
-    private final WorkTimeConsolidationService workTimeConsolidationService;
+    private final WorktimeManagementService worktimeManagementService;
     private final UserManagementService userManagementService;
-    private final AdminWorkTimeDisplayService displayService;
+    private final WorktimeDisplayService worktimeDisplayService;
     private final WorkTimeExcelExporter excelExporter;
 
     protected AdminWorkTimeController(UserService userService,
                                       FolderStatus folderStatus,
                                       TimeValidationService timeValidationService,
-                                      WorkTimeManagementService workTimeManagementService,
-                                      WorkTimeConsolidationService workTimeConsolidationService,
+                                      WorktimeManagementService worktimeManagementService,
                                       UserManagementService userManagementService,
-                                      AdminWorkTimeDisplayService displayService,
+                                      WorktimeDisplayService worktimeDisplayService,
                                       WorkTimeExcelExporter excelExporter) {
         super(userService, folderStatus, timeValidationService);
-        this.workTimeManagementService = workTimeManagementService;
-        this.workTimeConsolidationService = workTimeConsolidationService;
+        this.worktimeManagementService = worktimeManagementService;
         this.userManagementService = userManagementService;
-        this.displayService = displayService;
+        this.worktimeDisplayService = worktimeDisplayService;
         this.excelExporter = excelExporter;
     }
 
@@ -80,9 +78,8 @@ public class AdminWorkTimeController extends BaseController {
             }
 
             // Consolidate worktime entries and organize by user and date
-            workTimeConsolidationService.consolidateWorkTimeEntries(selectedYear, selectedMonth);
-            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap = convertToUserEntriesMap(
-                    workTimeConsolidationService.getViewableEntries(selectedYear, selectedMonth));
+            worktimeManagementService.consolidateWorkTimeEntries(selectedYear, selectedMonth);
+            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap = convertToUserEntriesMap(worktimeManagementService.getViewableEntries(selectedYear, selectedMonth));
 
             // Prepare model data
             prepareWorkTimeModel(model, selectedYear, selectedMonth, selectedUserId, nonAdminUsers, userEntriesMap);
@@ -90,11 +87,9 @@ public class AdminWorkTimeController extends BaseController {
             return "admin/worktime";
 
         } catch (IllegalArgumentException e) {
-            LoggerUtil.error(this.getClass(), "Validation error: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
             return "redirect:/admin/worktime";
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error preparing worktime page: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", "Error loading worktime data");
             return "redirect:/admin/worktime";
         }
@@ -106,8 +101,7 @@ public class AdminWorkTimeController extends BaseController {
             @RequestParam int month) {
         try {
             List<User> nonAdminUsers = userManagementService.getNonAdminUsers();
-            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap =
-                    convertToUserEntriesMap(workTimeConsolidationService.getViewableEntries(year, month));
+            Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap = convertToUserEntriesMap(worktimeManagementService.getViewableEntries(year, month));
 
             byte[] excelData = excelExporter.exportToExcel(
                     nonAdminUsers,
@@ -117,8 +111,7 @@ public class AdminWorkTimeController extends BaseController {
             );
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
         } catch (Exception e) {
@@ -137,9 +130,9 @@ public class AdminWorkTimeController extends BaseController {
             @RequestParam String value) {
         try {
             LocalDate date = LocalDate.of(year, month, day);
-            workTimeManagementService.processWorktimeUpdate(userId, date, value);
+            worktimeManagementService.processWorktimeUpdate(userId, date, value);
             // Trigger consolidation after update
-            workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
+            worktimeManagementService.consolidateWorkTimeEntries(year, month);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating worktime: " + e.getMessage());
@@ -162,13 +155,30 @@ public class AdminWorkTimeController extends BaseController {
             ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(year, month, 4);
             getTimeValidationService().execute(periodCommand);
 
-            workTimeManagementService.addNationalHoliday(holidayDate);
+            // Validate holiday date (this will check for weekends)
+            ValidateHolidayDateCommand holidayCommand = validationFactory.createValidateHolidayDateCommand(holidayDate);
+            try {
+                getTimeValidationService().execute(holidayCommand);
+            } catch (IllegalArgumentException e) {
+                LoggerUtil.info(this.getClass(), "Holiday validation: " + e.getMessage());
+
+                // Check for specific validation errors and redirect with appropriate params
+                if (e.getMessage().contains("weekends")) {
+                    return String.format("redirect:/admin/worktime?year=%d&month=%d&error=invalid_weekend", year, month);
+                } else if (e.getMessage().contains("past months")) {
+                    return String.format("redirect:/admin/worktime?year=%d&month=%d&error=invalid_past_date", year, month);
+                } else {
+                    // For other validation errors
+                    return String.format("redirect:/admin/worktime?year=%d&month=%d&error=date_required", year, month);
+                }
+            }
+
+            worktimeManagementService.addNationalHoliday(holidayDate);
 
             // Trigger consolidation after adding holiday
-            workTimeConsolidationService.consolidateWorkTimeEntries(year, month);
+            worktimeManagementService.consolidateWorkTimeEntries(year, month);
 
-            redirectAttributes.addFlashAttribute("successMessage",
-                    String.format("National holiday added for %s", holidayDate));
+            redirectAttributes.addFlashAttribute("successMessage", String.format("National holiday added for %s", holidayDate));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error adding holiday: " + e.getMessage());
@@ -183,7 +193,7 @@ public class AdminWorkTimeController extends BaseController {
                                       Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
 
         // Calculate summaries
-        Map<Integer, WorkTimeSummary> summaries = displayService.calculateUserSummaries(
+        Map<Integer, WorkTimeSummary> summaries = worktimeDisplayService.calculateUserSummaries(
                 userEntriesMap, nonAdminUsers, year, month);
 
         // Add model attributes
@@ -192,7 +202,7 @@ public class AdminWorkTimeController extends BaseController {
         model.addAttribute("users", nonAdminUsers);
         model.addAttribute("userSummaries", summaries);
         model.addAttribute("daysInMonth", YearMonth.of(year, month).lengthOfMonth());
-        model.addAttribute("dayHeaders", displayService.prepareDayHeaders(YearMonth.of(year, month)));
+        model.addAttribute("dayHeaders", worktimeDisplayService.prepareDayHeaders(YearMonth.of(year, month)));
         model.addAttribute("userEntriesMap", userEntriesMap);
 
         Map<String, Long> entryCounts = calculateEntryCounts(userEntriesMap);

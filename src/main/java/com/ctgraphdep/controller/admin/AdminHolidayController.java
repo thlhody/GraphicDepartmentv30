@@ -4,9 +4,8 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.service.AdminPaidHolidayService;
 import com.ctgraphdep.model.FolderStatus;
-import com.ctgraphdep.service.HolidayHistoryService;
+import com.ctgraphdep.service.HolidayManagementService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -25,17 +24,15 @@ import java.util.Optional;
 @RequestMapping("/admin/holidays")
 @PreAuthorize("hasRole('ROLE_ADMIN')")
 public class AdminHolidayController extends BaseController {
-    private final AdminPaidHolidayService holidayService;
-    private final HolidayHistoryService holidayHistoryService;
+
+    private final HolidayManagementService holidayManagementService;
 
     public AdminHolidayController(UserService userService,
                                   FolderStatus folderStatus,
                                   TimeValidationService timeValidationService,
-                                  AdminPaidHolidayService holidayService,
-                                  HolidayHistoryService holidayHistoryService) {
+                                  HolidayManagementService holidayManagementService) {
         super(userService, folderStatus, timeValidationService);
-        this.holidayService = holidayService;
-        this.holidayHistoryService = holidayHistoryService;
+        this.holidayManagementService = holidayManagementService;
     }
 
     @GetMapping
@@ -48,7 +45,7 @@ public class AdminHolidayController extends BaseController {
             return accessCheck;
         }
 
-        List<PaidHolidayEntryDTO> entries = holidayService.loadHolidayList();
+        List<PaidHolidayEntryDTO> entries = holidayManagementService.loadHolidayList();
         LoggerUtil.debug(this.getClass(), "Found " + entries.size() + " entries");
 
         model.addAttribute("entries", entries);
@@ -77,7 +74,7 @@ public class AdminHolidayController extends BaseController {
         LoggerUtil.info(this.getClass(), String.format("Updating holiday days - User: %d, Days: %d", userId, days));
 
         try {
-            holidayService.updateUserHolidayDays(userId, days);
+            holidayManagementService.updateUserHolidayDays(userId, days);
             redirectAttributes.addFlashAttribute("successMessage",
                     "Holiday days updated successfully for user " + userId);
         } catch (Exception e) {
@@ -108,7 +105,7 @@ public class AdminHolidayController extends BaseController {
                 return "redirect:/admin/holidays";
             }
 
-            List<WorkTimeTable> timeOffs = holidayHistoryService.getUserTimeOffHistory(user.get().getUsername());
+            List<WorkTimeTable> timeOffs = holidayManagementService.getUserTimeOffHistory(user.get().getUsername());
 
             model.addAttribute("user", user.get());
             model.addAttribute("timeOffs", timeOffs);

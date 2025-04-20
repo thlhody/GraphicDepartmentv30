@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 public class SessionContext {
     // Core dependencies
     private final DataAccessService dataAccessService;
-    private final UserWorkTimeService workTimeService;
+    private final WorktimeManagementService worktimeManagementService;
     private final UserService userService;
     private final SessionStatusService sessionStatusService;
     private final SessionMonitorService sessionMonitorService;
@@ -38,7 +38,7 @@ public class SessionContext {
     // Constructor with dependency injection
     public SessionContext(
             DataAccessService dataAccessService,
-            UserWorkTimeService workTimeService,
+            WorktimeManagementService worktimeManagementService,
             UserService userService,
             SessionStatusService sessionStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
@@ -47,7 +47,7 @@ public class SessionContext {
             SessionCommandFactory commandFactory, TimeValidationService validationService, NotificationService notificationService) {
 
         this.dataAccessService = dataAccessService;
-        this.workTimeService = workTimeService;
+        this.worktimeManagementService = worktimeManagementService;
         this.userService = userService;
         this.sessionStatusService = sessionStatusService;
         this.sessionMonitorService = sessionMonitorService;

@@ -120,7 +120,7 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
             debug(String.format("Updating worktime entry for date: %s", workDate));
 
             // Find existing worktime entries for the month
-            List<WorkTimeTable> entries = context.getWorkTimeService().loadUserEntries(
+            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(
                     username,
                     workDate.getYear(),
                     workDate.getMonthValue(),
@@ -143,7 +143,7 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
                 entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS); // Mark as in-process
 
                 // Save the updated entry
-                context.getWorkTimeService().saveWorkTimeEntry(
+                context.getWorktimeManagementService().saveWorkTimeEntry(
                         username,
                         entry,
                         workDate.getYear(),

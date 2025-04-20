@@ -5,7 +5,6 @@ import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
 import com.ctgraphdep.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.NotificationType;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
@@ -465,7 +464,6 @@ public class SessionMonitorService {
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
 
             LocalDate today = timeValues.getCurrentDate();
-            LocalDateTime now = timeValues.getCurrentTime();
 
             // Get current user
             String username = getCurrentActiveUser();
@@ -493,9 +491,7 @@ public class SessionMonitorService {
 
                 // If the session is active and from a previous day, reset it
                 if (isActive && !sessionDate.equals(today)) {
-                    LoggerUtil.warn(this.getClass(),
-                            String.format("Found stale active session from %s for user %s - resetting during morning check",
-                                    sessionDate, username));
+                    LoggerUtil.warn(this.getClass(), String.format("Found stale active session from %s for user %s - resetting during morning check", sessionDate, username));
 
                     // Create fresh session
                     WorkUsersSessionsStates freshSession = createFreshSession(username, user.getUserId());
@@ -507,12 +503,10 @@ public class SessionMonitorService {
                     // Update our session reference to the fresh session
                     session = freshSession;
 
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Reset stale session for user %s during morning check", username));
+                    LoggerUtil.info(this.getClass(), String.format("Reset stale session for user %s during morning check", username));
 
                     // Record in health monitor
-                    healthMonitor.recordTaskWarning("session-midnight-handler",
-                            "Stale session detected and reset during morning check");
+                    healthMonitor.recordTaskWarning("session-midnight-handler", "Stale session detected and reset during morning check");
                 }
             }
             // *** END OF STALE SESSION CHECK ***
@@ -529,9 +523,7 @@ public class SessionMonitorService {
             // Check if the user has completed a session today
             boolean hasCompletedSessionToday = false;
             if (session != null && session.getDayStartTime() != null) {
-                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) &&
-                        WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
-                        session.getWorkdayCompleted();
+                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && session.getWorkdayCompleted();
             }
 
             // If they already completed a session today, don't show reminder

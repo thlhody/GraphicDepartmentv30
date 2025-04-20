@@ -18,16 +18,16 @@ import java.util.stream.Collectors;
 public class TeamStatisticsService {
     private final DataAccessService dataAccessService;
     private final UserService userService;
-    private final UserWorkTimeService workTimeService;
+    private final WorktimeManagementService worktimeManagementService;
     private final UserRegisterService registerService;
 
     public TeamStatisticsService(DataAccessService dataAccessService,
                                  UserService userService,
-                                 UserWorkTimeService workTimeService,
+                                 WorktimeManagementService worktimeManagementService,
                                  UserRegisterService registerService) {
         this.dataAccessService = dataAccessService;
         this.userService = userService;
-        this.workTimeService = workTimeService;
+        this.worktimeManagementService = worktimeManagementService;
         this.registerService = registerService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -166,7 +166,7 @@ public class TeamStatisticsService {
     }
 
     private void updateWorkTimeStats(TeamMemberDTO member, int year, int month) {
-        List<WorkTimeTable> worktime = workTimeService.loadMonthWorktime(
+        List<WorkTimeTable> worktime = worktimeManagementService.loadMonthWorktime(
                 member.getUsername(), year, month);
 
         if (worktime == null || worktime.isEmpty()) {
@@ -355,7 +355,7 @@ public class TeamStatisticsService {
 
     private void updateTimeOffList(TeamMemberDTO member, int year, int month) {
         // Load work time entries to get time off information
-        List<WorkTimeTable> worktime = workTimeService.loadMonthWorktime(
+        List<WorkTimeTable> worktime = worktimeManagementService.loadMonthWorktime(
                 member.getUsername(), year, month);
 
         if (worktime == null || worktime.isEmpty()) {

@@ -80,6 +80,11 @@ public class PathConfig {
     private String userWorktime;
     @Value("${dbj.dir.format.worktime}")
     private String worktimeFormat;
+    //Admin Worktime Path and Format
+    @Value("${dbj.dir.format.admin.worktime}")
+    private String adminWorktimeFormat;
+    @Value("${dbj.admin.worktime}")
+    private String adminWorktime;
 
     //User Time Off Tracker Path and Format
     @Value("${dbj.user.timeoff}")
@@ -92,20 +97,6 @@ public class PathConfig {
     private String userRegister;
     @Value("${dbj.dir.format.register}")
     private String registerFormat;
-
-    //User Check Register Path and Format
-    @Value("${dbj.user.check.register}")
-    private String checkRegister;
-    @Value("${dbj.dir.format.check.register}")
-    private String checkRegisterFormat;
-
-    //Team Lead Check Register Path and Format
-    @Value("${dbj.admin.check.register}")
-    private String leadCheckRegister;
-    @Value("${dbj.dir.format.lead.check.bonus}")
-    private String leadCheckBonusFormat;
-
-
     //Admin Register Path and Format
     @Value("${dbj.admin.register}")
     private String adminRegister;
@@ -114,6 +105,17 @@ public class PathConfig {
     @Value("${dbj.dir.format.admin.check.register}")
     private String leadCheckRegisterFormat;
 
+    //User Check Register Path and Format
+    @Value("${dbj.user.check.register}")
+    private String checkRegister;
+    @Value("${dbj.dir.format.check.register}")
+    private String checkRegisterFormat;
+    //Team Lead Check Register Path and Format
+    @Value("${dbj.admin.check.register}")
+    private String leadCheckRegister;
+    @Value("${dbj.dir.format.lead.check.bonus}")
+    private String leadCheckBonusFormat;
+
     //Admin Bonus Path and Format
     @Value("${dbj.admin.bonus}")
     private String adminBonus;
@@ -121,12 +123,6 @@ public class PathConfig {
     private String adminBonusFormat;
     @Value("${dbj.dir.format.admin.check.bonus}")
     private String adminCheckBonusFormat;
-
-    //Admin Worktime Path and Format
-    @Value("${dbj.dir.format.admin.worktime}")
-    private String adminWorktimeFormat;
-    @Value("${dbj.admin.worktime}")
-    private String adminWorktime;
 
     //Team Lead Statistics Format
     @Value("${dbj.dir.format.team}")
@@ -219,8 +215,8 @@ public class PathConfig {
     public Path getNetworkHolidayPath() {
         return networkPath.resolve(loginPath).resolve(holidayFilename);
     }
-    public Path getHolidayCachePath() {
-        return localPath.resolve(loginPath).resolve(holidayCacheFile);
+    public Path getNetworkHolidayCachePath() {
+        return networkPath.resolve(loginPath).resolve(holidayCacheFile);
     }
     public Path getHolidayLockPath() {
         return networkPath.resolve(loginPath).resolve(holidayLockFile);

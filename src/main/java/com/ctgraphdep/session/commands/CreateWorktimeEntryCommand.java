@@ -48,7 +48,7 @@ public class CreateWorktimeEntryCommand extends BaseSessionCommand<WorkTimeTable
             WorkTimeTable entry = SessionEntityBuilder.createWorktimeEntryFromSession(session);
 
             // Save the entry using session date
-            ctx.getWorkTimeService().saveWorkTimeEntry(
+            ctx.getWorktimeManagementService().saveWorkTimeEntry(
                     username,
                     entry,
                     sessionDate.getYear(),

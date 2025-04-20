@@ -145,7 +145,7 @@
             </div>
         </div>
         <!-- Period Error -->
-        <div th:if="${param.periodError != null}"
+        <div th:if="${periodError != null}"
              class="alert alert-danger alert-dismissible fade show d-flex align-items-center"
              role="alert">
             <div class="d-flex w-100">
@@ -154,7 +154,7 @@
                 </div>
                 <div class="alert-content flex-grow-1">
                     <div class="alert-heading h6 mb-0">Period Error</div>
-                    <div class="alert-text" th:text="${param.periodError[0]}"></div>
+                    <div class="alert-text" th:text="${periodError}"></div>
                 </div>
                 <button type="button"
                         class="btn-close ms-2"

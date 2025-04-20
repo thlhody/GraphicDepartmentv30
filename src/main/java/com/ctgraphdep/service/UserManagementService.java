@@ -16,13 +16,13 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasRole('ADMIN')")
 public class UserManagementService {
     private final DataAccessService dataAccess;
-    private final HolidayManagementService holidayService;
+    private final HolidayManagementService holidayManagementService;
     private final PasswordEncoder passwordEncoder;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
-    public UserManagementService(DataAccessService dataAccess, HolidayManagementService holidayService, PasswordEncoder passwordEncoder) {
+    public UserManagementService(DataAccessService dataAccess, HolidayManagementService holidayManagementService, PasswordEncoder passwordEncoder) {
         this.dataAccess = dataAccess;
-        this.holidayService = holidayService;
+        this.holidayManagementService = holidayManagementService;
         this.passwordEncoder = passwordEncoder;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -79,9 +79,7 @@ public class UserManagementService {
             // Initialize paid holiday entry for the new user
             ensureHolidayEntry(user, paidHolidayDays);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Created new user: %s (ID: %d) with %d holiday days",
-                            user.getUsername(), user.getUserId(), paidHolidayDays));
+            LoggerUtil.info(this.getClass(), String.format("Created new user: %s (ID: %d) with %d holiday days", user.getUsername(), user.getUserId(), paidHolidayDays));
         } finally {
             lock.writeLock().unlock();
         }
@@ -98,9 +96,7 @@ public class UserManagementService {
 
                 // Verify current password
                 if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Password change failed for user ID %d: incorrect current password",
-                                    userId));
+                    LoggerUtil.info(this.getClass(), String.format("Password change failed for user ID %d: incorrect current password", userId));
                     return false;
                 }
 
@@ -109,13 +105,11 @@ public class UserManagementService {
                 users.set(index, user);
                 saveUserList(users);
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Password successfully changed for user ID %d", userId));
+                LoggerUtil.info(this.getClass(), String.format("Password successfully changed for user ID %d", userId));
                 return true;
             }
 
-            LoggerUtil.warn(this.getClass(),
-                    String.format("Password change failed: user ID %d not found", userId));
+            LoggerUtil.warn(this.getClass(), String.format("Password change failed: user ID %d not found", userId));
             return false;
 
         } finally {
@@ -153,9 +147,7 @@ public class UserManagementService {
                     ensureHolidayEntry(user, paidHolidayDays);
                 }
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Updated user: %s (ID: %d) with %d holiday days",
-                                user.getUsername(), user.getUserId(), paidHolidayDays));
+                LoggerUtil.info(this.getClass(), String.format("Updated user: %s (ID: %d) with %d holiday days", user.getUsername(), user.getUserId(), paidHolidayDays));
             }
         } finally {
             lock.writeLock().unlock();
@@ -163,29 +155,24 @@ public class UserManagementService {
     }
 
     private void ensureHolidayEntry(User user, Integer paidHolidayDays) {
-        List<PaidHolidayEntryDTO> holidayEntries = holidayService.getHolidayList();
+        List<PaidHolidayEntryDTO> holidayEntries = holidayManagementService.loadHolidayList();
 
         // Check if user already has an entry
-        boolean hasEntry = holidayEntries.stream()
-                .anyMatch(entry -> entry.getUserId().equals(user.getUserId()));
+        boolean hasEntry = holidayEntries.stream().anyMatch(entry -> entry.getUserId().equals(user.getUserId()));
 
         if (!hasEntry) {
             // Create new entry if user doesn't have one
             PaidHolidayEntryDTO newEntry = PaidHolidayEntryDTO.fromUser(user);
             newEntry.setPaidHolidayDays(paidHolidayDays);
             holidayEntries.add(newEntry);
-            holidayService.saveHolidayList(holidayEntries);
+            holidayManagementService.saveHolidayList(holidayEntries);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Created new holiday entry for user %s with %d days",
-                            user.getUsername(), paidHolidayDays));
+            LoggerUtil.info(this.getClass(), String.format("Created new holiday entry for user %s with %d days", user.getUsername(), paidHolidayDays));
         } else {
             // Update existing entry
-            holidayService.updateUserHolidayDays(user.getUserId(), paidHolidayDays);
+            holidayManagementService.updateUserHolidayDays(user.getUserId(), paidHolidayDays);
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Updated holiday days for user %s to %d days",
-                            user.getUsername(), paidHolidayDays));
+            LoggerUtil.info(this.getClass(), String.format("Updated holiday days for user %s to %d days", user.getUsername(), paidHolidayDays));
         }
     }
 
@@ -204,9 +191,7 @@ public class UserManagementService {
                 users.remove(index);
                 saveUserList(users);
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Deleted user: %s (ID: %d)",
-                                userToDelete.getUsername(), userId));
+                LoggerUtil.info(this.getClass(), String.format("Deleted user: %s (ID: %d)", userToDelete.getUsername(), userId));
             }
         } finally {
             lock.writeLock().unlock();
@@ -249,9 +234,7 @@ public class UserManagementService {
 
     private void checkUsernameUniqueness(User user) {
         boolean usernameExists = getAllUsers().stream()
-                .anyMatch(existingUser ->
-                        existingUser.getUsername().equals(user.getUsername()) &&
-                                !existingUser.getUserId().equals(user.getUserId()));
+                .anyMatch(existingUser -> existingUser.getUsername().equals(user.getUsername()) && !existingUser.getUserId().equals(user.getUserId()));
 
         if (usernameExists) {
             throw new IllegalArgumentException("Username already exists");

@@ -48,7 +48,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
             WorkTimeTable entry = ctx.executeCommand(createEntryCommand);
 
             // Save worktime entry using standardized date values
-            ctx.getWorkTimeService().saveWorkTimeEntry(
+            ctx.getWorktimeManagementService().saveWorkTimeEntry(
                     username,
                     entry,
                     timeValues.getCurrentDate().getYear(),
