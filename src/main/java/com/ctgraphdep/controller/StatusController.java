@@ -335,8 +335,7 @@ public class StatusController extends BaseController {
             User user = userOpt.get();
 
             // Get APPROVED time off entries from tracker converted to WorkTimeTable format
-            List<WorkTimeTable> timeOffs = statusService.getApprovedTimeOffFromTracker(
-                    user.getUsername(), user.getUserId(), selectedYear);
+            List<WorkTimeTable> timeOffs = statusService.getApprovedTimeOffFromTracker(user.getUsername(), user.getUserId(), selectedYear);
 
             // Also get the raw tracker using the StatusService method
             TimeOffTracker tracker = statusService.getTimeOffTrackerReadOnly(user.getUsername(), user.getUserId(), selectedYear);

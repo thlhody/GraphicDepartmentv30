@@ -5,7 +5,7 @@ import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.WorktimeEntryUtil;
+import com.ctgraphdep.utils.WorkTimeEntryUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeOffRequestValidator;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -324,7 +324,7 @@ public class TimeOffManagementService {
                     entry.setAdminSync(SyncStatusWorktime.USER_INPUT);
 
                     // Reset work-related fields for time off
-                    WorktimeEntryUtil.resetWorkFields(entry);
+                    WorkTimeEntryUtil.resetWorkFields(entry);
 
                     // Update map
                     entriesMap.put(date, entry);
@@ -376,7 +376,7 @@ public class TimeOffManagementService {
         LocalDate current = startDate;
         while (!current.isAfter(endDate)) {
             // Skip weekends
-            if (!WorktimeEntryUtil.isDateWeekend(current)) {
+            if (!WorkTimeEntryUtil.isDateWeekend(current)) {
                 // Skip national holidays
                 if (worktimeManagementService.isNotHoliday(current)) {
                     validDays.add(current);
@@ -737,20 +737,16 @@ public class TimeOffManagementService {
             int paidDaysTaken = coDays;
 
             try {
-                // Try to get from tracker for most accurate data
+                // Use the read-only method to avoid updating the tracker
                 Integer userId = getUserId(username);
-                TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+                TimeOffTracker tracker = loadTimeOffTrackerReadOnly(username, userId, year);
 
                 if (tracker != null) {
                     availablePaidDays = tracker.getAvailableHolidayDays();
                     paidDaysTaken = tracker.getUsedHolidayDays();
-                } else {
-                    // Fall back to holiday service
-                    availablePaidDays = holidayManagementService.getRemainingHolidayDays(username, getUserId(username));
                 }
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("Error getting holiday days for %s: %s", username, e.getMessage()));
+                LoggerUtil.warn(this.getClass(), String.format("Error getting holiday days for %s: %s", username, e.getMessage()));
             }
 
             // Build and return the summary
@@ -762,11 +758,8 @@ public class TimeOffManagementService {
                     .paidDaysTaken(paidDaysTaken)
                     .remainingPaidDays(availablePaidDays)
                     .build();
-
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error calculating time off summary for %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error calculating time off summary for %s: %s", username, e.getMessage()));
 
             // Return empty summary on error
             return TimeOffSummaryDTO.builder()
@@ -781,6 +774,19 @@ public class TimeOffManagementService {
     }
 
     // ============= HELPER METHODS =============
+
+    /**
+     * Load the time off tracker for a user in read-only mode without updating from holiday service
+     */
+    public TimeOffTracker loadTimeOffTrackerReadOnly(String username, Integer userId, int year) {
+        try {
+            // Read the tracker directly using DataAccessService
+            return dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error loading time off tracker in read-only mode for %s (year %d): %s", username, year, e.getMessage()));
+            return null;
+        }
+    }
 
     /**
      * Helper method to load all time off entries for a year

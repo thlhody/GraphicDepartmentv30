@@ -4,7 +4,7 @@ import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.enums.WorktimeMergeRule;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.WorktimeEntryUtil;
+import com.ctgraphdep.utils.WorkTimeEntryUtil;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -131,7 +131,7 @@ public class WorktimeMergeService {
             return admin;
         }
 
-        String entryKey = WorktimeEntryUtil.createEntryKey(user.getUserId(), user.getWorkDate());
+        String entryKey = WorkTimeEntryUtil.createEntryKey(user.getUserId(), user.getWorkDate());
 
         // Skip if we already processed this entry
         if (userEntriesMap.containsKey(entryKey)) {

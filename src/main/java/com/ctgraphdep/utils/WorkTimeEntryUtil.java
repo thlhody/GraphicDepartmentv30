@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
  * Utility class for common WorkTimeTable operations.
  * This consolidates duplicated methods from various services.
  */
-public class WorktimeEntryUtil {
+public class WorkTimeEntryUtil {
 
     /**
      * Creates a deep copy of a WorkTimeTable entry
@@ -74,7 +74,7 @@ public class WorktimeEntryUtil {
         YearMonth maxYearMonth = currentYearMonth.plusMonths(6);
 
         if (yearMonth.isBefore(minYearMonth) || yearMonth.isAfter(maxYearMonth)) {
-            LoggerUtil.warn(WorktimeEntryUtil.class, String.format("YearMonth %s is outside reasonable range (%s to %s)", yearMonth, minYearMonth, maxYearMonth));
+            LoggerUtil.warn(WorkTimeEntryUtil.class, String.format("YearMonth %s is outside reasonable range (%s to %s)", yearMonth, minYearMonth, maxYearMonth));
         }
     }
 

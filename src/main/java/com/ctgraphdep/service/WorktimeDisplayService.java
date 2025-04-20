@@ -11,7 +11,7 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.WorktimeEntryUtil;
+import com.ctgraphdep.utils.WorkTimeEntryUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -95,7 +95,7 @@ public class WorktimeDisplayService {
      */
     public List<Map<String, String>> prepareDayHeaders(YearMonth yearMonth) {
         // Validate the year month is reasonable
-        WorktimeEntryUtil.validateYearMonth(yearMonth);
+        WorkTimeEntryUtil.validateYearMonth(yearMonth);
 
         List<Map<String, String>> dayHeaders = new ArrayList<>();
 
@@ -107,7 +107,7 @@ public class WorktimeDisplayService {
             headerInfo.put("initial", WorkCode.ROMANIAN_DAY_INITIALS.get(date.getDayOfWeek()));
 
             // Check if it's a weekend
-            headerInfo.put("isWeekend", WorktimeEntryUtil.isDateWeekend(date) ? "true" : "false");
+            headerInfo.put("isWeekend", WorkTimeEntryUtil.isDateWeekend(date) ? "true" : "false");
 
             dayHeaders.add(headerInfo);
         }
@@ -128,7 +128,7 @@ public class WorktimeDisplayService {
             Integer month) {
 
         // Validate the year and month
-        WorktimeEntryUtil.validateYearMonth(YearMonth.of(year, month));
+        WorkTimeEntryUtil.validateYearMonth(YearMonth.of(year, month));
 
         Map<Integer, WorkTimeSummary> summaries = new HashMap<>();
 
@@ -147,14 +147,14 @@ public class WorktimeDisplayService {
 
     private List<WorkTimeTable> filterEntriesForDisplay(List<WorkTimeTable> entries) {
         return entries.stream()
-                .filter(WorktimeEntryUtil::isEntryDisplayable)
+                .filter(WorkTimeEntryUtil::isEntryDisplayable)
                 .map(this::prepareEntryForDisplay)
                 .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
                 .toList();
     }
 
     private WorkTimeTable prepareEntryForDisplay(WorkTimeTable entry) {
-        WorkTimeTable displayEntry = WorktimeEntryUtil.copyWorkTimeEntry(entry);
+        WorkTimeTable displayEntry = WorkTimeEntryUtil.copyWorkTimeEntry(entry);
 
         // For USER_IN_PROCESS entries, show only partial information
         if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {

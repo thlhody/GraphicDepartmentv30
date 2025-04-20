@@ -284,13 +284,13 @@ public class StatusService {
         return allEntries;
     }
 
-    // Gets TimeOffTracker data for a user for a specific year in read-only mode. This method reads directly from the network or local storage without any data manipulation.
+    // Gets TimeOffTracker data for a user for a specific year in read-only mode
     public TimeOffTracker getTimeOffTrackerReadOnly(String username, Integer userId, int year) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Retrieving time off tracker for user %s for year %d in read-only mode", username, year));
 
-            // Directly use DataAccessService to read the tracker
-            TimeOffTracker tracker = dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+            // Use the read-only method from TimeOffManagementService
+            TimeOffTracker tracker = timeOffManagementService.loadTimeOffTrackerReadOnly(username, userId, year);
 
             if (tracker != null) {
                 LoggerUtil.info(this.getClass(), String.format("Successfully retrieved time off tracker for %s with %d requests", username, tracker.getRequests().size()));
@@ -310,24 +310,30 @@ public class StatusService {
         try {
             LoggerUtil.info(this.getClass(), String.format("Getting approved time off from tracker for user %s for year %d", username, year));
 
-            // Get the user to properly call the service
-            User user = new User();
-            user.setUsername(username);
-            user.setUserId(userId);
+            // Get the tracker directly using read-only method
+            TimeOffTracker tracker = timeOffManagementService.loadTimeOffTrackerReadOnly(username, userId, year);
 
-            // Delegate to TimeOffManagementService
-            // This will get all upcoming time off, then filter for the specific year
-            List<WorkTimeTable> allTimeOffs = timeOffManagementService.getUpcomingTimeOff(user);
+            if (tracker == null || tracker.getRequests() == null || tracker.getRequests().isEmpty()) {
+                return new ArrayList<>();
+            }
 
-            // Filter just for the requested year
-            return allTimeOffs.stream().filter(entry -> entry.getWorkDate().getYear() == year)
-                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
+            // Convert approved requests to WorkTimeTable entries
+            return tracker.getRequests().stream()
+                    .filter(request -> "APPROVED".equals(request.getStatus()))
+                    .map(request -> {
+                        WorkTimeTable entry = new WorkTimeTable();
+                        entry.setUserId(userId);
+                        entry.setWorkDate(request.getDate());
+                        entry.setTimeOffType(request.getTimeOffType());
+                        return entry;
+                    })
+                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
+                    .collect(Collectors.toList());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error getting approved time off from tracker for %s (%d): %s", username, year, e.getMessage()));
             return new ArrayList<>();
         }
     }
-
     // Gets time off summary directly from TimeOffTracker file. This only counts APPROVED requests.
     public TimeOffSummaryDTO getTimeOffSummaryFromTracker(String username, int year) {
         try {
