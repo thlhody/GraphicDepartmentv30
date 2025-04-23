@@ -1,6 +1,6 @@
 package com.ctgraphdep.config;
 
-import com.ctgraphdep.service.AuthenticationService;
+import com.ctgraphdep.security.AuthenticationService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

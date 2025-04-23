@@ -2,7 +2,7 @@ package com.ctgraphdep.validation.commands;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.validation.TimeProvider;
-import com.ctgraphdep.config.ValidationConfig;
+import com.ctgraphdep.validation.config.ValidationConfig;
 
 import java.time.LocalDateTime;
 

@@ -94,16 +94,9 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             updateWorkTimeEntry(entry, endTime, rawMinutes, result);
 
             // Use existing WorkTimeService method to save the entry and handle network sync
-            ctx.getWorktimeManagementService().saveWorkTimeEntry(
-                    username,
-                    entry,
-                    year,
-                    month,
-                    username  // The operating username is the same as the entry username
-            );
+            ctx.getWorktimeManagementService().saveWorkTimeEntry(username, entry, year, month, username);
 
-            info(String.format("Successfully resolved work entry for %s on %s. Raw minutes: %d, Overtime: %d",
-                    username, entryDate, rawMinutes, result.getOvertimeMinutes()));
+            info(String.format("Successfully resolved work entry for %s on %s. Raw minutes: %d, Overtime: %d", username, entryDate, rawMinutes, result.getOvertimeMinutes()));
 
             return true;
         }, false);

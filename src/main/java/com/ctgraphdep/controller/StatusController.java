@@ -12,6 +12,7 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.*;
+import com.ctgraphdep.validation.TimeValidationFactory;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -168,7 +169,7 @@ public class StatusController extends BaseController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) String username,
-            Model model) {
+            Model model,RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing register search at " + getStandardCurrentDateTime());
@@ -187,6 +188,22 @@ public class StatusController extends BaseController {
             // Use determineYear and determineMonth from BaseController
             int displayYear = determineYear(year);
             int displayMonth = determineMonth(month);
+
+            // Validate period directly here before making service call
+            try {
+                // Create and execute validation command directly
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(displayYear, displayMonth, 24);
+                getTimeValidationService().execute(validateCommand);
+            } catch (IllegalArgumentException e) {
+                // Handle validation failure gracefully
+                String userMessage = "The selected period is not valid. " + "You can only view periods up to 24 months in the future.";
+                redirectAttributes.addFlashAttribute("periodError", userMessage);
+                // Reset to current period (or adjust as needed)
+                LocalDate currentDate = getStandardCurrentDate();
+                return "redirect:/status/register-search?username=" + (username != null ? username : "") +
+                        "&year=" + currentDate.getYear() +
+                        "&month=" + currentDate.getMonthValue();
+            }
 
             // Set current period for the UI
             model.addAttribute("currentYear", displayYear);
@@ -385,6 +402,22 @@ public class StatusController extends BaseController {
             int currentYear = determineYear(year);
             int currentMonth = determineMonth(month);
 
+            // Validate period directly here before making service call
+            try {
+                // Create and execute validation command directly
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(currentYear, currentMonth, 24);
+                getTimeValidationService().execute(validateCommand);
+            } catch (IllegalArgumentException e) {
+                // Handle validation failure gracefully
+                String userMessage = "The selected period is not valid. " + "You can only view periods up to 24 months in the future.";
+                redirectAttributes.addFlashAttribute("periodError", userMessage);
+                // Reset to current period (or adjust as needed)
+                LocalDate currentDate = getStandardCurrentDate();
+                return "redirect:/status/worktime-status?username=" + (username != null ? username : "") +
+                        "&year=" + currentDate.getYear() +
+                        "&month=" + currentDate.getMonthValue();
+            }
+
             // For other users' data, only admins and team leaders can view
             boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) &&
                     !currentUser.hasRole("ADMIN") && !currentUser.hasRole("TEAM_LEADER");
@@ -534,7 +567,7 @@ public class StatusController extends BaseController {
             // Validate period directly here before making service call
             try {
                 // Create and execute validation command directly
-                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(displayYear, displayMonth, 4); // 4 months ahead max
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(displayYear, displayMonth, 12); // 4 months ahead max
                 getTimeValidationService().execute(validateCommand);
             } catch (IllegalArgumentException e) {
                 // Handle validation failure gracefully
@@ -660,13 +693,8 @@ public class StatusController extends BaseController {
     /**
      * Helper method to check if any search criteria are present
      */
-    private boolean hasCheckRegisterSearchCriteria(
-            String searchTerm,
-            LocalDate startDate,
-            LocalDate endDate,
-            String checkType,
-            String designerName,
-            String approvalStatus) {
+    private boolean hasCheckRegisterSearchCriteria(String searchTerm, LocalDate startDate, LocalDate endDate,
+                                                   String checkType, String designerName, String approvalStatus) {
 
         return (searchTerm != null && !searchTerm.trim().isEmpty()) ||
                 startDate != null || endDate != null ||

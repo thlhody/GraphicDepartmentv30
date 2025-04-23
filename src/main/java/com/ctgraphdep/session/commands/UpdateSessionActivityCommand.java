@@ -31,10 +31,8 @@ public class UpdateSessionActivityCommand extends BaseSessionCommand<Boolean> {
             debug(String.format("Updating activity timestamp for user %s", username));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Get current session
             WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);

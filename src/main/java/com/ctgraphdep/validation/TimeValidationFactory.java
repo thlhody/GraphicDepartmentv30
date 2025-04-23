@@ -57,6 +57,15 @@ public class TimeValidationFactory {
     }
 
     /**
+     * Creates a command to validate a session before starting a new one
+     * @param session The session to validate
+     * @return A command that returns true if session needs reset
+     */
+    public ValidateSessionForStartCommand createValidateSessionForStartCommand(WorkUsersSessionsStates session) {
+        return new ValidateSessionForStartCommand(session, timeProvider);
+    }
+
+    /**
      * Creates a command to check if a session is active
      * @param session The session to check
      * @return A command that returns true if the session is active

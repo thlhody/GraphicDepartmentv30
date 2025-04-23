@@ -1,6 +1,5 @@
 package com.ctgraphdep.security;
 
-import com.ctgraphdep.service.AuthenticationService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;

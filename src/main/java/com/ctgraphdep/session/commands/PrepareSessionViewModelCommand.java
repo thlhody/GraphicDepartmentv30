@@ -41,10 +41,8 @@ public class PrepareSessionViewModelCommand extends BaseSessionCommand<Void> {
             debug("Preparing session view model for user: " + user.getUsername());
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Add session information to model
             prepareSessionModel(model, session, ctx, timeValues.getCurrentTime());
@@ -107,9 +105,13 @@ public class PrepareSessionViewModelCommand extends BaseSessionCommand<Void> {
 
             // Ensure overtime is shown correctly (using the calculated value)
             model.addAttribute("overtime", formatWorkTime(result.getOvertimeMinutes()));
-
-            // Add discarded minutes calculation calculate it correctly)
-            int discardedMinutes = (result.getProcessedMinutes() % 60) - WorkCode.HALF_HOUR_DURATION;
+            
+            // Add discarded minutes calculation (calculate it correctly)
+            int discardedMinutes = 0;
+            if (session.getTotalWorkedMinutes() != null) {
+                discardedMinutes = session.getTotalWorkedMinutes() - result.getFinalTotalMinutes();
+            }
+            model.addAttribute("discardedMinutes", discardedMinutes);
             model.addAttribute("discardedMinutes", discardedMinutes);
         } else {
             model.addAttribute("actualWorkTime", "--:--");

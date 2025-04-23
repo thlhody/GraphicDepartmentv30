@@ -1,7 +1,8 @@
 package com.ctgraphdep.controller;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.service.UserLogService;
+import com.ctgraphdep.service.UserLogService.SyncResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -12,7 +13,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -78,18 +81,36 @@ public class UserLogController {
     }
 
     /**
-     * Manually trigger sync for all logs
+     * Manually trigger sync for all logs with graceful network handling
      */
     @PostMapping("/sync")
     @ResponseBody
-    public ResponseEntity<String> syncLogs() {
-        try {
-            userLogService.manualSync();
+    public ResponseEntity<Map<String, Object>> syncLogs() {
+        Map<String, Object> response = new HashMap<>();
+
+        // Call the updated service method that returns a SyncResult
+        SyncResult result = userLogService.manualSync();
+
+        if (result.isSuccess()) {
+            response.put("success", true);
+            response.put("message", result.getMessage());
             LoggerUtil.info(this.getClass(), "Manual log sync triggered successfully");
-            return ResponseEntity.ok("Logs synced successfully");
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error syncing logs: " + e.getMessage());
-            return ResponseEntity.internalServerError().body("Error syncing logs: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        } else {
+            // If network unavailable, return a specific response
+            if (result.getMessage().contains("Network is currently unavailable")) {
+                response.put("success", false);
+                response.put("networkUnavailable", true);
+                response.put("message", result.getMessage());
+                LoggerUtil.info(this.getClass(), "Manual log sync requested but network unavailable");
+                return ResponseEntity.ok(response); // Still return 200 OK with detailed message
+            } else {
+                // Other error
+                response.put("success", false);
+                response.put("message", result.getMessage());
+                LoggerUtil.error(this.getClass(), "Error syncing logs: " + result.getMessage());
+                return ResponseEntity.ok(response); // Return 200 OK with error message for consistent handling
+            }
         }
     }
 

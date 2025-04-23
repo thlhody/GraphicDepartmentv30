@@ -40,10 +40,8 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
             info(String.format("Executing ResumePreviousSessionCommand for user %s", username));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
             LocalDateTime resumeTime = timeValues.getCurrentTime();
             debug(String.format("Resume time: %s", resumeTime));
 
@@ -97,11 +95,7 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
 
         // Update session state using builder
         SessionEntityBuilder.updateSession(session, builder ->
-            builder.status(WorkCode.WORK_ONLINE)
-                    .currentStartTime(resumeTime)
-                    .dayEndTime(null)
-                    .workdayCompleted(false)
-        );
+                builder.status(WorkCode.WORK_ONLINE).currentStartTime(resumeTime).dayEndTime(null).workdayCompleted(false));
 
         debug("Session state updated to WORK_ONLINE");
     }
@@ -120,18 +114,11 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
             debug(String.format("Updating worktime entry for date: %s", workDate));
 
             // Find existing worktime entries for the month
-            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(
-                    username,
-                    workDate.getYear(),
-                    workDate.getMonthValue(),
-                    username
-            );
+            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(username, workDate.getYear(), workDate.getMonthValue(), username);
 
             // Find the entry for this specific day
-            WorkTimeTable entry = entries.stream()
-                    .filter(e -> e.getWorkDate().equals(workDate))
-                    .findFirst()
-                    .orElse(null);
+            WorkTimeTable entry = entries.stream().filter(e -> e.getWorkDate().equals(workDate))
+                    .findFirst().orElse(null);
 
             if (entry != null) {
                 // Update existing entry with session values
@@ -143,13 +130,7 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
                 entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS); // Mark as in-process
 
                 // Save the updated entry
-                context.getWorktimeManagementService().saveWorkTimeEntry(
-                        username,
-                        entry,
-                        workDate.getYear(),
-                        workDate.getMonthValue(),
-                        username
-                );
+                context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
 
                 info("Updated worktime entry for resumed session");
             } else {

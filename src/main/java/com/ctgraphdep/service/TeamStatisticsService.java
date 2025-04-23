@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -326,8 +327,8 @@ public class TeamStatisticsService {
     }
 
     private void updateSessionDetails(TeamMemberDTO member) {
-        WorkUsersSessionsStates session = dataAccessService.readNetworkSessionFileReadOnly(
-                member.getUsername(), member.getUserId());
+
+        WorkUsersSessionsStates session = dataAccessService.readNetworkSessionFileReadOnly(member.getUsername(), member.getUserId());
 
         if (session != null && session.getSessionStatus() != null) {
             // Normalize status based on exact statuses
@@ -342,8 +343,7 @@ public class TeamStatisticsService {
                 normalizedStatus = "WORK_OFFLINE";
             }
 
-            LoggerUtil.info(this.getClass(), "Original session status for " + member.getUsername() + ": " + originalStatus +
-                            ", Normalized status: " + normalizedStatus);
+            LoggerUtil.info(this.getClass(), "Original session status for " + member.getUsername() + ": " + originalStatus + ", Normalized status: " + normalizedStatus);
 
             member.setSessionDetailsDTO(SessionDetailsDTO.builder()
                     .status(normalizedStatus)

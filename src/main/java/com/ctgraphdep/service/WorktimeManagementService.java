@@ -1,15 +1,15 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.IsNationalHolidayCommand;
 import com.ctgraphdep.validation.commands.ValidateHolidayDateCommand;
-import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -65,7 +65,6 @@ public class WorktimeManagementService {
      */
     @PreAuthorize("#username == authentication.name")
     public List<WorkTimeTable> loadMonthWorktime(String username, int year, int month) {
-        validatePeriod(year, month);
         Integer userId = getUserId(username);
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
 
@@ -135,7 +134,6 @@ public class WorktimeManagementService {
      */
     @PreAuthorize("hasAnyRole('ADMIN', 'TEAM_LEADER')")
     public List<WorkTimeTable> loadViewOnlyWorktime(String username, int year, int month) {
-        validatePeriod(year, month);
         Integer userId = getUserId(username);
 
         // Only read from network for admins/team leaders viewing others
@@ -460,40 +458,12 @@ public class WorktimeManagementService {
                 .collect(Collectors.toList());
     }
 
-    // ============= SYNCHRONIZATION OPERATIONS =============
-
-    /**
-     * Synchronize entries between admin and user files for a specific user
-     */
-    public List<WorkTimeTable> synchronizeEntries(String username, Integer userId, int year, int month) {
-        try {
-            LoggerUtil.info(this.getClass(), String.format("Starting entry synchronization for user %s (%d) - %d/%d", username, userId, month, year));
-
-            // Load both user and admin entries
-            List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
-            List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
-
-            // Use the merge service to merge entries
-            List<WorkTimeTable> mergedEntries = worktimeMergeService.mergeEntries(userEntries, adminEntries, userId);
-
-            // Save merged entries back to user file
-            saveUserEntries(username, mergedEntries, year, month);
-
-            return mergedEntries;
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error synchronizing entries for user %s: %s", username, e.getMessage()));
-            throw new RuntimeException("Failed to synchronize worktime entries", e);
-        }
-    }
-
     // ============= HELPER METHODS =============
 
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
         try {
             // Get current username from SecurityContext if available
-            String currentUsername = SecurityContextHolder.getContext().getAuthentication() != null ?
-                    SecurityContextHolder.getContext().getAuthentication().getName() : null;
+            String currentUsername = SecurityContextHolder.getContext().getAuthentication() != null ? SecurityContextHolder.getContext().getAuthentication().getName() : null;
 
             // Use the most appropriate method to load entries
             if (currentUsername != null && currentUsername.equals(username)) {
@@ -505,8 +475,7 @@ public class WorktimeManagementService {
                 try {
                     return dataAccessService.readNetworkUserWorktimeReadOnly(username, year, month);
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            String.format("Error reading network worktime for user %s: %s", username, e.getMessage()));
+                    LoggerUtil.error(this.getClass(), String.format("Error reading network worktime for user %s: %s", username, e.getMessage()));
                     return new ArrayList<>();
                 }
             }
@@ -546,18 +515,6 @@ public class WorktimeManagementService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading admin worktime for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
-        }
-    }
-
-    private void saveUserEntries(String username, List<WorkTimeTable> entries, int year, int month) {
-        try {
-            // Use writeUserWorktime which handles local save and network sync
-            dataAccessService.writeUserWorktime(username, entries, year, month);
-
-            LoggerUtil.info(this.getClass(), String.format("Saved %d merged entries to user worktime file", entries.size()));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error saving user entries for %s: %s", username, e.getMessage()));
-            throw new RuntimeException("Failed to save worktime entries", e);
         }
     }
 
@@ -787,24 +744,6 @@ public class WorktimeManagementService {
         }
     }
 
-    private void validatePeriod(int year, int month) {
-        if (year < 2020 || year > 2060) {
-            throw new IllegalArgumentException("Invalid year: " + year);
-        }
-        if (month < 1 || month > 12) {
-            throw new IllegalArgumentException("Invalid month: " + month);
-        }
-
-        // Create and execute the validation command
-        ValidatePeriodCommand command = timeValidationService.getValidationFactory().createValidatePeriodCommand(year, month, 1); // 1 month ahead maximum
-        try {
-            timeValidationService.execute(command);
-        } catch (IllegalArgumentException e) {
-            // Re-throw the exception with the same message to maintain backward compatibility
-            throw new IllegalArgumentException(e.getMessage());
-        }
-    }
-
     private void validateEntries(List<WorkTimeTable> entries, Integer userId) {
         entries.forEach(entry -> {
             if (!userId.equals(entry.getUserId())) {
@@ -813,8 +752,6 @@ public class WorktimeManagementService {
             if (entry.getWorkDate() == null) {
                 throw new IllegalArgumentException("Work date cannot be null");
             }
-            validatePeriod(entry.getWorkDate().getYear(), entry.getWorkDate().getMonthValue());
-
             // Validate entry data
             validateWorkTimeEntry(entry);
         });

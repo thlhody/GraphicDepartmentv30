@@ -126,8 +126,18 @@
             $.ajax({
                 url: '/logs/sync',
                 method: 'POST',
+                dataType: 'json',
                 success: function(data) {
-                    showToast('Success', 'Logs synced successfully to network', 'success');
+                    if (data.success) {
+                        showToast('Success', data.message || 'Logs synced successfully to network', 'success');
+                    } else {
+                        // Check if it's a network unavailability issue
+                        if (data.networkUnavailable) {
+                            showToast('Network Unavailable', data.message || 'Network is currently unavailable. Logs will be synced automatically when connection is restored.', 'warning');
+                        } else {
+                            showToast('Error', data.message || 'Failed to sync logs', 'danger');
+                        }
+                    }
                 },
                 error: function(xhr, status, error) {
                     showToast('Error', 'Failed to sync logs: ' + error, 'danger');
@@ -138,7 +148,6 @@
                 }
             });
         });
-
         // Global toast function
         window.showToast = function(title, message, type) {
             const toastId = 'toast-' + new Date().getTime();

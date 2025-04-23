@@ -32,10 +32,8 @@ public class TrackNotificationDisplayCommand extends BaseNotificationCommand<Voi
             info(String.format("Tracking notification display for user %s", username));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Determine notification type
             String notificationType = isTempStop ? "TEMP_STOP" : "SCHEDULE_END";

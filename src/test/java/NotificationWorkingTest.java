@@ -1,7 +1,7 @@
 //import com.ctgraphdep.config.WorkCode;
 //import com.ctgraphdep.model.WorkUsersSessionsStates;
 //import com.ctgraphdep.service.*;
-//import com.ctgraphdep.config.PathConfig;
+//import com.ctgraphdep.fileOperations.config.PathConfig;
 //import com.ctgraphdep.tray.CTTTSystemTray;
 //import org.junit.jupiter.api.*;
 //import org.mockito.Mock;

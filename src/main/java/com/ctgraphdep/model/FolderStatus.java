@@ -1,6 +1,6 @@
 package com.ctgraphdep.model;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.model.dto.SyncFolderStatusDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;

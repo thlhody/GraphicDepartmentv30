@@ -183,7 +183,7 @@ public class WorktimeDisplayService {
 
     private int getPaidHolidayDays(Integer userId) {
         try {
-            return holidayManagementService.getRemainingHolidayDays(userId);
+            return holidayManagementService.getRemainingHolidayDaysReadOnly(userId);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error loading paid holiday days for user " + userId, e);
             return 0;

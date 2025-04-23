@@ -1,5 +1,6 @@
-package com.ctgraphdep.config;
+package com.ctgraphdep.dashboard;
 
+import com.ctgraphdep.dashboard.config.DashboardConfig;
 import com.ctgraphdep.model.dto.dashboard.DashboardCardDTO;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -8,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Arrays;
 
 @Configuration
-public class DashboardConfigManager {
+public class DashboardManager {
 
     @Bean
     @Qualifier("adminDashboardConfig")

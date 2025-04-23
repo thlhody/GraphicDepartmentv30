@@ -28,11 +28,7 @@ public class ShowStartDayReminderCommand extends BaseNotificationCommand<Boolean
             info(String.format("Attempting to show start day reminder for user %s", username));
 
             // Check if notification can be shown (rate limiting)
-            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
-                    username,
-                    WorkCode.START_DAY_TYPE,
-                    WorkCode.ONCE_PER_DAY_TIMER
-            );
+            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(username, WorkCode.START_DAY_TYPE, WorkCode.ONCE_PER_DAY_TIMER);
 
             if (!ctx.executeQuery(canShowQuery)) {
                 info(String.format("Skipping start day reminder for user %s (already shown today)", username));
@@ -48,12 +44,8 @@ public class ShowStartDayReminderCommand extends BaseNotificationCommand<Boolean
                 info(String.format("User %s has unresolved worktime entries - showing resolution notification", username));
 
                 // Show resolution notification
-                boolean success = ctx.getNotificationService().showResolutionReminder(
-                        username,
-                        userId,
-                        WorkCode.RESOLUTION_TITLE,
-                        WorkCode.RESOLUTION_MESSAGE,
-                        WorkCode.RESOLUTION_MESSAGE_TRAY,
+                boolean success = ctx.getNotificationService().showResolutionReminder(username, userId,
+                        WorkCode.RESOLUTION_TITLE, WorkCode.RESOLUTION_MESSAGE, WorkCode.RESOLUTION_MESSAGE_TRAY,
                         WorkCode.ON_FOR_TWELVE_HOURS
                 );
 

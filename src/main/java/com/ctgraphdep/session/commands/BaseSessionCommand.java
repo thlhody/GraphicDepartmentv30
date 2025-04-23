@@ -2,7 +2,6 @@ package com.ctgraphdep.session.commands;
 
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.utils.CommandExecutorUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 
 /**
@@ -32,7 +31,6 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     /**
      * Executes the command with standard error handling and logging,
      * returning a default value on error.
-     *
      * @param context The session context
      * @param commandLogic The command execution logic
      * @param defaultValue The default value to return on error

@@ -11,7 +11,7 @@ import com.ctgraphdep.notification.model.NotificationType;
 import com.ctgraphdep.notification.ui.ButtonFactory;
 import com.ctgraphdep.notification.ui.DialogComponents;
 import com.ctgraphdep.notification.ui.NotificationBackgroundFactory;
-import com.ctgraphdep.service.DataAccessService;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.notification.*;
@@ -151,6 +151,25 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             final boolean[] dialogDisplayed = new boolean[1];
             final boolean[] trayDisplayed = new boolean[1];
 
+            String existingDialogKey = findExistingDialogKey(request.getUsername(), request.getType().getTypeId());
+            if (existingDialogKey != null) {
+                JDialog existingDialog = activeDialogs.get(existingDialogKey);
+                if (existingDialog != null && existingDialog.isDisplayable()) {
+                    // If dialog exists but isn't visible, make it visible again
+                    if (!existingDialog.isVisible()) {
+                        existingDialog.setVisible(true);
+                        existingDialog.toFront();
+                        existingDialog.requestFocus();
+                        LoggerUtil.info(this.getClass(),
+                                String.format("Restoring existing %s notification for %s instead of creating new one", request.getType().getTypeId(), request.getUsername()));
+                    } else {
+                        LoggerUtil.debug(this.getClass(), String.format("Notification %s already active for %s, not creating duplicate", request.getType().getTypeId(), request.getUsername()));
+                    }
+                    // Return a success response for the existing dialog
+                    return NotificationResponse.success(existingDialogKey, true, false);
+                }
+            }
+
             SwingUtilities.invokeLater(() -> {
                 try {
                     // Check if we're on the EDT now
@@ -194,6 +213,8 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 return NotificationResponse.failure("Failed to display notification");
             }
 
+
+
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in showNotification: " + e.getMessage(), e);
             healthMonitor.recordTaskFailure("notification-display-service", e.getMessage());
@@ -203,6 +224,22 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             return NotificationResponse.failure(e.getMessage());
         }
     }
+
+    private String findExistingDialogKey(String username, String notificationType) {
+        for (Map.Entry<String, JDialog> entry : activeDialogs.entrySet()) {
+            JDialog dialog = entry.getValue();
+            if (dialog.isDisplayable()) {
+                Object dialogUsername = dialog.getRootPane().getClientProperty("username");
+                Object dialogType = dialog.getRootPane().getClientProperty("notificationType");
+
+                if (username.equals(dialogUsername) && notificationType.equals(dialogType)) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return null;
+    }
+
 
     // Notification-specific display methods
 
@@ -594,7 +631,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         }
 
         // Create a background task to periodically check and maintain dialog visibility
-        Timer visibilityTimer = new Timer(60000, e -> { // Check every minute
+        Timer visibilityTimer = new Timer(30000, e -> { // Check every 30 seconds (increased frequency from 60s)
             try {
                 // Only proceed if dialog still exists
                 if (dialog == null || !dialog.isDisplayable()) {
@@ -611,17 +648,29 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 boolean isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
                 if (withinBusinessHours && isWeekday) {
-                    // Ensure dialog is visible and on top
+                    // FIXED: More aggressive visibility enforcement
+
+                    // Ensure dialog is visible
                     if (!dialog.isVisible()) {
                         dialog.setVisible(true);
+                        LoggerUtil.info(this.getClass(),
+                                String.format("Restoring visibility for %s notification: %s",
+                                        notificationType, username));
                     }
 
+                    // Always bring to front with more forceful approach
                     dialog.toFront();
+                    dialog.setAlwaysOnTop(true);
+
+                    // FIXED: Request focus to make notification more noticeable
+                    dialog.requestFocus();
+
+                    // Force repaint
                     dialog.repaint();
 
-                    // Log periodic visibility check at debug level
-                    LoggerUtil.debug(this.getClass(),
-                            String.format("Enhanced visibility check for %s notification: %s",
+                    // Log visibility check at info level to track this issue
+                    LoggerUtil.info(this.getClass(),
+                            String.format("Enhanced visibility maintenance for %s notification: %s",
                                     notificationType, username));
                 } else {
                     // Outside business hours - hide notification until next business hour
@@ -638,6 +687,9 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                                 username, ex.getMessage()), ex);
             }
         });
+
+        // FIXED: Mark dialog as persistent to prevent cleanup
+        dialog.getRootPane().putClientProperty("isPersistentNotification", Boolean.TRUE);
 
         visibilityTimer.setRepeats(true);
         visibilityTimer.start();
@@ -1073,9 +1125,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             Object usernameObj = dialog.getRootPane().getClientProperty("username");
             Object typeObj = dialog.getRootPane().getClientProperty("notificationType");
 
-            if (usernameObj instanceof String && typeObj instanceof String) {
-                String username = (String) usernameObj;
-                String notificationType = (String) typeObj;
+            if (usernameObj instanceof String username && typeObj instanceof String notificationType) {
 
                 // Remove and cancel timer
                 String timerKey = username + "_visibility_" + notificationType;
@@ -1196,18 +1246,43 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         // Convert to milliseconds since epoch
         long currentTime = standardDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
 
-
-        // Remove any dialogs that have been showing for more than 30 minutes
+        // Remove dialogs from the active dialogs map based on specific criteria
         activeDialogs.entrySet().removeIf(entry -> {
             JDialog dialog = entry.getValue();
 
             // Check if dialog is still displayed
             if (dialog.isDisplayable()) {
-                // Get dialog creation time from client property (if available)
-
+                // Get dialog creation time and notification type from client properties
                 Object creationTimeObj = dialog.getRootPane().getClientProperty("creationTime");
-                long creationTime = (creationTimeObj instanceof Long) ? (Long) creationTimeObj : 0;
+                Object typeObj = dialog.getRootPane().getClientProperty("notificationType");
 
+                long creationTime = (creationTimeObj instanceof Long) ? (Long) creationTimeObj : 0;
+                String notificationType = (typeObj instanceof String) ? (String) typeObj : null;
+
+                // FIXED: Don't clean up long-duration notifications during business hours
+                boolean isLongDurationNotification =
+                        WorkCode.START_DAY_TYPE.equals(notificationType) ||
+                                WorkCode.RESOLUTION_REMINDER_TYPE.equals(notificationType);
+
+                if (isLongDurationNotification) {
+                    // For long-duration notifications, check if we're in business hours
+                    int hour = standardDateTime.getHour();
+                    int dayOfWeek = standardDateTime.getDayOfWeek().getValue();
+
+                    boolean withinBusinessHours = hour >= WorkCode.WORK_START_HOUR &&
+                            hour < WorkCode.WORK_END_HOUR;
+                    boolean isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+
+                    // During business hours on weekdays, don't clean up these notifications
+                    if (withinBusinessHours && isWeekday) {
+                        LoggerUtil.debug(this.getClass(),
+                                String.format("Preserving long-duration notification (%s) during business hours",
+                                        notificationType));
+                        return false;
+                    }
+                }
+
+                // For regular notifications or outside business hours:
                 // If no creation time or dialog has been showing for more than 30 minutes
                 if (creationTime == 0 || (currentTime - creationTime > 30 * 60 * 1000)) {
                     LoggerUtil.info(this.getClass(), "Cleaning up hung dialog: " + dialog.getTitle() + " (ID: " + entry.getKey() + ")");

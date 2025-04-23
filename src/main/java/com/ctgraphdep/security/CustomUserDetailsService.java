@@ -1,7 +1,7 @@
 package com.ctgraphdep.security;
 
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.DataAccessService;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

@@ -1,11 +1,12 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.dashboard.service;
 
-import com.ctgraphdep.config.DashboardConfig;
+import com.ctgraphdep.dashboard.config.DashboardConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.DashboardViewModelDTO;
 import com.ctgraphdep.model.dto.dashboard.DashboardMetricsDTO;
+import com.ctgraphdep.service.OnlineMetricsService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;

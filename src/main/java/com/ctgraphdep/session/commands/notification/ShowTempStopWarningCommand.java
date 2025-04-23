@@ -32,17 +32,11 @@ public class ShowTempStopWarningCommand extends BaseNotificationCommand<Boolean>
             info(String.format("Attempting to show temporary stop warning for user %s", username));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Check if notification can be shown (rate limiting)
-            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
-                    username,
-                    WorkCode.TEMP_STOP_TYPE,
-                    WorkCode.HOURLY_INTERVAL
-            );
+            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(username, WorkCode.TEMP_STOP_TYPE, WorkCode.HOURLY_INTERVAL);
 
             if (!ctx.executeQuery(canShowQuery)) {
                 info(String.format("Skipping temporary stop warning for user %s due to rate limiting", username));
@@ -50,11 +44,7 @@ public class ShowTempStopWarningCommand extends BaseNotificationCommand<Boolean>
             }
 
             // Show temporary stop warning using the notification service
-            boolean success = ctx.getNotificationService().showTempStopWarning(
-                    username,
-                    userId,
-                    tempStopStart
-            );
+            boolean success = ctx.getNotificationService().showTempStopWarning(username, userId, tempStopStart);
 
             if (success) {
                 recordNotificationDisplay(ctx, WorkCode.TEMP_STOP_TYPE);

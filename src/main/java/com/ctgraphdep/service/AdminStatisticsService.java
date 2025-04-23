@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.statistics.ChartDataDTO;
@@ -48,7 +49,7 @@ public class AdminStatisticsService {
         for (User user : users) {
             try {
                 // Use readUserRegister method with isAdmin set to true to read from network path
-                List<RegisterEntry> userEntries = dataAccess.readNetworkUserRegister(
+                List<RegisterEntry> userEntries = dataAccess.readRegisterReadOnly(
                         user.getUsername(),
                         user.getUserId(),
                         year,

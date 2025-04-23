@@ -1,7 +1,8 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.FlagInfo;
 import com.ctgraphdep.model.LocalStatusCache;
 import com.ctgraphdep.model.User;
@@ -234,7 +235,7 @@ public class ReadFileNameStatusService {
             }
 
             // Read session file to determine status
-            WorkUsersSessionsStates session = dataAccessService.readLocalSessionFile(username, currentUser.getUserId());
+            WorkUsersSessionsStates session = dataAccessService.readLocalSessionFileReadOnly(username, currentUser.getUserId());
             if (session == null) {
                 return;
             }
@@ -503,7 +504,7 @@ public class ReadFileNameStatusService {
             // Get current session to determine status
             WorkUsersSessionsStates session;
             try {
-                session = dataAccessService.readLocalSessionFile(currentUsername, currentUser.getUserId());
+                session = dataAccessService.readLocalSessionFileReadOnly(currentUsername, currentUser.getUserId());
             } catch (Exception e) {
                 LoggerUtil.debug(this.getClass(), "Could not read session file: " + e.getMessage());
                 return;
@@ -514,20 +515,11 @@ public class ReadFileNameStatusService {
             }
 
             // Only update if user is online or temporary stop
-            if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
-                    WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+            if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
 
                 // Update with same status but current time
-                updateUserStatus(
-                        currentUsername,
-                        currentUser.getUserId(),
-                        session.getSessionStatus(),
-                        LocalDateTime.now()
-                );
-
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Updated timestamp for current user %s with status %s",
-                                currentUsername, session.getSessionStatus()));
+                updateUserStatus(currentUsername, currentUser.getUserId(), session.getSessionStatus(), LocalDateTime.now());
+                LoggerUtil.debug(this.getClass(), String.format("Updated timestamp for current user %s with status %s", currentUsername, session.getSessionStatus()));
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating current user timestamp: " + e.getMessage(), e);

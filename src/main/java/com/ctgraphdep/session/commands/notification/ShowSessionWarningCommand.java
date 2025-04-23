@@ -33,11 +33,7 @@ public class ShowSessionWarningCommand extends BaseNotificationCommand<Boolean> 
             }
 
             // Show schedule end notification using the notification service
-            boolean success = ctx.getNotificationService().showScheduleEndNotification(
-                    username,
-                    userId,
-                    finalMinutes
-            );
+            boolean success = ctx.getNotificationService().showScheduleEndNotification(username, userId, finalMinutes);
 
             if (success) {
                 // Record notification display

@@ -8,7 +8,7 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
-import com.ctgraphdep.service.DataAccessService;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;

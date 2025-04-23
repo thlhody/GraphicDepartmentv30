@@ -12,7 +12,9 @@ import com.ctgraphdep.service.UserRegisterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserRegisterExcelExporter;
+import com.ctgraphdep.validation.TimeValidationFactory;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -56,7 +58,8 @@ public class UserRegisterController extends BaseController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
-            Model model) {
+            Model model,
+            RedirectAttributes redirectAttributes) {
 
         try {
 
@@ -69,6 +72,23 @@ public class UserRegisterController extends BaseController {
             // Use determineYear and determineMonth from BaseController
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
+
+            try {
+                // Create and execute validation command directly
+                TimeValidationFactory validationFactory = getTimeValidationService().getValidationFactory();
+                ValidatePeriodCommand validateCommand = validationFactory.createValidatePeriodCommand(
+                        selectedYear, selectedMonth, 24); // 24 months ahead max
+                getTimeValidationService().execute(validateCommand);
+            } catch (IllegalArgumentException e) {
+                // Handle validation failure gracefully
+                String userMessage = "The selected period is not valid. You can only view periods up to 24 months in the future.";
+                redirectAttributes.addFlashAttribute("periodError", userMessage);
+
+                // Reset to current period
+                LocalDate currentDate = getStandardCurrentDate();
+                return "redirect:/user/register?year=" + currentDate.getYear() +
+                        "&month=" + currentDate.getMonthValue();
+            }
 
             // Always set these basic attributes regardless of potential errors
             model.addAttribute("actionTypes", ActionType.getValues());

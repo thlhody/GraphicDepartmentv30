@@ -1,4 +1,4 @@
-package com.ctgraphdep.config;
+package com.ctgraphdep.dashboard.config;
 
 import com.ctgraphdep.model.dto.dashboard.DashboardCardDTO;
 import lombok.Builder;

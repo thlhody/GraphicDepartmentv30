@@ -53,37 +53,24 @@ public class StartupSessionCheckCommand extends BaseSessionCommand<Void> {
             }
 
             // Get current date for comparison
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService()
-                    .getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues =
-                    ctx.getValidationService().execute(timeCommand);
+            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
             LocalDate today = timeValues.getCurrentDate();
             debug("Current date: " + today);
 
             // Check if session is active (online or temporary stop)
-            boolean isActive = WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
-                    WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
+            boolean isActive = WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
 
             // Check if session is from a previous day
-            boolean isFromPreviousDay = session.getDayStartTime() != null &&
-                    session.getDayStartTime().toLocalDate().isBefore(today);
+            boolean isFromPreviousDay = session.getDayStartTime() != null && session.getDayStartTime().toLocalDate().isBefore(today);
 
             // Log current session state
-            info(String.format(
-                    "Session state: active=%b, fromPreviousDay=%b, status=%s, startDate=%s",
-                    isActive,
-                    isFromPreviousDay,
-                    session.getSessionStatus(),
-                    session.getDayStartTime() != null ? session.getDayStartTime().toLocalDate() : "null"
-            ));
+            info(String.format("Session state: active=%b, fromPreviousDay=%b, status=%s, startDate=%s", isActive, isFromPreviousDay, session.getSessionStatus(),
+                    session.getDayStartTime() != null ? session.getDayStartTime().toLocalDate() : "null"));
 
             // Reset the session if it's active and from a previous day
             if (isActive && isFromPreviousDay) {
-                warn(String.format(
-                        "Found active %s session from previous day (%s), resetting...",
-                        session.getSessionStatus(),
-                        session.getDayStartTime().toLocalDate()
-                ));
+                warn(String.format("Found active %s session from previous day (%s), resetting...", session.getSessionStatus(), session.getDayStartTime().toLocalDate()));
 
                 // Use the midnight handler to reset the session
                 sessionMidnightHandler.resetUserSession(localUser);

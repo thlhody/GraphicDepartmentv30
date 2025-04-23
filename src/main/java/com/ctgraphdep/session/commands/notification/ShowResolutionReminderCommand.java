@@ -24,13 +24,7 @@ public class ShowResolutionReminderCommand extends BaseNotificationCommand<Boole
      * @param trayMessage The tray notification message
      * @param timeoutPeriod The timeout period for the notification
      */
-    public ShowResolutionReminderCommand(
-            String username,
-            Integer userId,
-            String title,
-            String message,
-            String trayMessage,
-            Integer timeoutPeriod) {
+    public ShowResolutionReminderCommand(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod) {
         super(username, userId);
         this.title = title;
         this.message = message;
@@ -45,11 +39,7 @@ public class ShowResolutionReminderCommand extends BaseNotificationCommand<Boole
             info(String.format("Attempting to show resolution reminder for user %s", username));
 
             // Check if notification can be shown (rate limiting)
-            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(
-                    username,
-                    WorkCode.RESOLUTION_REMINDER_TYPE,
-                    WorkCode.CHECK_INTERVAL
-            );
+            CanShowNotificationQuery canShowQuery = ctx.getCommandFactory().createCanShowNotificationQuery(username, WorkCode.RESOLUTION_REMINDER_TYPE, WorkCode.CHECK_INTERVAL);
 
             if (!ctx.executeQuery(canShowQuery)) {
                 info(String.format("Skipping resolution reminder for user %s due to rate limiting", username));
@@ -66,14 +56,7 @@ public class ShowResolutionReminderCommand extends BaseNotificationCommand<Boole
             }
 
             // Show resolution reminder using the notification service
-            boolean success = ctx.getNotificationService().showResolutionReminder(
-                    username,
-                    userId,
-                    title,
-                    message,
-                    trayMessage,
-                    timeoutPeriod
-            );
+            boolean success = ctx.getNotificationService().showResolutionReminder(username, userId, title, message, trayMessage, timeoutPeriod);
 
             if (success) {
                 // Record notification display

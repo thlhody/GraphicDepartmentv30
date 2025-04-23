@@ -1,12 +1,12 @@
 package com.ctgraphdep.controller.base;
 
-import com.ctgraphdep.config.DashboardConfig;
+import com.ctgraphdep.dashboard.config.DashboardConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.DashboardViewModelDTO;
 import com.ctgraphdep.model.dto.dashboard.DashboardCardDTO;
 import com.ctgraphdep.model.dto.dashboard.DashboardMetricsDTO;
-import com.ctgraphdep.service.DashboardService;
+import com.ctgraphdep.dashboard.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;

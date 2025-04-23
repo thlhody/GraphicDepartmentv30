@@ -1,4 +1,4 @@
-package com.ctgraphdep.config;
+package com.ctgraphdep.session.config;
 
 import com.ctgraphdep.service.SessionMidnightHandler;
 import com.ctgraphdep.session.SessionCommandFactory;

@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.dto.*;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -46,8 +47,7 @@ public class StatusService {
             }
 
             // Filter for requested user and sort by date
-            return userEntries.stream().filter(entry -> entry.getUserId().equals(userId))
-                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
+            return userEntries.stream().filter(entry -> entry.getUserId().equals(userId)).sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading view-only worktime for user %s: %s", username, e.getMessage()));
             return new ArrayList<>();

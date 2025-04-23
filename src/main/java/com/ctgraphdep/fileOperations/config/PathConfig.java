@@ -1,5 +1,7 @@
-package com.ctgraphdep.config;
+package com.ctgraphdep.fileOperations.config;
 
+import com.ctgraphdep.fileOperations.core.FilePath;
+import com.ctgraphdep.fileOperations.util.FileOperationsUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -14,9 +16,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Configuration for file paths used throughout the application.
+ * Enhanced to support the new file operations system while maintaining backwards compatibility.
+ */
 @Getter
 @Setter
 @Component
@@ -144,12 +152,15 @@ public class PathConfig {
     private final AtomicBoolean networkAvailable = new AtomicBoolean(false);
     private final AtomicBoolean localAvailable = new AtomicBoolean(false);
 
+    // Cache for FilePath objects for commonly used paths
+    private final Map<String, FilePath> filePathCache = new HashMap<>();
+
     @PostConstruct
     public void init() {
         LoggerUtil.info(this.getClass(), "Raw network path: " + networkBasePath);
         try {
             // Fix network path format - ensure proper UNC path format
-            networkBasePath = normalizeNetworkPath(networkBasePath);
+            networkBasePath = FileOperationsUtil.normalizeNetworkPath(networkBasePath);
             LoggerUtil.info(this.getClass(), "Using normalized network path: " + networkBasePath);
 
             // Initialize paths
@@ -216,6 +227,193 @@ public class PathConfig {
             localAvailable.set(false);
         }
     }
+
+    // ENHANCED METHODS FOR THE NEW FILE OPERATIONS SYSTEM
+
+    /**
+     * Get a local FilePath for a file type and parameters
+     * @param fileType The type of file (session, worktime, etc.)
+     * @param username The username associated with the file (if applicable)
+     * @param userId The user ID (if applicable)
+     * @param params Additional parameters for path resolution
+     * @return A FilePath object for the requested file
+     */
+    public FilePath getLocalFilePath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
+        Path path = resolveLocalPath(fileType, username, userId, params);
+        return FilePath.local(path, username, userId);
+    }
+
+    /**
+     * Get a network FilePath for a file type and parameters
+     * @param fileType The type of file (session, worktime, etc.)
+     * @param username The username associated with the file (if applicable)
+     * @param userId The user ID (if applicable)
+     * @param params Additional parameters for path resolution
+     * @return A FilePath object for the requested file
+     */
+    public FilePath getNetworkFilePath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
+        Path path = resolveNetworkPath(fileType, username, userId, params);
+        return FilePath.network(path, username, userId);
+    }
+
+    /**
+     * Convert a local Path to a FilePath object
+     * @param localPath The local Path to convert
+     * @param username The username to associate (optional)
+     * @param userId The user ID to associate (optional)
+     * @return A FilePath object representing the local path
+     */
+    public FilePath toLocalFilePath(Path localPath, String username, Integer userId) {
+        return FilePath.local(localPath, username, userId);
+    }
+
+    /**
+     * Convert a network Path to a FilePath object
+     * @param networkPath The network Path to convert
+     * @param username The username to associate (optional)
+     * @param userId The user ID to associate (optional)
+     * @return A FilePath object representing the network path
+     */
+    public FilePath toNetworkFilePath(Path networkPath, String username, Integer userId) {
+        return FilePath.network(networkPath, username, userId);
+    }
+
+    /**
+     * Resolve a local path based on file type and parameters
+     */
+    private Path resolveLocalPath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
+        return switch (fileType) {
+            case SESSION -> getLocalSessionPath(username, userId);
+            case WORKTIME -> getLocalWorktimePath(username,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case REGISTER -> getLocalRegisterPath(username, userId,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case ADMIN_WORKTIME -> getLocalAdminWorktimePath(
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case ADMIN_REGISTER -> getLocalAdminRegisterPath(username, userId,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case CHECK_REGISTER -> getLocalCheckRegisterPath(username, userId,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case TIMEOFF_TRACKER -> getLocalTimeOffTrackerPath(username, userId,
+                    getParamOrDefault(params, "year", 0));
+            case USERS -> getLocalUsersPath();
+            case HOLIDAY -> getNetworkHolidayCachePath(); // Local cached version of holiday data
+            case STATUS -> getLocalStatusCachePath();
+            case TEAM -> getTeamJsonPath(username,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case LOG -> getLocalLogPath();
+            default -> throw new IllegalArgumentException("Unsupported file type: " + fileType);
+        };
+    }
+
+    /**
+     * Resolve a network path based on file type and parameters
+     */
+    private Path resolveNetworkPath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
+        return switch (fileType) {
+            case SESSION -> getNetworkSessionPath(username, userId);
+            case WORKTIME -> getNetworkWorktimePath(username,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case REGISTER -> getNetworkRegisterPath(username, userId,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case ADMIN_WORKTIME -> getNetworkAdminWorktimePath(
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case ADMIN_REGISTER -> getNetworkAdminRegisterPath(username, userId,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case CHECK_REGISTER -> getNetworkCheckRegisterPath(username, userId,
+                    getParamOrDefault(params, "year", 0),
+                    getParamOrDefault(params, "month", 0));
+            case TIMEOFF_TRACKER -> getNetworkTimeOffTrackerPath(username, userId,
+                    getParamOrDefault(params, "year", 0));
+            case USERS -> getNetworkUsersPath();
+            case HOLIDAY -> getNetworkHolidayPath();
+            case STATUS -> getNetworkStatusFlagsDirectory();
+            case LOG -> getNetworkLogDirectory();
+            default -> throw new IllegalArgumentException("Unsupported file type: " + fileType);
+        };
+    }
+
+    /**
+     * Helper method to get a parameter from the map with a default value
+     */
+    private <T> T getParamOrDefault(Map<String, Object> params, String key, T defaultValue) {
+        if (params == null || !params.containsKey(key)) {
+            return defaultValue;
+        }
+        Object value = params.get(key);
+        try {
+            @SuppressWarnings("unchecked")
+            T typedValue = (T) value;
+            return typedValue;
+        } catch (ClassCastException e) {
+            LoggerUtil.warn(this.getClass(), "Invalid parameter type for key " + key);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Create a parameter map for path resolution
+     * @return A new parameter map
+     */
+    public Map<String, Object> createParams() {
+        return new HashMap<>();
+    }
+
+    /**
+     * Create a parameter map with year and month
+     * @param year The year
+     * @param month The month
+     * @return A parameter map with year and month
+     */
+    public Map<String, Object> createYearMonthParams(int year, int month) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("year", year);
+        params.put("month", month);
+        return params;
+    }
+
+    /**
+     * Create a parameter map with just a year
+     * @param year The year
+     * @return A parameter map with year
+     */
+    public Map<String, Object> createYearParams(int year) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("year", year);
+        return params;
+    }
+
+    /**
+     * File types used in the application
+     */
+    public enum FileType {
+        SESSION,
+        WORKTIME,
+        REGISTER,
+        ADMIN_WORKTIME,
+        ADMIN_REGISTER,
+        CHECK_REGISTER,
+        LEAD_CHECK_REGISTER,
+        TIMEOFF_TRACKER,
+        USERS,
+        HOLIDAY,
+        STATUS,
+        TEAM,
+        LOG,
+        NOTIFICATION
+    }
+
+    // LEGACY METHODS - MAINTAINED FOR BACKWARD COMPATIBILITY
 
     // Network-only paths
     public Path getNetworkUsersPath() {
@@ -374,7 +572,6 @@ public class PathConfig {
                 "==== NETWORK STATUS CHANGED: " + (available ? "AVAILABLE" : "UNAVAILABLE") + " ====");
     }
 
-
     // Local check
     public boolean isLocalAvailable() {
         return localAvailable.get();
@@ -385,28 +582,5 @@ public class PathConfig {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to revalidate local access: " + e.getMessage());
         }
-    }
-
-    // Helper methods
-    private String normalizeNetworkPath(String path) {
-        // Existing code unchanged
-        if (path == null || path.trim().isEmpty()) {
-            return path;
-        }
-
-        // Remove any quotes, brackets or parentheses
-        path = path.replaceAll("[\"'()]", "");
-
-        // Fix UNC path format - must start with \\
-        if (path.startsWith("\\") && !path.startsWith("\\\\")) {
-            path = "\\" + path;
-        }
-
-        // Normalize excessive backslashes
-        if (path.matches("^\\\\\\\\+.*")) {
-            path = "\\\\" + path.replaceAll("^\\\\+", "");
-        }
-
-        return path;
     }
 }

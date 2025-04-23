@@ -16,9 +16,11 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
+import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.IsActiveSessionCommand;
+import com.ctgraphdep.validation.commands.ValidateSessionForStartCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -67,10 +69,7 @@ public class UserSessionController extends BaseController {
     }
 
     @GetMapping
-    public String getSessionPage(
-            @AuthenticationPrincipal UserDetails userDetails,
-            Model model,
-            RedirectAttributes redirectAttributes,
+    public String getSessionPage(@AuthenticationPrincipal UserDetails userDetails, Model model, RedirectAttributes redirectAttributes,
             @RequestParam(name = "skipResolutionCheck", required = false, defaultValue = "false") boolean skipResolutionCheck) {
 
         try {
@@ -104,8 +103,7 @@ public class UserSessionController extends BaseController {
                 unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
                 if (!unresolvedEntries.isEmpty()) {
-                    LoggerUtil.info(this.getClass(), String.format("Found %d unresolved work time entries for user %s",
-                            unresolvedEntries.size(), currentUser.getUsername()));
+                    LoggerUtil.info(this.getClass(), String.format("Found %d unresolved work time entries for user %s", unresolvedEntries.size(), currentUser.getUsername()));
 
                     hasUnresolvedEntries = true;
 
@@ -118,6 +116,7 @@ public class UserSessionController extends BaseController {
                     }
                 }
             }
+
             model.addAttribute("hasUnresolvedEntries", hasUnresolvedEntries);
             model.addAttribute("unresolvedEntries", unresolvedEntries);
             model.addAttribute("recommendedEndTimes", recommendedEndTimes);
@@ -175,27 +174,7 @@ public class UserSessionController extends BaseController {
 
             if (!unresolvedEntries.isEmpty()) {
                 // Note: We don't block the user, just show a warning
-                redirectAttributes.addFlashAttribute("warningMessage",
-                        "You have unresolved work sessions. Please consider resolving them.");
-            }
-
-            // Get current session to check if it needs to be reset
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, userId);
-            WorkUsersSessionsStates currentSession = commandService.executeQuery(sessionQuery);
-
-            // If there's a session from today in OFFLINE state, clear it to start a fresh one
-            if (currentSession != null && currentSession.getDayStartTime() != null) {
-
-                // Use standardized time from the base controller
-                LocalDate today = getStandardCurrentDate();
-                LocalDate sessionDate = currentSession.getDayStartTime().toLocalDate();
-
-                // If session is from today and in OFFLINE state but not completed, we don't need resolution
-                // Just start a new session instead
-                if (sessionDate.equals(today) &&
-                        WorkCode.WORK_OFFLINE.equals(currentSession.getSessionStatus()) && !currentSession.getWorkdayCompleted()) {
-                    LoggerUtil.info(this.getClass(), String.format("Clearing incomplete session from today for user %s before starting new one", username));
-                }
+                redirectAttributes.addFlashAttribute("warningMessage", "You have unresolved work sessions. Please consider resolving them.");
             }
 
             // Execute start day command

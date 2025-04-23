@@ -1,6 +1,6 @@
 package com.ctgraphdep.controller;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;

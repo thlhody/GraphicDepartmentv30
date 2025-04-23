@@ -110,10 +110,8 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             LocalDate workDate = session.getDayStartTime().toLocalDate();
 
             // Get user schedule from context
-            Integer userSchedule = context.getUserService()
-                    .getUserById(session.getUserId())
-                    .map(User::getSchedule)
-                    .orElse(WorkCode.INTERVAL_HOURS_C); // Default to 8 hours if not found
+            Integer userSchedule = context.getUserService().getUserById(session.getUserId())
+                    .map(User::getSchedule).orElse(WorkCode.INTERVAL_HOURS_C); // Default to 8 hours if not found
 
             // Get schedule info using the query
             WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);

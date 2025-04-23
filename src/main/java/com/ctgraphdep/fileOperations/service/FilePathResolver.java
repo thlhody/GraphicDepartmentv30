@@ -1,0 +1,247 @@
+package com.ctgraphdep.fileOperations.service;
+
+import com.ctgraphdep.fileOperations.config.PathConfig;
+import com.ctgraphdep.fileOperations.core.FilePath;
+import com.ctgraphdep.utils.LoggerUtil;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+/**
+ * Service for resolving file paths between local and network storage.
+ */
+@Service
+public class FilePathResolver {
+    private final PathConfig pathConfig;
+    private final Map<String, ReentrantReadWriteLock> pathLocks = new ConcurrentHashMap<>();
+
+    public FilePathResolver(PathConfig pathConfig) {
+        this.pathConfig = pathConfig;
+        LoggerUtil.initialize(this.getClass(), null);
+    }
+
+    /**
+     * Creates a FilePath object for a local file
+     * @param username The username associated with the file
+     * @param userId The user ID associated with the file
+     * @param fileType The type of file (e.g., session, worktime, register)
+     * @param parameters Additional parameters for the file path (e.g., year, month)
+     * @return The local file path object
+     */
+    public FilePath getLocalPath(String username, Integer userId, FileType fileType, Map<String, Object> parameters) {
+        Path path = resolvePath(true, username, userId, fileType, parameters);
+        return FilePath.local(path, username, userId);
+    }
+
+    /**
+     * Creates a FilePath object for a network file
+     * @param username The username associated with the file
+     * @param userId The user ID associated with the file
+     * @param fileType The type of file (e.g., session, worktime, register)
+     * @param parameters Additional parameters for the file path (e.g., year, month)
+     * @return The network file path object
+     */
+    public FilePath getNetworkPath(String username, Integer userId, FileType fileType, Map<String, Object> parameters) {
+        Path path = resolvePath(false, username, userId, fileType, parameters);
+        return FilePath.network(path, username, userId);
+    }
+
+    /**
+     * Resolves a path string back to a FilePath object
+     * @param pathString The path string to resolve
+     * @return The FilePath object
+     */
+    public FilePath resolve(String pathString) {
+        Path path = Path.of(pathString);
+
+        // Determine if this is a local or network path
+        boolean isLocal = pathString.startsWith(pathConfig.getLocalPath().toString());
+        boolean isNetwork = pathString.startsWith(pathConfig.getNetworkPath().toString());
+
+        if (!isLocal && !isNetwork) {
+            throw new IllegalArgumentException("Path is neither local nor network: " + pathString);
+        }
+
+        if (isLocal) {
+            return FilePath.local(path);
+        } else {
+            return FilePath.network(path);
+        }
+    }
+
+    /**
+     * Converts a local path to its network equivalent
+     * @param localPath The local file path
+     * @return The equivalent network file path
+     */
+    public FilePath toNetworkPath(FilePath localPath) {
+        if (!localPath.isLocal()) {
+            throw new IllegalArgumentException("Not a local path: " + localPath.getPath());
+        }
+
+        Path relativePath = pathConfig.getLocalPath().relativize(localPath.getPath());
+        Path networkPath = pathConfig.getNetworkPath().resolve(relativePath);
+
+        return FilePath.network(networkPath, localPath.getUsername().orElse(null), localPath.getUserId().orElse(null));
+    }
+
+    /**
+     * Converts a network path to its local equivalent
+     * @param networkPath The network file path
+     * @return The equivalent local file path
+     */
+    public FilePath toLocalPath(FilePath networkPath) {
+        if (!networkPath.isNetwork()) {
+            throw new IllegalArgumentException("Not a network path: " + networkPath.getPath());
+        }
+
+        Path relativePath = pathConfig.getNetworkPath().relativize(networkPath.getPath());
+        Path localPath = pathConfig.getLocalPath().resolve(relativePath);
+
+        return FilePath.local(localPath, networkPath.getUsername().orElse(null), networkPath.getUserId().orElse(null));
+    }
+
+    /**
+     * Gets a lock for a specific file path
+     * @param path The file path to lock
+     * @return The lock for the path
+     */
+    public ReentrantReadWriteLock getLock(FilePath path) {
+        String key = path.getPath().toString();
+        return pathLocks.computeIfAbsent(key, k -> new ReentrantReadWriteLock());
+    }
+
+    /**
+     * Resolves a path based on the given parameters
+     */
+    private Path resolvePath(boolean isLocal, String username, Integer userId, FileType fileType, Map<String, Object> parameters) {
+
+        // Declare variables at the beginning of the method, outside the switch statement
+        int year = (int) parameters.getOrDefault("year", LocalDate.now().getYear());
+        int month = (int) parameters.getOrDefault("month", LocalDate.now().getMonthValue());
+
+        return switch (fileType) {
+            case SESSION -> isLocal ?
+                    pathConfig.getLocalSessionPath(username, userId) :
+                    pathConfig.getNetworkSessionPath(username, userId);
+            case WORKTIME -> isLocal ?
+                    pathConfig.getLocalWorktimePath(username, year, month) :
+                    pathConfig.getNetworkWorktimePath(username, year, month);
+            case REGISTER -> isLocal ?
+                    pathConfig.getLocalRegisterPath(username, userId, year, month) :
+                    pathConfig.getNetworkRegisterPath(username, userId, year, month);
+            case CHECK_REGISTER -> isLocal ?
+                    pathConfig.getLocalCheckRegisterPath(username, userId, year, month) :
+                    pathConfig.getNetworkCheckRegisterPath(username, userId, year, month);
+            case ADMIN_WORKTIME -> isLocal ?
+                    pathConfig.getLocalAdminWorktimePath(year, month) :
+                    pathConfig.getNetworkAdminWorktimePath(year, month);
+            case ADMIN_REGISTER -> isLocal ?
+                    pathConfig.getLocalAdminRegisterPath(username, userId, year, month) :
+                    pathConfig.getNetworkAdminRegisterPath(username, userId, year, month);
+            case TIMEOFF_TRACKER -> isLocal ?
+                    pathConfig.getLocalTimeOffTrackerPath(username, userId, year) :
+                    pathConfig.getNetworkTimeOffTrackerPath(username, userId, year);
+            case USERS -> isLocal ?
+                    pathConfig.getLocalUsersPath() :
+                    pathConfig.getNetworkUsersPath();
+            case HOLIDAY -> isLocal ?
+                    pathConfig.getNetworkHolidayCachePath() :
+                    pathConfig.getNetworkHolidayPath();
+            case STATUS -> isLocal ?
+                    pathConfig.getLocalStatusCachePath() :
+                    pathConfig.getNetworkStatusFlagsDirectory();
+            case NOTIFICATION -> resolveNotificationPath(isLocal, username, parameters);
+            default -> throw new IllegalArgumentException("Unsupported file type: " + fileType);
+        };
+    }
+
+    /**
+     * Enum representing different types of files in the system
+     */
+    public enum FileType {
+        SESSION,
+        WORKTIME,
+        REGISTER,
+        CHECK_REGISTER,
+        LEAD_CHECK_REGISTER,
+        ADMIN_WORKTIME,
+        ADMIN_REGISTER,
+        ADMIN_BONUS,
+        TIMEOFF_TRACKER,
+        TEAM,
+        USERS,
+        HOLIDAY,
+        STATUS,
+        NOTIFICATION
+    }
+
+    /**
+     * Implementation for resolving notification file paths
+     */
+    private Path resolveNotificationPath(boolean isLocal, String username, Map<String, Object> parameters) {
+        // Base directory for notifications is under the app data directory
+        Path baseDir = isLocal ?
+                pathConfig.getLocalPath().resolve("notifications") :
+                pathConfig.getNetworkPath().resolve("notifications");
+
+        // Ensure the directory exists
+        try {
+            Files.createDirectories(baseDir);
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Failed to create notification directory: " + e.getMessage());
+        }
+
+        // Extract notification type if provided
+        String notificationType = (String) parameters.getOrDefault("notificationType", null);
+
+        // Format filename based on whether notification type is provided
+        String filename;
+        if (notificationType != null) {
+            filename = username + "_" + notificationType + ".json";
+        } else {
+            filename = username + "_notification.json";
+        }
+
+        return baseDir.resolve(filename);
+    }
+
+    /**
+     * Creates a parameter map for path resolution
+     * @return A mutable parameter maps
+     */
+    public static Map<String, Object> createParams() {
+        return new HashMap<>();
+    }
+
+    /**
+     * Creates a parameter map with year and month
+     * @param year The year
+     * @param month The month
+     * @return A parameter map with year and month
+     */
+    public static Map<String, Object> createYearMonthParams(int year, int month) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("year", year);
+        params.put("month", month);
+        return params;
+    }
+
+    /**
+     * Creates a parameter map with just a year
+     * @param year The year
+     * @return A parameter map with year
+     */
+    public static Map<String, Object> createYearParams(int year) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("year", year);
+        return params;
+    }
+}

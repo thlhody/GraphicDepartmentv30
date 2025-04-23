@@ -1,9 +1,10 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.security;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.security.CustomUserDetailsService;
+import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;

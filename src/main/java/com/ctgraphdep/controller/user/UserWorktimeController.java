@@ -8,6 +8,7 @@ import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.utils.UserWorktimeExcelExporter;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,7 +19,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -30,7 +33,6 @@ public class UserWorktimeController extends BaseController {
     private final WorktimeDisplayService worktimeDisplayService;
     private final WorktimeManagementService worktimeManagementService;
     private final UserWorktimeExcelExporter excelExporter;
-    private final DataAccessService dataAccessService;
 
     public UserWorktimeController(
             UserService userService,
@@ -38,13 +40,11 @@ public class UserWorktimeController extends BaseController {
             WorktimeDisplayService worktimeDisplayService,
             WorktimeManagementService worktimeManagementService,
             UserWorktimeExcelExporter excelExporter,
-            TimeValidationService validationService,
-            DataAccessService dataAccessService) {
+            TimeValidationService validationService) {
         super(userService, folderStatus, validationService);
         this.worktimeDisplayService = worktimeDisplayService;
         this.worktimeManagementService = worktimeManagementService;
         this.excelExporter = excelExporter;
-        this.dataAccessService = dataAccessService;
     }
 
     @GetMapping
@@ -52,11 +52,10 @@ public class UserWorktimeController extends BaseController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
-            Model model) {
+            Model model, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing worktime page at " + getStandardCurrentDateTime());
-
 
             // Get user and add common model attributes in one call
             User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
@@ -68,23 +67,34 @@ public class UserWorktimeController extends BaseController {
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Step 1: Synchronize entries between admin and user files
-            worktimeManagementService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+            // Validate period directly here before making service call
+            try {
+                // Create and execute validation command directly
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(selectedYear, selectedMonth, 24); // 24 months ahead max
+                getTimeValidationService().execute(validateCommand);
+            } catch (IllegalArgumentException e) {
+                // Handle validation failure gracefully
+                String userMessage = "The selected period is not valid. You can only view periods up to 24 months in the future.";
+                redirectAttributes.addFlashAttribute("periodError", userMessage);
 
-            // Step 2: Read the data from disk after sync is complete
-            List<WorkTimeTable> worktimeData = dataAccessService.readUserWorktime(currentUser.getUsername(), selectedYear, selectedMonth);
+                // Reset to current period
+                LocalDate currentDate = getStandardCurrentDate();
+                return "redirect:/user/worktime?year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
+            }
+
+            // Use worktimeManagementService to load worktime data which handles synchronization internally
+            List<WorkTimeTable> worktimeData = worktimeManagementService.loadMonthWorktime(currentUser.getUsername(), selectedYear, selectedMonth);
 
             // Make sure we have data (never null)
             if (worktimeData == null) {
                 worktimeData = new ArrayList<>();
-                LoggerUtil.warn(this.getClass(), String.format("No worktime data found for user %s (%d/%d) after sync",
-                        currentUser.getUsername(), selectedMonth, selectedYear));
+                LoggerUtil.warn(this.getClass(), String.format("No worktime data found for user %s (%d/%d)", currentUser.getUsername(), selectedMonth, selectedYear));
             }
 
-            // Step 3: Process data with display service to get DTOs
+            // Process data with display service to get DTOs
             Map<String, Object> displayData = worktimeDisplayService.prepareUserDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
 
-            // Step 4: Add display data to the model
+            // Add display data to the model
             model.addAllAttributes(displayData);
 
             // Add current time to model
@@ -118,15 +128,17 @@ public class UserWorktimeController extends BaseController {
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Get worktime data
-            List<WorkTimeTable> worktimeData = worktimeManagementService.synchronizeEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+            // Get worktime data using WorktimeManagementService for consistency
+            List<WorkTimeTable> worktimeData = worktimeManagementService.loadMonthWorktime(
+                    currentUser.getUsername(), selectedYear, selectedMonth);
 
             // Log the data details
             LoggerUtil.info(this.getClass(), String.format("Exporting worktime data for %s (%d/%d). Total entries: %d",
-                            currentUser.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
+                    currentUser.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
 
             // Get display data which includes the summary with DTOs
-            Map<String, Object> displayData = worktimeDisplayService.prepareUserDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = worktimeDisplayService.prepareUserDisplayData(
+                    currentUser, worktimeData, selectedYear, selectedMonth);
 
             // Extract DTO's for export in Excel
             @SuppressWarnings("unchecked")
@@ -138,7 +150,7 @@ public class UserWorktimeController extends BaseController {
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
-                                    currentUser.getUsername(), selectedYear, selectedMonth))
+                            currentUser.getUsername(), selectedYear, selectedMonth))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 

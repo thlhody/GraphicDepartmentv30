@@ -1,7 +1,7 @@
 package com.ctgraphdep.validation.commands;
 
 import com.ctgraphdep.validation.TimeProvider;
-import com.ctgraphdep.config.ValidationConfig;
+import com.ctgraphdep.validation.config.ValidationConfig;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;

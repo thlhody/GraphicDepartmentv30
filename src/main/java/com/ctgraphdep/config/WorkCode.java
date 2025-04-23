@@ -36,7 +36,6 @@ public class WorkCode {
     public static final Integer INTERVAL_HOURS_C = 8;         // Interval working hours 8 hours
     public static final Integer ONCE_PER_DAY_TIMER = 24 * 60;
 
-    public static final Integer ONE_MINUTE_DELAY = 1;
     public static final Integer CHECK_INTERVAL = 30; // checks every 30 minutes in order to see if the end time is reached
     public static final Integer HOURLY_INTERVAL = 60; //for hourly checks
     private static final Integer five_minutes = 5 * 60 * 1000;

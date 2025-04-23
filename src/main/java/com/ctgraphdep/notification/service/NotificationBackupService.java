@@ -4,7 +4,7 @@ package com.ctgraphdep.notification.service;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationEventPublisher;
 import com.ctgraphdep.notification.events.*;
-import com.ctgraphdep.service.DataAccessService;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;

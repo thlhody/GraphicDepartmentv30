@@ -83,18 +83,11 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
             debug(String.format("Updating worktime entry for date: %s", workDate));
 
             // Find existing worktime entries for the month
-            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(
-                    username,
-                    workDate.getYear(),
-                    workDate.getMonthValue(),
-                    username
-            );
+            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(username, workDate.getYear(), workDate.getMonthValue(), username);
 
             // Find the entry for today's date
-            WorkTimeTable entry = entries.stream()
-                    .filter(e -> e.getWorkDate().equals(workDate))
-                    .findFirst()
-                    .orElse(null);
+            WorkTimeTable entry = entries.stream().filter(e -> e.getWorkDate().equals(workDate))
+                    .findFirst().orElse(null);
 
             if (entry == null) {
                 warn(String.format("No worktime entry found for user %s on %s, cannot update", username, workDate));
@@ -110,13 +103,7 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
             entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
 
             // Save the updated entry
-            context.getWorktimeManagementService().saveWorkTimeEntry(
-                    username,
-                    entry,
-                    workDate.getYear(),
-                    workDate.getMonthValue(),
-                    username
-            );
+            context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
 
             info(String.format("Updated worktime entry for user %s with resumed temporary stop information", username));
         } catch (Exception e) {

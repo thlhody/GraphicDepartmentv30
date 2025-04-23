@@ -37,10 +37,8 @@ public class UpdateSessionCalculationsCommand extends BaseSessionCommand<WorkUse
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Get user's schedule
-            int userSchedule = ctx.getUserService()
-                    .getUserById(session.getUserId())
-                    .map(User::getSchedule)
-                    .orElse(8); // Default to 8 hours if not found
+            int userSchedule = ctx.getUserService().getUserById(session.getUserId())
+                    .map(User::getSchedule).orElse(8); // Default to 8 hours if not found
             debug(String.format("User schedule: %d hours", userSchedule));
 
             // Use the explicit end time if provided, otherwise use standardized current time
@@ -51,9 +49,7 @@ public class UpdateSessionCalculationsCommand extends BaseSessionCommand<WorkUse
             WorkUsersSessionsStates updatedSession = ctx.updateSessionCalculations(session, endTime, userSchedule);
 
             // Log updated values
-            debug(String.format("Updated calculations - Total worked: %d minutes, Final: %d minutes, Overtime: %d minutes",
-                    updatedSession.getTotalWorkedMinutes(),
-                    updatedSession.getFinalWorkedMinutes(),
+            debug(String.format("Updated calculations - Total worked: %d minutes, Final: %d minutes, Overtime: %d minutes", updatedSession.getTotalWorkedMinutes(), updatedSession.getFinalWorkedMinutes(),
                     updatedSession.getTotalOvertimeMinutes() != null ? updatedSession.getTotalOvertimeMinutes() : 0));
 
             // Save updated session using command factory

@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
@@ -171,12 +172,21 @@ public class HolidayManagementService {
     public int getRemainingHolidayDays(Integer userId) {
         holidayLock.lock();
         try {
-            return loadHolidayList().stream().filter(entry -> entry.getUserId().equals(userId))
-                    .findFirst().map(PaidHolidayEntryDTO::getPaidHolidayDays).orElse(0);
+            return loadHolidayList().stream().filter(entry -> entry.getUserId().equals(userId)).findFirst().map(PaidHolidayEntryDTO::getPaidHolidayDays).orElse(0);
         } finally {
             holidayLock.unlock();
         }
     }
+
+    public int getRemainingHolidayDaysReadOnly(Integer userId) {
+        holidayLock.lock();
+        try {
+            return loadHolidayListReadOnly().stream().filter(entry -> entry.getUserId().equals(userId)).findFirst().map(PaidHolidayEntryDTO::getPaidHolidayDays).orElse(0);
+        } finally {
+            holidayLock.unlock();
+        }
+    }
+
 
     /**
      * Use holiday days for a time-off request.
@@ -251,6 +261,21 @@ public class HolidayManagementService {
                                 entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE)))
                 .toList();
     }
+
+    /**
+     * Loads the list of holiday entries from the data source.
+     * This method can be used by both admin and regular users.
+     */
+    public List<PaidHolidayEntryDTO> loadHolidayListReadOnly() {
+        try {
+            List<PaidHolidayEntryDTO> entries = readHolidayEntriesReadOnly();
+            return entries != null ? entries : new ArrayList<>();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error reading holiday list: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
 
     /**
      * Read holiday entries in read-only mode.

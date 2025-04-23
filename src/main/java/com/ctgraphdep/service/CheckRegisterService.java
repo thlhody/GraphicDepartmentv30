@@ -1,8 +1,9 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.enums.CheckingStatus;
 import com.ctgraphdep.exception.RegisterValidationException;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;

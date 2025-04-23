@@ -64,11 +64,21 @@ public class AdminWorkTimeController extends BaseController {
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Validate period using the validation service from BaseController
-            TimeValidationFactory validationFactory = getTimeValidationService().getValidationFactory();
-            ValidatePeriodCommand periodCommand = validationFactory.createValidatePeriodCommand(
-                    selectedYear, selectedMonth, 4);
-            getTimeValidationService().execute(periodCommand);
+            try {
+                // Create and execute validation command directly
+                TimeValidationFactory validationFactory = getTimeValidationService().getValidationFactory();
+                ValidatePeriodCommand validateCommand = validationFactory.createValidatePeriodCommand(selectedYear, selectedMonth, 24); // 24 months ahead max
+                getTimeValidationService().execute(validateCommand);
+            } catch (IllegalArgumentException e) {
+                // Handle validation failure gracefully
+                String userMessage = "The selected period is not valid. You can only view periods up to 24 months in the future.";
+                redirectAttributes.addFlashAttribute("periodError", userMessage);
+
+                // Reset to current period
+                LocalDate currentDate = getStandardCurrentDate();
+                return "redirect:/admin/worktime?year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
+            }
+
 
             // Get non-admin users
             List<User> nonAdminUsers = userManagementService.getNonAdminUsers();

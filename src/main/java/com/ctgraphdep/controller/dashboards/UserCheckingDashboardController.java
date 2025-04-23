@@ -1,8 +1,8 @@
 package com.ctgraphdep.controller.dashboards;
 
 import com.ctgraphdep.controller.base.BaseDashboardController;
-import com.ctgraphdep.config.DashboardConfig;
-import com.ctgraphdep.service.DashboardService;
+import com.ctgraphdep.dashboard.config.DashboardConfig;
+import com.ctgraphdep.dashboard.service.DashboardService;
 import com.ctgraphdep.service.PermissionFilterService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;

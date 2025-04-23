@@ -1,7 +1,8 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.exception.RegisterValidationException;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.utils.LoggerUtil;

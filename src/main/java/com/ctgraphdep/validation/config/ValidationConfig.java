@@ -1,4 +1,4 @@
-package com.ctgraphdep.config;
+package com.ctgraphdep.validation.config;
 
 /**
  * Configuration for validation-related defaults and policies
@@ -10,11 +10,6 @@ public class ValidationConfig {
      * false is the secure default (disabling access on error)
      */
     public static final boolean DEFAULT_WEEKDAY_ON_ERROR = false;
-    /**
-     * Default value to return when HasActiveSessionTodayCommand fails
-     * false is the secure default (disabling access on error)
-     */
-    public static final boolean DEFAULT_ACTIVE_SESSION_ON_ERROR = false;
     /**
      * Default value to return when IsWorkingHoursCommand fails
      * false is the secure default (disabling access on error)

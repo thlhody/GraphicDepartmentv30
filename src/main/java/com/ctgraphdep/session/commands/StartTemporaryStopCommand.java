@@ -83,18 +83,11 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             debug(String.format("Updating worktime entry for date: %s", workDate));
 
             // Find existing worktime entries for the month
-            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(
-                    username,
-                    workDate.getYear(),
-                    workDate.getMonthValue(),
-                    username
-            );
+            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(username, workDate.getYear(), workDate.getMonthValue(), username);
 
             // Find the entry for today's date
-            WorkTimeTable entry = entries.stream()
-                    .filter(e -> e.getWorkDate().equals(workDate))
-                    .findFirst()
-                    .orElse(null);
+            WorkTimeTable entry = entries.stream().filter(e -> e.getWorkDate().equals(workDate))
+                    .findFirst().orElse(null);
 
             if (entry == null) {
                 warn(String.format("No worktime entry found for user %s on %s, cannot update",
@@ -110,21 +103,12 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
 
             // Save the updated entry
-            context.getWorktimeManagementService().saveWorkTimeEntry(
-                    username,
-                    entry,
-                    workDate.getYear(),
-                    workDate.getMonthValue(),
-                    username
-            );
+            context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
 
-            info(String.format("Updated worktime entry for user %s - Total worked minutes: %d, Temp stop count: %d",
-                    username, session.getTotalWorkedMinutes(), session.getTemporaryStopCount()
-            ));
+            info(String.format("Updated worktime entry for user %s - Total worked minutes: %d, Temp stop count: %d", username, session.getTotalWorkedMinutes(), session.getTemporaryStopCount()));
 
         } catch (Exception e) {
-            error(String.format("Failed to update worktime entry with temporary stop for user %s: %s",
-                    username, e.getMessage()), e);
+            error(String.format("Failed to update worktime entry with temporary stop for user %s: %s", username, e.getMessage()), e);
         }
     }
 }

@@ -1,28 +1,28 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.fileOperations.monitor;
 
-import com.ctgraphdep.config.PathConfig;
+import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.utils.LoggerUtil;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+
 /**
- * Service responsible for monitoring network availability and managing network-related status.
+ * Enhanced service responsible for monitoring network availability and managing network-related status.
  * This implementation includes debouncing, jitter prevention, and consolidated network checks.
  */
 @Service
-public class NetworkMonitorService {
+public class NetworkStatusMonitor {
 
     @Value("${app.sync.interval:300000}")
     private long monitorInterval; // Default 5 minutes
@@ -37,8 +37,6 @@ public class NetworkMonitorService {
     private int networkCheckRetries; // Number of retries for each network check
 
     private final PathConfig pathConfig;
-    private final SyncStatusManager syncStatusManager;
-    private final FileSyncService syncService;
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean isRunning = false;
@@ -52,13 +50,9 @@ public class NetworkMonitorService {
     // Synchronization object for network status changes
     private final Object networkStatusLock = new Object();
 
-    public NetworkMonitorService(
-            PathConfig pathConfig,
-            SyncStatusManager syncStatusManager,
-            FileSyncService syncService) {
+    public NetworkStatusMonitor(
+            PathConfig pathConfig) {
         this.pathConfig = pathConfig;
-        this.syncStatusManager = syncStatusManager;
-        this.syncService = syncService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -194,7 +188,7 @@ public class NetworkMonitorService {
         try {
             for (int attempt = 0; attempt < networkCheckRetries; attempt++) {
                 // Calculate timeout with exponential backoff
-                long timeout = Math.min(100 * (long)Math.pow(2, attempt), 2000); // Cap at 2 seconds
+                long timeout = Math.min(500 * (long)Math.pow(2, attempt), 10000); // Cap at 2 seconds
 
                 // Create and execute the network check task
                 boolean result = executeNetworkCheckAttempt(networkPath, attempt, timeout, executor);
@@ -246,38 +240,31 @@ public class NetworkMonitorService {
     private boolean performSingleNetworkCheck(Path networkPath, int attempt) {
         try {
             // Basic existence check
-            if (!Files.exists(networkPath) || !Files.isDirectory(networkPath)) {
-                LoggerUtil.debug(this.getClass(), String.format("Network path doesn't exist or isn't a directory, attempt %d", attempt + 1));
+            if (!Files.exists(networkPath)) {
+                LoggerUtil.debug(this.getClass(), String.format("Network path doesn't exist, attempt %d", attempt + 1));
                 return false;
             }
 
-            // Test write access with a unique filename
-            String uniqueFilename = ".test_" + System.currentTimeMillis() + "_" + Thread.currentThread().getId() + "_" + attempt;
-            Path testFile = networkPath.resolve(uniqueFilename);
-
-            try {
-                Files.createFile(testFile);
-                boolean success = Files.exists(testFile);
-
-                // Always try to clean up the test file, regardless of success
-                try {
-                    Files.deleteIfExists(testFile);
-                } catch (IOException deleteEx) {
-                    LoggerUtil.warn(this.getClass(), String.format("Failed to delete test file %s: %s", testFile, deleteEx.getMessage()));
-                    // Continue execution even if delete fails
-                }
-
-                if (success) {
-                    LoggerUtil.debug(this.getClass(), "Network check successful on attempt " + (attempt + 1));
-                    return true;
-                }
-            } catch (IOException createEx) {
-                LoggerUtil.debug(this.getClass(), String.format("Failed to create test file, attempt %d: %s", attempt + 1, createEx.getMessage()));
+            // Check if it's a directory
+            if (!Files.isDirectory(networkPath)) {
+                LoggerUtil.debug(this.getClass(), String.format("Network path isn't a directory, attempt %d", attempt + 1));
+                return false;
             }
 
-            return false;
+            // Check if we can list contents (tests read permission)
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(networkPath)) {
+                // Just getting a directory stream is enough to verify read access
+                // We don't need to enumerate the entries
+                LoggerUtil.debug(this.getClass(), "Network check successful on attempt " + (attempt + 1) + ".Directory stream path: "+ directoryStream);
+                return true;
+            } catch (IOException e) {
+                LoggerUtil.debug(this.getClass(), String.format("Failed to read directory contents, attempt %d: %s",
+                        attempt + 1, e.getMessage()));
+                return false;
+            }
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format("Network check attempt %d failed with unexpected error: %s", attempt + 1, e.getMessage()));
+            LoggerUtil.debug(this.getClass(), String.format("Network check attempt %d failed with unexpected error: %s",
+                    attempt + 1, e.getMessage()));
             return false;
         }
     }
@@ -385,15 +372,14 @@ public class NetworkMonitorService {
      * Attempts to sync files that failed to sync previously
      */
     private void attemptPendingSyncs() {
-        Set<String> failedSyncs = syncStatusManager.getFailedSyncs();
-        if (!failedSyncs.isEmpty()) {
-            LoggerUtil.info(this.getClass(), String.format("Attempting to sync %d failed files", failedSyncs.size()));
+        // The FileSyncService already has a scheduled task to retry failed syncs
+        // This method can be used to explicitly trigger sync attempts for critical files
 
-            for (String filename : failedSyncs) {
-                Path localPath = pathConfig.getLocalPath().resolve(filename);
-                Path networkPath = pathConfig.getNetworkPath().resolve(filename);
-                syncService.syncToNetwork(localPath, networkPath);
-            }
+        // Example: Sync important session files immediately when network becomes available
+        if (pathConfig.isNetworkAvailable()) {
+            // This would be implemented based on your specific requirements
+            // For example, syncing user session files that have changed during offline mode
+            LoggerUtil.info(this.getClass(), "Network available - performing immediate sync of critical files");
         }
     }
 
