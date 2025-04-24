@@ -3,9 +3,9 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Check Register</title>
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=1878222}">
-    <link rel="stylesheet" th:href="@{/css/check-register.css?v=1878222}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=187821}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=1878223}">
+    <link rel="stylesheet" th:href="@{/css/check-register.css?v=1878223}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=187822}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -121,10 +121,10 @@
                         <input type="date" class="form-control form-control-sm" id="dateInput" name="date" required>
                     </div>
 
-                    <!-- Order ID Field -->
+                    <!-- OMS ID Field -->
                     <div class="col-auto" style="width: 150px;">
-                        <label for="orderIdInput" class="form-label">Order ID*</label>
-                        <input type="text" class="form-control form-control-sm" id="orderIdInput" name="orderId" required
+                        <label for="omsIdInput" class="form-label">OMS ID*</label>
+                        <input type="text" class="form-control form-control-sm" id="omsIdInput" name="omsId" required
                                placeholder="1234/24/AB-GREEN">
                     </div>
 
@@ -133,13 +133,6 @@
                         <label for="productionIdInput" class="form-label">Production ID</label>
                         <input type="text" class="form-control form-control-sm" id="productionIdInput" name="productionId"
                                placeholder="CVEX24-123456">
-                    </div>
-
-                    <!-- OMS ID Field -->
-                    <div class="col-auto" style="width: 140px;">
-                        <label for="omsIdInput" class="form-label">OMS ID*</label>
-                        <input type="text" class="form-control form-control-sm" id="omsIdInput" name="omsId" required
-                               placeholder="OMS24-123456">
                     </div>
 
                     <!-- Designer Name Field -->
@@ -225,7 +218,7 @@
                             <button type="button" id="searchModalTrigger" class="btn btn-sm btn-outline-secondary ms-2">
                                 <i class="bi bi-search me-1"></i>Search
                             </button>
-                            <i class="bi bi-info-circle me-1 align-items-right"></i>Ctrl+F - Find by Order ID/Designer/Type/Status
+                            <i class="bi bi-info-circle me-1 align-items-right"></i>Ctrl+F - Find by OMS ID/Designer/Type/Status
                         </span>
                     </div>
                     <div class="small text-muted">Total entries: <span id="entries-count">0</span></div>
@@ -238,9 +231,8 @@
                         <tr>
                             <th scope="col" style="width: 40px;">#</th>
                             <th scope="col" style="width: 90px;">Date</th>
-                            <th scope="col" style="width: 120px;">Order ID</th>
+                            <th scope="col" style="width: 120px;">OMS ID</th>
                             <th scope="col" style="width: 100px;">Production ID</th>
-                            <th scope="col" style="width: 100px;">OMS ID</th>
                             <th scope="col">Designer</th>
                             <th scope="col" style="width: 120px;">Check Type</th>
                             <th scope="col" style="width: 50px;">Art.</th>
@@ -254,7 +246,7 @@
                         <tbody>
                         <!-- Empty state row -->
                         <tr th:if="${entries == null || entries.isEmpty()}">
-                            <td colspan="13" class="text-center py-5">
+                            <td colspan="12" class="text-center py-5">
                                 <div class="text-muted">
                                     <i class="bi bi-inbox-fill fs-2 d-block mb-2"></i>
                                     <h5 class="mt-3">No Entries Found</h5>
@@ -267,9 +259,8 @@
                         <tr th:each="entry, stat : ${entries}">
                             <td th:text="${stat.count}">1</td>
                             <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">01/01/2023</td>
-                            <td th:text="${entry.orderId}">ORDER123</td>
-                            <td th:text="${entry.productionId}">PROD123</td>
                             <td th:text="${entry.omsId}">OMS123</td>
+                            <td th:text="${entry.productionId}">PROD123</td>
                             <td th:text="${entry.designerName}">Designer Name</td>
                             <td>
                                 <span th:class="${'badge ' +
@@ -300,9 +291,8 @@
                                     <button type="button" class="btn-icon edit-entry"
                                             th:data-entry-id="${entry.entryId}"
                                             th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
-                                            th:data-order-id="${entry.orderId}"
-                                            th:data-production-id="${entry.productionId}"
                                             th:data-oms-id="${entry.omsId}"
+                                            th:data-production-id="${entry.productionId}"
                                             th:data-designer-name="${entry.designerName}"
                                             th:data-check-type="${entry.checkType}"
                                             th:data-article-numbers="${entry.articleNumbers}"
@@ -315,9 +305,8 @@
                                     <button type="button" class="btn-icon copy-entry"
                                             th:data-entry-id="${entry.entryId}"
                                             th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
-                                            th:data-order-id="${entry.orderId}"
-                                            th:data-production-id="${entry.productionId}"
                                             th:data-oms-id="${entry.omsId}"
+                                            th:data-production-id="${entry.productionId}"
                                             th:data-designer-name="${entry.designerName}"
                                             th:data-check-type="${entry.checkType}"
                                             th:data-article-numbers="${entry.articleNumbers}"
@@ -365,7 +354,7 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/check-register.js?v=187821221}"></script>
+    <script th:src="@{/js/check-register.js?v=187821222}"></script>
 </th:block>
 </body>
 </html>

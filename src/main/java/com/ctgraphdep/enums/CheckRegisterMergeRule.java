@@ -88,7 +88,6 @@ public enum CheckRegisterMergeRule {
         if (entry1 == null || entry2 == null) return false;
 
         return Objects.equals(entry1.getDate(), entry2.getDate()) &&
-                Objects.equals(entry1.getOrderId(), entry2.getOrderId()) &&
                 Objects.equals(entry1.getOmsId(), entry2.getOmsId()) &&
                 Objects.equals(entry1.getProductionId(), entry2.getProductionId()) &&
                 Objects.equals(entry1.getDesignerName(), entry2.getDesignerName()) &&

@@ -394,7 +394,6 @@ public class StatusService {
             String term = searchTerm.toLowerCase();
             filteredEntries = filteredEntries.stream()
                     .filter(entry ->
-                            (entry.getOrderId() != null && entry.getOrderId().toLowerCase().contains(term)) ||
                                     (entry.getProductionId() != null && entry.getProductionId().toLowerCase().contains(term)) ||
                                     (entry.getOmsId() != null && entry.getOmsId().toLowerCase().contains(term)) ||
                                     (entry.getDesignerName() != null && entry.getDesignerName().toLowerCase().contains(term)) ||

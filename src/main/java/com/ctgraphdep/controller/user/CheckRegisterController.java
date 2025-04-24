@@ -124,9 +124,8 @@ public class CheckRegisterController extends BaseController {
     public String saveEntry(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
-            @RequestParam(required = false) String orderId,
-            @RequestParam(required = false) String productionId,
             @RequestParam(required = false) String omsId,
+            @RequestParam(required = false) String productionId,
             @RequestParam(required = false) String designerName,
             @RequestParam(required = false) String checkType,
             @RequestParam(required = false) Integer articleNumbers,
@@ -151,9 +150,6 @@ public class CheckRegisterController extends BaseController {
             if (date == null) {
                 return String.format("redirect:/user/check-register?error=missing_date&year=%d&month=%d", year, month);
             }
-            if (orderId == null || orderId.trim().isEmpty()) {
-                return String.format("redirect:/user/check-register?error=missing_order_id&year=%d&month=%d", year, month);
-            }
             if (omsId == null || omsId.trim().isEmpty()) {
                 return String.format("redirect:/user/check-register?error=missing_oms_id&year=%d&month=%d", year, month);
             }
@@ -175,9 +171,8 @@ public class CheckRegisterController extends BaseController {
 
             RegisterCheckEntry entry = RegisterCheckEntry.builder()
                     .date(date)
-                    .orderId(orderId.trim())
-                    .productionId(productionId != null ? productionId.trim() : null)
                     .omsId(omsId.trim())
+                    .productionId(productionId != null ? productionId.trim() : null)
                     .designerName(designerName.trim())
                     .checkType(checkType)
                     .articleNumbers(articleNumbers)
@@ -209,9 +204,8 @@ public class CheckRegisterController extends BaseController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Integer entryId,
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
-            @RequestParam String orderId,
-            @RequestParam(required = false) String productionId,
             @RequestParam String omsId,
+            @RequestParam(required = false) String productionId,
             @RequestParam String designerName,
             @RequestParam String checkType,
             @RequestParam Integer articleNumbers,
@@ -235,9 +229,8 @@ public class CheckRegisterController extends BaseController {
             RegisterCheckEntry entry = RegisterCheckEntry.builder()
                     .entryId(entryId)
                     .date(date)
-                    .orderId(orderId)
-                    .productionId(productionId)
                     .omsId(omsId)
+                    .productionId(productionId)
                     .designerName(designerName)
                     .checkType(checkType)
                     .articleNumbers(articleNumbers)

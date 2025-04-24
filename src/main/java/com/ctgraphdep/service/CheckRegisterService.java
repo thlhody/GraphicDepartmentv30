@@ -170,9 +170,7 @@ public class CheckRegisterService {
         if (entry == null) {
             throw new RegisterValidationException("Entry cannot be null", "null_entry");
         }
-
         validateField(entry.getDate(), "Date", "missing_date");
-        validateField(entry.getOrderId(), "Order ID", "missing_order_id");
         validateField(entry.getOmsId(), "OMS ID", "missing_oms_id");
         validateField(entry.getDesignerName(), "Designer name", "missing_designer_name");
         validateField(entry.getCheckType(), "Check type", "missing_check_type");

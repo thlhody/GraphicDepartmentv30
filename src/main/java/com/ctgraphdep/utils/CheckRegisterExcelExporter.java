@@ -261,13 +261,10 @@ public class CheckRegisterExcelExporter {
         Cell tableHeaderCell = tableHeaderRow.createCell(0);
         tableHeaderCell.setCellValue("Check Register Entries");
         tableHeaderCell.setCellStyle(styles.get("section-header"));
-        sheet.addMergedRegion(new CellRangeAddress(tableHeaderRow.getRowNum(), tableHeaderRow.getRowNum(), 0, 11));
+        sheet.addMergedRegion(new CellRangeAddress(tableHeaderRow.getRowNum(), tableHeaderRow.getRowNum(), 0, 10));
 
         // Column headers - matching the UI table
-        String[] headers = new String[] {
-                "#", "Date", "Order ID", "Production ID", "OMS ID", "Designer",
-                "Check Type", "Art.", "Files", "Error Description", "Status", "Value"
-        };
+        String[] headers = new String[] {"#", "Date", "OMS ID", "Production ID", "Designer", "Check Type", "Art.", "Files", "Error Description", "Status", "Value"};
 
         Row headerRow = sheet.createRow(rowNum++);
         for (int i = 0; i < headers.length; i++) {
@@ -295,53 +292,48 @@ public class CheckRegisterExcelExporter {
             dateCell.setCellValue(entry.getDate().format(WorkCode.DATE_FORMATTER));
             dateCell.setCellStyle(styles.get("cell-center"));
 
-            // Order ID
-            Cell orderIdCell = entryRow.createCell(2);
-            orderIdCell.setCellValue(entry.getOrderId() != null ? entry.getOrderId() : "");
-            orderIdCell.setCellStyle(styles.get("cell-text"));
+            // OMS ID
+            Cell omsIdCell = entryRow.createCell(2);
+            omsIdCell.setCellValue(entry.getOmsId() != null ? entry.getOmsId() : "");
+            omsIdCell.setCellStyle(styles.get("cell-text"));
 
             // Production ID
             Cell productionIdCell = entryRow.createCell(3);
             productionIdCell.setCellValue(entry.getProductionId() != null ? entry.getProductionId() : "");
             productionIdCell.setCellStyle(styles.get("cell-text"));
 
-            // OMS ID
-            Cell omsIdCell = entryRow.createCell(4);
-            omsIdCell.setCellValue(entry.getOmsId() != null ? entry.getOmsId() : "");
-            omsIdCell.setCellStyle(styles.get("cell-text"));
-
             // Designer Name
-            Cell designerCell = entryRow.createCell(5);
+            Cell designerCell = entryRow.createCell(4);
             designerCell.setCellValue(entry.getDesignerName() != null ? entry.getDesignerName() : "");
             designerCell.setCellStyle(styles.get("cell-text"));
 
             // Check Type (with colored backgrounds matching UI)
-            Cell checkTypeCell = entryRow.createCell(6);
+            Cell checkTypeCell = entryRow.createCell(5);
             checkTypeCell.setCellValue(entry.getCheckType() != null ? entry.getCheckType() : "");
             checkTypeCell.setCellStyle(getCheckTypeStyle(entry.getCheckType(), styles));
 
             // Articles
-            Cell articlesCell = entryRow.createCell(7);
+            Cell articlesCell = entryRow.createCell(6);
             articlesCell.setCellValue(entry.getArticleNumbers() != null ? entry.getArticleNumbers() : 0);
             articlesCell.setCellStyle(styles.get("cell-number"));
 
             // Files
-            Cell filesCell = entryRow.createCell(8);
+            Cell filesCell = entryRow.createCell(7);
             filesCell.setCellValue(entry.getFilesNumbers() != null ? entry.getFilesNumbers() : 0);
             filesCell.setCellStyle(styles.get("cell-number"));
 
             // Error Description
-            Cell errorDescCell = entryRow.createCell(9);
+            Cell errorDescCell = entryRow.createCell(8);
             errorDescCell.setCellValue(entry.getErrorDescription() != null ? entry.getErrorDescription() : "");
             errorDescCell.setCellStyle(styles.get("cell-text"));
 
             // Approval Status (with colored backgrounds matching UI)
-            Cell statusCell = entryRow.createCell(10);
+            Cell statusCell = entryRow.createCell(8);
             statusCell.setCellValue(entry.getApprovalStatus() != null ? entry.getApprovalStatus() : "");
             statusCell.setCellStyle(getApprovalStatusStyle(entry.getApprovalStatus(), styles));
 
             // Order Value
-            Cell valueCell = entryRow.createCell(11);
+            Cell valueCell = entryRow.createCell(10);
             if (entry.getOrderValue() != null) {
                 valueCell.setCellValue(entry.getOrderValue());
             } else {
@@ -455,7 +447,7 @@ public class CheckRegisterExcelExporter {
         // Calculate efficiency if we have standard hours (these would be provided in practice)
         // Reasonable defaults
         int standardHours = 160;
-        double targetUnitsHour = 4.5;
+        double targetUnitsHour = 4;
         double efficiency;
 
         if (totalOrderValue > 0) {

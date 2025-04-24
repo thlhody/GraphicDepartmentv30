@@ -155,7 +155,6 @@ class CheckRegisterFormHandler {
         let isValid = true;
         const requiredFields = [
             { name: 'date', message: 'Date is required.' },
-            { name: 'orderId', message: 'Order ID is required.' },
             { name: 'omsId', message: 'OMS ID is required.' },
             { name: 'designerName', message: 'Designer Name is required.' },
             { name: 'checkType', message: 'Check Type is required.' },
@@ -224,7 +223,7 @@ class CheckRegisterFormHandler {
 
         // Populate form with original entry's data
         const fields = [
-            'orderId', 'productionId', 'omsId', 'designerName',
+            'omsId', 'productionId', 'designerName',
             'checkType', 'articleNumbers', 'filesNumbers', 'errorDescription',
             'approvalStatus'
         ];
@@ -250,6 +249,31 @@ class CheckRegisterFormHandler {
         this.scrollToForm();
     }
 
+    scrollToForm() {
+        // Calculate an offset to scroll a bit higher than the form
+        const formContainer = document.querySelector('.card.shadow-sm:has(#checkRegisterForm)');
+        if (formContainer) {
+            // Get the current scroll position
+            const currentScroll = window.pageYOffset;
+
+            // Get the position of the form container
+            const rect = formContainer.getBoundingClientRect();
+            const scrollPosition = currentScroll + rect.top;
+
+            // Subtract an additional offset (e.g., 100 pixels) to scroll higher
+            window.scrollTo({
+                top: Math.max(0, scrollPosition - 100),
+                behavior: 'smooth'
+            });
+        } else {
+            // Fallback if container not found
+            this.form.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    }
+
     populateForm(button) {
         // Clear the form first
         this.resetForm();
@@ -260,7 +284,7 @@ class CheckRegisterFormHandler {
 
         // Populate all fields
         const fields = [
-            'date', 'orderId', 'productionId', 'omsId', 'designerName',
+            'date', 'omsId', 'productionId', 'designerName',
             'checkType', 'articleNumbers', 'filesNumbers', 'errorDescription',
             'approvalStatus', 'orderValue'
         ];
@@ -323,462 +347,432 @@ class CheckRegisterFormHandler {
         // Update the order value field
         this.updateOrderValueField();
     }
-
-    scrollToForm() {
-        // Calculate an offset to scroll a bit higher than the form
-        const formContainer = document.querySelector('.card.shadow-sm:has(#checkRegisterForm)');
-        if (formContainer) {
-            // Get the current scroll position
-            const currentScroll = window.pageYOffset;
-
-            // Get the position of the form container
-            const rect = formContainer.getBoundingClientRect();
-            const scrollPosition = currentScroll + rect.top;
-
-            // Subtract an additional offset (e.g., 100 pixels) to scroll higher
-            window.scrollTo({
-                top: Math.max(0, scrollPosition - 100),
-                behavior: 'smooth'
-            });
-        } else {
-            // Fallback if container not found
-            this.form.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-        }
-    }
 }
 
-// The helper functions for month/year change have been removed
-// as the Thymeleaf form and links now handle the period selection directly
-
-class CheckRegisterSummaryHandler {
-    constructor() {
-        // Initialize type counters
-        this.typeCounts = {
-            layout: 0,
-            kipstaLayout: 0,
-            layoutChanges: 0,
-            gpt: 0,
-            production: 0,
-            reorder: 0,
-            sample: 0,
-            omsProduction: 0,
-            kipstaProduction: 0,
-            other: 0
-        };
-
-        // Initialize approval status counters
-        this.approvalCounts = {
-            approved: 0,
-            partiallyApproved: 0,
-            correction: 0
-        };
-
-        this.metrics = {
-            totalEntries: 0,
-            totalArticles: 0,
-            totalFiles: 0,
-            totalOrderValue: 0,
-            standardHours: 0,
-            targetUnitsHour: 0
-        };
-
-        this.setupObserver();
-        // Initial calculation
-        try {
-            this.calculateStats();
-        } catch (error) {
-            console.error('Error calculating initial stats:', error);
-        }
-
-        // Add form submission handler to recalculate after form actions
-        const checkRegisterForm = document.getElementById('checkRegisterForm');
-        if (checkRegisterForm) {
-            checkRegisterForm.addEventListener('submit', () => {
-                // Allow time for DOM to update
-                setTimeout(() => this.calculateStats(), 100);
-            });
-        }
-    }
-
-    setupObserver() {
-        try {
-            const tableBody = document.querySelector('.table tbody');
-            if (tableBody) {
-                const observer = new MutationObserver((mutations) => {
-                    // Check if mutations actually affect our data
-                    const hasRelevantChanges = mutations.some(mutation =>
-                    mutation.type === 'childList' ||
-                    (mutation.type === 'characterData' &&
-                    mutation.target.parentElement?.tagName === 'TD')
-                    );
-
-                    if (hasRelevantChanges) {
-                        this.calculateStats();
-                    }
-                });
-
-                observer.observe(tableBody, {
-                    childList: true,
-                    subtree: true,
-                    characterData: true
-                });
-            }
-        } catch (error) {
-            console.error('Error setting up observer:', error);
-        }
-    }
-
-    calculateStats() {
-        try {
-            // Reset counters
-            Object.keys(this.typeCounts).forEach(key => this.typeCounts[key] = 0);
-            Object.keys(this.approvalCounts).forEach(key => this.approvalCounts[key] = 0);
-
-            // Reset metrics
-            this.metrics.totalEntries = 0;
-            this.metrics.totalArticles = 0;
-            this.metrics.totalFiles = 0;
-            this.metrics.totalOrderValue = 0;
-
-            // Get standard hours and target units/hour from the page
-            this.metrics.standardHours = parseFloat(document.getElementById('standard-hours')?.textContent || '0');
-            this.metrics.targetUnitsHour = parseFloat(document.getElementById('target-units-hour')?.textContent || '0');
-
-            // Get all valid entries (excluding empty state row)
-            const entries = Array.from(document.querySelectorAll('.table tbody tr'))
-                .filter(row => !row.querySelector('.text-muted') && row.cells.length > 10);
-
-            this.metrics.totalEntries = entries.length;
-
-            // Process each entry
-            entries.forEach(row => {
-                const cells = row.cells;
-                const checkType = cells[6]?.querySelector('.badge')?.textContent?.trim() || '';
-                const articles = parseInt(cells[7]?.textContent || '0');
-                const files = parseInt(cells[8]?.textContent || '0');
-                const approvalStatus = cells[10]?.querySelector('.badge')?.textContent?.trim() || '';
-                const orderValue = parseFloat(cells[11]?.textContent || '0');
-
-                // Update totals
-                this.metrics.totalArticles += articles;
-                this.metrics.totalFiles += files;
-                this.metrics.totalOrderValue += isNaN(orderValue) ? 0 : orderValue;
-
-                // Count check types
-                if (checkType) {
-                    switch(checkType) {
-                        case 'LAYOUT': this.typeCounts.layout++; break;
-                        case 'KIPSTA LAYOUT': this.typeCounts.kipstaLayout++; break;
-                        case 'LAYOUT CHANGES': this.typeCounts.layoutChanges++; break;
-                        case 'GPT': this.typeCounts.gpt++; break;
-                        case 'PRODUCTION': this.typeCounts.production++; break;
-                        case 'REORDER': this.typeCounts.reorder++; break;
-                        case 'SAMPLE': this.typeCounts.sample++; break;
-                        case 'OMS PRODUCTION': this.typeCounts.omsProduction++; break;
-                        case 'KIPSTA PRODUCTION': this.typeCounts.kipstaProduction++; break;
-                        default: this.typeCounts.other++; break;
-                    }
-                }
-
-                // Count approval statuses
-                if (approvalStatus) {
-                    switch(approvalStatus) {
-                        case 'APPROVED': this.approvalCounts.approved++; break;
-                        case 'PARTIALLY APPROVED': this.approvalCounts.partiallyApproved++; break;
-                        case 'CORRECTION': this.approvalCounts.correction++; break;
-                    }
-                }
-            });
-
-            // Calculate efficiency
-            let efficiency = 0;
-            if (this.metrics.standardHours > 0 && this.metrics.targetUnitsHour > 0) {
-                const targetTotal = this.metrics.standardHours * this.metrics.targetUnitsHour;
-                efficiency = targetTotal > 0 ? (this.metrics.totalOrderValue / targetTotal * 100) : 0;
-            }
-
-            // Update the efficiency level element
-            const efficiencyElement = document.getElementById('efficiency-level');
-            if (efficiencyElement) {
-                efficiencyElement.textContent = `${efficiency.toFixed(1)}%`;
-
-                // Add class based on efficiency level
-                efficiencyElement.classList.remove('high-efficiency', 'medium-efficiency', 'low-efficiency');
-                if (efficiency >= 90) {
-                    efficiencyElement.classList.add('high-efficiency');
-                } else if (efficiency >= 70) {
-                    efficiencyElement.classList.add('medium-efficiency');
-                } else {
-                    efficiencyElement.classList.add('low-efficiency');
-                }
-            }
-
-            // Update UI counters
-            this.updateUI();
-
-        } catch (error) {
-            console.error('Error calculating stats:', error);
-            // Reset to safe values on error
-            this.resetStats();
-        }
-    }
-
-    resetStats() {
-        Object.keys(this.typeCounts).forEach(key => this.typeCounts[key] = 0);
-        Object.keys(this.approvalCounts).forEach(key => this.approvalCounts[key] = 0);
-        this.metrics = {
-            totalEntries: 0,
-            totalArticles: 0,
-            totalFiles: 0,
-            totalOrderValue: 0,
-            standardHours: 0,
-            targetUnitsHour: 0
-        };
-        this.updateUI();
-    }
-
-    updateUI() {
-        try {
-            const elements = {
-                // Check types metrics
-                'count-layout': this.typeCounts.layout,
-                'count-kipsta-layout': this.typeCounts.kipstaLayout,
-                'count-layout-changes': this.typeCounts.layoutChanges,
-                'count-gpt': this.typeCounts.gpt,
-                'count-production': this.typeCounts.production + this.typeCounts.reorder, // Combined production
-                'count-sample': this.typeCounts.sample,
-                'count-oms-production': this.typeCounts.omsProduction,
-                'count-kipsta-production': this.typeCounts.kipstaProduction,
-
-                // Approval status metrics
-                'count-approved': this.approvalCounts.approved,
-                'count-partially-approved': this.approvalCounts.partiallyApproved,
-                'count-correction': this.approvalCounts.correction,
-
-                // Key metrics
-                'total-entries': this.metrics.totalEntries,
-                'total-articles': this.metrics.totalArticles,
-                'total-files': this.metrics.totalFiles,
-                'total-order-value': this.metrics.totalOrderValue.toFixed(2),
-                'entries-count': this.metrics.totalEntries // Update the count in table header
+    class CheckRegisterSummaryHandler {
+        constructor() {
+            // Initialize type counters
+            this.typeCounts = {
+                layout: 0,
+                kipstaLayout: 0,
+                layoutChanges: 0,
+                gpt: 0,
+                production: 0,
+                reorder: 0,
+                sample: 0,
+                omsProduction: 0,
+                kipstaProduction: 0,
+                other: 0
             };
 
-            Object.entries(elements).forEach(([id, value]) => {
-                const element = document.getElementById(id);
-                if (element) {
-                    // Check if value has changed to apply animation
-                    const currentValue = element.textContent;
-                    if (currentValue !== String(value)) {
-                        element.textContent = value;
+            // Initialize approval status counters
+            this.approvalCounts = {
+                approved: 0,
+                partiallyApproved: 0,
+                correction: 0
+            };
 
-                        // Add animation class temporarily
-                        element.classList.add('count-changed');
-                        setTimeout(() => {
-                            element.classList.remove('count-changed');
-                        }, 500);
+            this.metrics = {
+                totalEntries: 0,
+                totalArticles: 0,
+                totalFiles: 0,
+                totalOrderValue: 0,
+                standardHours: 0,
+                targetUnitsHour: 0
+            };
+
+            this.setupObserver();
+            // Initial calculation
+            try {
+                this.calculateStats();
+            } catch (error) {
+                console.error('Error calculating initial stats:', error);
+            }
+
+            // Add form submission handler to recalculate after form actions
+            const checkRegisterForm = document.getElementById('checkRegisterForm');
+            if (checkRegisterForm) {
+                checkRegisterForm.addEventListener('submit', () => {
+                    // Allow time for DOM to update
+                    setTimeout(() => this.calculateStats(), 100);
+                });
+            }
+        }
+
+        setupObserver() {
+            try {
+                const tableBody = document.querySelector('.table tbody');
+                if (tableBody) {
+                    const observer = new MutationObserver((mutations) => {
+                        // Check if mutations actually affect our data
+                        const hasRelevantChanges = mutations.some(mutation =>
+                        mutation.type === 'childList' ||
+                        (mutation.type === 'characterData' &&
+                        mutation.target.parentElement?.tagName === 'TD')
+                        );
+
+                        if (hasRelevantChanges) {
+                            this.calculateStats();
+                        }
+                    });
+
+                    observer.observe(tableBody, {
+                        childList: true,
+                        subtree: true,
+                        characterData: true
+                    });
+                }
+            } catch (error) {
+                console.error('Error setting up observer:', error);
+            }
+        }
+
+        calculateStats() {
+            try {
+                // Reset counters
+                Object.keys(this.typeCounts).forEach(key => this.typeCounts[key] = 0);
+                Object.keys(this.approvalCounts).forEach(key => this.approvalCounts[key] = 0);
+
+                // Reset metrics
+                this.metrics.totalEntries = 0;
+                this.metrics.totalArticles = 0;
+                this.metrics.totalFiles = 0;
+                this.metrics.totalOrderValue = 0;
+
+                // Get standard hours and target units/hour from the page
+                this.metrics.standardHours = parseFloat(document.getElementById('standard-hours')?.textContent || '0');
+                this.metrics.targetUnitsHour = parseFloat(document.getElementById('target-units-hour')?.textContent || '0');
+
+                // Get all valid entries (excluding empty state row)
+                const entries = Array.from(document.querySelectorAll('.table tbody tr'))
+                    .filter(row => !row.querySelector('.text-muted') && row.cells.length > 10);
+
+                this.metrics.totalEntries = entries.length;
+
+                // Process each entry
+                entries.forEach(row => {
+                    const cells = row.cells;
+                    const checkType = cells[5]?.querySelector('.badge')?.textContent?.trim() || '';
+                    const articles = parseInt(cells[6]?.textContent || '0');
+                    const files = parseInt(cells[7]?.textContent || '0');
+                    const approvalStatus = cells[9]?.querySelector('.badge')?.textContent?.trim() || '';
+                    const orderValue = parseFloat(cells[10]?.textContent || '0');
+
+                    // Update totals
+                    this.metrics.totalArticles += articles;
+                    this.metrics.totalFiles += files;
+                    this.metrics.totalOrderValue += isNaN(orderValue) ? 0 : orderValue;
+
+                    // Count check types
+                    if (checkType) {
+                        switch(checkType) {
+                            case 'LAYOUT': this.typeCounts.layout++; break;
+                            case 'KIPSTA LAYOUT': this.typeCounts.kipstaLayout++; break;
+                            case 'LAYOUT CHANGES': this.typeCounts.layoutChanges++; break;
+                            case 'GPT': this.typeCounts.gpt++; break;
+                            case 'PRODUCTION': this.typeCounts.production++; break;
+                            case 'REORDER': this.typeCounts.reorder++; break;
+                            case 'SAMPLE': this.typeCounts.sample++; break;
+                            case 'OMS PRODUCTION': this.typeCounts.omsProduction++; break;
+                            case 'KIPSTA PRODUCTION': this.typeCounts.kipstaProduction++; break;
+                            default: this.typeCounts.other++; break;
+                        }
+                    }
+
+                    // Count approval statuses
+                    if (approvalStatus) {
+                        switch(approvalStatus) {
+                            case 'APPROVED': this.approvalCounts.approved++; break;
+                            case 'PARTIALLY APPROVED': this.approvalCounts.partiallyApproved++; break;
+                            case 'CORRECTION': this.approvalCounts.correction++; break;
+                        }
+                    }
+                });
+
+                // Calculate efficiency
+                let efficiency = 0;
+                if (this.metrics.standardHours > 0 && this.metrics.targetUnitsHour > 0) {
+                    const targetTotal = this.metrics.standardHours * this.metrics.targetUnitsHour;
+                    efficiency = targetTotal > 0 ? (this.metrics.totalOrderValue / targetTotal * 100) : 0;
+                }
+
+                // Update the efficiency level element
+                const efficiencyElement = document.getElementById('efficiency-level');
+                if (efficiencyElement) {
+                    efficiencyElement.textContent = `${efficiency.toFixed(1)}%`;
+
+                    // Add class based on efficiency level
+                    efficiencyElement.classList.remove('high-efficiency', 'medium-efficiency', 'low-efficiency');
+                    if (efficiency >= 90) {
+                        efficiencyElement.classList.add('high-efficiency');
+                    } else if (efficiency >= 70) {
+                        efficiencyElement.classList.add('medium-efficiency');
                     } else {
-                        element.textContent = value;
+                        efficiencyElement.classList.add('low-efficiency');
                     }
                 }
-            });
-        } catch (error) {
-            console.error('Error updating UI:', error);
+
+                // Update UI counters
+                this.updateUI();
+
+            } catch (error) {
+                console.error('Error calculating stats:', error);
+                // Reset to safe values on error
+                this.resetStats();
+            }
+        }
+
+        resetStats() {
+            Object.keys(this.typeCounts).forEach(key => this.typeCounts[key] = 0);
+            Object.keys(this.approvalCounts).forEach(key => this.approvalCounts[key] = 0);
+            this.metrics = {
+                totalEntries: 0,
+                totalArticles: 0,
+                totalFiles: 0,
+                totalOrderValue: 0,
+                standardHours: 0,
+                targetUnitsHour: 0
+            };
+            this.updateUI();
+        }
+
+        updateUI() {
+            try {
+                const elements = {
+                    // Check types metrics
+                    'count-layout': this.typeCounts.layout,
+                    'count-kipsta-layout': this.typeCounts.kipstaLayout,
+                    'count-layout-changes': this.typeCounts.layoutChanges,
+                    'count-gpt': this.typeCounts.gpt,
+                    'count-production': this.typeCounts.production + this.typeCounts.reorder, // Combined production
+                    'count-sample': this.typeCounts.sample,
+                    'count-oms-production': this.typeCounts.omsProduction,
+                    'count-kipsta-production': this.typeCounts.kipstaProduction,
+
+                    // Approval status metrics
+                    'count-approved': this.approvalCounts.approved,
+                    'count-partially-approved': this.approvalCounts.partiallyApproved,
+                    'count-correction': this.approvalCounts.correction,
+
+                    // Key metrics
+                    'total-entries': this.metrics.totalEntries,
+                    'total-articles': this.metrics.totalArticles,
+                    'total-files': this.metrics.totalFiles,
+                    'total-order-value': this.metrics.totalOrderValue.toFixed(2),
+                    'entries-count': this.metrics.totalEntries // Update the count in table header
+                };
+
+                Object.entries(elements).forEach(([id, value]) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        // Check if value has changed to apply animation
+                        const currentValue = element.textContent;
+                        if (currentValue !== String(value)) {
+                            element.textContent = value;
+
+                            // Add animation class temporarily
+                            element.classList.add('count-changed');
+                            setTimeout(() => {
+                                element.classList.remove('count-changed');
+                            }, 500);
+                        } else {
+                            element.textContent = value;
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error updating UI:', error);
+            }
         }
     }
-}
 
-class SearchHandler {
-    constructor() {
-        this.searchModal = document.getElementById('searchModal');
-        this.searchInput = document.getElementById('searchInput');
-        this.resultsContainer = document.getElementById('searchResultsContainer');
-        this.searchButton = document.getElementById('searchModalTrigger');
+    class SearchHandler {
+        constructor() {
+            this.searchModal = document.getElementById('searchModal');
+            this.searchInput = document.getElementById('searchInput');
+            this.resultsContainer = document.getElementById('searchResultsContainer');
+            this.searchButton = document.getElementById('searchModalTrigger');
 
-        // Initialize loading indicator
-        this.loadingIndicator = document.createElement('div');
-        this.loadingIndicator.className = 'search-loading-indicator';
-        this.loadingIndicator.innerHTML = `
+            // Initialize loading indicator
+            this.loadingIndicator = document.createElement('div');
+            this.loadingIndicator.className = 'search-loading-indicator';
+            this.loadingIndicator.innerHTML = `
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         `;
 
-        // Set up event listeners
-        this.setupEventListeners();
-    }
+            // Set up event listeners
+            this.setupEventListeners();
+        }
 
-    setupEventListeners() {
-        // Global keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
-                e.preventDefault();
-                this.openSearchModal();
-            }
-            if (e.key === 'Escape') {
-                this.closeSearchModal();
-            }
-        });
-
-        // Search input listener with debounce
-        this.searchInput.addEventListener('input', () => {
-            clearTimeout(this.searchTimeoutId);
-            this.searchTimeoutId = setTimeout(() => this.performSearch(), 250);
-        });
-
-        // Close modal when clicking outside
-        this.searchModal.addEventListener('click', (e) => {
-            if (e.target === this.searchModal) {
-                this.closeSearchModal();
-            }
-        });
-
-        // Add search modal trigger button event listener
-        if (this.searchButton) {
-            this.searchButton.addEventListener('click', () => {
-                this.openSearchModal();
+        setupEventListeners() {
+            // Global keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+                    e.preventDefault();
+                    this.openSearchModal();
+                }
+                if (e.key === 'Escape') {
+                    this.closeSearchModal();
+                }
             });
-        }
-    }
 
-    openSearchModal() {
-        if (!this.searchModal) return;
+            // Search input listener with debounce
+            this.searchInput.addEventListener('input', () => {
+                clearTimeout(this.searchTimeoutId);
+                this.searchTimeoutId = setTimeout(() => this.performSearch(), 250);
+            });
 
-        this.searchModal.classList.add('show');
-        // Focus search input
-        if (this.searchInput) {
-            this.searchInput.focus();
-            this.searchInput.value = '';
+            // Close modal when clicking outside
+            this.searchModal.addEventListener('click', (e) => {
+                if (e.target === this.searchModal) {
+                    this.closeSearchModal();
+                }
+            });
+
+            // Add search modal trigger button event listener
+            if (this.searchButton) {
+                this.searchButton.addEventListener('click', () => {
+                    this.openSearchModal();
+                });
+            }
         }
-        // Clear previous search results
-        if (this.resultsContainer) {
+
+        openSearchModal() {
+            if (!this.searchModal) return;
+
+            this.searchModal.classList.add('show');
+            // Focus search input
+            if (this.searchInput) {
+                this.searchInput.focus();
+                this.searchInput.value = '';
+            }
+            // Clear previous search results
+            if (this.resultsContainer) {
+                this.resultsContainer.innerHTML = '';
+            }
+        }
+
+        closeSearchModal() {
+            if (!this.searchModal) return;
+
+            this.searchModal.classList.remove('show');
+            if (this.searchInput) {
+                this.searchInput.value = '';
+            }
+            if (this.resultsContainer) {
+                this.resultsContainer.innerHTML = '';
+            }
+        }
+
+        performSearch() {
+            if (!this.searchInput || !this.resultsContainer) return;
+
+            const query = this.searchInput.value.trim();
+
+            // Clear results container
             this.resultsContainer.innerHTML = '';
-        }
-    }
 
-    closeSearchModal() {
-        if (!this.searchModal) return;
+            // If query is empty, exit early
+            if (!query) {
+                return;
+            }
 
-        this.searchModal.classList.remove('show');
-        if (this.searchInput) {
-            this.searchInput.value = '';
+            // Show loading indicator
+            this.resultsContainer.appendChild(this.loadingIndicator);
+
+            // Perform client-side search
+            this.performLocalSearch(query);
         }
-        if (this.resultsContainer) {
+
+        extractEntriesFromTable() {
+            const entries = [];
+            document.querySelectorAll('.table tbody tr').forEach(row => {
+                // Skip the empty state row
+                if (row.querySelector('.text-muted')) return;
+
+                const cells = row.cells;
+                if (cells.length < 10) return;
+
+                // Extract edit button data attributes
+                const editButton = row.querySelector('.edit-entry');
+                if (!editButton) return;
+
+                // Create entry object with data from edit button attributes
+                const entry = {
+                    entryId: editButton.getAttribute('data-entry-id'),
+                    date: editButton.getAttribute('data-date'),
+                    omsId: editButton.getAttribute('data-oms-id'),
+                    productionId: editButton.getAttribute('data-production-id'),
+                    designerName: editButton.getAttribute('data-designer-name'),
+                    checkType: editButton.getAttribute('data-check-type'),
+                    articleNumbers: editButton.getAttribute('data-article-numbers'),
+                    filesNumbers: editButton.getAttribute('data-files-numbers'),
+                    errorDescription: editButton.getAttribute('data-error-description'),
+                    approvalStatus: editButton.getAttribute('data-approval-status'),
+                    orderValue: editButton.getAttribute('data-order-value'),
+                    rawRow: row
+                };
+
+                entries.push(entry);
+            });
+            return entries;
+        }
+
+        performLocalSearch(query) {
+            // Extract entries from table
+            const tableEntries = this.extractEntriesFromTable();
+
+            // Remove loading indicator
+            this.loadingIndicator.remove();
+
+            // If query is empty or no entries, exit early
+            if (!query || tableEntries.length === 0) {
+                this.resultsContainer.innerHTML = '';
+                return;
+            }
+
+            // Search logic: split query into terms and check if ALL terms match any field
+            const searchTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 0);
+
+            // Filter entries based on search terms
+            const matchingEntries = tableEntries.filter(entry => {
+                return searchTerms.every(term =>
+                (entry.omsId && entry.omsId.toLowerCase().includes(term)) ||
+                (entry.productionId && entry.productionId.toLowerCase().includes(term)) ||
+                (entry.designerName && entry.designerName.toLowerCase().includes(term)) ||
+                (entry.checkType && entry.checkType.toLowerCase().includes(term)) ||
+                (entry.errorDescription && entry.errorDescription.toLowerCase().includes(term))
+                );
+            });
+
+            this.displaySearchResults(matchingEntries);
+        }
+
+        displaySearchResults(entries) {
+            if (!this.resultsContainer) return;
+
+            // Clear previous results
             this.resultsContainer.innerHTML = '';
-        }
-    }
 
-    performSearch() {
-        if (!this.searchInput || !this.resultsContainer) return;
-
-        const query = this.searchInput.value.trim();
-
-        // Clear results container
-        this.resultsContainer.innerHTML = '';
-
-        // If query is empty, exit early
-        if (!query) {
-            return;
-        }
-
-        // Show loading indicator
-        this.resultsContainer.appendChild(this.loadingIndicator);
-
-        // Perform client-side search
-        this.performLocalSearch(query);
-    }
-
-    extractEntriesFromTable() {
-        const entries = [];
-        document.querySelectorAll('.table tbody tr').forEach(row => {
-            // Skip the empty state row
-            if (row.querySelector('.text-muted')) return;
-
-            const cells = row.cells;
-            if (cells.length < 10) return;
-
-            // Extract edit button data attributes
-            const editButton = row.querySelector('.edit-entry');
-            if (!editButton) return;
-
-            // Create entry object with data from edit button attributes
-            const entry = {
-                entryId: editButton.getAttribute('data-entry-id'),
-                date: editButton.getAttribute('data-date'),
-                orderId: editButton.getAttribute('data-order-id'),
-                productionId: editButton.getAttribute('data-production-id'),
-                omsId: editButton.getAttribute('data-oms-id'),
-                designerName: editButton.getAttribute('data-designer-name'),
-                checkType: editButton.getAttribute('data-check-type'),
-                articleNumbers: editButton.getAttribute('data-article-numbers'),
-                filesNumbers: editButton.getAttribute('data-files-numbers'),
-                errorDescription: editButton.getAttribute('data-error-description'),
-                approvalStatus: editButton.getAttribute('data-approval-status'),
-                orderValue: editButton.getAttribute('data-order-value'),
-                rawRow: row
-            };
-
-            entries.push(entry);
-        });
-        return entries;
-    }
-
-    performLocalSearch(query) {
-        // Extract entries from table
-        const tableEntries = this.extractEntriesFromTable();
-
-        // Remove loading indicator
-        this.loadingIndicator.remove();
-
-        // If query is empty or no entries, exit early
-        if (!query || tableEntries.length === 0) {
-            this.resultsContainer.innerHTML = '';
-            return;
-        }
-
-        // Search logic: split query into terms and check if ALL terms match any field
-        const searchTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 0);
-
-        // Filter entries based on search terms
-        const matchingEntries = tableEntries.filter(entry => {
-            return searchTerms.every(term =>
-            (entry.orderId && entry.orderId.toLowerCase().includes(term)) ||
-            (entry.productionId && entry.productionId.toLowerCase().includes(term)) ||
-            (entry.omsId && entry.omsId.toLowerCase().includes(term)) ||
-            (entry.designerName && entry.designerName.toLowerCase().includes(term)) ||
-            (entry.checkType && entry.checkType.toLowerCase().includes(term)) ||
-            (entry.errorDescription && entry.errorDescription.toLowerCase().includes(term))
-            );
-        });
-
-        this.displaySearchResults(matchingEntries);
-    }
-
-    displaySearchResults(entries) {
-        if (!this.resultsContainer) return;
-
-        // Clear previous results
-        this.resultsContainer.innerHTML = '';
-
-        // If no results
-        if (entries.length === 0) {
-            this.resultsContainer.innerHTML = `
+            // If no results
+            if (entries.length === 0) {
+                this.resultsContainer.innerHTML = `
                 <div class="p-3 text-center text-muted">
                     <i class="bi bi-search"></i>
                     <p class="mt-2">No entries found matching your search.</p>
                 </div>
             `;
-            return;
-        }
+                return;
+            }
 
-        // Create results header
-        const header = document.createElement('div');
-        header.className = 'search-result-header';
-        header.innerHTML = `
+            // Create results header
+            const header = document.createElement('div');
+            header.className = 'search-result-header';
+            header.innerHTML = `
             <div>Date</div>
-            <div>Order ID</div>
+            <div>OMS ID</div>
             <div>Designer</div>
             <div>Type</div>
             <div>Articles</div>
@@ -786,15 +780,15 @@ class SearchHandler {
             <div>Status</div>
             <div>Actions</div>
         `;
-        this.resultsContainer.appendChild(header);
+            this.resultsContainer.appendChild(header);
 
-        // Render results
-        entries.forEach(entry => {
-            const resultRow = document.createElement('div');
-            resultRow.className = 'search-result-row';
-            resultRow.innerHTML = `
+            // Render results
+            entries.forEach(entry => {
+                const resultRow = document.createElement('div');
+                resultRow.className = 'search-result-row';
+                resultRow.innerHTML = `
                 <div>${entry.date ? new Date(entry.date).toLocaleDateString() : '-'}</div>
-                <div>${entry.orderId || '-'}</div>
+                <div>${entry.omsId || '-'}</div>
                 <div>${entry.designerName || '-'}</div>
                 <div>${entry.checkType || '-'}</div>
                 <div>${entry.articleNumbers || '0'}</div>
@@ -810,43 +804,43 @@ class SearchHandler {
                 </div>
             `;
 
-            // Add click event to edit button
-            resultRow.querySelector('.search-edit-entry').addEventListener('click', () => {
-                // Find the edit button in the main table for this entry
-                const editButton = entry.rawRow.querySelector('.edit-entry');
-                if (editButton) {
-                    editButton.click();
-                    this.closeSearchModal();
-                }
+                // Add click event to edit button
+                resultRow.querySelector('.search-edit-entry').addEventListener('click', () => {
+                    // Find the edit button in the main table for this entry
+                    const editButton = entry.rawRow.querySelector('.edit-entry');
+                    if (editButton) {
+                        editButton.click();
+                        this.closeSearchModal();
+                    }
+                });
+
+                // Add click event to copy button
+                resultRow.querySelector('.search-copy-entry').addEventListener('click', () => {
+                    // Find the copy button in the main table for this entry
+                    const copyButton = entry.rawRow.querySelector('.copy-entry');
+                    if (copyButton) {
+                        copyButton.click();
+                        this.closeSearchModal();
+                    }
+                });
+
+                this.resultsContainer.appendChild(resultRow);
             });
-
-            // Add click event to copy button
-            resultRow.querySelector('.search-copy-entry').addEventListener('click', () => {
-                // Find the copy button in the main table for this entry
-                const copyButton = entry.rawRow.querySelector('.copy-entry');
-                if (copyButton) {
-                    copyButton.click();
-                    this.closeSearchModal();
-                }
-            });
-
-            this.resultsContainer.appendChild(resultRow);
-        });
-    }
-}
-
-// Initialize on DOM load
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("Initializing Check Register Handlers...");
-
-    window.checkRegisterHandler = new CheckRegisterFormHandler();
-    window.checkRegisterSummaryHandler = new CheckRegisterSummaryHandler();
-    window.searchHandler = new SearchHandler();
-
-    // Function to reset the form (for external use)
-    window.resetForm = function() {
-        if (window.checkRegisterHandler) {
-            window.checkRegisterHandler.resetForm();
         }
-    };
-});
+    }
+
+    // Initialize on DOM load
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("Initializing Check Register Handlers...");
+
+        window.checkRegisterHandler = new CheckRegisterFormHandler();
+        window.checkRegisterSummaryHandler = new CheckRegisterSummaryHandler();
+        window.searchHandler = new SearchHandler();
+
+        // Function to reset the form (for external use)
+        window.resetForm = function() {
+            if (window.checkRegisterHandler) {
+                window.checkRegisterHandler.resetForm();
+            }
+        };
+    });

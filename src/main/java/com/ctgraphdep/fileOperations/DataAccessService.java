@@ -1156,7 +1156,8 @@ public class DataAccessService {
             // Read current count if file exists
             int count = 0;
             if (Files.exists(filePath.getPath())) {
-                Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<Map<String, Object>>() {}, true);
+                Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<>() {
+                }, true);
 
                 if (content.isPresent()) {
                     Map<String, Object> countData = content.get();

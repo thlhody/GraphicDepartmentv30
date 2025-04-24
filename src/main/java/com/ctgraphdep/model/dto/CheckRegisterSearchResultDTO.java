@@ -16,9 +16,8 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class CheckRegisterSearchResultDTO {
     private LocalDate date;
-    private String orderId;
-    private String productionId;
     private String omsId;
+    private String productionId;
     private String designerName;
     private String checkType;
     private Integer articleNumbers;
@@ -32,9 +31,8 @@ public class CheckRegisterSearchResultDTO {
      */
     public CheckRegisterSearchResultDTO(RegisterCheckEntry entry) {
         this.date = entry.getDate();
-        this.orderId = entry.getOrderId();
-        this.productionId = entry.getProductionId();
         this.omsId = entry.getOmsId();
+        this.productionId = entry.getProductionId();
         this.designerName = entry.getDesignerName();
         this.checkType = entry.getCheckType();
         this.articleNumbers = entry.getArticleNumbers();

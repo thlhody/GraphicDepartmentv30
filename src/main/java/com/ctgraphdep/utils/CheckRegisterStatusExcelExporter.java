@@ -170,13 +170,10 @@ public class CheckRegisterStatusExcelExporter {
         Cell tableHeaderCell = tableHeaderRow.createCell(0);
         tableHeaderCell.setCellValue("Check Register Entries");
         tableHeaderCell.setCellStyle(styles.get("section-header"));
-        sheet.addMergedRegion(new CellRangeAddress(tableHeaderRow.getRowNum(), tableHeaderRow.getRowNum(), 0, 12));
+        sheet.addMergedRegion(new CellRangeAddress(tableHeaderRow.getRowNum(), tableHeaderRow.getRowNum(), 0, 11));
 
         // Column headers - matching the status view
-        String[] headers = {
-                "ID", "Date", "Order ID", "Prod. ID", "OMS ID", "Designer",
-                "Check Type", "Art", "Files", "Approval", "Value", "Error Desc", "Status"
-        };
+        String[] headers = {"ID", "Date", "OMS ID", "Prod. ID", "Designer", "Check Type", "Art", "Files", "Approval", "Value", "Error Desc", "Status"};
 
         Row headerRow = sheet.createRow(rowNum++);
         for (int i = 0; i < headers.length; i++) {
@@ -203,58 +200,54 @@ public class CheckRegisterStatusExcelExporter {
             dateCell.setCellValue(entry.getDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
             dateCell.setCellStyle(styles.get("cell-center"));
 
-            // Order ID
-            Cell orderIdCell = entryRow.createCell(2);
-            orderIdCell.setCellValue(entry.getOrderId() != null ? entry.getOrderId() : "");
-            orderIdCell.setCellStyle(styles.get("cell-text"));
+            // OMS ID
+            Cell omsIdCell = entryRow.createCell(2);
+            omsIdCell.setCellValue(entry.getOmsId() != null ? entry.getOmsId() : "");
+            omsIdCell.setCellStyle(styles.get("cell-text"));
+
 
             // Production ID
             Cell productionIdCell = entryRow.createCell(3);
             productionIdCell.setCellValue(entry.getProductionId() != null ? entry.getProductionId() : "");
             productionIdCell.setCellStyle(styles.get("cell-text"));
 
-            // OMS ID
-            Cell omsIdCell = entryRow.createCell(4);
-            omsIdCell.setCellValue(entry.getOmsId() != null ? entry.getOmsId() : "");
-            omsIdCell.setCellStyle(styles.get("cell-text"));
-
             // Designer Name
-            Cell designerCell = entryRow.createCell(5);
+            Cell designerCell = entryRow.createCell(4);
             designerCell.setCellValue(entry.getDesignerName() != null ? entry.getDesignerName() : "");
             designerCell.setCellStyle(styles.get("cell-text"));
 
             // Check Type with badge styling
-            Cell checkTypeCell = entryRow.createCell(6);
+            Cell checkTypeCell = entryRow.createCell(5);
             checkTypeCell.setCellValue(entry.getCheckType() != null ? entry.getCheckType() : "");
             checkTypeCell.setCellStyle(getCheckTypeCellStyle(entry.getCheckType(), styles));
 
             // Articles
-            Cell articlesCell = entryRow.createCell(7);
+            Cell articlesCell = entryRow.createCell(6);
             articlesCell.setCellValue(entry.getArticleNumbers() != null ? entry.getArticleNumbers() : 0);
             articlesCell.setCellStyle(styles.get("cell-number"));
 
             // Files
-            Cell filesCell = entryRow.createCell(8);
+            Cell filesCell = entryRow.createCell(7);
             filesCell.setCellValue(entry.getFilesNumbers() != null ? entry.getFilesNumbers() : 0);
             filesCell.setCellStyle(styles.get("cell-number"));
 
             // Approval Status with badge styling
-            Cell approvalCell = entryRow.createCell(9);
+            Cell approvalCell = entryRow.createCell(8);
             approvalCell.setCellValue(entry.getApprovalStatus() != null ? entry.getApprovalStatus() : "");
             approvalCell.setCellStyle(getApprovalStatusCellStyle(entry.getApprovalStatus(), styles));
 
             // Order Value
-            Cell valueCell = entryRow.createCell(10);
+            Cell valueCell = entryRow.createCell(9);
             valueCell.setCellValue(entry.getOrderValue() != null ? entry.getOrderValue() : 0.0);
             valueCell.setCellStyle(styles.get("cell-decimal"));
 
             // Error Description
-            Cell errorDescCell = entryRow.createCell(11);
+            Cell errorDescCell = entryRow.createCell(10);
             errorDescCell.setCellValue(entry.getErrorDescription() != null ? entry.getErrorDescription() : "");
             errorDescCell.setCellStyle(styles.get("cell-text"));
 
             // Admin Sync Status with badge styling
-            Cell statusCell = entryRow.createCell(12);
+            Cell statusCell = entryRow.createCell(1);
             String statusText = getReadableStatus(entry.getAdminSync());
             statusCell.setCellValue(statusText);
             statusCell.setCellStyle(getAdminStatusCellStyle(entry.getAdminSync(), styles));

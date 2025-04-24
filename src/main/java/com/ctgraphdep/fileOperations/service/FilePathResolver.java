@@ -140,6 +140,9 @@ public class FilePathResolver {
             case CHECK_REGISTER -> isLocal ?
                     pathConfig.getLocalCheckRegisterPath(username, userId, year, month) :
                     pathConfig.getNetworkCheckRegisterPath(username, userId, year, month);
+            case LEAD_CHECK_REGISTER -> isLocal?
+                    pathConfig.getLocalCheckLeadRegisterPath(username,userId,year,month) :
+                    pathConfig.getNetworkCheckLeadRegisterPath(username,userId,year,month);
             case ADMIN_WORKTIME -> isLocal ?
                     pathConfig.getLocalAdminWorktimePath(year, month) :
                     pathConfig.getNetworkAdminWorktimePath(year, month);

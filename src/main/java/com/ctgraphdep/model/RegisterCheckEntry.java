@@ -19,14 +19,11 @@ public class RegisterCheckEntry {
     @JsonProperty("date")
     private LocalDate date;
 
-    @JsonProperty("orderId")
-    private String orderId;
+    @JsonProperty("omsId")
+    private String omsId;
 
     @JsonProperty("designerName")
     private String designerName;
-
-    @JsonProperty("omsId")
-    private String omsId;
 
     @JsonProperty("productionId")
     private String productionId;
