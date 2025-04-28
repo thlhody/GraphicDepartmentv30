@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Configuration for file paths used throughout the application.
- * Enhanced to support the new file operations system while maintaining backwards compatibility.
  */
 @Getter
 @Setter
@@ -32,6 +31,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ConfigurationProperties(prefix = "dbj")
 public class PathConfig {
 
+    // This flag will be controlled by NetworkStatusMonitor
+    private final AtomicBoolean networkAvailable = new AtomicBoolean(false);
+    private final AtomicBoolean localAvailable = new AtomicBoolean(false);
+    // Cache for FilePath objects for commonly used paths
+    private final Map<String, FilePath> filePathCache = new HashMap<>();
+
     //App Title
     @Value("${app.title:CTTT}")
     private String appTitle;
@@ -39,26 +44,26 @@ public class PathConfig {
     // Base paths
     @Value("${app.paths.network}")
     private String networkBasePath;
+    private Path networkPath;
     @Value("${app.local}")
     private String localBasePath;
+    private Path localPath;
 
-    //Login/Users Path and Format
+    //Users Path and Format
     @Value("${dbj.login}")
     private String loginPath;
-    @Value("${dbj.users.filename}")
-    private String usersFilename;
+    @Value("${dbj.login.users}")
+    private String usersPath;
+
+    //Users
+    @Value("${dbj.users.network.filename}")
+    private String networkUsersFilename;
     @Value("${dbj.users.local.filename}")
     private String localUsersFilename;
-    @Value("${app.lock.users}")
-    private String usersLockFile;
 
-    //Holiday Path and Format
-    @Value("${dbj.users.holiday}")
-    private String holidayFilename;
-    @Value("${app.cache.holiday}")
-    private String holidayCacheFile;
-    @Value("${app.lock.holiday}")
-    private String holidayLockFile;
+    //Check Values
+    @Value("${dbj.users.check.filename}")
+    private String checkValuesFilename;
 
     //Status Path and Format
     @Value("${dbj.user.status}")
@@ -67,14 +72,6 @@ public class PathConfig {
     private String localStatusFileFormat;
     @Value("${dbj.dir.format.status.flag}")
     private String statusFlagFormat;
-
-    //Notification Path and Format
-    @Value("${dbj.notification}")
-    private String notificationPath;
-    @Value("${app.lock.notification}")
-    private String notificationLockFile;
-    @Value("${app.local.notification.count}")
-    private String notificationLockCountFile;
 
     //Session Path and Format
     @Value("${dbj.user.session}")
@@ -145,16 +142,6 @@ public class PathConfig {
     @Value("${app.logs.path.sync}")
     private String appLogPathFormat;
 
-    // Return the base network path for use by other services
-    @Getter
-    private Path networkPath;
-    private Path localPath;
-    private final AtomicBoolean networkAvailable = new AtomicBoolean(false);
-    private final AtomicBoolean localAvailable = new AtomicBoolean(false);
-
-    // Cache for FilePath objects for commonly used paths
-    private final Map<String, FilePath> filePathCache = new HashMap<>();
-
     @PostConstruct
     public void init() {
         LoggerUtil.info(this.getClass(), "Raw network path: " + networkBasePath);
@@ -169,28 +156,11 @@ public class PathConfig {
 
             // Create local directories
             initializeLocalDirectories();
-            // Verify initial network status
-            checkInitialNetworkStatus();
 
+            // We won't check network status here - NetworkStatusMonitor will handle this
             LoggerUtil.info(this.getClass(), String.format("Initialized paths - Network: %s, Local: %s, Local Available: %b", networkPath, localPath, localAvailable.get()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during initialization: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Perform a quick network check at startup
-     * This is not definitive - the NetworkMonitorService will do a more thorough check
-     */
-    private void checkInitialNetworkStatus() {
-        try {
-            Path testPath = networkPath;
-            boolean exists = Files.exists(testPath) && Files.isDirectory(testPath);
-            networkAvailable.set(exists);
-            LoggerUtil.info(this.getClass(), "Initial network check: " + (exists ? "AVAILABLE" : "UNAVAILABLE"));
-        } catch (Exception e) {
-            networkAvailable.set(false);
-            LoggerUtil.warn(this.getClass(), "Initial network check failed: " + e.getMessage());
         }
     }
 
@@ -204,6 +174,7 @@ public class PathConfig {
             // Create all required local directories
             List<String> directories = Arrays.asList(
                     loginPath,
+                    usersPath,
                     userSession,
                     userStatus,
                     userWorktime,
@@ -212,7 +183,7 @@ public class PathConfig {
                     adminWorktime,
                     adminRegister,
                     adminBonus,
-                    notificationPath
+                    networkLogsPath
             );
 
             for (String dir : directories) {
@@ -228,209 +199,21 @@ public class PathConfig {
         }
     }
 
-    // ENHANCED METHODS FOR THE NEW FILE OPERATIONS SYSTEM
-
-    /**
-     * Get a local FilePath for a file type and parameters
-     * @param fileType The type of file (session, worktime, etc.)
-     * @param username The username associated with the file (if applicable)
-     * @param userId The user ID (if applicable)
-     * @param params Additional parameters for path resolution
-     * @return A FilePath object for the requested file
-     */
-    public FilePath getLocalFilePath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
-        Path path = resolveLocalPath(fileType, username, userId, params);
-        return FilePath.local(path, username, userId);
+    //New Users/Holiday/CheckValues logic
+    public Path getNetworkUsersPath(String username, Integer userId) {
+        return  networkPath.resolve(usersPath).resolve(String.format(networkUsersFilename,username, userId));
     }
-
-    /**
-     * Get a network FilePath for a file type and parameters
-     * @param fileType The type of file (session, worktime, etc.)
-     * @param username The username associated with the file (if applicable)
-     * @param userId The user ID (if applicable)
-     * @param params Additional parameters for path resolution
-     * @return A FilePath object for the requested file
-     */
-    public FilePath getNetworkFilePath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
-        Path path = resolveNetworkPath(fileType, username, userId, params);
-        return FilePath.network(path, username, userId);
+    public Path getLocalUsersPath(String username, Integer userId) {
+        return  localPath.resolve(usersPath).resolve(String.format(localUsersFilename,username, userId));
     }
-
-    /**
-     * Convert a local Path to a FilePath object
-     * @param localPath The local Path to convert
-     * @param username The username to associate (optional)
-     * @param userId The user ID to associate (optional)
-     * @return A FilePath object representing the local path
-     */
-    public FilePath toLocalFilePath(Path localPath, String username, Integer userId) {
-        return FilePath.local(localPath, username, userId);
+    public Path getNetworkCheckValuesPath(String username, Integer userId){
+        return networkPath.resolve(usersPath).resolve(String.format(checkValuesFilename,username,userId));
     }
-
-    /**
-     * Convert a network Path to a FilePath object
-     * @param networkPath The network Path to convert
-     * @param username The username to associate (optional)
-     * @param userId The user ID to associate (optional)
-     * @return A FilePath object representing the network path
-     */
-    public FilePath toNetworkFilePath(Path networkPath, String username, Integer userId) {
-        return FilePath.network(networkPath, username, userId);
+    public Path getLocalCheckValuesPath(String username, Integer userId){
+        return localPath.resolve(usersPath).resolve(String.format(checkValuesFilename,username,userId));
     }
-
-    /**
-     * Resolve a local path based on file type and parameters
-     */
-    private Path resolveLocalPath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
-        return switch (fileType) {
-            case SESSION -> getLocalSessionPath(username, userId);
-            case WORKTIME -> getLocalWorktimePath(username,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case REGISTER -> getLocalRegisterPath(username, userId,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case ADMIN_WORKTIME -> getLocalAdminWorktimePath(
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case ADMIN_REGISTER -> getLocalAdminRegisterPath(username, userId,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case CHECK_REGISTER -> getLocalCheckRegisterPath(username, userId,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case TIMEOFF_TRACKER -> getLocalTimeOffTrackerPath(username, userId,
-                    getParamOrDefault(params, "year", 0));
-            case USERS -> getLocalUsersPath();
-            case HOLIDAY -> getNetworkHolidayCachePath(); // Local cached version of holiday data
-            case STATUS -> getLocalStatusCachePath();
-            case TEAM -> getTeamJsonPath(username,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case LOG -> getLocalLogPath();
-            default -> throw new IllegalArgumentException("Unsupported file type: " + fileType);
-        };
-    }
-
-    /**
-     * Resolve a network path based on file type and parameters
-     */
-    private Path resolveNetworkPath(FileType fileType, String username, Integer userId, Map<String, Object> params) {
-        return switch (fileType) {
-            case SESSION -> getNetworkSessionPath(username, userId);
-            case WORKTIME -> getNetworkWorktimePath(username,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case REGISTER -> getNetworkRegisterPath(username, userId,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case ADMIN_WORKTIME -> getNetworkAdminWorktimePath(
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case ADMIN_REGISTER -> getNetworkAdminRegisterPath(username, userId,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case CHECK_REGISTER -> getNetworkCheckRegisterPath(username, userId,
-                    getParamOrDefault(params, "year", 0),
-                    getParamOrDefault(params, "month", 0));
-            case TIMEOFF_TRACKER -> getNetworkTimeOffTrackerPath(username, userId,
-                    getParamOrDefault(params, "year", 0));
-            case USERS -> getNetworkUsersPath();
-            case HOLIDAY -> getNetworkHolidayPath();
-            case STATUS -> getNetworkStatusFlagsDirectory();
-            case LOG -> getNetworkLogDirectory();
-            default -> throw new IllegalArgumentException("Unsupported file type: " + fileType);
-        };
-    }
-
-    /**
-     * Helper method to get a parameter from the map with a default value
-     */
-    private <T> T getParamOrDefault(Map<String, Object> params, String key, T defaultValue) {
-        if (params == null || !params.containsKey(key)) {
-            return defaultValue;
-        }
-        Object value = params.get(key);
-        try {
-            @SuppressWarnings("unchecked")
-            T typedValue = (T) value;
-            return typedValue;
-        } catch (ClassCastException e) {
-            LoggerUtil.warn(this.getClass(), "Invalid parameter type for key " + key);
-            return defaultValue;
-        }
-    }
-
-    /**
-     * Create a parameter map for path resolution
-     * @return A new parameter map
-     */
-    public Map<String, Object> createParams() {
-        return new HashMap<>();
-    }
-
-    /**
-     * Create a parameter map with year and month
-     * @param year The year
-     * @param month The month
-     * @return A parameter map with year and month
-     */
-    public Map<String, Object> createYearMonthParams(int year, int month) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("year", year);
-        params.put("month", month);
-        return params;
-    }
-
-    /**
-     * Create a parameter map with just a year
-     * @param year The year
-     * @return A parameter map with year
-     */
-    public Map<String, Object> createYearParams(int year) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("year", year);
-        return params;
-    }
-
-    /**
-     * File types used in the application
-     */
-    public enum FileType {
-        SESSION,
-        WORKTIME,
-        REGISTER,
-        ADMIN_WORKTIME,
-        ADMIN_REGISTER,
-        CHECK_REGISTER,
-        LEAD_CHECK_REGISTER,
-        TIMEOFF_TRACKER,
-        USERS,
-        HOLIDAY,
-        STATUS,
-        TEAM,
-        LOG,
-        NOTIFICATION
-    }
-
-    // LEGACY METHODS - MAINTAINED FOR BACKWARD COMPATIBILITY
 
     // Network-only paths
-    public Path getNetworkUsersPath() {
-        return networkPath.resolve(loginPath).resolve(usersFilename);
-    }
-    public Path getUsersLockPath() {
-        return networkPath.resolve(loginPath).resolve(usersLockFile);
-    }
-    public Path getNetworkHolidayPath() {
-        return networkPath.resolve(loginPath).resolve(holidayFilename);
-    }
-    public Path getNetworkHolidayCachePath() {
-        return networkPath.resolve(loginPath).resolve(holidayCacheFile);
-    }
-    public Path getHolidayLockPath() {
-        return networkPath.resolve(loginPath).resolve(holidayLockFile);
-    }
     public Path getNetworkStatusFlagsDirectory() {
         return networkPath.resolve(userStatus);
     }
@@ -443,21 +226,13 @@ public class PathConfig {
     }
 
     // Local-only paths
-    public Path getLocalUsersPath() {
-        return localPath.resolve(loginPath).resolve(localUsersFilename);
-    }
     public Path getLocalBonusPath(int year, int month) {
         return localPath.resolve(adminBonus).resolve(String.format(adminBonusFormat, year, month));
     }
     public Path getTeamJsonPath(String teamLeadUsername, int year, int month) {
         return localPath.resolve(loginPath).resolve(String.format(teamFileFormat, teamLeadUsername, year, month));
     }
-    public Path getNotificationTrackingFilePath(String username, String notificationType) {
-        return localPath.resolve(notificationPath).resolve(String.format(notificationLockFile, username, notificationType.toLowerCase()));
-    }
-    public Path getNotificationCountFilePath(String username, String notificationType) {
-        return localPath.resolve(notificationPath).resolve(String.format(notificationLockCountFile, username, notificationType.toLowerCase()));
-    }
+
     public Path getLocalStatusCachePath() {
         return localPath.resolve(userStatus).resolve(localStatusFileFormat);
     }
@@ -471,8 +246,7 @@ public class PathConfig {
 
     // Session paths - primarily local with network sync
     public Path getLocalSessionPath(String username, Integer userId) {
-        return localPath.resolve(userSession)
-                .resolve(String.format(sessionFormat, username, userId));
+        return localPath.resolve(userSession).resolve(String.format(sessionFormat, username, userId));
     }
     public Path getNetworkSessionPath(String username, Integer userId) {
         return networkPath.resolve(userSession)
@@ -543,44 +317,92 @@ public class PathConfig {
         return networkPath.resolve(userTimeoff).resolve(String.format(timeoffFormat, username, userId, year));
     }
 
-    // Network
-    /**
-     * Simple getter for network availability
-     */
-    public boolean isNetworkAvailable() {
-        return networkAvailable.get();
-    }
-
-    /**
-     * Simple setter for network availability - to be called by NetworkMonitorService only
-     */
-    public void setNetworkAvailable(boolean available) {
-        boolean previous = networkAvailable.getAndSet(available);
-        if (previous != available) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Network status updated to: %s", available ? "Available" : "Unavailable"));
-            // Broadcast status change to any listeners
-            notifyNetworkStatusChange(available);
-        }
-    }
-    /**
-     * Notify any interested components about network status changes
-     */
-    private void notifyNetworkStatusChange(boolean available) {
-        // This could be expanded to use Spring events if needed
-        LoggerUtil.info(this.getClass(),
-                "==== NETWORK STATUS CHANGED: " + (available ? "AVAILABLE" : "UNAVAILABLE") + " ====");
-    }
-
-    // Local check
+    // Local/Network check
     public boolean isLocalAvailable() {
         return localAvailable.get();
     }
+    public boolean isNetworkAvailable() {
+        return networkAvailable.get();
+    }
+    public void setNetworkAvailable(boolean available) {
+        boolean previous = networkAvailable.getAndSet(available);
+        if (previous != available) {
+            LoggerUtil.info(this.getClass(), String.format("Network status updated to: %s", available ? "Available" : "Unavailable"));
+        }
+    }
+
+    // Check & Create local directories
     public void revalidateLocalAccess() {
         try {
             initializeLocalDirectories();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to revalidate local access: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Verifies and creates user directories if they don't exist
+     * @return true if directories exist or were successfully created
+     */
+    public boolean verifyUserDirectories() {
+        try {
+            // Create parent directories for essential user paths if they don't exist
+            Path sessionParent = getLocalSessionPath("user", 0).getParent();
+            Path worktimeParent = getLocalWorktimePath("user", 0, 0).getParent();
+            Path registerParent = getLocalRegisterPath("user", 0, 0, 0).getParent();
+            Path checkRegisterParent = getLocalCheckRegisterPath("user", 0, 0, 0).getParent();
+            Path timeOffParent = getLocalTimeOffTrackerPath("user", 0, 0).getParent();
+            Path checkValuesParent = getLocalCheckValuesPath("user", 0).getParent();
+
+            // Create each directory if needed
+            createDirectoryIfNeeded(sessionParent);
+            createDirectoryIfNeeded(worktimeParent);
+            createDirectoryIfNeeded(registerParent);
+            createDirectoryIfNeeded(checkRegisterParent);
+            createDirectoryIfNeeded(timeOffParent);
+            createDirectoryIfNeeded(checkValuesParent);
+
+            LoggerUtil.info(this.getClass(), "User directories verified");
+            return true;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to verify/create user directories: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verifies and creates admin directories if they don't exist
+     * @return true if directories exist or were successfully created
+     */
+    public boolean verifyAdminDirectories() {
+        try {
+            // Create parent directories for essential admin paths if they don't exist
+            Path adminWorktimeParent = getLocalAdminWorktimePath(0, 0).getParent();
+            Path adminRegisterParent = getLocalAdminRegisterPath("admin", 0, 0, 0).getParent();
+            Path bonusParent = getLocalBonusPath(0, 0).getParent();
+            Path leadCheckParent = getLocalCheckLeadRegisterPath("admin", 0, 0, 0).getParent();
+
+            // Create each directory if needed
+            createDirectoryIfNeeded(adminWorktimeParent);
+            createDirectoryIfNeeded(adminRegisterParent);
+            createDirectoryIfNeeded(bonusParent);
+            createDirectoryIfNeeded(leadCheckParent);
+
+            LoggerUtil.info(this.getClass(), "Admin directories verified");
+            return true;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to verify/create admin directories: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Helper method to create a directory if it doesn't exist
+     */
+    private void createDirectoryIfNeeded(Path directory) throws IOException {
+        if (!Files.exists(directory)) {
+            Files.createDirectories(directory);
+            LoggerUtil.info(this.getClass(), "Created directory: " + directory);
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.ctgraphdep.config;
 
 import com.ctgraphdep.security.AuthenticationService;
+import com.ctgraphdep.security.CustomLogoutSuccessHandler;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 @EnableWebSecurity
 public class SecurityConfig {
 
+
     private static final int REMEMBER_ME_VALIDITY_SECONDS = 2592000; // 30 days
 
     @Bean
@@ -28,7 +30,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider, AuthenticationService authService) {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider, AuthenticationService authService, CustomLogoutSuccessHandler logoutSuccessHandler) {
         try {
             http
                     .authorizeHttpRequests(authorize -> authorize
@@ -99,12 +101,11 @@ public class SecurityConfig {
                     )
                     .logout(logout -> logout
                             .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-                            .logoutSuccessUrl("/")
+                            .logoutSuccessHandler(logoutSuccessHandler)  // Replace logoutSuccessUrl with this
                             .deleteCookies("remember-me")
                             .permitAll()
                     )
                     .csrf(AbstractHttpConfigurer::disable);
-
 
             return http.build();
         } catch (Exception e) {

@@ -87,7 +87,8 @@ public class PermissionConfiguration {
                 PermissionFilterService.PERMISSION_MANAGE_TEAM,
                 PermissionFilterService.PERMISSION_VIEW_TEAM_STATS,
                 PermissionFilterService.PERMISSION_MANAGE_TEAM_CHECKING,
-                PermissionFilterService.PERMISSION_VIEW_STATS_CHECKING
+                PermissionFilterService.PERMISSION_VIEW_STATS_CHECKING,
+                PermissionFilterService.PERMISSION_MANAGE_CHECK_VALUES
         ));
 
         return service;

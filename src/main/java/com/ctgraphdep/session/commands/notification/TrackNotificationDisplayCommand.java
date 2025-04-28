@@ -41,8 +41,8 @@ public class TrackNotificationDisplayCommand extends BaseNotificationCommand<Voi
             // Record notification display time for rate limiting
             ctx.getNotificationService().recordNotificationTime(username, notificationType);
 
-            // Create file-based tracking mechanism for backup recovery
-            ctx.getDataAccessService().writeNotificationTrackingFile(username, notificationType, timeValues.getCurrentTime());
+            // Record notification display time for rate limiting
+            ctx.getNotificationService().recordNotificationTime(username, notificationType);
 
             info(String.format("Successfully tracked notification for user %s", username));
 

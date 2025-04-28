@@ -45,7 +45,7 @@ public class AdminHolidayController extends BaseController {
             return accessCheck;
         }
 
-        List<PaidHolidayEntryDTO> entries = holidayManagementService.loadHolidayList();
+        List<PaidHolidayEntryDTO> entries = holidayManagementService.loadHolidayListWithoutAdmins();
         LoggerUtil.debug(this.getClass(), "Found " + entries.size() + " entries");
 
         model.addAttribute("entries", entries);
@@ -75,12 +75,10 @@ public class AdminHolidayController extends BaseController {
 
         try {
             holidayManagementService.updateUserHolidayDays(userId, days);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    "Holiday days updated successfully for user " + userId);
+            redirectAttributes.addFlashAttribute("successMessage", "Holiday days updated successfully for user " + userId);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating holiday days: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "Error updating holiday days: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("errorMessage", "Error updating holiday days: " + e.getMessage());
         }
 
         return "redirect:/admin/holidays";

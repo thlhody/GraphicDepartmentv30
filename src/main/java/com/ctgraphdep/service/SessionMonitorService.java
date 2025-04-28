@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
@@ -50,12 +51,12 @@ public class SessionMonitorService {
     private final SessionCommandFactory commandFactory;
     private final UserService userService;
     private final TaskScheduler taskScheduler;
-    private final PathConfig pathConfig;
     private final TimeValidationService validationService;
     private final TimeValidationFactory validationFactory;
     private final CalculationCommandFactory calculationFactory;
     private final CalculationCommandService calculationService;
     private final NotificationService notificationService;
+    private final DataAccessService dataAccessService;
 
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
@@ -72,24 +73,22 @@ public class SessionMonitorService {
     private volatile boolean isInitialized = false;
 
     public SessionMonitorService(
-            SessionCommandService commandService,
-            SessionCommandFactory commandFactory,
-            UserService userService,
-            @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
-            PathConfig pathConfig,
-            TimeValidationService validationService,
-            TimeValidationFactory validationFactory, CalculationCommandFactory calculationFactory, CalculationCommandService calculationService, NotificationService notificationService) {
+            SessionCommandService commandService, SessionCommandFactory commandFactory,
+            UserService userService, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
+            TimeValidationService validationService, TimeValidationFactory validationFactory,
+            CalculationCommandFactory calculationFactory, CalculationCommandService calculationService,
+            NotificationService notificationService, DataAccessService dataAccessService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.userService = userService;
         this.taskScheduler = taskScheduler;
-        this.pathConfig = pathConfig;
         this.validationService = validationService;
         this.validationFactory = validationFactory;
         this.calculationFactory = calculationFactory;
         this.calculationService = calculationService;
         this.notificationService = notificationService;
+        this.dataAccessService = dataAccessService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -184,8 +183,6 @@ public class SessionMonitorService {
     /**
      * Runs the monitoring task and reschedules for the next check
      */
-
-    // Record health check in monitoring task
     private void runAndRescheduleMonitoring() {
         try {
             // Record task execution in health monitor
@@ -442,6 +439,7 @@ public class SessionMonitorService {
             }
         }
     }
+
     /**
      * Shows start day reminder if user hasn't started their workday
      * Also checks for and resets stale sessions from previous days
@@ -593,11 +591,12 @@ public class SessionMonitorService {
 
         return freshSession;
     }
+
     /**
      * Gets the currently active user by scanning session files
      */
     private String getCurrentActiveUser() {
-        Path localSessionPath = pathConfig.getLocalSessionPath("", 0).getParent();
+        Path localSessionPath = dataAccessService.getLocalSessionPath("", 0).getParent();
         if (!Files.exists(localSessionPath)) {
             return null;
         }

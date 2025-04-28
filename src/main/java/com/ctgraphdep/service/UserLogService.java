@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -10,10 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Service for logging user activity to individual log files
@@ -22,7 +19,6 @@ import java.util.List;
 @Service
 public class UserLogService {
 
-    private final PathConfig pathConfig;
     private final DataAccessService dataAccessService;
 
     // Configurable retry parameters
@@ -30,20 +26,8 @@ public class UserLogService {
     private static final long RETRY_DELAY_MS = 120000; // 2 minutes
 
     @Autowired
-    public UserLogService(PathConfig pathConfig, DataAccessService dataAccessService) {
+    public UserLogService(DataAccessService dataAccessService) {
         this.dataAccessService = dataAccessService;
-        this.pathConfig = pathConfig;
-
-        // Ensure network log directory exists
-        try {
-            if (pathConfig.isNetworkAvailable()) {
-                Path networkLogDir = pathConfig.getNetworkLogDirectory();
-                Files.createDirectories(networkLogDir);
-                LoggerUtil.info(this.getClass(), "Created network log directory: " + networkLogDir);
-            }
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Failed to create network log directory", e);
-        }
     }
 
     /**
@@ -59,7 +43,7 @@ public class UserLogService {
      * Sync log for a specific user
      */
     private void syncUserLog(String username) {
-        if (!pathConfig.isNetworkAvailable()) {
+        if (!dataAccessService.isNetworkAvailable()) {
             LoggerUtil.info(this.getClass(), "Network unavailable, skipping log sync");
             return;
         }
@@ -72,17 +56,13 @@ public class UserLogService {
                 return;
             }
 
-            // Resolve source and target log paths
-            Path sourceLogPath = pathConfig.getLocalLogPath();
-            Path targetLogPath = pathConfig.getNetworkLogPath(username);
+            // Sync log file with retry mechanism
+            boolean success = syncWithRetry(username);
 
-            // Check if local log file exists
-            if (Files.exists(sourceLogPath)) {
-                // Sync log file with retry mechanism
-                syncWithRetry(sourceLogPath, targetLogPath);
-                LoggerUtil.info(this.getClass(), "Synced log file to network: " + targetLogPath);
+            if (success) {
+                LoggerUtil.info(this.getClass(), "Synced log file to network for user: " + username);
             } else {
-                LoggerUtil.warn(this.getClass(), "Local log file not found: " + sourceLogPath);
+                LoggerUtil.warn(this.getClass(), "Failed to sync log file for user: " + username);
             }
 
             LoggerUtil.info(this.getClass(), "Completed log synchronization");
@@ -101,30 +81,27 @@ public class UserLogService {
         LoggerUtil.info(this.getClass(), "Attempting to sync logs for user: " + username);
 
         // Check network availability first
-        if (!pathConfig.isNetworkAvailable()) {
+        if (!dataAccessService.isNetworkAvailable()) {
             LoggerUtil.warn(this.getClass(), "Network is not available. Cannot sync logs.");
             return new SyncResult(false, "Network is currently unavailable. Log sync will be performed automatically when connection is restored.");
         }
 
         try {
-            // Resolve source and target log paths
-            Path sourceLogPath = pathConfig.getLocalLogPath();
-            Path targetLogPath = pathConfig.getNetworkLogPath(username);
-
-            LoggerUtil.info(this.getClass(), "Source log path: " + sourceLogPath);
-            LoggerUtil.info(this.getClass(), "Target log path: " + targetLogPath);
-
             // Check if local log file exists
-            if (!Files.exists(sourceLogPath)) {
-                LoggerUtil.warn(this.getClass(), "Local log file does not exist: " + sourceLogPath);
+            if (!dataAccessService.localLogExists()) {
+                LoggerUtil.warn(this.getClass(), "Local log file does not exist");
                 return new SyncResult(false, "Local log file not found");
             }
 
             // Sync log file with retry mechanism
-            syncWithRetry(sourceLogPath, targetLogPath);
+            boolean success = syncWithRetry(username);
 
-            LoggerUtil.info(this.getClass(), "Successfully synced log file to network for user: " + username);
-            return new SyncResult(true, "Logs successfully synced to network");
+            if (success) {
+                LoggerUtil.info(this.getClass(), "Successfully synced log file to network for user: " + username);
+                return new SyncResult(true, "Logs successfully synced to network");
+            } else {
+                return new SyncResult(false, "Failed to sync logs after multiple attempts");
+            }
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(), "Error during manual log synchronization", e);
             return new SyncResult(false, "Error syncing logs: " + e.getMessage());
@@ -134,19 +111,16 @@ public class UserLogService {
     /**
      * Sync file with robust retry mechanism
      */
-    private void syncWithRetry(Path source, Path target) throws IOException {
+    private boolean syncWithRetry(String username) throws IOException {
         IOException lastException = null;
 
         for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
-                // Ensure target directory exists
-                Files.createDirectories(target.getParent());
-
-                // Copy log file
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                // Copy log file using DataAccessService
+                dataAccessService.syncLogToNetwork(username);
 
                 LoggerUtil.info(this.getClass(), "Successfully synced log on attempt " + (attempt + 1));
-                return; // Success, exit method
+                return true; // Success
             } catch (IOException e) {
                 lastException = e;
                 LoggerUtil.warn(this.getClass(), "Sync attempt " + (attempt + 1) + " failed: " + e.getMessage());
@@ -164,11 +138,9 @@ public class UserLogService {
             }
         }
 
-        // If all retries fail, throw comprehensive exception
-        throw new IOException(
-                "Failed to sync log after " + MAX_RETRIES + " attempts",
-                lastException
-        );
+        // If all retries fail, log comprehensive error
+        LoggerUtil.error(this.getClass(), "Failed to sync log after " + MAX_RETRIES + " attempts", lastException);
+        return false;
     }
 
     /**
@@ -192,6 +164,20 @@ public class UserLogService {
     }
 
     /**
+     * Get list of usernames with available logs
+     */
+    public List<String> getUserLogsList() {
+        return dataAccessService.getUserLogsList();
+    }
+
+    /**
+     * Get log content for a specific user
+     */
+    public Optional<String> getUserLogContent(String username) {
+        return dataAccessService.getUserLogContent(username);
+    }
+
+    /**
      * Result class to encapsulate sync operation result
      */
     @Getter
@@ -203,6 +189,5 @@ public class UserLogService {
             this.success = success;
             this.message = message;
         }
-
     }
 }

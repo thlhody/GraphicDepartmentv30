@@ -5,6 +5,7 @@ import com.ctgraphdep.model.dto.dashboard.DashboardCardDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 
+import javax.swing.plaf.PanelUI;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,6 +38,7 @@ public class PermissionFilterService {
 
     // Checking Permissions
     public static final String PERMISSION_MANAGE_TEAM_CHECKING = "MANAGE_TEAM_CHECKING";
+    public static final String PERMISSION_MANAGE_CHECK_VALUES = "MANAGE_CHECK_VALUES";
     public static final String PERMISSION_MANAGE_USER_CHECKING = "MANAGE_USER_CHECKING";
     public static final String PERMISSION_VIEW_STATS_CHECKING = "VIEW_STATS_CHECKING";
 
@@ -116,7 +118,8 @@ public class PermissionFilterService {
                 PERMISSION_REQUEST_TIMEOFF,
                 PERMISSION_VIEW_WORKTIME_USER,
                 PERMISSION_VIEW_TEAM_STATS,
-                PERMISSION_MANAGE_TEAM_CHECKING
+                PERMISSION_MANAGE_TEAM_CHECKING,
+                PERMISSION_MANAGE_CHECK_VALUES
         ));
     }
 

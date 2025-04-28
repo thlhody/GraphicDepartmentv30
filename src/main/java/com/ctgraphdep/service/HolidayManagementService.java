@@ -29,12 +29,11 @@ public class HolidayManagementService {
     // ============= Admin Operations =============
 
     /**
-     * Loads the list of holiday entries from the data source.
-     * This method can be used by both admin and regular users.
+     * Loads the list of holiday entries from user data.
      */
     public List<PaidHolidayEntryDTO> loadHolidayList() {
         try {
-            List<PaidHolidayEntryDTO> entries = dataAccess.readHolidayEntries();
+            List<PaidHolidayEntryDTO> entries = dataAccess.getUserHolidayEntries();
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error reading holiday list: " + e.getMessage());
@@ -43,13 +42,23 @@ public class HolidayManagementService {
     }
 
     /**
-     * Saves the entire holiday list. Used only by admin.
+     * Saves the entire holiday list by updating individual user files.
+     * Used only by admin to batch update holiday days.
      */
     @PreAuthorize("hasRole('ADMIN')")
     public void saveHolidayList(List<PaidHolidayEntryDTO> entries) {
         holidayLock.lock();
         try {
-            dataAccess.writeHolidayEntries(entries);
+            // Process each entry separately to update the corresponding user
+            for (PaidHolidayEntryDTO entry : entries) {
+                try {
+                    // Admin directly writes to network, so we use admin version
+                    dataAccess.updateUserHolidayDaysAdmin(entry.getUsername(), entry.getUserId(), entry.getPaidHolidayDays());
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), String.format("Error updating holiday days for user %s: %s", entry.getUsername(), e.getMessage()));
+                }
+            }
+
             LoggerUtil.info(this.getClass(), String.format("Saved holiday list with %d entries", entries.size()));
         } finally {
             holidayLock.unlock();
@@ -63,16 +72,15 @@ public class HolidayManagementService {
     public void updateUserHolidayDays(Integer userId, Integer days) {
         holidayLock.lock();
         try {
-            List<PaidHolidayEntryDTO> entries = loadHolidayList();
-            Optional<PaidHolidayEntryDTO> userEntry = entries.stream().filter(entry -> entry.getUserId().equals(userId)).findFirst();
+            // Find user details from users list
+            Optional<User> userOpt = dataAccess.getUserById(userId);
 
-            if (userEntry.isPresent()) {
-                PaidHolidayEntryDTO entry = userEntry.get();
-                entry.setPaidHolidayDays(days);
-                saveHolidayList(entries);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                dataAccess.updateUserHolidayDays(user.getUsername(), userId, days);
                 LoggerUtil.info(this.getClass(), String.format("Updated holiday days for user %d to %d days", userId, days));
             } else {
-                String error = String.format("No holiday entry found for user %d", userId);
+                String error = String.format("No user found with ID %d", userId);
                 LoggerUtil.error(this.getClass(), error);
                 throw new IllegalStateException(error);
             }
@@ -91,10 +99,8 @@ public class HolidayManagementService {
             List<PaidHolidayEntryDTO> currentEntries = loadHolidayList();
 
             // Create entries for new users
-            List<PaidHolidayEntryDTO> newEntries = users.stream()
-                    .filter(user -> !user.isAdmin()).filter(user -> currentEntries.stream()
-                            .noneMatch(entry -> entry.getUserId().equals(user.getUserId())))
-                    .map(PaidHolidayEntryDTO::fromUser).toList();
+            List<PaidHolidayEntryDTO> newEntries = users.stream().filter(user -> !user.isAdmin()).filter(user -> currentEntries.stream()
+                    .noneMatch(entry -> entry.getUserId().equals(user.getUserId()))).map(PaidHolidayEntryDTO::fromUser).toList();
 
             if (!newEntries.isEmpty()) {
                 currentEntries.addAll(newEntries);
@@ -138,6 +144,7 @@ public class HolidayManagementService {
         try {
             List<PaidHolidayEntryDTO> entries = loadHolidayList();
 
+
             Optional<PaidHolidayEntryDTO> userEntry = entries.stream().filter(entry -> entry.getUserId().equals(userId)).findFirst();
 
             if (userEntry.isPresent()) {
@@ -155,14 +162,10 @@ public class HolidayManagementService {
 
     /**
      * Gets the remaining holiday days for a user.
-     * Can be accessed by both the user themselves and admins.
      */
     @PreAuthorize("#username == authentication.name or hasRole('ADMIN')")
     public int getRemainingHolidayDays(String username, Integer userId) {
-        List<PaidHolidayEntryDTO> entries = loadHolidayList();
-
-        return entries.stream().filter(entry -> entry.getUserId().equals(userId))
-                .findFirst().map(PaidHolidayEntryDTO::getPaidHolidayDays).orElse(0);
+        return dataAccess.getUserHolidayDays(username, userId);
     }
 
     /**
@@ -187,7 +190,6 @@ public class HolidayManagementService {
         }
     }
 
-
     /**
      * Use holiday days for a time-off request.
      * This can only be called by the user themselves.
@@ -201,28 +203,31 @@ public class HolidayManagementService {
 
         holidayLock.lock();
         try {
-            List<PaidHolidayEntryDTO> entries = loadHolidayList();
-            Optional<PaidHolidayEntryDTO> userEntry = entries.stream().filter(entry -> entry.getUserId().equals(userId)).findFirst();
+            int remainingDays = dataAccess.getUserHolidayDays(username, userId);
 
-            if (userEntry.isPresent()) {
-                PaidHolidayEntryDTO entry = userEntry.get();
-                int remainingDays = entry.getPaidHolidayDays();
-
-                if (remainingDays >= daysToUse) {
-                    entry.setPaidHolidayDays(remainingDays - daysToUse);
-                    saveHolidayList(entries);
-                    LoggerUtil.info(this.getClass(), String.format("User %s used %d holiday days. Remaining: %d", username, daysToUse, entry.getPaidHolidayDays()));
-                    return true;
-                } else {
-                    LoggerUtil.warn(this.getClass(), String.format("Insufficient holiday days for user %s. Required: %d, Available: %d", username, daysToUse, remainingDays));
-                    return false;
-                }
+            if (remainingDays >= daysToUse) {
+                // Update with reduced days
+                dataAccess.updateUserHolidayDays(username, userId, remainingDays - daysToUse);
+                LoggerUtil.info(this.getClass(), String.format("User %s used %d holiday days. Remaining: %d", username, daysToUse, remainingDays - daysToUse));
+                return true;
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("Insufficient holiday days for user %s. Required: %d, Available: %d", username, daysToUse, remainingDays));
+                return false;
             }
-            return false;
         } finally {
             holidayLock.unlock();
         }
     }
+
+    public List<PaidHolidayEntryDTO> loadHolidayListWithoutAdmins() {
+        return loadHolidayList().stream()
+                .filter(entry -> {
+                    Optional<User> userOpt = dataAccess.getUserById(entry.getUserId());
+                    return userOpt.isPresent() && !userOpt.get().isAdmin();
+                })
+                .toList();
+    }
+
 
     // ============= Time Off History =============
 
@@ -241,8 +246,7 @@ public class HolidayManagementService {
                 List<WorkTimeTable> monthEntries = loadMonthlyTimeoffs(username, yearMonth);
                 allTimeOffs.addAll(monthEntries);
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), String.format("Could not load time offs for %s - %d/%d: %s",
-                        username, yearMonth.getYear(), yearMonth.getMonthValue(), e.getMessage()));
+                LoggerUtil.warn(this.getClass(), String.format("Could not load time offs for %s - %d/%d: %s", username, yearMonth.getYear(), yearMonth.getMonthValue(), e.getMessage()));
             }
         }
         return allTimeOffs;
@@ -255,11 +259,9 @@ public class HolidayManagementService {
         List<WorkTimeTable> monthEntries = dataAccess.readNetworkUserWorktimeReadOnly(username, yearMonth.getYear(), yearMonth.getMonthValue());
 
         // Filter only time off entries (include all types)
-        return monthEntries.stream()
-                .filter(entry -> entry.getTimeOffType() != null &&
+        return monthEntries.stream().filter(entry -> entry.getTimeOffType() != null &&
                         (entry.getTimeOffType().equals(WorkCode.TIME_OFF_CODE) || entry.getTimeOffType().equals(WorkCode.MEDICAL_LEAVE_CODE) ||
-                                entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE)))
-                .toList();
+                                entry.getTimeOffType().equals(WorkCode.NATIONAL_HOLIDAY_CODE))).toList();
     }
 
     /**
@@ -276,15 +278,13 @@ public class HolidayManagementService {
         }
     }
 
-
     /**
      * Read holiday entries in read-only mode.
      * This is used by the time off tracker to avoid locking the file.
-     * This method does not update the local cache.
      */
     public List<PaidHolidayEntryDTO> readHolidayEntriesReadOnly() {
         try {
-            return dataAccess.readHolidayEntriesReadOnly();
+            return dataAccess.getUserHolidayEntriesReadOnly();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error reading holiday entries in read-only mode: " + e.getMessage());
             return new ArrayList<>();

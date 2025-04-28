@@ -5,15 +5,13 @@
     <title>Check Register</title>
     <link rel="stylesheet" th:href="@{/css/register-user.css?v=1878223}">
     <link rel="stylesheet" th:href="@{/css/check-register.css?v=1878223}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=187822}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187811}">
 </head>
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
         <!-- Alert System -->
-        <div class="mb-4">
-            <div th:replace="~{alerts/alerts :: alerts}"></div>
-        </div>
+        <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
 
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
@@ -354,7 +352,12 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/check-register.js?v=187821222}"></script>
+    <script th:src="@{/js/toast-alerts.js?v=187811}"></script>
+    <script th:inline="javascript">
+        // Pass check type values from server to JavaScript
+        const SERVER_CHECK_TYPE_VALUES = /*[[${checkTypeValues}]]*/ null;
+    </script>
+    <script th:src="@{/js/check-register.js?v=187821224}"></script>
 </th:block>
 </body>
 </html>

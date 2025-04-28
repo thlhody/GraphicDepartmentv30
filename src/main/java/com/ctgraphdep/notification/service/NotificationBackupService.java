@@ -30,8 +30,8 @@ import java.util.concurrent.ScheduledFuture;
 @Service
 public class NotificationBackupService {
 
+    private final NotificationMonitorService notificationMonitorService;
     private final TaskScheduler taskScheduler;
-    private final DataAccessService dataAccessService;
     private final TimeValidationService timeValidationService;
     private final NotificationEventPublisher eventPublisher;
     private final SchedulerHealthMonitor healthMonitor;
@@ -43,13 +43,10 @@ public class NotificationBackupService {
     private final Map<String, LocalDateTime> hourlyNotificationTimes = new ConcurrentHashMap<>();
     private final Map<String, LocalDateTime> tempStopNotificationTimes = new ConcurrentHashMap<>();
 
-    public NotificationBackupService(
-            @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
-            DataAccessService dataAccessService, TimeValidationService timeValidationService,
-            NotificationEventPublisher eventPublisher,
-            SchedulerHealthMonitor healthMonitor) {
+    public NotificationBackupService(NotificationMonitorService notificationMonitorService, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
+                                     TimeValidationService timeValidationService, NotificationEventPublisher eventPublisher, SchedulerHealthMonitor healthMonitor) {
+        this.notificationMonitorService = notificationMonitorService;
         this.taskScheduler = taskScheduler;
-        this.dataAccessService = dataAccessService;
         this.timeValidationService = timeValidationService;
         this.eventPublisher = eventPublisher;
         this.healthMonitor = healthMonitor;
@@ -169,17 +166,6 @@ public class NotificationBackupService {
 
     private void handleHourlyWarningBackup(String username, Integer userId) {
         try {
-            // Check for notification tracking file
-            boolean trackingExists = checkTrackingFile(username);
-
-            // If tracking file exists and is recent, defer backup action
-            if (trackingExists && isTrackingFileRecent(username)) {
-                LoggerUtil.info(this.getClass(), String.format("Deferring backup action for %s - notification still active", username));
-                LocalDateTime now = getStandardCurrentTime();
-                // Reschedule for another 2 minutes
-                taskScheduler.schedule(() -> handleHourlyWarningBackup(username, userId), Instant.from(now.plus(Duration.ofMinutes(2))));
-                return;
-            }
 
             // If needed, re-publish hourly warning event
             if (shouldReShowNotification(username, "HOURLY_WARNING")) {
@@ -222,28 +208,12 @@ public class NotificationBackupService {
         }
     }
 
-    private boolean checkTrackingFile(String username) {
-        LocalDateTime timestamp = dataAccessService.readNotificationTrackingFile(username, "HOURLY_WARNING");
-        return timestamp != null;
-    }
-
-    private boolean isTrackingFileRecent(String username) {
-        LocalDateTime notificationTime = dataAccessService.readNotificationTrackingFile(username, "HOURLY_WARNING");
-
-        if (notificationTime == null) {
-            return false;
-        }
-
-        // Check if notification was shown less than maxMinutes ago
-        return ChronoUnit.MINUTES.between(notificationTime, getStandardCurrentTime()) < 3;
-    }
-
     private boolean shouldReShowNotification(String username, String notificationType) {
         // Limit the number of re-shows to 3
         int maxReShows = 3;
 
-        // Use data access service to update and get count
-        int count = dataAccessService.updateNotificationCountFile(username, notificationType, maxReShows);
+        // Use NotificationMonitorService to track and increment the count
+        int count = notificationMonitorService.incrementNotificationCount(username, notificationType, maxReShows);
 
         // Return whether we should re-show (count < maxReShows)
         if (count >= maxReShows) {
@@ -253,7 +223,6 @@ public class NotificationBackupService {
 
         return true;
     }
-
     /**
      * Gets stalled schedule end notifications for handling
      */

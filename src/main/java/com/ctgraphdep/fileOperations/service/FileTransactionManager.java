@@ -18,10 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FileTransactionManager {
     private final ThreadLocal<FileTransaction> activeTransaction = new ThreadLocal<>();
     private final Map<String, FileTransaction> transactions = new ConcurrentHashMap<>();
-    private final TimeValidationService timeValidationService;
 
-    public FileTransactionManager(TimeValidationService timeValidationService) {
-        this.timeValidationService = timeValidationService;
+    public FileTransactionManager() {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -61,11 +59,9 @@ public class FileTransactionManager {
         }
 
         try {
-            LoggerUtil.info(this.getClass(), "Committing transaction " + transaction.getTransactionId() +
-                    " with " + transaction.getOperations().size() + " operations");
+            LoggerUtil.info(this.getClass(), "Committing transaction " + transaction.getTransactionId() + " with " + transaction.getOperations().size() + " operations");
             FileTransactionResult result = transaction.commit();
-            LoggerUtil.info(this.getClass(), "Transaction " + transaction.getTransactionId() +
-                    " committed with result: " + (result.isSuccess() ? "SUCCESS" : "FAILURE"));
+            LoggerUtil.info(this.getClass(), "Transaction " + transaction.getTransactionId() + " committed with result: " + (result.isSuccess() ? "SUCCESS" : "FAILURE"));
             transactions.remove(transaction.getTransactionId());
             activeTransaction.remove();
             return result;
@@ -78,8 +74,7 @@ public class FileTransactionManager {
             }
             transactions.remove(transaction.getTransactionId());
             activeTransaction.remove();
-            return FileTransactionResult.failure(transaction.getTransactionId(),
-                    "Exception during commit: " + e.getMessage());
+            return FileTransactionResult.failure(transaction.getTransactionId(), "Exception during commit: " + e.getMessage());
         }
     }
 
@@ -104,8 +99,7 @@ public class FileTransactionManager {
             LoggerUtil.error(this.getClass(), "Error rolling back transaction: " + e.getMessage(), e);
             transactions.remove(transaction.getTransactionId());
             activeTransaction.remove();
-            return FileTransactionResult.failure(transaction.getTransactionId(),
-                    "Exception during rollback: " + e.getMessage());
+            return FileTransactionResult.failure(transaction.getTransactionId(), "Exception during rollback: " + e.getMessage());
         }
     }
 

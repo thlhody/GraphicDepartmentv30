@@ -1,7 +1,6 @@
 package com.ctgraphdep.session.config;
 
 import com.ctgraphdep.fileOperations.DataAccessService;
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -22,7 +21,7 @@ public class SessionCommandConfig {
     public SessionContext sessionContext(DataAccessService dataAccessService, WorktimeManagementService worktimeManagementService,
                                          UserService userService, SessionStatusService sessionStatusService, NotificationService notificationService,
                                          @Lazy SessionMonitorService sessionMonitorService,
-                                         PathConfig pathConfig, FolderStatus folderStatus, SessionCommandFactory commandFactory,
+                                         FolderStatus folderStatus, SessionCommandFactory commandFactory,
                                          TimeValidationService timeValidationService) {
 
         return new SessionContext(dataAccessService,
@@ -30,7 +29,7 @@ public class SessionCommandConfig {
                 userService,
                 sessionStatusService,
                 sessionMonitorService,
-                pathConfig, folderStatus,
+                folderStatus,
                 commandFactory,
                 timeValidationService,
                 notificationService);

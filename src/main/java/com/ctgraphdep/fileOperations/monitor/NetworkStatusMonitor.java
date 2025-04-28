@@ -64,6 +64,30 @@ public class NetworkStatusMonitor {
     }
 
     /**
+     * Scheduled method called at regular intervals to check network status
+     */
+    @Scheduled(fixedDelayString = "${app.sync.interval:300000}")
+    public void performScheduledNetworkCheck() {
+        try {
+            LoggerUtil.debug(this.getClass(), "Performing scheduled network status check");
+
+            // Perform the actual network check
+            boolean currentStatus = performNetworkCheck();
+
+            // Update the status with debouncing
+            updateNetworkStatus(currentStatus);
+
+            // Attempt to sync pending files if network is available
+            if (currentStatus) {
+                attemptPendingSyncs();
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during scheduled network check: " + e.getMessage(), e);
+            consecutiveFailures.incrementAndGet();
+        }
+    }
+
+    /**
      * Initial network detection with progressive backoff
      */
     private void performInitialNetworkDetection() {
@@ -116,7 +140,7 @@ public class NetworkStatusMonitor {
     }
 
     /**
-     * Starts regular network monitoring
+     * Starts/Stops regular network monitoring
      */
     public void startMonitoring() {
         if (!isRunning) {
@@ -130,7 +154,6 @@ public class NetworkStatusMonitor {
             LoggerUtil.info(this.getClass(), "Network monitoring started with interval: " + monitorInterval + "ms");
         }
     }
-
     public void stopMonitoring() {
         isRunning = false;
         try {
@@ -143,30 +166,6 @@ public class NetworkStatusMonitor {
             Thread.currentThread().interrupt();
         }
         LoggerUtil.info(this.getClass(), "Network monitoring stopped");
-    }
-
-    /**
-     * Scheduled method called at regular intervals to check network status
-     */
-    @Scheduled(fixedDelayString = "${app.sync.interval:300000}")
-    public void performScheduledNetworkCheck() {
-        try {
-            LoggerUtil.debug(this.getClass(), "Performing scheduled network status check");
-
-            // Perform the actual network check
-            boolean currentStatus = performNetworkCheck();
-
-            // Update the status with debouncing
-            updateNetworkStatus(currentStatus);
-
-            // Attempt to sync pending files if network is available
-            if (currentStatus) {
-                attemptPendingSyncs();
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error during scheduled network check: " + e.getMessage(), e);
-            consecutiveFailures.incrementAndGet();
-        }
     }
 
     /**

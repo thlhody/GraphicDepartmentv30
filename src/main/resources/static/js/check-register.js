@@ -1,3 +1,4 @@
+
 // Constants for value calculations
 const CHECK_TYPE_VALUES = {
     'LAYOUT': 1.0,
@@ -10,6 +11,15 @@ const CHECK_TYPE_VALUES = {
     'OMS PRODUCTION': 0.1,
     'KIPSTA PRODUCTION': 0.1
 };
+
+// Then, check for server-provided values and update if needed
+if (typeof SERVER_CHECK_TYPE_VALUES !== 'undefined' && SERVER_CHECK_TYPE_VALUES !== null) {
+    console.log('Using server-provided check type values');
+    // Update the constant with server values
+    for (const [key, value] of Object.entries(SERVER_CHECK_TYPE_VALUES)) {
+        CHECK_TYPE_VALUES[key] = value;
+    }
+}
 
 // Types that use articlesNumbers for calculation
 const ARTICLE_BASED_TYPES = [

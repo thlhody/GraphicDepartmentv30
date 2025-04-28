@@ -1,0 +1,102 @@
+/* Check Values specific styles */
+
+/* Tabs styling */
+.nav-tabs .nav-link {
+    color: #495057;
+    border-radius: 0;
+    padding: 0.75rem 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+.nav-tabs .nav-link.active {
+    font-weight: 600;
+    border-bottom: 2px solid #3498db;
+}
+
+/* Form styling */
+.check-values-form {
+    padding: 1rem;
+}
+
+.user-info-header {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+}
+
+/* Card styling */
+.card {
+    margin-bottom: 1.5rem;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    font-weight: 600;
+}
+
+/* Input styling */
+.input-group {
+    margin-bottom: 0.5rem;
+}
+
+.input-group-text {
+    background-color: #f8f9fa;
+    font-size: 0.875rem;
+}
+
+.input-group .form-control {
+    height: 38px;
+}
+
+/* Form label styling */
+.form-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+.form-text {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+/* Modified field highlight */
+.field-modified {
+    background-color: #fff8e6 !important;
+    border-color: #ffc107 !important;
+}
+
+/* Animation for save confirmation */
+@keyframes saveFlash {
+    0% { background-color: rgba(40, 167, 69, 0.2); }
+    100% { background-color: transparent; }
+}
+
+.save-flash {
+    animation: saveFlash 1.5s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .user-info-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .user-actions {
+        margin-top: 1rem;
+    }
+}

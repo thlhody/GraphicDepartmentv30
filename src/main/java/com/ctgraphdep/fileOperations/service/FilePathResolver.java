@@ -128,12 +128,18 @@ public class FilePathResolver {
         int month = (int) parameters.getOrDefault("month", LocalDate.now().getMonthValue());
 
         return switch (fileType) {
+            //users
             case SESSION -> isLocal ?
                     pathConfig.getLocalSessionPath(username, userId) :
                     pathConfig.getNetworkSessionPath(username, userId);
             case WORKTIME -> isLocal ?
                     pathConfig.getLocalWorktimePath(username, year, month) :
                     pathConfig.getNetworkWorktimePath(username, year, month);
+            case TIMEOFF_TRACKER -> isLocal ?
+                    pathConfig.getLocalTimeOffTrackerPath(username, userId, year) :
+                    pathConfig.getNetworkTimeOffTrackerPath(username, userId, year);
+            case TEAM ->
+                    pathConfig.getTeamJsonPath(username, year, month);
             case REGISTER -> isLocal ?
                     pathConfig.getLocalRegisterPath(username, userId, year, month) :
                     pathConfig.getNetworkRegisterPath(username, userId, year, month);
@@ -143,26 +149,30 @@ public class FilePathResolver {
             case LEAD_CHECK_REGISTER -> isLocal?
                     pathConfig.getLocalCheckLeadRegisterPath(username,userId,year,month) :
                     pathConfig.getNetworkCheckLeadRegisterPath(username,userId,year,month);
+            //admin
+            case ADMIN_BONUS ->
+                    pathConfig.getLocalBonusPath(year, month);
             case ADMIN_WORKTIME -> isLocal ?
                     pathConfig.getLocalAdminWorktimePath(year, month) :
                     pathConfig.getNetworkAdminWorktimePath(year, month);
             case ADMIN_REGISTER -> isLocal ?
                     pathConfig.getLocalAdminRegisterPath(username, userId, year, month) :
                     pathConfig.getNetworkAdminRegisterPath(username, userId, year, month);
-            case TIMEOFF_TRACKER -> isLocal ?
-                    pathConfig.getLocalTimeOffTrackerPath(username, userId, year) :
-                    pathConfig.getNetworkTimeOffTrackerPath(username, userId, year);
+            case CHECK_VALUES -> isLocal ?
+                    pathConfig.getLocalCheckValuesPath(username,userId) :
+                    pathConfig.getNetworkCheckValuesPath(username,userId);
+            //login
             case USERS -> isLocal ?
-                    pathConfig.getLocalUsersPath() :
-                    pathConfig.getNetworkUsersPath();
-            case HOLIDAY -> isLocal ?
-                    pathConfig.getNetworkHolidayCachePath() :
-                    pathConfig.getNetworkHolidayPath();
+                    pathConfig.getLocalUsersPath(username,userId) :
+                    pathConfig.getNetworkUsersPath(username,userId);
+            //status
             case STATUS -> isLocal ?
                     pathConfig.getLocalStatusCachePath() :
                     pathConfig.getNetworkStatusFlagsDirectory();
-            case NOTIFICATION -> resolveNotificationPath(isLocal, username, parameters);
-            default -> throw new IllegalArgumentException("Unsupported file type: " + fileType);
+
+            //logs
+            case LOG ->
+                    pathConfig.getNetworkLogPath(username);
         };
     }
 
@@ -170,50 +180,25 @@ public class FilePathResolver {
      * Enum representing different types of files in the system
      */
     public enum FileType {
+        //user
         SESSION,
         WORKTIME,
         REGISTER,
+        TIMEOFF_TRACKER,
+        TEAM,
         CHECK_REGISTER,
         LEAD_CHECK_REGISTER,
+        //admin
         ADMIN_WORKTIME,
         ADMIN_REGISTER,
         ADMIN_BONUS,
-        TIMEOFF_TRACKER,
-        TEAM,
+        CHECK_VALUES,
+        //login
         USERS,
-        HOLIDAY,
+        //status
         STATUS,
-        NOTIFICATION
-    }
-
-    /**
-     * Implementation for resolving notification file paths
-     */
-    private Path resolveNotificationPath(boolean isLocal, String username, Map<String, Object> parameters) {
-        // Base directory for notifications is under the app data directory
-        Path baseDir = isLocal ?
-                pathConfig.getLocalPath().resolve("notifications") :
-                pathConfig.getNetworkPath().resolve("notifications");
-
-        // Ensure the directory exists
-        try {
-            Files.createDirectories(baseDir);
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Failed to create notification directory: " + e.getMessage());
-        }
-
-        // Extract notification type if provided
-        String notificationType = (String) parameters.getOrDefault("notificationType", null);
-
-        // Format filename based on whether notification type is provided
-        String filename;
-        if (notificationType != null) {
-            filename = username + "_" + notificationType + ".json";
-        } else {
-            filename = username + "_notification.json";
-        }
-
-        return baseDir.resolve(filename);
+        //logs
+        LOG
     }
 
     /**

@@ -21,46 +21,40 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) {
-        LoggerUtil.debug(this.getClass(),
-                String.format("Loading user from network: %s", username));
+        LoggerUtil.debug(this.getClass(), String.format("Loading user from network: %s", username));
 
         try {
-            // Read from network users.json
-            List<User> users = dataAccess.readUsersNetwork();
+            // Get all users
+            List<User> users = dataAccess.getAllUsers();
 
             return users.stream()
                     .filter(u -> u.getUsername().equals(username))
                     .findFirst()
                     .map(CustomUserDetails::new)
-                    .orElseThrow(() -> {
-                        LoggerUtil.warn(this.getClass(),
-                                String.format("User not found in network storage: %s", username));
+                    .orElseThrow(() -> {LoggerUtil.warn(this.getClass(), String.format("User not found in network storage: %s", username));
                         return new UsernameNotFoundException("User not found: " + username);
                     });
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading network users file: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading network users: %s", e.getMessage()));
             throw new UsernameNotFoundException("Error accessing user data", e);
         }
     }
 
     public UserDetails loadUserByUsernameOffline(String username) {
-        LoggerUtil.debug(this.getClass(),
-                String.format("Loading user from local storage: %s", username));
+        LoggerUtil.debug(this.getClass(), String.format("Loading user from local storage: %s", username));
 
         try {
-            // Read from local local_users.json
+            // Get all locally available users through DataAccessService
             List<User> localUsers = dataAccess.readLocalUser();
 
-            if (localUsers != null && !localUsers.isEmpty()) {
+            if (!localUsers.isEmpty()) {
                 return localUsers.stream()
                         .filter(u -> u.getUsername().equals(username))
                         .findFirst()
                         .map(CustomUserDetails::new)
                         .orElseThrow(() -> {
-                            LoggerUtil.warn(this.getClass(),
-                                    String.format("User not found in local storage: %s", username));
+                            LoggerUtil.warn(this.getClass(), String.format("User not found in local storage: %s", username));
                             return new UsernameNotFoundException("User not found in local storage");
                         });
             }
@@ -69,8 +63,7 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("No local user data available");
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error reading local users file: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading local users: %s", e.getMessage()));
             throw new UsernameNotFoundException("Error accessing local user data", e);
         }
     }

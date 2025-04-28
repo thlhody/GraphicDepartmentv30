@@ -14,7 +14,9 @@
           rel="stylesheet"/>
 
     <!-- Default CSS -->
-    <link th:href="@{/css/default.css}" rel="stylesheet">
+    <link th:href="@{/css/default.css?v=187811}" rel="stylesheet">
+    <!-- Toast Alerts CSS -->
+    <link th:href="@{/css/toast-alerts.css?v=187812}" rel="stylesheet">
 
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -23,7 +25,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Default JS -->
-    <script th:src="@{/js/default.js?v=18781}" defer></script>
+    <script th:src="@{/js/default.js?v=187811}" defer></script>
+    <!-- Toast Alerts JS -->
+    <script th:src="@{/js/toast-alerts.js?v=187813}" defer></script>
 </head>
 <body>
 <!-- Navigation -->
@@ -81,6 +85,10 @@
 <div sec:authorize="isAuthenticated()" class="fade-in">
     <div th:insert="~{status/network-status :: statusIndicator}"></div>
 </div>
+
+<!-- Toast Alert System -->
+<div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
+
 <!-- Main Content -->
 <main role="main" class="fade-in">
     <div layout:fragment="content">
@@ -88,6 +96,7 @@
         <p>No content available</p>
     </div>
 </main>
+
 <!-- Footer -->
 <footer class="footer">
     <div class="container">
@@ -111,8 +120,7 @@
         </div>
     </div>
 </footer>
-<!-- Toast container for notifications -->
-<div id="toastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11"></div>
+
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts"><!-- Additional scripts will be inserted here --></th:block>
 <script>
@@ -129,18 +137,18 @@
                 dataType: 'json',
                 success: function(data) {
                     if (data.success) {
-                        showToast('Success', data.message || 'Logs synced successfully to network', 'success');
+                        window.showToast('Success', data.message || 'Logs synced successfully to network', 'success');
                     } else {
                         // Check if it's a network unavailability issue
                         if (data.networkUnavailable) {
-                            showToast('Network Unavailable', data.message || 'Network is currently unavailable. Logs will be synced automatically when connection is restored.', 'warning');
+                            window.showToast('Network Unavailable', data.message || 'Network is currently unavailable. Logs will be synced automatically when connection is restored.', 'warning');
                         } else {
-                            showToast('Error', data.message || 'Failed to sync logs', 'danger');
+                            window.showToast('Error', data.message || 'Failed to sync logs', 'error');
                         }
                     }
                 },
                 error: function(xhr, status, error) {
-                    showToast('Error', 'Failed to sync logs: ' + error, 'danger');
+                    window.showToast('Error', 'Failed to sync logs: ' + error, 'error');
                 },
                 complete: function() {
                     btn.prop('disabled', false)
@@ -148,30 +156,6 @@
                 }
             });
         });
-        // Global toast function
-        window.showToast = function(title, message, type) {
-            const toastId = 'toast-' + new Date().getTime();
-            const toast = `
-                <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-                    <div class="toast-header bg-${type} text-white">
-                        <strong class="me-auto">${title}</strong>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
-                    </div>
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                </div>
-            `;
-
-            $('#toastContainer').append(toast);
-            const toastElement = new bootstrap.Toast(document.getElementById(toastId));
-            toastElement.show();
-
-            // Auto remove after shown
-            $(`#${toastId}`).on('hidden.bs.toast', function() {
-                $(this).remove();
-            });
-        };
     });
 </script>
 <style>

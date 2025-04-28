@@ -29,9 +29,8 @@ public class SyncStatus {
 
     /**
      * Increment the retry count
-     * @return The new retry count
      */
-    public int incrementRetryCount() {
-        return ++retryCount;
+    public void incrementRetryCount() {
+        ++retryCount;
     }
 }

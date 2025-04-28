@@ -3,7 +3,6 @@ package com.ctgraphdep.session;
 import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.calculations.CalculationCommandService;
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
@@ -25,7 +24,6 @@ public class SessionContext {
     private final UserService userService;
     private final SessionStatusService sessionStatusService;
     private final SessionMonitorService sessionMonitorService;
-    private final PathConfig pathConfig;
     private final FolderStatus folderStatus;
     private final SessionCommandFactory commandFactory;
     private final TimeValidationService validationService;
@@ -43,7 +41,6 @@ public class SessionContext {
             UserService userService,
             SessionStatusService sessionStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
-            PathConfig pathConfig,
             FolderStatus folderStatus,
             SessionCommandFactory commandFactory, TimeValidationService validationService, NotificationService notificationService) {
 
@@ -52,7 +49,6 @@ public class SessionContext {
         this.userService = userService;
         this.sessionStatusService = sessionStatusService;
         this.sessionMonitorService = sessionMonitorService;
-        this.pathConfig = pathConfig;
         this.folderStatus = folderStatus;
         this.commandFactory = commandFactory;
         this.validationService = validationService;

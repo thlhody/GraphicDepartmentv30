@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>Check Values Configuration</title>
+    <link rel="stylesheet" th:href="@{/css/check-values.css?v=1878223}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187811}">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Alert System -->
+        <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
+
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-sliders me-2"></i>Check Values Configuration
+                </h1>
+            </div>
+            <a class="btn btn-outline-secondary" th:href="${dashboardUrl}">
+                <i class="bi bi-grid me-1"></i> Dashboard
+            </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">User Check Values</h5>
+                <div>
+                    <button id="saveAllButton" class="btn btn-primary">
+                        <i class="bi bi-save me-1"></i>Save All Changes
+                    </button>
+                    <button id="resetAllButton" class="btn btn-outline-secondary ms-2">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset All
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Users Tab List -->
+                <ul class="nav nav-tabs mb-4" id="userTabs" role="tablist">
+                    <li class="nav-item" role="presentation" th:each="user, userStat : ${checkUsers}">
+                        <button class="nav-link" th:id="${'tab-' + user.username}" data-bs-toggle="tab"
+                                th:data-bs-target="${'#panel-' + user.username}" type="button" role="tab"
+                                th:attr="aria-controls=${'panel-' + user.username}, aria-selected=${userStat.first ? 'true' : 'false'}"
+                                th:classappend="${userStat.first ? 'active' : ''}"
+                                th:text="${user.name != null && !user.name.isEmpty() ? user.name : user.username}">User Name
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="userTabContent">
+                    <!-- For each user, create a tab panel -->
+                    <div th:each="user, userStat : ${checkUsers}" class="tab-pane fade"
+                         th:id="${'panel-' + user.username}" role="tabpanel"
+                         th:attr="aria-labelledby=${'tab-' + user.username}"
+                         th:classappend="${userStat.first ? 'show active' : ''}">
+
+                        <form th:id="${'form-' + user.username}" class="check-values-form">
+                            <input type="hidden" name="userId" th:value="${user.userId}">
+                            <input type="hidden" name="username" th:value="${user.username}">
+
+                            <!-- User Info Header -->
+                            <div class="d-flex justify-content-between mb-3 user-info-header">
+                                <div>
+                                    <h4 th:text="${user.name != null && !user.name.isEmpty() ? user.name : user.username}">User Name</h4>
+                                    <p class="text-muted" th:text="${user.role.replace('ROLE_', '')}">Role</p>
+                                </div>
+                                <div class="user-actions">
+                                    <button type="button" class="btn btn-outline-primary save-user-btn"
+                                            th:data-user-id="${user.userId}" th:data-username="${user.username}">
+                                        <i class="bi bi-save me-1"></i>Save
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary reset-user-btn ms-2"
+                                            th:data-user-id="${user.userId}" th:data-username="${user.username}">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Current Values Info -->
+                            <div class="alert alert-info mb-4" role="alert">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <span>Current values last updated on <strong class="last-updated-date" th:data-user-id="${user.userId}" th:data-username="${user.username}">Unknown</strong></span>
+                            </div>
+
+                            <!-- Main Values Grid -->
+                            <div class="row g-4">
+                                <!-- Productivity Section -->
+                                <div class="col-md-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">Productivity Settings</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label th:for="${'workUnitsPerHour-' + user.username}" class="form-label">Target Work Units Per Hour</label>
+                                                <div class="input-group">
+                                                    <label>
+                                                        <input type="number"
+                                                               class="form-control"
+                                                               name="workUnitsPerHour"
+                                                               th:id="${'workUnitsPerHour-' + user.username}"
+                                                               step="0.1"
+                                                               min="1.0"
+                                                               max="10.0"
+                                                               value="4.5"
+                                                               th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                    </label>
+                                                    <span class="input-group-text">units/hour</span>
+                                                </div>
+                                                <div class="form-text">Standard target for all check types (default: 4.5)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Check Type Values Section -->
+                                <div class="col-md-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">Layout Values</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <label th:for="${'layoutValue-' + user.username}" class="form-label">LAYOUT</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="layoutValue"
+                                                                   th:id="${'layoutValue-' + user.username}"
+                                                                   step="0.1"
+                                                                   min="1.0"
+                                                                   max="5.0"
+                                                                   value="1.0"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label th:for="${'kipstaLayoutValue-' + user.username}" class="form-label">KIPSTA LAYOUT</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="kipstaLayoutValue"
+                                                                   th:id="${'kipstaLayoutValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.25"
+                                                                   max="2.0"
+                                                                   value="0.25"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label th:for="${'layoutChangesValue-' + user.username}" class="form-label">LAYOUT CHANGES</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="layoutChangesValue"
+                                                                   th:id="${'layoutChangesValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.25"
+                                                                   max="2.0"
+                                                                   value="0.25"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- GPT Values Section -->
+                                <div class="col-md-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">GPT Values</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label th:for="${'gptArticlesValue-' + user.username}" class="form-label">GPT Articles Value</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="gptArticlesValue"
+                                                                   th:id="${'gptArticlesValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.1"
+                                                                   max="1.0"
+                                                                   value="0.1"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                    <div class="form-text">Value per article</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label th:for="${'gptFilesValue-' + user.username}" class="form-label">GPT Files Value</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="gptFilesValue"
+                                                                   th:id="${'gptFilesValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.1"
+                                                                   max="1.0"
+                                                                   value="0.1"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                    <div class="form-text">Value per file</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Production Values Section -->
+                                <div class="col-md-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">Production Values</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <label th:for="${'productionValue-' + user.username}" class="form-label">PRODUCTION</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="productionValue"
+                                                                   th:id="${'productionValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.1"
+                                                                   max="1.0"
+                                                                   value="0.1"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label th:for="${'reorderValue-' + user.username}" class="form-label">REORDER</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="reorderValue"
+                                                                   th:id="${'reorderValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.1"
+                                                                   max="1.0"
+                                                                   value="0.1"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label th:for="${'sampleValue-' + user.username}" class="form-label">SAMPLE</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="sampleValue"
+                                                                   th:id="${'sampleValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.3"
+                                                                   max="3.0"
+                                                                   value="0.3"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Special Production Values Section -->
+                                <div class="col-md-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">Special Production Values</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label th:for="${'omsProductionValue-' + user.username}" class="form-label">OMS PRODUCTION</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="omsProductionValue"
+                                                                   th:id="${'omsProductionValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.1"
+                                                                   max="1.0"
+                                                                   value="0.1"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label th:for="${'kipstaProductionValue-' + user.username}" class="form-label">KIPSTA PRODUCTION</label>
+                                                    <div class="input-group">
+                                                        <label>
+                                                            <input type="number"
+                                                                   class="form-control"
+                                                                   name="kipstaProductionValue"
+                                                                   th:id="${'kipstaProductionValue-' + user.username}"
+                                                                   step="0.05"
+                                                                   min="0.1"
+                                                                   max="1.0"
+                                                                   value="0.1"
+                                                                   th:attr="data-user-id=${user.userId}, data-username=${user.username}">
+                                                        </label>
+                                                        <span class="input-group-text">units</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmModalLabel">Confirm Changes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to save the changes? This will affect how check values are calculated for the user.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmSaveBtn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page-specific scripts -->
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/toast-alerts.js?v=187811}"></script>
+    <script th:src="@{/js/check-values.js?v=1878228}"></script>
+</th:block>
+</body>
+</html>

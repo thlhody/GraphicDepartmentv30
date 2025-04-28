@@ -24,8 +24,8 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -69,6 +69,18 @@ public class DataAccessService {
     }
 
     // ===== Session file operations =====
+
+    /**
+     * Gets the log path for a specific user
+     * @param username The username
+     * @return Path to the user's log file
+     */
+
+    public Path getLocalSessionPath(String username, Integer userId) {
+        return pathConfig.getLocalSessionPath(username,userId);
+
+    }
+
     /**
      * Writes a session file to local storage and syncs to network
      */
@@ -118,8 +130,7 @@ public class DataAccessService {
         FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.SESSION, FilePathResolver.createParams());
 
         // Read the file
-        Optional<WorkUsersSessionsStates> result = fileReaderService.readLocalFile(localPath, new TypeReference<>() {
-        }, true);
+        Optional<WorkUsersSessionsStates> result = fileReaderService.readLocalFile(localPath, new TypeReference<>() {}, true);
 
         return result.orElse(null);
     }
@@ -163,222 +174,94 @@ public class DataAccessService {
     // ===== User file operations =====
 
     /**
-     * Reads users from the network, falling back to local if necessary
+     * Reads a specific user by username and userId
      */
-    public List<User> readUsersNetwork() {
-        // Create a file path object for network users
-        FilePath networkPath = pathResolver.getNetworkPath(null, null, FilePathResolver.FileType.USERS, FilePathResolver.createParams());
-
+    public Optional<User> readUserByUsernameAndId(String username, Integer userId) {
         // First try network if available
         if (pathConfig.isNetworkAvailable()) {
             try {
-                Optional<List<User>> networkUsers = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {
-                }, true);
-
-                if (networkUsers.isPresent() && !networkUsers.get().isEmpty()) {
-                    return networkUsers.get();
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(username, userId));
+                Optional<User> networkUser = fileReaderService.readFileReadOnly(networkPath, new TypeReference<>() {}, true);
+                if (networkUser.isPresent()) {
+                    return networkUser;
                 }
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), "Network users read failed, falling back to local: " + e.getMessage());
+                LoggerUtil.warn(this.getClass(), String.format("Error reading network user for %s: %s", username, e.getMessage()));
+            }
+        }
+
+        // Fall back to local file
+        try {
+            FilePath localPath = FilePath.local(pathConfig.getLocalUsersPath(username, userId));
+            return fileReaderService.readFileReadOnly(localPath, new TypeReference<>() {}, true);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading local user for %s: %s", username, e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Gets a user by their user ID
+     * @param userId The user ID to look for
+     * @return The user if found, or empty
+     */
+    public Optional<User> getUserById(Integer userId) {
+        // First try to find in network if available
+        if (pathConfig.isNetworkAvailable()) {
+            try {
+                List<User> users = readUsersNetwork();
+                Optional<User> networkUser = users.stream()
+                        .filter(user -> user.getUserId().equals(userId))
+                        .findFirst();
+
+                if (networkUser.isPresent()) {
+                    return networkUser;
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Error finding network user with ID %d: %s",
+                                userId, e.getMessage()));
             }
         }
 
         // Fall back to local users
         try {
-            LoggerUtil.info(this.getClass(), "Reading local users due to network unavailability");
             List<User> localUsers = readLocalUser();
-            if (localUsers.isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "No local users found");
-            } else {
-                LoggerUtil.info(this.getClass(), String.format("Found %d local users", localUsers.size()));
-            }
-            return localUsers;
+            return localUsers.stream()
+                    .filter(user -> user.getUserId().equals(userId))
+                    .findFirst();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to read local users: " + e.getMessage());
-            return new ArrayList<>();
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error finding local user with ID %d: %s",
+                            userId, e.getMessage()));
+            return Optional.empty();
         }
     }
 
     /**
-     * Writes users to the network
+     * Writes a user to their individual file with transaction system
      */
-    public void writeUsersNetwork(List<User> users) {
+    public void writeUser(User user) {
+        if (user == null || user.getUsername() == null || user.getUserId() == null) {
+            throw new IllegalArgumentException("User must have username and userId for individual file storage");
+        }
+
         // Start a transaction
         FileTransaction transaction = transactionManager.beginTransaction();
 
         try {
-            // Create a file path object for network users
-            FilePath networkPath = pathResolver.getNetworkPath(null, null, FilePathResolver.FileType.USERS, FilePathResolver.createParams());
+            // First update local file
+            FilePath localPath = FilePath.local(pathConfig.getLocalUsersPath(user.getUsername(), user.getUserId()));
 
-            // Write the users to the network path
-            byte[] content = objectMapper.writeValueAsBytes(users);
-            transaction.addWrite(networkPath, content);
+            // Serialize data
+            byte[] content = objectMapper.writeValueAsBytes(user);
 
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
-
-            if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write network users: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write network users: " + result.getErrorMessage());
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d users to network", users.size()));
-        } catch (Exception e) {
-            transactionManager.rollbackTransaction();
-            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing network users: %s", e.getMessage()), e);
-        }
-    }
-
-    /**
-     * Reads users from local storage
-     */
-    public List<User> readLocalUser() {
-        if (!pathConfig.isLocalAvailable()) {
-            pathConfig.revalidateLocalAccess();
-        }
-
-        // Create a file path object for local users
-        FilePath localPath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.USERS, FilePathResolver.createParams());
-
-        try {
-            // Read the file
-            Optional<List<User>> users = fileReaderService.readLocalFile(localPath, new TypeReference<>() {
-            }, true);
-
-            if (users.isEmpty()) {
-                LoggerUtil.info(this.getClass(), "No local users found, creating empty list");
-                return new ArrayList<>();
-            }
-            return users.get();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error reading local users: %s", e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Writes a user to local storage
-     */
-    public void writeLocalUser(User user) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
-        try {
-            // Create a file path object for local users
-            FilePath localPath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.USERS, FilePathResolver.createParams());
-
-            // Get current local users
-            List<User> existingUsers = readLocalUser();
-
-            // Check if user already exists
-            boolean userExists = false;
-            for (int i = 0; i < existingUsers.size(); i++) {
-                if (existingUsers.get(i).getUsername().equals(user.getUsername())) {
-                    // Replace existing user with updated one
-                    existingUsers.set(i, user);
-                    userExists = true;
-                    break;
-                }
-            }
-
-            // If user doesn't exist, add them
-            if (!userExists) {
-                existingUsers.add(user);
-            }
-
-            // Write the entire list back within the transaction
-            byte[] content = objectMapper.writeValueAsBytes(existingUsers);
+            // Add to transaction
             transaction.addWrite(localPath, content);
 
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
-
-            if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write local user: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write local user: " + result.getErrorMessage());
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Successfully updated local user: %s", user.getUsername()));
-        } catch (Exception e) {
-            transactionManager.rollbackTransaction();
-            LoggerUtil.logAndThrow(this.getClass(), String.format("Error updating local user %s: %s", user.getUsername(), e.getMessage()), e);
-        }
-    }
-
-    // ===== Holiday entries operations =====
-
-    /**
-     * Reads holiday entries with network and local cache
-     */
-    public List<PaidHolidayEntryDTO> readHolidayEntries() {
-        try {
-            // Create file path objects for network and cache paths
-            FilePath networkPath = pathResolver.getNetworkPath(null, null, FilePathResolver.FileType.HOLIDAY, FilePathResolver.createParams());
-            FilePath cachePath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.HOLIDAY, FilePathResolver.createParams());
-
-            // Try network first
+            // Add network write if available
             if (pathConfig.isNetworkAvailable()) {
-                Optional<List<PaidHolidayEntryDTO>> networkEntries = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {
-                }, true);
-
-                if (networkEntries.isPresent()) {
-                    // Update cache with network data using transaction system
-                    updateHolidayCache(networkEntries.get(), cachePath);
-                    return networkEntries.get();
-                }
-            }
-
-            // Fallback to cache if network unavailable or read failed
-            Optional<List<PaidHolidayEntryDTO>> cacheEntries = fileReaderService.readLocalFile(cachePath, new TypeReference<>() {
-            }, true);
-            return cacheEntries.orElse(new ArrayList<>());
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error reading holiday entries: %s", e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Helper method to update holiday cache
-     */
-    private void updateHolidayCache(List<PaidHolidayEntryDTO> entries, FilePath cachePath) {
-        FileTransaction transaction = transactionManager.beginTransaction();
-
-        try {
-            byte[] content = objectMapper.writeValueAsBytes(entries);
-            transaction.addWrite(cachePath, content);
-
-            FileTransactionResult result = transactionManager.commitTransaction();
-
-            if (!result.isSuccess()) {
-                LoggerUtil.warn(this.getClass(), "Failed to update holiday cache: " + result.getErrorMessage());
-            }
-        } catch (Exception e) {
-            transactionManager.rollbackTransaction();
-            LoggerUtil.warn(this.getClass(), "Error updating holiday cache: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Writes holiday entries to both network and local cache
-     */
-    public void writeHolidayEntries(List<PaidHolidayEntryDTO> entries) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
-        try {
-            // Create file path objects for network and cache paths
-            FilePath networkPath = pathResolver.getNetworkPath(null, null, FilePathResolver.FileType.HOLIDAY, FilePathResolver.createParams());
-            FilePath cachePath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.HOLIDAY, FilePathResolver.createParams());
-
-            // Serialize content once
-            byte[] content = objectMapper.writeValueAsBytes(entries);
-
-            // Always update cache first
-            transaction.addWrite(cachePath, content);
-
-            // Then try network if available
-            if (pathConfig.isNetworkAvailable()) {
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(user.getUsername(), user.getUserId()));
                 transaction.addWrite(networkPath, content);
             }
 
@@ -386,46 +269,535 @@ public class DataAccessService {
             FileTransactionResult result = transactionManager.commitTransaction();
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write holiday entries: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write holiday entries: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write user: " + result.getErrorMessage());
+                throw new RuntimeException("Failed to write user: " + result.getErrorMessage());
             }
 
-            if (pathConfig.isNetworkAvailable()) {
-                LoggerUtil.info(this.getClass(), "Successfully wrote holiday entries to network");
-            } else {
-                LoggerUtil.warn(this.getClass(), "Network unavailable, holiday entries stored in cache only");
-            }
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote user: %s (ID: %d)",
+                    user.getUsername(), user.getUserId()));
+
         } catch (Exception e) {
             transactionManager.rollbackTransaction();
-            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing holiday entries: %s", e.getMessage()), e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing user %s: %s",
+                    user.getUsername(), e.getMessage()), e);
         }
     }
 
     /**
-     * Reads holiday entries in read-only mode
+     * Gets all users by scanning for individual files
      */
-    public List<PaidHolidayEntryDTO> readHolidayEntriesReadOnly() {
+    public List<User> getAllUsers() {
+        List<User> allUsers = new ArrayList<>();
+
         try {
-            // Create file path objects for network and cache paths
-            FilePath networkPath = pathResolver.getNetworkPath(null, null, FilePathResolver.FileType.HOLIDAY, FilePathResolver.createParams());
-            FilePath cachePath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.HOLIDAY, FilePathResolver.createParams());
-
-            // Try network first if available
+            // First scan network directory if available
             if (pathConfig.isNetworkAvailable()) {
-                Optional<List<PaidHolidayEntryDTO>> networkEntries = fileReaderService.readFileReadOnly(networkPath, new TypeReference<>() {
-                }, true);
+                Path networkDir = pathConfig.getNetworkPath().resolve(pathConfig.getUsersPath());
 
-                if (networkEntries.isPresent()) {
-                    return networkEntries.get();
+                if (Files.exists(networkDir) && Files.isDirectory(networkDir)) {
+                    try (Stream<Path> files = Files.list(networkDir)) {
+                        files.filter(path -> path.getFileName().toString().startsWith("user_") &&
+                                        path.getFileName().toString().endsWith(".json"))
+                                .forEach(path -> {
+                                    try {
+                                        FilePath filePath = FilePath.network(path);
+                                        Optional<User> user = fileReaderService.readFileReadOnly(filePath, new TypeReference<>() {}, true);
+                                        user.ifPresent(allUsers::add);
+                                    } catch (Exception e) {
+                                        LoggerUtil.warn(this.getClass(), "Error reading user file " + path + ": " + e.getMessage());
+                                    }
+                                });
+                    }
+
+                    if (!allUsers.isEmpty()) {
+                        // Remove duplicates if any
+                        return new ArrayList<>(allUsers.stream()
+                                .collect(Collectors.toMap(
+                                        User::getUsername,
+                                        user -> user,
+                                        (existing, replacement) -> existing // Keep first one in case of duplicates
+                                ))
+                                .values());
+                    }
                 }
             }
 
-            // Fallback to cache if network unavailable or read failed
-            Optional<List<PaidHolidayEntryDTO>> cacheEntries = fileReaderService.readFileReadOnly(cachePath, new TypeReference<>() {
-            }, true);
-            return cacheEntries.orElse(new ArrayList<>());
+            // If network unavailable or no users found, scan local directory
+            Path localDir = pathConfig.getLocalPath().resolve(pathConfig.getUsersPath());
+
+            if (Files.exists(localDir) && Files.isDirectory(localDir)) {
+                try (Stream<Path> files = Files.list(localDir)) {
+                    files.filter(path -> path.getFileName().toString().startsWith("local_user_") &&
+                                    path.getFileName().toString().endsWith(".json"))
+                            .forEach(path -> {
+                                try {
+                                    FilePath filePath = FilePath.local(path);
+                                    Optional<User> user = fileReaderService.readFileReadOnly(filePath, new TypeReference<>() {}, true);
+                                    user.ifPresent(allUsers::add);
+                                } catch (Exception e) {
+                                    LoggerUtil.warn(this.getClass(), "Error reading local user file " + path + ": " + e.getMessage());
+                                }
+                            });
+                }
+            }
+
+            // Remove duplicates if any
+            return new ArrayList<>(allUsers.stream()
+                    .collect(Collectors.toMap(
+                            User::getUsername,
+                            user -> user,
+                            (existing, replacement) -> existing // Keep first one in case of duplicates
+                    ))
+                    .values());
+
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format("Error reading holiday entries in read-only mode: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), "Error scanning for user files: " + e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Reads users from the network and local files, maintaining backward compatibility
+     * Now uses the new individual file approach internally
+     */
+    public List<User> readUsersNetwork() {
+        // Use the new getAllUsers method internally
+        List<User> allUsers = getAllUsers();
+
+        // Log info for monitoring
+        LoggerUtil.info(this.getClass(), String.format("Read %d users with the new individual file system",
+                allUsers.size()));
+
+        return allUsers;
+    }
+
+    /**
+     * Writes users to the network, maintaining backward compatibility
+     * Now uses the new individual file approach internally
+     */
+    public void writeUsersNetwork(List<User> users) {
+        // Start a transaction for batch processing
+        FileTransaction transaction = transactionManager.beginTransaction();
+
+        try {
+            // For each user, write their individual file
+            for (User user : users) {
+                if (user.getUsername() == null || user.getUserId() == null) {
+                    LoggerUtil.warn(this.getClass(), "Skipping user with missing username or userId");
+                    continue;
+                }
+
+                // Get network path for this user
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(user.getUsername(), user.getUserId()));
+
+                // Serialize user data
+                byte[] content = objectMapper.writeValueAsBytes(user);
+
+                // Add to transaction
+                transaction.addWrite(networkPath, content);
+            }
+
+            // Commit all changes in one transaction
+            FileTransactionResult result = transactionManager.commitTransaction();
+
+            if (!result.isSuccess()) {
+                LoggerUtil.error(this.getClass(), "Failed to write users to network: " + result.getErrorMessage());
+                throw new RuntimeException("Failed to write users to network: " + result.getErrorMessage());
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d users to network using individual file system",
+                    users.size()));
+
+        } catch (Exception e) {
+            transactionManager.rollbackTransaction();
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing users to network: %s", e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Reads users from local storage, maintaining backward compatibility
+     * Now uses the new individual file approach internally
+     */
+    public List<User> readLocalUser() {
+        if (!pathConfig.isLocalAvailable()) {
+            pathConfig.revalidateLocalAccess();
+        }
+
+        try {
+            // Filter to get only local users
+            List<User> localUsers = getAllUsers().stream()
+                    .filter(user -> {
+                        try {
+                            // Check if a local version exists
+                            return Files.exists(pathConfig.getLocalUsersPath(user.getUsername(), user.getUserId()));
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    })
+                    .collect(Collectors.toList());
+
+            if (localUsers.isEmpty()) {
+                LoggerUtil.info(this.getClass(), "No local users found, returning empty list");
+                return new ArrayList<>();
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Read %d local users with individual file system",
+                    localUsers.size()));
+
+            return localUsers;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading local users: %s", e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Writes a user to local storage, maintaining backward compatibility
+     * Now uses the new individual file approach internally
+     */
+    public void writeLocalUser(User user) {
+        if (user == null || user.getUsername() == null || user.getUserId() == null) {
+            throw new IllegalArgumentException("User must have username and userId");
+        }
+
+        // Use the new method internally
+        try {
+            // Call our new method which handles writing to local storage
+            writeUser(user);
+            LoggerUtil.info(this.getClass(), String.format("Successfully updated local user: %s", user.getUsername()));
+        } catch (Exception e) {
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error updating local user %s: %s",
+                    user.getUsername(), e.getMessage()), e);
+        }
+    }
+
+    // ===== Holiday entries operations =====
+
+
+    /**
+     * Updates holiday days for a user in their user file
+     * This includes local update and network sync
+     */
+    public void updateUserHolidayDays(String username, Integer userId, Integer holidayDays) {
+        // Start a transaction
+        FileTransaction transaction = transactionManager.beginTransaction();
+
+        try {
+            // First get the user from network if available
+            Optional<User> networkUser = Optional.empty();
+            if (pathConfig.isNetworkAvailable()) {
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(username, userId));
+                networkUser = fileReaderService.readFileReadOnly(networkPath, new TypeReference<>() {}, true);
+            }
+
+            // If not found on network, try local file
+            Optional<User> userToUpdate = networkUser.isPresent() ?
+                    networkUser :
+                    fileReaderService.readLocalFile(FilePath.local(pathConfig.getLocalUsersPath(username, userId)),
+                            new TypeReference<>() {}, true);
+
+            if (userToUpdate.isEmpty()) {
+                LoggerUtil.error(this.getClass(), "User not found for holiday update: " + username);
+                throw new RuntimeException("User not found for holiday update: " + username);
+            }
+
+            // Update the holiday days
+            User user = userToUpdate.get();
+            user.setPaidHolidayDays(holidayDays);
+
+            // Write to local file
+            FilePath localPath = FilePath.local(pathConfig.getLocalUsersPath(username, userId));
+            byte[] content = objectMapper.writeValueAsBytes(user);
+            transaction.addWrite(localPath, content);
+
+            // Write to network if available
+            if (pathConfig.isNetworkAvailable()) {
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(username, userId));
+                transaction.addWrite(networkPath, content);
+            }
+
+            // Commit the transaction
+            FileTransactionResult result = transactionManager.commitTransaction();
+
+            if (!result.isSuccess()) {
+                LoggerUtil.error(this.getClass(), "Failed to update holiday days: " + result.getErrorMessage());
+                throw new RuntimeException("Failed to update holiday days: " + result.getErrorMessage());
+            }
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Updated holiday days for user %s to %d days", username, holidayDays));
+
+        } catch (Exception e) {
+            transactionManager.rollbackTransaction();
+            LoggerUtil.logAndThrow(this.getClass(),
+                    String.format("Error updating holiday days for user %s: %s", username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Gets a list of holiday entries by extracting information from user files
+     * This replaces the previous readHolidayEntries method
+     */
+    public List<PaidHolidayEntryDTO> getUserHolidayEntries() {
+        List<User> users = getAllUsers();
+        return users.stream()
+                .map(user -> PaidHolidayEntryDTO.builder()
+                        .userId(user.getUserId())
+                        .username(user.getUsername())
+                        .name(user.getName())
+                        .employeeId(user.getEmployeeId())
+                        .schedule(user.getSchedule())
+                        .paidHolidayDays(user.getPaidHolidayDays())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets holiday days for a specific user
+     */
+    public int getUserHolidayDays(String username, Integer userId) {
+        // Try network first if available
+        if (pathConfig.isNetworkAvailable()) {
+            try {
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(username, userId));
+                Optional<User> networkUser = fileReaderService.readFileReadOnly(
+                        networkPath, new TypeReference<>() {}, true);
+
+                if (networkUser.isPresent() && networkUser.get().getPaidHolidayDays() != null) {
+                    return networkUser.get().getPaidHolidayDays();
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(),
+                        String.format("Error reading network user holiday days for %s: %s",
+                                username, e.getMessage()));
+            }
+        }
+
+        // Fall back to local file
+        try {
+            FilePath localPath = FilePath.local(pathConfig.getLocalUsersPath(username, userId));
+            Optional<User> localUser = fileReaderService.readFileReadOnly(
+                    localPath, new TypeReference<>() {}, true);
+
+            if (localUser.isPresent() && localUser.get().getPaidHolidayDays() != null) {
+                return localUser.get().getPaidHolidayDays();
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error reading local user holiday days for %s: %s",
+                            username, e.getMessage()));
+        }
+
+        // Default to 0 if no information found
+        return 0;
+    }
+
+    /**
+     * Gets a list of holiday entries for read-only purposes
+     * This replaces the previous readHolidayEntriesReadOnly method
+     */
+    public List<PaidHolidayEntryDTO> getUserHolidayEntriesReadOnly() {
+        try {
+            // Use existing method to get all users
+            List<User> users = readUsersNetwork();
+
+            // Convert users to holiday entries
+            return users.stream()
+                    .map(user -> PaidHolidayEntryDTO.builder()
+                            .userId(user.getUserId())
+                            .username(user.getUsername())
+                            .name(user.getName())
+                            .employeeId(user.getEmployeeId())
+                            .schedule(user.getSchedule())
+                            .paidHolidayDays(user.getPaidHolidayDays() != null ?
+                                    user.getPaidHolidayDays() : 0)
+                            .build())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error reading user holiday entries in read-only mode: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Updates holiday days for a user in their user file - admin version
+     * This writes directly to network without local update
+     */
+    public void updateUserHolidayDaysAdmin(String username, Integer userId, Integer holidayDays) {
+        if (!pathConfig.isNetworkAvailable()) {
+            LoggerUtil.error(this.getClass(), "Network not available for admin holiday update");
+            throw new RuntimeException("Network not available for admin holiday update");
+        }
+
+        // Start a transaction
+        FileTransaction transaction = transactionManager.beginTransaction();
+
+        try {
+            // Get the user from network
+            FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(username, userId));
+            Optional<User> networkUser = fileReaderService.readFileReadOnly(
+                    networkPath, new TypeReference<>() {}, true);
+
+            if (networkUser.isEmpty()) {
+                LoggerUtil.error(this.getClass(), "User not found on network: " + username);
+                throw new RuntimeException("User not found on network: " + username);
+            }
+
+            // Update the holiday days
+            User user = networkUser.get();
+            user.setPaidHolidayDays(holidayDays);
+
+            // Write directly to network
+            byte[] content = objectMapper.writeValueAsBytes(user);
+            transaction.addWrite(networkPath, content);
+
+            // Commit the transaction
+            FileTransactionResult result = transactionManager.commitTransaction();
+
+            if (!result.isSuccess()) {
+                LoggerUtil.error(this.getClass(),
+                        "Failed to update holiday days (admin): " + result.getErrorMessage());
+                throw new RuntimeException(
+                        "Failed to update holiday days (admin): " + result.getErrorMessage());
+            }
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Admin updated holiday days for user %s to %d days",
+                            username, holidayDays));
+
+        } catch (Exception e) {
+            transactionManager.rollbackTransaction();
+            LoggerUtil.logAndThrow(this.getClass(),
+                    String.format("Error in admin holiday update for user %s: %s",
+                            username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Reads check values for a specific user
+     */
+    public Optional<UsersCheckValueEntry> readUserCheckValues(String username, Integer userId) {
+        // First try network if available
+        if (pathConfig.isNetworkAvailable()) {
+            try {
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkCheckValuesPath(username, userId));
+                Optional<UsersCheckValueEntry> networkEntry = fileReaderService.readFileReadOnly(networkPath, new TypeReference<>() {}, true);
+                if (networkEntry.isPresent()) {
+                    return networkEntry;
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format("Error reading network check values for %s: %s", username, e.getMessage()));
+            }
+        }
+
+        // Fall back to local file
+        try {
+            FilePath localPath = FilePath.local(pathConfig.getLocalCheckValuesPath(username, userId));
+            return fileReaderService.readFileReadOnly(localPath, new TypeReference<>() {}, true);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading local check values for %s: %s", username, e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Writes check values for a specific user
+     */
+    public void writeUserCheckValues(UsersCheckValueEntry entry, String username, Integer userId) {
+        // Start a transaction
+        FileTransaction transaction = transactionManager.beginTransaction();
+
+        try {
+            // Update local file first
+            FilePath localPath = FilePath.local(pathConfig.getLocalCheckValuesPath(username, userId));
+
+            // Serialize data
+            byte[] content = objectMapper.writeValueAsBytes(entry);
+
+            // Add to transaction
+            transaction.addWrite(localPath, content);
+
+            // Update network if available
+            if (pathConfig.isNetworkAvailable()) {
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkCheckValuesPath(username, userId));
+                transaction.addWrite(networkPath, content);
+            }
+
+            // Commit the transaction
+            FileTransactionResult result = transactionManager.commitTransaction();
+
+            if (!result.isSuccess()) {
+                LoggerUtil.error(this.getClass(), "Failed to write check values: " + result.getErrorMessage());
+                throw new RuntimeException("Failed to write check values: " + result.getErrorMessage());
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote check values for user %s", username));
+
+        } catch (Exception e) {
+            transactionManager.rollbackTransaction();
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing check values for user %s: %s",
+                    username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Gets all check values entries by scanning for individual files
+     */
+    public List<UsersCheckValueEntry> getAllCheckValues() {
+        List<UsersCheckValueEntry> allEntries = new ArrayList<>();
+
+        try {
+            // First scan network directory if available
+            if (pathConfig.isNetworkAvailable()) {
+                Path networkDir = pathConfig.getNetworkPath().resolve(pathConfig.getUsersPath());
+
+                if (Files.exists(networkDir) && Files.isDirectory(networkDir)) {
+                    try (Stream<Path> files = Files.list(networkDir)) {
+                        files.filter(path -> path.getFileName().toString().startsWith("users_check_value_") &&
+                                        path.getFileName().toString().endsWith(".json"))
+                                .forEach(path -> {
+                                    try {
+                                        FilePath filePath = FilePath.network(path);
+                                        Optional<UsersCheckValueEntry> entry = fileReaderService.readFileReadOnly(
+                                                filePath, new TypeReference<>() {}, true);
+                                        entry.ifPresent(allEntries::add);
+                                    } catch (Exception e) {
+                                        LoggerUtil.warn(this.getClass(), "Error reading check values file " + path + ": " + e.getMessage());
+                                    }
+                                });
+                    }
+
+                    if (!allEntries.isEmpty()) {
+                        return allEntries;
+                    }
+                }
+            }
+
+            // If network unavailable or no entries found, scan local directory
+            Path localDir = pathConfig.getLocalPath().resolve(pathConfig.getUsersPath());
+
+            if (Files.exists(localDir) && Files.isDirectory(localDir)) {
+                try (Stream<Path> files = Files.list(localDir)) {
+                    files.filter(path -> path.getFileName().toString().startsWith("local_users_check_value_") &&
+                                    path.getFileName().toString().endsWith(".json"))
+                            .forEach(path -> {
+                                try {
+                                    FilePath filePath = FilePath.local(path);
+                                    Optional<UsersCheckValueEntry> entry = fileReaderService.readFileReadOnly(
+                                            filePath, new TypeReference<>() {}, true);
+                                    entry.ifPresent(allEntries::add);
+                                } catch (Exception e) {
+                                    LoggerUtil.warn(this.getClass(), "Error reading local check values file " + path + ": " + e.getMessage());
+                                }
+                            });
+                }
+            }
+
+            return allEntries;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error scanning for check values files: " + e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -1067,151 +1439,151 @@ public class DataAccessService {
 
     // ===== Notification methods =====
 
-    /**
-     * Writes notification tracking file using transaction system
-     */
-    public void writeNotificationTrackingFile(String username, String notificationType, LocalDateTime timestamp) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
-        try {
-            Map<String, Object> params = new HashMap<>();
-            params.put("notificationType", notificationType);
-
-            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
-
-            // Create parent directory if it doesn't exist
-            Files.createDirectories(filePath.getPath().getParent());
-
-            // Convert timestamp to JSON for better readability and consistency
-            Map<String, Object> trackingData = new HashMap<>();
-            trackingData.put("username", username);
-            trackingData.put("notificationType", notificationType);
-            trackingData.put("timestamp", timestamp.toString());
-
-            byte[] content = objectMapper.writeValueAsBytes(trackingData);
-
-            // Add to transaction
-            transaction.addWrite(filePath, content);
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
-
-            if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write notification tracking file: " + result.getErrorMessage());
-                return;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Created notification tracking file for %s", username));
-
-        } catch (Exception e) {
-            transactionManager.rollbackTransaction();
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error writing notification tracking file for user %s with type %s: %s",
-                    username, notificationType, e.getMessage()), e);
-        }
-    }
-
-    /**
-     * Reads notification tracking file
-     */
-    public LocalDateTime readNotificationTrackingFile(String username, String notificationType) {
-        try {
-            Map<String, Object> params = new HashMap<>();
-            params.put("notificationType", notificationType);
-
-            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
-
-            if (!Files.exists(filePath.getPath())) {
-                return null;
-            }
-
-            Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<>() {}, true);
-
-            if (content.isPresent()) {
-                Map<String, Object> trackingData = content.get();
-                String timestampStr = (String) trackingData.get("timestamp");
-                if (timestampStr != null) {
-                    return LocalDateTime.parse(timestampStr);
-                }
-            }
-
-            return null;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error reading notification tracking file for user %s with type %s: %s", username, notificationType, e.getMessage()), e);
-            return null;
-        }
-    }
-
-    /**
-     * Updates notification count file using transaction system
-     */
-    public int updateNotificationCountFile(String username, String notificationType, int maxCount) {
-        try {
-            Map<String, Object> params = new HashMap<>();
-            params.put("notificationType", notificationType + "_count");
-
-            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
-
-            // Read current count if file exists
-            int count = 0;
-            if (Files.exists(filePath.getPath())) {
-                Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<>() {
-                }, true);
-
-                if (content.isPresent()) {
-                    Map<String, Object> countData = content.get();
-                    Object countObj = countData.get("count");
-                    if (countObj instanceof Integer) {
-                        count = (Integer) countObj;
-                    } else if (countObj instanceof Number) {
-                        count = ((Number) countObj).intValue();
-                    }
-                }
-            }
-
-            // Increment and save count if not already at max
-            if (count < maxCount) {
-                // Start a transaction
-                FileTransaction transaction = transactionManager.beginTransaction();
-
-                try {
-                    count++;
-
-                    // Create parent directory if it doesn't exist
-                    Files.createDirectories(filePath.getPath().getParent());
-
-                    // Prepare data
-                    Map<String, Object> countData = new HashMap<>();
-                    countData.put("username", username);
-                    countData.put("notificationType", notificationType);
-                    countData.put("count", count);
-                    countData.put("lastUpdated", LocalDateTime.now().toString());
-
-                    byte[] content = objectMapper.writeValueAsBytes(countData);
-
-                    transaction.addWrite(filePath, content);
-
-                    // Commit the transaction
-                    FileTransactionResult result = transactionManager.commitTransaction();
-
-                    if (!result.isSuccess()) {
-                        LoggerUtil.error(this.getClass(), "Failed to update notification count: " + result.getErrorMessage());
-                    }
-                } catch (Exception e) {
-                    transactionManager.rollbackTransaction();
-                    LoggerUtil.error(this.getClass(), "Error updating notification count: " + e.getMessage());
-                }
-            }
-
-            return count;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error managing notification count file for user %s with type %s: %s",
-                    username, notificationType, e.getMessage()), e);
-            return 0;
-        }
-    }
+//    /**
+//     * Writes notification tracking file using transaction system
+//     */
+//    public void writeNotificationTrackingFile(String username, String notificationType, LocalDateTime timestamp) {
+//        // Start a transaction
+//        FileTransaction transaction = transactionManager.beginTransaction();
+//
+//        try {
+//            Map<String, Object> params = new HashMap<>();
+//            params.put("notificationType", notificationType);
+//
+//            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
+//
+//            // Create parent directory if it doesn't exist
+//            Files.createDirectories(filePath.getPath().getParent());
+//
+//            // Convert timestamp to JSON for better readability and consistency
+//            Map<String, Object> trackingData = new HashMap<>();
+//            trackingData.put("username", username);
+//            trackingData.put("notificationType", notificationType);
+//            trackingData.put("timestamp", timestamp.toString());
+//
+//            byte[] content = objectMapper.writeValueAsBytes(trackingData);
+//
+//            // Add to transaction
+//            transaction.addWrite(filePath, content);
+//
+//            // Commit the transaction
+//            FileTransactionResult result = transactionManager.commitTransaction();
+//
+//            if (!result.isSuccess()) {
+//                LoggerUtil.error(this.getClass(), "Failed to write notification tracking file: " + result.getErrorMessage());
+//                return;
+//            }
+//
+//            LoggerUtil.info(this.getClass(), String.format("Created notification tracking file for %s", username));
+//
+//        } catch (Exception e) {
+//            transactionManager.rollbackTransaction();
+//            LoggerUtil.error(this.getClass(), String.format(
+//                    "Error writing notification tracking file for user %s with type %s: %s",
+//                    username, notificationType, e.getMessage()), e);
+//        }
+//    }
+//
+//    /**
+//     * Reads notification tracking file
+//     */
+//    public LocalDateTime readNotificationTrackingFile(String username, String notificationType) {
+//        try {
+//            Map<String, Object> params = new HashMap<>();
+//            params.put("notificationType", notificationType);
+//
+//            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
+//
+//            if (!Files.exists(filePath.getPath())) {
+//                return null;
+//            }
+//
+//            Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<>() {}, true);
+//
+//            if (content.isPresent()) {
+//                Map<String, Object> trackingData = content.get();
+//                String timestampStr = (String) trackingData.get("timestamp");
+//                if (timestampStr != null) {
+//                    return LocalDateTime.parse(timestampStr);
+//                }
+//            }
+//
+//            return null;
+//        } catch (Exception e) {
+//            LoggerUtil.error(this.getClass(), String.format("Error reading notification tracking file for user %s with type %s: %s", username, notificationType, e.getMessage()), e);
+//            return null;
+//        }
+//    }
+//
+//    /**
+//     * Updates notification count file using transaction system
+//     */
+//    public int updateNotificationCountFile(String username, String notificationType, int maxCount) {
+//        try {
+//            Map<String, Object> params = new HashMap<>();
+//            params.put("notificationType", notificationType + "_count");
+//
+//            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
+//
+//            // Read current count if file exists
+//            int count = 0;
+//            if (Files.exists(filePath.getPath())) {
+//                Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<>() {
+//                }, true);
+//
+//                if (content.isPresent()) {
+//                    Map<String, Object> countData = content.get();
+//                    Object countObj = countData.get("count");
+//                    if (countObj instanceof Integer) {
+//                        count = (Integer) countObj;
+//                    } else if (countObj instanceof Number) {
+//                        count = ((Number) countObj).intValue();
+//                    }
+//                }
+//            }
+//
+//            // Increment and save count if not already at max
+//            if (count < maxCount) {
+//                // Start a transaction
+//                FileTransaction transaction = transactionManager.beginTransaction();
+//
+//                try {
+//                    count++;
+//
+//                    // Create parent directory if it doesn't exist
+//                    Files.createDirectories(filePath.getPath().getParent());
+//
+//                    // Prepare data
+//                    Map<String, Object> countData = new HashMap<>();
+//                    countData.put("username", username);
+//                    countData.put("notificationType", notificationType);
+//                    countData.put("count", count);
+//                    countData.put("lastUpdated", LocalDateTime.now().toString());
+//
+//                    byte[] content = objectMapper.writeValueAsBytes(countData);
+//
+//                    transaction.addWrite(filePath, content);
+//
+//                    // Commit the transaction
+//                    FileTransactionResult result = transactionManager.commitTransaction();
+//
+//                    if (!result.isSuccess()) {
+//                        LoggerUtil.error(this.getClass(), "Failed to update notification count: " + result.getErrorMessage());
+//                    }
+//                } catch (Exception e) {
+//                    transactionManager.rollbackTransaction();
+//                    LoggerUtil.error(this.getClass(), "Error updating notification count: " + e.getMessage());
+//                }
+//            }
+//
+//            return count;
+//        } catch (Exception e) {
+//            LoggerUtil.error(this.getClass(), String.format(
+//                    "Error managing notification count file for user %s with type %s: %s",
+//                    username, notificationType, e.getMessage()), e);
+//            return 0;
+//        }
+//    }
 
     // ===== Status Cache methods =====
 
@@ -1715,6 +2087,195 @@ public class DataAccessService {
         }
     }
 
+    // ===== Login Controller =====
+
+    /**
+     * Checks if network is available
+     * @return True if network is available
+     */
+    public boolean isNetworkAvailable() {
+        return pathConfig.isNetworkAvailable();
+    }
+
+    /**
+     * Checks if offline mode is available by verifying the existence of local user files
+     * @return True if there are any local user files
+     */
+    public boolean isOfflineModeAvailable() {
+        try {
+            // Check for any local user files in the users directory
+            Path localUsersDir = pathConfig.getLocalPath().resolve(pathConfig.getUsersPath());
+
+            if (!Files.exists(localUsersDir)) {
+                return false;
+            }
+
+            // Use try-with-resources to ensure the stream is closed properly
+            try (Stream<Path> pathStream = Files.list(localUsersDir)) {
+                boolean available = pathStream.anyMatch(path -> path.getFileName().toString().startsWith("local_user_") && path.getFileName().toString().endsWith(".json"));
+                LoggerUtil.debug(this.getClass(), String.format("Offline mode availability: %s", available));
+                return available;
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking offline mode availability: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    // ===== Log Controller/Service ======
+
+    /**
+     * Checks if local log file exists
+     * @return true if the local log file exists
+     */
+    public boolean localLogExists() {
+        try {
+            Path localLogPath = pathConfig.getLocalLogPath();
+            return Files.exists(localLogPath);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking if local log exists: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Syncs the local log file to the network for a specific user
+     * @param username The username
+     * @throws IOException if the file cannot be synced
+     */
+    public void syncLogToNetwork(String username) throws IOException {
+        Path sourceLogPath = pathConfig.getLocalLogPath();
+        Path targetLogPath = pathConfig.getNetworkLogPath(username);
+
+        // Ensure target directory exists (handled by PathConfig)
+        Path networkLogsDir = targetLogPath.getParent();
+        if (!Files.exists(networkLogsDir)) {
+            Files.createDirectories(networkLogsDir);
+        }
+
+        // Copy log file
+        Files.copy(sourceLogPath, targetLogPath, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    /**
+     * Gets the list of usernames with available logs
+     * @return List of usernames
+     */
+    public List<String> getUserLogsList() {
+        try {
+            Path logDir = pathConfig.getNetworkLogDirectory();
+            if (!Files.exists(logDir)) {
+                return new ArrayList<>();
+            }
+
+            if (!Files.exists(logDir)) {
+                Files.createDirectories(logDir);
+                LoggerUtil.info(this.getClass(), "Created network logs directory: " + logDir);
+            }
+
+            try (Stream<Path> files = Files.list(logDir)) {
+                return files
+                        .filter(path -> path.getFileName().toString().startsWith("ctgraphdep-logger_") &&
+                                path.getFileName().toString().endsWith(".log"))
+                        .map(path -> {
+                            String filename = path.getFileName().toString();
+                            // Extract username from filename format: ctgraphdep-logger_username.log
+                            return filename.substring(18, filename.length() - 4);
+                        })
+                        .collect(Collectors.toList());
+            }
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Error listing log files: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Reads log content for a specific user
+     * @param username The username
+     * @return The log content or empty if not found
+     */
+    public Optional<String> getUserLogContent(String username) {
+        try {
+            Path logPath = pathConfig.getNetworkLogPath(username);;
+
+            if (!Files.exists(logPath)) {
+                return Optional.empty();
+            }
+
+            String content = Files.readString(logPath);
+            return Optional.of(content);
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Error reading log for " + username + ": " + e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // ===== Authentication checks =======
+
+    /**
+     * Ensures that all required local directories exist
+     * Creates them if they don't exist
+     * @param isAdmin whether to also ensure admin directories
+     * @return true if all required directories exist or were created
+     */
+    public boolean ensureLocalDirectories(boolean isAdmin) {
+        boolean success = true;
+
+        try {
+            // First verify/create basic user directories
+            boolean userDirsOk = pathConfig.verifyUserDirectories();
+            if (!userDirsOk) {
+                LoggerUtil.warn(this.getClass(), "Failed to verify/create user directories");
+                success = false;
+            }
+
+            // If admin, also verify/create admin directories
+            if (isAdmin) {
+                boolean adminDirsOk = pathConfig.verifyAdminDirectories();
+                if (!adminDirsOk) {
+                    LoggerUtil.warn(this.getClass(), "Failed to verify/create admin directories");
+                    success = false;
+                }
+            }
+
+            if (success) {
+                LoggerUtil.info(this.getClass(), "Successfully ensured all required local directories exist");
+            } else {
+                LoggerUtil.error(this.getClass(), "One or more local directories could not be verified/created");
+            }
+
+            return success;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error ensuring local directories: " + e.getMessage(), e);
+            return false;
+        }
+    }
+    /**
+     * Revalidates all local directories, attempting to recreate any that are missing
+     * This can be called when there are file access errors to recover the directory structure
+     * @param isAdmin whether to also validate admin directories
+     * @return true if revalidation was successful
+     */
+    public boolean revalidateLocalDirectories(boolean isAdmin) {
+        try {
+            // Check if local path exists, create if necessary
+            if (!Files.exists(pathConfig.getLocalPath())) {
+                Files.createDirectories(pathConfig.getLocalPath());
+                LoggerUtil.info(this.getClass(), "Created local path: " + pathConfig.getLocalPath());
+            }
+
+            // Recreate all standard directories
+            pathConfig.revalidateLocalAccess();
+
+            // Verify/create specific directories
+            return ensureLocalDirectories(isAdmin);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Failed to revalidate local directories: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
     // ===== Utility methods =====
 
     /**
@@ -1728,4 +2289,5 @@ public class DataAccessService {
             throw new IllegalArgumentException("Session must have both username and userId");
         }
     }
+
 }

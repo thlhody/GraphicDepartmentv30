@@ -185,17 +185,10 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                         trayDisplayed[0] = true;
                         LoggerUtil.info(this.getClass(), "Tray notification displayed as fallback");
 
-                        // Add a fallback mechanism to ensure user response tracking
-                        startFallbackResponseTimer(request.getUsername());
                     }
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Error showing notification: " + e.getMessage(), e);
                     healthMonitor.recordTaskFailure("notification-display-service", e.getMessage());
-
-                    // If both methods fail, ensure we have a fallback tracking
-                    if (!dialogDisplayed[0] && !trayDisplayed[0]) {
-                        startFallbackResponseTimer(request.getUsername());
-                    }
                 }
             });
 
@@ -218,9 +211,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in showNotification: " + e.getMessage(), e);
             healthMonitor.recordTaskFailure("notification-display-service", e.getMessage());
-
-            // Set up fallback tracking mechanism
-            startFallbackResponseTimer(request.getUsername());
             return NotificationResponse.failure(e.getMessage());
         }
     }
@@ -820,18 +810,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         }
     }
 
-    /**
-     * Method to add a response tracking mechanism
-     */
-    private void startFallbackResponseTimer(String username) {
-        try {
-            // Use data access service to create tracking file
-            dataAccessService.writeNotificationTrackingFile(username, "notification", getStandardCurrentTime());
-            LoggerUtil.info(this.getClass(), String.format("Created notification tracking file for %s", username));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to create notification tracking: " + e.getMessage());
-        }
-    }
     /**
      * Adds buttons based on notification type
      */

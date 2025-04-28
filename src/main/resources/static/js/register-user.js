@@ -98,34 +98,51 @@ class RegisterFormHandler {
             closeOnSelect: false,
 
             // Custom formatting of selection with first letters
+//            templateSelection: (data, container) => {
+//                // Get all selected items
+//                const selectedItems = $(this.printPrepSelect).select2('data');
+//
+//                if (!selectedItems || selectedItems.length === 0) {
+//                    return $('<span class="select2-placeholder">Select</span>');
+//                }
+//
+//                if (selectedItems.length === 1) {
+//                    // If only 1 item, show it normally but shortened if needed
+//                    const text = data.text.length > 7 ? data.text.substring(0, 7) + '...' : data.text;
+//                    return $(`<span class="select2-single-selection">${text}</span>`);
+//                }
+//
+//                // For multiple selections, show first letters
+//                const initials = selectedItems.map(item => item.text.charAt(0).toUpperCase()).join('');
+//
+//                // Limit to 7 characters plus counter
+//                const displayInitials = initials.length > 7 ? initials.substring(0, 7) + '...' : initials;
+//
+//                return $(`<span class="select2-initials">${displayInitials} <span class="select2-selection__pill-count">${selectedItems.length}</span></span>`);
+//            },
+//
+//            // Clean dropdown formatting
+//            templateResult: (data) => {
+//                if (!data.id) return data.text;
+//                return $(`<span>${data.text}</span>`);
+//            }
+            // Custom formatting of selection with first letters
             templateSelection: (data, container) => {
-                // Get all selected items
-                const selectedItems = $(this.printPrepSelect).select2('data');
-
-                if (!selectedItems || selectedItems.length === 0) {
-                    return $('<span class="select2-placeholder">Select</span>');
+                // Check if this is the container for the entire selection
+                if ($(container).hasClass('select2-selection__rendered')) {
+                    // This is the full selection container — no need to handle here
+                    return null;
                 }
 
-                if (selectedItems.length === 1) {
-                    // If only 1 item, show it normally but shortened if needed
-                    const text = data.text.length > 7 ? data.text.substring(0, 7) + '...' : data.text;
-                    return $(`<span class="select2-single-selection">${text}</span>`);
+                // This is called for each individual pill/item
+                if (data.text) {
+                    const initial = data.text.charAt(0).toUpperCase();
+                    return $(`<span class="select2-pill-initial">${initial}</span>`);
                 }
 
-                // For multiple selections, show first letters
-                const initials = selectedItems.map(item => item.text.charAt(0).toUpperCase()).join('');
-
-                // Limit to 7 characters plus counter
-                const displayInitials = initials.length > 7 ? initials.substring(0, 7) + '...' : initials;
-
-                return $(`<span class="select2-initials">${displayInitials} <span class="select2-selection__pill-count">${selectedItems.length}</span></span>`);
+                return null;
             },
 
-            // Clean dropdown formatting
-            templateResult: (data) => {
-                if (!data.id) return data.text;
-                return $(`<span>${data.text}</span>`);
-            }
         });
 
         // Get the Select2 container
@@ -556,7 +573,25 @@ class RegisterFormHandler {
 
         // Reset submit button
         const submitButton = this.form.querySelector('button[type="submit"]');
-        submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+        if (submitButton) {
+            submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+        }
+
+        // Clear all validation states
+        this.form.querySelectorAll('.is-invalid').forEach(el => {
+            el.classList.remove('is-invalid');
+        });
+
+        this.form.querySelectorAll('.invalid-feedback').forEach(el => {
+            el.remove();
+        });
+
+        // IMPORTANT: Remove Bootstrap's was-validated class from the form
+        this.form.classList.remove('was-validated');
+
+        // Reset the Select2 container style
+        const select2Container = $(this.printPrepSelect).next('.select2-container');
+        select2Container.removeClass('is-invalid');
 
         // Update calculated fields
         this.autoFillColors();
@@ -668,7 +703,6 @@ class RegisterFormHandler {
         // Check if target is the next element in tab order
         return targetIndex === currentIndex + 1;
     }
-
 }
 
 class RegisterSummaryHandler {
@@ -848,6 +882,7 @@ class RegisterSummaryHandler {
 }
 // Full and Basic Search
 class UnifiedSearchHandler {
+
     constructor() {
         // Initialize modal elements
         this.searchModal = document.getElementById('searchModal');
@@ -1242,6 +1277,555 @@ class UnifiedSearchHandler {
     }
 }
 
+/**
+ * AJAX Form Handler with Toast Alerts
+ * Add this at the end of your register-user.js file
+ */
+class AjaxFormHandler {
+    constructor() {
+        // Store references to the original form handler methods we need to use
+        this.originalHandleSubmit = null;
+        this.setupFormSubmissions();
+
+        // Add a namespace to our event to avoid conflicts
+        this.deleteEventNamespace = 'ajaxFormHandler.delete';
+        this.setupDeleteButtons();
+
+        // Add hidden div for flash messages
+        this.createFlashMessageElements();
+    }
+
+    clearValidationState(form) {
+        // Remove all 'is-invalid' classes from form elements
+        form.querySelectorAll('.is-invalid').forEach(el => {
+            el.classList.remove('is-invalid');
+        });
+
+        // Remove all validation feedback messages
+        form.querySelectorAll('.invalid-feedback').forEach(el => {
+            el.remove();
+        });
+    }
+
+    createFlashMessageElements() {
+        // Add hidden container for flash messages if it doesn't exist
+        if (!document.getElementById('flashMessagesHidden')) {
+            const container = document.createElement('div');
+            container.id = 'flashMessagesHidden';
+            container.style.display = 'none';
+            container.innerHTML = `
+                <div id="successMessageContainer"></div>
+                <div id="errorMessageContainer"></div>
+                <div id="periodErrorContainer"></div>
+            `;
+            document.body.appendChild(container);
+        }
+    }
+
+    setupFormSubmissions() {
+        // Get the register form
+        const form = document.getElementById('registerForm');
+        if (!form) return;
+
+        // Store reference to the original handler if it exists
+        if (window.registerFormHandler && window.registerFormHandler.handleSubmit) {
+            this.originalHandleSubmit = window.registerFormHandler.handleSubmit.bind(window.registerFormHandler);
+
+            // Override the handleSubmit method in the original handler
+            window.registerFormHandler.handleSubmit = (event) => {
+                event.preventDefault();
+
+                // Let the original form handler validate the form
+                if (!window.registerFormHandler.validateForm()) {
+                    return;
+                }
+
+                // Prepare form data just like the original handler
+                form.querySelectorAll('input[name="printPrepTypes"]').forEach(el => el.remove());
+                const selectedPrintTypes = Array.from(new Set($(window.registerFormHandler.printPrepSelect).val()));
+                if (selectedPrintTypes && selectedPrintTypes.length > 0) {
+                    selectedPrintTypes.forEach(type => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'printPrepTypes';
+                        input.value = type;
+                        form.appendChild(input);
+                    });
+                }
+
+                // Submit via AJAX instead of normal form submission
+                this.submitFormViaAjax(form);
+            };
+        } else {
+            // If registerFormHandler is not available, add our own handler
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                this.submitFormViaAjax(form);
+            });
+        }
+    }
+
+    setupDeleteButtons() {
+        // Use event delegation from a parent element that doesn't change
+        // This way we don't need to rebind events after the table refreshes
+        const tableBody = document.querySelector('.table tbody');
+        if (!tableBody) return;
+
+        // Remove any existing listeners with our namespace to avoid duplicates
+        $(tableBody).off(this.deleteEventNamespace);
+
+        // Use event delegation - attach a single listener to the table body
+        // that watches for submit events from delete forms
+        $(tableBody).on('submit' + this.deleteEventNamespace, 'form[action*="/user/register/delete"]', (event) => {
+            event.preventDefault();
+            event.stopPropagation(); // Prevent event bubbling
+
+            // Get the actual form element
+            const form = event.target;
+
+            // Show confirmation dialog only once
+            if (confirm('Are you sure you want to delete this entry?')) {
+                this.submitFormViaAjax(form);
+            }
+        });
+    }
+
+    submitFormViaAjax(form) {
+        // Show a loading indicator
+        this.showLoading();
+
+        // Create FormData object from the form
+        const formData = new FormData(form);
+
+        // Get form action and method
+        const url = form.action;
+        const method = form.method.toUpperCase();
+
+        // Make the AJAX request
+        fetch(url, {
+            method: method,
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+            .then(response => {
+            // For redirect responses, we'll handle them specially
+            if (response.redirected) {
+                console.log('Redirected to:', response.url);
+
+                // Parse the redirect URL
+                const redirectUrl = new URL(response.url);
+                const params = new URLSearchParams(redirectUrl.search);
+
+                // Check if we need to update the year and month in URL
+                const year = params.get('year');
+                const month = params.get('month');
+
+                if (year && month) {
+                    // Update URL without page reload
+                    const newUrl = `/user/register?year=${year}&month=${month}`;
+                    window.history.pushState({ path: newUrl }, '', newUrl);
+                }
+
+                // Load the response HTML to extract messages
+                return response.text().then(html => {
+                    // We got a successful response with a redirect
+                    this.handleSuccessfulSubmission(form, html);
+                    return { success: true, html };
+                });
+            } else {
+                // Non-redirect response, likely an error
+                console.log('Non-redirect response:', response.status);
+                return response.text().then(text => ({ success: false, text }));
+            }
+        })
+            .then(result => {
+            if (!result.success) {
+                this.showToast('Error', 'Failed to process the request. Please try again.', 'error');
+            }
+        })
+            .catch(error => {
+            console.error('Error submitting form:', error);
+            this.showToast('Error', 'An error occurred while submitting the form. Please try again.', 'error');
+        })
+            .finally(() => {
+            // Hide loading indicator
+            this.hideLoading();
+
+            // Reset form if it was an add operation (not edit or delete)
+            const isEdit = form.querySelector('input[name="isEdit"]')?.value === 'true';
+            const isDelete = form.action.includes('/delete');
+
+            if (!isDelete) {
+                // Reset form for new entries
+                if (window.registerFormHandler) {
+                    window.registerFormHandler.resetForm();
+                } else {
+                    form.reset();
+                    // Also clear validation state if registerFormHandler is not available
+                    this.clearValidationState(form);
+                }
+            } else {
+                // For edit/delete operations, just clear validation state
+                this.clearValidationState(form);
+            }
+
+            // Reload entries
+            this.reloadEntries();
+        });
+    }
+
+    handleSuccessfulSubmission(form, responseHtml) {
+        // Reset all form validation states immediately
+        this.fixFormValidationStates();
+
+        // Create a DOM parser to extract messages from the response
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(responseHtml, 'text/html');
+
+        // Try to find success message in the redirect response
+        const successMsgElement = doc.querySelector('[th\\:text="${successMessage}"]');
+        if (successMsgElement && successMsgElement.textContent) {
+            this.showToast('Success', successMsgElement.textContent, 'success');
+            return;
+        }
+
+        // Try to find error message
+        const errorMsgElement = doc.querySelector('[th\\:text="${errorMessage}"]');
+        if (errorMsgElement && errorMsgElement.textContent) {
+            this.showToast('Error', errorMsgElement.textContent, 'error');
+            return;
+        }
+
+        // Try to find period error
+        const periodErrorElement = doc.querySelector('[th\\:text="${periodError}"]');
+        if (periodErrorElement && periodErrorElement.textContent) {
+            this.showToast('Period Error', periodErrorElement.textContent, 'error');
+            return;
+        }
+
+        // Check for URL parameters in the response URL
+        const responseUrl = new URL(document.location.href);
+        const params = new URLSearchParams(responseUrl.search);
+        const errorParam = params.get('error');
+
+        if (errorParam) {
+            // Map error codes to messages
+            const errorMessages = {
+                'date_required': 'Please select a date before adding.',
+                'missing_date': 'Please select a date.',
+                'missing_order_id': 'Order ID is required.',
+                'missing_oms_id': 'OMS ID is required.',
+                'missing_client': 'Client name is required.',
+                'missing_action_type': 'Action Type is required.',
+                'missing_print_type': 'Print Type is required.',
+                'missing_articles': 'Articles number is required.',
+                'add_failed': 'Failed to add entry. Please try again.',
+                'update_failed': 'Failed to update entry. Please try again.',
+                'delete_failed': 'Failed to delete entry. Please try again.',
+                'save_failed': 'Failed to save entry. Please try again.'
+            };
+
+            const errorMessage = errorMessages[errorParam] || 'An unexpected error occurred.';
+            this.showToast('Warning', errorMessage, 'warning');
+
+            // Clean up URL
+            if (window.history.replaceState) {
+                const cleanUrl = window.location.pathname + window.location.search;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+            return;
+        }
+
+        // If no specific message found, show a generic success message
+        const isEdit = form.querySelector('input[name="isEdit"]')?.value === 'true';
+        const isDelete = form.action.includes('/delete');
+
+        let message = 'Operation completed successfully';
+        if (isEdit) {
+            message = 'Entry updated successfully';
+        } else if (isDelete) {
+            message = 'Entry deleted successfully';
+        } else {
+            message = 'Entry added successfully';
+        }
+
+        this.showToast('Success', message, 'success');
+        this.fixFormValidationStates();
+    }
+
+    reloadEntries() {
+        // Get current year and month from URL
+        const params = new URLSearchParams(window.location.search);
+        const year = params.get('year') || new Date().getFullYear();
+        const month = params.get('month') || (new Date().getMonth() + 1);
+
+        // Show loading in the table
+        const tableBody = document.querySelector('.table tbody');
+        if (tableBody) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="14" class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">Refreshing entries...</p>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Fetch current page to get updated entries
+        fetch(`/user/register?year=${year}&month=${month}`, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+            .then(response => response.text())
+            .then(html => {
+            // Parse the HTML response
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Extract the entries table body
+            const newTableBody = doc.querySelector('.table tbody');
+            if (newTableBody && tableBody) {
+                tableBody.innerHTML = newTableBody.innerHTML;
+
+                // Reattach event handlers to the new elements
+                this.reattachEventHandlers();
+
+                // Update stats
+                if (window.registerSummaryHandler) {
+                    window.registerSummaryHandler.calculateStats();
+                }
+            }
+        })
+            .catch(error => {
+            console.error('Error reloading entries:', error);
+            if (tableBody) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="14" class="text-center py-3">
+                            <div class="text-danger">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <p>Failed to refresh entries. Please reload the page.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+    }
+
+    reattachEventHandlers() {
+        // Reattach edit handlers
+        document.querySelectorAll('.edit-entry').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.registerFormHandler && window.registerFormHandler.populateForm) {
+                    window.registerFormHandler.populateForm(button);
+                }
+            });
+        });
+
+        // Reattach copy handlers
+        document.querySelectorAll('.copy-entry').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.registerFormHandler && window.registerFormHandler.copyEntry) {
+                    window.registerFormHandler.copyEntry(button);
+                }
+            });
+        });
+
+        // No need to reattach delete handlers when using event delegation
+        // The parent element listener handles all forms, even new ones
+    }
+
+
+    showLoading() {
+        // Create or show a loading overlay
+        let loadingOverlay = document.getElementById('loadingOverlay');
+
+        if (!loadingOverlay) {
+            loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'loadingOverlay';
+            loadingOverlay.className = 'loading-overlay';
+            loadingOverlay.innerHTML = `
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            `;
+            document.body.appendChild(loadingOverlay);
+
+            // Add necessary styles if not already present
+            if (!document.getElementById('loadingOverlayStyles')) {
+                const style = document.createElement('style');
+                style.id = 'loadingOverlayStyles';
+                style.textContent = `
+                    .loading-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0, 0, 0, 0.3);
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        z-index: 9999;
+                        opacity: 0;
+                        transition: opacity 0.3s ease;
+                    }
+                    .loading-overlay.show {
+                        opacity: 1;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        // Show the overlay with animation
+        setTimeout(() => {
+            loadingOverlay.classList.add('show');
+        }, 10);
+    }
+
+    hideLoading() {
+        // Hide and remove the loading overlay
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove('show');
+            setTimeout(() => {
+                if (loadingOverlay.parentNode) {
+                    loadingOverlay.parentNode.removeChild(loadingOverlay);
+                }
+            }, 300);
+        }
+    }
+
+    fixFormValidationStates() {
+        // This function is called after any form action to ensure clean validation states
+        const allForms = document.querySelectorAll('form');
+        allForms.forEach(form => {
+            // Remove Bootstrap's was-validated class
+            form.classList.remove('was-validated');
+
+            // Remove all is-invalid classes
+            form.querySelectorAll('.is-invalid').forEach(el => {
+                el.classList.remove('is-invalid');
+            });
+
+            // Remove all validation feedback messages
+            form.querySelectorAll('.invalid-feedback').forEach(el => {
+                el.remove();
+            });
+        });
+
+        // Fix Select2 validation states
+        document.querySelectorAll('.select2-container').forEach(container => {
+            container.classList.remove('is-invalid');
+        });
+    }
+
+    showToast(title, message, type) {
+        // First try to use the existing toast system
+        if (typeof window.showToast === 'function') {
+            window.showToast(title, message, type);
+            return;
+        }
+
+        // Otherwise use our own implementation
+        let toastContainer = document.getElementById('toastAlertContainer');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toastAlertContainer';
+            toastContainer.className = 'toast-alert-container position-fixed top-0 end-0 p-3';
+            document.body.appendChild(toastContainer);
+        }
+
+        // Generate unique ID for the toast
+        const toastId = `toast-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+        // Get icon based on type
+        let icon = 'bi-info-circle-fill';
+        if (type === 'success') icon = 'bi-check-circle-fill';
+        if (type === 'error') icon = 'bi-exclamation-circle-fill';
+        if (type === 'warning') icon = 'bi-exclamation-triangle-fill';
+
+        // Create toast HTML
+        const toastHTML = `
+            <div id="${toastId}" class="toast-alert toast-${type}">
+                <div class="toast-alert-header">
+                    <div class="d-flex align-items-center">
+                        <div class="toast-alert-icon">
+                            <i class="bi ${icon}"></i>
+                        </div>
+                        <h6 class="toast-alert-title">${title}</h6>
+                    </div>
+                    <button type="button" class="toast-alert-close" aria-label="Close">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+                <div class="toast-alert-body">
+                    <p class="toast-alert-message">${message}</p>
+                </div>
+                <div class="toast-alert-progress"></div>
+            </div>
+        `;
+
+        // Add toast to container
+        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+        const toastElement = document.getElementById(toastId);
+
+        // Show toast with animation
+        setTimeout(() => {
+            toastElement.classList.add('showing');
+        }, 10);
+
+        // Add progress bar animation
+        const progressBar = toastElement.querySelector('.toast-alert-progress');
+        if (progressBar) {
+            progressBar.style.transition = 'width 5000ms linear';
+            setTimeout(() => {
+                progressBar.style.width = '100%';
+            }, 10);
+        }
+
+        // Add close button event listener
+        const closeButton = toastElement.querySelector('.toast-alert-close');
+        if (closeButton) {
+            closeButton.addEventListener('click', () => {
+                toastElement.classList.remove('showing');
+                toastElement.classList.add('hiding');
+
+                // Remove after animation completes
+                setTimeout(() => {
+                    if (toastElement && toastElement.parentNode) {
+                        toastElement.parentNode.removeChild(toastElement);
+                    }
+                }, 300);
+            });
+        }
+
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (toastElement) {
+                toastElement.classList.remove('showing');
+                toastElement.classList.add('hiding');
+
+                // Remove after animation completes
+                setTimeout(() => {
+                    if (toastElement && toastElement.parentNode) {
+                        toastElement.parentNode.removeChild(toastElement);
+                    }
+                }, 300);
+            }
+        }, 5000);
+    }
+}
+
 // Ensure the script runs after DOM is fully loaded
 (function() {
     // Function to toggle action buttons
@@ -1356,4 +1940,17 @@ document.addEventListener('DOMContentLoaded', () => {
             $('#' + selectId).select2('open');
         }
     });
+    // Initialize our AJAX form handler after the page has loaded
+    // This should be at the end of your existing DOMContentLoaded event
+    setTimeout(() => {
+        window.ajaxFormHandler = new AjaxFormHandler();
+        console.log('AJAX Form Handler initialized');
+    }, 500); // Small delay to ensure other handlers are initialized first
+    // Add this at the end of your initialization
+    setTimeout(() => {
+        // Wait a short time then fix any validation states that might be present
+        if (window.ajaxFormHandler) {
+            window.ajaxFormHandler.fixFormValidationStates();
+        }
+    }, 1000);
 });

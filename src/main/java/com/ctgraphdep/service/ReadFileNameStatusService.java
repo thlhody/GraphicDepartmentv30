@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.FlagInfo;
@@ -37,7 +36,6 @@ import java.util.stream.Collectors;
 public class ReadFileNameStatusService {
 
     private final UserService userService;
-    private final PathConfig pathConfig;
     private final DataAccessService dataAccessService;
 
     // Add local user tracking
@@ -74,10 +72,8 @@ public class ReadFileNameStatusService {
     @Autowired
     public ReadFileNameStatusService(
             UserService userService,
-            PathConfig pathConfig,
             DataAccessService dataAccessService) {
         this.userService = userService;
-        this.pathConfig = pathConfig;
         this.dataAccessService = dataAccessService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -557,7 +553,7 @@ public class ReadFileNameStatusService {
     @Scheduled(fixedRate = 3600000)
     public void cleanupStaleFlags() {
         try {
-            if (!pathConfig.isNetworkAvailable()) {
+            if (!dataAccessService.isNetworkAvailable()) {
                 LoggerUtil.info(this.getClass(), "Network not available, skipping flag cleanup");
                 return;
             }
@@ -642,7 +638,7 @@ public class ReadFileNameStatusService {
      */
     private void updateAllStatusFromNetworkFlags() {
         try {
-            if (!pathConfig.isNetworkAvailable()) {
+            if (!dataAccessService.isNetworkAvailable()) {
                 LoggerUtil.info(this.getClass(), "Network not available, cannot update from flag files");
                 return;
             }

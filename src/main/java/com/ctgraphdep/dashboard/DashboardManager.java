@@ -73,6 +73,7 @@ public class DashboardManager {
                         createTeamLeadWorktimeCard(),
                         createTeamLeadTimeOffCard(),
                         createTeamCheckRegisterCard(),
+                        createCheckValuesCard(),
                         createTeamStatisticsCard(),
                         createOMSSystemCard(),
                         createUserSettingsCard()
@@ -446,6 +447,20 @@ public class DashboardManager {
                 .actionUrl("/user/register")
                 .external(false)
                 .permission("MANAGE_USER_REGISTER")
+                .build();
+    }
+    private DashboardCardDTO createCheckValuesCard() {
+        return DashboardCardDTO.builder()
+                .title("Check Values Configuration")
+                .subtitle("Manage checker productivity values")
+                .color("warning")
+                .icon("sliders")
+                .badge("Config")
+                .badgeColor("warning")
+                .actionText("Configure Values")
+                .actionUrl("/user/check-values")
+                .external(false)
+                .permission("MANAGE_CHECK_VALUES")
                 .build();
     }
 }

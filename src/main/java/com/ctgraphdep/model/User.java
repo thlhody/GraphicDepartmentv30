@@ -23,6 +23,9 @@ public class User {
     @JsonProperty("schedule")
     private Integer schedule;
 
+    @JsonProperty("paidHolidayDays")
+    private Integer paidHolidayDays;
+
     @JsonProperty("username")
     private String username;
 
@@ -34,11 +37,9 @@ public class User {
 
     public boolean hasRole(String roleToCheck) {
         if (role == null) return false;
-
         // Strip ROLE_ prefix from both sides for consistent comparison
         String normalizedRoleToCheck = roleToCheck.replace("ROLE_", "");
         String normalizedUserRole = role.replace("ROLE_", "");
-
         return normalizedUserRole.equals(normalizedRoleToCheck);
     }
 

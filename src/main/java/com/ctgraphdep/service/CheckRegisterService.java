@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.enums.CheckingStatus;
 import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.fileOperations.DataAccessService;
@@ -25,12 +24,10 @@ import java.util.stream.Collectors;
 public class CheckRegisterService {
 
     private final DataAccessService dataAccessService;
-    private final PathConfig pathConfig;
 
     @Autowired
-    public CheckRegisterService(DataAccessService dataAccessService, PathConfig pathConfig) {
+    public CheckRegisterService(DataAccessService dataAccessService) {
         this.dataAccessService = dataAccessService;
-        this.pathConfig = pathConfig;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -52,7 +49,7 @@ public class CheckRegisterService {
 
                 // Try to read team lead entries if network is available
                 List<RegisterCheckEntry> teamLeadEntries = new ArrayList<>();
-                if (pathConfig.isNetworkAvailable()) {
+                if (dataAccessService.isNetworkAvailable()) {
                     try {
                         teamLeadEntries = dataAccessService.readLocalLeadCheckRegister(username, userId, year, month);
                     } catch (Exception e) {

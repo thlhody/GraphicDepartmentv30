@@ -1,12 +1,10 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.utils.LoggerUtil;
-import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,14 +17,10 @@ import java.util.stream.Collectors;
 public class UserRegisterService {
 
     private final DataAccessService dataAccessService;
-    @Getter
-    private final PathConfig pathConfig;
-
 
     @Autowired
-    public UserRegisterService(DataAccessService dataAccessService, PathConfig pathConfig) {
+    public UserRegisterService(DataAccessService dataAccessService) {
         this.dataAccessService = dataAccessService;
-        this.pathConfig = pathConfig;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -43,7 +37,7 @@ public class UserRegisterService {
                 }
 
                 List<RegisterEntry> adminEntries = new ArrayList<>();
-                if (pathConfig.isNetworkAvailable()) {
+                if (dataAccessService.isNetworkAvailable()) {
                     try {
                         adminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
                     } catch (Exception e) {

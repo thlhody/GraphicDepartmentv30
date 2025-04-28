@@ -1,7 +1,7 @@
 package com.ctgraphdep.controller;
 
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.controller.base.BaseController;
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -13,8 +13,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -22,19 +20,12 @@ import java.time.format.DateTimeFormatter;
 @RequestMapping("/login")
 public class LoginController extends BaseController {
 
-    private static final String VIEW_LOGIN = "login";
-    private static final String VIEW_ERROR = "error/system-error";
-    private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
-
-    @Value("${dbj.login}")
-    private String loginPath;
-
-    @Value("${dbj.users.filename}")
-    private String usersFilename;
-
     @Value("${app.title:CTTT}")
     private String appTitle;
 
+    private static final String VIEW_LOGIN = "login";
+    private static final String VIEW_ERROR = "error/system-error";
+    private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
     private static final String ATTR_NETWORK_AVAILABLE = "networkAvailable";
     private static final String ATTR_OFFLINE_AVAILABLE = "offlineModeAvailable";
     private static final String ATTR_MODE = "mode";
@@ -45,16 +36,16 @@ public class LoginController extends BaseController {
     private static final String MODE_OFFLINE = "OFFLINE";
     private static final String MODE_EMERGENCY = "EMERGENCY";
 
-    private final PathConfig pathConfig;
+    private final DataAccessService dataAccessService;
 
     @Autowired
     public LoginController(
             UserService userService,
             FolderStatus folderStatus,
             TimeValidationService timeValidationService,
-            PathConfig pathConfig) {
+            DataAccessService dataAccessService) {
         super(userService, folderStatus, timeValidationService);
-        this.pathConfig = pathConfig;
+        this.dataAccessService = dataAccessService;
     }
 
     @GetMapping
@@ -66,8 +57,7 @@ public class LoginController extends BaseController {
             populateModelAttributes(model, availability);
             return VIEW_LOGIN;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Critical error checking system availability: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Critical error checking system availability: " + e.getMessage(), e);
             model.addAttribute(ATTR_ERROR, "System configuration error: " + e.getMessage());
             model.addAttribute(ATTR_TITLE, appTitle + " - System Error");
 
@@ -84,8 +74,7 @@ public class LoginController extends BaseController {
 
         // Handle when no mode is available
         if (!networkAvailable && !offlineModeAvailable) {
-            LoggerUtil.error(this.getClass(),
-                    "No available operation modes - system is in emergency mode");
+            LoggerUtil.error(this.getClass(), "No available operation modes - system is in emergency mode");
             return new SystemAvailability(false, false, true);
         }
 
@@ -94,27 +83,22 @@ public class LoginController extends BaseController {
 
     private boolean checkNetworkAvailability() {
         try {
-            boolean available = pathConfig.isNetworkAvailable();
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Network mode availability: %s", available));
+            boolean available = dataAccessService.isNetworkAvailable();
+            LoggerUtil.debug(this.getClass(), String.format("Network mode availability: %s", available));
             return available;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error checking network availability: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error checking network availability: " + e.getMessage(), e);
             return false;
         }
     }
 
     private boolean checkOfflineModeAvailability() {
         try {
-            Path usersFilePath = pathConfig.getLocalUsersPath();
-            boolean available = Files.exists(usersFilePath);
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Offline mode availability: %s", available));
+            boolean available = dataAccessService.isOfflineModeAvailable();
+            LoggerUtil.debug(this.getClass(), String.format("Offline mode availability: %s", available));
             return available;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error checking offline mode availability: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error checking offline mode availability: " + e.getMessage(), e);
             return false;
         }
     }
@@ -149,8 +133,7 @@ public class LoginController extends BaseController {
         } catch (Exception e) {
             LoggerUtil.warn(this.getClass(), "Failed to add system time to model: " + e.getMessage());
             // Add fallback time if standard time fails
-            model.addAttribute(ATTR_SYSTEM_TIME,
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN)));
+            model.addAttribute(ATTR_SYSTEM_TIME, getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN)));
         }
     }
 

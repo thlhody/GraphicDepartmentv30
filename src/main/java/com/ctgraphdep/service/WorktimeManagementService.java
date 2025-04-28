@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 @Service
 public class WorktimeManagementService {
     private final DataAccessService dataAccessService;
-    private final PathConfig pathConfig;
     private final UserService userService;
     private final HolidayManagementService holidayManagementService;
     private final WorktimeMergeService worktimeMergeService;
@@ -44,13 +43,9 @@ public class WorktimeManagementService {
     private final ReentrantLock consolidationLock = new ReentrantLock();
 
     public WorktimeManagementService(
-            DataAccessService dataAccessService, PathConfig pathConfig,
-            UserService userService,
-            HolidayManagementService holidayManagementService,
-            WorktimeMergeService worktimeMergeService,
-            TimeValidationService timeValidationService) {
+            DataAccessService dataAccessService, UserService userService, HolidayManagementService holidayManagementService,
+            WorktimeMergeService worktimeMergeService, TimeValidationService timeValidationService) {
         this.dataAccessService = dataAccessService;
-        this.pathConfig = pathConfig;
         this.userService = userService;
         this.holidayManagementService = holidayManagementService;
         this.worktimeMergeService = worktimeMergeService;
@@ -89,7 +84,7 @@ public class WorktimeManagementService {
         }
 
         // For admin/team leader viewing others, read directly from network
-        if (pathConfig.isNetworkAvailable()) {
+        if (dataAccessService.isNetworkAvailable()) {
             return dataAccessService.readNetworkUserWorktimeReadOnly(username, year, month);
         }
         throw new RuntimeException("Network access required to view other users' worktime");

@@ -8,9 +8,8 @@ import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.CheckRegisterService;
-import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.WorkScheduleService;
+import com.ctgraphdep.model.UsersCheckValueEntry;
+import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.CheckRegisterExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -29,7 +28,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Controller for check register operations
@@ -43,13 +44,17 @@ public class CheckRegisterController extends BaseController {
     private final CheckRegisterService checkRegisterService;
     private final CheckRegisterExcelExporter checkRegisterExcelExporter;
     private final WorkScheduleService workScheduleService;
+    private final CheckValuesCacheManager checkValuesCacheManager;
+    private final CheckValuesService checkValuesService;
 
     public CheckRegisterController(UserService userService, FolderStatus folderStatus, CheckRegisterService checkRegisterService,
-                                   TimeValidationService timeValidationService, CheckRegisterExcelExporter checkRegisterExcelExporter, WorkScheduleService workScheduleService) {
+                                   TimeValidationService timeValidationService, CheckRegisterExcelExporter checkRegisterExcelExporter, WorkScheduleService workScheduleService, CheckValuesCacheManager checkValuesCacheManager, CheckValuesService checkValuesService) {
         super(userService, folderStatus, timeValidationService);
         this.checkRegisterService = checkRegisterService;
         this.checkRegisterExcelExporter = checkRegisterExcelExporter;
         this.workScheduleService = workScheduleService;
+        this.checkValuesCacheManager = checkValuesCacheManager;
+        this.checkValuesService = checkValuesService;
     }
 
     /**
@@ -71,15 +76,46 @@ public class CheckRegisterController extends BaseController {
             if (currentUser == null) {
                 return "redirect:/login";
             }
+            LoggerUtil.info(this.getClass(), "User role in showCheckRegister: '" + currentUser.getRole() + "'");
+
+            if (hasCheckingRole(currentUser) && !checkValuesCacheManager.hasCachedCheckValues(currentUser.getUsername())) {
+                LoggerUtil.info(this.getClass(), "Cache not initialized for " + currentUser.getUsername() + ", loading values now");
+                loadCheckValuesForUser(currentUser);
+            }
 
             // Use determineYear and determineMonth from BaseController
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Calculate standard work hours and get target work units per hour from service
+            // Calculate standard work hours
             int standardWorkHours = workScheduleService.calculateStandardWorkHours(currentUser.getUsername(), selectedYear, selectedMonth);
+
+            // Get target work units per hour from cache if available, otherwise use the service
+            double targetWorkUnitsPerHour;
+            if (checkValuesCacheManager.hasCachedCheckValues(currentUser.getUsername())) {
+                targetWorkUnitsPerHour = checkValuesCacheManager.getTargetWorkUnitsPerHour(currentUser.getUsername());
+                LoggerUtil.info(this.getClass(), String.format(
+                        "USING CACHED VALUE: For user %s, cached targetWorkUnitsPerHour=%f",
+                        currentUser.getUsername(), targetWorkUnitsPerHour));
+            } else {
+                targetWorkUnitsPerHour = workScheduleService.getTargetWorkUnitsPerHour();
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "USING DEFAULT VALUE: For user %s, default targetWorkUnitsPerHour=%f",
+                        currentUser.getUsername(), targetWorkUnitsPerHour));
+            }
+
             model.addAttribute("standardWorkHours", standardWorkHours);
-            model.addAttribute("targetWorkUnitsPerHour", workScheduleService.getTargetWorkUnitsPerHour());
+            model.addAttribute("targetWorkUnitsPerHour", targetWorkUnitsPerHour);
+
+            // Add check type values from cache to be used by JavaScript
+            if (checkValuesCacheManager.hasCachedCheckValues(currentUser.getUsername())) {
+                Map<String, Double> checkTypeValues = new HashMap<>();
+                for (String checkType : CheckType.getValues()) {
+                    checkTypeValues.put(checkType, checkValuesCacheManager.getCheckTypeValue(currentUser.getUsername(), checkType));
+                }
+                model.addAttribute("checkTypeValues", checkTypeValues);
+                LoggerUtil.info(this.getClass(), "Added cached check type values to model");
+            }
 
             // Always set these basic attributes regardless of potential errors
             model.addAttribute("checkTypes", CheckType.getValues());
@@ -354,5 +390,53 @@ public class CheckRegisterController extends BaseController {
             LoggerUtil.error(this.getClass(), "Error exporting check register to Excel: " + e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    /**
+     * Helper method to load check values for a user
+     */
+    private void loadCheckValuesForUser(User user) {
+        try {
+            // Get the user's check values
+            UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(
+                    user.getUsername(), user.getUserId());
+
+            if (userCheckValues != null && userCheckValues.getCheckValuesEntry() != null) {
+                // Log the actual values being loaded
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Loading check values for %s: workUnitsPerHour=%f",
+                        user.getUsername(),
+                        userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
+
+                // Cache the check values
+                checkValuesCacheManager.cacheCheckValues(
+                        user.getUsername(), userCheckValues.getCheckValuesEntry());
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error loading check values: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Helper method to check if a user has checking roles
+     */
+    private boolean hasCheckingRole(User user) {
+        if (user == null || user.getRole() == null) {
+            LoggerUtil.warn(this.getClass(), "Cannot check role: user or role is null");
+            return false;
+        }
+
+        String role = user.getRole();
+
+        // Check for roles without the ROLE_ prefix
+        boolean hasRole = role.contains("TL_CHECKING") ||
+                role.contains("USER_CHECKING") ||
+                role.equals("CHECKING");
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "ROLE CHECK: User %s has role '%s', checking role result: %b",
+                user.getUsername(), role, hasRole));
+
+        return hasRole;
     }
 }

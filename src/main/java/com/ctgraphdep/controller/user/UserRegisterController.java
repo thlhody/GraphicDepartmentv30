@@ -138,6 +138,9 @@ public class UserRegisterController extends BaseController {
         }
     }
 
+    // Update these methods in your UserRegisterController.java
+// This improves the consistency of flash messages
+
     @PostMapping("/entry")
     public String saveEntry(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -167,25 +170,32 @@ public class UserRegisterController extends BaseController {
 
             // Initial validation for required fields
             if (date == null) {
-                return String.format("redirect:/user/register?error=missing_date&year=%d&month=%d", year, month);
+                redirectAttributes.addFlashAttribute("errorMessage", "Date is required.");
+                return String.format("redirect:/user/register?year=%d&month=%d", year, month);
             }
             if (orderId == null || orderId.trim().isEmpty()) {
-                return String.format("redirect:/user/register?error=missing_order_id&year=%d&month=%d", year, month);
+                redirectAttributes.addFlashAttribute("errorMessage", "Order ID is required.");
+                return String.format("redirect:/user/register?year=%d&month=%d", year, month);
             }
             if (omsId == null || omsId.trim().isEmpty()) {
-                return String.format("redirect:/user/register?error=missing_oms_id&year=%d&month=%d", year, month);
+                redirectAttributes.addFlashAttribute("errorMessage", "OMS ID is required.");
+                return String.format("redirect:/user/register?year=%d&month=%d", year, month);
             }
             if (clientName == null || clientName.trim().isEmpty()) {
-                return String.format("redirect:/user/register?error=missing_client&year=%d&month=%d", year, month);
+                redirectAttributes.addFlashAttribute("errorMessage", "Client name is required.");
+                return String.format("redirect:/user/register?year=%d&month=%d", year, month);
             }
             if (actionType == null || actionType.trim().isEmpty()) {
-                return String.format("redirect:/user/register?error=missing_action_type&year=%d&month=%d", year, month);
+                redirectAttributes.addFlashAttribute("errorMessage", "Action Type is required.");
+                return String.format("redirect:/user/register?year=%d&month=%d", year, month);
             }
             if (printPrepTypes == null || printPrepTypes.isEmpty()) {
-                return String.format("redirect:/user/register?error=missing_print_type&year=%d&month=%d", year, month);
+                redirectAttributes.addFlashAttribute("errorMessage", "Print Prep Type is required.");
+                return String.format("redirect:/user/register?year=%d&month=%d", year, month);
             }
             if (articleNumbers == null) {
-                return String.format("redirect:/user/register?error=missing_articles&year=%d&month=%d", year, month);
+                redirectAttributes.addFlashAttribute("errorMessage", "Article numbers are required.");
+                return String.format("redirect:/user/register?year=%d&month=%d", year, month);
             }
 
             List<String> uniquePrintPrepTypes = new ArrayList<>(new LinkedHashSet<>(printPrepTypes));
@@ -210,10 +220,13 @@ public class UserRegisterController extends BaseController {
             redirectAttributes.addFlashAttribute("successMessage", "Entry added successfully");
 
         } catch (RegisterValidationException e) {
-            return String.format("redirect:/user/register?error=%s&year=%d&month=%d", e.getErrorCode(), year, month);
+            // Convert validation exception to a flash attribute error message
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            return String.format("redirect:/user/register?year=%d&month=%d", year, month);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error saving register entry: " + e.getMessage());
-            return String.format("redirect:/user/register?error=save_failed&year=%d&month=%d", year, month);
+            redirectAttributes.addFlashAttribute("errorMessage", "Failed to save entry: " + e.getMessage());
+            return String.format("redirect:/user/register?year=%d&month=%d", year, month);
         }
 
         return "redirect:/user/register?year=" + year + "&month=" + month;
@@ -267,7 +280,8 @@ public class UserRegisterController extends BaseController {
 
         } catch (RegisterValidationException e) {
             LoggerUtil.warn(this.getClass(), "Validation error while updating entry: " + e.getMessage());
-            return String.format("redirect:/user/register?error=%s&year=%d&month=%d", e.getErrorCode(), year, month);
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            return String.format("redirect:/user/register?year=%d&month=%d", year, month);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating register entry: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", "Failed to update entry: " + e.getMessage());
@@ -297,7 +311,7 @@ public class UserRegisterController extends BaseController {
             redirectAttributes.addFlashAttribute("successMessage", "Entry deleted successfully");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error deleting entry: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("errorMessage", "Error deleting entry");
+            redirectAttributes.addFlashAttribute("errorMessage", "Error deleting entry: " + e.getMessage());
         }
 
         return "redirect:/user/register?year=" + year + "&month=" + month;
@@ -358,6 +372,39 @@ public class UserRegisterController extends BaseController {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage());
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * API endpoint to fetch entries for AJAX requests
+     */
+    @GetMapping("/api/entries")
+    @ResponseBody
+    public ResponseEntity<List<RegisterEntry>> getEntriesJson(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam Integer year,
+            @RequestParam Integer month) {
+
+        try {
+            // Get the user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            // Load entries for the current user
+            List<RegisterEntry> entries = userRegisterService.loadMonthEntries(
+                    currentUser.getUsername(),
+                    currentUser.getUserId(),
+                    year,
+                    month
+            );
+
+            return ResponseEntity.ok(entries != null ? entries : new ArrayList<>());
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error fetching entries via API: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }

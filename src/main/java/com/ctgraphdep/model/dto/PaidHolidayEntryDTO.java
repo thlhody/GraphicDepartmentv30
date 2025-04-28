@@ -15,6 +15,9 @@ public class PaidHolidayEntryDTO {
     @JsonProperty("userId")
     private Integer userId;
 
+    @JsonProperty("username")
+    private String username;
+
     @JsonProperty("name")
     private String name;
 
@@ -31,6 +34,7 @@ public class PaidHolidayEntryDTO {
     public static PaidHolidayEntryDTO fromUser(User user) {
         return PaidHolidayEntryDTO.builder()
                 .userId(user.getUserId())
+                .username(user.getUsername())
                 .name(user.getName())
                 .employeeId(user.getEmployeeId())
                 .schedule(user.getSchedule())

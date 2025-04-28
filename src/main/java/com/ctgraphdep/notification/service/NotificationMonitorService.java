@@ -167,6 +167,35 @@ public class NotificationMonitorService {
     }
 
     /**
+     * Increments and returns the notification count for a specific user and type
+     * @param username The username
+     * @param notificationType The type of notification
+     * @param maxCount Maximum count allowed
+     * @return The updated count after increment
+     */
+    public int incrementNotificationCount(String username, String notificationType, int maxCount) {
+        // Initialize the map structure if it doesn't exist
+        if (!notificationCountMap.containsKey(username)) {
+            notificationCountMap.put(username, new ConcurrentHashMap<>());
+        }
+
+        // Get the user's count map
+        Map<String, Integer> userCounts = notificationCountMap.get(username);
+
+        // Get current count
+        int currentCount = userCounts.getOrDefault(notificationType, 0);
+
+        // Increment count if below max
+        if (currentCount < maxCount) {
+            currentCount++;
+            userCounts.put(notificationType, currentCount);
+            LoggerUtil.debug(this.getClass(), String.format("Incremented notification count for %s-%s to %d",
+                    username, notificationType, currentCount));
+        }
+
+        return currentCount;
+    }
+    /**
      * Clears notification state for a user
      */
     public void clearUserState(String username) {

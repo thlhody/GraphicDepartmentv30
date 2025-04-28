@@ -23,8 +23,8 @@ public class FileOperationsConfig {
      * Creates a file transaction manager bean.
      */
     @Bean
-    public FileTransactionManager fileTransactionManager(TimeValidationService timeValidationService) {
-        return new FileTransactionManager(timeValidationService);
+    public FileTransactionManager fileTransactionManager() {
+        return new FileTransactionManager();
     }
 
     /**
