@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Session Management</title>
-    <link rel="stylesheet" th:href="@{/css/session.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/session.css?v=18789}">
     <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
     <link rel="stylesheet" th:href="@{/css/resolution.css?v=18781}">
 </head>
@@ -228,6 +228,7 @@
                             </div>
                         </div>
                     </div>
+
                     <!-- Discarded minutes -->
                     <div class="col-md-4">
                         <div class="stat-container border-start border-4 border-warning ps-3">
@@ -235,6 +236,52 @@
                             <div class="h5 mb-0">
                                 <span th:text="${discardedMinutes ?: 0}">0</span>
                                 <small class="text-muted">minutes</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Auto End Time Scheduler -->
+                    <div class="col-md-4">
+                        <div class="stat-container border-start border-4 border-purple ps-3">
+                            <h6 class="text-muted mb-1"><i class="bi bi-alarm me-2"></i>End Time Scheduler</h6>
+
+                            <!-- Show current scheduled end time if exists -->
+                            <div th:if="${scheduledEndTime != null}" class="mb-2">
+                                <span class="badge bg-success" data-scheduled-end="${scheduledEndTime}">Scheduled: <span th:text="${scheduledEndTime}">17:00</span></span>
+                                <form th:action="@{/user/session/cancel-scheduled-end}" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-link btn-sm p-0 text-danger">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- End time scheduler form -->
+                            <form th:action="@{/user/session/schedule-end}" method="post" class="row g-2 align-items-center">
+                                <div class="col-6">
+                                    <div class="input-group input-group-sm">
+                                        <label for="endHour"></label><input type="number" name="endHour" id="endHour" min="0" max="23" class="form-control" placeholder="HH">
+                                        <span class="input-group-text">:</span>
+                                        <label for="endMinute"></label><input type="number" name="endMinute" id="endMinute" min="0" max="59" class="form-control" placeholder="MM">
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-clock-history me-1"></i>Schedule
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div class="mt-1">
+                                <a href="#" id="useRecommendedTime" class="badge bg-light text-primary">Use recommended time</a>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Calculation Preview -->
+                    <div class="col-md-4">
+                        <div class="stat-container border-start border-4 border-info ps-3">
+                            <h6 class="text-muted mb-1"><i class="bi bi-calculator me-2"></i>End Time Calculation</h6>
+                            <div id="endTimeCalculationPreview" class="calculation-preview-container">
+                                <div class="text-muted small">Select end time to see calculation</div>
                             </div>
                         </div>
                     </div>
@@ -266,35 +313,31 @@
                          class="mb-4 pb-3 border-bottom resolution-form-container">
                         <form th:action="@{/user/session/resolve-worktime}" method="post"
                               class="row g-3 resolution-form">
-                            <input type="hidden" name="entryDate"
-                                   th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
+                            <input type="hidden" name="entryDate" th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
 
                             <div class="col-md-6">
                                 <h6 class="mb-2">Session from <span
-                                        th:text="${#temporals.format(entry.workDate, 'EEEE, dd MMM yyyy')}">Monday, 10 Mar 2025</span>
+                                        th:text="${entry.formattedWorkDate}">Monday, 10 Mar 2025</span>
                                 </h6>
 
                                 <div class="d-flex flex-wrap gap-3 mb-3 info-items">
                                     <div class="info-item">
                                         <strong><i
                                                 class="bi bi-play-circle-fill text-success me-1"></i>Started:</strong>
-                                        <span th:text="${#temporals.format(entry.dayStartTime, 'HH:mm')}">08:30</span>
+                                        <span th:text="${entry.formattedStartTime}">08:30</span>
                                     </div>
 
-                                    <div class="info-item"
-                                         th:if="${entry.totalTemporaryStopMinutes != null && entry.totalTemporaryStopMinutes > 0}">
+                                    <div class="info-item" th:if="${entry.breakMinutes != null && entry.breakMinutes > 0}">
                                         <strong><i
                                                 class="bi bi-pause-circle-fill text-warning me-1"></i>Breaks:</strong>
-                                        <span th:with="hours=${entry.totalTemporaryStopMinutes / 60}, minutes=${entry.totalTemporaryStopMinutes % 60}">
-                                    <span th:text="${hours}">0</span>h
-                                    <span th:text="${minutes}">30</span>m
-                                </span>
+                                        <span th:text="${entry.formattedBreakTime}">00:30</span>
                                     </div>
 
+
+                                    <!-- Change this line in the template (around line 340) -->
                                     <div class="info-item recommendation">
-                                        <strong><i class="bi bi-lightbulb-fill text-info me-1"></i>Recommended
-                                            end:</strong>
-                                        <span th:text="${#temporals.format(recommendedEndTimes.get(entry.workDate), 'HH:mm')}">17:00</span>
+                                        <strong><i class="bi bi-lightbulb-fill text-info me-1"></i>Recommended end:</strong>
+                                        <span th:text="${entry.formattedRecommendedEndTime}">17:00</span>
                                     </div>
                                 </div>
 
@@ -325,7 +368,7 @@
                                             <option th:each="minute : ${#numbers.sequence(0, 59, 15)}"
                                                     th:value="${minute}"
                                                     th:text="${minute < 10 ? '0' + minute : minute}"
-                                                    th:selected="${recommendedEndTimes != null && recommendedEndTimes.get(entry.workDate) != null && minute == recommendedEndTimes.get(entry.workDate).getMinute()}">
+                                                    th:selected="${entry.recommendedEndTime != null && minute == entry.recommendedEndTime.minute}">
                                                 30
                                             </option>
                                         </select>
@@ -395,15 +438,13 @@
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
         <!-- Resume confirmation script -->
-        <script th:if="${param.showResumeConfirmation}"
-                th:src="@{/js/session.js?v=18781}">
-        </script>
+        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18782}"></script>
 
         <!-- Main script for resolution handling and clock -->
-        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=18781}"></script>
+        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=18782}"></script>
 
         <!-- Always load the session enhancement script -->
-        <script th:src="@{/js/session-enhanced.js?v=18781}"></script>
+        <script th:src="@{/js/session-enhanced.js?v=187909}"></script>
     </th:block>
 </div>
 </body>

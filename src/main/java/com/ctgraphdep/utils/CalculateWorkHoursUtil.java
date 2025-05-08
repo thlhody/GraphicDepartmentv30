@@ -145,26 +145,30 @@ public class CalculateWorkHoursUtil {
             return LocalDateTime.now(); // Fallback
         }
 
-        // 1. Start with the day start time
-        LocalDateTime startTime = entry.getDayStartTime();
+        // Get total work time needed in minutes
+        int scheduledMinutes = userSchedule * WorkCode.HOUR_DURATION;
 
-        // 2. Calculate schedule duration in minutes
-        int scheduleDuration = userSchedule * WorkCode.HOUR_DURATION;
+        // Calculate work already done
+        int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
 
-        // 3. Add lunch break for 8-hour schedule
-        if (userSchedule == WorkCode.INTERVAL_HOURS_C) { // 8 hours
-            scheduleDuration += WorkCode.HALF_HOUR_DURATION; // Add 30 minutes for lunch
+        // Calculate remaining work needed
+        int remainingMinutes = Math.max(0, scheduledMinutes - workedMinutes);
+
+        // Get current time (use a standardized method in production)
+        LocalDateTime currentTime = LocalDateTime.now();
+
+        // Calculate end time based on current time and remaining work
+        LocalDateTime recommendedEndTime = currentTime.plusMinutes(remainingMinutes);
+
+        // If lunch is not already deducted and should be, add it
+        boolean shouldDeductLunch = userSchedule == WorkCode.INTERVAL_HOURS_C &&
+                workedMinutes + remainingMinutes >= 4 * WorkCode.HOUR_DURATION;
+
+        if (shouldDeductLunch) {
+            recommendedEndTime = recommendedEndTime.plusMinutes(WorkCode.HALF_HOUR_DURATION);
         }
 
-        // 4. Add schedule duration to start time
-        LocalDateTime scheduledEndTime = startTime.plusMinutes(scheduleDuration);
-
-        // 5. Add temporary stop minutes if any
-        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > 0) {
-            scheduledEndTime = scheduledEndTime.plusMinutes(entry.getTotalTemporaryStopMinutes());
-        }
-
-        return scheduledEndTime;
+        return recommendedEndTime;
     }
 
     /**

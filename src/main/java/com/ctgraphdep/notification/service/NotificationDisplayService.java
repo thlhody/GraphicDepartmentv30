@@ -11,9 +11,11 @@ import com.ctgraphdep.notification.model.NotificationType;
 import com.ctgraphdep.notification.ui.ButtonFactory;
 import com.ctgraphdep.notification.ui.DialogComponents;
 import com.ctgraphdep.notification.ui.NotificationBackgroundFactory;
-import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
+import com.ctgraphdep.session.commands.EndDayCommand;
+import com.ctgraphdep.session.commands.ResumeFromTemporaryStopCommand;
+import com.ctgraphdep.session.commands.StartDayCommand;
 import com.ctgraphdep.session.commands.notification.*;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
 import com.ctgraphdep.tray.CTTTSystemTray;
@@ -21,12 +23,15 @@ import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
 import jakarta.annotation.PostConstruct;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.time.LocalDateTime;
@@ -53,7 +58,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     private final NotificationMonitorService monitorService;
     private final NotificationBackupService backupService;
     private final SchedulerHealthMonitor healthMonitor;
-    private final DataAccessService dataAccessService;
+    private final NotificationConfigService configService;
 
     private final Map<String, JDialog> activeDialogs = new ConcurrentHashMap<>();
     private final Map<String, Timer> timers = new ConcurrentHashMap<>();
@@ -67,7 +72,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     public NotificationDisplayService(CTTTSystemTray systemTray,
                                       @Lazy SessionCommandService commandService, @Lazy SessionCommandFactory commandFactory, TimeValidationService timeValidationService,
                                       NotificationMonitorService monitorService, NotificationBackupService backupService,
-                                      SchedulerHealthMonitor healthMonitor, DataAccessService dataAccessService) {
+                                      SchedulerHealthMonitor healthMonitor, NotificationConfigService configService) {
 
         this.systemTray = systemTray;
         this.commandService = commandService;
@@ -76,7 +81,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         this.monitorService = monitorService;
         this.backupService = backupService;
         this.healthMonitor = healthMonitor;
-        this.dataAccessService = dataAccessService;
+        this.configService = configService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -230,9 +235,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         return null;
     }
 
-
     // Notification-specific display methods
-
     private void showScheduleEndNotification(ScheduleEndEvent event) {
         try {
             // First register backup action
@@ -252,6 +255,8 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             NotificationResponse response = showNotification(request);
 
             if (response.isSuccess()) {
+                // IMPORTANT: Cancel the backup notification since primary was successful
+                backupService.cancelBackupTask(event.getUsername());
                 // Record notification display
                 monitorService.markScheduleNotificationShown(event.getUsername());
                 monitorService.recordNotificationTime(event.getUsername(), event.getNotificationType());
@@ -317,16 +322,12 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             int hours = minutesSinceTempStop / 60;
             int minutes = minutesSinceTempStop % 60;
 
-            // Format messages with the calculated duration
-            String formattedMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING, hours, minutes);
-            String trayMessage = String.format(WorkCode.LONG_TEMP_STOP_WARNING_TRAY, hours, minutes);
-
             // Create notification request
             NotificationRequest request = NotificationRequest.builder(NotificationType.TEMP_STOP, event.getUsername(), event.getUserId())
                     .tempStopStart(event.getTempStopStart())
                     .title(WorkCode.TEMPORARY_STOP_TITLE)
-                    .message(formattedMessage)
-                    .trayMessage(trayMessage)
+                    .message(String.format(WorkCode.LONG_TEMP_STOP_WARNING, hours, minutes))
+                    .trayMessage(String.format(WorkCode.LONG_TEMP_STOP_WARNING_TRAY, hours, minutes))
                     .timeoutPeriod(event.getTimeoutPeriod())
                     .priority(event.getPriority())
                     .build();
@@ -427,11 +428,14 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                     addTestButtons(components, userResponded);
 
                     try {
-                        showDialog(components.dialog(), null, null);
+                        showDialog(components.dialog(), event.getUsername(), event.getNotificationType());
                         dialogDisplayed[0] = true;
 
+                        // Generate unique ID for test notification
+                        String testNotificationId = "test_" + event.getUsername() + "_" + System.currentTimeMillis();
+
                         // Store dialog for cleanup
-                        activeDialogs.put("test_" + event.getUsername(), components.dialog());
+                        activeDialogs.put(testNotificationId, components.dialog());
 
                         LoggerUtil.info(this.getClass(), "Test dialog displayed successfully");
 
@@ -457,7 +461,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
             // Record notification
             monitorService.recordNotificationTime(event.getUsername(), event.getNotificationType());
-            LoggerUtil.debug(this.getClass(), "Normal dialog displayed:" + Arrays.toString(dialogDisplayed) + ".Tray dialog displayed:" + Arrays.toString(trayDisplayed));
+            LoggerUtil.debug(this.getClass(), "Normal dialog displayed:" + Arrays.toString(dialogDisplayed) + ". Tray dialog displayed:" + Arrays.toString(trayDisplayed));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error showing test notification for user %s: %s", event.getUsername(), e.getMessage()), e);
@@ -466,10 +470,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     }
 
     // Core display methods
-
-    /**
-     * Shows a notification dialog based on the request
-     */
     private boolean showNotificationDialog(NotificationRequest request, String notificationId) {
         // Sanity check - make sure we're on EDT
         if (!SwingUtilities.isEventDispatchThread()) {
@@ -489,7 +489,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         }
 
         // For temp stop notifications, we don't need additional validation
-        boolean isTempStop = request.getType() == com.ctgraphdep.notification.model.NotificationType.TEMP_STOP;
+        boolean isTempStop = request.getType() == NotificationType.TEMP_STOP;
 
         // Don't show regular notification during temp stop
         if (!isTempStop) {
@@ -534,19 +534,76 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         return dialogDisplayed;
     }
 
+    private void showDialog(JDialog dialog, String username, String notificationType) {
+        // Skip if notifications are disabled - MOVED TO EARLIER IN THE FLOW
+        // This check is now redundant but kept for safety
+        if (!configService.isNotificationsEnabled()) {
+            LoggerUtil.info(this.getClass(), "Notifications are disabled in configuration");
+            return;
+        }
+
+        // Ensure proper background transparency
+        dialog.setBackground(new Color(0, 0, 0, 0));
+
+        // Store username and notification type as client properties for later reference
+        dialog.getRootPane().putClientProperty("username", username);
+        dialog.getRootPane().putClientProperty("notificationType", notificationType);
+        dialog.getRootPane().putClientProperty("creationTime", System.currentTimeMillis());
+
+        // Calculate dialog position based on configuration
+        positionDialogBasedOnConfig(dialog);
+//
+//        // Make sure shape is properly set (fix for white background issue)
+//        dialog.setShape(new RoundRectangle2D.Double(0, 0, dialog.getWidth(), dialog.getHeight(), 20, 20));
+//
+//        // Ensure proper decoration settings
+//        dialog.setUndecorated(true);
+
+        // Set visibility and focus
+        dialog.setVisible(true);
+        dialog.toFront();
+        dialog.setAlwaysOnTop(true);
+
+        // Check if dialog is visible after display
+        ensureDialogVisible(dialog);
+    }
+
     /**
      * Creates a dialog with the specified title and message
      */
     private DialogComponents createDialog(String title, String message) {
+        JDialog dialog = createNotificationDialog();
+        dialog.setLayout(new BorderLayout());
+
         BufferedImage notificationImage = NotificationBackgroundFactory.createNotificationBackground(title, message);
 
-        JDialog dialog = new JDialog();
+        // Set proper styling
         dialog.setUndecorated(true);
         dialog.setAlwaysOnTop(true);
         dialog.setType(Window.Type.UTILITY);
         dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
         dialog.setLayout(new BorderLayout());
+        dialog.setBackground(new Color(0, 0, 0, 0)); // Transparent background
 
+        JPanel contentPanel = getJPanel(notificationImage, dialog);
+
+        JPanel buttonsPanel = new JPanel();
+        buttonsPanel.setOpaque(false);
+        buttonsPanel.setPreferredSize(new Dimension(NOTIFICATION_WIDTH, BUTTONS_PANEL_HEIGHT));
+        buttonsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, BUTTON_SPACING, 10));
+
+        dialog.add(contentPanel, BorderLayout.CENTER);
+        dialog.add(buttonsPanel, BorderLayout.SOUTH);
+
+        dialog.pack();
+
+        // This is crucial for correctly displaying the shaped window
+        dialog.setShape(new RoundRectangle2D.Double(0, 0, dialog.getWidth(), dialog.getHeight(), 20, 20));
+
+        return new DialogComponents(dialog, buttonsPanel);
+    }
+
+    private @NotNull JPanel getJPanel(BufferedImage notificationImage, JDialog dialog) {
         JPanel contentPanel = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -561,52 +618,284 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
         contentPanel.setPreferredSize(new Dimension(NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT - BUTTONS_PANEL_HEIGHT));
 
-        JPanel buttonsPanel = new JPanel();
-        buttonsPanel.setOpaque(false);
-        buttonsPanel.setPreferredSize(new Dimension(NOTIFICATION_WIDTH, BUTTONS_PANEL_HEIGHT));
-        buttonsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, BUTTON_SPACING, 10));
+        // Make dialog draggable by adding mouse listeners
+        MouseAdapter dragAdapter = new MouseAdapter() {
+            private Point initialClick;
 
-        dialog.add(contentPanel, BorderLayout.CENTER);
-        dialog.add(buttonsPanel, BorderLayout.SOUTH);
+            @Override
+            public void mousePressed(MouseEvent e) {
+                initialClick = e.getPoint();
+            }
 
-        dialog.pack();
-        dialog.setShape(new RoundRectangle2D.Double(0, 0, dialog.getWidth(), dialog.getHeight(), 20, 20));
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                // Get current location of Window
+                int thisX = dialog.getLocation().x;
+                int thisY = dialog.getLocation().y;
 
-        return new DialogComponents(dialog, buttonsPanel);
+                // Determine how much the mouse moved
+                int xMoved = e.getX() - initialClick.x;
+                int yMoved = e.getY() - initialClick.y;
+
+                // Move window to this position
+                int X = thisX + xMoved;
+                int Y = thisY + yMoved;
+                dialog.setLocation(X, Y);
+
+                // Log dragging activity at debug level
+                if (Math.random() < 0.1) { // Log only occasionally to avoid spamming logs
+                    LoggerUtil.debug(this.getClass(), String.format("User dragging notification to X: %d, Y: %d", X, Y));
+                }
+            }
+        };
+
+        contentPanel.addMouseListener(dragAdapter);
+        contentPanel.addMouseMotionListener(dragAdapter);
+        return contentPanel;
+    }
+
+    private void positionDialogBasedOnConfig(JDialog dialog) {
+        try {
+            // Get the screen device where the dialog should appear
+            GraphicsDevice screen = getGraphicsDevice();
+
+            // Get screen insets (account for taskbar)
+            Rectangle screenBounds = screen.getDefaultConfiguration().getBounds();
+            Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(screen.getDefaultConfiguration());
+
+            // Account for taskbar if configured
+            if (configService.isTaskbarFix()) {
+                // Add extra margin based on taskbar position
+                screenInsets = new Insets(
+                        screenInsets.top + 10,
+                        screenInsets.left + 10,
+                        screenInsets.bottom + 10,
+                        screenInsets.right + 10
+                );
+            }
+
+            // If always center is enabled, center the dialog
+            if (configService.isAlwaysCenter()) {
+                int x = screenBounds.x + (screenBounds.width - dialog.getWidth()) / 2;
+                int y = screenBounds.y + (screenBounds.height - dialog.getHeight()) / 2;
+
+                dialog.setLocation(x, y);
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Dialog centered at position X: %d, Y: %d (Screen: %s)",
+                        x, y, screen.getIDstring()));
+                return;
+            }
+
+            // Calculate position based on configured position
+            int x, y;
+
+            if (configService.isTopPosition()) {
+                y = screenBounds.y + screenInsets.top + 20; // 20px from top edge
+            } else if (configService.isCenterPosition()) {
+                y = screenBounds.y + (screenBounds.height - dialog.getHeight()) / 2;
+            } else { // bottom position
+                y = screenBounds.y + screenBounds.height - dialog.getHeight() - 20 - screenInsets.bottom;
+            }
+
+            if (configService.isRightPosition()) {
+                x = screenBounds.x + screenBounds.width - dialog.getWidth() - 20 - screenInsets.right;
+            } else if (configService.isLeftPosition()) {
+                x = screenBounds.x + screenInsets.left + 20; // 20px from left edge
+            } else { // center horizontally
+                x = screenBounds.x + (screenBounds.width - dialog.getWidth()) / 2;
+            }
+
+            // Ensure dialog is fully visible
+            x = Math.max(screenBounds.x + screenInsets.left, x);
+            y = Math.max(screenBounds.y + screenInsets.top, y);
+            x = Math.min(x, screenBounds.x + screenBounds.width - dialog.getWidth() - screenInsets.right);
+            y = Math.min(y, screenBounds.y + screenBounds.height - dialog.getHeight() - screenInsets.bottom);
+
+            dialog.setLocation(x, y);
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Dialog positioned at X: %d, Y: %d (Screen: %s, Position: %s)",
+                    x, y, screen.getIDstring(), configService.getScreenPosition()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error positioning dialog: " + e.getMessage());
+            // Fall back to center screen position
+            centerDialogOnScreen(dialog);
+        }
+    }
+
+    private GraphicsDevice getGraphicsDevice() {
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice[] screens = ge.getScreenDevices();
+
+        // Default to primary screen
+        GraphicsDevice screen = screens[0];
+
+        // If a specific monitor is configured, try to use it
+        int monitorNumber = configService.getMonitorNumber();
+        if (monitorNumber > 0 && monitorNumber <= screens.length) {
+            screen = screens[monitorNumber - 1]; // Array is 0-based, config is 1-based
+        }
+        return screen;
     }
 
     /**
-     * Positions and displays the dialog on screen
+     * Ensures dialog is visible by checking display status and repositioning if needed
      */
-    private void showDialog(JDialog dialog, String username, String notificationType) {
+    private void ensureDialogVisible(JDialog dialog) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                // Wait briefly to ensure dialog has been rendered
+                Thread.sleep(500);
+
+                if (!dialog.isShowing() || !isDialogFullyVisible(dialog)) {
+                    LoggerUtil.warn(this.getClass(),
+                            "Dialog may not be fully visible, repositioning to center screen");
+
+                    // Fallback to center screen position
+                    centerDialogOnScreen(dialog);
+                }
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(),
+                        "Error checking dialog visibility: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Checks if dialog is fully visible on any screen
+     */
+    private boolean isDialogFullyVisible(JDialog dialog) {
+        try {
+            if (!dialog.isShowing()) {
+                return false;
+            }
+
+            Point location = dialog.getLocationOnScreen();
+            Dimension size = dialog.getSize();
+            Rectangle dialogBounds = new Rectangle(location.x, location.y, size.width, size.height);
+
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            GraphicsDevice[] screens = ge.getScreenDevices();
+
+            for (GraphicsDevice screen : screens) {
+                Rectangle screenBounds = screen.getDefaultConfiguration().getBounds();
+                Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(screen.getDefaultConfiguration());
+
+                // Adjust screen bounds for insets
+                screenBounds.x += insets.left;
+                screenBounds.y += insets.top;
+                screenBounds.width -= (insets.left + insets.right);
+                screenBounds.height -= (insets.top + insets.bottom);
+
+                if (screenBounds.contains(dialogBounds)) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error checking dialog visibility: " + e.getMessage());
+            // If we can't check, assume it's visible
+            return true;
+        }
+    }
+
+    /**
+     * Centers dialog on the screen where most of its area is visible
+     */
+    private void centerDialogOnScreen(JDialog dialog) {
+        try {
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            GraphicsDevice[] screens = ge.getScreenDevices();
+
+            // Default to first screen
+            GraphicsDevice targetScreen = screens[0];
+
+            // Get dialog location and size
+            Point location = dialog.getLocation();
+            Dimension size = dialog.getSize();
+
+            // Find screen with most dialog area
+            for (GraphicsDevice screen : screens) {
+                Rectangle bounds = screen.getDefaultConfiguration().getBounds();
+                if (bounds.contains(location.x + size.width/2, location.y + size.height/2)) {
+                    targetScreen = screen;
+                    break;
+                }
+            }
+
+            // Get center position accounting for taskbar
+            Rectangle screenBounds = targetScreen.getDefaultConfiguration().getBounds();
+            Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(
+                    targetScreen.getDefaultConfiguration());
+
+            int x = screenBounds.x + (screenBounds.width - size.width) / 2;
+            int y = screenBounds.y + (screenBounds.height - size.height) / 2;
+
+            // Adjust for insets
+            x = Math.max(x, screenBounds.x + insets.left);
+            y = Math.max(y, screenBounds.y + insets.top);
+            x = Math.min(x, screenBounds.x + screenBounds.width - size.width - insets.right);
+            y = Math.min(y, screenBounds.y + screenBounds.height - size.height - insets.bottom);
+
+            dialog.setLocation(x, y);
+            dialog.toFront();
+            dialog.repaint();
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Repositioned dialog to center at X: %d, Y: %d", x, y));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    "Error centering dialog: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Creates a dialog with size adapted to the screen constraints
+     */
+    private JDialog createNotificationDialog() {
+        JDialog dialog = new JDialog();
+
+        // Don't make any changes to the dialog until we've set up all properties
+        dialog.setUndecorated(true);
+        dialog.setAlwaysOnTop(true);
+        dialog.setType(Window.Type.UTILITY);
+        dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        // Get the screen where the dialog will appear
+        GraphicsConfiguration gc = dialog.getGraphicsConfiguration();
+        Rectangle screenBounds = gc.getBounds();
+        Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+
+        // Calculate maximum allowable size accounting for taskbar
+        int maxWidth = screenBounds.width - screenInsets.left - screenInsets.right - 40;
+        int maxHeight = screenBounds.height - screenInsets.top - screenInsets.bottom - 40;
+
+        // Get configured dimensions
+        int configWidth = configService.getNotificationWidth();
+        int configHeight = configService.getNotificationHeight();
+
+        // Adjust dimensions if needed
+        int width = Math.min(configWidth, maxWidth);
+        int height = Math.min(configHeight, maxHeight);
+
+        dialog.setSize(width, height);
+
+        // Apply opacity if configured (only if > 0)
+        float opacity = configService.getNotificationOpacity();
+        if (opacity > 0.0f && opacity < 1.0f) {
+            dialog.setOpacity(opacity);
+        }
+
+        // Make sure background is transparent
         dialog.setBackground(new Color(0, 0, 0, 0));
 
-        // Store username and notification type as client properties for later reference
-        dialog.getRootPane().putClientProperty("username", username);
-        dialog.getRootPane().putClientProperty("notificationType", notificationType);
-        dialog.getRootPane().putClientProperty("creationTime", System.currentTimeMillis());
+        LoggerUtil.debug(this.getClass(),
+                String.format("Created dialog with dimensions: %dx%d (config: %dx%d, opacity: %.1f)",
+                        width, height, configWidth, configHeight, opacity));
 
-
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        dialog.setLocation(
-                screenSize.width - dialog.getWidth() - 20,
-                screenSize.height - dialog.getHeight() - 50
-        );
-
-        dialog.setVisible(true);
-        dialog.toFront();
-        // Force dialog to be on top of all windows
-        dialog.setAlwaysOnTop(true);
-
-        // Add visual confirmation of dialog display
-        LoggerUtil.debug(this.getClass(), String.format("Dialog shown at position X: %d, Y: %d",
-                screenSize.width - dialog.getWidth() - 20,
-                screenSize.height - dialog.getHeight() - 50));
-
-        // Add check to verify dialog is visible on screen
-        if (!dialog.isShowing()) {
-            LoggerUtil.error(this.getClass(), "Dialog set to visible but not showing on screen");
-        }
+        return dialog;
     }
 
     /**
@@ -633,19 +922,17 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 int dayOfWeek = currentTime.getDayOfWeek().getValue();
 
                 // Check if within business hours (5-17) and weekday (1-5)
-                boolean withinBusinessHours = hour >= WorkCode.WORK_START_HOUR &&
-                        hour < WorkCode.WORK_END_HOUR;
+                boolean withinBusinessHours = hour >= WorkCode.WORK_START_HOUR && hour < WorkCode.WORK_END_HOUR;
                 boolean isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
                 if (withinBusinessHours && isWeekday) {
-                    // FIXED: More aggressive visibility enforcement
-
                     // Ensure dialog is visible
                     if (!dialog.isVisible()) {
+                        // Add this line to recalculate position before showing
+                        positionDialogBasedOnConfig(dialog);
+
                         dialog.setVisible(true);
-                        LoggerUtil.info(this.getClass(),
-                                String.format("Restoring visibility for %s notification: %s",
-                                        notificationType, username));
+                        LoggerUtil.info(this.getClass(), String.format("Restoring visibility for %s notification: %s", notificationType, username));
                     }
 
                     // Always bring to front with more forceful approach
@@ -659,22 +946,16 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                     dialog.repaint();
 
                     // Log visibility check at info level to track this issue
-                    LoggerUtil.info(this.getClass(),
-                            String.format("Enhanced visibility maintenance for %s notification: %s",
-                                    notificationType, username));
+                    LoggerUtil.debug(this.getClass(), String.format("Enhanced visibility maintenance for %s notification: %s", notificationType, username));
                 } else {
                     // Outside business hours - hide notification until next business hour
                     if (dialog.isVisible()) {
-                        LoggerUtil.info(this.getClass(),
-                                String.format("Outside business hours (%d:00) - hiding %s notification for %s",
-                                        hour, notificationType, username));
+                        LoggerUtil.info(this.getClass(), String.format("Outside business hours (%d:00) - hiding %s notification for %s", hour, notificationType, username));
                         dialog.setVisible(false);
                     }
                 }
             } catch (Exception ex) {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Error in visibility enhancement for %s: %s",
-                                username, ex.getMessage()), ex);
+                LoggerUtil.error(this.getClass(), String.format("Error in visibility enhancement for %s: %s", username, ex.getMessage()), ex);
             }
         });
 
@@ -688,24 +969,20 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         String timerKey = username + "_visibility_" + notificationType;
         timers.put(timerKey, visibilityTimer);
 
-        LoggerUtil.info(this.getClass(), String.format("Enhanced visibility enabled for %s notification (%s)", notificationType, username));
+        LoggerUtil.debug(this.getClass(), String.format("Enhanced visibility enabled for %s notification (%s)", notificationType, username));
     }
-
 
     /**
      * Sets up an auto-close timer for a notification dialog
      */
-    private void setupAutoCloseTimer(JDialog dialog, String username, int timeoutPeriod,
-                                     String notificationType, AtomicBoolean respondedFlag) {
+    private void setupAutoCloseTimer(JDialog dialog, String username, int timeoutPeriod, String notificationType, AtomicBoolean respondedFlag) {
 
         if (timeoutPeriod == WorkCode.ON_FOR_TWELVE_HOURS) {
             // Setup enhanced visibility for long-duration notifications
             enhanceLongDurationVisibility(dialog, username, notificationType);
 
             // Log that we're setting up enhanced visibility mode
-            LoggerUtil.info(this.getClass(),
-                    String.format("Long-duration notification detected (%s) - enabling enhanced visibility",
-                            notificationType));
+            LoggerUtil.info(this.getClass(), String.format("Long-duration notification detected (%s) - enabling enhanced visibility", notificationType));
         }
 
         if (timeoutPeriod <= 0) {
@@ -766,45 +1043,46 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             // Special handling for long-duration notifications
             if (WorkCode.START_DAY_TYPE.equals(notificationType) ||
                     WorkCode.RESOLUTION_REMINDER_TYPE.equals(notificationType)) {
-
                 // For these notifications, we don't actually dismiss, just log
                 LoggerUtil.info(this.getClass(), String.format("Long-duration notification (%s) will remain visible during business hours", notificationType));
-
                 // Return early - dialog remains visible due to enhanceLongDurationVisibility
                 return;
             }
+
             switch (notificationType) {
                 case WorkCode.SCHEDULE_END_TYPE:
-                    // For end of schedule notifications, activate hourly monitoring
-                    ActivateHourlyMonitoringCommand command = commandFactory.createActivateHourlyMonitoringCommand(username);
+                    // For end of schedule notifications, use ContinueWorkingCommand instead
+                    ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, false);
                     boolean result = commandService.executeCommand(command);
 
                     if (result) {
-                        LoggerUtil.info(this.getClass(), String.format("Successfully activated hourly monitoring for user %s after notification timeout", username));
+                        LoggerUtil.info(this.getClass(), String.format("Successfully transitioned to hourly monitoring for user %s after notification timeout", username));
 
-                        // Update monitor service
+                        // Update monitor service directly as well for redundancy
                         monitorService.markHourlyMonitoringActive(username, LocalDateTime.now());
-
                     } else {
-                        LoggerUtil.warn(this.getClass(), String.format("Failed to activate hourly monitoring for user %s after notification timeout", username));
+                        LoggerUtil.warn(this.getClass(), String.format("Failed to transition to hourly monitoring for user %s after notification timeout", username));
                     }
                     break;
-                case WorkCode.OVERTIME_TYPE:
+                case WorkCode.HOURLY_TYPE:
                     // For hourly warnings, continue the hourly monitoring cycle
+                    ContinueWorkingCommand hourlyCommand = commandFactory.createContinueWorkingCommand(username, true);
+                    commandService.executeCommand(hourlyCommand);
                     LoggerUtil.info(this.getClass(), String.format("Auto-continuing hourly monitoring for user %s", username));
                     break;
                 case WorkCode.TEMP_STOP_TYPE:
                     // For temporary stop warnings, continue temporary stop monitoring
+                    ContinueTempStopCommand tempStopCommand = commandFactory.createContinueTempStopCommand(username, null);
+                    commandService.executeCommand(tempStopCommand);
                     LoggerUtil.info(this.getClass(), String.format("Auto-continuing temporary stop monitoring for user %s", username));
                     break;
-                case "TEST":
+                case WorkCode.TEST_TYPE:
                     // For test notifications, log that we're completing the test
                     LoggerUtil.info(this.getClass(), String.format("Auto-dismissing test notification for user %s", username));
                     break;
                 default:
                     LoggerUtil.warn(this.getClass(), String.format("Unknown notification type for auto-dismiss: %s for user %s", notificationType, username));
             }
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error in handleNotificationAutoDismiss for %s: %s", username, e.getMessage()));
         }
@@ -879,31 +1157,17 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     }
 
     /**
-     * Adds standard notification buttons (Continue Working and End Session)
+     * Adds standard notification buttons (Continue Working and End Session) with consistent backup task cancellation
      */
-    private void addStandardButtons(DialogComponents components, String username, Integer userId,
-                                    Integer finalMinutes, boolean isHourly) {
+    private void addStandardButtons(DialogComponents components, String username, Integer userId, Integer finalMinutes, boolean isHourly) {
         JPanel buttonsPanel = components.buttonsPanel();
         JDialog dialog = components.dialog();
 
+        String notificationType = isHourly ? WorkCode.HOURLY_TYPE : WorkCode.SCHEDULE_END_TYPE;
+
         // Continue Working Button using ButtonFactory
-        JButton continueWorkingButton = ButtonFactory.createButton(
-                WorkCode.CONTINUE_WORKING,
-                ButtonFactory.BUTTON_PRIMARY,
-                ButtonFactory.STYLE_FILLED,
-                e -> {
-                    dialog.dispose();
-                    // Create and execute continue working command
-                    ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, isHourly);
-                    commandService.executeCommand(command);
-                    // Cancel backup task since user responded
-                    backupService.cancelBackupTask(username);
-                    LoggerUtil.info(this.getClass(), String.format("User %s chose to continue working.", username));
-                    // Clean up resources
-                    cleanupNotificationResources(dialog);
-                },
-                userResponded
-        );
+        JButton continueWorkingButton = createContinueWorkingButton(username, userId, isHourly, dialog);
+        buttonsPanel.add(continueWorkingButton);
 
         // End Session Button using ButtonFactory
         JButton endSessionButton = ButtonFactory.createButton(
@@ -913,19 +1177,21 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 e -> {
                     dialog.dispose();
                     try {
-                        // Use the command factory to create the command
-                        EndSessionFromNotificationCommand command = commandFactory.createEndSessionFromNotificationCommand(username, userId, finalMinutes);
-                        // Execute the command through the command service
-                        boolean success = commandService.executeCommand(command);
-                        if (success) {
-                            LoggerUtil.info(this.getClass(), String.format("User chose to end session for user %s", username));
-                        } else {
-                            LoggerUtil.warn(this.getClass(), "Failed to end session from notification");
-                        }
+                        // Just call EndDayCommand directly
+                        EndDayCommand command = commandFactory.createEndDayCommand(
+                                username,
+                                userId,
+                                null,  // Let EndDayCommand calculate this
+                                null   // Let EndDayCommand use standardized time
+                        );
+                        commandService.executeCommand(command);
+
+                        handleNotificationResponse(username, userId, notificationType, dialog);
+
+                        LoggerUtil.info(this.getClass(), "User ended session through notification with final minutes: " + finalMinutes);
                     } catch (Exception ex) {
-                        LoggerUtil.error(this.getClass(), "Error ending session from notification: " + ex.getMessage());
+                        LoggerUtil.error(this.getClass(), "Error ending session: " + ex.getMessage(), ex);
                     } finally {
-                        //Clean up resources
                         cleanupNotificationResources(dialog);
                     }
                 },
@@ -936,8 +1202,72 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         buttonsPanel.add(endSessionButton);
     }
 
+
     /**
-     * Adds temporary stop specific buttons
+     * Example of using the handleNotificationResponse helper in a button handler.
+     * This shows how the continueWorkingButton would be implemented using the helper.
+     */
+    private JButton createContinueWorkingButton(String username, Integer userId, boolean isHourly, JDialog dialog) {
+        return ButtonFactory.createButton(
+                WorkCode.CONTINUE_WORKING,
+                ButtonFactory.BUTTON_PRIMARY,
+                ButtonFactory.STYLE_FILLED,
+                e -> {
+                    dialog.dispose();
+                    try {
+                        // Create and execute continue working command
+                        ContinueWorkingCommand command = commandFactory.createContinueWorkingCommand(username, isHourly);
+                        commandService.executeCommand(command);
+
+                        // Use the helper method for consistent notification handling
+                        handleNotificationResponse(username, userId, isHourly ? WorkCode.HOURLY_TYPE : WorkCode.SCHEDULE_END_TYPE, dialog);
+                    } catch (Exception ex) {
+                        LoggerUtil.error(this.getClass(), String.format("Error handling continue working: %s", ex.getMessage()), ex);
+                        // Still clean up resources even on error
+                        cleanupNotificationResources(dialog);
+                    }
+                },
+                userResponded
+        );
+    }
+
+    /**
+     * Handles post-notification actions consistently across all notification handlers.
+     * This centralizes all the cleanup and tracking that should happen after a user
+     * responds to any notification.
+     *
+     * @param username The username
+     * @param userId The user ID (can be null for some notification types)
+     * @param notificationType The type of notification being handled
+     * @param dialog The dialog being closed
+     */
+    private void handleNotificationResponse(String username, Integer userId, String notificationType, JDialog dialog) {
+        try {
+            // 1. Cancel any pending backup tasks
+            backupService.cancelBackupTask(username);
+
+            // 2. Record that user has responded to this notification type
+            monitorService.recordNotificationTime(username, notificationType);
+
+            // 3. Track the notification response via command
+            if (userId != null) {
+                boolean isTempStop = WorkCode.TEMP_STOP_TYPE.equals(notificationType);
+                TrackNotificationDisplayCommand command = commandFactory.createTrackNotificationDisplayCommand(username, userId, isTempStop);
+                commandService.executeCommand(command);
+            }
+
+            // 4. Log the response
+            LoggerUtil.info(this.getClass(), String.format("User %s responded to %s notification", username, notificationType));
+
+            // 5. Clean up resources
+            cleanupNotificationResources(dialog);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error handling notification response for %s: %s", username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Adds temporary stop specific buttons with consistent backup task cancellation
      */
     private void addTempStopButtons(DialogComponents components, String username, Integer userId) {
         JPanel buttonsPanel = components.buttonsPanel();
@@ -950,14 +1280,21 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
-                    // Create and execute continue temp stop command
-                    ContinueTempStopCommand command = commandFactory.createContinueTempStopCommand(username, userId);
-                    commandService.executeCommand(command);
-                    // Cancel backup task since user responded
-                    backupService.cancelBackupTask(username);
-                    LoggerUtil.info(this.getClass(), "User chose to continue temporary stop");
-                    // Clean up resources
-                    cleanupNotificationResources(dialog);
+                    try {
+                        // Create and execute continue temp stop command
+                        ContinueTempStopCommand command = commandFactory.createContinueTempStopCommand(username, userId);
+                        commandService.executeCommand(command);
+
+                        // IMPROVEMENT: Consistently cancel backup task
+                        backupService.cancelBackupTask(username);
+
+                        LoggerUtil.info(this.getClass(), "User chose to continue temporary stop");
+                    } catch (Exception ex) {
+                        LoggerUtil.error(this.getClass(), String.format("Error handling continue temp stop: %s", ex.getMessage()), ex);
+                    } finally {
+                        // Clean up resources
+                        cleanupNotificationResources(dialog);
+                    }
                 },
                 userResponded
         );
@@ -969,12 +1306,21 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
-                    // Create and execute resume from temp stop command
-                    ResumeFromTempStopCommand command = commandFactory.createResumeFromTempStopCommand(username, userId);
-                    commandService.executeCommand(command);
-                    LoggerUtil.info(this.getClass(), "User chose to resume work from temporary stop");
-                    // Clean up resources
-                    cleanupNotificationResources(dialog);
+                    try {
+                        // Create and execute resume from temp stop command
+                        ResumeFromTemporaryStopCommand command = commandFactory.createResumeFromTemporaryStopCommand(username, userId);
+                        commandService.executeCommand(command);
+
+                        // IMPROVEMENT: Consistently cancel backup task
+                        backupService.cancelBackupTask(username);
+
+                        LoggerUtil.info(this.getClass(), "User chose to resume work from temporary stop");
+                    } catch (Exception ex) {
+                        LoggerUtil.error(this.getClass(), String.format("Error handling resume from temp stop: %s", ex.getMessage()), ex);
+                    } finally {
+                        // Clean up resources
+                        cleanupNotificationResources(dialog);
+                    }
                 },
                 userResponded
         );
@@ -986,14 +1332,25 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
-                    // First resume from temp stop, then end session - use commands for both
-                    ResumeFromTempStopCommand resumeCommand = commandFactory.createResumeFromTempStopCommand(username, userId);
-                    commandService.executeCommand(resumeCommand);
-                    EndSessionFromNotificationCommand endCommand = commandFactory.createEndSessionFromNotificationCommand(username, userId, null);
-                    commandService.executeCommand(endCommand);
-                    LoggerUtil.info(this.getClass(), "User chose to end session from temporary stop");
-                    // Clean up resources
-                    cleanupNotificationResources(dialog);
+                    try {
+                        // Just call EndDayCommand directly
+                        EndDayCommand command = commandFactory.createEndDayCommand(
+                                username,
+                                userId,
+                                null,  // Let EndDayCommand calculate this
+                                null   // Let EndDayCommand use standardized time
+                        );
+                        commandService.executeCommand(command);
+
+                        // IMPROVEMENT: Consistently cancel backup task
+                        backupService.cancelBackupTask(username);
+
+                        LoggerUtil.info(this.getClass(), "User ended session through notification");
+                    } catch (Exception ex) {
+                        LoggerUtil.error(this.getClass(), "Error ending session: " + ex.getMessage(), ex);
+                    } finally {
+                        cleanupNotificationResources(dialog);
+                    }
                 },
                 userResponded
         );
@@ -1004,7 +1361,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     }
 
     /**
-     * Adds start day dialog specific buttons
+     * Adds start day dialog specific buttons with consistent backup task cancellation
      */
     private void addStartDayButtons(DialogComponents components, String username, Integer userId) {
         JPanel buttonsPanel = components.buttonsPanel();
@@ -1017,11 +1374,20 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
-                    StartWorkDayCommand command = commandFactory.createStartWorkDayCommand(username, userId);
-                    commandService.executeCommand(command);
-                    LoggerUtil.info(this.getClass(), "User chose to start work day through notification");
-                    // Clean up resources
-                    cleanupNotificationResources(dialog);
+                    try {
+                        StartDayCommand command = commandFactory.createStartDayCommand(username, userId);
+                        commandService.executeCommand(command);
+
+                        // IMPROVEMENT: Consistently cancel backup task
+                        backupService.cancelBackupTask(username);
+
+                        LoggerUtil.info(this.getClass(), "User chose to start work day through notification");
+                    } catch (Exception ex) {
+                        LoggerUtil.error(this.getClass(), String.format("Error handling start day: %s", ex.getMessage()), ex);
+                    } finally {
+                        // Clean up resources
+                        cleanupNotificationResources(dialog);
+                    }
                 },
                 userResponded
         );
@@ -1033,6 +1399,10 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
+
+                    // IMPROVEMENT: Consistently cancel backup task
+                    backupService.cancelBackupTask(username);
+
                     LoggerUtil.info(this.getClass(), "User chose to skip start day reminder");
                     // Clean up resources
                     cleanupNotificationResources(dialog);
@@ -1045,7 +1415,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     }
 
     /**
-     * Adds resolution reminder specific buttons
+     * Adds resolution reminder specific buttons with consistent backup task cancellation
      */
     private void addResolutionButtons(DialogComponents components) {
         JPanel buttonsPanel = components.buttonsPanel();
@@ -1058,11 +1428,18 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
-                    // Open the resolution page in the browser
-                    systemTray.openApplication();
-                    LoggerUtil.info(this.getClass(), "User chose to resolve session from notification");
-                    // Clean up resources
-                    cleanupNotificationResources(dialog);
+                    try {
+                        // Open the resolution page in the browser
+                        systemTray.openApplication();
+
+
+                        LoggerUtil.info(this.getClass(), "User chose to resolve session from notification");
+                    } catch (Exception ex) {
+                        LoggerUtil.error(this.getClass(), String.format("Error handling resolve session: %s", ex.getMessage()), ex);
+                    } finally {
+                        // Clean up resources
+                        cleanupNotificationResources(dialog);
+                    }
                 },
                 userResponded
         );
@@ -1074,6 +1451,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 ButtonFactory.STYLE_FILLED,
                 e -> {
                     dialog.dispose();
+
                     LoggerUtil.info(this.getClass(), "User dismissed resolution reminder");
                     // Clean up resources
                     cleanupNotificationResources(dialog);
@@ -1091,31 +1469,30 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     private void cleanupNotificationResources(JDialog dialog) {
         try {
             // Make sure the dialog is disposed
-            if (dialog.isDisplayable()) {
+            if (dialog != null && dialog.isDisplayable()) {
                 dialog.dispose();
             }
 
             // Remove from active dialogs
-            activeDialogs.entrySet().removeIf(entry -> entry.getValue() == dialog);
+            activeDialogs.entrySet().removeIf(entry ->
+                    entry.getValue() == dialog || entry.getValue() == null || !entry.getValue().isDisplayable());
 
             // Cleanup visibility timers associated with this dialog
             // Get dialog identifier from client properties if available
-            Object usernameObj = dialog.getRootPane().getClientProperty("username");
-            Object typeObj = dialog.getRootPane().getClientProperty("notificationType");
+            if (dialog != null && dialog.getRootPane() != null) {
+                Object usernameObj = dialog.getRootPane().getClientProperty("username");
+                Object typeObj = dialog.getRootPane().getClientProperty("notificationType");
 
-            if (usernameObj instanceof String username && typeObj instanceof String notificationType) {
-
-                // Remove and cancel timer
-                String timerKey = username + "_visibility_" + notificationType;
-                Timer timer = timers.remove(timerKey);
-                if (timer != null) {
-                    timer.stop();
-                    LoggerUtil.debug(this.getClass(),
-                            String.format("Stopped visibility timer for %s notification (%s)",
-                                    notificationType, username));
+                if (usernameObj instanceof String username && typeObj instanceof String notificationType) {
+                    // Remove and cancel timer
+                    String timerKey = username + "_visibility_" + notificationType;
+                    Timer timer = timers.remove(timerKey);
+                    if (timer != null) {
+                        timer.stop();
+                        LoggerUtil.debug(this.getClass(), String.format("Stopped visibility timer for %s notification (%s)", notificationType, username));
+                    }
                 }
             }
-
 
             // Give a hint to garbage collector (optional)
             if (Math.random() < 0.25) { // Only trigger occasionally to avoid performance impact
@@ -1238,24 +1615,19 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 String notificationType = (typeObj instanceof String) ? (String) typeObj : null;
 
                 // FIXED: Don't clean up long-duration notifications during business hours
-                boolean isLongDurationNotification =
-                        WorkCode.START_DAY_TYPE.equals(notificationType) ||
-                                WorkCode.RESOLUTION_REMINDER_TYPE.equals(notificationType);
+                boolean isLongDurationNotification = WorkCode.START_DAY_TYPE.equals(notificationType) || WorkCode.RESOLUTION_REMINDER_TYPE.equals(notificationType);
 
                 if (isLongDurationNotification) {
                     // For long-duration notifications, check if we're in business hours
                     int hour = standardDateTime.getHour();
                     int dayOfWeek = standardDateTime.getDayOfWeek().getValue();
 
-                    boolean withinBusinessHours = hour >= WorkCode.WORK_START_HOUR &&
-                            hour < WorkCode.WORK_END_HOUR;
+                    boolean withinBusinessHours = hour >= WorkCode.WORK_START_HOUR && hour < WorkCode.WORK_END_HOUR;
                     boolean isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
                     // During business hours on weekdays, don't clean up these notifications
                     if (withinBusinessHours && isWeekday) {
-                        LoggerUtil.debug(this.getClass(),
-                                String.format("Preserving long-duration notification (%s) during business hours",
-                                        notificationType));
+                        LoggerUtil.debug(this.getClass(), String.format("Preserving long-duration notification (%s) during business hours", notificationType));
                         return false;
                     }
                 }
@@ -1293,8 +1665,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
                         // Remove only if not a long-duration notification
                         // Is not a long-duration notification type
-                        boolean isNotLongDuration = (!WorkCode.START_DAY_TYPE.equals(notificationType) &&
-                                !WorkCode.RESOLUTION_REMINDER_TYPE.equals(notificationType));
+                        boolean isNotLongDuration = (!WorkCode.START_DAY_TYPE.equals(notificationType) && !WorkCode.RESOLUTION_REMINDER_TYPE.equals(notificationType));
 
                         if (isNotLongDuration) {
                             dialog.dispose();

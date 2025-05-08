@@ -312,7 +312,7 @@ public class NotificationCheckerService {
 
         try {
             // Check if rate limiting allows showing hourly notification
-            if (!notificationService.canShowNotification(username, WorkCode.OVERTIME_TYPE, WorkCode.HOURLY_INTERVAL)) {
+            if (!notificationService.canShowNotification(username, WorkCode.HOURLY_TYPE, WorkCode.HOURLY_INTERVAL)) {
                 return;
             }
 
@@ -342,7 +342,7 @@ public class NotificationCheckerService {
             int minutesSinceTempStop = calculationService.executeQuery(minutesQuery);
 
             // Check if temporary stop notification should be shown
-            if (monitorService.isTempStopNotificationDue(username, tempStopStart, minutesSinceTempStop, getStandardCurrentTime())) {
+            if (monitorService.isTempStopNotificationDue(username, minutesSinceTempStop, getStandardCurrentTime())) {
 
                 // Show temporary stop warning
                 notificationService.showTempStopWarning(username, session.getUserId(), tempStopStart);

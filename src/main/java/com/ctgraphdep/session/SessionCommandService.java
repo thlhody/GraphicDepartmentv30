@@ -1,7 +1,6 @@
 package com.ctgraphdep.session;
 
 import com.ctgraphdep.utils.CommandExecutorUtil;
-import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

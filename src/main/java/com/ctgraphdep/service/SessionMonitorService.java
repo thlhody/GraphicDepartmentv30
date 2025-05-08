@@ -4,14 +4,15 @@ import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
 import com.ctgraphdep.fileOperations.DataAccessService;
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
+import com.ctgraphdep.session.commands.EndDayCommand;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
 import com.ctgraphdep.session.commands.notification.ShowTestNotificationCommand;
@@ -35,8 +36,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Stream;
 
@@ -57,6 +56,7 @@ public class SessionMonitorService {
     private final CalculationCommandService calculationService;
     private final NotificationService notificationService;
     private final DataAccessService dataAccessService;
+    private final MonitoringStateService monitoringStateService;
 
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
@@ -64,11 +64,6 @@ public class SessionMonitorService {
     @Value("${app.session.monitoring.interval:30}")
     private int monitoringInterval;
 
-    // Track monitored sessions
-    private final Map<String, Boolean> notificationShown = new ConcurrentHashMap<>();
-    public final Map<String, LocalDateTime> lastHourlyWarning = new ConcurrentHashMap<>();
-    public final Map<String, Boolean> continuedAfterSchedule = new ConcurrentHashMap<>();
-    private final Map<String, LocalDate> lastStartDayCheck = new ConcurrentHashMap<>();
     private ScheduledFuture<?> monitoringTask;
     private volatile boolean isInitialized = false;
 
@@ -77,7 +72,7 @@ public class SessionMonitorService {
             UserService userService, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             TimeValidationService validationService, TimeValidationFactory validationFactory,
             CalculationCommandFactory calculationFactory, CalculationCommandService calculationService,
-            NotificationService notificationService, DataAccessService dataAccessService) {
+            NotificationService notificationService, DataAccessService dataAccessService, MonitoringStateService monitoringStateService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
@@ -89,6 +84,7 @@ public class SessionMonitorService {
         this.calculationService = calculationService;
         this.notificationService = notificationService;
         this.dataAccessService = dataAccessService;
+        this.monitoringStateService = monitoringStateService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -100,10 +96,7 @@ public class SessionMonitorService {
 
     @PostConstruct
     public void registerWithHealthMonitor() {
-        healthMonitor.registerTask(
-                "session-monitor",
-                monitoringInterval,
-                status -> {
+        healthMonitor.registerTask("session-monitor", monitoringInterval, status -> {
                     // Recovery action - if we're unhealthy, restart monitoring
                     if (monitoringTask == null || monitoringTask.isCancelled()) {
                         startScheduledMonitoring();
@@ -126,10 +119,7 @@ public class SessionMonitorService {
             LoggerUtil.error(this.getClass(), "Error in initialization: " + e.getMessage(), e);
             // Even if initialization fails, try to schedule a retry
             try {
-                taskScheduler.schedule(
-                        this::delayedInitialization,
-                        Instant.now().plusSeconds(30)
-                );
+                taskScheduler.schedule(this::delayedInitialization, Instant.now().plusSeconds(30));
                 LoggerUtil.info(this.getClass(), "Scheduled retry for initialization in 30 seconds");
             } catch (Exception retryEx) {
                 LoggerUtil.error(this.getClass(), "Failed to schedule initialization retry: " + retryEx.getMessage());
@@ -176,8 +166,7 @@ public class SessionMonitorService {
         // Schedule the first check
         monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(initialDelay));
 
-        LoggerUtil.info(this.getClass(), String.format("Scheduled monitoring task to start in %d minutes and %d seconds",
-                initialDelay.toMinutes(), initialDelay.toSecondsPart()));
+        LoggerUtil.info(this.getClass(), String.format("Scheduled monitoring task to start in %d minutes and %d seconds", initialDelay.toMinutes(), initialDelay.toSecondsPart()));
     }
 
     /**
@@ -211,11 +200,8 @@ public class SessionMonitorService {
      * Calculates time to the next monitoring check based on configured interval
      */
     private Duration calculateTimeToNextCheck() {
-        // Use validation system to get time values
-        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
 
-        LocalDateTime now = timeValues.getCurrentTime();
+        LocalDateTime now = getStandardTimeValues().getCurrentTime();
         LocalDateTime nextCheck;
 
         // Use the configured monitoring interval (in minutes) from application properties
@@ -243,8 +229,7 @@ public class SessionMonitorService {
         }
 
         // If it's between 5:00 AM and 5:00 PM, check if 5:00 PM is before the next check
-        if (now.getHour() >= 5 && now.getHour() < 17 &&
-                eveningReset.isAfter(now) && eveningReset.isBefore(nextCheck)) {
+        if (now.getHour() >= 5 && now.getHour() < 17 && eveningReset.isAfter(now) && eveningReset.isBefore(nextCheck)) {
             nextCheck = eveningReset;
         }
 
@@ -258,9 +243,7 @@ public class SessionMonitorService {
      * Main method for checking active user sessions and triggering notification
      */
     public void checkActiveSessions() {
-        LoggerUtil.debug(this.getClass(),
-                "Checking active sessions on thread: " +
-                        Thread.currentThread().getName());
+        LoggerUtil.debug(this.getClass(), "Checking active sessions on thread: " + Thread.currentThread().getName());
         if (!isInitialized) {
             return;
         }
@@ -291,12 +274,17 @@ public class SessionMonitorService {
             SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
             commandService.executeCommand(saveCommand);
 
-            // Check based on session status
+            // Check based on CURRENT MONITORING MODE in the centralized service
+            String monitoringMode = monitoringStateService.getMonitoringMode(username);
+
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                // Always check temp stop duration when session is in temporary stop state
                 checkTempStopDuration(session);
-            } else if (continuedAfterSchedule.getOrDefault(username, false)) {
+            } else if (MonitoringStateService.MonitoringMode.HOURLY.equals(monitoringMode)) {
+                // Use monitoring mode instead of scattered state flag
                 checkHourlyWarning(session);
             } else {
+                // Default to schedule completion check
                 checkScheduleCompletion(session, user);
             }
         } catch (Exception e) {
@@ -312,30 +300,22 @@ public class SessionMonitorService {
         LocalDateTime tempStopStart = session.getLastTemporaryStopTime();
 
         if (tempStopStart != null) {
-            // Get standardized time values using validation system
-            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-
-            LocalDateTime now = timeValues.getCurrentTime();
+            LocalDateTime now = getStandardTimeValues().getCurrentTime();
 
             // Check if total temporary stop minutes exceed 15 hours
-            if (session.getTotalTemporaryStopMinutes() != null &&
-                    session.getTotalTemporaryStopMinutes() >= WorkCode.MAX_TEMP_STOP_HOURS * WorkCode.HOUR_DURATION) {
+            if (session.getTotalTemporaryStopMinutes() != null && session.getTotalTemporaryStopMinutes() >= WorkCode.MAX_TEMP_STOP_HOURS * WorkCode.HOUR_DURATION) {
                 return;
             }
 
-            CalculateMinutesBetweenQuery minutesQuery = calculationFactory.createCalculateMinutesBetweenQuery(
-                    tempStopStart, now);
+            CalculateMinutesBetweenQuery minutesQuery = calculationFactory.createCalculateMinutesBetweenQuery(tempStopStart, now);
             int minutesSinceTempStop = calculationService.executeQuery(minutesQuery);
 
-            // Show warning every hour of temporary stop
-            if (minutesSinceTempStop >= WorkCode.HOURLY_INTERVAL) {
-                // Use the new notification service instead
-                notificationService.showTempStopWarning(
-                        username,
-                        session.getUserId(),
-                        tempStopStart
-                );
+            // Use MonitoringStateService to check if notification is due
+            if (monitoringStateService.isTempStopNotificationDue(username, minutesSinceTempStop, now) &&
+                    notificationService.canShowNotification(username, WorkCode.TEMP_STOP_TYPE, WorkCode.HOURLY_INTERVAL)) {
+
+                // Show notification
+                notificationService.showTempStopWarning(username, session.getUserId(), tempStopStart);
             }
         }
     }
@@ -345,16 +325,10 @@ public class SessionMonitorService {
      */
     private void checkScheduleCompletion(WorkUsersSessionsStates session, User user) {
         LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-
-        // Get standardized time values using validation system
-        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-
-        LocalDate today = timeValues.getCurrentDate();
+        LocalDate today = getStandardTimeValues().getCurrentDate();
 
         if (!sessionDate.equals(today)) {
-            LoggerUtil.info(this.getClass(),
-                    String.format("Skipping schedule notice for past session from %s", sessionDate));
+            LoggerUtil.info(this.getClass(), String.format("Skipping schedule notice for past session from %s", sessionDate));
             return;
         }
 
@@ -365,33 +339,23 @@ public class SessionMonitorService {
         int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
 
         // Add this debug logging
-        LoggerUtil.debug(this.getClass(), String.format("Schedule check - User: %s, Schedule: %d hours, " +
-                        "Is 8-hour schedule: %b, Required minutes: %d, " +
-                        "Current worked minutes: %d, Notified already: %b",
-                session.getUsername(), scheduleInfo.getScheduleHours(), scheduleInfo.isStandardEightHourSchedule(),
-                scheduleInfo.getFullDayDuration(),
-                workedMinutes, notificationShown.getOrDefault(session.getUsername(), false)));
+        LoggerUtil.debug(this.getClass(), String.format("Schedule check - User: %s, Schedule: %d hours, " + "Is 8-hour schedule: %b, Required minutes: %d, " +
+                        "Current worked minutes: %d, Notified already: %b", session.getUsername(), scheduleInfo.getScheduleHours(), scheduleInfo.isStandardEightHourSchedule(),
+                scheduleInfo.getFullDayDuration(), workedMinutes, monitoringStateService.wasScheduleNotificationShown(session.getUsername())));
 
         // Only show notification if not already shown for this session and schedule is completed
-        if (scheduleInfo.isScheduleCompleted(workedMinutes) && !notificationShown.getOrDefault(session.getUsername(), false)) {
-
-            // Use the new notification service
-            boolean success = notificationService.showScheduleEndNotification(
-                    session.getUsername(),
-                    session.getUserId(),
-                    session.getFinalWorkedMinutes()
-            );
+        if (scheduleInfo.isScheduleCompleted(workedMinutes) && !monitoringStateService.wasScheduleNotificationShown(session.getUsername())) {
+            // Use the notification service
+            boolean success = notificationService.showScheduleEndNotification(session.getUsername(), session.getUserId(), session.getFinalWorkedMinutes());
 
             if (success) {
-                notificationShown.put(session.getUsername(), true);
+                monitoringStateService.markScheduleNotificationShown(session.getUsername());
 
                 // Save the updated session
                 SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
                 commandService.executeCommand(saveCommand);
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Schedule completion notification shown for user %s (worked: %d minutes)",
-                                session.getUsername(), workedMinutes));
+                LoggerUtil.info(this.getClass(), String.format("Schedule completion notification shown for user %s (worked: %d minutes)", session.getUsername(), workedMinutes));
             }
         }
     }
@@ -401,41 +365,23 @@ public class SessionMonitorService {
      */
     public void checkHourlyWarning(WorkUsersSessionsStates session) {
         String username = session.getUsername();
-        LocalDateTime lastWarning = lastHourlyWarning.get(username);
+        LocalDateTime now = getStandardTimeValues().getCurrentTime();
 
-        // Get standardized time values using validation system
-        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-
-        LocalDateTime now = timeValues.getCurrentTime();
-
-        // Calculate next hourly check time (1 hour after the last warning)
-        LocalDateTime nextHourlyCheckTime = lastWarning != null
-                ? lastWarning.plusHours(1)
-                : now;
-
-        // Check if it's time for the next hourly warning
-        if (lastWarning == null || now.isAfter(nextHourlyCheckTime)) {
+        // Use MonitoringStateService to check if hourly notification is due
+        if (monitoringStateService.isHourlyNotificationDue(username, now)) {
             // Add detailed logging
-            LoggerUtil.info(this.getClass(), String.format("Preparing hourly warning for %s - Last warning: %s, Next check: %s",
-                    username,
-                    lastWarning != null ? lastWarning.toString() : "never",
-                    nextHourlyCheckTime));
+            LoggerUtil.info(this.getClass(), String.format("Preparing hourly warning for %s", username));
 
-            // Show hourly warning using the new notification service
-            boolean success = notificationService.showHourlyWarning(
-                    username,
-                    session.getUserId(),
-                    session.getFinalWorkedMinutes()
-            );
+            // Show hourly warning using the notification service
+            boolean success = notificationService.showHourlyWarning(username, session.getUserId(), session.getFinalWorkedMinutes());
 
             if (success) {
                 // Save the updated session
                 SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
                 commandService.executeCommand(saveCommand);
 
-                // Update the last warning time to current time
-                lastHourlyWarning.put(username, now);
+                // Record the warning in the centralized service
+                monitoringStateService.recordHourlyNotification(username, now);
             }
         }
     }
@@ -456,12 +402,7 @@ public class SessionMonitorService {
 
             boolean isWeekday = validationService.execute(weekdayCommand);
             boolean isWorkingHours = validationService.execute(workingHoursCommand);
-
-            // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-
-            LocalDate today = timeValues.getCurrentDate();
+            LocalDate today = getStandardTimeValues().getCurrentDate();
 
             // Get current user
             String username = getCurrentActiveUser();
@@ -469,8 +410,8 @@ public class SessionMonitorService {
                 return;
             }
 
-            // Check if we already showed notification today
-            if (lastStartDayCheck.containsKey(username) && lastStartDayCheck.get(username).equals(today)) {
+            // Check if we already showed notification today using the centralized service
+            if (monitoringStateService.wasStartDayCheckedToday(username, today)) {
                 return;
             }
 
@@ -484,8 +425,7 @@ public class SessionMonitorService {
             // If there's an active session, check if it's from a previous day
             if (session != null && session.getDayStartTime() != null) {
                 LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-                boolean isActive = WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
-                        WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
+                boolean isActive = WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
 
                 // If the session is active and from a previous day, reset it
                 if (isActive && !sessionDate.equals(today)) {
@@ -533,21 +473,14 @@ public class SessionMonitorService {
             if (resolutionStatus.isNeedsResolution()) {
                 LoggerUtil.info(this.getClass(), String.format("User %s has unresolved worktime entries - showing resolution notification", username));
 
-                // Show resolution notification using the new notification service
-                notificationService.showResolutionReminder(
-                        username,
-                        user.getUserId(),
-                        WorkCode.RESOLUTION_TITLE,
-                        WorkCode.RESOLUTION_MESSAGE,
-                        WorkCode.RESOLUTION_MESSAGE_TRAY,
-                        WorkCode.ON_FOR_TWELVE_HOURS
-                );
+                // Show resolution notification
+                notificationService.showResolutionReminder(username, user.getUserId(), WorkCode.RESOLUTION_TITLE, WorkCode.RESOLUTION_MESSAGE, WorkCode.RESOLUTION_MESSAGE_TRAY,
+                        WorkCode.ON_FOR_TWELVE_HOURS);
 
-                // Update last check date so we don't keep showing it
-                lastStartDayCheck.put(username, today);
+                // Record start day check in the centralized service
+                monitoringStateService.recordStartDayCheck(username, today);
                 return;
             }
-
 
             // Use SessionValidator to check if session exists
             if (!SessionValidator.exists(session, this.getClass())) {
@@ -556,10 +489,11 @@ public class SessionMonitorService {
 
             // Validate that session is in offline state and no active session for today
             if (session != null && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && !hasActiveSessionToday(session)) {
-                // Show notification using the new notification service
+                // Show notification
                 notificationService.showStartDayReminder(username, user.getUserId());
-                // Update last check date
-                lastStartDayCheck.put(username, today);
+
+                // Record start day check in the centralized service
+                monitoringStateService.recordStartDayCheck(username, today);
             }
 
         } catch (Exception e) {
@@ -602,11 +536,7 @@ public class SessionMonitorService {
         }
 
         try (Stream<Path> pathStream = Files.list(localSessionPath)) {
-            return pathStream
-                    .filter(this::isValidSessionFile)
-                    .max(this::compareByLastModified)
-                    .map(this::extractUsernameFromSession)
-                    .orElse(null);
+            return pathStream.filter(this::isValidSessionFile).max(this::compareByLastModified).map(this::extractUsernameFromSession).orElse(null);
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(), "Error getting current user: " + e.getMessage(), e);
             return null;
@@ -649,26 +579,16 @@ public class SessionMonitorService {
      * Clears monitoring state for a user
      */
     public void clearMonitoring(String username) {
-        notificationShown.remove(username);
-        continuedAfterSchedule.remove(username);
-        lastHourlyWarning.remove(username);
-        lastStartDayCheck.remove(username);
+        // Replace multiple direct map accesses with a single centralized call
+        monitoringStateService.clearUserState(username);
         LoggerUtil.info(this.getClass(), String.format("Cleared monitoring for user %s", username));
-    }
-
-    /**
-     * Starts monitoring for a user session
-     */
-    public void startMonitoring(String username) {
-        clearMonitoring(username);
-        LoggerUtil.info(this.getClass(), "Started monitoring for user: " + username);
     }
 
     /**
      * Stops monitoring for a user session
      */
     public void stopMonitoring(String username) {
-        clearMonitoring(username);
+        monitoringStateService.stopMonitoring(username);
         LoggerUtil.info(this.getClass(), "Stopped monitoring for user: " + username);
     }
 
@@ -681,19 +601,167 @@ public class SessionMonitorService {
         }
 
         LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-
-        // Get standardized time values using validation system
-        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
-
-        LocalDate today = timeValues.getCurrentDate();
+        LocalDate today = getStandardTimeValues().getCurrentDate();
 
         return sessionDate.equals(today);
     }
 
+    /**
+     * Activates hourly monitoring for continuing work after schedule completion
+     */
     public void activateHourlyMonitoring(String username, LocalDateTime timestamp) {
-        continuedAfterSchedule.put(username, true);
-        lastHourlyWarning.put(username, timestamp);
+        monitoringStateService.transitionToHourlyMonitoring(username, timestamp);
         LoggerUtil.info(this.getClass(), "Activated hourly monitoring for user: " + username);
+    }
+
+    /**
+     * Explicitly pauses schedule completion monitoring when a user enters temporary stop.
+     */
+    public void pauseScheduleMonitoring(String username) {
+        try {
+            LocalDateTime now = getStandardTimeValues().getCurrentTime();
+            monitoringStateService.startTempStopMonitoring(username, now);
+            LoggerUtil.info(this.getClass(), String.format("Paused schedule completion monitoring for user %s (entered temporary stop)", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error pausing schedule monitoring for user %s: %s", username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Resumes regular schedule completion monitoring after temporary stop ends.
+     * This only applies if the schedule hasn't been completed yet.
+     *
+     * @param username The username
+     */
+    public void resumeScheduleMonitoring(String username) {
+        try {
+            monitoringStateService.resumeFromTempStop(username, false);
+            LoggerUtil.info(this.getClass(), String.format("Resumed schedule monitoring for user %s (exited temporary stop)", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error resuming schedule monitoring for user %s: %s", username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Determines if a user is currently in temporary stop monitoring mode.
+     */
+    public boolean isInTempStopMonitoring(String username) {
+        return monitoringStateService.isInTempStopMonitoring(username);
+    }
+
+    /**
+     * Activates hourly monitoring with more explicit state management.
+     */
+    public boolean activateExplicitHourlyMonitoring(String username, LocalDateTime timestamp) {
+        try {
+            monitoringStateService.transitionToHourlyMonitoring(username, timestamp);
+            LoggerUtil.info(this.getClass(), String.format("Explicitly activated hourly monitoring for user %s", username));
+            return true;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error activating explicit hourly monitoring for user %s: %s", username, e.getMessage()), e);
+            return false;
+        }
+    }
+
+    /**
+     * Deactivates hourly monitoring.
+     */
+    public void deactivateHourlyMonitoring(String username) {
+        try {
+            monitoringStateService.stopMonitoring(username);
+            LoggerUtil.info(this.getClass(), String.format("Deactivated hourly monitoring for user %s", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error deactivating hourly monitoring for user %s: %s", username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Enhanced version of startMonitoring that explicitly handles all monitoring states.
+     */
+    public void startEnhancedMonitoring(String username) {
+        try {
+            monitoringStateService.startScheduleMonitoring(username);
+            LoggerUtil.info(this.getClass(), String.format("Started enhanced monitoring for user %s (schedule completion monitoring active)", username));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error starting enhanced monitoring for user %s: %s", username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Records that a temporary stop notification has been shown to a user.
+     */
+    public void recordTempStopNotification(String username, LocalDateTime timestamp) {
+        try {
+            monitoringStateService.recordTempStopNotification(username, timestamp);
+
+            // Ensure temp stop monitoring mode is active
+            if (!monitoringStateService.isInTempStopMonitoring(username)) {
+                pauseScheduleMonitoring(username);
+            }
+
+            LoggerUtil.debug(this.getClass(), String.format("Recorded temp stop notification for user %s at %s",
+                    username, timestamp));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error recording temp stop notification for user %s: %s",
+                    username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Schedules an automatic end time for a user's session
+     */
+    public boolean scheduleAutomaticEnd(String username, Integer userId, LocalDateTime endTime) {
+        try {
+            // Create a Runnable that executes the end day command
+            Runnable endAction = () -> {
+                try {
+                    LoggerUtil.info(this.getClass(), String.format("Executing scheduled end session for user %s at %s", username, endTime));
+
+                    // Get current session state
+                    GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, userId);
+                    WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
+
+                    // Check if in temporary stop
+                    boolean isInTempStop = session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
+
+                    if (isInTempStop) {
+                        LoggerUtil.info(this.getClass(), String.format("User %s is in temporary stop at scheduled end time, ending with temp stop included", username));
+                    }
+
+                    // Create and execute the end day command - it will handle temp stop correctly
+                    EndDayCommand command = commandFactory.createEndDayCommand(username, userId, null, null);
+                    commandService.executeCommand(command);
+
+                    LoggerUtil.info(this.getClass(), String.format("Successfully executed scheduled end session for user %s", username));
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), String.format("Error executing scheduled end for user %s: %s", username, e.getMessage()), e);
+                }
+            };
+
+            // Use the centralized scheduling service
+            return monitoringStateService.scheduleAutomaticEnd(username, endTime, endAction);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error scheduling end for user %s: %s", username, e.getMessage()), e);
+            return false;
+        }
+    }
+
+    /**
+     * Cancels a scheduled end time for a user
+     */
+    public boolean cancelScheduledEnd(String username) {
+        return monitoringStateService.cancelScheduledEnd(username);
+    }
+
+    /**
+     * Gets the scheduled end time for a user if any
+     */
+    public LocalDateTime getScheduledEndTime(String username) {
+        return monitoringStateService.getScheduledEndTime(username);
+    }
+
+    private GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues() {
+        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+        return validationService.execute(timeCommand);
     }
 }

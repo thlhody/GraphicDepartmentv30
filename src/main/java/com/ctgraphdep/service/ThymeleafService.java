@@ -67,8 +67,7 @@ public class ThymeleafService {
 
             // Check if this is a fragment that might need URL handling
             if (templateName.contains("fragment") || templateName.contains("fragments")) {
-                LoggerUtil.debug(this.getClass(),
-                        "Processing fragment: " + templateName + ". Remember to use ${'/path...'} instead of @{/path...} for URLs in fragments.");
+                LoggerUtil.debug(this.getClass(), "Processing fragment: " + templateName + ". Remember to use ${'/path...'} instead of @{/path...} for URLs in fragments.");
             }
 
             // Process the template

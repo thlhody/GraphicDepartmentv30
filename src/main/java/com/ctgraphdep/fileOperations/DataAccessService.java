@@ -637,8 +637,7 @@ public class DataAccessService {
         try {
             // Get the user from network
             FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(username, userId));
-            Optional<User> networkUser = fileReaderService.readFileReadOnly(
-                    networkPath, new TypeReference<>() {}, true);
+            Optional<User> networkUser = fileReaderService.readFileReadOnly(networkPath, new TypeReference<>() {}, true);
 
             if (networkUser.isEmpty()) {
                 LoggerUtil.error(this.getClass(), "User not found on network: " + username);
@@ -657,21 +656,15 @@ public class DataAccessService {
             FileTransactionResult result = transactionManager.commitTransaction();
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(),
-                        "Failed to update holiday days (admin): " + result.getErrorMessage());
-                throw new RuntimeException(
-                        "Failed to update holiday days (admin): " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to update holiday days (admin): " + result.getErrorMessage());
+                throw new RuntimeException("Failed to update holiday days (admin): " + result.getErrorMessage());
             }
 
-            LoggerUtil.info(this.getClass(),
-                    String.format("Admin updated holiday days for user %s to %d days",
-                            username, holidayDays));
+            LoggerUtil.info(this.getClass(), String.format("Admin updated holiday days for user %s to %d days", username, holidayDays));
 
         } catch (Exception e) {
             transactionManager.rollbackTransaction();
-            LoggerUtil.logAndThrow(this.getClass(),
-                    String.format("Error in admin holiday update for user %s: %s",
-                            username, e.getMessage()), e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error in admin holiday update for user %s: %s", username, e.getMessage()), e);
         }
     }
 

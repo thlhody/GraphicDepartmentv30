@@ -1,11 +1,11 @@
 package com.ctgraphdep.controller.user;
 
-import com.ctgraphdep.calculations.CalculationCommandFactory;
-import com.ctgraphdep.calculations.CalculationCommandService;
-import com.ctgraphdep.calculations.commands.UpdateLastTemporaryStopCommand;
-import com.ctgraphdep.calculations.queries.CalculateRecommendedEndTimeQuery;
-import com.ctgraphdep.calculations.queries.CalculateRawWorkMinutesQuery;
 import com.ctgraphdep.model.WorkTimeTable;
+import com.ctgraphdep.model.dto.session.EndTimeCalculationDTO;
+import com.ctgraphdep.model.dto.session.ResolutionCalculationDTO;
+import com.ctgraphdep.model.dto.session.WorkSessionDTO;
+import com.ctgraphdep.service.SessionMonitorService;
+import com.ctgraphdep.service.SessionService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.*;
@@ -16,11 +16,9 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
-import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
-import com.ctgraphdep.validation.commands.IsActiveSessionCommand;
-import com.ctgraphdep.validation.commands.ValidateSessionForStartCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,32 +48,25 @@ public class UserSessionController extends BaseController {
 
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
-    private final CalculationCommandService calculationService;
-    private final CalculationCommandFactory calculationFactory;
+    private final SessionService sessionService;
 
     @Autowired
-    public UserSessionController(
-            SessionCommandService commandService,
-            SessionCommandFactory commandFactory,
-            CalculationCommandService calculationService,
-            CalculationCommandFactory calculationFactory,
-            FolderStatus folderStatus,
-            TimeValidationService timeValidationService) {
+    public UserSessionController(SessionCommandService commandService, SessionCommandFactory commandFactory,
+            FolderStatus folderStatus, TimeValidationService timeValidationService, SessionService sessionService) {
         super(commandService.getContext().getUserService(), folderStatus, timeValidationService);
         this.commandService = commandService;
         this.commandFactory = commandFactory;
-        this.calculationService = calculationService;
-        this.calculationFactory = calculationFactory;
+        this.sessionService = sessionService;
     }
 
     @GetMapping
     public String getSessionPage(@AuthenticationPrincipal UserDetails userDetails, Model model, RedirectAttributes redirectAttributes,
-            @RequestParam(name = "skipResolutionCheck", required = false, defaultValue = "false") boolean skipResolutionCheck) {
+                                 @RequestParam(name = "skipResolutionCheck", required = false, defaultValue = "false") boolean skipResolutionCheck) {
 
         try {
             LoggerUtil.info(this.getClass(), "Loading session page at " + getStandardCurrentDateTime());
 
-            // Use the new helper method instead of checkUserAccess
+            // Use the helper method to prepare user and common model attributes
             User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
             if (currentUser == null) {
                 return "redirect:/login";
@@ -85,62 +76,27 @@ public class UserSessionController extends BaseController {
             NavigationContextQuery navQuery = commandFactory.createNavigationContextQuery(currentUser);
             NavigationContext navContext = commandService.executeQuery(navQuery);
 
-            // Override the dashboard URL from prepareUserAndCommonModelAttributes with the one from NavigationContext
-            // as it might contain additional context-specific logic
             model.addAttribute("dashboardUrl", navContext.getDashboardUrl());
             model.addAttribute("completedSessionToday", navContext.isCompletedSessionToday());
             model.addAttribute("isTeamLeaderView", navContext.isTeamLeaderView());
 
-            // Initialize variables at the start:
-            List<WorkTimeTable> unresolvedEntries = List.of();
-            boolean hasUnresolvedEntries = false;
-            Map<LocalDate, LocalDateTime> recommendedEndTimes = new HashMap<>();
-
-            // Check for unresolved work time entries
+            // Check for unresolved work time entries using a query
             if (!skipResolutionCheck) {
-                // Use the UnresolvedWorkTimeQuery to check for entries that need resolution
-                UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(currentUser.getUsername());
-                unresolvedEntries = commandService.executeQuery(unresolvedQuery);
+                GetUnresolvedEntriesQuery unresolvedQuery = commandFactory.createGetUnresolvedEntriesQuery(
+                        currentUser.getUsername(), currentUser.getUserId());
+                List<ResolutionCalculationDTO> unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
-                if (!unresolvedEntries.isEmpty()) {
-                    LoggerUtil.info(this.getClass(), String.format("Found %d unresolved work time entries for user %s", unresolvedEntries.size(), currentUser.getUsername()));
-
-                    hasUnresolvedEntries = true;
-
-                    // Calculate recommended end times for each entry using the calculation command
-                    for (WorkTimeTable entry : unresolvedEntries) {
-                        // Use CalculateRecommendedEndTimeQuery
-                        CalculateRecommendedEndTimeQuery endTimeQuery = calculationFactory.createCalculateRecommendedEndTimeQuery(entry, currentUser.getSchedule());
-                        LocalDateTime recommendedTime = calculationService.executeQuery(endTimeQuery);
-                        recommendedEndTimes.put(entry.getWorkDate(), recommendedTime);
-                    }
-                }
+                model.addAttribute("hasUnresolvedEntries", !unresolvedEntries.isEmpty());
+                model.addAttribute("unresolvedEntries", unresolvedEntries);
+            } else {
+                model.addAttribute("hasUnresolvedEntries", false);
             }
 
-            model.addAttribute("hasUnresolvedEntries", hasUnresolvedEntries);
-            model.addAttribute("unresolvedEntries", unresolvedEntries);
-            model.addAttribute("recommendedEndTimes", recommendedEndTimes);
-
-            // Get and process current session (the one we show on the main page)
-            ResolveSessionQuery resolveQuery = commandFactory.createResolveSessionQuery(currentUser.getUsername(), currentUser.getUserId());
-            WorkUsersSessionsStates session = commandService.executeQuery(resolveQuery);
-
-            // Update calculations if session is active
-            if (isActiveSession(session)) {
-                // Get standardized time using our base controller method
-                LocalDateTime currentTime = getStandardCurrentDateTime();
-
-                // Update session calculations using the standardized current time
-                UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session, currentTime);
-                session = commandService.executeCommand(updateCommand);
-            }
-
-            // Prepare view model through a dedicated command
-            PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(model, session, currentUser);
+            // Prepare view model through dedicated command
+            PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(model, currentUser);
             commandService.executeCommand(viewModelCommand);
 
-            // Add current time to model for UI display - already done by prepareUserAndCommonModelAttributes
-            // but using a different format, so keep this explicit formatting
+            // Add current time for UI display in specific format
             model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             return "user/session";
@@ -290,7 +246,7 @@ public class UserSessionController extends BaseController {
                 return "redirect:/login";
             }
 
-            // Get current session
+            // Get current session just to check if it exists and is not already offline
             GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(currentUser.getUsername(), currentUser.getUserId());
             WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
 
@@ -302,33 +258,16 @@ public class UserSessionController extends BaseController {
             // Get standardized time using our base controller method
             LocalDateTime currentTime = getStandardCurrentDateTime();
 
-            // Handle active sessions
-            if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                // Calculate final worked minutes using calculation command
-                CalculateRawWorkMinutesQuery workMinutesQuery = calculationFactory.createCalculateRawWorkMinutesQuery(session, currentTime);
-                int rawWorkMinutes = calculationService.executeQuery(workMinutesQuery);
+            // Let the enhanced EndDayCommand handle all logic - temporary stops, calculations, etc.
+            EndDayCommand command = commandFactory.createEndDayCommand(
+                    currentUser.getUsername(),
+                    currentUser.getUserId(),
+                    null,  // Let the command calculate the minutes
+                    currentTime);  // Pass the standardized current time
 
-                // Handle temporary stop case
-                if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                    // Use the calculation command for updating last temporary stop
-                    UpdateLastTemporaryStopCommand tempStopCommand = calculationFactory.createUpdateLastTemporaryStopCommand(session, currentTime);
-                    session = calculationService.executeCommand(tempStopCommand);
-                    SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-                    commandService.executeCommand(saveCommand);
-                }
+            commandService.executeCommand(command);
+            return "redirect:/user/session?action=end";
 
-                // End day using command with current time
-                EndDayCommand command = commandFactory.createEndDayCommand(
-                        currentUser.getUsername(),
-                        currentUser.getUserId(),
-                        rawWorkMinutes, // Use the calculated raw work minutes
-                        currentTime);  // Pass the standardized current time
-
-                commandService.executeCommand(command);
-                return "redirect:/user/session?action=end";
-            }
-
-            return "redirect:/user/session";
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error ending session: " + e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage", "Error ending session: " + e.getMessage());
@@ -336,6 +275,9 @@ public class UserSessionController extends BaseController {
         }
     }
 
+    /**
+     * Resolves an unfinished work time entry - Refactored to use SessionService
+     */
     @PostMapping("/resolve-worktime")
     public String resolveWorkTimeEntry(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -363,20 +305,29 @@ public class UserSessionController extends BaseController {
                 return "redirect:/user/session";
             }
 
-            // Create end time from user input
-            LocalDateTime endTime = LocalDateTime.of(entryDate, LocalTime.of(endHour, endMinute));
+            // Use SessionService to calculate resolution values
+            ResolutionCalculationDTO result = sessionService.calculateResolutionValues(currentUser.getUsername(), currentUser.getUserId(), entryDate, endHour, endMinute);
 
-            // Execute the resolution command
-            ResolveWorkTimeEntryCommand command = new ResolveWorkTimeEntryCommand(currentUser.getUsername(), currentUser.getUserId(), entryDate, endTime);
-            boolean success = commandService.executeCommand(command);
+            // Still need to execute the command to actually save the resolution
+            if (result.getSuccess()) {
+                // Create end time from user input
+                LocalDateTime endTime = LocalDateTime.of(entryDate, LocalTime.of(endHour, endMinute));
 
-            if (success) {
-                LoggerUtil.info(this.getClass(), "Successfully resolved worktime entry for " + entryDate);
-                redirectAttributes.addFlashAttribute("successMessage",
-                        "Work session from " + entryDate.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")) + " resolved successfully");
+                // Execute the resolution command - this actually saves the changes
+                ResolveWorkTimeEntryCommand command = new ResolveWorkTimeEntryCommand(currentUser.getUsername(), currentUser.getUserId(), entryDate, endTime);
+                boolean success = commandService.executeCommand(command);
+
+                if (success) {
+                    LoggerUtil.info(this.getClass(), "Successfully resolved worktime entry for " + entryDate);
+                    redirectAttributes.addFlashAttribute("successMessage",
+                            "Work session from " + entryDate.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")) +
+                                    " resolved successfully");
+                } else {
+                    LoggerUtil.warn(this.getClass(), "Failed to resolve worktime entry for " + entryDate);
+                    redirectAttributes.addFlashAttribute("errorMessage", "Failed to resolve work session");
+                }
             } else {
-                LoggerUtil.warn(this.getClass(), "Failed to resolve worktime entry for " + entryDate);
-                redirectAttributes.addFlashAttribute("errorMessage", "Failed to resolve work session");
+                redirectAttributes.addFlashAttribute("errorMessage", result.getErrorMessage());
             }
 
             return "redirect:/user/session";
@@ -387,14 +338,190 @@ public class UserSessionController extends BaseController {
         }
     }
 
-    private boolean isActiveSession(WorkUsersSessionsStates session) {
+    @PostMapping("/calculate-resolution")
+    @ResponseBody
+    public ResolutionCalculationDTO calculateResolution(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, Object> requestData) {
+
+        // Get current user
+        User currentUser = getUser(userDetails);
+        if (currentUser == null) {
+            ResolutionCalculationDTO errorDto = new ResolutionCalculationDTO();
+            errorDto.setSuccess(false);
+            errorDto.setErrorMessage("Authentication required");
+            return errorDto;
+        }
+
+        // Extract values from request
+        LocalDate entryDate = LocalDate.parse((String)requestData.get("entryDate"));
+        int endHour = (Integer)requestData.get("endHour");
+        int endMinute = (Integer)requestData.get("endMinute");
+
+        // Use SessionService to calculate resolution values
+        return sessionService.calculateResolutionValues(
+                currentUser.getUsername(),
+                currentUser.getUserId(),
+                entryDate,
+                endHour,
+                endMinute);
+    }
+
+    /**
+     * Schedules an automatic end time for the current session
+     */
+    @PostMapping("/schedule-end")
+    public String scheduleEndSession(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(value = "endHour") int endHour,
+            @RequestParam(value = "endMinute") int endMinute,
+            RedirectAttributes redirectAttributes) {
+
         try {
-            // Use the getTimeValidationService to access validation service
-            IsActiveSessionCommand command = getTimeValidationService().getValidationFactory().createIsActiveSessionCommand(session);
-            return getTimeValidationService().execute(command);
+            LoggerUtil.info(this.getClass(), String.format("Scheduling end session at %02d:%02d", endHour, endMinute));
+
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
+                return "redirect:/login";
+            }
+
+            // Get current session to check if it's active
+            WorkUsersSessionsStates session = commandService.getContext().getCurrentSession(currentUser.getUsername(), currentUser.getUserId());
+
+            if (session == null || WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
+                redirectAttributes.addFlashAttribute("warningMessage", "No active session to schedule end time for");
+                return "redirect:/user/session";
+            }
+
+            // Get standardized time values
+            GetStandardTimeValuesCommand timeCommand = getTimeValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = getTimeValidationService().execute(timeCommand);
+            LocalDate today = timeValues.getCurrentDate();
+
+            // Create end time from user input
+            LocalDateTime endTime = LocalDateTime.of(today, LocalTime.of(endHour, endMinute));
+
+            // Get the session monitor service and schedule the end time
+            SessionMonitorService monitorService = commandService.getContext().getSessionMonitorService();
+            boolean success = monitorService.scheduleAutomaticEnd(currentUser.getUsername(), currentUser.getUserId(), endTime);
+
+            if (success) {
+                redirectAttributes.addFlashAttribute("successMessage", String.format("Session scheduled to end at %02d:%02d", endHour, endMinute));
+            } else {
+                redirectAttributes.addFlashAttribute("warningMessage", "Could not schedule end time. Ensure it's in the future.");
+            }
+
+            return "redirect:/user/session";
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error checking session activity: " + e.getMessage(), e);
-            return false; // Default to false for safety
+            LoggerUtil.error(this.getClass(), "Error scheduling end session: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "Error scheduling end session: " + e.getMessage());
+            return "redirect:/user/session";
+        }
+    }
+
+    /**
+     * Cancels a scheduled end time
+     */
+    @PostMapping("/cancel-scheduled-end")
+    public String cancelScheduledEnd(@AuthenticationPrincipal UserDetails userDetails, RedirectAttributes redirectAttributes) {
+
+        try {
+            LoggerUtil.info(this.getClass(), "Cancelling scheduled end session");
+
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
+                return "redirect:/login";
+            }
+
+            // Get the session monitor service and cancel the scheduled end
+            SessionMonitorService monitorService = commandService.getContext().getSessionMonitorService();
+            boolean success = monitorService.cancelScheduledEnd(currentUser.getUsername());
+
+            if (success) {
+                redirectAttributes.addFlashAttribute("successMessage", "Scheduled end time cancelled");
+            } else {
+                redirectAttributes.addFlashAttribute("warningMessage", "Failed to cancel scheduled end time");
+            }
+
+            return "redirect:/user/session";
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error cancelling scheduled end: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "Error cancelling scheduled end: " + e.getMessage());
+            return "redirect:/user/session";
+        }
+    }
+
+    /**
+     * Gets the recommended end time based on the user's schedule - Refactored to use SessionService
+     */
+    @GetMapping("/recommended-end-time")
+    @ResponseBody
+    public Map<String, Object> getRecommendedEndTime(@AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                return Map.of("success", false, "message", "Authentication required");
+            }
+
+            // Use WorkSessionDTO from the SessionService
+            WorkSessionDTO sessionDTO = sessionService.getCurrentSession(currentUser.getUsername(), currentUser.getUserId());
+
+            if (sessionDTO == null || sessionDTO.getDayStartTime() == null) {
+                return Map.of("success", false, "message", "No active session");
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("recommendedEndTime", sessionDTO.getEstimatedEndTime() != null ? sessionDTO.getEstimatedEndTime().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")) : null);
+            result.put("expectedEndTime", "17:00");
+            result.put("scheduledEndTime", sessionDTO.getScheduledEndTime() != null ? sessionDTO.getScheduledEndTime().format(DateTimeFormatter.ofPattern("HH:mm")) : null);
+            return result;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting recommended end time: " + e.getMessage(), e);
+            return Map.of("success", false, "message", "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Calculates work time based on proposed end time - Refactored to use SessionService
+     */
+    @PostMapping("/calculate-end-time")
+    @ResponseBody
+    public EndTimeCalculationDTO calculateEndTime(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, Integer> endTimeData) {
+
+        try {
+            // Get the current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                EndTimeCalculationDTO errorDTO = new EndTimeCalculationDTO();
+                errorDTO.setSuccess(false);
+                errorDTO.setMessage("Authentication required");
+                return errorDTO;
+            }
+
+            Integer endHour = endTimeData.get("endHour");
+            Integer endMinute = endTimeData.get("endMinute");
+
+            // Use SessionService to calculate end time
+            return sessionService.calculateEndTimeWork(
+                    currentUser.getUsername(),
+                    currentUser.getUserId(),
+                    endHour,
+                    endMinute);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error calculating end time work: " + e.getMessage(), e);
+            EndTimeCalculationDTO errorDTO = new EndTimeCalculationDTO();
+            errorDTO.setSuccess(false);
+            errorDTO.setMessage("Error calculating work time: " + e.getMessage());
+            return errorDTO;
         }
     }
 }

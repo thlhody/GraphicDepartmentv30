@@ -1,10 +1,8 @@
 package com.ctgraphdep.session.commands.notification;
 
-import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
-
-import java.time.LocalDateTime;
 
 /**
  * Command to track when a notification is displayed
@@ -36,7 +34,7 @@ public class TrackNotificationDisplayCommand extends BaseNotificationCommand<Voi
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
 
             // Determine notification type
-            String notificationType = isTempStop ? "TEMP_STOP" : "SCHEDULE_END";
+            String notificationType = isTempStop ? WorkCode.TEMP_STOP_TYPE : WorkCode.SCHEDULE_END_TYPE;
 
             // Record notification display time for rate limiting
             ctx.getNotificationService().recordNotificationTime(username, notificationType);

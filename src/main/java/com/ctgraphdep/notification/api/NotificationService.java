@@ -69,8 +69,7 @@ public interface NotificationService {
      * @param timeoutPeriod The timeout period in milliseconds
      * @return true if notification was successfully displayed
      */
-    boolean showResolutionReminder(String username, Integer userId, String title,
-                                   String message, String trayMessage, Integer timeoutPeriod);
+    boolean showResolutionReminder(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod);
 
     /**
      * Records when a notification is displayed for rate-limiting purposes
@@ -94,6 +93,13 @@ public interface NotificationService {
      * Resets the notification service state
      */
     void resetService();
+
+    /**
+     * Cancels any pending backup tasks for a user
+     * @param username The username to cancel backup tasks for
+     * @return true if cancellation was successful
+     */
+    boolean cancelNotificationBackup(String username);
 
     boolean showTestNotification(String username);
 }

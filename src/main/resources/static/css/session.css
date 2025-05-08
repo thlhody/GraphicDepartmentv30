@@ -1,31 +1,82 @@
-        /* Custom styles for session stats */
-        .stat-container {
-            transition: transform 0.2s ease;
-        }
+/* Custom styles for session stats */
+.stat-container {
+    transition: transform 0.2s ease;
+}
 
-        .stat-container:hover {
-            transform: translateY(-2px);
-        }
+.stat-container:hover {
+    transform: translateY(-2px);
+}
 
-        .time-display {
-            font-size: 2rem;
-            font-weight: 500;
-        }
+.time-display {
+    font-size: 2rem;
+    font-weight: 500;
+}
 
-        .session-controls {
-            gap: 1rem;
-        }
+.session-controls {
+    gap: 1rem;
+}
 
-        @media (max-width: 768px) {
-            .session-controls {
-                flex-direction: column;
-            }
+@media (max-width: 768px) {
+    .session-controls {
+        flex-direction: column;
+    }
 
-            .session-controls form {
-                width: 100%;
-            }
+    .session-controls form {
+        width: 100%;
+    }
 
-            .session-controls button {
-                width: 100%;
-            }
-        }
+    .session-controls button {
+        width: 100%;
+    }
+}
+
+/* Styles for end time scheduler */
+/* Styles for end time scheduler section */
+.border-purple {
+    border-left-color: #6f42c1 !important;
+}
+
+/* Styles for end time calculations */
+.end-time-calculation-result {
+    display: block;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.end-time-calculation-result.highlight-result {
+    animation: pulse-highlight 1s ease;
+}
+
+.calculation-card {
+    font-size: 0.85rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.calculation-card .card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.calculation-details strong {
+    font-weight: 600;
+}
+
+@keyframes pulse-highlight {
+    0% { opacity: 0.7; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1.02); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* Calculation preview styles */
+.calculation-preview-container {
+    min-height: 60px;
+}
+
+.calculation-details i {
+    width: 16px;
+    text-align: center;
+}
+
+.calculation-preview-container.highlight-result {
+    animation: pulse-highlight 1s ease;
+}

@@ -20,6 +20,6 @@ public class TestNotificationEvent extends NotificationEvent {
 
     @Override
     public String getNotificationType() {
-        return "TEST";
+        return WorkCode.TEST_TYPE;
     }
 }

@@ -9,6 +9,8 @@ import com.ctgraphdep.model.UserStatusInfo;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.dto.UserStatusDTO;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
@@ -37,6 +39,7 @@ public class ReadFileNameStatusService {
 
     private final UserService userService;
     private final DataAccessService dataAccessService;
+    private final TimeValidationService timeValidationService;
 
     // Add local user tracking
     private volatile User localUser;
@@ -72,9 +75,10 @@ public class ReadFileNameStatusService {
     @Autowired
     public ReadFileNameStatusService(
             UserService userService,
-            DataAccessService dataAccessService) {
+            DataAccessService dataAccessService, TimeValidationService timeValidationService) {
         this.userService = userService;
         this.dataAccessService = dataAccessService;
+        this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -83,21 +87,18 @@ public class ReadFileNameStatusService {
      */
     private synchronized void loadLocalUser() {
         try {
-            // Only attempt to load if not already loaded
-            if (localUser == null) {
-                List<User> localUsers = dataAccessService.readLocalUser();
-                if (localUsers != null && !localUsers.isEmpty()) {
-                    User user = localUsers.get(0);
-                    localUser = user;
-                    LoggerUtil.info(this.getClass(), "Local user loaded: " + user.getUsername());
+            // Clear previous user before loading
+            localUser = null;
 
-                    // Process any pending status updates
-                    processPendingStatusUpdates();
-                } else {
-                    LoggerUtil.info(this.getClass(), "No local users found in file");
-                }
+            List<User> localUsers = dataAccessService.readLocalUser();
+            if (localUsers != null && !localUsers.isEmpty()) {
+                localUser = localUsers.get(0);
+                LoggerUtil.info(this.getClass(), "Local user loaded: " + localUser.getUsername());
+            } else {
+                LoggerUtil.warn(this.getClass(), "No local users found in file");
             }
-            // Mark that we've attempted initialization
+
+            // Always mark as initialized, even if we didn't find a user
             initializedLocalUser.set(true);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to load local user: " + e.getMessage(), e);
@@ -106,58 +107,20 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * Process any pending status updates now that we have the local user
-     */
-    private synchronized void processPendingStatusUpdates() {
-        if (localUser == null || pendingStatusUpdates.isEmpty()) {
-            return;
-        }
-
-        LoggerUtil.info(this.getClass(),
-                String.format("Processing %d pending status updates for user %s",
-                        pendingStatusUpdates.size(), localUser.getUsername()));
-
-        // Create a copy to avoid concurrent modification
-        List<PendingStatusUpdate> updates = new ArrayList<>(pendingStatusUpdates);
-
-        // Process each pending update if it's for the local user
-        for (PendingStatusUpdate update : updates) {
-            if (localUser.getUsername().equals(update.username)) {
-                // Process this update now
-                createNetworkStatusFlagInternal(
-                        update.username,
-                        update.status,
-                        update.timestamp
-                );
-                LoggerUtil.info(this.getClass(),
-                        String.format("Processed pending status update for %s: %s",
-                                update.username, update.status));
-            } else {
-                LoggerUtil.debug(this.getClass(),
-                        String.format("Skipping pending update for %s as it doesn't match local user %s",
-                                update.username, localUser.getUsername()));
-            }
-        }
-
-        // Clear all processed updates
-        pendingStatusUpdates.clear();
-    }
-
-    /**
      * Checks if the given username matches the local user
      */
     private boolean isLocalUser(String username) {
-        // If local user is not initialized yet, try to load it
-        if (!initializedLocalUser.get()) {
+        // Force local user load if not loaded yet
+        if (localUser == null || !initializedLocalUser.get()) {
             loadLocalUser();
         }
 
-        // After attempting to load, check if we have a user
-        if (localUser == null) {
-            return false;
-        }
+        // Add logging to see what's happening
+        boolean result = localUser != null && username.equals(localUser.getUsername());
+        LoggerUtil.debug(this.getClass(), String.format("isLocalUser check for %s: %b (local user is %s)",
+                username, result, localUser != null ? localUser.getUsername() : "null"));
 
-        return username != null && username.equals(localUser.getUsername());
+        return result;
     }
 
     /**
@@ -245,7 +208,7 @@ public class ReadFileNameStatusService {
             // Use last activity time from session or current time if not available
             LocalDateTime timestamp = session.getLastActivity();
             if (timestamp == null) {
-                timestamp = LocalDateTime.now();
+                timestamp = getStandardCurrentTime();
             }
 
             // Update the status
@@ -464,8 +427,7 @@ public class ReadFileNameStatusService {
         }
 
         return (int) statusCache.getUserStatuses().values().stream()
-                .filter(info -> WorkCode.WORK_ONLINE.equals(info.getStatus()) ||
-                        WorkCode.WORK_TEMPORARY_STOP.equals(info.getStatus()))
+                .filter(info -> WorkCode.WORK_ONLINE.equals(info.getStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(info.getStatus()))
                 .count();
     }
 
@@ -514,7 +476,7 @@ public class ReadFileNameStatusService {
             if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
 
                 // Update with same status but current time
-                updateUserStatus(currentUsername, currentUser.getUserId(), session.getSessionStatus(), LocalDateTime.now());
+                updateUserStatus(currentUsername, currentUser.getUserId(), session.getSessionStatus(), getStandardCurrentTime());
                 LoggerUtil.debug(this.getClass(), String.format("Updated timestamp for current user %s with status %s", currentUsername, session.getSessionStatus()));
             }
         } catch (Exception e) {
@@ -529,7 +491,7 @@ public class ReadFileNameStatusService {
     @Scheduled(fixedRate = 3600000) // Run hourly
     public void cleanPendingStatusUpdates() {
         synchronized (pendingStatusUpdates) {
-            LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+            LocalDateTime cutoff = getStandardCurrentTime().minusHours(24);
 
             // Create a new list with only non-expired updates
             List<PendingStatusUpdate> validUpdates = pendingStatusUpdates.stream()
@@ -561,7 +523,7 @@ public class ReadFileNameStatusService {
             LoggerUtil.info(this.getClass(), "Cleaning up stale status flags");
 
             // Calculate cutoff date (3 days old)
-            LocalDate cutoffDate = LocalDate.now().minusDays(3);
+            LocalDate cutoffDate = getStandardCurrentDate().minusDays(3);
 
             // Get all network flag files
             List<Path> flagFiles = dataAccessService.readNetworkStatusFlags();
@@ -603,7 +565,7 @@ public class ReadFileNameStatusService {
             statusCache = new LocalStatusCache();
             statusCache.setUserStatuses(new HashMap<>());
         }
-        cacheLastUpdated = LocalDateTime.now();
+        cacheLastUpdated = getStandardCurrentTime();
     }
 
     /**
@@ -616,9 +578,9 @@ public class ReadFileNameStatusService {
                 this.statusCache = new LocalStatusCache();
                 this.statusCache.setUserStatuses(new HashMap<>());
             }
-            statusCache.setLastUpdated(LocalDateTime.now());
+            statusCache.setLastUpdated(getStandardCurrentTime());
             dataAccessService.writeLocalStatusCache(statusCache);
-            cacheLastUpdated = LocalDateTime.now();
+            cacheLastUpdated = getStandardCurrentTime();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error saving status cache: " + e.getMessage(), e);
         }
@@ -885,5 +847,19 @@ public class ReadFileNameStatusService {
             case "TS" -> WorkCode.WORK_TEMPORARY_STOP;
             default -> WorkCode.WORK_OFFLINE;
         };
+    }
+
+    private LocalDateTime getStandardCurrentTime() {
+        // Get standardized time
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        return timeValues.getCurrentTime();
+    }
+
+    private LocalDate getStandardCurrentDate() {
+        // Get standardized time
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        return timeValues.getCurrentDate();
     }
 }

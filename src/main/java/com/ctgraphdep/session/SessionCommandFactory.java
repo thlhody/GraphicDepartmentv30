@@ -6,14 +6,11 @@ import com.ctgraphdep.session.commands.notification.*;
 import com.ctgraphdep.session.query.*;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.ui.Model;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Map;
-
 
 // Factory for creating session commands
 @Component
@@ -28,19 +25,9 @@ public class SessionCommandFactory {
         return new StartDayCommand(username, userId);
     }
 
-    // Creates a command to start a work day from a notification
-    public StartWorkDayCommand createStartWorkDayCommand(String username, Integer userId) {
-        return new StartWorkDayCommand(username, userId);
-    }
-
     // Creates a command to end the work day
     public EndDayCommand createEndDayCommand(String username, Integer userId, Integer finalMinutes, LocalDateTime endTime) {
         return new EndDayCommand(username, userId, finalMinutes, endTime);
-    }
-
-    // Creates a command to end a session from a notification
-    public EndSessionFromNotificationCommand createEndSessionFromNotificationCommand(String username, Integer userId, Integer finalMinutes) {
-        return new EndSessionFromNotificationCommand(username, userId, finalMinutes);
     }
 
     // Creates a command to resume a previously completed session
@@ -65,11 +52,6 @@ public class SessionCommandFactory {
     // Creates a command to resume work after a temporary stop
     public ResumeFromTemporaryStopCommand createResumeFromTemporaryStopCommand(String username, Integer userId) {
         return new ResumeFromTemporaryStopCommand(username, userId);
-    }
-
-    // Creates a command to resume from temporary stop via a notification
-    public ResumeFromTempStopCommand createResumeFromTempStopCommand(String username, Integer userId) {
-        return new ResumeFromTempStopCommand(username, userId);
     }
 
     // Creates a command to continue temporary stop
@@ -104,30 +86,6 @@ public class SessionCommandFactory {
     // Notification Commands
     //========
 
-    // Creates a command to show session warning
-    public ShowSessionWarningCommand createShowSessionWarningCommand(String username, Integer userId, Integer finalMinutes) {
-        return new ShowSessionWarningCommand(username, userId, finalMinutes);
-    }
-
-    // Creates a command to show hourly warning
-    public ShowHourlyWarningCommand createShowHourlyWarningCommand(String username, Integer userId, Integer finalMinutes) {
-        return new ShowHourlyWarningCommand(username, userId, finalMinutes);
-    }
-    //Creates a command to show worktime resolution warning
-    public ShowResolutionReminderCommand createShowResolutionReminderCommand(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod){
-        return new ShowResolutionReminderCommand(username, userId, title, message, trayMessage, timeoutPeriod);
-    }
-
-    // Creates a command to show temporary stop warning
-    public ShowTempStopWarningCommand createShowTempStopWarningCommand(String username, Integer userId, LocalDateTime tempStopStart) {
-        return new ShowTempStopWarningCommand(username, userId, tempStopStart);
-    }
-
-    // Creates a command to show start day reminder
-    public ShowStartDayReminderCommand createShowStartDayReminderCommand(String username, Integer userId) {
-        return new ShowStartDayReminderCommand(username, userId);
-    }
-
     // Creates a command to show a test notification
     public ShowTestNotificationCommand createShowTestNotificationCommand(String username) {
         return new ShowTestNotificationCommand(username);
@@ -153,8 +111,8 @@ public class SessionCommandFactory {
     //========
 
     // Creates a command to prepare the session view model
-    public PrepareSessionViewModelCommand createPrepareSessionViewModelCommand(Model model, WorkUsersSessionsStates session, User user) {
-        return new PrepareSessionViewModelCommand(model, session, user);
+    public PrepareSessionViewModelCommand createPrepareSessionViewModelCommand(Model model, User user) {
+        return new PrepareSessionViewModelCommand(model, user);
     }
 
     //========
@@ -171,11 +129,6 @@ public class SessionCommandFactory {
         return new ResolveSessionQuery(username, userId);
     }
 
-    // Creates a query to validate authentication and get user
-    public AuthenticatedUserQuery createAuthenticatedUserQuery(UserDetails userDetails) {
-        return new AuthenticatedUserQuery(userDetails);
-    }
-
     // Creates a query to determine navigation context
     public NavigationContextQuery createNavigationContextQuery(User user) {
         return new NavigationContextQuery(user);
@@ -183,11 +136,6 @@ public class SessionCommandFactory {
 
     public GetLocalUserQuery createGetLocalUserQuery() {
         return new GetLocalUserQuery();
-    }
-
-    // Creates a query to check if a notification can be shown
-    public CanShowNotificationQuery createCanShowNotificationQuery(String username, String notificationType, Integer intervalMinutes) {
-        return new CanShowNotificationQuery(username, notificationType, intervalMinutes);
     }
 
     // Creates a query to get work schedule information
@@ -200,5 +148,18 @@ public class SessionCommandFactory {
     }
     public SessionStatusQuery createSessionStatusQuery(String username, Integer userId){
         return new SessionStatusQuery(username, userId);
+    }
+
+    public GetUnresolvedEntriesQuery createGetUnresolvedEntriesQuery(String username, Integer userId) {
+        return new GetUnresolvedEntriesQuery(username, userId);
+    }
+    /**
+     * Creates a query to check if a user is in temporary stop monitoring mode
+     *
+     * @param username The username to check
+     * @return A query that returns true if the user is in temporary stop monitoring
+     */
+    public IsInTempStopMonitoringQuery createIsInTempStopMonitoringQuery(String username) {
+        return new IsInTempStopMonitoringQuery(username);
     }
 }

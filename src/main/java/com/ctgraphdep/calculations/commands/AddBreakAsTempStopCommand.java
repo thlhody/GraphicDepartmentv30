@@ -4,6 +4,7 @@ import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.calculations.queries.CalculateTotalTempStopMinutesQuery;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 
 import java.time.LocalDateTime;
@@ -45,14 +46,10 @@ public class AddBreakAsTempStopCommand extends BaseCalculationCommand<WorkUsersS
         // Calculate new stop count
         int newStopCount = session.getTemporaryStopCount() != null ? session.getTemporaryStopCount() + 1 : 1;
 
-        // Ensure temp stops list is initialized
-        if (session.getTemporaryStops() == null) {
-            session.setTemporaryStops(new ArrayList<>());
-        }
-
-        // Update session
-        session.getTemporaryStops().add(breakStop);
-        session.setTemporaryStopCount(newStopCount);
+        // Update session using builder
+        SessionEntityBuilder.updateSession(session, builder -> builder
+                .addTemporaryStop(breakStop)
+                .temporaryStopCount(newStopCount));
 
         // Calculate new total temporary stop minutes
         CalculateTotalTempStopMinutesQuery query = context.getCommandFactory().createCalculateTotalTempStopMinutesQuery(session, endTime);

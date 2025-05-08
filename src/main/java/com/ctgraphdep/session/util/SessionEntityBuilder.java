@@ -6,7 +6,6 @@ import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.function.Consumer;
@@ -16,7 +15,6 @@ import java.util.function.Consumer;
  * with sensible defaults.
  */
 public class SessionEntityBuilder {
-
     // Create a new session with default values
     public static WorkUsersSessionsStates createSession(String username, Integer userId) {
         return createSession(username, userId, LocalDateTime.now().minusMinutes(WorkCode.BUFFER_MINUTES));
@@ -65,30 +63,6 @@ public class SessionEntityBuilder {
         SessionUpdateBuilder builder = new SessionUpdateBuilder(session);
         updates.accept(builder);
         return builder.build();
-    }
-
-
-    // Create a new worktime entry with default values
-    @Deprecated
-    public static WorkTimeTable createWorktimeEntry(Integer userId, LocalDateTime startTime) {
-        return createWorktimeEntry(userId, startTime, LocalDate.now());
-    }
-
-    // Create a new worktime entry with specified date
-    @Deprecated
-    public static WorkTimeTable createWorktimeEntry(Integer userId, LocalDateTime startTime, LocalDate workDate) {
-        WorkTimeTable entry = new WorkTimeTable();
-        entry.setUserId(userId);
-        entry.setWorkDate(workDate);
-        entry.setDayStartTime(startTime);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setLunchBreakDeducted(false);
-        entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
-        entry.setTimeOffType(null);
-        return entry;
     }
 
     public static class SessionUpdateBuilder {
@@ -161,78 +135,10 @@ public class SessionEntityBuilder {
             return this;
         }
 
-        public SessionUpdateBuilder updateLastActivity() {
-            session.setLastActivity(LocalDateTime.now());
-            return this;
-        }
-
         public WorkUsersSessionsStates build() {
             // Always update last activity on build
             session.setLastActivity(LocalDateTime.now());
             return session;
-        }
-    }
-
-    // Update an existing worktime entry
-    @Deprecated
-    public static WorkTimeTable updateWorktimeEntry(WorkTimeTable entry, Consumer<WorktimeUpdateBuilder> updates) {
-
-        WorktimeUpdateBuilder builder = new WorktimeUpdateBuilder(entry);
-        updates.accept(builder);
-        return builder.build();
-    }
-
-    // Inner builder class for worktime entry updates
-    @Deprecated
-    public static class WorktimeUpdateBuilder {
-        private final WorkTimeTable entry;
-
-        private WorktimeUpdateBuilder(WorkTimeTable entry) {
-            this.entry = entry;
-        }
-
-        public WorktimeUpdateBuilder dayEndTime(LocalDateTime time) {
-            entry.setDayEndTime(time);
-            return this;
-        }
-
-        public WorktimeUpdateBuilder totalWorkedMinutes(int minutes) {
-            entry.setTotalWorkedMinutes(minutes);
-            return this;
-        }
-
-        public WorktimeUpdateBuilder totalOvertimeMinutes(int minutes) {
-            entry.setTotalOvertimeMinutes(minutes);
-            return this;
-        }
-
-        public WorktimeUpdateBuilder temporaryStopCount(int count) {
-            entry.setTemporaryStopCount(count);
-            return this;
-        }
-
-        public WorktimeUpdateBuilder totalTemporaryStopMinutes(int minutes) {
-            entry.setTotalTemporaryStopMinutes(minutes);
-            return this;
-        }
-
-        public WorktimeUpdateBuilder lunchBreakDeducted(boolean deducted) {
-            entry.setLunchBreakDeducted(deducted);
-            return this;
-        }
-
-        public WorktimeUpdateBuilder adminSync(SyncStatusWorktime status) {
-            entry.setAdminSync(status);
-            return this;
-        }
-
-        public WorktimeUpdateBuilder timeOffType(String type) {
-            entry.setTimeOffType(type);
-            return this;
-        }
-
-        public WorkTimeTable build() {
-            return entry;
         }
     }
 }

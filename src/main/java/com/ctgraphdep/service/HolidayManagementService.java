@@ -7,6 +7,7 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -18,11 +19,13 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class HolidayManagementService {
-    private final DataAccessService dataAccess;
+    private final UserService userService;
+    private final DataAccessService dataAccessService;
     private final ReentrantLock holidayLock = new ReentrantLock();
 
-    public HolidayManagementService(DataAccessService dataAccess) {
-        this.dataAccess = dataAccess;
+    public HolidayManagementService(UserService userService, DataAccessService dataAccessService) {
+        this.userService = userService;
+        this.dataAccessService = dataAccessService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -33,7 +36,7 @@ public class HolidayManagementService {
      */
     public List<PaidHolidayEntryDTO> loadHolidayList() {
         try {
-            List<PaidHolidayEntryDTO> entries = dataAccess.getUserHolidayEntries();
+            List<PaidHolidayEntryDTO> entries = dataAccessService.getUserHolidayEntries();
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error reading holiday list: " + e.getMessage());
@@ -53,7 +56,7 @@ public class HolidayManagementService {
             for (PaidHolidayEntryDTO entry : entries) {
                 try {
                     // Admin directly writes to network, so we use admin version
-                    dataAccess.updateUserHolidayDaysAdmin(entry.getUsername(), entry.getUserId(), entry.getPaidHolidayDays());
+                    dataAccessService.updateUserHolidayDaysAdmin(entry.getUsername(), entry.getUserId(), entry.getPaidHolidayDays());
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), String.format("Error updating holiday days for user %s: %s", entry.getUsername(), e.getMessage()));
                 }
@@ -66,26 +69,43 @@ public class HolidayManagementService {
     }
 
     /**
-     * Updates holiday days for a specific user. Used only by admin.
+     * Updates a user's holiday days balance
+     * This method will use the admin-specific update when called from an admin context
      */
-    @PreAuthorize("hasRole('ADMIN')")
-    public void updateUserHolidayDays(Integer userId, Integer days) {
-        holidayLock.lock();
+    public void updateUserHolidayDays(Integer userId, Integer holidayDays) {
         try {
-            // Find user details from users list
-            Optional<User> userOpt = dataAccess.getUserById(userId);
-
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
-                dataAccess.updateUserHolidayDays(user.getUsername(), userId, days);
-                LoggerUtil.info(this.getClass(), String.format("Updated holiday days for user %d to %d days", userId, days));
-            } else {
-                String error = String.format("No user found with ID %d", userId);
-                LoggerUtil.error(this.getClass(), error);
-                throw new IllegalStateException(error);
+            // Get the user
+            Optional<User> userOpt = userService.getUserById(userId);
+            if (userOpt.isEmpty()) {
+                throw new IllegalArgumentException("User not found with ID: " + userId);
             }
-        } finally {
-            holidayLock.unlock();
+
+            User user = userOpt.get();
+            String username = user.getUsername();
+
+            // Determine if called from admin context
+            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+            boolean isAdminContext = !currentUsername.equals(username) &&
+                    userService.getUserByUsername(currentUsername)
+                            .map(User::isAdmin)
+                            .orElse(false);
+
+            // Use the appropriate method based on context
+            if (isAdminContext) {
+                // Admin update - network only
+                dataAccessService.updateUserHolidayDaysAdmin(username, userId, holidayDays);
+            } else {
+                // User update - local with network sync
+                dataAccessService.updateUserHolidayDays(username, userId, holidayDays);
+            }
+
+            LoggerUtil.info(this.getClass(),
+                    String.format("Updated holiday days for user %s to %d", username, holidayDays));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error updating holiday days for user %d: %s", userId, e.getMessage()));
+            throw new RuntimeException("Failed to update holiday days", e);
         }
     }
 
@@ -165,7 +185,7 @@ public class HolidayManagementService {
      */
     @PreAuthorize("#username == authentication.name or hasRole('ADMIN')")
     public int getRemainingHolidayDays(String username, Integer userId) {
-        return dataAccess.getUserHolidayDays(username, userId);
+        return dataAccessService.getUserHolidayDays(username, userId);
     }
 
     /**
@@ -203,11 +223,11 @@ public class HolidayManagementService {
 
         holidayLock.lock();
         try {
-            int remainingDays = dataAccess.getUserHolidayDays(username, userId);
+            int remainingDays = dataAccessService.getUserHolidayDays(username, userId);
 
             if (remainingDays >= daysToUse) {
                 // Update with reduced days
-                dataAccess.updateUserHolidayDays(username, userId, remainingDays - daysToUse);
+                dataAccessService.updateUserHolidayDays(username, userId, remainingDays - daysToUse);
                 LoggerUtil.info(this.getClass(), String.format("User %s used %d holiday days. Remaining: %d", username, daysToUse, remainingDays - daysToUse));
                 return true;
             } else {
@@ -222,7 +242,7 @@ public class HolidayManagementService {
     public List<PaidHolidayEntryDTO> loadHolidayListWithoutAdmins() {
         return loadHolidayList().stream()
                 .filter(entry -> {
-                    Optional<User> userOpt = dataAccess.getUserById(entry.getUserId());
+                    Optional<User> userOpt = dataAccessService.getUserById(entry.getUserId());
                     return userOpt.isPresent() && !userOpt.get().isAdmin();
                 })
                 .toList();
@@ -256,7 +276,7 @@ public class HolidayManagementService {
      * Load time off entries for a specific month
      */
     private List<WorkTimeTable> loadMonthlyTimeoffs(String username, YearMonth yearMonth) {
-        List<WorkTimeTable> monthEntries = dataAccess.readNetworkUserWorktimeReadOnly(username, yearMonth.getYear(), yearMonth.getMonthValue());
+        List<WorkTimeTable> monthEntries = dataAccessService.readNetworkUserWorktimeReadOnly(username, yearMonth.getYear(), yearMonth.getMonthValue());
 
         // Filter only time off entries (include all types)
         return monthEntries.stream().filter(entry -> entry.getTimeOffType() != null &&
@@ -284,7 +304,7 @@ public class HolidayManagementService {
      */
     public List<PaidHolidayEntryDTO> readHolidayEntriesReadOnly() {
         try {
-            return dataAccess.getUserHolidayEntriesReadOnly();
+            return dataAccessService.getUserHolidayEntriesReadOnly();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error reading holiday entries in read-only mode: " + e.getMessage());
             return new ArrayList<>();

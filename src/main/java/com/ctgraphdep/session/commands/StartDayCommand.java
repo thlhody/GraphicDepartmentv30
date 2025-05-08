@@ -34,6 +34,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Executing StartDayCommand for user %s", username));
 
+            ctx.getSessionMonitorService().clearMonitoring(username);
             // Get standardized time values
             GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
@@ -47,7 +48,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
 
             if (needsReset) {
                 info(String.format("Validation indicates session reset needed for user %s before starting new one", username));
-
+                ctx.getSessionMonitorService().clearMonitoring(username);
                 // Create and save a fresh offline session
                 WorkUsersSessionsStates freshSession = SessionEntityBuilder.createSession(username, userId);
                 freshSession.setSessionStatus(WorkCode.WORK_OFFLINE);
@@ -74,7 +75,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
             ctx.getWorktimeManagementService().saveWorkTimeEntry(username, entry, timeValues.getCurrentDate().getYear(), timeValues.getCurrentDate().getMonthValue(), username);
 
             // Start session monitoring
-            ctx.getSessionMonitorService().startMonitoring(username);
+            ctx.getSessionMonitorService().startEnhancedMonitoring(username);
 
             info(String.format("Started new session for user %s (start time set to %s)", username, timeValues.getStartTime()));
 

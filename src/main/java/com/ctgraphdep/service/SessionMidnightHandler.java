@@ -3,10 +3,10 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.notification.service.NotificationBackupService;
-import com.ctgraphdep.notification.service.NotificationMonitorService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
@@ -26,23 +26,20 @@ import java.util.List;
 public class SessionMidnightHandler {
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
-    private final SessionMonitorService sessionMonitorService;
     private final SchedulerHealthMonitor healthMonitor;
     private final NotificationService notificationService;
-    private final NotificationMonitorService notificationMonitorService;
     private final NotificationBackupService notificationBackupService;
+    private final MonitoringStateService monitoringStateService;
 
     public SessionMidnightHandler(
-            SessionCommandService commandService, SessionCommandFactory commandFactory,
-            SessionMonitorService sessionMonitorService, SchedulerHealthMonitor healthMonitor,
-            NotificationService notificationService, NotificationMonitorService notificationMonitorService, NotificationBackupService notificationBackupService) {
+            SessionCommandService commandService, SessionCommandFactory commandFactory, SchedulerHealthMonitor healthMonitor,
+            NotificationService notificationService, NotificationBackupService notificationBackupService, MonitoringStateService monitoringStateService) {
         this.commandService = commandService;
         this.commandFactory = commandFactory;
-        this.sessionMonitorService = sessionMonitorService;
         this.healthMonitor = healthMonitor;
         this.notificationService = notificationService;
-        this.notificationMonitorService = notificationMonitorService;
         this.notificationBackupService = notificationBackupService;
+        this.monitoringStateService = monitoringStateService;
         LoggerUtil.initialize(this.getClass(), null);
     }
     /**
@@ -68,15 +65,22 @@ public class SessionMidnightHandler {
                 return;
             }
 
-            // Reset the user's session
+            String username = localUser.getUsername();
+
+            // Reset the user's session file
             resetUserSession(localUser);
 
-            // Add notification system reset
-            resetNotificationSystem(localUser.getUsername());
-            notificationMonitorService.clearUserState(String.valueOf(localUser));
-            notificationBackupService.cancelBackupTask(String.valueOf(localUser));
+            // Use the centralized monitoring state service to clear all state
+            monitoringStateService.clearUserState(username);
+            LoggerUtil.info(this.getClass(), String.format("Cleared all monitoring state for user %s", username));
 
-            LoggerUtil.info(this.getClass(), "Completed midnight reset for user " + localUser.getUsername());
+            // Reset notification system
+            resetNotificationSystem(username);
+
+            // Cancel backup task explicitly - this is part of the notification system's responsibility
+            notificationBackupService.cancelBackupTask(username);
+
+            LoggerUtil.info(this.getClass(), "Completed midnight reset for user " + username);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during session reset: " + e.getMessage(), e);
         }
@@ -109,25 +113,15 @@ public class SessionMidnightHandler {
         try {
             LoggerUtil.info(this.getClass(), "Resetting notification system for user: " + username);
 
-            // 1. Clear monitoring service state
-            if (sessionMonitorService != null) {
-                sessionMonitorService.clearMonitoring(username);
-                LoggerUtil.info(this.getClass(), "Cleared session monitoring state");
-            }
+            // Reset notification service - using the single call interface
+            notificationService.resetService();
+            LoggerUtil.info(this.getClass(), "Reset notification service");
 
-            // 2. Reset notification service - now using the new interface
-            if (notificationService != null) {
-                notificationService.resetService();
-                LoggerUtil.info(this.getClass(), "Reset notification service");
-            }
-
-            // 3. Reset health monitor status
-            if (healthMonitor != null) {
-                healthMonitor.resetTaskFailures("notification-service");
-                healthMonitor.resetTaskFailures("notification-display-service");
-                healthMonitor.resetTaskFailures("notification-checker");
-                LoggerUtil.info(this.getClass(), "Reset health monitor statuses");
-            }
+            // Reset health monitor status
+            healthMonitor.resetTaskFailures("notification-service");
+            healthMonitor.resetTaskFailures("notification-display-service");
+            healthMonitor.resetTaskFailures("notification-checker");
+            LoggerUtil.info(this.getClass(), "Reset health monitor statuses");
 
             LoggerUtil.info(this.getClass(), "Notification system reset completed successfully");
         } catch (Exception e) {

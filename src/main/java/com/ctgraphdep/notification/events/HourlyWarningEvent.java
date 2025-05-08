@@ -22,6 +22,6 @@ public class HourlyWarningEvent extends NotificationEvent {
 
     @Override
     public String getNotificationType() {
-        return WorkCode.OVERTIME_TYPE;
+        return WorkCode.HOURLY_TYPE;
     }
 }

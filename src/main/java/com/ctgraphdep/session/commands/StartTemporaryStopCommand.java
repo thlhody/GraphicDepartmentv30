@@ -4,6 +4,7 @@ import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.query.IsInTempStopMonitoringQuery;
 import com.ctgraphdep.session.util.SessionValidator;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
@@ -37,6 +38,15 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Starting temporary stop for user: %s", username));
 
+            // NEW: Check if already in temporary stop monitoring mode
+            IsInTempStopMonitoringQuery isInTempStopQuery = ctx.getCommandFactory().createIsInTempStopMonitoringQuery(username);
+            boolean alreadyInTempStop = ctx.executeQuery(isInTempStopQuery);
+
+            if (alreadyInTempStop) {
+                debug(String.format("User %s is already in temporary stop monitoring mode", username));
+                // We can still proceed with the command
+            }
+
             // Get the current session
             WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
 
@@ -63,6 +73,9 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             // Then update the worktime entry using the updated session info
             updateWorktimeEntryFromSession(session, ctx);
 
+            // IMPROVEMENT: Explicitly pause schedule monitoring when entering temp stop
+            ctx.getSessionMonitorService().pauseScheduleMonitoring(username);
+
             info(String.format("Temporary stop started for user %s", username));
 
             return session;
@@ -86,12 +99,10 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(username, workDate.getYear(), workDate.getMonthValue(), username);
 
             // Find the entry for today's date
-            WorkTimeTable entry = entries.stream().filter(e -> e.getWorkDate().equals(workDate))
-                    .findFirst().orElse(null);
+            WorkTimeTable entry = entries.stream().filter(e -> e.getWorkDate().equals(workDate)).findFirst().orElse(null);
 
             if (entry == null) {
-                warn(String.format("No worktime entry found for user %s on %s, cannot update",
-                        username, workDate));
+                warn(String.format("No worktime entry found for user %s on %s, cannot update", username, workDate));
                 return;
             }
 

@@ -1,5 +1,7 @@
 package com.ctgraphdep.config;
 
+import jakarta.servlet.http.PushBuilder;
+
 import java.time.DayOfWeek;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -159,10 +161,12 @@ public class WorkCode {
 
     //types
     public static final String SCHEDULE_END_TYPE = "SCHEDULE_END";
-    public static final String OVERTIME_TYPE = "OVERTIME";
+    public static final String HOURLY_TYPE = "HOURLY";
     public static final String TEMP_STOP_TYPE = "TEMP_STOP";
     public static final String START_DAY_TYPE = "START_DAY";
     public static final String RESOLUTION_REMINDER_TYPE = "RESOLUTION_REMINDER";
+    public static final String NONE_TYPE = "NONE";
+    public static final String TEST_TYPE = "TEST";
 }
 
 

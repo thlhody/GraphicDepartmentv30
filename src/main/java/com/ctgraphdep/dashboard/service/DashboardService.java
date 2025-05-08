@@ -11,7 +11,10 @@ import com.ctgraphdep.service.CheckValuesCacheManager;
 import com.ctgraphdep.service.CheckValuesService;
 import com.ctgraphdep.service.OnlineMetricsService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 
 @Service
@@ -20,16 +23,18 @@ public class DashboardService {
     private final FolderStatus folderStatus;
     private final CheckValuesService checkValuesService;
     private final CheckValuesCacheManager checkValuesCacheManager;
+    private final TimeValidationService timeValidationService;
 
     public DashboardService(
             OnlineMetricsService onlineMetricsService,
             FolderStatus folderStatus,
             CheckValuesService checkValuesService,
-            CheckValuesCacheManager checkValuesCacheManager) {
+            CheckValuesCacheManager checkValuesCacheManager, TimeValidationService timeValidationService) {
         this.onlineMetricsService = onlineMetricsService;
         this.folderStatus = folderStatus;
         this.checkValuesService = checkValuesService;
         this.checkValuesCacheManager = checkValuesCacheManager;
+        this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -56,7 +61,7 @@ public class DashboardService {
                     .username(currentUser.getUsername())
                     .userFullName(currentUser.getName())
                     .userRole(currentUser.getRole())
-                    .currentDateTime(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
+                    .currentDateTime(getStandardCurrentTime().format(WorkCode.DATE_TIME_FORMATTER))
                     .cards(config.getCards())
                     .metrics(buildDashboardMetrics())
                     .build();
@@ -68,7 +73,7 @@ public class DashboardService {
                     .username(currentUser.getUsername())
                     .userFullName(currentUser.getName())
                     .userRole(currentUser.getRole())
-                    .currentDateTime(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
+                    .currentDateTime(getStandardCurrentTime().format(WorkCode.DATE_TIME_FORMATTER))
                     .cards(config.getCards())
                     .metrics(buildDashboardMetrics())
                     .build();
@@ -87,33 +92,24 @@ public class DashboardService {
                 return;
             }
             // Add detailed logging
-            LoggerUtil.info(this.getClass(), String.format(
-                    "LOADING VALUES: Attempting to load check values for %s (ID: %d)",
+            LoggerUtil.info(this.getClass(), String.format("LOADING VALUES: Attempting to load check values for %s (ID: %d)",
                     user.getUsername(), user.getUserId()));
 
             // Get the user's check values
-            UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(
-                    user.getUsername(), user.getUserId());
+            UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(user.getUsername(), user.getUserId());
 
             if (userCheckValues != null && userCheckValues.getCheckValuesEntry() != null) {
                 // More detailed logging
-                LoggerUtil.info(this.getClass(), String.format(
-                        "VALUES FOUND: Found values for %s: workUnitsPerHour=%f",
-                        user.getUsername(),
-                        userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
+                LoggerUtil.info(this.getClass(), String.format("VALUES FOUND: Found values for %s: workUnitsPerHour=%f",
+                        user.getUsername(), userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
 
                 // Cache the check values
-                checkValuesCacheManager.cacheCheckValues(
-                        user.getUsername(), userCheckValues.getCheckValuesEntry());
+                checkValuesCacheManager.cacheCheckValues(user.getUsername(), userCheckValues.getCheckValuesEntry());
             } else {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "NO VALUES FOUND: No check values found for user %s", user.getUsername()));
+                LoggerUtil.warn(this.getClass(), String.format("NO VALUES FOUND: No check values found for user %s", user.getUsername()));
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "ERROR LOADING VALUES: Error for user %s: %s",
-                    user.getUsername(), e.getMessage()));
-        }
+            LoggerUtil.error(this.getClass(), String.format("ERROR LOADING VALUES: Error for user %s: %s", user.getUsername(), e.getMessage()));}
     }
     /**
      * Check if a user has a checking role
@@ -141,7 +137,14 @@ public class DashboardService {
                 .onlineUsers(onlineMetricsService.getOnlineUserCount())
                 .activeUsers(onlineMetricsService.getActiveUserCount())
                 .systemStatus(folderStatus.getStatus().toString())
-                .lastUpdate(LocalDateTime.now().format(WorkCode.DATE_TIME_FORMATTER))
+                .lastUpdate(getStandardCurrentTime().format(WorkCode.DATE_TIME_FORMATTER))
                 .build();
+    }
+
+    private LocalDateTime getStandardCurrentTime() {
+        // Get standardized time
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        return timeValues.getCurrentTime();
     }
 }

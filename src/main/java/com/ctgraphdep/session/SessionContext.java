@@ -28,6 +28,7 @@ public class SessionContext {
     private final SessionCommandFactory commandFactory;
     private final TimeValidationService validationService;
     private final NotificationService notificationService;
+    private final SessionService sessionService;
 
     // Calculation dependencies
     private final CalculationCommandFactory calculationFactory;
@@ -42,7 +43,7 @@ public class SessionContext {
             SessionStatusService sessionStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
             FolderStatus folderStatus,
-            SessionCommandFactory commandFactory, TimeValidationService validationService, NotificationService notificationService) {
+            SessionCommandFactory commandFactory, TimeValidationService validationService, NotificationService notificationService, SessionService sessionService) {
 
         this.dataAccessService = dataAccessService;
         this.worktimeManagementService = worktimeManagementService;
@@ -53,6 +54,7 @@ public class SessionContext {
         this.commandFactory = commandFactory;
         this.validationService = validationService;
         this.notificationService = notificationService;
+        this.sessionService = sessionService;
 
         // Initialize calculation components
         this.calculationFactory = new CalculationCommandFactory();
@@ -86,17 +88,8 @@ public class SessionContext {
         return calculationService.executeQuery(query);
     }
 
-    // Calculate minutes between two times using CalculationService
-    public int calculateMinutesBetween(LocalDateTime start, LocalDateTime end) {
-        var query = calculationFactory.createCalculateMinutesBetweenQuery(start, end);
-        return calculationService.executeQuery(query);
-    }
-
     // Update session calculations using CalculationService
-    public WorkUsersSessionsStates updateSessionCalculations(
-            WorkUsersSessionsStates session,
-            LocalDateTime currentTime,
-            int userSchedule) {
+    public WorkUsersSessionsStates updateSessionCalculations(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
         var command = calculationFactory.createSessionCalculationRouterCommand(session, currentTime, userSchedule);
         return calculationService.executeCommand(command);
     }
@@ -109,12 +102,6 @@ public class SessionContext {
     // Calculate total temporary stop minutes using CalculationService
     public int calculateTotalTempStopMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
         var query = calculationFactory.createCalculateTotalTempStopMinutesQuery(session, currentTime);
-        return calculationService.executeQuery(query);
-    }
-
-    // Calculate worked minutes between two times using CalculationService
-    public int calculateWorkedMinutesBetween(LocalDateTime startTime, LocalDateTime endTime) {
-        var query = calculationFactory.createCalculateMinutesBetweenQuery(startTime, endTime);
         return calculationService.executeQuery(query);
     }
 
@@ -131,10 +118,7 @@ public class SessionContext {
     }
 
     // Calculate end day values using CalculationService
-    public WorkUsersSessionsStates calculateEndDayValues(
-            WorkUsersSessionsStates session,
-            LocalDateTime endTime,
-            Integer finalMinutes) {
+    public WorkUsersSessionsStates calculateEndDayValues(WorkUsersSessionsStates session, LocalDateTime endTime, Integer finalMinutes) {
         var command = calculationFactory.createCalculateEndDayValuesCommand(session, endTime, finalMinutes);
         return calculationService.executeCommand(command);
     }

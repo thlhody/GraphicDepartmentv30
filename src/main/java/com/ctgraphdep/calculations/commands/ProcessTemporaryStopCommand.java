@@ -4,6 +4,7 @@ import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.session.util.SessionEntityBuilder;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -34,30 +35,23 @@ public class ProcessTemporaryStopCommand extends BaseCalculationCommand<WorkUser
 
     @Override
     protected WorkUsersSessionsStates executeCommand(CalculationContext context) {
-        // First, calculate raw work minutes up to this point
+        // Calculate raw work minutes up to this point
         int rawWorkMinutes = context.executeQuery(context.getCommandFactory().createCalculateRawWorkMinutesQuery(session, stopTime));
-        session.setTotalWorkedMinutes(rawWorkMinutes);
-
-        // Initialize temporary stop list if needed
-        if (session.getTemporaryStops() == null) {
-            session.setTemporaryStops(new ArrayList<>());
-        }
 
         // Create a new temporary stop
         TemporaryStop tempStop = new TemporaryStop();
         tempStop.setStartTime(stopTime);
-        session.getTemporaryStops().add(tempStop);
 
-        // Update temporary stop count
+        // Calculate new stop count
         int stopCount = (session.getTemporaryStopCount() != null) ? session.getTemporaryStopCount() + 1 : 1;
-        session.setTemporaryStopCount(stopCount);
 
-        // Update last temporary stop time
-        session.setLastTemporaryStopTime(stopTime);
-
-        // Update session status
-        session.setSessionStatus(WorkCode.WORK_TEMPORARY_STOP);
-
+        // Update session using builder
+        SessionEntityBuilder.updateSession(session, builder -> builder
+                .totalWorkedMinutes(rawWorkMinutes)
+                .addTemporaryStop(tempStop)
+                .temporaryStopCount(stopCount)
+                .lastTemporaryStopTime(stopTime)
+                .status(WorkCode.WORK_TEMPORARY_STOP));
         return session;
     }
 

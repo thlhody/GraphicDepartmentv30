@@ -127,7 +127,7 @@ function checkFormSubmission() {
 }
 
 /**
- * Calculate work time based on form inputs with detailed breakdown
+ * Calculate work time based on form inputs using backend calculations
  * @param {HTMLFormElement} form - The form containing time inputs
  */
 function calculateWorkTime(form) {
@@ -138,122 +138,106 @@ function calculateWorkTime(form) {
 
     if (!hourSelect.value || !minuteSelect.value) return;
 
-    // Get start time from the form
-    const startTimeText = form.querySelector('.info-item:first-child span').textContent.trim();
-    const [startHour, startMinute] = startTimeText.split(':').map(Number);
+    // Show loading indicator
+    calculationText.innerHTML = "<div class='text-center'><i class='bi bi-hourglass-split me-2'></i>Calculating...</div>";
+    calculationResult.style.display = 'block';
 
-    // Get break minutes
-    let breakMinutes = 0;
-    const breakItem = form.querySelector('.info-item:nth-child(2)');
-    if (breakItem) {
-        const breakText = breakItem.textContent;
-        const hourMatch = breakText.match(/(\d+)h/);
-        const minuteMatch = breakText.match(/(\d+)m/);
+    // Get the entry date from the hidden input
+    const entryDate = form.querySelector('input[name="entryDate"]').value;
 
-        if (hourMatch) breakMinutes += parseInt(hourMatch[1]) * 60;
-        if (minuteMatch) breakMinutes += parseInt(minuteMatch[1]);
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="_csrf"]');
+    const headers = {'Content-Type': 'application/json'};
+    if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken.getAttribute('content');
     }
 
-    // Calculate times in minutes
-    const startMinutesTotal = startHour * 60 + startMinute;
-    const endMinutesTotal = parseInt(hourSelect.value) * 60 + parseInt(minuteSelect.value);
+    // Fetch calculation from backend
+    fetch('/user/session/calculate-resolution', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            entryDate: entryDate,
+            endHour: parseInt(hourSelect.value),
+            endMinute: parseInt(minuteSelect.value)
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+        if (!data.success) {
+            // Show error
+            calculationText.innerHTML = `<i class='bi bi-exclamation-triangle text-danger'></i> ${data.errorMessage || 'End time must be after start time'}`;
+            const calculationPanel = form.querySelector('.calculation-panel');
+            if (calculationPanel) {
+                calculationPanel.className = 'calculation-panel error';
+            }
+            return;
+        }
 
-    // Validate times
-    if (endMinutesTotal <= startMinutesTotal) {
-        calculationText.innerHTML = "<i class='bi bi-exclamation-triangle text-danger'></i> End time must be after start time";
+        // Generate detailed calculation breakdown using server data
+        let resultHTML = '<div class="calculation-breakdown">';
+
+        // Total elapsed time
+        resultHTML += `<div class="calculation-item">
+            <i class="bi bi-stopwatch me-2 text-primary"></i>
+            <strong>Total elapsed time:</strong> ${data.formattedTotalElapsed}
+            <small class="text-muted">(from ${data.formattedStartTime} to ${data.formattedEndTime})</small>
+        </div>`;
+
+        // Temporary stops/breaks if any
+        if (data.breakMinutes > 0) {
+            resultHTML += `<div class="calculation-item">
+                <i class="bi bi-dash-circle me-2 text-warning"></i>
+                <strong>Temporary stops:</strong> ${data.formattedBreakTime}
+            </div>`;
+        }
+
+        // Lunch break deduction if applicable
+        if (data.lunchDeducted) {
+            resultHTML += `<div class="calculation-item">
+                <i class="bi bi-cup-hot me-2 text-warning"></i>
+                <strong>Lunch break:</strong> ${formatMinutes(data.lunchBreakMinutes)}
+                <small class="text-muted">(for 8-hour schedule when work time is between 4-11 hours)</small>
+            </div>`;
+        }
+
+        // Result line with total work time
+        resultHTML += `<div class="calculation-item total">
+            <i class="bi bi-check-circle me-2 text-success"></i>
+            <strong>Net work time:</strong> <span class="h5 mb-0 ms-2 total-time">${data.formattedNetWorkTime}</span>
+            <small class="text-muted ms-2">(${data.netWorkMinutes} minutes)</small>
+        </div>`;
+
+        // Add overtime information if applicable
+        if (data.overtimeMinutes > 0) {
+            resultHTML += `<div class="calculation-item overtime">
+                <i class="bi bi-clock-history me-2 text-danger"></i>
+                <strong>Includes overtime:</strong> ${data.formattedOvertimeMinutes}
+            </div>`;
+        }
+
+        resultHTML += '</div>';
+
+        // Set the HTML and show the result panel
+        calculationText.innerHTML = resultHTML;
+        const calculationPanel = form.querySelector('.calculation-panel');
+        if (calculationPanel) {
+            calculationPanel.className = 'calculation-panel';
+        }
+
+        // Add animation to highlight results
+        calculationResult.classList.remove('highlight-result');
+        void calculationResult.offsetWidth; // Force reflow
+        calculationResult.classList.add('highlight-result');
+    })
+        .catch(error => {
+        console.error('Error calculating work time:', error);
+        calculationText.innerHTML = "<i class='bi bi-exclamation-triangle text-danger'></i> Error calculating work time";
         const calculationPanel = form.querySelector('.calculation-panel');
         if (calculationPanel) {
             calculationPanel.className = 'calculation-panel error';
         }
-        calculationResult.style.display = 'block';
-        return;
-    }
-
-    // Calculate total elapsed time
-    const totalElapsedMinutes = endMinutesTotal - startMinutesTotal;
-
-    // Calculate work minutes after deducting temporary stops
-    const workMinutesAfterStops = totalElapsedMinutes - breakMinutes;
-
-    // Constants - could be made configurable
-    const scheduleHours = 8; // Default schedule hours - this would ideally come from user settings
-    const scheduleMinutes = scheduleHours * 60;
-    const lunchBreakMinutes = 30; // Standard lunch break
-    const minLunchThreshold = 4 * 60; // 4 hours in minutes - minimum for lunch deduction
-    const maxLunchThreshold = 12 * 60; // 12 hours in minutes - maximum for lunch deduction
-
-    // Decide if lunch break should be deducted based on work time AFTER temporary stops
-    const shouldDeductLunch = scheduleHours === 8 &&
-    workMinutesAfterStops >= minLunchThreshold &&
-    workMinutesAfterStops <= maxLunchThreshold;
-
-    // Calculate final work minutes
-    const workMinutes = shouldDeductLunch ? workMinutesAfterStops - lunchBreakMinutes : workMinutesAfterStops;
-
-    // Calculate overtime
-    const overtimeMinutes = Math.max(0, workMinutes - scheduleMinutes);
-
-    // Generate detailed calculation breakdown
-    let resultHTML = '<div class="calculation-breakdown">';
-
-    // Total elapsed time
-    resultHTML += `<div class="calculation-item">
-        <i class="bi bi-stopwatch me-2 text-primary"></i>
-        <strong>Total elapsed time:</strong> ${formatMinutes(totalElapsedMinutes)}
-        <small class="text-muted">(from ${startTimeText} to ${hourSelect.value.padStart(2, '0')}:${minuteSelect.value.padStart(2, '0')})</small>
-    </div>`;
-
-    // Temporary stops/breaks if any
-    if (breakMinutes > 0) {
-        resultHTML += `<div class="calculation-item">
-            <i class="bi bi-dash-circle me-2 text-warning"></i>
-            <strong>Temporary stops:</strong> ${formatMinutes(breakMinutes)}
-        </div>`;
-    }
-
-    // Lunch break deduction if applicable
-    if (shouldDeductLunch) {
-        resultHTML += `<div class="calculation-item">
-            <i class="bi bi-cup-hot me-2 text-warning"></i>
-            <strong>Lunch break:</strong> ${formatMinutes(lunchBreakMinutes)}
-            <small class="text-muted">(for 8-hour schedule when work time is between 4-12 hours)</small>
-        </div>`;
-    }
-
-    // Result line with total work time
-    resultHTML += `<div class="calculation-item total">
-        <i class="bi bi-check-circle me-2 text-success"></i>
-        <strong>Net work time:</strong> <span class="h5 mb-0 ms-2 total-time">${formatMinutes(workMinutes)}</span>
-        <small class="text-muted ms-2">(${workMinutes} minutes)</small>
-    </div>`;
-
-    // Add overtime information if applicable
-    if (overtimeMinutes > 0) {
-        resultHTML += `<div class="calculation-item overtime">
-            <i class="bi bi-clock-history me-2 text-danger"></i>
-            <strong>Includes overtime:</strong> ${formatMinutes(overtimeMinutes)}
-        </div>`;
-    }
-
-    resultHTML += '</div>';
-
-    // Set the HTML and show the result panel
-    calculationText.innerHTML = resultHTML;
-    const calculationPanel = form.querySelector('.calculation-panel');
-    if (calculationPanel) {
-        calculationPanel.className = 'calculation-panel';
-    }
-    calculationResult.style.display = 'block';
-
-    // Add a subtle animation to highlight the results
-    calculationResult.classList.remove('highlight-result');
-    void calculationResult.offsetWidth; // Force reflow to restart animation
-    calculationResult.classList.add('highlight-result');
-
-    // Ensure it remains visible
-    setTimeout(() => {
-        if (calculationResult) calculationResult.style.display = 'block';
-    }, 100);
+    });
 }
 
 /**

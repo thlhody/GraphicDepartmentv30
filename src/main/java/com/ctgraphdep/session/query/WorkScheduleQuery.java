@@ -22,16 +22,6 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
     private final Integer userSchedule;
 
     /**
-     * Creates a query for the current date with specified user schedule
-     *
-     * @param userSchedule The user's schedule in hours
-     */
-    public WorkScheduleQuery(Integer userSchedule) {
-        this.date = LocalDate.now();
-        this.userSchedule = userSchedule;
-    }
-
-    /**
      * Creates a query for a specific date with specified user schedule
      *
      * @param date The date to check

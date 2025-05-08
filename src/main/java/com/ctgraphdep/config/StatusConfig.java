@@ -3,6 +3,8 @@ package com.ctgraphdep.config;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.ReadFileNameStatusService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
+import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
@@ -19,11 +21,14 @@ public class StatusConfig {
 
     private final ReadFileNameStatusService readFileNameStatusService;
     private final UserService userService;
+    private final TimeValidationService timeValidationService;
+
 
     @Autowired
-    public StatusConfig(ReadFileNameStatusService readFileNameStatusService, UserService userService) {
+    public StatusConfig(ReadFileNameStatusService readFileNameStatusService, UserService userService, TimeValidationService timeValidationService) {
         this.readFileNameStatusService = readFileNameStatusService;
         this.userService = userService;
+        this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -44,7 +49,7 @@ public class StatusConfig {
                             user.getUsername(),
                             user.getUserId(),
                             WorkCode.WORK_OFFLINE,
-                            LocalDateTime.now()
+                            getStandardCurrentTime()
                     );
                     //LoggerUtil.debug(this.getClass(), String.format("Initialized status for user: %s", user.getUsername()));
                 } catch (Exception e) {
@@ -59,5 +64,12 @@ public class StatusConfig {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error initializing user status system: " + e.getMessage(), e);
         }
+    }
+
+    private LocalDateTime getStandardCurrentTime() {
+        // Get standardized time
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        return timeValues.getCurrentTime();
     }
 }

@@ -9,11 +9,11 @@ import lombok.Getter;
 @Getter
 public enum NotificationType {
     SCHEDULE_END(WorkCode.SCHEDULE_END_TYPE, 7),
-    HOURLY_WARNING(WorkCode.OVERTIME_TYPE, 6),
+    HOURLY_WARNING(WorkCode.HOURLY_TYPE, 6),
     TEMP_STOP(WorkCode.TEMP_STOP_TYPE, 7),
     START_DAY(WorkCode.START_DAY_TYPE, 9),
     RESOLUTION(WorkCode.RESOLUTION_REMINDER_TYPE, 8),
-    TEST("test", 10);
+    TEST(WorkCode.TEST_TYPE, 10);
 
     /**
      * -- GETTER --

@@ -1,5 +1,6 @@
 package com.ctgraphdep.tray;
 
+import com.ctgraphdep.notification.service.NotificationConfigService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -29,11 +30,19 @@ public class CTTTSystemTray {
     @Value("${server.port}")
     private String serverPort;
 
+    private final NotificationConfigService notificationConfigService;
+
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();
     private TrayIcon trayIcon;
     private volatile long lastOpenTime = 0;
     private static final long DEBOUNCE_DELAY = 500; // milliseconds
+
+    private CheckboxMenuItem notificationsMenuItem;
+
+    public CTTTSystemTray(NotificationConfigService notificationConfigService) {
+        this.notificationConfigService = notificationConfigService;
+    }
 
     public synchronized void initialize() {
         if (isInitialized) {
@@ -114,6 +123,25 @@ public class CTTTSystemTray {
         popup.add(openItem);
         popup.addSeparator();
 
+        // Notifications checkbox menu item
+        notificationsMenuItem = new CheckboxMenuItem("Enable Notifications", notificationConfigService.isNotificationsEnabled());
+        notificationsMenuItem.addItemListener(e -> {
+            boolean isEnabled = notificationConfigService.toggleNotifications();
+            notificationsMenuItem.setState(isEnabled);
+
+            // Show a tray message to inform the user
+            if (trayIcon != null) {
+                trayIcon.displayMessage(
+                        "Notification Settings",
+                        "Notifications are now " + (isEnabled ? "enabled" : "disabled"),
+                        TrayIcon.MessageType.INFO
+                );
+            }
+        });
+        popup.add(notificationsMenuItem);
+
+        popup.addSeparator();
+
         // About item
         MenuItem aboutItem = new MenuItem("About");
         aboutItem.addActionListener(e -> openAboutPage());
@@ -129,6 +157,19 @@ public class CTTTSystemTray {
         popup.add(exitItem);
         return popup;
     }
+
+    /**
+     * Update the notification menu item state
+     */
+    public void updateNotificationMenuItemState() {
+        SwingUtilities.invokeLater(() -> {
+            if (notificationsMenuItem != null) {
+                notificationsMenuItem.setState(notificationConfigService.isNotificationsEnabled());
+            }
+        });
+    }
+
+    // Rest of the class remains unchanged
 
     private Image loadTrayIcon() {
         try {

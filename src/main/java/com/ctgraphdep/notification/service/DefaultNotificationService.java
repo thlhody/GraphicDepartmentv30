@@ -1,6 +1,7 @@
 package com.ctgraphdep.notification.service;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationEventPublisher;
 import com.ctgraphdep.notification.api.NotificationService;
@@ -29,10 +30,11 @@ public class DefaultNotificationService implements NotificationService {
 
     private final NotificationEventPublisher eventPublisher;
     private final NotificationDisplayService displayService;
-    private final NotificationMonitorService monitorService;
     private final TimeValidationService timeValidationService;
     private final NotificationBackupService backupService;
     private final SchedulerHealthMonitor healthMonitor;
+    private final MonitoringStateService monitoringStateService;
+    private final NotificationConfigService configService;
 
     private final AtomicLong totalNotificationsShown = new AtomicLong(0);
     private final Map<String, LocalDateTime> pendingNotifications = new HashMap<>();
@@ -40,16 +42,17 @@ public class DefaultNotificationService implements NotificationService {
     public DefaultNotificationService(
             NotificationEventPublisher eventPublisher,
             NotificationDisplayService displayService,
-            NotificationMonitorService monitorService, TimeValidationService timeValidationService,
+            TimeValidationService timeValidationService,
             NotificationBackupService backupService,
-            SchedulerHealthMonitor healthMonitor) {
+            SchedulerHealthMonitor healthMonitor, MonitoringStateService monitoringStateService, NotificationConfigService configService) {
 
         this.eventPublisher = eventPublisher;
         this.displayService = displayService;
-        this.monitorService = monitorService;
         this.timeValidationService = timeValidationService;
         this.backupService = backupService;
         this.healthMonitor = healthMonitor;
+        this.monitoringStateService = monitoringStateService;
+        this.configService = configService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -77,6 +80,12 @@ public class DefaultNotificationService implements NotificationService {
     @Override
     public NotificationResponse showNotification(NotificationRequest request) {
         try {
+            // Check if notifications are enabled
+            if (!configService.isNotificationsEnabled()) {
+                LoggerUtil.info(this.getClass(), String.format("Notifications disabled in config. Skipping notification for user %s", request.getUsername()));
+                return NotificationResponse.success("notifications-disabled", false, false);
+            }
+
             LoggerUtil.info(this.getClass(), String.format("Showing notification: Type=%s, User=%s", request.getType(), request.getUsername()));
             // Record notification attempt
             totalNotificationsShown.incrementAndGet();
@@ -182,12 +191,12 @@ public class DefaultNotificationService implements NotificationService {
 
     @Override
     public void recordNotificationTime(String username, String notificationType) {
-        monitorService.recordNotificationTime(username, notificationType);
+        monitoringStateService.recordNotificationTime(username, notificationType);
     }
 
     @Override
     public boolean canShowNotification(String username, String notificationType, Integer intervalMinutes) {
-        return monitorService.canShowNotification(username, notificationType, intervalMinutes);
+        return monitoringStateService.canShowNotification(username, notificationType, intervalMinutes);
     }
 
     @Override
@@ -245,6 +254,19 @@ public class DefaultNotificationService implements NotificationService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error showing test notification for user %s: %s", username, e.getMessage()), e);
             healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public boolean cancelNotificationBackup(String username) {
+        try {
+            // Use the injected backupService to cancel backup tasks
+            backupService.cancelBackupTask(username);
+            LoggerUtil.info(this.getClass(), String.format("Canceled backup tasks for user %s", username));
+            return true;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error canceling backup tasks for user %s: %s", username, e.getMessage()), e);
             return false;
         }
     }

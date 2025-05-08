@@ -3,6 +3,7 @@ package com.ctgraphdep.session.config;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.notification.api.NotificationService;
+import com.ctgraphdep.service.SessionService;
 import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,11 +19,16 @@ import org.springframework.context.annotation.Lazy;
 public class SessionCommandConfig {
 
     @Bean
-    public SessionContext sessionContext(DataAccessService dataAccessService, WorktimeManagementService worktimeManagementService,
-                                         UserService userService, SessionStatusService sessionStatusService, NotificationService notificationService,
+    public SessionContext sessionContext(DataAccessService dataAccessService,
+                                         WorktimeManagementService worktimeManagementService,
+                                         UserService userService,
+                                         SessionStatusService sessionStatusService,
+                                         NotificationService notificationService,
                                          @Lazy SessionMonitorService sessionMonitorService,
-                                         FolderStatus folderStatus, SessionCommandFactory commandFactory,
-                                         TimeValidationService timeValidationService) {
+                                         FolderStatus folderStatus,
+                                         @Lazy SessionCommandFactory commandFactory,
+                                         TimeValidationService timeValidationService,
+                                         @Lazy SessionService sessionService) {
 
         return new SessionContext(dataAccessService,
                 worktimeManagementService,
@@ -32,6 +38,7 @@ public class SessionCommandConfig {
                 folderStatus,
                 commandFactory,
                 timeValidationService,
-                notificationService);
+                notificationService,
+                sessionService);
     }
 }
