@@ -153,7 +153,7 @@ public abstract class BaseDashboardController {
                 .pageTitle("Dashboard Unavailable")
                 .username("Unknown")
                 .userFullName("Unknown User")
-                .userRole("NONE")
+                .userRole(WorkCode.NONE_TYPE)
                 .currentDateTime(timeValues.getCurrentTime().format(WorkCode.DATE_TIME_FORMATTER))
                 .cards(Collections.emptyList())
                 .metrics(buildEmptyMetrics())

@@ -60,7 +60,7 @@ public class MonitoringStateService {
 
     // Constants for monitoring modes
     public static class MonitoringMode {
-        public static final String NONE = "NONE";
+        public static final String NONE = WorkCode.NONE_TYPE;
         public static final String SCHEDULE = WorkCode.SCHEDULE_END_TYPE;
         public static final String HOURLY = WorkCode.HOURLY_TYPE;
         public static final String TEMP_STOP = WorkCode.TEMP_STOP_TYPE;

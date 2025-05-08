@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>About - CT3</title>
-    <link rel="stylesheet" th:href="@{/css/about.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/about.css?v=18785}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -19,6 +19,48 @@
                 <div class="version-card">
                     <p class="version-info">Version <span th:text="${@environment.getProperty('cttt.version')}">6.7.7</span></p>
                 </div>
+
+                <!-- Notification Testing Section -->
+                <div class="notification-testing-card">
+                    <h2 class="testing-title">Notification Testing</h2>
+                    <p class="testing-desc">Click a button to trigger a notification for testing purposes.</p>
+
+                    <div class="notification-buttons">
+                        <button class="notification-btn test-btn" data-type="test">
+                            <span class="btn-icon">🧪</span>
+                            <span class="btn-text">Test</span>
+                        </button>
+
+                        <button class="notification-btn start-day-btn" data-type="start-day">
+                            <span class="btn-icon">🌅</span>
+                            <span class="btn-text">Start Day</span>
+                        </button>
+
+                        <button class="notification-btn schedule-end-btn" data-type="schedule-end">
+                            <span class="btn-icon">🏁</span>
+                            <span class="btn-text">Schedule End</span>
+                        </button>
+
+                        <button class="notification-btn hourly-btn" data-type="hourly">
+                            <span class="btn-icon">⏱️</span>
+                            <span class="btn-text">Hourly</span>
+                        </button>
+
+                        <button class="notification-btn temp-stop-btn" data-type="temp-stop">
+                            <span class="btn-icon">⏸️</span>
+                            <span class="btn-text">Temp Stop</span>
+                        </button>
+
+                        <button class="notification-btn resolution-btn" data-type="resolution">
+                            <span class="btn-icon">✅</span>
+                            <span class="btn-text">Resolution</span>
+                        </button>
+                    </div>
+
+                    <div id="notification-status" class="notification-status"></div>
+
+                </div>
+
                 <div class="copyright-section">
                     <p class="mb-0">© 2024 thlhody. All rights reserved.</p>
                 </div>
@@ -28,15 +70,8 @@
 </div>
 
 <th:block layout:fragment="scripts">
-    <script>
-        // Add Ctrl+Click handler on logo to access logs
-        document.getElementById('logo-image').addEventListener('click', function(event) {
-            if (event.ctrlKey) {
-                window.location.href = '/logs';
-                event.preventDefault();
-            }
-        });
-    </script>
+    <!-- Load about.js with a version parameter to prevent caching -->
+    <script th:src="@{/js/about.js?v=18785}"></script>
 </th:block>
 </body>
 </html>

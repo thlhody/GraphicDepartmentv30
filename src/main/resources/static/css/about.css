@@ -1,87 +1,213 @@
-        .about-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
+.about-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
 
-        .logo-container {
-            max-width: 300px;
-            margin: 0 auto;
-            padding: 2rem 0;
-        }
+.logo-container {
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
 
-        .logo-container img {
-            width: 100%;
-            height: auto;
-            transition: transform 0.3s ease-in-out;
-        }
+.logo-container img {
+    width: 100%;
+    height: auto;
+    transition: transform 0.3s ease-in-out;
+}
 
-        .logo-container:hover img {
-            transform: scale(1.05);
-        }
+.logo-container:hover img {
+    transform: scale(1.05);
+}
 
-        .app-title {
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin-bottom: 2rem;
-            animation: fadeInUp 0.5s ease-out;
-        }
+.app-title {
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 2.5rem;
+    font-weight: 600;
+    margin-bottom: 2rem;
+    animation: fadeInUp 0.5s ease-out;
+}
 
-        .version-card {
-            background: #fff;
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 2rem;
-            animation: fadeIn 0.8s ease-out;
-        }
+.version-card {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+    animation: fadeIn 0.8s ease-out;
+}
 
-        .version-info {
-            font-size: 1.25rem;
-            color: #2c3e50;
-            margin-bottom: 0;
-        }
+.version-info {
+    font-size: 1.25rem;
+    color: #2c3e50;
+    margin-bottom: 0;
+}
 
-        .copyright-section {
-            text-align: center;
-            color: #6c757d;
-            padding: 2rem 0;
-            animation: fadeIn 1s ease-out;
-        }
+/* Notification Testing Styles */
+.notification-testing-card {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+    animation: fadeIn 0.8s ease-out;
+}
 
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+.testing-title {
+    font-size: 1.75rem;
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+.testing-desc {
+    font-size: 1rem;
+    color: #6c757d;
+    margin-bottom: 1.5rem;
+}
 
-        @media (max-width: 768px) {
-            .about-container {
-                padding: 1rem;
-            }
+.notification-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
 
-            .logo-container {
-                max-width: 200px;
-            }
+.notification-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    border: none;
+    background: #f8f9fa;
+    color: #2c3e50;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 120px;
+    height: 120px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
 
-            .app-title {
-                font-size: 2rem;
-            }
+.notification-btn:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
 
-            .version-card {
-                padding: 1.5rem;
-            }
-        }
+.btn-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.btn-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Button variations */
+.test-btn { background: linear-gradient(135deg, #e0f7fa, #b2ebf2); }
+.start-day-btn { background: linear-gradient(135deg, #fff9c4, #fff59d); }
+.schedule-end-btn { background: linear-gradient(135deg, #c8e6c9, #a5d6a7); }
+.hourly-btn { background: linear-gradient(135deg, #bbdefb, #90caf9); }
+.temp-stop-btn { background: linear-gradient(135deg, #f8bbd0, #f48fb1); }
+.resolution-btn { background: linear-gradient(135deg, #d1c4e9, #b39ddb); }
+
+/* Loading state */
+.notification-btn.loading {
+    opacity: 0.7;
+    pointer-events: none;
+    animation: pulse 1.5s infinite;
+}
+
+.notification-status {
+    min-height: 60px;
+}
+
+.alert {
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.alert-success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.alert-danger {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+.alert-info {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+}
+
+.copyright-section {
+    text-align: center;
+    color: #6c757d;
+    padding: 2rem 0;
+    animation: fadeIn 1s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes pulse {
+    0% { opacity: 0.7; }
+    50% { opacity: 0.5; }
+    100% { opacity: 0.7; }
+}
+
+@media (max-width: 768px) {
+    .about-container {
+        padding: 1rem;
+    }
+
+    .logo-container {
+        max-width: 200px;
+    }
+
+    .app-title {
+        font-size: 2rem;
+    }
+
+    .version-card, .notification-testing-card {
+        padding: 1.5rem;
+    }
+
+    .notification-buttons {
+        gap: 0.5rem;
+    }
+
+    .notification-btn {
+        width: 100px;
+        height: 100px;
+    }
+}

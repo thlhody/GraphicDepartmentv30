@@ -258,6 +258,29 @@ public class DefaultNotificationService implements NotificationService {
         }
     }
 
+    /**
+     * Shows a mockup notification for demonstration purposes
+     *
+     * @param username The username
+     * @param title The notification title
+     * @param message The notification message
+     * @param trayMessage The tray notification message
+     * @param mockupType The type of notification to mimic
+     * @return true if notification was successfully displayed
+     */
+    public boolean showMockupNotification(String username, String title, String message, String trayMessage, String mockupType) {
+        try {
+            // Create and publish mockup notification event
+            MockupNotificationEvent event = new MockupNotificationEvent(username, title, message, trayMessage, mockupType);
+            eventPublisher.publishEvent(event);
+            return true;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error showing mockup notification for user %s: %s", username, e.getMessage()), e);
+            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
+            return false;
+        }
+    }
+
     @Override
     public boolean cancelNotificationBackup(String username) {
         try {

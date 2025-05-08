@@ -167,6 +167,7 @@ public class WorkCode {
     public static final String RESOLUTION_REMINDER_TYPE = "RESOLUTION_REMINDER";
     public static final String NONE_TYPE = "NONE";
     public static final String TEST_TYPE = "TEST";
+    public static final String MOCKUP_TYPE = "MOCKUP";
 }
 
 

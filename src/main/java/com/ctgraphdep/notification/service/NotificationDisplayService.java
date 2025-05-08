@@ -121,6 +121,8 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 showResolutionReminderNotification((ResolutionReminderEvent) event);
             } else if (event instanceof TestNotificationEvent) {
                 showTestNotification((TestNotificationEvent) event);
+            } else if (event instanceof MockupNotificationEvent) {
+                showMockupNotification((MockupNotificationEvent) event);
             } else {
                 LoggerUtil.warn(this.getClass(), "Unhandled notification event type: " + event.getClass().getName());
             }
@@ -210,7 +212,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             } else {
                 return NotificationResponse.failure("Failed to display notification");
             }
-
 
 
         } catch (Exception e) {
@@ -819,7 +820,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             // Find screen with most dialog area
             for (GraphicsDevice screen : screens) {
                 Rectangle bounds = screen.getDefaultConfiguration().getBounds();
-                if (bounds.contains(location.x + size.width/2, location.y + size.height/2)) {
+                if (bounds.contains(location.x + size.width / 2, location.y + size.height / 2)) {
                     targetScreen = screen;
                     break;
                 }
@@ -1236,10 +1237,10 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
      * This centralizes all the cleanup and tracking that should happen after a user
      * responds to any notification.
      *
-     * @param username The username
-     * @param userId The user ID (can be null for some notification types)
+     * @param username         The username
+     * @param userId           The user ID (can be null for some notification types)
      * @param notificationType The type of notification being handled
-     * @param dialog The dialog being closed
+     * @param dialog           The dialog being closed
      */
     private void handleNotificationResponse(String username, Integer userId, String notificationType, JDialog dialog) {
         try {
@@ -1694,5 +1695,276 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
         GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
         return timeValues.getCurrentTime();
+    }
+    //mockup
+
+    /**
+     * Shows a mockup notification for demonstration purposes
+     */
+    private void showMockupNotification(MockupNotificationEvent event) {
+        try {
+            LoggerUtil.info(this.getClass(), "Showing mockup notification for user: " + event.getUsername());
+
+            // Use the standard notification flag for synchronization
+            final boolean[] dialogDisplayed = new boolean[1];
+            final boolean[] trayDisplayed = new boolean[1];
+
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    // Try to create and show dialog first
+                    DialogComponents components = createDialog(event.getTitle(), event.getMessage());
+
+                    // Add mockup buttons based on the mockup type
+                    addMockupButtons(components, event.getMockupType());
+
+                    try {
+                        showDialog(components.dialog(), event.getUsername(), event.getNotificationType());
+                        dialogDisplayed[0] = true;
+
+                        // Generate unique ID for the notification
+                        String notificationId = "mockup_" + event.getUsername() + "_" + System.currentTimeMillis();
+
+                        // Store dialog for cleanup
+                        activeDialogs.put(notificationId, components.dialog());
+
+                        LoggerUtil.info(this.getClass(), "Mockup dialog displayed successfully");
+
+                        // Add auto-close timer
+                        setupAutoCloseTimer(components.dialog(), event.getUsername(), event.getTimeoutPeriod(), event.getNotificationType(), userResponded);
+
+                    } catch (Exception e) {
+                        LoggerUtil.error(this.getClass(), "Failed to display mockup dialog: " + e.getMessage());
+                        dialogDisplayed[0] = false;
+
+                        // ONLY attempt tray notification if dialog fails
+                        if (systemTray.getTrayIcon() != null) {
+                            LoggerUtil.info(this.getClass(), "Attempting to display mockup tray notification as fallback");
+                            systemTray.getTrayIcon().displayMessage(event.getTitle(), event.getTrayMessage(), TrayIcon.MessageType.INFO);
+                            trayDisplayed[0] = true;
+                            LoggerUtil.info(this.getClass(), "Mockup tray notification displayed as fallback");
+                        }
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), "Error preparing mockup notification: " + e.getMessage());
+                }
+            });
+
+            // Record notification
+            monitorService.recordNotificationTime(event.getUsername(), event.getNotificationType());
+            LoggerUtil.info(this.getClass(), "Mockup notification display attempt complete");
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error showing mockup notification for user %s: %s", event.getUsername(), e.getMessage()), e);
+            healthMonitor.recordTaskFailure("notification-display-service", e.getMessage());
+        }
+    }
+
+    /**
+     * Adds mockup buttons based on the notification type being mimicked
+     * All buttons simply dismiss the notification
+     */
+    private void addMockupButtons(DialogComponents components, String mockupType) {
+        JPanel buttonsPanel = components.buttonsPanel();
+        JDialog dialog = components.dialog();
+
+        switch (mockupType) {
+            case WorkCode.SCHEDULE_END_TYPE:
+                // Continue Working Button
+                JButton continueWorkingButton = ButtonFactory.createButton(
+                        WorkCode.CONTINUE_WORKING,
+                        ButtonFactory.BUTTON_PRIMARY,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Continue Working button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                // End Session Button
+                JButton endSessionButton = ButtonFactory.createButton(
+                        WorkCode.END_SESSION,
+                        ButtonFactory.BUTTON_DANGER,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup End Session button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                buttonsPanel.add(continueWorkingButton);
+                buttonsPanel.add(endSessionButton);
+                break;
+
+            case WorkCode.HOURLY_TYPE:
+                // Same buttons as SCHEDULE_END_TYPE
+                JButton continueWorkingHourlyButton = ButtonFactory.createButton(
+                        WorkCode.CONTINUE_WORKING,
+                        ButtonFactory.BUTTON_PRIMARY,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Continue Working button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                JButton endSessionHourlyButton = ButtonFactory.createButton(
+                        WorkCode.END_SESSION,
+                        ButtonFactory.BUTTON_DANGER,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup End Session button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                buttonsPanel.add(continueWorkingHourlyButton);
+                buttonsPanel.add(endSessionHourlyButton);
+                break;
+
+            case WorkCode.TEMP_STOP_TYPE:
+                // Continue Break Button
+                JButton continueBreakButton = ButtonFactory.createButton(
+                        WorkCode.CONTINUE_BREAK,
+                        ButtonFactory.BUTTON_PRIMARY,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Continue Break button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                // Resume Work Button
+                JButton resumeWorkButton = ButtonFactory.createButton(
+                        WorkCode.RESUME_WORK,
+                        ButtonFactory.BUTTON_SECONDARY,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Resume Work button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                // End Session Button
+                JButton endTempStopButton = ButtonFactory.createButton(
+                        WorkCode.END_SESSION,
+                        ButtonFactory.BUTTON_DANGER,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup End Session button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                buttonsPanel.add(continueBreakButton);
+                buttonsPanel.add(resumeWorkButton);
+                buttonsPanel.add(endTempStopButton);
+                break;
+
+            case WorkCode.START_DAY_TYPE:
+                // Start Work Button
+                JButton startWorkButton = ButtonFactory.createButton(
+                        WorkCode.START_WORK,
+                        ButtonFactory.BUTTON_PRIMARY,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Start Work button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                // Skip Button
+                JButton skipButton = ButtonFactory.createButton(
+                        WorkCode.SKIP_BUTTON,
+                        ButtonFactory.BUTTON_DANGER,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Skip button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                buttonsPanel.add(startWorkButton);
+                buttonsPanel.add(skipButton);
+                break;
+
+            case WorkCode.RESOLUTION_REMINDER_TYPE:
+                // Resolve Session Button
+                JButton resolveSessionButton = ButtonFactory.createButton(
+                        WorkCode.RESOLVE_SESSION_BUTTON,
+                        ButtonFactory.BUTTON_PRIMARY,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Resolve Session button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                // Dismiss Button
+                JButton dismissButton = ButtonFactory.createButton(
+                        WorkCode.DISMISS_BUTTON,
+                        ButtonFactory.BUTTON_DANGER,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Dismiss button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                buttonsPanel.add(resolveSessionButton);
+                buttonsPanel.add(dismissButton);
+                break;
+
+            default:
+                // Default to test notification buttons
+                JButton openWebsiteButton = ButtonFactory.createButton(
+                        WorkCode.OPEN_WEBSITE,
+                        ButtonFactory.BUTTON_SECONDARY,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Open Website button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                JButton dismissDefaultButton = ButtonFactory.createButton(
+                        WorkCode.DISMISS_BUTTON,
+                        ButtonFactory.BUTTON_NEUTRAL,
+                        ButtonFactory.STYLE_FILLED,
+                        e -> {
+                            dialog.dispose();
+                            LoggerUtil.info(this.getClass(), "User clicked mockup Dismiss button");
+                            cleanupNotificationResources(dialog);
+                        },
+                        userResponded
+                );
+
+                buttonsPanel.add(openWebsiteButton);
+                buttonsPanel.add(dismissDefaultButton);
+                break;
+        }
     }
 }
