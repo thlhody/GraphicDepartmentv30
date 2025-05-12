@@ -31,11 +31,33 @@ public class UserRegisterService {
 
             // If accessing own data, use local path and merge with admin entries
             if (currentUsername.equals(username)) {
+                // First try to read local entries
                 List<RegisterEntry> userEntries = dataAccessService.readUserRegister(username, userId, year, month);
+
+                // Check if local entries are empty
+                boolean localEntriesEmpty = (userEntries == null || userEntries.isEmpty());
+
+                // If local is empty and network is available, check network first to prevent data loss
+                if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
+                    try {
+                        // Try to read network entries
+                        List<RegisterEntry> networkEntries = dataAccessService.readNetworkUserRegister(username, userId, year, month);
+                        if (networkEntries != null && !networkEntries.isEmpty()) {
+                            // If network has entries but local is empty, use network entries as base
+                            LoggerUtil.info(this.getClass(), "Local register entries missing but found entries on network. Restoring data.");
+                            userEntries = networkEntries;
+                        }
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(), "Error reading network register: " + e.getMessage());
+                    }
+                }
+
+                // Ensure userEntries is not null
                 if (userEntries == null) {
                     userEntries = new ArrayList<>();
                 }
 
+                // Read admin entries
                 List<RegisterEntry> adminEntries = new ArrayList<>();
                 if (dataAccessService.isNetworkAvailable()) {
                     try {
@@ -45,7 +67,10 @@ public class UserRegisterService {
                     }
                 }
 
+                // Merge entries
                 List<RegisterEntry> mergedEntries = mergeEntries(userEntries, adminEntries);
+
+                // Write back the merged entries
                 dataAccessService.writeUserRegister(username, userId, mergedEntries, year, month);
                 return mergedEntries;
             }
@@ -58,6 +83,7 @@ public class UserRegisterService {
             return new ArrayList<>();
         }
     }
+
     private List<RegisterEntry> mergeEntries(List<RegisterEntry> userEntries, List<RegisterEntry> adminEntries) {
         // Create map of admin entries for quick lookup
         Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream().collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));

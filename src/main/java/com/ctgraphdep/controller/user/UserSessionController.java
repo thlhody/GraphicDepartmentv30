@@ -82,8 +82,7 @@ public class UserSessionController extends BaseController {
 
             // Check for unresolved work time entries using a query
             if (!skipResolutionCheck) {
-                GetUnresolvedEntriesQuery unresolvedQuery = commandFactory.createGetUnresolvedEntriesQuery(
-                        currentUser.getUsername(), currentUser.getUserId());
+                GetUnresolvedEntriesQuery unresolvedQuery = commandFactory.createGetUnresolvedEntriesQuery(currentUser.getUsername(), currentUser.getUserId());
                 List<ResolutionCalculationDTO> unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
                 model.addAttribute("hasUnresolvedEntries", !unresolvedEntries.isEmpty());

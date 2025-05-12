@@ -1,8 +1,10 @@
 package com.ctgraphdep.config;
 
 import com.ctgraphdep.service.PermissionFilterService;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import java.util.HashSet;
 import java.util.Set;
 
 @Configuration
@@ -12,85 +14,66 @@ public class PermissionConfiguration {
     public PermissionFilterService permissionFilterService() {
         PermissionFilterService service = new PermissionFilterService();
 
-        // For Role_User permissions (optional - can customize default user permissions)
-        service.addRolePermissions("USER", Set.of(
-                PermissionFilterService.PERMISSION_VIEW_STATUS_USER,
+        // Define base permissions sets - common to all users
+        Set<String> baseUserPermissions = Set.of(
                 PermissionFilterService.PERMISSION_ACCESS_OMS,
+                PermissionFilterService.PERMISSION_MANAGE_ACCOUNT,
                 PermissionFilterService.PERMISSION_MANAGE_SESSION,
                 PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER,
-                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF,
-                PermissionFilterService.PERMISSION_MANAGE_ACCOUNT,
-                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER
-        ));
+                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF
+        );
 
-        // For Role_Admin permissions (optional - admins already have all permissions by default)
-        service.addRolePermissions("ADMIN", Set.of(
-                PermissionFilterService.PERMISSION_VIEW_STATUS_ADMIN,
-                PermissionFilterService.PERMISSION_ACCESS_OMS,
-                PermissionFilterService.PERMISSION_MANAGE_SETTINGS,
-                PermissionFilterService.PERMISSION_MANAGE_HOLIDAYS,
-                PermissionFilterService.PERMISSION_MANAGE_SESSION,
-                PermissionFilterService.PERMISSION_VIEW_WORKTIME_ADMIN,
-                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF,
-                PermissionFilterService.PERMISSION_MANAGE_ACCOUNT,
-                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER,
-                PermissionFilterService.PERMISSION_MANAGE_ADMIN_REGISTER,
-                PermissionFilterService.PERMISSION_MANAGE_BONUS,
-                PermissionFilterService.PERMISSION_MANAGE_STATISTICS,
-                PermissionFilterService.PERMISSION_MANAGE_ADMIN_CHECKING,
-                PermissionFilterService.PERMISSION_VIEW_STATS_CHECKING
-        ));
+        // Regular USER permissions
+        Set<String> userPermissions = new HashSet<>(baseUserPermissions);
+        userPermissions.add(PermissionFilterService.PERMISSION_VIEW_STATUS_USER);
+        userPermissions.add(PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER);
+        service.addRolePermissions(SecurityConstants.ROLE_USER, userPermissions);
 
-        // For Role_Team_Leader permissions
-        service.addRolePermissions("TEAM_LEADER", Set.of(
-                PermissionFilterService.PERMISSION_VIEW_STATUS_ADMIN,
-                PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER,
-                PermissionFilterService.PERMISSION_MANAGE_SESSION,
-                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER,
-                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF,
-                PermissionFilterService.PERMISSION_VIEW_TEAM_STATS
-        ));
+        // CHECKING permissions
+        Set<String> checkingPermissions = new HashSet<>(baseUserPermissions);
+        checkingPermissions.add(PermissionFilterService.PERMISSION_VIEW_STATUS_USER);
+        checkingPermissions.add(PermissionFilterService.PERMISSION_MANAGE_CHECK_REGISTER);
+        service.addRolePermissions(SecurityConstants.ROLE_CHECKING, checkingPermissions);
 
-        // 1. CHECKING role - has only checking register permissions, like a user focused on checking
-        service.addRolePermissions("CHECKING", Set.of(
-                PermissionFilterService.PERMISSION_VIEW_STATUS_USER,
-                PermissionFilterService.PERMISSION_ACCESS_OMS,
-                PermissionFilterService.PERMISSION_MANAGE_SESSION,
-                PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER,
-                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF,
-                PermissionFilterService.PERMISSION_MANAGE_ACCOUNT,
-                PermissionFilterService.PERMISSION_MANAGE_USER_CHECKING
-        ));
+        // USER_CHECKING permissions (combines User + Checking)
+        Set<String> userCheckingPermissions = new HashSet<>(userPermissions);
+        userCheckingPermissions.add(PermissionFilterService.PERMISSION_MANAGE_CHECK_REGISTER);
+        service.addRolePermissions(SecurityConstants.ROLE_USER_CHECKING, userCheckingPermissions);
 
-        // 2. USER_CHECKING role - same as user but with checking permissions
-        service.addRolePermissions("USER_CHECKING", Set.of(
-                PermissionFilterService.PERMISSION_VIEW_STATUS_USER,
-                PermissionFilterService.PERMISSION_ACCESS_OMS,
-                PermissionFilterService.PERMISSION_MANAGE_SESSION,
-                PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER,
-                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF,
-                PermissionFilterService.PERMISSION_MANAGE_ACCOUNT,
-                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER,
-                PermissionFilterService.PERMISSION_MANAGE_USER_CHECKING
+        // TEAM_LEADER permissions
+        Set<String> teamLeaderPermissions = new HashSet<>(userPermissions);
+        teamLeaderPermissions.remove(PermissionFilterService.PERMISSION_VIEW_STATUS_USER);
+        teamLeaderPermissions.add(PermissionFilterService.PERMISSION_VIEW_STATUS_ADMIN);
+        teamLeaderPermissions.add(PermissionFilterService.PERMISSION_VIEW_TEAM_STATS);
+        service.addRolePermissions(SecurityConstants.ROLE_TEAM_LEADER, teamLeaderPermissions);
 
-        ));
+        // TL_CHECKING permissions (Team Leader + Checking)
+        Set<String> tlCheckingPermissions = new HashSet<>(teamLeaderPermissions);
+        tlCheckingPermissions.add(PermissionFilterService.PERMISSION_MANAGE_CHECK_REGISTER);
+        tlCheckingPermissions.add(PermissionFilterService.PERMISSION_VIEW_STATS_CHECKING);
+        tlCheckingPermissions.add(PermissionFilterService.PERMISSION_MANAGE_TEAM_CHECKING);
+        tlCheckingPermissions.add(PermissionFilterService.PERMISSION_MANAGE_CHECK_VALUES);
+        service.addRolePermissions(SecurityConstants.ROLE_TL_CHECKING, tlCheckingPermissions);
 
-        // 3. TL_CHECKING role - has all permissions of team leader + checking
-        service.addRolePermissions("TL_CHECKING", Set.of(
-                PermissionFilterService.PERMISSION_VIEW_STATUS_TEAM_LEADER,
-                PermissionFilterService.PERMISSION_ACCESS_OMS,
-                PermissionFilterService.PERMISSION_MANAGE_SESSION,
-                PermissionFilterService.PERMISSION_MANAGE_ACCOUNT,
-                PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER,
-                PermissionFilterService.PERMISSION_REQUEST_TIMEOFF,
-                PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER,
-                PermissionFilterService.PERMISSION_MANAGE_TEAM,
-                PermissionFilterService.PERMISSION_VIEW_TEAM_STATS,
-                PermissionFilterService.PERMISSION_MANAGE_TEAM_CHECKING,
-                PermissionFilterService.PERMISSION_VIEW_STATS_CHECKING,
-                PermissionFilterService.PERMISSION_MANAGE_CHECK_VALUES
-        ));
+        // ADMIN permissions (includes everything)
+        Set<String> adminPermissions = getAdminPermissions(tlCheckingPermissions);
+        service.addRolePermissions(SecurityConstants.ROLE_ADMIN, adminPermissions);
 
         return service;
+    }
+
+    private static @NotNull Set<String> getAdminPermissions(Set<String> tlCheckingPermissions) {
+        Set<String> adminPermissions = new HashSet<>(tlCheckingPermissions); // Include all TL_CHECKING permissions
+
+        // Add admin-specific permissions
+        adminPermissions.add(PermissionFilterService.PERMISSION_MANAGE_SETTINGS);
+        adminPermissions.add(PermissionFilterService.PERMISSION_MANAGE_HOLIDAYS);
+        adminPermissions.add(PermissionFilterService.PERMISSION_VIEW_WORKTIME_ADMIN);
+        adminPermissions.add(PermissionFilterService.PERMISSION_MANAGE_ADMIN_REGISTER);
+        adminPermissions.add(PermissionFilterService.PERMISSION_MANAGE_BONUS);
+        adminPermissions.add(PermissionFilterService.PERMISSION_MANAGE_STATISTICS);
+        adminPermissions.add(PermissionFilterService.PERMISSION_MANAGE_ADMIN_CHECKING);
+        adminPermissions.add(PermissionFilterService.PERMISSION_MANAGE_CHECKING_BONUS);
+        return adminPermissions;
     }
 }

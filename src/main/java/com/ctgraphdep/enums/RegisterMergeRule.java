@@ -8,8 +8,7 @@ import java.util.function.BiPredicate;
 import java.util.function.BiFunction;
 
 public enum RegisterMergeRule {
-    NEW_USER_ENTRY((user, admin) -> admin == null,
-            (user, admin) -> user),
+    NEW_USER_ENTRY((user, admin) -> admin == null, (user, admin) -> user),
 
     USER_ACCEPTS_ADMIN((user, admin) -> admin.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name())
             && user.getAdminSync().equals(SyncStatusWorktime.USER_DONE.name())
@@ -19,18 +18,12 @@ public enum RegisterMergeRule {
                 return admin;
             }),
 
-    ADMIN_MODIFIED_USER_DONE((user, admin) -> user.getAdminSync().equals(SyncStatusWorktime.USER_DONE.name())
-            && !entriesAreEqual(user, admin),
-            (user, admin) -> {
-                admin.setAdminSync(SyncStatusWorktime.ADMIN_EDITED.name());
-                return admin;
-            }),
+    ADMIN_MODIFIED_USER_DONE((user, admin) -> user.getAdminSync().equals(SyncStatusWorktime.USER_DONE.name()) && !entriesAreEqual(user, admin),
+                             (user, admin) -> {admin.setAdminSync(SyncStatusWorktime.ADMIN_EDITED.name());return admin;}),
 
-    ADMIN_EDITED((user, admin) -> admin.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name()),
-            (user, admin) -> admin),
+    ADMIN_EDITED((user, admin) -> admin.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name()), (user, admin) -> admin),
 
-    USER_INPUT((user, admin) -> user.getAdminSync().equals(SyncStatusWorktime.USER_INPUT.name()),
-            (user, admin) -> user),
+    USER_INPUT((user, admin) -> user.getAdminSync().equals(SyncStatusWorktime.USER_INPUT.name()), (user, admin) -> user),
 
     DEFAULT((user, admin) -> true, (user, admin) -> user);
 
@@ -60,7 +53,7 @@ public enum RegisterMergeRule {
                 Objects.equals(entry1.getOmsId(), entry2.getOmsId()) &&
                 Objects.equals(entry1.getClientName(), entry2.getClientName()) &&
                 Objects.equals(entry1.getActionType(), entry2.getActionType()) &&
-                Objects.equals(entry1.getPrintPrepTypes(), entry2.getPrintPrepTypes()) && // Changed to compare Lists
+                Objects.equals(entry1.getPrintPrepTypes(), entry2.getPrintPrepTypes()) &&
                 Objects.equals(entry1.getColorsProfile(), entry2.getColorsProfile()) &&
                 Objects.equals(entry1.getArticleNumbers(), entry2.getArticleNumbers()) &&
                 Objects.equals(entry1.getGraphicComplexity(), entry2.getGraphicComplexity()) &&

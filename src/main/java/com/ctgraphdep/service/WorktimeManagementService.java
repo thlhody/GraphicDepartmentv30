@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.fileOperations.DataAccessService;
@@ -70,10 +69,33 @@ public class WorktimeManagementService {
                 List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
                 List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
 
+                // Check if local entries are empty but network entries might exist
+                boolean localEntriesEmpty = (userEntries == null || userEntries.isEmpty());
+
+                if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
+                    try {
+                        // Try to read network entries (in read-only mode to avoid triggering any actions)
+                        List<WorkTimeTable> networkEntries = dataAccessService.readNetworkUserWorktimeReadOnly(username, year, month);
+
+                        if (networkEntries != null && !networkEntries.isEmpty()) {
+                            // Network has entries but local is empty - use network entries to prevent data loss
+                            LoggerUtil.info(this.getClass(), "Local worktime entries missing but found entries on network. Restoring data.");
+                            userEntries = networkEntries;
+                        }
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(), "Error reading network worktime: " + e.getMessage());
+                    }
+                }
+
+                // Ensure userEntries is not null
+                if (userEntries == null) {
+                    userEntries = new ArrayList<>();
+                }
+
                 // Use the merge service for consistent merging
                 List<WorkTimeTable> mergedEntries = worktimeMergeService.mergeEntries(userEntries, adminEntries, userId);
 
-                if (!adminEntries.isEmpty()) {
+                if (!adminEntries.isEmpty() || !userEntries.isEmpty()) {
                     dataAccessService.writeUserWorktime(username, mergedEntries, year, month);
                 }
 

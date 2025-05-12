@@ -36,11 +36,8 @@ public enum WorktimeMergeRule {
 
     // Admin edited entry takes precedence over user entries unless their USER_IN_PROCESS or USER_EDITED
     ADMIN_EDITED((user, admin) ->
-            admin != null &&
-                    SyncStatusWorktime.ADMIN_EDITED.equals(admin.getAdminSync()) &&
-                    (user == null ||
-                            (!SyncStatusWorktime.USER_IN_PROCESS.equals(user.getAdminSync()) &&
-                                    !SyncStatusWorktime.USER_EDITED.equals(user.getAdminSync()))),
+            admin != null && SyncStatusWorktime.ADMIN_EDITED.equals(admin.getAdminSync()) && (user == null || (!SyncStatusWorktime.USER_IN_PROCESS.equals(user.getAdminSync()) &&
+                    !SyncStatusWorktime.USER_EDITED.equals(user.getAdminSync()))),
             (user, admin) -> {
                 WorkTimeTable result = copyWorkTimeEntry(admin);
                 result.setAdminSync(SyncStatusWorktime.USER_DONE);

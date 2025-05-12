@@ -1,5 +1,6 @@
 package com.ctgraphdep.dashboard.service;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.dashboard.config.DashboardConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.FolderStatus;
@@ -44,9 +45,9 @@ public class DashboardService {
             LoggerUtil.info(this.getClass(), "User role in buildDashboardViewModel: '" + currentUser.getRole() + "'");
 
             // For debugging, conditionally load for specific roles without the check
-            if (currentUser.getRole().equals("USER_CHECKING") ||
-                    currentUser.getRole().equals("CHECKING") ||
-                    currentUser.getRole().equals("TL_CHECKING")) {
+            if (currentUser.getRole().equals(SecurityConstants.ROLE_USER_CHECKING) ||
+                    currentUser.getRole().equals(SecurityConstants.ROLE_CHECKING) ||
+                    currentUser.getRole().equals(SecurityConstants.ROLE_TL_CHECKING)) {
 
                 if (!checkValuesCacheManager.hasCachedCheckValues(currentUser.getUsername())) {
                     LoggerUtil.info(this.getClass(), "Loading check values for " + currentUser.getUsername() + " with role " + currentUser.getRole());
@@ -84,52 +85,36 @@ public class DashboardService {
      * Loads and caches check values for a user with checking roles
      */
     public void loadAndCacheCheckValues(User user) {
+        if (user == null || user.getUsername() == null || user.getUserId() == null) {
+            LoggerUtil.warn(this.getClass(), "Cannot load check values: user, username, or userId is null");
+            return;
+        }
 
         try {
-
-            if (user == null || user.getUsername() == null || user.getUserId() == null) {
-                LoggerUtil.warn(this.getClass(), "Cannot load check values: user, username, or userId is null");
-                return;
-            }
-            // Add detailed logging
             LoggerUtil.info(this.getClass(), String.format("LOADING VALUES: Attempting to load check values for %s (ID: %d)",
                     user.getUsername(), user.getUserId()));
 
-            // Get the user's check values
             UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(user.getUsername(), user.getUserId());
 
-            if (userCheckValues != null && userCheckValues.getCheckValuesEntry() != null) {
-                // More detailed logging
-                LoggerUtil.info(this.getClass(), String.format("VALUES FOUND: Found values for %s: workUnitsPerHour=%f",
-                        user.getUsername(), userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
-
-                // Cache the check values
-                checkValuesCacheManager.cacheCheckValues(user.getUsername(), userCheckValues.getCheckValuesEntry());
-            } else {
+            if (userCheckValues == null) {
                 LoggerUtil.warn(this.getClass(), String.format("NO VALUES FOUND: No check values found for user %s", user.getUsername()));
+                return;
             }
+
+            if (userCheckValues.getCheckValuesEntry() == null) {
+                LoggerUtil.warn(this.getClass(), String.format("NULL CHECK VALUES: Check values entry is null for user %s", user.getUsername()));
+                return;
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("VALUES FOUND: Found values for %s: workUnitsPerHour=%f",
+                    user.getUsername(), userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
+
+            checkValuesCacheManager.cacheCheckValues(user.getUsername(), userCheckValues.getCheckValuesEntry());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("ERROR LOADING VALUES: Error for user %s: %s", user.getUsername(), e.getMessage()));}
-    }
-    /**
-     * Check if a user has a checking role
-     */
-    private boolean hasCheckingRole(User user) {
-        if (user == null || user.getRole() == null) {
-            LoggerUtil.warn(this.getClass(), "Cannot check role: user or role is null");
-            return false;
+            LoggerUtil.error(this.getClass(), String.format("ERROR LOADING VALUES: Error for user %s: %s",
+                    user.getUsername(), e.getMessage()), e);
+            // Consider whether we should throw a more specific exception or handle it differently
         }
-
-        boolean hasRole = user.getRole().contains("ROLE_TL_CHECKING") ||
-                user.getRole().contains("ROLE_USER_CHECKING") ||
-                user.getRole().contains("ROLE_CHECKING");
-
-        // Add detailed logging
-        LoggerUtil.info(this.getClass(), String.format(
-                "ROLE CHECK: User %s has role %s, checking role result: %b",
-                user.getUsername(), user.getRole(), hasRole));
-
-        return hasRole;
     }
 
     public DashboardMetricsDTO buildDashboardMetrics() {

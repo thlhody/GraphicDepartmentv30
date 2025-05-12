@@ -1,6 +1,7 @@
 package com.ctgraphdep.enums;
 
 import com.ctgraphdep.model.RegisterCheckEntry;
+import com.ctgraphdep.utils.LoggerUtil;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -8,53 +9,91 @@ import java.util.function.BiPredicate;
 import java.util.function.BiFunction;
 
 /**
- * Defines rules for merging user check entries with team lead entries
- * Similar to RegisterMergeRule but with additional team lead layer
+ * Merge rules for check register entries between user entries and team leader entries.
+ * Similar to RegisterMergeRule but uses CheckingStatus values instead of SyncStatusWorktime.
  */
 public enum CheckRegisterMergeRule {
 
-    // When there's a new user entry with no corresponding team lead entry
+    /**
+     * When team leader entry is null, use the user's entry
+     */
     NEW_USER_ENTRY((user, teamLead) -> teamLead == null,
             (user, teamLead) -> user),
 
-    // When user accepts team lead edits
-    USER_ACCEPTS_TEAM_LEAD((user, teamLead) -> teamLead.getAdminSync().equals(CheckingStatus.TL_EDITED.name())
-            && user.getAdminSync().equals(CheckingStatus.CHECKING_DONE.name())
-            && entriesAreEqual(user, teamLead),
+    /**
+     * TL_BLANK status causes entry removal
+     */
+    TEAM_LEAD_BLANK((user, teamLead) -> teamLead != null &&
+            teamLead.getAdminSync().equals(CheckingStatus.TL_BLANK.name()),
+            (user, teamLead) -> null), // returning null removes the entry
+
+    /**
+     * Team leader with TL_EDITED status overwrites user entries with CHECKING_INPUT or TL_CHECK_DONE
+     */
+    TEAM_LEAD_EDITED((user, teamLead) -> teamLead != null &&
+            teamLead.getAdminSync().equals(CheckingStatus.TL_EDITED.name()) &&
+            (user.getAdminSync().equals(CheckingStatus.CHECKING_INPUT.name()) ||
+                    user.getAdminSync().equals(CheckingStatus.TL_CHECK_DONE.name())),
+            (user, teamLead) -> teamLead),
+
+    /**
+     * When both user and team leader have TL_EDITED status and entries are equal,
+     * convert to TL_CHECK_DONE to indicate agreement
+     */
+    BOTH_EDITED((user, teamLead) -> teamLead != null &&
+            user.getAdminSync().equals(CheckingStatus.TL_EDITED.name()) &&
+            teamLead.getAdminSync().equals(CheckingStatus.TL_EDITED.name()) &&
+            entriesAreEqual(user, teamLead),
             (user, teamLead) -> {
-                teamLead.setAdminSync(CheckingStatus.CHECKING_DONE.name());
-                return teamLead;
+                RegisterCheckEntry result = copyEntry(teamLead);
+                result.setAdminSync(CheckingStatus.TL_CHECK_DONE.name());
+                return result;
             }),
 
-    // When team lead modifies a user entry that was already done
-    TEAM_LEAD_MODIFIED_USER_DONE((user, teamLead) -> user.getAdminSync().equals(CheckingStatus.CHECKING_DONE.name())
-            && !entriesAreEqual(user, teamLead),
+    /**
+     * TL_CHECK_DONE overwrites CHECKING_INPUT
+     */
+    TEAM_LEAD_APPROVED((user, teamLead) -> teamLead != null &&
+            teamLead.getAdminSync().equals(CheckingStatus.TL_CHECK_DONE.name()) &&
+            user.getAdminSync().equals(CheckingStatus.CHECKING_INPUT.name()),
+            (user, teamLead) -> teamLead),
+
+    /**
+     * When user has modified an entry with TL_CHECK_DONE status, keep user changes
+     * and reset status to CHECKING_INPUT to indicate it needs review
+     */
+    USER_MODIFIED_APPROVED((user, teamLead) -> teamLead != null &&
+            teamLead.getAdminSync().equals(CheckingStatus.TL_CHECK_DONE.name()) &&
+            !entriesAreEqual(user, teamLead),
             (user, teamLead) -> {
-                teamLead.setAdminSync(CheckingStatus.TL_EDITED.name());
-                return teamLead;
+                user.setAdminSync(CheckingStatus.CHECKING_INPUT.name());
+                return user;
             }),
 
-    // When team lead has edited an entry (take team lead version)
-    TEAM_LEAD_EDITED((user, teamLead) -> teamLead.getAdminSync().equals(CheckingStatus.TL_EDITED.name()),
+    /**
+     * When both entries have matching status and content, maintain status
+     */
+    MATCHING_ENTRIES((user, teamLead) -> teamLead != null &&
+            entriesAreEqual(user, teamLead) &&
+            user.getAdminSync().equals(teamLead.getAdminSync()),
             (user, teamLead) -> teamLead),
 
-    // When an entry is still in user input stage (take user version)
-    USER_INPUT((user, teamLead) -> user.getAdminSync().equals(CheckingStatus.CHECKING_INPUT.name()),
-            (user, teamLead) -> user),
+    /**
+     * ADMIN_DONE entries should be preserved
+     */
+    ADMIN_PROCESSED((user, teamLead) ->
+            (user != null && user.getAdminSync().equals(CheckingStatus.ADMIN_DONE.name())) ||
+                    (teamLead != null && teamLead.getAdminSync().equals(CheckingStatus.ADMIN_DONE.name())),
+            (user, teamLead) -> {
+                if (teamLead != null && teamLead.getAdminSync().equals(CheckingStatus.ADMIN_DONE.name())) {
+                    return teamLead;
+                }
+                return user;
+            }),
 
-    // When admin has edited an entry (admin overrides team lead)
-    ADMIN_EDITED((user, teamLead) -> teamLead.getAdminSync().equals(CheckingStatus.ADMIN_EDITED.name()),
-            (user, teamLead) -> teamLead),
-
-    // When admin has finalized an entry
-    ADMIN_DONE((user, teamLead) -> teamLead.getAdminSync().equals(CheckingStatus.ADMIN_DONE.name()),
-            (user, teamLead) -> teamLead),
-
-    // When admin has marked an entry for removal
-    ADMIN_BLANK((user, teamLead) -> teamLead.getAdminSync().equals(CheckingStatus.ADMIN_BLANK.name()),
-            (user, teamLead) -> null), // Return null to indicate removal
-
-    // Default rule if no other rule matches
+    /**
+     * Default rule - keep user entry if no other rule matches
+     */
     DEFAULT((user, teamLead) -> true, (user, teamLead) -> user);
 
     private final BiPredicate<RegisterCheckEntry, RegisterCheckEntry> condition;
@@ -67,22 +106,50 @@ public enum CheckRegisterMergeRule {
     }
 
     /**
-     * Apply the appropriate merge rule based on entries' states
+     * Apply merge rules to determine which entry should be kept.
      *
-     * @param user The user check entry
-     * @param teamLead The team lead check entry
-     * @return The resulting merged entry or null if entry should be removed
+     * @param user User's check register entry
+     * @param teamLead Team leader's check register entry
+     * @return The merged entry, or null if the entry should be removed
      */
     public static RegisterCheckEntry apply(RegisterCheckEntry user, RegisterCheckEntry teamLead) {
+        LoggerUtil.debug(CheckRegisterMergeRule.class,
+                String.format("Merging - User: %s, TeamLead: %s",
+                        user != null ? user.getAdminSync() : "null",
+                        teamLead != null ? teamLead.getAdminSync() : "null"));
+
+        // Special handling for TL_BLANK - immediate removal
+        if (teamLead != null && CheckingStatus.TL_BLANK.name().equals(teamLead.getAdminSync())) {
+            LoggerUtil.debug(CheckRegisterMergeRule.class, "TL_BLANK rule matched - entry will be removed");
+            return null;
+        }
+
+        // If both entries are null, return null
+        if (user == null && teamLead == null) {
+            return null;
+        }
+
+        // If user is null but teamLead exists, use teamLead
+        if (user == null) {
+            return teamLead;
+        }
+
+        // Apply rules in sequence
         return Arrays.stream(values())
                 .filter(rule -> rule.condition.test(user, teamLead))
                 .findFirst()
-                .map(rule -> rule.action.apply(user, teamLead))
+                .map(rule -> {
+                    RegisterCheckEntry result = rule.action.apply(user, teamLead);
+                    LoggerUtil.debug(CheckRegisterMergeRule.class,
+                            String.format("Applied rule %s, result status: %s",
+                                    rule.name(), result != null ? result.getAdminSync() : "null"));
+                    return result;
+                })
                 .orElse(user);
     }
 
     /**
-     * Check if two register check entries have identical content
+     * Check if two entries have equal content (excluding adminSync status)
      */
     private static boolean entriesAreEqual(RegisterCheckEntry entry1, RegisterCheckEntry entry2) {
         if (entry1 == null || entry2 == null) return false;
@@ -97,5 +164,27 @@ public enum CheckRegisterMergeRule {
                 Objects.equals(entry1.getErrorDescription(), entry2.getErrorDescription()) &&
                 Objects.equals(entry1.getApprovalStatus(), entry2.getApprovalStatus()) &&
                 Objects.equals(entry1.getOrderValue(), entry2.getOrderValue());
+    }
+
+    /**
+     * Create a deep copy of a RegisterCheckEntry
+     */
+    private static RegisterCheckEntry copyEntry(RegisterCheckEntry source) {
+        if (source == null) return null;
+
+        return RegisterCheckEntry.builder()
+                .entryId(source.getEntryId())
+                .date(source.getDate())
+                .omsId(source.getOmsId())
+                .designerName(source.getDesignerName())
+                .productionId(source.getProductionId())
+                .checkType(source.getCheckType())
+                .articleNumbers(source.getArticleNumbers())
+                .filesNumbers(source.getFilesNumbers())
+                .errorDescription(source.getErrorDescription())
+                .approvalStatus(source.getApprovalStatus())
+                .orderValue(source.getOrderValue())
+                .adminSync(source.getAdminSync())
+                .build();
     }
 }

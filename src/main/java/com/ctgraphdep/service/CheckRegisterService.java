@@ -42,7 +42,28 @@ public class CheckRegisterService {
 
             // If accessing own data, use local path
             if (currentUsername.equals(username)) {
+                // First try to read local entries
                 List<RegisterCheckEntry> userEntries = dataAccessService.readUserCheckRegister(username, userId, year, month);
+
+                // Check if local entries are empty
+                boolean localEntriesEmpty = (userEntries == null || userEntries.isEmpty());
+
+                // If local is empty and network is available, check network first to prevent data loss
+                if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
+                    try {
+                        // Check if there are entries on the network before we overwrite them
+                        List<RegisterCheckEntry> networkEntries = dataAccessService.readCheckRegisterReadOnly(username, userId, year, month);
+                        if (networkEntries != null && !networkEntries.isEmpty()) {
+                            // If network has entries but local is empty, use network entries as base
+                            LoggerUtil.info(this.getClass(), "Local check register entries missing but found entries on network. Restoring data.");
+                            userEntries = networkEntries;
+                        }
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(), "Error reading network check register: " + e.getMessage());
+                    }
+                }
+
+                // Ensure userEntries is not null
                 if (userEntries == null) {
                     userEntries = new ArrayList<>();
                 }
@@ -78,17 +99,33 @@ public class CheckRegisterService {
      * Merge user check entries with team lead entries
      */
     private List<RegisterCheckEntry> mergeEntries(List<RegisterCheckEntry> userEntries, List<RegisterCheckEntry> teamLeadEntries) {
-        // Create map of team lead entries for quick lookup
+        // Create maps for quick lookup
         Map<Integer, RegisterCheckEntry> teamLeadEntriesMap = teamLeadEntries.stream()
-                .collect(Collectors.toMap(RegisterCheckEntry::getEntryId, entry -> entry));
+                .collect(Collectors.toMap(RegisterCheckEntry::getEntryId, entry -> entry, (e1, e2) -> e2));
 
-        // Apply merge rules to each user entry
-        return userEntries.stream()
-                .map(userEntry -> {
-                    RegisterCheckEntry teamLeadEntry = teamLeadEntriesMap.get(userEntry.getEntryId());
-                    return com.ctgraphdep.enums.CheckRegisterMergeRule.apply(userEntry, teamLeadEntry);
-                })
-                .collect(Collectors.toList());
+        Map<Integer, RegisterCheckEntry> userEntriesMap = userEntries.stream()
+                .collect(Collectors.toMap(RegisterCheckEntry::getEntryId, entry -> entry, (e1, e2) -> e2));
+
+        // Collect all entry IDs from both sources
+        Set<Integer> allEntryIds = new HashSet<>();
+        userEntries.forEach(entry -> allEntryIds.add(entry.getEntryId()));
+        teamLeadEntries.forEach(entry -> allEntryIds.add(entry.getEntryId()));
+
+        // Apply merge rules to all entries
+        List<RegisterCheckEntry> mergedEntries = new ArrayList<>();
+        for (Integer entryId : allEntryIds) {
+            RegisterCheckEntry userEntry = userEntriesMap.get(entryId);
+            RegisterCheckEntry teamLeadEntry = teamLeadEntriesMap.get(entryId);
+
+            RegisterCheckEntry mergedEntry = com.ctgraphdep.enums.CheckRegisterMergeRule.apply(userEntry, teamLeadEntry);
+
+            // Only add non-null entries (null means entry should be removed)
+            if (mergedEntry != null) {
+                mergedEntries.add(mergedEntry);
+            }
+        }
+
+        return mergedEntries;
     }
 
     /**

@@ -95,6 +95,30 @@ public class SessionService {
 
             // Get current session
             WorkUsersSessionsStates session = getSession(username, userId);
+
+            // Check if local session is empty but network is available
+            boolean localSessionEmpty = (session == null);
+            if (localSessionEmpty && sessionCommandService.getContext().getDataAccessService().isNetworkAvailable()) {
+                try {
+                    // Try to read directly from network
+                    WorkUsersSessionsStates networkSession = sessionCommandService.getContext().getDataAccessService()
+                            .readNetworkSessionFileReadOnly(username, userId);
+
+                    if (networkSession != null) {
+                        // Network has a session but local is missing - use network data
+                        LoggerUtil.info(this.getClass(), "Local session missing but found session on network. Restoring data.");
+                        session = networkSession;
+
+                        // Save to local to restore it
+                        SaveSessionCommand saveCommand = sessionCommandFactory.createSaveSessionCommand(networkSession);
+                        sessionCommandService.executeCommand(saveCommand);
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), "Error reading network session: " + e.getMessage());
+                }
+            }
+
+            // Continue with normal flow
             if (session == null) {
                 LoggerUtil.info(this.getClass(), "No session found for user: " + username);
                 return createOfflineSessionDTO(username, currentTime);

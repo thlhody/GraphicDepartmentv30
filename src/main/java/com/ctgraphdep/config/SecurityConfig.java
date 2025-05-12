@@ -35,18 +35,20 @@ public class SecurityConfig {
             http
                     .authorizeHttpRequests(authorize -> authorize
                             .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/logs/**","/api/system/status", "/update/**").permitAll()
-                            .requestMatchers("/admin/**").hasRole("ADMIN")
-                            .requestMatchers("/team-lead/**").hasRole("TEAM_LEADER")
-                            .requestMatchers("/team-checking/**").hasRole("TL_CHECKING")
-                            .requestMatchers("/checking/**").hasRole("CHECKING")
+                            .requestMatchers("/admin/**").hasRole(SecurityConstants.ROLE_ADMIN)
+                            .requestMatchers("/team-lead/**").hasRole(SecurityConstants.ROLE_TEAM_LEADER)
+                            .requestMatchers("/team-checking/**").hasRole(SecurityConstants.ROLE_TL_CHECKING)
+                            .requestMatchers("/checking/**").hasRole(SecurityConstants.ROLE_CHECKING)
 
                             // User URLs - multiple roles can access
-                            .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "TEAM_LEADER", "TL_CHECKING", "USER_CHECKING", "CHECKING")
+                            .requestMatchers("/user/**").hasAnyRole(SecurityConstants.ROLE_USER, SecurityConstants.ROLE_ADMIN,
+                                    SecurityConstants.ROLE_TEAM_LEADER, SecurityConstants.ROLE_TL_CHECKING, SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING)
 
                             // Specialized user paths with more specific access controls
-                            .requestMatchers("/user/check-register/**").hasAnyRole("USER_CHECKING", "CHECKING", "ADMIN", "TL_CHECKING")
-                            .requestMatchers("/team/check-register/**").hasAnyRole("TEAM_LEADER", "TL_CHECKING", "ADMIN")
-                            .requestMatchers("/user-checking/**").hasAnyRole("USER_CHECKING")
+                            .requestMatchers("/user/check-register/**").hasAnyRole(SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING,
+                                    SecurityConstants.ROLE_ADMIN, SecurityConstants.ROLE_TL_CHECKING)
+                            .requestMatchers("/team/check-register/**").hasAnyRole(SecurityConstants.ROLE_TEAM_LEADER, SecurityConstants.ROLE_TL_CHECKING, SecurityConstants.ROLE_ADMIN)
+                            .requestMatchers("/user-checking/**").hasAnyRole(SecurityConstants.ROLE_USER_CHECKING)
                             .anyRequest().authenticated()
                     )
                     .formLogin(form -> form
@@ -64,22 +66,22 @@ public class SecurityConfig {
                                     LoggerUtil.debug(this.getClass(), String.format("User %s has roles: %s", username, String.join(", ", roles)));
 
                                     LoggerUtil.debug(this.getClass(), "Checking roles for redirect...");
-                                    if (roles.contains("ROLE_ADMIN")) {
+                                    if (roles.contains(SecurityConstants.SPRING_ROLE_ADMIN)) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to admin...");
                                         response.sendRedirect("/admin");
-                                    } else if (roles.contains("ROLE_TEAM_LEADER")) {
+                                    } else if (roles.contains(SecurityConstants.SPRING_ROLE_TEAM_LEADER)) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to team lead...");
                                         response.sendRedirect("/team-lead");
-                                    } else if (roles.contains("ROLE_TL_CHECKING")) {
+                                    } else if (roles.contains(SecurityConstants.SPRING_ROLE_TL_CHECKING)) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to tl checking...");
                                         response.sendRedirect("/team-checking");
-                                    } else if (roles.contains("ROLE_USER_CHECKING")) {
+                                    } else if (roles.contains(SecurityConstants.SPRING_ROLE_USER_CHECKING)) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to user+checking...");
                                         response.sendRedirect("/user-checking");
-                                    } else if (roles.contains("ROLE_CHECKING")) {
+                                    } else if (roles.contains(SecurityConstants.SPRING_ROLE_CHECKING)) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to checking...");
                                         response.sendRedirect("/checking");
-                                    } else if (roles.contains("ROLE_USER")) {
+                                    } else if (roles.contains(SecurityConstants.SPRING_ROLE_USER)) {
                                         LoggerUtil.debug(this.getClass(), "Redirecting to user...");
                                         response.sendRedirect("/user");
                                     } else {
