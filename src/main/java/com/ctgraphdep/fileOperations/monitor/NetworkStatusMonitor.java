@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class NetworkStatusMonitor {
 
-    @Value("${app.sync.interval:300000}")
+    @Value("${app.sync.interval:3600000}")
     private long monitorInterval; // Default 5 minutes
 
     @Value("${app.network.debounce.ms:10000}")
@@ -59,6 +59,7 @@ public class NetworkStatusMonitor {
     @PostConstruct
     public void init() {
         startMonitoring();
+
         // Use a separate thread with proper backoff for initial detection
         scheduler.execute(this::performInitialNetworkDetection);
     }
@@ -66,7 +67,7 @@ public class NetworkStatusMonitor {
     /**
      * Scheduled method called at regular intervals to check network status
      */
-    @Scheduled(fixedDelayString = "${app.sync.interval:300000}")
+    @Scheduled(fixedDelayString = "${app.sync.interval:3600000}")
     public void performScheduledNetworkCheck() {
         try {
             LoggerUtil.debug(this.getClass(), "Performing scheduled network status check");

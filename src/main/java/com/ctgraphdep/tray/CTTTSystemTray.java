@@ -158,17 +158,6 @@ public class CTTTSystemTray {
         return popup;
     }
 
-    /**
-     * Update the notification menu item state
-     */
-    public void updateNotificationMenuItemState() {
-        SwingUtilities.invokeLater(() -> {
-            if (notificationsMenuItem != null) {
-                notificationsMenuItem.setState(notificationConfigService.isNotificationsEnabled());
-            }
-        });
-    }
-
     // Rest of the class remains unchanged
 
     private Image loadTrayIcon() {

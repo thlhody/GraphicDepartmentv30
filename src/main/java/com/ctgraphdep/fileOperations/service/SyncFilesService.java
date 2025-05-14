@@ -388,7 +388,7 @@ public class SyncFilesService {
     /**
      * Periodically retry failed syncs
      */
-    @Scheduled(fixedRateString = "${app.sync.retry.interval:300000}")
+    @Scheduled(fixedRateString = "${app.sync.retry.interval:3600000}")
     public void retryFailedSyncs() {
         List<SyncStatus> failedSyncs = syncStatusMap.values().stream()
                 .filter(s -> s.isSyncPending() && !s.isSyncInProgress())
