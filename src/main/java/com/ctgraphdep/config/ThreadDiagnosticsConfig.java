@@ -17,7 +17,7 @@ public class ThreadDiagnosticsConfig {
     public TaskScheduler taskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         int coreCount = Runtime.getRuntime().availableProcessors();
-        int poolSize = Math.max(4, coreCount / 2);  // At least 4 threads, half of core count
+        int poolSize = Math.max(8, coreCount / 2);  // At least 4 threads, half of core count
 
         scheduler.setPoolSize(poolSize);
         scheduler.setThreadNamePrefix("SessionMonitor-");

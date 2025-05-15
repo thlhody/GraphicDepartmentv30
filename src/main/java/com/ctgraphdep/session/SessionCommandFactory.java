@@ -12,7 +12,6 @@ import org.springframework.ui.Model;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-// Factory for creating session commands
 @Component
 public class SessionCommandFactory {
 
@@ -38,6 +37,11 @@ public class SessionCommandFactory {
     // Creates a command to save a session
     public SaveSessionCommand createSaveSessionCommand(WorkUsersSessionsStates session) {
         return new SaveSessionCommand(session);
+    }
+
+    // Add this to SessionCommandFactory
+    public AutoEndSessionCommand createAutoEndSessionCommand(String username, Integer userId, LocalDateTime endTime) {
+        return new AutoEndSessionCommand(username, userId, endTime);
     }
 
     //========
@@ -122,11 +126,6 @@ public class SessionCommandFactory {
     // Creates a query to get the current session
     public GetCurrentSessionQuery createGetCurrentSessionQuery(String username, Integer userId) {
         return new GetCurrentSessionQuery(username, userId);
-    }
-
-    // Creates a query to resolve which session to use
-    public ResolveSessionQuery createResolveSessionQuery(String username, Integer userId) {
-        return new ResolveSessionQuery(username, userId);
     }
 
     // Creates a query to determine navigation context

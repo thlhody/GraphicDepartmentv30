@@ -21,18 +21,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class UserCheckingDashboardController extends BaseDashboardController {
 
     @Autowired
-    public UserCheckingDashboardController(
-            UserService userService,
-            DashboardService dashboardService,
+    public UserCheckingDashboardController(UserService userService, DashboardService dashboardService,
             @Qualifier("userCheckingDashboardConfig") DashboardConfig userDashboardConfig,
             PermissionFilterService permissionFilterService, TimeValidationService timeValidationService) {
         super(userService, dashboardService, userDashboardConfig, permissionFilterService, timeValidationService);
-        LoggerUtil.debug(this.getClass(), "UserCheckingDashboardController initialized with required role: " + userDashboardConfig.getRole());
     }
 
     @GetMapping
     public String dashboard(Model model) {
-        LoggerUtil.debug(this.getClass(), "UserCheckingDashboardController.dashboard() called");
         return renderDashboard(model);
     }
 

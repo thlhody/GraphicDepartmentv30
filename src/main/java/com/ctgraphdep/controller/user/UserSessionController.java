@@ -107,9 +107,7 @@ public class UserSessionController extends BaseController {
     }
 
     @PostMapping("/start")
-    public String startSession(
-            @AuthenticationPrincipal UserDetails userDetails,
-            RedirectAttributes redirectAttributes) {
+    public String startSession(@AuthenticationPrincipal UserDetails userDetails, RedirectAttributes redirectAttributes) {
         try {
             LoggerUtil.info(this.getClass(), "Starting session at " + getStandardCurrentDateTime());
 
@@ -166,9 +164,7 @@ public class UserSessionController extends BaseController {
     }
 
     @PostMapping("/confirm-resume")
-    public String confirmResumeSession(
-            @AuthenticationPrincipal UserDetails userDetails,
-            RedirectAttributes redirectAttributes) {
+    public String confirmResumeSession(@AuthenticationPrincipal UserDetails userDetails, RedirectAttributes redirectAttributes) {
         try {
             LoggerUtil.info(this.getClass(), "Confirming resume session at " + getStandardCurrentDateTime());
 
@@ -192,9 +188,7 @@ public class UserSessionController extends BaseController {
     }
 
     @PostMapping("/temp-stop")
-    public String toggleTemporaryStop(
-            @AuthenticationPrincipal UserDetails userDetails,
-            RedirectAttributes redirectAttributes) {
+    public String toggleTemporaryStop(@AuthenticationPrincipal UserDetails userDetails, RedirectAttributes redirectAttributes) {
         try {
             LoggerUtil.info(this.getClass(), "Toggling temporary stop at " + getStandardCurrentDateTime());
 
@@ -232,9 +226,7 @@ public class UserSessionController extends BaseController {
     }
 
     @PostMapping("/end")
-    public String endSession(
-            @AuthenticationPrincipal UserDetails userDetails,
-            RedirectAttributes redirectAttributes) {
+    public String endSession(@AuthenticationPrincipal UserDetails userDetails, RedirectAttributes redirectAttributes) {
         try {
             LoggerUtil.info(this.getClass(), "Ending session at " + getStandardCurrentDateTime());
 
@@ -278,11 +270,9 @@ public class UserSessionController extends BaseController {
      * Resolves an unfinished work time entry - Refactored to use SessionService
      */
     @PostMapping("/resolve-worktime")
-    public String resolveWorkTimeEntry(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public String resolveWorkTimeEntry(@AuthenticationPrincipal UserDetails userDetails,
             @RequestParam("entryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate entryDate,
-            @RequestParam("endHour") int endHour,
-            @RequestParam("endMinute") int endMinute,
+            @RequestParam("endHour") int endHour, @RequestParam("endMinute") int endMinute,
             RedirectAttributes redirectAttributes) {
 
         try {

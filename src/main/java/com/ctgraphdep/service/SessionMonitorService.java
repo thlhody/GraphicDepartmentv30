@@ -12,6 +12,7 @@ import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
+import com.ctgraphdep.session.commands.AutoEndSessionCommand;
 import com.ctgraphdep.session.commands.EndDayCommand;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
@@ -712,29 +713,25 @@ public class SessionMonitorService {
      */
     public boolean scheduleAutomaticEnd(String username, Integer userId, LocalDateTime endTime) {
         try {
-            // Create a Runnable that executes the end day command
+            // Create a Runnable that executes the auto end session command
             Runnable endAction = () -> {
                 try {
                     LoggerUtil.info(this.getClass(), String.format("Executing scheduled end session for user %s at %s", username, endTime));
 
-                    // Get current session state
-                    GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, userId);
-                    WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
+                    // Use our new dedicated command
+                    AutoEndSessionCommand command = commandFactory.createAutoEndSessionCommand(username, userId, endTime);
+                    boolean success = commandService.executeCommand(command);
 
-                    // Check if in temporary stop
-                    boolean isInTempStop = session != null && WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
-
-                    if (isInTempStop) {
-                        LoggerUtil.info(this.getClass(), String.format("User %s is in temporary stop at scheduled end time, ending with temp stop included", username));
+                    if (success) {
+                        LoggerUtil.info(this.getClass(),
+                                String.format("Successfully executed scheduled end session for user %s", username));
+                    } else {
+                        LoggerUtil.warn(this.getClass(),
+                                String.format("Failed to execute scheduled end session for user %s", username));
                     }
-
-                    // Create and execute the end day command - it will handle temp stop correctly
-                    EndDayCommand command = commandFactory.createEndDayCommand(username, userId, null, null);
-                    commandService.executeCommand(command);
-
-                    LoggerUtil.info(this.getClass(), String.format("Successfully executed scheduled end session for user %s", username));
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format("Error executing scheduled end for user %s: %s", username, e.getMessage()), e);
+                    LoggerUtil.error(this.getClass(),
+                            String.format("Error executing scheduled end for user %s: %s", username, e.getMessage()), e);
                 }
             };
 
