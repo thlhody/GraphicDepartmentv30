@@ -389,10 +389,10 @@ public class DashboardManager {
                 .badge("Team")
                 .badgeColor("info")
                 .actionText("Team Check Register")
-                .actionUrl("/user/check-register")
+                .actionUrl("/team/check-register")
                 .external(false)
                 .permission(PermissionFilterService.PERMISSION_MANAGE_TEAM_CHECKING)
                 .build();
-    } //new to improve
+    }
 
 }

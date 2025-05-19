@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+<body>
+<!-- Check Register Fragment that can be used by both user and team lead views -->
+<div th:fragment="check-register-content (urlPrefix, isTeamView)" class="register-content">
+    <!-- Check Register Form -->
+    <div class="card shadow-sm mb-4" th:if="${!isTeamView || (isTeamView && selectedUser != null && !needsInitialization)}">
+        <div class="card-body">
+            <form id="checkRegisterForm" th:action="${urlPrefix + '/entry'}" method="post" class="row g-3 needs-validation" novalidate>
+                <!-- Hidden inputs -->
+                <input type="hidden" name="year" th:value="${currentYear}">
+                <input type="hidden" name="month" th:value="${currentMonth}">
+                <input type="hidden" id="editingId" name="entryId" value="">
+                <input type="hidden" id="isEdit" name="isEdit" value="false">
+
+                <!-- Additional hidden fields for team view -->
+                <!-- Use this to avoid sending "null" strings: -->
+                <input type="hidden" name="username" th:if="${isTeamView && selectedUser != null}" th:value="${selectedUser.username}">
+                <input type="hidden" name="userId" th:if="${isTeamView && selectedUser != null && selectedUser.userId != null}" th:value="${selectedUser.userId}">
+
+                <!-- Date Field -->
+                <div class="col-auto" style="width: 130px;">
+                    <label for="dateInput" class="form-label">Date*</label>
+                    <input type="date" class="form-control form-control-sm" id="dateInput" name="date" required>
+                </div>
+
+                <!-- OMS ID Field -->
+                <div class="col-auto" style="width: 150px;">
+                    <label for="omsIdInput" class="form-label">OMS ID*</label>
+                    <input type="text" class="form-control form-control-sm" id="omsIdInput" name="omsId" required
+                           placeholder="1234/24/AB-GREEN">
+                </div>
+
+                <!-- Production ID Field -->
+                <div class="col-auto" style="width: 140px;">
+                    <label for="productionIdInput" class="form-label">Production ID</label>
+                    <input type="text" class="form-control form-control-sm" id="productionIdInput" name="productionId"
+                           placeholder="CVEX24-123456">
+                </div>
+
+                <!-- Designer Name Field -->
+                <div class="col" style="min-width: 170px;">
+                    <label for="designerNameInput" class="form-label">Designer Name*</label>
+                    <input type="text" class="form-control form-control-sm" id="designerNameInput" name="designerName" required
+                           placeholder="Designer Name">
+                </div>
+
+                <!-- Check Type Field -->
+                <div class="col-auto" style="width: 160px;">
+                    <label for="checkTypeSelect" class="form-label">Check Type*</label>
+                    <select class="form-select form-select-sm" id="checkTypeSelect" name="checkType" required>
+                        <option value="">Select Type</option>
+                        <option th:each="type : ${checkTypes}" th:value="${type}" th:text="${type}"></option>
+                    </select>
+                </div>
+
+                <!-- Articles Number Field -->
+                <div class="col-auto" style="width: 90px;">
+                    <label for="articleNumbersInput" class="form-label">Articles*</label>
+                    <input type="number" class="form-control form-control-sm" id="articleNumbersInput" name="articleNumbers" required min="1" value="1">
+                </div>
+
+                <!-- Files Number Field -->
+                <div class="col-auto" style="width: 90px;">
+                    <label for="filesNumbersInput" class="form-label">Files*</label>
+                    <input type="number" class="form-control form-control-sm" id="filesNumbersInput" name="filesNumbers" required min="1" value="1">
+                </div>
+
+                <!-- Approval Status Field -->
+                <div class="col-auto" style="width: 160px;">
+                    <label for="approvalStatusSelect" class="form-label">Status*</label>
+                    <select class="form-select form-select-sm" id="approvalStatusSelect" name="approvalStatus" required>
+                        <option value="">Select Status</option>
+                        <option th:each="status : ${approvalStatusTypes}" th:value="${status}" th:text="${status}"></option>
+                    </select>
+                </div>
+
+                <!-- Entry Value Field (Auto-calculated) -->
+                <div class="col-auto" style="width: 90px;">
+                    <label for="orderValueInput" class="form-label">Value</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="orderValueInput" name="orderValue" readonly>
+                </div>
+
+                <!-- Error Description Field -->
+                <div class="col" style="min-width: 170px;">
+                    <label for="errorDescriptionInput" class="form-label">Error Description</label>
+                    <input type="text" class="form-control form-control-sm" id="errorDescriptionInput" name="errorDescription"
+                           placeholder="Error Description">
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="col-auto" style="width: 360px;">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm"
+                                style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                            <i class="bi bi-plus-circle me-1"></i>Add Entry
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetForm()"
+                                style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                            <i class="bi bi-x-circle me-1"></i>Clear
+                        </button>
+                        <a th:href="${urlPrefix + '/export'}+'?year='+${currentYear}+'&month='+${currentMonth}" th:if="${!isTeamView || selectedUser != null}"
+                           class="btn btn-outline-success btn-sm"
+                           style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                            <i class="bi bi-file-excel me-1"></i>Export
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Entries Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-transparent">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <h5 class="card-title mb-0">Check Register Entries</h5>
+                    <span class="header-info ms-2" th:if="${!isTeamView}">
+                            <button type="button" id="searchModalTrigger" class="btn btn-sm btn-outline-secondary ms-2">
+                                <i class="bi bi-search me-1"></i>Search
+                            </button>
+                            <i class="bi bi-info-circle me-1 align-items-right"></i>Ctrl+F - Find by OMS ID/Designer/Type/Status
+                        </span>
+                </div>
+                <div class="small text-muted">Total entries: <span id="entries-count">0</span></div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead>
+                    <tr>
+                        <th scope="col" style="width: 40px;">#</th>
+                        <th scope="col" style="width: 90px;">Date</th>
+                        <th scope="col" style="width: 120px;">OMS ID</th>
+                        <th scope="col" style="width: 100px;">Production ID</th>
+                        <th scope="col">Designer</th>
+                        <th scope="col" style="width: 120px;">Check Type</th>
+                        <th scope="col" style="width: 50px;">Art.</th>
+                        <th scope="col" style="width: 50px;">Files</th>
+                        <th scope="col">Error Description</th>
+                        <th scope="col" style="width: 100px;">Status</th>
+                        <th scope="col" style="width: 60px;">Value</th>
+                        <th scope="col" style="width: 120px;" th:if="${isTeamView}">Team Status</th>
+                        <th scope="col" style="width: 60px;">Mod</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <!-- Empty state row -->
+                    <tr th:if="${entries == null || entries.isEmpty()}">
+                        <td th:colspan="${isTeamView ? 13 : 12}" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="bi bi-inbox-fill fs-2 d-block mb-2"></i>
+                                <h5 class="mt-3">No Entries Found</h5>
+                                <p th:if="${!isTeamView}">No check register entries were found for this month.</p>
+                                <p th:if="${isTeamView}">No check register entries were found for this user and month.</p>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Entries -->
+                    <tr th:each="entry, stat : ${entries}" th:with="isEditable=${isTeamView || (editableEntryIds != null && editableEntryIds.contains(entry.entryId))}">
+                        <td th:text="${entry.entryId}">1</td>
+                        <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">01/01/2023</td>
+                        <td th:text="${entry.omsId}">OMS123</td>
+                        <td th:text="${entry.productionId}">PROD123</td>
+                        <td th:text="${entry.designerName}">Designer Name</td>
+                        <td>
+                                <span th:class="${'badge ' +
+                                    (entry.checkType == 'LAYOUT' ? 'bg-layout' :
+                                     entry.checkType == 'KIPSTA LAYOUT' ? 'bg-kipsta-layout' :
+                                     entry.checkType == 'LAYOUT CHANGES' ? 'bg-layout-changes' :
+                                     entry.checkType == 'GPT' ? 'bg-gpt' :
+                                     entry.checkType == 'SAMPLE' ? 'bg-sample' :
+                                     entry.checkType == 'PRODUCTION' ? 'bg-production' :
+                                     entry.checkType == 'OMS PRODUCTION' ? 'bg-oms-production' :
+                                     entry.checkType == 'KIPSTA PRODUCTION' ? 'bg-kipsta-production' :
+                                     'bg-secondary')}"
+                                      th:text="${entry.checkType}">Check Type</span>
+                        </td>
+                        <td th:text="${entry.articleNumbers}">10</td>
+                        <td th:text="${entry.filesNumbers}">5</td>
+                        <td th:text="${entry.errorDescription}">Error Description</td>
+                        <td>
+                                <span th:class="${'badge ' +
+                                    (entry.approvalStatus == 'APPROVED' ? 'bg-success' :
+                                     entry.approvalStatus == 'PARTIALLY APPROVED' ? 'bg-warning' :
+                                     'bg-danger')}"
+                                      th:text="${entry.approvalStatus}">Status</span>
+                        </td>
+                        <td th:text="${entry.orderValue}">2.5</td>
+                        <td th:if="${isTeamView}">
+                                <span th:class="${'badge ' +
+                                    (entry.adminSync == 'TL_CHECK_DONE' ? 'bg-info' :
+                                     entry.adminSync == 'TL_EDITED' ? 'bg-primary' :
+                                     entry.adminSync == 'TL_BLANK' ? 'bg-danger' :
+                                     entry.adminSync == 'CHECKING_INPUT' ? 'bg-secondary' :
+                                     'bg-secondary')}"
+                                      th:text="${entry.adminSync}">Team Status</span>
+                        </td>
+                        <td class="mod-column">
+                            <div class="action-icons">
+                                <!-- Edit button - only shown for editable entries or team lead view -->
+                                <button type="button" class="btn-icon edit-entry" th:if="${isEditable}"
+                                        th:data-entry-id="${entry.entryId}"
+                                        th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                        th:data-oms-id="${entry.omsId}"
+                                        th:data-production-id="${entry.productionId}"
+                                        th:data-designer-name="${entry.designerName}"
+                                        th:data-check-type="${entry.checkType}"
+                                        th:data-article-numbers="${entry.articleNumbers}"
+                                        th:data-files-numbers="${entry.filesNumbers}"
+                                        th:data-error-description="${entry.errorDescription}"
+                                        th:data-approval-status="${entry.approvalStatus}"
+                                        th:data-order-value="${entry.orderValue}"
+                                        th:data-admin-sync="${entry.adminSync}"
+                                        th:data-username="${isTeamView ? selectedUser?.username : null}"
+                                        th:data-user-id="${isTeamView ? selectedUser?.userId : null}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <!-- Disabled edit icon for non-editable entries in user view -->
+                                <span class="btn-icon disabled-icon" th:if="${!isTeamView && !isEditable}"
+                                      title="This entry cannot be edited because it has been reviewed by a team lead">
+                                    <i class="bi bi-pencil text-muted"></i>
+                                </span>
+
+                                <!-- Copy button - available for all entries -->
+                                <button type="button" class="btn-icon copy-entry"
+                                        th:data-entry-id="${entry.entryId}"
+                                        th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
+                                        th:data-oms-id="${entry.omsId}"
+                                        th:data-production-id="${entry.productionId}"
+                                        th:data-designer-name="${entry.designerName}"
+                                        th:data-check-type="${entry.checkType}"
+                                        th:data-article-numbers="${entry.articleNumbers}"
+                                        th:data-files-numbers="${entry.filesNumbers}"
+                                        th:data-error-description="${entry.errorDescription}"
+                                        th:data-approval-status="${entry.approvalStatus}"
+                                        th:data-order-value="${entry.orderValue}">
+                                    <i class="bi bi-copy"></i>
+                                </button>
+
+                                <!-- Delete button - only shown for editable entries or team lead view -->
+                                <form th:action="${urlPrefix + '/delete'}" method="post" class="d-inline" th:if="${isEditable}">
+                                    <input type="hidden" name="entryId" th:value="${entry.entryId}">
+                                    <input type="hidden" name="year" th:value="${currentYear}">
+                                    <input type="hidden" name="month" th:value="${currentMonth}">
+                                    <!-- Additional hidden fields for team view -->
+                                    <input type="hidden" name="username" th:if="${isTeamView}" th:value="${selectedUser?.username}">
+                                    <input type="hidden" name="userId" th:if="${isTeamView}" th:value="${selectedUser?.userId}">
+                                    <button type="submit" class="btn-icon delete-entry"
+                                            th:onclick="return confirm(${isTeamView ? 'Are you sure you want to mark this entry for deletion?' : 'Are you sure you want to delete this entry?'})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                <!-- Disabled delete icon for non-editable entries in user view -->
+                                <span class="btn-icon disabled-icon" th:if="${!isTeamView && !isEditable}"
+                                      title="This entry cannot be deleted because it has been reviewed by a team lead">
+                                    <i class="bi bi-trash text-muted"></i>
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal - only in user view -->
+    <div id="searchModal" class="search-modal" th:if="${!isTeamView}">
+        <div class="search-modal-content">
+            <div class="search-input-container">
+                <label for="searchInput" class="visually-hidden">Search entries</label>
+                <input type="text" id="searchInput" class="form-control" placeholder="Search entries...">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.searchHandler.closeSearchModal()">
+                    <i class="bi bi-x"></i> Close
+                </button>
+            </div>
+            <div class="search-results">
+                <div id="searchResultsContainer"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

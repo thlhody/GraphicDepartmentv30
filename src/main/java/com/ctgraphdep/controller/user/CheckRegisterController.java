@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.user;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ApprovalStatusType;
 import com.ctgraphdep.enums.CheckType;
@@ -27,14 +28,12 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Controller for check register operations
- * Similar to UserRegisterController but for check entries
+ * Handles regular user operations on check register entries
  */
 @Controller
 @RequestMapping("/user/check-register")
@@ -47,8 +46,9 @@ public class CheckRegisterController extends BaseController {
     private final CheckValuesCacheManager checkValuesCacheManager;
     private final CheckValuesService checkValuesService;
 
-    public CheckRegisterController(UserService userService, FolderStatus folderStatus, CheckRegisterService checkRegisterService,
-                                   TimeValidationService timeValidationService, CheckRegisterExcelExporter checkRegisterExcelExporter, WorkScheduleService workScheduleService, CheckValuesCacheManager checkValuesCacheManager, CheckValuesService checkValuesService) {
+    public CheckRegisterController(UserService userService, FolderStatus folderStatus, CheckRegisterService checkRegisterService, TimeValidationService timeValidationService,
+                                   CheckRegisterExcelExporter checkRegisterExcelExporter, WorkScheduleService workScheduleService, CheckValuesCacheManager checkValuesCacheManager,
+                                   CheckValuesService checkValuesService) {
         super(userService, folderStatus, timeValidationService);
         this.checkRegisterService = checkRegisterService;
         this.checkRegisterExcelExporter = checkRegisterExcelExporter;
@@ -61,12 +61,10 @@ public class CheckRegisterController extends BaseController {
      * Display check register page
      */
     @GetMapping
-    public String showCheckRegister(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public String showCheckRegister(@AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) String username,
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
-            Model model) {
+            @RequestParam(required = false) Integer month, Model model) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing check register page at " + getStandardCurrentDateTime());
@@ -94,14 +92,10 @@ public class CheckRegisterController extends BaseController {
             double targetWorkUnitsPerHour;
             if (checkValuesCacheManager.hasCachedCheckValues(currentUser.getUsername())) {
                 targetWorkUnitsPerHour = checkValuesCacheManager.getTargetWorkUnitsPerHour(currentUser.getUsername());
-                LoggerUtil.info(this.getClass(), String.format(
-                        "USING CACHED VALUE: For user %s, cached targetWorkUnitsPerHour=%f",
-                        currentUser.getUsername(), targetWorkUnitsPerHour));
+                LoggerUtil.info(this.getClass(), String.format("USING CACHED VALUE: For user %s, cached targetWorkUnitsPerHour=%f", currentUser.getUsername(), targetWorkUnitsPerHour));
             } else {
                 targetWorkUnitsPerHour = workScheduleService.getTargetWorkUnitsPerHour();
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "USING DEFAULT VALUE: For user %s, default targetWorkUnitsPerHour=%f",
-                        currentUser.getUsername(), targetWorkUnitsPerHour));
+                LoggerUtil.warn(this.getClass(), String.format("USING DEFAULT VALUE: For user %s, default targetWorkUnitsPerHour=%f", currentUser.getUsername(), targetWorkUnitsPerHour));
             }
 
             model.addAttribute("standardWorkHours", standardWorkHours);
@@ -130,7 +124,15 @@ public class CheckRegisterController extends BaseController {
 
             // Load entries
             List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+
             model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
+
+            // Add flag for entries that can be edited (only CHECKING_INPUT entries)
+            if (entries != null && !entries.isEmpty()) {
+                List<Integer> editableEntryIds = entries.stream().filter(entry -> CheckingStatus.CHECKING_INPUT.name().equals(entry.getAdminSync()))
+                        .map(RegisterCheckEntry::getEntryId).collect(Collectors.toList());
+                model.addAttribute("editableEntryIds", editableEntryIds);
+            }
 
             return "user/check-register";
 
@@ -157,8 +159,7 @@ public class CheckRegisterController extends BaseController {
      * Save new check entry
      */
     @PostMapping("/entry")
-    public String saveEntry(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public String saveEntry(@AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
             @RequestParam(required = false) String omsId,
             @RequestParam(required = false) String productionId,
@@ -169,8 +170,7 @@ public class CheckRegisterController extends BaseController {
             @RequestParam(required = false) String errorDescription,
             @RequestParam(required = false) String approvalStatus,
             @RequestParam(required = false) Double orderValue,
-            @RequestParam Integer year,
-            @RequestParam Integer month,
+            @RequestParam Integer year, @RequestParam Integer month,
             RedirectAttributes redirectAttributes) {
 
         try {
@@ -182,44 +182,14 @@ public class CheckRegisterController extends BaseController {
                 return "redirect:/login";
             }
 
-            // Initial validation for required fields
-            if (date == null) {
-                return String.format("redirect:/user/check-register?error=missing_date&year=%d&month=%d", year, month);
-            }
-            if (omsId == null || omsId.trim().isEmpty()) {
-                return String.format("redirect:/user/check-register?error=missing_oms_id&year=%d&month=%d", year, month);
-            }
-            if (designerName == null || designerName.trim().isEmpty()) {
-                return String.format("redirect:/user/check-register?error=missing_designer_name&year=%d&month=%d", year, month);
-            }
-            if (checkType == null || checkType.trim().isEmpty()) {
-                return String.format("redirect:/user/check-register?error=missing_check_type&year=%d&month=%d", year, month);
-            }
-            if (articleNumbers == null) {
-                return String.format("redirect:/user/check-register?error=missing_article_numbers&year=%d&month=%d", year, month);
-            }
-            if (filesNumbers == null) {
-                return String.format("redirect:/user/check-register?error=missing_file_numbers&year=%d&month=%d", year, month);
-            }
-            if (approvalStatus == null || approvalStatus.trim().isEmpty()) {
-                return String.format("redirect:/user/check-register?error=missing_approval_status&year=%d&month=%d", year, month);
-            }
+            // Create entry through service (false = not team lead)
+            RegisterCheckEntry entry = checkRegisterService.createEntry(
+                    false, null, date, omsId, productionId, designerName,
+                    checkType, articleNumbers, filesNumbers, errorDescription,
+                    approvalStatus, orderValue);
 
-            RegisterCheckEntry entry = RegisterCheckEntry.builder()
-                    .date(date)
-                    .omsId(omsId.trim())
-                    .productionId(productionId != null ? productionId.trim() : null)
-                    .designerName(designerName.trim())
-                    .checkType(checkType)
-                    .articleNumbers(articleNumbers)
-                    .filesNumbers(filesNumbers)
-                    .errorDescription(errorDescription != null ? errorDescription.trim() : null)
-                    .approvalStatus(approvalStatus)
-                    .orderValue(orderValue)
-                    .adminSync(CheckingStatus.CHECKING_INPUT.name())
-                    .build();
-
-            checkRegisterService.saveEntry(currentUser.getUsername(), currentUser.getUserId(), entry);
+            // Save through service
+            checkRegisterService.saveEntry(false, currentUser.getUsername(), currentUser.getUserId(), entry);
             redirectAttributes.addFlashAttribute("successMessage", "Check entry added successfully");
 
         } catch (RegisterValidationException e) {
@@ -236,8 +206,7 @@ public class CheckRegisterController extends BaseController {
      * Update existing check entry
      */
     @PostMapping("/entry/{entryId}")
-    public String updateEntry(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public String updateEntry(@AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Integer entryId,
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
             @RequestParam String omsId,
@@ -249,8 +218,7 @@ public class CheckRegisterController extends BaseController {
             @RequestParam(required = false) String errorDescription,
             @RequestParam String approvalStatus,
             @RequestParam(required = false) Double orderValue,
-            @RequestParam Integer year,
-            @RequestParam Integer month,
+            @RequestParam Integer year, @RequestParam Integer month,
             RedirectAttributes redirectAttributes) {
 
         try {
@@ -260,6 +228,26 @@ public class CheckRegisterController extends BaseController {
             User currentUser = getUser(userDetails);
             if (currentUser == null) {
                 return "redirect:/login";
+            }
+
+            // First, check if the entry exists and can be edited
+            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
+
+            if (entries != null) {
+                // Find the entry with the given ID
+                RegisterCheckEntry existingEntry = entries.stream().filter(e -> e.getEntryId().equals(entryId)).findFirst().orElse(null);
+
+                // Check if the entry exists and has CHECKING_INPUT status
+                if (existingEntry == null) {
+                    redirectAttributes.addFlashAttribute("errorMessage", "Entry not found");
+                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
+                }
+
+                // Check if the entry can be edited (only CHECKING_INPUT entries can be edited by users)
+                if (!CheckingStatus.CHECKING_INPUT.name().equals(existingEntry.getAdminSync())) {
+                    redirectAttributes.addFlashAttribute("errorMessage", "This entry cannot be edited because it has been reviewed by a team lead");
+                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
+                }
             }
 
             RegisterCheckEntry entry = RegisterCheckEntry.builder()
@@ -274,10 +262,9 @@ public class CheckRegisterController extends BaseController {
                     .errorDescription(errorDescription)
                     .approvalStatus(approvalStatus)
                     .orderValue(orderValue)
-                    .adminSync(CheckingStatus.CHECKING_INPUT.name())
                     .build();
 
-            checkRegisterService.saveEntry(currentUser.getUsername(), currentUser.getUserId(), entry);
+            checkRegisterService.saveUserEntry(currentUser.getUsername(), currentUser.getUserId(), entry);
             redirectAttributes.addFlashAttribute("successMessage", "Check entry updated successfully");
 
         } catch (RegisterValidationException e) {
@@ -295,12 +282,8 @@ public class CheckRegisterController extends BaseController {
      * Delete check entry
      */
     @PostMapping("/delete")
-    public String deleteEntry(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam Integer entryId,
-            @RequestParam Integer year,
-            @RequestParam Integer month,
-            RedirectAttributes redirectAttributes) {
+    public String deleteEntry(@AuthenticationPrincipal UserDetails userDetails, @RequestParam Integer entryId,
+            @RequestParam Integer year, @RequestParam Integer month, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Deleting check entry " + entryId + " at " + getStandardCurrentDateTime());
@@ -311,7 +294,27 @@ public class CheckRegisterController extends BaseController {
                 return "redirect:/login";
             }
 
-            checkRegisterService.deleteEntry(currentUser.getUsername(), currentUser.getUserId(), entryId, year, month);
+            // First, check if the entry exists and can be deleted
+            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
+
+            if (entries != null) {
+                // Find the entry with the given ID
+                RegisterCheckEntry existingEntry = entries.stream().filter(e -> e.getEntryId().equals(entryId)).findFirst().orElse(null);
+
+                // Check if the entry exists and has CHECKING_INPUT status
+                if (existingEntry == null) {
+                    redirectAttributes.addFlashAttribute("errorMessage", "Entry not found");
+                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
+                }
+
+                // Check if the entry can be deleted (only CHECKING_INPUT entries can be deleted by users)
+                if (!CheckingStatus.CHECKING_INPUT.name().equals(existingEntry.getAdminSync())) {
+                    redirectAttributes.addFlashAttribute("errorMessage", "This entry cannot be deleted because it has been reviewed by a team lead");
+                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
+                }
+            }
+
+            checkRegisterService.deleteUserEntry(currentUser.getUsername(), currentUser.getUserId(), entryId, year, month);
             redirectAttributes.addFlashAttribute("successMessage", "Check entry deleted successfully");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error deleting check entry: " + e.getMessage());
@@ -326,10 +329,8 @@ public class CheckRegisterController extends BaseController {
      * This is a placeholder for future implementation
      */
     @GetMapping("/search")
-    public ResponseEntity<List<RegisterCheckEntry>> performSearch(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam() String query
-    ) {
+    public ResponseEntity<List<RegisterCheckEntry>> performSearch(@AuthenticationPrincipal UserDetails userDetails, @RequestParam() String query) {
+
         try {
             LoggerUtil.info(this.getClass(), "Performing check register search at " + getStandardCurrentDateTime());
 
@@ -340,14 +341,8 @@ public class CheckRegisterController extends BaseController {
             }
 
             // Perform search
-            List<RegisterCheckEntry> searchResults = checkRegisterService.performFullRegisterSearch(
-                    currentUser.getUsername(),
-                    currentUser.getUserId(),
-                    query
-            );
-
+            List<RegisterCheckEntry> searchResults = checkRegisterService.performFullRegisterSearch(currentUser.getUsername(), currentUser.getUserId(), query);
             return ResponseEntity.ok(searchResults);
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error performing check register search: " + e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -355,10 +350,8 @@ public class CheckRegisterController extends BaseController {
     }
 
     @GetMapping("/export")
-    public ResponseEntity<byte[]> exportToExcel(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam int year,
-            @RequestParam int month) {
+    public ResponseEntity<byte[]> exportToExcel(@AuthenticationPrincipal UserDetails userDetails, @RequestParam int year, @RequestParam int month) {
+
         try {
             LoggerUtil.info(this.getClass(), "Exporting check register to Excel at " + getStandardCurrentDateTime());
 
@@ -369,23 +362,13 @@ public class CheckRegisterController extends BaseController {
             }
 
             // Load entries
-            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(
-                    currentUser.getUsername(),
-                    currentUser.getUserId(),
-                    year,
-                    month);
+            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
 
             // Generate Excel using our exporter
-            byte[] excelData = checkRegisterExcelExporter.exportToExcel(
-                    currentUser,
-                    entries,
-                    year,
-                    month);
+            byte[] excelData = checkRegisterExcelExporter.exportToExcel(currentUser, entries, year, month);
 
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%d_%02d.xlsx\"", year, month))
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(excelData);
+            return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%d_%02d.xlsx\"", year, month))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM).body(excelData);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error exporting check register to Excel: " + e.getMessage());
             return ResponseEntity.internalServerError().build();
@@ -398,19 +381,14 @@ public class CheckRegisterController extends BaseController {
     private void loadCheckValuesForUser(User user) {
         try {
             // Get the user's check values
-            UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(
-                    user.getUsername(), user.getUserId());
+            UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(user.getUsername(), user.getUserId());
 
             if (userCheckValues != null && userCheckValues.getCheckValuesEntry() != null) {
                 // Log the actual values being loaded
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Loading check values for %s: workUnitsPerHour=%f",
-                        user.getUsername(),
-                        userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
+                LoggerUtil.info(this.getClass(), String.format("Loading check values for %s: workUnitsPerHour=%f", user.getUsername(), userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
 
                 // Cache the check values
-                checkValuesCacheManager.cacheCheckValues(
-                        user.getUsername(), userCheckValues.getCheckValuesEntry());
+                checkValuesCacheManager.cacheCheckValues(user.getUsername(), userCheckValues.getCheckValuesEntry());
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error loading check values: " + e.getMessage());
@@ -429,13 +407,9 @@ public class CheckRegisterController extends BaseController {
         String role = user.getRole();
 
         // Check for roles without the ROLE_ prefix
-        boolean hasRole = role.contains("TL_CHECKING") ||
-                role.contains("USER_CHECKING") ||
-                role.equals("CHECKING");
+        boolean hasRole = role.contains(SecurityConstants.ROLE_TL_CHECKING) || role.contains(SecurityConstants.ROLE_USER_CHECKING) || role.equals(SecurityConstants.ROLE_CHECKING);
 
-        LoggerUtil.info(this.getClass(), String.format(
-                "ROLE CHECK: User %s has role '%s', checking role result: %b",
-                user.getUsername(), role, hasRole));
+        LoggerUtil.info(this.getClass(), String.format("ROLE CHECK: User %s has role '%s', checking role result: %b", user.getUsername(), role, hasRole));
 
         return hasRole;
     }

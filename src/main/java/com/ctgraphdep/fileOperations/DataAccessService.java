@@ -474,7 +474,6 @@ public class DataAccessService {
 
     // ===== Holiday entries operations =====
 
-
     /**
      * Updates holiday days for a user in their user file
      * This includes local update and network sync
@@ -1430,155 +1429,57 @@ public class DataAccessService {
         }
     }
 
-    // ===== Notification methods =====
+    /**
+     * Writes team lead check register entries using transaction system
+     * Ensures that the team lead's permissions are validated, not the target user's
+     */
+    public void writeLocalTeamCheckRegister(String username, Integer userId, List<RegisterCheckEntry> entries, int year, int month) {
+        // Get current authenticated user (the team lead)
+        String teamLeadUsername = SecurityContextHolder.getContext().getAuthentication().getName();
 
-//    /**
-//     * Writes notification tracking file using transaction system
-//     */
-//    public void writeNotificationTrackingFile(String username, String notificationType, LocalDateTime timestamp) {
-//        // Start a transaction
-//        FileTransaction transaction = transactionManager.beginTransaction();
-//
-//        try {
-//            Map<String, Object> params = new HashMap<>();
-//            params.put("notificationType", notificationType);
-//
-//            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
-//
-//            // Create parent directory if it doesn't exist
-//            Files.createDirectories(filePath.getPath().getParent());
-//
-//            // Convert timestamp to JSON for better readability and consistency
-//            Map<String, Object> trackingData = new HashMap<>();
-//            trackingData.put("username", username);
-//            trackingData.put("notificationType", notificationType);
-//            trackingData.put("timestamp", timestamp.toString());
-//
-//            byte[] content = objectMapper.writeValueAsBytes(trackingData);
-//
-//            // Add to transaction
-//            transaction.addWrite(filePath, content);
-//
-//            // Commit the transaction
-//            FileTransactionResult result = transactionManager.commitTransaction();
-//
-//            if (!result.isSuccess()) {
-//                LoggerUtil.error(this.getClass(), "Failed to write notification tracking file: " + result.getErrorMessage());
-//                return;
-//            }
-//
-//            LoggerUtil.info(this.getClass(), String.format("Created notification tracking file for %s", username));
-//
-//        } catch (Exception e) {
-//            transactionManager.rollbackTransaction();
-//            LoggerUtil.error(this.getClass(), String.format(
-//                    "Error writing notification tracking file for user %s with type %s: %s",
-//                    username, notificationType, e.getMessage()), e);
-//        }
-//    }
-//
-//    /**
-//     * Reads notification tracking file
-//     */
-//    public LocalDateTime readNotificationTrackingFile(String username, String notificationType) {
-//        try {
-//            Map<String, Object> params = new HashMap<>();
-//            params.put("notificationType", notificationType);
-//
-//            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
-//
-//            if (!Files.exists(filePath.getPath())) {
-//                return null;
-//            }
-//
-//            Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<>() {}, true);
-//
-//            if (content.isPresent()) {
-//                Map<String, Object> trackingData = content.get();
-//                String timestampStr = (String) trackingData.get("timestamp");
-//                if (timestampStr != null) {
-//                    return LocalDateTime.parse(timestampStr);
-//                }
-//            }
-//
-//            return null;
-//        } catch (Exception e) {
-//            LoggerUtil.error(this.getClass(), String.format("Error reading notification tracking file for user %s with type %s: %s", username, notificationType, e.getMessage()), e);
-//            return null;
-//        }
-//    }
-//
-//    /**
-//     * Updates notification count file using transaction system
-//     */
-//    public int updateNotificationCountFile(String username, String notificationType, int maxCount) {
-//        try {
-//            Map<String, Object> params = new HashMap<>();
-//            params.put("notificationType", notificationType + "_count");
-//
-//            FilePath filePath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.NOTIFICATION, params);
-//
-//            // Read current count if file exists
-//            int count = 0;
-//            if (Files.exists(filePath.getPath())) {
-//                Optional<Map<String, Object>> content = fileReaderService.readLocalFile(filePath, new TypeReference<>() {
-//                }, true);
-//
-//                if (content.isPresent()) {
-//                    Map<String, Object> countData = content.get();
-//                    Object countObj = countData.get("count");
-//                    if (countObj instanceof Integer) {
-//                        count = (Integer) countObj;
-//                    } else if (countObj instanceof Number) {
-//                        count = ((Number) countObj).intValue();
-//                    }
-//                }
-//            }
-//
-//            // Increment and save count if not already at max
-//            if (count < maxCount) {
-//                // Start a transaction
-//                FileTransaction transaction = transactionManager.beginTransaction();
-//
-//                try {
-//                    count++;
-//
-//                    // Create parent directory if it doesn't exist
-//                    Files.createDirectories(filePath.getPath().getParent());
-//
-//                    // Prepare data
-//                    Map<String, Object> countData = new HashMap<>();
-//                    countData.put("username", username);
-//                    countData.put("notificationType", notificationType);
-//                    countData.put("count", count);
-//                    countData.put("lastUpdated", LocalDateTime.now().toString());
-//
-//                    byte[] content = objectMapper.writeValueAsBytes(countData);
-//
-//                    transaction.addWrite(filePath, content);
-//
-//                    // Commit the transaction
-//                    FileTransactionResult result = transactionManager.commitTransaction();
-//
-//                    if (!result.isSuccess()) {
-//                        LoggerUtil.error(this.getClass(), "Failed to update notification count: " + result.getErrorMessage());
-//                    }
-//                } catch (Exception e) {
-//                    transactionManager.rollbackTransaction();
-//                    LoggerUtil.error(this.getClass(), "Error updating notification count: " + e.getMessage());
-//                }
-//            }
-//
-//            return count;
-//        } catch (Exception e) {
-//            LoggerUtil.error(this.getClass(), String.format(
-//                    "Error managing notification count file for user %s with type %s: %s",
-//                    username, notificationType, e.getMessage()), e);
-//            return 0;
-//        }
-//    }
+        // Validate the team lead's permissions, not the target user's
+        securityRules.validateFileAccess(teamLeadUsername, true);
 
-    // ===== Status Cache methods =====
+        // Start a transaction
+        FileTransaction transaction = transactionManager.beginTransaction();
+
+        try {
+            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
+
+            // Get path for the team lead's version of the user's check register
+            FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.LEAD_CHECK_REGISTER, params);
+
+            // Serialize data
+            byte[] content = objectMapper.writeValueAsBytes(entries);
+
+            // Add to transaction
+            transaction.addWrite(localPath, content);
+
+            // Add network sync if available
+            if (pathConfig.isNetworkAvailable()) {
+                FilePath networkPath = pathResolver.toNetworkPath(localPath);
+                transaction.addSync(localPath, networkPath);
+            }
+
+            // Commit the transaction
+            FileTransactionResult result = transactionManager.commitTransaction();
+
+            if (!result.isSuccess()) {
+                LoggerUtil.error(this.getClass(), "Failed to write team check register: " + result.getErrorMessage());
+                throw new RuntimeException("Failed to write team check register: " + result.getErrorMessage());
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully wrote %d team check register entries for user %s - %d/%d",
+                    entries.size(), username, year, month));
+
+        } catch (Exception e) {
+            transactionManager.rollbackTransaction();
+            LoggerUtil.logAndThrow(this.getClass(), String.format(
+                    "Error writing team check register for user %s: %s",
+                    username, e.getMessage()), e);
+        }
+    }
 
     /**
      * Reads local status cache

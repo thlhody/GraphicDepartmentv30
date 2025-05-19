@@ -21,7 +21,7 @@ public enum CheckRegisterMergeRule {
             (user, teamLead) -> user),
 
     /**
-     * TL_BLANK status causes entry removal
+     * TL_BLANK status causes entry removal regardless of user entry status
      */
     TEAM_LEAD_BLANK((user, teamLead) -> teamLead != null &&
             teamLead.getAdminSync().equals(CheckingStatus.TL_BLANK.name()),
@@ -118,7 +118,7 @@ public enum CheckRegisterMergeRule {
                         user != null ? user.getAdminSync() : "null",
                         teamLead != null ? teamLead.getAdminSync() : "null"));
 
-        // Special handling for TL_BLANK - immediate removal
+        // Special case: If teamLead has TL_BLANK status, remove entry regardless of user entry status
         if (teamLead != null && CheckingStatus.TL_BLANK.name().equals(teamLead.getAdminSync())) {
             LoggerUtil.debug(CheckRegisterMergeRule.class, "TL_BLANK rule matched - entry will be removed");
             return null;
@@ -129,7 +129,7 @@ public enum CheckRegisterMergeRule {
             return null;
         }
 
-        // If user is null but teamLead exists, use teamLead
+        // If user is null but teamLead exists (and not TL_BLANK), use teamLead
         if (user == null) {
             return teamLead;
         }
