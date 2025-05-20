@@ -709,16 +709,23 @@ public class SessionMonitorService {
     }
 
     /**
-     * Schedules an automatic end time for a user's session
+     * Schedules an automatic end time for a user's session with proper monitoring coordination
      */
     public boolean scheduleAutomaticEnd(String username, Integer userId, LocalDateTime endTime) {
         try {
+            LoggerUtil.info(this.getClass(), String.format("Scheduling automatic end for user %s at %s",
+                    username, endTime));
+
             // Create a Runnable that executes the auto end session command
             Runnable endAction = () -> {
                 try {
-                    LoggerUtil.info(this.getClass(), String.format("Executing scheduled end session for user %s at %s", username, endTime));
+                    LoggerUtil.info(this.getClass(), String.format("Executing scheduled end session for user %s at %s",
+                            username, endTime));
 
-                    // Use our new dedicated command
+                    // First explicitly remove from monitoring maps to ensure no conflicts
+                    monitoringStateService.pauseMonitoringBriefly(username, 500); // Pause for 500ms first
+
+                    // Use our dedicated command with early monitoring shutdown
                     AutoEndSessionCommand command = commandFactory.createAutoEndSessionCommand(username, userId, endTime);
                     boolean success = commandService.executeCommand(command);
 
@@ -727,22 +734,37 @@ public class SessionMonitorService {
                                 String.format("Successfully executed scheduled end session for user %s", username));
                     } else {
                         LoggerUtil.warn(this.getClass(),
-                                String.format("Failed to execute scheduled end session for user %s", username));
+                                String.format("Failed to execute scheduled end session for user %s, will try backup plan",
+                                        username));
+
+                        // Backup plan: directly use EndDayCommand if AutoEndSessionCommand fails
+                        try {
+                            // Try one more time with direct EndDayCommand
+                            EndDayCommand endDayCommand = commandFactory.createEndDayCommand(
+                                    username, userId, null, endTime);
+                            commandService.executeCommand(endDayCommand);
+                            LoggerUtil.info(this.getClass(),
+                                    "Successfully executed backup end session plan");
+                        } catch (Exception backupError) {
+                            LoggerUtil.error(this.getClass(),
+                                    "Backup end session plan also failed: " + backupError.getMessage());
+                        }
                     }
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(),
-                            String.format("Error executing scheduled end for user %s: %s", username, e.getMessage()), e);
+                            String.format("Error executing scheduled end for user %s: %s",
+                                    username, e.getMessage()), e);
                 }
             };
 
             // Use the centralized scheduling service
             return monitoringStateService.scheduleAutomaticEnd(username, endTime, endAction);
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error scheduling end for user %s: %s", username, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error scheduling end for user %s: %s",
+                    username, e.getMessage()), e);
             return false;
         }
     }
-
     /**
      * Cancels a scheduled end time for a user
      */

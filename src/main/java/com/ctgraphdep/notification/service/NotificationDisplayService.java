@@ -441,7 +441,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                         LoggerUtil.info(this.getClass(), "Test dialog displayed successfully");
 
                         // Add auto-close timer
-                        setupAutoCloseTimer(components.dialog(), event.getUsername(), event.getTimeoutPeriod(), event.getNotificationType(), userResponded);
+                        setupAutoCloseTimer(components.dialog(), event.getUsername(),event.getUserId(), event.getTimeoutPeriod(), event.getNotificationType(), userResponded);
 
                     } catch (Exception e) {
                         LoggerUtil.error(this.getClass(), "Failed to display test dialog: " + e.getMessage());
@@ -525,7 +525,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             activeDialogs.put(notificationId, components.dialog());
 
             // Set up auto-close timer
-            setupAutoCloseTimer(components.dialog(), request.getUsername(), request.getTimeoutPeriod(), request.getType().getTypeId(), userResponded);
+            setupAutoCloseTimer(components.dialog(), request.getUsername(), request.getUserId(), request.getTimeoutPeriod(), request.getType().getTypeId(), userResponded);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Failed to display notification dialog: " + e.getMessage(), e);
@@ -976,7 +976,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     /**
      * Sets up an auto-close timer for a notification dialog
      */
-    private void setupAutoCloseTimer(JDialog dialog, String username, int timeoutPeriod, String notificationType, AtomicBoolean respondedFlag) {
+    private void setupAutoCloseTimer(JDialog dialog, String username,Integer userId, int timeoutPeriod, String notificationType, AtomicBoolean respondedFlag) {
 
         if (timeoutPeriod == WorkCode.ON_FOR_TWELVE_HOURS) {
             // Setup enhanced visibility for long-duration notifications
@@ -1017,7 +1017,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                     }
 
                     // Handle notification-specific auto-dismiss logic
-                    handleNotificationAutoDismiss(username, notificationType);
+                    handleNotificationAutoDismiss(username, userId,notificationType);
 
                 } catch (Exception ex) {
                     LoggerUtil.error(this.getClass(), String.format("Error handling auto-close for %s notification: %s", notificationType, ex.getMessage()), ex);
@@ -1039,7 +1039,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     /**
      * Handles notification auto-dismiss based on type
      */
-    private void handleNotificationAutoDismiss(String username, String notificationType) {
+    private void handleNotificationAutoDismiss(String username, Integer userId, String notificationType) {
         try {
             // Special handling for long-duration notifications
             if (WorkCode.START_DAY_TYPE.equals(notificationType) ||
@@ -1072,8 +1072,9 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                     LoggerUtil.info(this.getClass(), String.format("Auto-continuing hourly monitoring for user %s", username));
                     break;
                 case WorkCode.TEMP_STOP_TYPE:
+
                     // For temporary stop warnings, continue temporary stop monitoring
-                    ContinueTempStopCommand tempStopCommand = commandFactory.createContinueTempStopCommand(username, null);
+                    ContinueTempStopCommand tempStopCommand = commandFactory.createContinueTempStopCommand(username, userId);
                     commandService.executeCommand(tempStopCommand);
                     LoggerUtil.info(this.getClass(), String.format("Auto-continuing temporary stop monitoring for user %s", username));
                     break;
@@ -1202,7 +1203,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         buttonsPanel.add(continueWorkingButton);
         buttonsPanel.add(endSessionButton);
     }
-
 
     /**
      * Example of using the handleNotificationResponse helper in a button handler.
@@ -1730,7 +1730,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                         LoggerUtil.info(this.getClass(), "Mockup dialog displayed successfully");
 
                         // Add auto-close timer
-                        setupAutoCloseTimer(components.dialog(), event.getUsername(), event.getTimeoutPeriod(), event.getNotificationType(), userResponded);
+                        setupAutoCloseTimer(components.dialog(), event.getUsername(), event.getUserId(), event.getTimeoutPeriod(), event.getNotificationType(), userResponded);
 
                     } catch (Exception e) {
                         LoggerUtil.error(this.getClass(), "Failed to display mockup dialog: " + e.getMessage());

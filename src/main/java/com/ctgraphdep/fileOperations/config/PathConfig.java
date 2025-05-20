@@ -54,6 +54,8 @@ public class PathConfig {
     private String loginPath;
     @Value("${dbj.login.users}")
     private String usersPath;
+    @Value("dbj.backup")
+    private String backupPath;
 
     //Users
     @Value("${dbj.users.network.filename}")
@@ -183,7 +185,8 @@ public class PathConfig {
                     adminWorktime,
                     adminRegister,
                     adminBonus,
-                    networkLogsPath
+                    networkLogsPath,
+                    backupPath
             );
 
             for (String dir : directories) {
@@ -249,8 +252,7 @@ public class PathConfig {
         return localPath.resolve(userSession).resolve(String.format(sessionFormat, username, userId));
     }
     public Path getNetworkSessionPath(String username, Integer userId) {
-        return networkPath.resolve(userSession)
-                .resolve(String.format(sessionFormat, username, userId));
+        return networkPath.resolve(userSession).resolve(String.format(sessionFormat, username, userId));
     }
 
     // Worktime paths - local and network for sync

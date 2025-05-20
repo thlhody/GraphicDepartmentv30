@@ -485,6 +485,56 @@ public class MonitoringStateService {
     }
 
     /**
+     * Temporarily pauses monitoring operations for a brief period.
+     * This is useful during critical operations like scheduled session end.
+     *
+     * @param username The username
+     * @param pauseMs How long to pause monitoring for in milliseconds
+     */
+    public synchronized void pauseMonitoringBriefly(String username, long pauseMs) {
+        try {
+            // Save current monitoring state
+            MonitoringState state = userMonitoringStates.get(username);
+            if (state == null) {
+                return; // No monitoring state to pause
+            }
+
+            String oldMode = state.getMonitoringMode();
+
+            // Set to NONE mode temporarily
+            state.setMonitoringMode(MonitoringMode.NONE);
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Briefly paused monitoring for user %s (from mode %s)",
+                            username, oldMode));
+
+            // Schedule restoration of previous state if it wasn't already NONE
+            if (!MonitoringMode.NONE.equals(oldMode)) {
+                final String capturedMode = oldMode; // Capture for lambda
+                taskScheduler.schedule(() -> {
+                    try {
+                        MonitoringState currentState = userMonitoringStates.get(username);
+                        if (currentState != null && MonitoringMode.NONE.equals(currentState.getMonitoringMode())) {
+                            // Only restore if still in NONE mode (hasn't changed elsewhere)
+                            currentState.setMonitoringMode(capturedMode);
+                            LoggerUtil.debug(this.getClass(),
+                                    String.format("Restored monitoring mode %s for user %s after pause",
+                                            capturedMode, username));
+                        }
+                    } catch (Exception e) {
+                        LoggerUtil.error(this.getClass(),
+                                String.format("Error restoring monitoring state for %s: %s",
+                                        username, e.getMessage()), e);
+                    }
+                }, Instant.now().plusMillis(pauseMs));
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(),
+                    String.format("Error pausing monitoring for %s: %s",
+                            username, e.getMessage()), e);
+        }
+    }
+
+    /**
      * Cancels a scheduled end time for a user.
      *
      * @param username The username
