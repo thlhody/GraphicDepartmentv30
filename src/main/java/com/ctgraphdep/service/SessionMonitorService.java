@@ -12,6 +12,7 @@ import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
+import com.ctgraphdep.session.cache.SessionCacheService;
 import com.ctgraphdep.session.commands.AutoEndSessionCommand;
 import com.ctgraphdep.session.commands.EndDayCommand;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
@@ -61,6 +62,9 @@ public class SessionMonitorService {
 
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
+    @Autowired
+    private SessionCacheService sessionCacheService;
+
 
     @Value("${app.session.monitoring.interval:30}")
     private int monitoringInterval;
@@ -258,22 +262,26 @@ public class SessionMonitorService {
 
             User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
 
-            // Get current session using the command pattern
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
-            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
-
+            // *** CACHE READ: Get current session from cache instead of file ***
+            WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());
             // Skip if session is null or not online
             if (session == null || WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
                 return;
             }
 
             // Update calculations using command pattern
-            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCommand(session, session.getDayEndTime());
+            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, session.getDayEndTime());
             session = commandService.executeCommand(updateCommand);
 
-            // Save session using command pattern
-            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-            commandService.executeCommand(saveCommand);
+            // *** CACHE UPDATE: Update calculated values in cache ***
+            sessionCacheService.updateCalculatedValues(username, session);
+
+            // *** FILE WRITE: Write to file for network sync (every 30 minutes when active) ***
+            if (shouldWriteToFile(session)) {
+                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+                commandService.executeCommand(saveCommand);
+                // Note: SaveSessionCommand already refreshes cache after file write
+            }
 
             // Check based on CURRENT MONITORING MODE in the centralized service
             String monitoringMode = monitoringStateService.getMonitoringMode(username);
@@ -582,6 +590,7 @@ public class SessionMonitorService {
     public void clearMonitoring(String username) {
         // Replace multiple direct map accesses with a single centralized call
         monitoringStateService.clearUserState(username);
+        clearUserSessionCache(username);
         LoggerUtil.info(this.getClass(), String.format("Cleared monitoring for user %s", username));
     }
 
@@ -591,6 +600,36 @@ public class SessionMonitorService {
     public void stopMonitoring(String username) {
         monitoringStateService.stopMonitoring(username);
         LoggerUtil.info(this.getClass(), "Stopped monitoring for user: " + username);
+    }
+
+    /**
+     * Determines if session should be written to file (for network sync)
+     * Only write when session is active to let other users see activity
+     */
+    private boolean shouldWriteToFile(WorkUsersSessionsStates session) {
+        if (session == null) {
+            return false;
+        }
+        boolean isActivelyWorking = WorkCode.WORK_ONLINE.equals(session.getSessionStatus());
+
+        if (!isActivelyWorking) {
+            LoggerUtil.debug(this.getClass(), "User not actively working (status: " + session.getSessionStatus() + "), skipping file write");
+            return false;
+        }
+        // Write to file when user is actively working (not during temp stops)
+        return true;
+    }
+
+    /**
+     * Clear user cache (called during session reset/midnight)
+     */
+    public void clearUserSessionCache(String username) {
+        try {
+            sessionCacheService.clearUserCache(username);
+            LoggerUtil.info(this.getClass(), "Cleared session cache for user: " + username);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error clearing session cache for user " + username + ": " + e.getMessage(), e);
+        }
     }
 
     /**

@@ -27,9 +27,9 @@ public class UserLogController {
     @GetMapping
     public String viewLogs(Model model) {
         try {
-            // List user logs from network
-            List<String> usernames = userLogService.getUserLogsList();
-            model.addAttribute("usernames", usernames);
+            // List user logs with version information
+            List<UserLogService.UserLogInfo> userLogsInfo = userLogService.getUserLogsWithVersionInfo();
+            model.addAttribute("userLogsInfo", userLogsInfo);
 
             return "logs/viewer";
         } catch (Exception e) {
@@ -89,10 +89,10 @@ public class UserLogController {
      */
     @GetMapping("/list")
     @ResponseBody
-    public ResponseEntity<List<String>> getLogsList() {
+    public ResponseEntity<List<UserLogService.UserLogInfo>> getLogsList() {
         try {
-            List<String> usernames = userLogService.getUserLogsList();
-            return ResponseEntity.ok(usernames);
+            List<UserLogService.UserLogInfo> userLogsInfo = userLogService.getUserLogsWithVersionInfo();
+            return ResponseEntity.ok(userLogsInfo);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error listing log files: " + e.getMessage());
             return ResponseEntity.internalServerError().body(new ArrayList<>());

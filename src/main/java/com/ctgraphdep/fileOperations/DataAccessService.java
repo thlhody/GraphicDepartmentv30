@@ -87,38 +87,29 @@ public class DataAccessService {
     public void writeLocalSessionFile(WorkUsersSessionsStates session) {
         validateSession(session);
 
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             // Create a file path object
-            FilePath localPath = pathResolver.getLocalPath(session.getUsername(), session.getUserId(), FilePathResolver.FileType.SESSION, FilePathResolver.createParams());
+            FilePath localPath = pathResolver.getLocalPath(
+                    session.getUsername(),
+                    session.getUserId(),
+                    FilePathResolver.FileType.SESSION,
+                    FilePathResolver.createParams()
+            );
 
-            // Serialize the data
-            byte[] content = objectMapper.writeValueAsBytes(session);
-
-            // Add to transaction
-            transaction.addWrite(localPath, content);
-
-            // Add network sync operation if network is available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                transaction.addSync(localPath, networkPath);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService instead of direct transaction handling
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, session, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write session file: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write session file: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write session file: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write session file: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format("Saved session for user %s with status %s",
                     session.getUsername(), session.getSessionStatus()));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), "Failed to write session file: " + e.getMessage(), e);
         }
     }
@@ -246,38 +237,35 @@ public class DataAccessService {
             throw new IllegalArgumentException("User must have username and userId for individual file storage");
         }
 
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
-            // First update local file
+            // Get local path
             FilePath localPath = FilePath.local(pathConfig.getLocalUsersPath(user.getUsername(), user.getUserId()));
 
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(user);
-
-            // Add to transaction
-            transaction.addWrite(localPath, content);
-
-            // Add network write if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(user.getUsername(), user.getUserId()));
-                transaction.addWrite(networkPath, content);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for local write
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, user, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write user: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write user: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write user: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write user: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+            }
+
+            // Also write to network directly if available
+            if (pathConfig.isNetworkAvailable()) {
+                FilePath networkPath = FilePath.network(pathConfig.getNetworkUsersPath(user.getUsername(), user.getUserId()));
+                FileOperationResult networkResult = fileWriterService.writeFile(networkPath, user, true);
+
+                if (!networkResult.isSuccess()) {
+                    LoggerUtil.warn(this.getClass(), "Failed to write user to network: " +
+                            networkResult.getErrorMessage().orElse("Unknown error"));
+                }
             }
 
             LoggerUtil.info(this.getClass(), String.format("Successfully wrote user: %s (ID: %d)",
                     user.getUsername(), user.getUserId()));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing user %s: %s",
                     user.getUsername(), e.getMessage()), e);
         }
@@ -609,13 +597,11 @@ public class DataAccessService {
                             .name(user.getName())
                             .employeeId(user.getEmployeeId())
                             .schedule(user.getSchedule())
-                            .paidHolidayDays(user.getPaidHolidayDays() != null ?
-                                    user.getPaidHolidayDays() : 0)
+                            .paidHolidayDays(user.getPaidHolidayDays() != null ? user.getPaidHolidayDays() : 0)
                             .build())
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error reading user holiday entries in read-only mode: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error reading user holiday entries in read-only mode: " + e.getMessage());
             return new ArrayList<>();
         }
     }
@@ -698,37 +684,23 @@ public class DataAccessService {
      * Writes check values for a specific user
      */
     public void writeUserCheckValues(UsersCheckValueEntry entry, String username, Integer userId) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             // Update local file first
             FilePath localPath = FilePath.local(pathConfig.getLocalCheckValuesPath(username, userId));
 
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(entry);
-
-            // Add to transaction
-            transaction.addWrite(localPath, content);
-
-            // Update network if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = FilePath.network(pathConfig.getNetworkCheckValuesPath(username, userId));
-                transaction.addWrite(networkPath, content);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for proper backup and writing
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, entry, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write check values: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write check values: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write check values: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write check values: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format("Successfully wrote check values for user %s", username));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing check values for user %s: %s",
                     username, e.getMessage()), e);
         }
@@ -890,38 +862,25 @@ public class DataAccessService {
             securityRules.validateFileAccess(username, true);
         }
 
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath localPath = pathResolver.getLocalPath(username, null, FilePathResolver.FileType.WORKTIME, params);
 
-            // Serialize the data
-            byte[] content = objectMapper.writeValueAsBytes(entries);
-
-            // Add local write operation
-            transaction.addWrite(localPath, content);
-
-            // Add network sync if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                transaction.addSync(localPath, networkPath);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for proper backup and writing
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, entries, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write worktime: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write worktime: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write worktime: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write worktime: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d worktime entries for user %s - %d/%d",
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully wrote %d worktime entries for user %s - %d/%d",
                     entries.size(), username, year, month));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing worktime for user %s: %s",
                     username, e.getMessage()), e);
         }
@@ -1096,31 +1055,21 @@ public class DataAccessService {
             return;
         }
 
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             Map<String, Object> params = FilePathResolver.createYearParams(year);
-            FilePath localPath = pathResolver.getLocalPath(tracker.getUsername(), tracker.getUserId(),
-                    FilePathResolver.FileType.TIMEOFF_TRACKER, params);
+            FilePath localPath = pathResolver.getLocalPath(
+                    tracker.getUsername(),
+                    tracker.getUserId(),
+                    FilePathResolver.FileType.TIMEOFF_TRACKER,
+                    params
+            );
 
-            // Serialize the data
-            byte[] content = objectMapper.writeValueAsBytes(tracker);
-
-            // Add to transaction
-            transaction.addWrite(localPath, content);
-
-            // Add network sync if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                transaction.addSync(localPath, networkPath);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for proper backup and writing
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, tracker, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to save time off tracker: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to save time off tracker: " +
+                        result.getErrorMessage().orElse("Unknown error"));
                 return;
             }
 
@@ -1129,7 +1078,6 @@ public class DataAccessService {
                     tracker.getUsername(), year, tracker.getRequests().size()));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.error(this.getClass(), String.format(
                     "Error saving time off tracker for %s (%d): %s",
                     tracker.getUsername(), year, e.getMessage()));
@@ -1208,31 +1156,19 @@ public class DataAccessService {
     public void writeUserRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
         securityRules.validateFileAccess(username, true);
 
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.REGISTER, params);
 
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(entries);
-
-            // Add to transaction
-            transaction.addWrite(localPath, content);
-
-            // Add network sync if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                transaction.addSync(localPath, networkPath);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use the FileWriterService instead of manual transaction handling
+            // This will trigger proper criticality determination and backups
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, entries, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write register: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write register: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write register: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write register: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
@@ -1240,10 +1176,10 @@ public class DataAccessService {
                     entries.size(), username, year, month));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
-            LoggerUtil.logAndThrow(this.getClass(), String.format(
+            LoggerUtil.error(this.getClass(), String.format(
                     "Error writing register for user %s: %s",
                     username, e.getMessage()), e);
+            throw new RuntimeException("Failed to write register", e);
         }
     }
 
@@ -1396,25 +1332,18 @@ public class DataAccessService {
      * Writes team members data using transaction system
      */
     public void writeTeamMembers(List<TeamMemberDTO> teamMemberDTOS, String teamLeadUsername, int year, int month) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath teamPath = pathResolver.getLocalPath(teamLeadUsername, null, FilePathResolver.FileType.TEAM, params);
 
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(teamMemberDTOS);
-
-            // Add to transaction
-            transaction.addWrite(teamPath, content);
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for proper backup and writing
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(teamPath, teamMemberDTOS, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write team members: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write team members: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write team members: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write team members: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
@@ -1422,7 +1351,6 @@ public class DataAccessService {
                     teamMemberDTOS.size(), teamLeadUsername, year, month));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), String.format(
                     "Error writing team members for %s (%d/%d): %s",
                     teamLeadUsername, year, month, e.getMessage()), e);
@@ -1608,31 +1536,18 @@ public class DataAccessService {
      * Writes admin worktime data using transaction system
      */
     public void writeAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath localPath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.ADMIN_WORKTIME, params);
 
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(entries);
-
-            // Add to transaction
-            transaction.addWrite(localPath, content);
-
-            // Add network sync if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                transaction.addSync(localPath, networkPath);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for proper backup and writing
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, entries, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write admin worktime: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write admin worktime: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write admin worktime: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write admin worktime: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
@@ -1640,13 +1555,11 @@ public class DataAccessService {
                     entries.size(), year, month));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), String.format(
                     "Error writing admin worktime for %d/%d: %s",
                     year, month, e.getMessage()), e);
         }
     }
-
     /**
      * Reads local admin worktime data
      */
@@ -1820,31 +1733,18 @@ public class DataAccessService {
      * Writes local admin register using transaction system
      */
     public void writeLocalAdminRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath adminPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.ADMIN_REGISTER, params);
 
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(entries);
-
-            // Add to transaction
-            transaction.addWrite(adminPath, content);
-
-            // Add network sync if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.toNetworkPath(adminPath);
-                transaction.addSync(adminPath, networkPath);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for proper backup and writing
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(adminPath, entries, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write admin register: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write admin register: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write admin register: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write admin register: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
@@ -1852,7 +1752,6 @@ public class DataAccessService {
                     entries.size(), username, year, month));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), String.format(
                     "Error writing admin register for user %s: %s",
                     username, e.getMessage()), e);
@@ -1899,31 +1798,18 @@ public class DataAccessService {
      * Writes admin bonus entries using transaction system
      */
     public void writeAdminBonus(List<BonusEntry> entries, int year, int month) {
-        // Start a transaction
-        FileTransaction transaction = transactionManager.beginTransaction();
-
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath bonusPath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.ADMIN_BONUS, params);
 
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(entries);
-
-            // Add to transaction
-            transaction.addWrite(bonusPath, content);
-
-            // Add network sync if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.toNetworkPath(bonusPath);
-                transaction.addSync(bonusPath, networkPath);
-            }
-
-            // Commit the transaction
-            FileTransactionResult result = transactionManager.commitTransaction();
+            // Use FileWriterService for proper backup and writing
+            FileOperationResult result = fileWriterService.writeWithNetworkSync(bonusPath, entries, true);
 
             if (!result.isSuccess()) {
-                LoggerUtil.error(this.getClass(), "Failed to write bonus entries: " + result.getErrorMessage());
-                throw new RuntimeException("Failed to write bonus entries: " + result.getErrorMessage());
+                LoggerUtil.error(this.getClass(), "Failed to write bonus entries: " +
+                        result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write bonus entries: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
@@ -1931,7 +1817,6 @@ public class DataAccessService {
                     entries.size(), year, month));
 
         } catch (Exception e) {
-            transactionManager.rollbackTransaction();
             LoggerUtil.logAndThrow(this.getClass(), String.format(
                     "Error writing bonus entries for %d/%d: %s",
                     year, month, e.getMessage()), e);
@@ -2033,25 +1918,6 @@ public class DataAccessService {
     }
 
     /**
-     * Syncs the local log file to the network for a specific user
-     * @param username The username
-     * @throws IOException if the file cannot be synced
-     */
-    public void syncLogToNetwork(String username) throws IOException {
-        Path sourceLogPath = pathConfig.getLocalLogPath();
-        Path targetLogPath = pathConfig.getNetworkLogPath(username);
-
-        // Ensure target directory exists (handled by PathConfig)
-        Path networkLogsDir = targetLogPath.getParent();
-        if (!Files.exists(networkLogsDir)) {
-            Files.createDirectories(networkLogsDir);
-        }
-
-        // Copy log file
-        Files.copy(sourceLogPath, targetLogPath, StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    /**
      * Gets the list of usernames with available logs
      * @return List of usernames
      */
@@ -2091,18 +1957,119 @@ public class DataAccessService {
      */
     public Optional<String> getUserLogContent(String username) {
         try {
-            Path logPath = pathConfig.getNetworkLogPath(username);;
+            // First try to find existing log files for this user (either format)
+            String logFilename = getLogFilename(username);
 
-            if (!Files.exists(logPath)) {
-                return Optional.empty();
+            if (!logFilename.isEmpty()) {
+                // If we found a filename, use it directly
+                Path logPath = pathConfig.getNetworkLogDirectory().resolve(logFilename);
+                if (Files.exists(logPath)) {
+                    return Optional.of(Files.readString(logPath));
+                }
             }
 
-            String content = Files.readString(logPath);
-            return Optional.of(content);
+            // If no file found by name search, try the default path with Unknown version
+            // This is a fallback for backward compatibility
+            Path defaultLogPath = pathConfig.getNetworkLogPath(username, "Unknown");
+            if (Files.exists(defaultLogPath)) {
+                return Optional.of(Files.readString(defaultLogPath));
+            }
+
+            // No log file found
+            return Optional.empty();
+
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(), "Error reading log for " + username + ": " + e.getMessage());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Gets the log filename for a specific user
+     * @param username The username
+     * @return The log filename or empty string if not found
+     */
+    public String getLogFilename(String username) {
+        try {
+            Path logDir = pathConfig.getNetworkLogDirectory();
+            if (!Files.exists(logDir)) {
+                return "";
+            }
+
+            try (Stream<Path> files = Files.list(logDir)) {
+                return files
+                        .filter(path -> {
+                            String filename = path.getFileName().toString();
+                            // Match both old format (ctgraphdep-logger_username.log)
+                            // and new format with version (ctgraphdep-logger_username_vX.Y.Z.log)
+                            return filename.contains("_" + username + "_") ||
+                                    filename.equals("ctgraphdep-logger_" + username + ".log");
+                        })
+                        .map(path -> path.getFileName().toString())
+                        .findFirst()
+                        .orElse("");
+            }
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Error getting log filename for " + username + ": " + e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * Extract version from log filename
+     * @param filename The log filename
+     * @return The version string or "Unknown" if not found
+     */
+    public String extractVersionFromLogFilename(String filename) {
+        return pathConfig.extractVersionFromLogFilename(filename);
+    }
+
+    /**
+     * Syncs the local log file to the network for a specific user with version information
+     * @param username The username
+     * @param version The application version
+     * @throws IOException if the file cannot be synced
+     */
+    public void syncLogToNetwork(String username, String version) throws IOException {
+        Path sourceLogPath = pathConfig.getLocalLogPath();
+        Path targetLogPath = pathConfig.getNetworkLogPath(username, version);
+
+        // First, try to delete any existing logs for this user (regardless of version)
+        try {
+            Path logDir = pathConfig.getNetworkLogDirectory();
+            if (Files.exists(logDir)) {
+                try (Stream<Path> files = Files.list(logDir)) {
+                    files.filter(path -> {
+                        String filename = path.getFileName().toString();
+                        return filename.startsWith("ctgraphdep-logger_" + username + "_") ||
+                                filename.equals("ctgraphdep-logger_" + username + ".log");
+                    }).forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                            LoggerUtil.debug(this.getClass(), "Deleted old log file: " + path.getFileName());
+                        } catch (IOException e) {
+                            LoggerUtil.warn(this.getClass(), "Could not delete old log file: " + e.getMessage());
+                        }
+                    });
+                }
+            }
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), "Error cleaning up old log files: " + e.getMessage());
+            // Continue with sync even if cleanup fails
+        }
+
+        // Ensure target directory exists
+        Path networkLogsDir = targetLogPath.getParent();
+        if (!Files.exists(networkLogsDir)) {
+            Files.createDirectories(networkLogsDir);
+        }
+
+        // Copy log file with new name containing version
+        Files.copy(sourceLogPath, targetLogPath, StandardCopyOption.REPLACE_EXISTING);
+
+        LoggerUtil.info(this.getClass(),
+                String.format("Synced log for user %s with version %s to %s",
+                        username, version, targetLogPath));
     }
 
     // ===== Authentication checks =======

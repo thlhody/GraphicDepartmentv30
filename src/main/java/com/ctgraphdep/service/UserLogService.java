@@ -2,6 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.User;
+import com.ctgraphdep.model.VersionModelAttribute;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -114,12 +116,15 @@ public class UserLogService {
     private boolean syncWithRetry(String username) throws IOException {
         IOException lastException = null;
 
+        // Get the current application version
+        String currentVersion = VersionModelAttribute.getCurrentVersion();
+
         for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
-                // Copy log file using DataAccessService
-                dataAccessService.syncLogToNetwork(username);
+                // Copy log file using DataAccessService with version
+                dataAccessService.syncLogToNetwork(username, currentVersion);
 
-                LoggerUtil.info(this.getClass(), "Successfully synced log on attempt " + (attempt + 1));
+                LoggerUtil.info(this.getClass(), String.format("Successfully synced log for user %s with version %s on attempt %d", username, currentVersion, (attempt + 1)));
                 return true; // Success
             } catch (IOException e) {
                 lastException = e;
@@ -164,10 +169,19 @@ public class UserLogService {
     }
 
     /**
-     * Get list of usernames with available logs
+     * Get list of user logs with version information
      */
-    public List<String> getUserLogsList() {
-        return dataAccessService.getUserLogsList();
+    public List<UserLogInfo> getUserLogsWithVersionInfo() {
+        List<String> usernames = dataAccessService.getUserLogsList();
+        List<UserLogInfo> userLogsInfo = new ArrayList<>();
+
+        for (String username : usernames) {
+            String logFilename = dataAccessService.getLogFilename(username);
+            String version = dataAccessService.extractVersionFromLogFilename(logFilename);
+            userLogsInfo.add(new UserLogInfo(username, version));
+        }
+
+        return userLogsInfo;
     }
 
     /**
@@ -188,6 +202,20 @@ public class UserLogService {
         public SyncResult(boolean success, String message) {
             this.success = success;
             this.message = message;
+        }
+    }
+
+    /**
+     * Class to hold username and version information
+     */
+    @Getter
+    public static class UserLogInfo {
+        private final String username;
+        private final String version;
+
+        public UserLogInfo(String username, String version) {
+            this.username = username;
+            this.version = version != null && !version.isEmpty() ? version : "Unknown";
         }
     }
 }

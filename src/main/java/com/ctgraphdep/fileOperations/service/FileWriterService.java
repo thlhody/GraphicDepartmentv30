@@ -5,6 +5,7 @@ import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -14,7 +15,7 @@ import java.nio.file.Path;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Service for writing files with proper locking and backup.
+ * Enhanced service for writing files with proper locking, backup, and criticality levels.
  */
 @Service
 public class FileWriterService {
@@ -22,30 +23,67 @@ public class FileWriterService {
     private final FilePathResolver pathResolver;
     private final BackupService backupService;
     private final SyncFilesService syncService;
-    private final FileTransactionManager transactionManager;
     private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
 
+    @Autowired
     public FileWriterService(
             ObjectMapper objectMapper,
             FilePathResolver pathResolver,
             BackupService backupService,
             SyncFilesService syncService,
-            FileTransactionManager transactionManager,
             PathConfig pathConfig,
             FileObfuscationService obfuscationService) {
         this.objectMapper = objectMapper;
         this.pathResolver = pathResolver;
         this.backupService = backupService;
         this.syncService = syncService;
-        this.transactionManager = transactionManager;
         this.pathConfig = pathConfig;
         this.obfuscationService = obfuscationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**
-     * Writes data to a file with proper locking and backup
+     * Determines the criticality level of a file based on its path and type
+     * @param filePath The file path
+     * @return The appropriate criticality level
+     */
+    private BackupService.CriticalityLevel determineCriticalityLevel(FilePath filePath) {
+        Path path = filePath.getPath();
+        String pathStr = path.toString().toLowerCase();
+        String fileName = path.getFileName().toString().toLowerCase();
+
+        LoggerUtil.debug(this.getClass(), "Determining criticality for: " + pathStr);
+
+        // LEVEL1_LOW - Status files, temporary files
+        if (pathStr.contains("status") || fileName.startsWith("status_") ||
+                pathStr.contains("temp") || pathStr.contains("cache")) {
+            return BackupService.CriticalityLevel.LEVEL1_LOW;
+        }
+
+        // LEVEL3_HIGH - Critical user and business data
+        if (pathStr.contains("worktime") || pathStr.contains("registru") ||
+                pathStr.contains("register") || pathStr.contains("timeoff") ||
+                (pathStr.contains("user") && !pathStr.contains("session")) ||
+                pathStr.contains("check") || pathStr.contains("bonus") ||
+                fileName.contains("worktime") || fileName.contains("registru") ||
+                fileName.contains("register") || fileName.contains("timeoff")) {
+            LoggerUtil.info(this.getClass(), "High criticality file detected: " + pathStr);
+            return BackupService.CriticalityLevel.LEVEL3_HIGH;
+        }
+
+        // LEVEL2_MEDIUM - Session files and everything else
+        if (pathStr.contains("session") || fileName.contains("session") ||
+                pathStr.contains("team")) {
+            return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
+        }
+
+        // Default to medium criticality for unknown files
+        return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
+    }
+    /**
+     * Writes data to a file with proper locking and backup based on criticality level
+     * This is the primary method used by the application
      * @param filePath The file path to write to
      * @param data The data to write
      * @param skipObfuscation Whether to skip obfuscation (for user files)
@@ -54,14 +92,28 @@ public class FileWriterService {
     public <T> FileOperationResult writeFile(FilePath filePath, T data, boolean skipObfuscation) {
         Path path = filePath.getPath();
 
+        // Determine criticality level for this file
+        BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel(filePath);
+
+        // Log the determined criticality level
+        LoggerUtil.info(this.getClass(), String.format(
+                "Writing file %s with criticality level %s", path, criticalityLevel));
+
         // Acquire write lock
         ReentrantReadWriteLock.WriteLock writeLock = pathResolver.getLock(filePath).writeLock();
         writeLock.lock();
 
         try {
-            // Create backup first if file exists
+            // Create backup based on criticality level if file exists
             if (Files.exists(path)) {
-                backupService.createBackup(filePath);
+                FileOperationResult backupResult = backupService.createBackup(filePath, criticalityLevel);
+                if (!backupResult.isSuccess()) {
+                    LoggerUtil.warn(this.getClass(), "Failed to create backup: " +
+                            backupResult.getErrorMessage().orElse("Unknown error"));
+                } else {
+                    LoggerUtil.info(this.getClass(), "Successfully created backup with criticality level " +
+                            criticalityLevel);
+                }
             }
 
             // Create parent directories if needed
@@ -80,14 +132,22 @@ public class FileWriterService {
                 Files.write(path, content);
                 LoggerUtil.info(this.getClass(), "Successfully wrote to file: " + path);
 
-                // Delete backup after successful write
-                backupService.deleteBackup(filePath);
+                // For low criticality files, delete backup after successful write
+                if (criticalityLevel == BackupService.CriticalityLevel.LEVEL1_LOW) {
+                    backupService.deleteSimpleBackup(filePath);
+                }
 
                 return FileOperationResult.success(path);
             } catch (Exception e) {
                 // Restore from backup if write fails
                 try {
-                    backupService.restoreFromBackup(filePath);
+                    // For low/medium criticality, use simple backup
+                    if (criticalityLevel != BackupService.CriticalityLevel.LEVEL3_HIGH) {
+                        backupService.restoreFromSimpleBackup(filePath);
+                    } else {
+                        // For high criticality, use latest backup
+                        backupService.restoreFromLatestBackup(filePath, criticalityLevel);
+                    }
                     LoggerUtil.warn(this.getClass(), "Successfully restored from backup after write failure");
                 } catch (Exception re) {
                     LoggerUtil.error(this.getClass(), "Failed to restore from backup: " + re.getMessage(), re);
@@ -100,101 +160,6 @@ public class FileWriterService {
             return FileOperationResult.failure(path, "Error writing file: " + e.getMessage(), e);
         } finally {
             writeLock.unlock();
-        }
-    }
-
-    /**
-     * Writes data to a local file with optional sync to network
-     * @param localPath The local file path to write to
-     * @param data The data to write
-     * @param skipObfuscation Whether to skip obfuscation (for user files)
-     * @param syncToNetwork Whether to sync the file to the network
-     * @return The result of the operation
-     */
-    public <T> FileOperationResult writeLocalFile(FilePath localPath, T data, boolean skipObfuscation, boolean syncToNetwork) {
-        if (!localPath.isLocal()) {
-            return FileOperationResult.failure(localPath.getPath(), "Not a local path");
-        }
-
-        // Check if we're in a transaction
-        boolean hasTransaction = transactionManager.getCurrentTransaction().isActive();
-
-        if (hasTransaction) {
-            // Add to transaction
-            try {
-                byte[] content = objectMapper.writeValueAsBytes(data);
-                if (!skipObfuscation) {
-                    content = obfuscationService.obfuscate(content);
-                }
-
-                transactionManager.getCurrentTransaction().addWrite(localPath, content);
-
-                if (syncToNetwork && isNetworkAvailable()) {
-                    FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                    transactionManager.getCurrentTransaction().addSync(localPath, networkPath);
-                }
-
-                return FileOperationResult.success(localPath.getPath());
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), "Error adding file operation to transaction: " + e.getMessage(), e);
-                return FileOperationResult.failure(localPath.getPath(), "Transaction error: " + e.getMessage(), e);
-            }
-        } else {
-            // Direct write
-            FileOperationResult writeResult = writeFile(localPath, data, skipObfuscation);
-
-            // Sync to network if requested and write was successful
-            if (syncToNetwork && writeResult.isSuccess() && isNetworkAvailable()) {
-                try {
-                    FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                    syncService.syncToNetwork(localPath, networkPath);
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), "Failed to sync to network: " + e.getMessage(), e);
-                    // Don't fail the operation if sync fails - it will be retried later
-                }
-            }
-
-            return writeResult;
-        }
-    }
-
-    /**
-     * Writes data to a network file
-     * @param networkPath The network file path to write to
-     * @param data The data to write
-     * @param skipObfuscation Whether to skip obfuscation (for user files)
-     * @return The result of the operation
-     */
-    public <T> FileOperationResult writeNetworkFile(FilePath networkPath, T data, boolean skipObfuscation) {
-        if (!networkPath.isNetwork()) {
-            return FileOperationResult.failure(networkPath.getPath(), "Not a network path");
-        }
-
-        // Check if network is available
-        if (!isNetworkAvailable()) {
-            return FileOperationResult.failure(networkPath.getPath(), "Network not available");
-        }
-
-        // Check if we're in a transaction
-        boolean hasTransaction = transactionManager.getCurrentTransaction().isActive();
-
-        if (hasTransaction) {
-            // Add to transaction
-            try {
-                byte[] content = objectMapper.writeValueAsBytes(data);
-                if (!skipObfuscation) {
-                    content = obfuscationService.obfuscate(content);
-                }
-
-                transactionManager.getCurrentTransaction().addWrite(networkPath, content);
-                return FileOperationResult.success(networkPath.getPath());
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), "Error adding file operation to transaction: " + e.getMessage(), e);
-                return FileOperationResult.failure(networkPath.getPath(), "Transaction error: " + e.getMessage(), e);
-            }
-        } else {
-            // Direct write
-            return writeFile(networkPath, data, skipObfuscation);
         }
     }
 
@@ -219,5 +184,40 @@ public class FileWriterService {
      */
     private boolean isNetworkAvailable() {
         return pathConfig.isNetworkAvailable();
+    }
+
+    /**
+     * This methods writes locally and syncs to network if needed
+     * Used by DataAccessService
+     */
+    public <T> FileOperationResult writeWithNetworkSync(FilePath localPath, T data, boolean skipObfuscation) {
+        if (!localPath.isLocal()) {
+            return FileOperationResult.failure(localPath.getPath(), "Not a local path");
+        }
+
+        // Direct write
+        FileOperationResult writeResult = writeFile(localPath, data, skipObfuscation);
+
+        // Sync to network if requested and write was successful
+        if (writeResult.isSuccess() && isNetworkAvailable()) {
+            try {
+                FilePath networkPath = pathResolver.toNetworkPath(localPath);
+                syncService.syncToNetwork(localPath, networkPath);
+
+                // For high criticality files, also sync backups to network
+                BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel(localPath);
+                if (criticalityLevel == BackupService.CriticalityLevel.LEVEL3_HIGH) {
+                    // Get current username
+                    String username = SecurityContextHolder.getContext().getAuthentication().getName();
+                    backupService.syncBackupsToNetwork(username, criticalityLevel);
+                    LoggerUtil.info(this.getClass(), "Synced high criticality backups to network for " + username);
+                }
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Failed to sync to network: " + e.getMessage(), e);
+                // Don't fail the operation if sync fails - it will be retried later
+            }
+        }
+
+        return writeResult;
     }
 }

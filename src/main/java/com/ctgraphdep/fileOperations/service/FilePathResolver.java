@@ -126,6 +126,7 @@ public class FilePathResolver {
         // Declare variables at the beginning of the method, outside the switch statement
         int year = (int) parameters.getOrDefault("year", LocalDate.now().getYear());
         int month = (int) parameters.getOrDefault("month", LocalDate.now().getMonthValue());
+        String version = (String) parameters.getOrDefault("version", "Unknown");
 
         return switch (fileType) {
             //users
@@ -170,10 +171,20 @@ public class FilePathResolver {
                     pathConfig.getLocalStatusCachePath() :
                     pathConfig.getNetworkStatusFlagsDirectory();
 
-            //logs
-            case LOG ->
-                    pathConfig.getNetworkLogPath(username);
+            //logs - Update to include version parameter
+            case LOG -> pathConfig.getNetworkLogPath(username, version);
         };
+    }
+
+    /**
+     * Creates a parameter map with version information
+     * @param version The version string
+     * @return A parameter map with version
+     */
+    public static Map<String, Object> createVersionParams(String version) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("version", version);
+        return params;
     }
 
     /**

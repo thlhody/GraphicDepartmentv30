@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $('#userSearch').on('input', function() {
         const searchTerm = $(this).val().toLowerCase();
         $('.user-item').each(function() {
-            const username = $(this).text().toLowerCase();
+            const username = $(this).find('span:first').text().toLowerCase();
             $(this).toggle(username.includes(searchTerm));
         });
     });
@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Function to refresh logs list
+    // Function to refresh logs list with version information
     function refreshLogsList() {
         $('#refreshLogsBtn').prop('disabled', true).html('<i class="bi bi-arrow-repeat spin me-2"></i>Refreshing...');
 
@@ -259,11 +259,21 @@ document.addEventListener('DOMContentLoaded', function() {
             success: function(data) {
                 let userListHtml = '';
                 if (data && data.length > 0) {
-                    data.forEach(function(username) {
+                    data.forEach(function(logInfo) {
+                        // Use the new UserLogInfo structure with username and version
+                        const username = logInfo.username;
+                        const version = logInfo.version || 'Unknown';
                         const isActive = username === currentUsername ? 'active' : '';
-                        userListHtml += `<a href="#" data-username="${username}"
-                                        class="list-group-item list-group-item-action user-item ${isActive}">
-                                        ${username}</a>`;
+                        const badgeClass = version === 'Unknown' ? 'bg-warning text-dark' : 'bg-info text-white';
+
+                        userListHtml += `
+                            <a href="#" data-username="${username}"
+                               class="list-group-item list-group-item-action user-item ${isActive}">
+                               <div class="d-flex justify-content-between align-items-center">
+                                   <span>${username}</span>
+                                   <span class="badge ${badgeClass}" title="Application Version">${version}</span>
+                               </div>
+                            </a>`;
                     });
                 } else {
                     userListHtml = '<div class="list-group-item text-muted">No logs available</div>';
@@ -272,7 +282,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateUserCount();
 
                 // If current user is still in the list, reload their log
-                if (currentUsername && data.includes(currentUsername)) {
+                const usernames = data.map(info => info.username);
+                if (currentUsername && usernames.includes(currentUsername)) {
                     loadUserLog(currentUsername);
                 }
 

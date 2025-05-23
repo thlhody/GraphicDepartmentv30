@@ -84,7 +84,7 @@ public class SyncFilesService {
                 Files.createDirectories(targetPath.getParent());
 
                 // Step 1: First write the local file as a backup on the network
-                Path backupPath = backupService.getBackupPath(targetPath);
+                Path backupPath = backupService.getSimpleBackupPath(targetPath);
                 Files.copy(sourcePath, backupPath, StandardCopyOption.REPLACE_EXISTING);
                 LoggerUtil.debug(this.getClass(), "Created backup on network: " + backupPath);
 
@@ -267,7 +267,7 @@ public class SyncFilesService {
 
                 // Create local backup first
                 if (Files.exists(targetPath)) {
-                    Path backupPath = backupService.getBackupPath(targetPath);
+                    Path backupPath = backupService.getSimpleBackupPath(targetPath);
                     Files.copy(targetPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
                     LoggerUtil.debug(this.getClass(), "Created local backup: " + backupPath);
                 }
@@ -277,7 +277,7 @@ public class SyncFilesService {
                 LoggerUtil.debug(this.getClass(), "Updated local file: " + targetPath);
 
                 // If successful, delete the backup
-                Path backupPath = backupService.getBackupPath(targetPath);
+                Path backupPath = backupService.getSimpleBackupPath(targetPath);
                 if (Files.exists(backupPath)) {
                     Files.deleteIfExists(backupPath);
                 }
@@ -294,7 +294,7 @@ public class SyncFilesService {
 
                 // Try to restore from backup if exists
                 try {
-                    Path backupPath = backupService.getBackupPath(targetPath);
+                    Path backupPath = backupService.getSimpleBackupPath(targetPath);
                     if (Files.exists(backupPath)) {
                         Files.copy(backupPath, targetPath, StandardCopyOption.REPLACE_EXISTING);
                         LoggerUtil.info(this.getClass(), "Restored local file from backup after failed sync");
@@ -324,7 +324,7 @@ public class SyncFilesService {
         }
 
         Path path = networkPath.getPath();
-        Path backupPath = backupService.getBackupPath(path);
+        Path backupPath = backupService.getSimpleBackupPath(path);
 
         // Try to acquire a read lock
         ReentrantReadWriteLock.ReadLock readLock = getFileLock(path).readLock();

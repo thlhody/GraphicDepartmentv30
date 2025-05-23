@@ -10,8 +10,11 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.service.*;
+import com.ctgraphdep.session.cache.SessionCacheService;
+import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import lombok.Getter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
 import java.time.LocalDateTime;
@@ -29,6 +32,9 @@ public class SessionContext {
     private final TimeValidationService validationService;
     private final NotificationService notificationService;
     private final SessionService sessionService;
+
+    @Autowired
+    private SessionCacheService sessionCacheService;
 
     // Calculation dependencies
     private final CalculationCommandFactory calculationFactory;
@@ -72,15 +78,23 @@ public class SessionContext {
         return query.execute(this);
     }
 
-    // Get current session
+    /**
+     * Gets the current session for a user (now reads from cache)
+     * @param username The username
+     * @param userId The user ID
+     * @return Current session from cache or file
+     */
     public WorkUsersSessionsStates getCurrentSession(String username, Integer userId) {
-        return dataAccessService.readLocalSessionFile(username, userId);
+        try {
+            // Read from cache instead of direct file access
+            return sessionCacheService.readSession(username, userId);
+        } catch (Exception e) {
+            // Fallback to direct file read if cache fails
+            return dataAccessService.readLocalSessionFile(username, userId);
+        }
     }
 
     // Save session
-    public void saveSession(WorkUsersSessionsStates session) {
-        dataAccessService.writeLocalSessionFile(session);
-    }
 
     // Calculate work time using CalculationService
     public WorkTimeCalculationResultDTO calculateWorkTime(int minutes, int schedule) {

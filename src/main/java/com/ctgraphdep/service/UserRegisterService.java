@@ -112,9 +112,42 @@ public class UserRegisterService {
         int month = entry.getDate().getMonthValue();
 
         try {
-            // Load existing entries
+            // Load existing entries from local storage
             List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month);
-            if (entries == null) entries = new ArrayList<>();
+
+            // Check if local entries are empty or null
+            boolean localEntriesEmpty = (entries == null || entries.isEmpty());
+
+            // DATA LOSS PROTECTION: If local is empty but network has data, use network data as base
+            if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
+                try {
+                    List<RegisterEntry> networkEntries = dataAccessService.readNetworkUserRegister(username, userId, year, month);
+                    if (networkEntries != null && !networkEntries.isEmpty()) {
+                        LoggerUtil.info(this.getClass(), "Local register entries missing but found entries on network. Using network data as base for update.");
+                        entries = networkEntries;
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), "Error reading network register during save operation: " + e.getMessage());
+                }
+            }
+
+            // Ensure entries is not null after potential network recovery
+            if (entries == null) {
+                entries = new ArrayList<>();
+            }
+
+            // Also check for admin entries to ensure we have the most complete data
+            if (dataAccessService.isNetworkAvailable()) {
+                try {
+                    List<RegisterEntry> adminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
+                    if (adminEntries != null && !adminEntries.isEmpty()) {
+                        // Merge admin entries before adding the new entry
+                        entries = mergeEntries(entries, adminEntries);
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), "Could not check admin register entries: " + e.getMessage());
+                }
+            }
 
             // Update or add entry
             if (entry.getEntryId() == null) {
@@ -126,14 +159,17 @@ public class UserRegisterService {
             }
 
             // Sort entries
-            entries.sort(Comparator.comparing(RegisterEntry::getDate).reversed().thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()));
+            entries.sort(Comparator.comparing(RegisterEntry::getDate).reversed()
+                    .thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()));
 
             // Save and sync
             dataAccessService.writeUserRegister(username, userId, entries, year, month);
+            LoggerUtil.info(this.getClass(), String.format("Successfully saved entry %d for user %s",
+                    entry.getEntryId(), username));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error saving entry for user %s: %s", username, e.getMessage()));
-            throw new RuntimeException("Failed to save entry", e);
+            throw new RuntimeException("Failed to save entry: " + e.getMessage(), e);
         }
     }
 

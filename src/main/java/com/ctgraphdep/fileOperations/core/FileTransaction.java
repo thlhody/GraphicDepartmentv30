@@ -1,6 +1,7 @@
 package com.ctgraphdep.fileOperations.core;
 
 import com.ctgraphdep.fileOperations.model.FileTransactionResult;
+import com.ctgraphdep.fileOperations.service.BackupService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 
@@ -13,8 +14,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Represents a transactional unit of file operations.
+ * Enhanced transaction class that represents a transactional unit of file operations.
  * Multiple file operations can be grouped together to be committed or rolled back as a unit.
+ * Now supports criticality levels for different types of files.
  */
 @Getter
 public class FileTransaction {
@@ -33,9 +35,8 @@ public class FileTransaction {
      *
      * @param filePath The file path to write to
      * @param data The data to write
-     * @return This transaction for method chaining
      */
-    public FileTransaction addWrite(FilePath filePath, byte[] data) {
+    public void addWrite(FilePath filePath, byte[] data) {
         if (!active) {
             throw new IllegalStateException("Cannot add operations to a completed transaction");
         }
@@ -52,7 +53,6 @@ public class FileTransaction {
             // Add operation to the list
             operations.add(new WriteOperation(filePath, data));
             LoggerUtil.debug(this.getClass(), "Added write operation to transaction " + transactionId + ": " + path);
-            return this;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error preparing write operation for path " + path + ": " + e.getMessage(), e);
             throw new FileOperationException("Failed to prepare write operation", path, "WRITE_PREPARE", e);
@@ -64,9 +64,8 @@ public class FileTransaction {
      *
      * @param sourceFile The source file to sync from
      * @param targetFile The target file to sync to
-     * @return This transaction for method chaining
      */
-    public FileTransaction addSync(FilePath sourceFile, FilePath targetFile) {
+    public void addSync(FilePath sourceFile, FilePath targetFile) {
         if (!active) {
             throw new IllegalStateException("Cannot add operations to a completed transaction");
         }
@@ -74,7 +73,6 @@ public class FileTransaction {
         operations.add(new SyncOperation(sourceFile, targetFile));
         LoggerUtil.debug(this.getClass(), "Added sync operation to transaction " + transactionId + ": "
                 + sourceFile.getPath() + " -> " + targetFile.getPath());
-        return this;
     }
 
     /**
@@ -231,9 +229,12 @@ public class FileTransaction {
                 // Create target directory if it doesn't exist
                 Files.createDirectories(targetPath.getParent());
 
+                // Determine criticality level based on file type
+                BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel();
+
                 // Create backup of target if it exists
-                Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + ".bak");
                 if (Files.exists(targetPath)) {
+                    Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + ".bak");
                     Files.copy(targetPath, backupPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     LoggerUtil.debug(this.getClass(), "Created backup: " + backupPath);
                 }
@@ -242,9 +243,12 @@ public class FileTransaction {
                 Files.copy(sourcePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 LoggerUtil.debug(this.getClass(), "Copied file from " + sourcePath + " to " + targetPath);
 
-                // Delete backup on success
-                if (Files.exists(backupPath)) {
-                    Files.delete(backupPath);
+                // Delete backup on success only for low criticality files
+                if (criticalityLevel == BackupService.CriticalityLevel.LEVEL1_LOW) {
+                    Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + ".bak");
+                    if (Files.exists(backupPath)) {
+                        Files.delete(backupPath);
+                    }
                 }
 
                 return FileOperationResult.success(targetPath);
@@ -253,6 +257,33 @@ public class FileTransaction {
                 LoggerUtil.error(this.getClass(), "Error syncing file to " + targetPath + ": " + e.getMessage(), e);
                 return FileOperationResult.failure(targetPath, "Failed to sync file: " + e.getMessage(), e);
             }
+        }
+
+        /**
+         * Determines the criticality level of a file based on its path
+         * @return The appropriate criticality level
+         */
+        private BackupService.CriticalityLevel determineCriticalityLevel() {
+            Path path = targetFile.getPath();
+            String pathStr = path.toString().toLowerCase();
+
+            // Status files - Low criticality
+            if (pathStr.contains("status") || path.getFileName().toString().startsWith("status_")) {
+                return BackupService.CriticalityLevel.LEVEL1_LOW;
+            }
+
+            // Session files - Medium criticality
+            if (pathStr.contains("session") || path.getFileName().toString().contains("session")) {
+                return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
+            }
+
+            // Worktime or Register files - High criticality
+            if (pathStr.contains("worktime") || pathStr.contains("register")) {
+                return BackupService.CriticalityLevel.LEVEL3_HIGH;
+            }
+
+            // Default to medium criticality for unknown files
+            return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
         }
     }
 }

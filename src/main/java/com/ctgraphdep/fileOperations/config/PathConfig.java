@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Configuration for file paths used throughout the application.
@@ -54,9 +56,18 @@ public class PathConfig {
     private String loginPath;
     @Value("${dbj.login.users}")
     private String usersPath;
-    @Value("dbj.backup")
-    private String backupPath;
 
+    //Backups Path and Format
+    @Value("${dbj.backup}")
+    private String backupPath;
+    @Value("${dbj.backup.level.low}")
+    private String levelLow;
+    @Value("${dbj.backup.level.medium}")
+    private String levelMedium;
+    @Value("${dbj.backup.level.high}")
+    private String levelHigh;
+    @Value("${dbj.backup.admin}")
+    private String adminBackup;
     //Users
     @Value("${dbj.users.network.filename}")
     private String networkUsersFilename;
@@ -159,10 +170,40 @@ public class PathConfig {
             // Create local directories
             initializeLocalDirectories();
 
+            // Create backup directory structure
+            initializeBackupDirectories();
+
             // We won't check network status here - NetworkStatusMonitor will handle this
-            LoggerUtil.info(this.getClass(), String.format("Initialized paths - Network: %s, Local: %s, Local Available: %b", networkPath, localPath, localAvailable.get()));
+            LoggerUtil.info(this.getClass(), String.format("Initialized paths - Network: %s, Local: %s, Local Available: %b",
+                    networkPath, localPath, localAvailable.get()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during initialization: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Initialize backup directory structure
+     */
+    private void initializeBackupDirectories() {
+        try {
+            // Ensure backup base directory exists
+            Path backupBaseDir = localPath.resolve(backupPath);
+            Files.createDirectories(backupBaseDir);
+
+            // Create criticality level directories
+            Path level1Dir = backupBaseDir.resolve(levelLow);
+            Path level2Dir = backupBaseDir.resolve(levelMedium);
+            Path level3Dir = backupBaseDir.resolve(levelHigh);
+            Path adminBackupsDir = backupBaseDir.resolve(adminBackup);
+
+            Files.createDirectories(level1Dir);
+            Files.createDirectories(level2Dir);
+            Files.createDirectories(level3Dir);
+            Files.createDirectories(adminBackupsDir);
+
+            LoggerUtil.info(this.getClass(), "Initialized backup directory structure at: " + backupBaseDir);
+        } catch (IOException e) {
+            LoggerUtil.error(this.getClass(), "Failed to initialize backup directories: " + e.getMessage());
         }
     }
 
@@ -175,18 +216,9 @@ public class PathConfig {
 
             // Create all required local directories
             List<String> directories = Arrays.asList(
-                    loginPath,
-                    usersPath,
-                    userSession,
-                    userStatus,
-                    userWorktime,
-                    userRegister,
-                    userTimeoff,
-                    adminWorktime,
-                    adminRegister,
-                    adminBonus,
-                    networkLogsPath,
-                    backupPath
+                    loginPath, usersPath, userSession, userStatus,
+                    userWorktime, userRegister, userTimeoff, adminWorktime,
+                    adminRegister, adminBonus, networkLogsPath, backupPath
             );
 
             for (String dir : directories) {
@@ -223,9 +255,39 @@ public class PathConfig {
     public Path getNetworkLogDirectory() {
         return networkPath.resolve(networkLogsPath);
     }
-    public Path getNetworkLogPath(String username) {
-        String formattedLogFilename = String.format(logFileFormat, username);
+
+    /**
+     * Gets the network log path with version information
+     * @param username The username
+     * @param version The application version
+     * @return Path to the user's log file with version
+     */
+    public Path getNetworkLogPath(String username, String version) {
+        // Format: ctgraphdep-logger_username_vX.Y.Z.log
+        String formattedLogFilename = String.format(logFileFormat, username, version);
         return getNetworkLogDirectory().resolve(formattedLogFilename);
+    }
+
+    /**
+     * Extracts version from log filename
+     * @param filename The log filename
+     * @return The version string or "Unknown" if not found
+     */
+    public String extractVersionFromLogFilename(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return "Unknown";
+        }
+
+        // Pattern to match ctgraphdep-logger_username_vX.Y.Z.log
+        Pattern pattern = Pattern.compile("ctgraphdep-logger_(.+)_v([\\d.]+)\\.log$");
+        Matcher matcher = pattern.matcher(filename);
+
+        if (matcher.find()) {
+            return matcher.group(2); // Return the version group
+        }
+
+        // Backward compatibility for old log format (without version)
+        return "Unknown";
     }
 
     // Local-only paths

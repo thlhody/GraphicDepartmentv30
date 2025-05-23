@@ -38,11 +38,17 @@
 
                     <div class="user-list">
                         <div class="list-group list-group-flush" id="usersList">
-                            <a th:each="username : ${usernames}"
-                               th:text="${username}"
-                               th:attr="data-username=${username}"
+                            <a th:each="logInfo : ${userLogsInfo}"
+                               th:attr="data-username=${logInfo.username}"
                                href="#"
                                class="list-group-item list-group-item-action user-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span th:text="${logInfo.username}"></span>
+                                    <span th:text="${logInfo.version}"
+                                          th:class="${logInfo.version == 'Unknown' ? 'badge bg-warning text-dark' : 'badge bg-info text-white'}"
+                                          title="Application Version">
+                                    </span>
+                                </div>
                             </a>
                         </div>
                     </div>
@@ -104,7 +110,7 @@
     <!-- Toast Alerts JS -->
     <script th:src="@{/js/toast-alerts.js?v=187812}"></script>
     <!-- Add Viewer JS -->
-    <script th:src="@{/js/viewer.js?v=187812}"></script>
+    <script th:src="@{/js/viewer.js?v=187813}"></script>
 </th:block>
 </body>
 </html>

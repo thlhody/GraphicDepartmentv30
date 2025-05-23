@@ -1,7 +1,9 @@
 package com.ctgraphdep.fileOperations.config;
 
+import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.monitor.NetworkStatusMonitor;
 import com.ctgraphdep.fileOperations.service.*;
+import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
@@ -31,8 +33,8 @@ public class FileOperationsConfig {
      * Creates a file backup service bean.
      */
     @Bean
-    public BackupService backupService() {
-        return new BackupService();
+    public BackupService backupService(PathConfig pathConfig) {
+        return new BackupService(pathConfig);
     }
 
     /**
@@ -76,10 +78,9 @@ public class FileOperationsConfig {
             FilePathResolver filePathResolver,
             BackupService backupService,
             SyncFilesService syncFilesService,
-            FileTransactionManager fileTransactionManager,
             PathConfig pathConfig,
             FileObfuscationService fileObfuscationService) {
-        return new FileWriterService(objectMapper, filePathResolver, backupService, syncFilesService, fileTransactionManager, pathConfig, fileObfuscationService);
+        return new FileWriterService(objectMapper, filePathResolver, backupService, syncFilesService, pathConfig, fileObfuscationService);
     }
 
     /**

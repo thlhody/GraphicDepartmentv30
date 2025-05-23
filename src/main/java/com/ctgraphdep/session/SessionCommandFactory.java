@@ -67,9 +67,24 @@ public class SessionCommandFactory {
     // Work Session Calculations Commands
     //========
 
-    // Creates a command to update session calculations
-    public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCommand(WorkUsersSessionsStates session,LocalDateTime explicitEndTime) {
-        return new UpdateSessionCalculationsCommand(session,explicitEndTime);
+    /**
+     * Creates a command to update session calculations (with file write)
+     * @param session The session to update
+     * @param explicitEndTime Optional explicit end time
+     * @return UpdateSessionCalculationsCommand that will save to file
+     */
+    public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCommand(WorkUsersSessionsStates session, LocalDateTime explicitEndTime) {
+        return new UpdateSessionCalculationsCommand(session, explicitEndTime, false); // File write mode
+    }
+
+    /**
+     * Creates a command to update session calculations in cache only (no file write)
+     * @param session The session to update
+     * @param explicitEndTime Optional explicit end time
+     * @return UpdateSessionCalculationsCommand that will only update cache
+     */
+    public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCacheOnlyCommand(WorkUsersSessionsStates session, LocalDateTime explicitEndTime) {
+        return new UpdateSessionCalculationsCommand(session, explicitEndTime, true); // Cache-only mode
     }
 
     // Creates a command to create a worktime entry

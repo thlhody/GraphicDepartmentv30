@@ -17,9 +17,8 @@ import com.ctgraphdep.model.dto.session.WorkSessionDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
-import com.ctgraphdep.session.commands.SaveSessionCommand;
+import com.ctgraphdep.session.cache.SessionCacheService;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
-import com.ctgraphdep.session.query.GetCurrentSessionQuery;
 import com.ctgraphdep.session.query.UnresolvedWorkTimeQuery;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -53,6 +52,8 @@ public class SessionService {
     private final SessionMonitorService sessionMonitorService;
     private final WorktimeManagementService worktimeManagementService;
 
+    @Autowired
+    private SessionCacheService sessionCacheService;
     // Date formatters
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy :: HH:mm");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
@@ -93,8 +94,8 @@ public class SessionService {
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = getStandardTimeValues();
             LocalDateTime currentTime = timeValues.getCurrentTime();
 
-            // Get current session
-            WorkUsersSessionsStates session = getSession(username, userId);
+            // Get current session FROM CACHE (via SessionCacheService)
+            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
 
             // Check if local session is empty but network is available
             boolean localSessionEmpty = (session == null);
@@ -109,9 +110,8 @@ public class SessionService {
                         LoggerUtil.info(this.getClass(), "Local session missing but found session on network. Restoring data.");
                         session = networkSession;
 
-                        // Save to local to restore it
-                        SaveSessionCommand saveCommand = sessionCommandFactory.createSaveSessionCommand(networkSession);
-                        sessionCommandService.executeCommand(saveCommand);
+                        // Refresh cache with network data (no file write needed)
+                        sessionCacheService.refreshCacheFromFile(username, networkSession);
                     }
                 } catch (Exception e) {
                     LoggerUtil.warn(this.getClass(), "Error reading network session: " + e.getMessage());
@@ -127,10 +127,10 @@ public class SessionService {
             // Get user schedule
             int userSchedule = getUserSchedule(userId);
 
-            // Update calculations if session is active
+            // Update calculations if session is active - BUT ONLY IN CACHE
             if (isActiveSession(session)) {
-                LoggerUtil.debug(this.getClass(), "Updating calculations for active session");
-                session = updateSessionCalculations(session, currentTime);
+                LoggerUtil.debug(this.getClass(), "Updating calculations for active session (cache only)");
+                session = updateSessionCalculationsInCacheOnly(session, currentTime);
             }
 
             // Create and return the DTO
@@ -139,6 +139,28 @@ public class SessionService {
             LoggerUtil.error(this.getClass(), "Error getting current session: " + e.getMessage(), e);
             // Return basic offline session in case of error
             return createOfflineSessionDTO(username, LocalDateTime.now());
+        }
+    }
+
+    /**
+     * Updates session calculations and stores ONLY in cache (no file write)
+     * Used by SessionService for display purposes
+     */
+    private WorkUsersSessionsStates updateSessionCalculationsInCacheOnly(WorkUsersSessionsStates session, LocalDateTime currentTime) {
+        try {
+            // Create command for calculations in CACHE-ONLY mode
+            UpdateSessionCalculationsCommand updateCommand = sessionCommandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, currentTime);
+
+            // Execute command - this will update calculations and cache, but NOT write to file
+            WorkUsersSessionsStates calculatedSession = sessionCommandService.executeCommand(updateCommand);
+
+            LoggerUtil.debug(this.getClass(), "Updated session calculations in cache-only mode for user: " + session.getUsername());
+
+            return calculatedSession;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error updating session calculations in cache: " + e.getMessage(), e);
+            return session; // Return original session if update fails
         }
     }
 
@@ -168,11 +190,7 @@ public class SessionService {
 
     /**
      * Calculates work time for given end time (used for resolution and end time scheduler)
-     * @param username The username
-     * @param userId The user ID
-     * @param endHour End hour (0-23)
-     * @param endMinute End minute (0-59)
-     * @return DTO with calculated values
+     * *** REMOVED automatic session updates - this is now read-only ***
      */
     public EndTimeCalculationDTO calculateEndTimeWork(String username, Integer userId, int endHour, int endMinute) {
         try {
@@ -188,8 +206,8 @@ public class SessionService {
             LocalDate currentDate = timeValues.getCurrentDate();
             int userSchedule = getUserSchedule(userId);
 
-            // Get current session
-            WorkUsersSessionsStates session = getSession(username, userId);
+            // Get current session FROM CACHE
+            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
             if (session == null || session.getDayStartTime() == null) {
                 return createErrorEndTimeDTO("No active session");
             }
@@ -308,14 +326,6 @@ public class SessionService {
     // Helper methods for retrieving data
 
     /**
-     * Gets the current session using the command pattern
-     */
-    private WorkUsersSessionsStates getSession(String username, Integer userId) {
-        GetCurrentSessionQuery sessionQuery = sessionCommandFactory.createGetCurrentSessionQuery(username, userId);
-        return sessionCommandService.executeQuery(sessionQuery);
-    }
-
-    /**
      * Gets unresolved worktime entries using the query
      */
     private List<WorkTimeTable> getUnresolvedEntries(String username) {
@@ -338,20 +348,6 @@ public class SessionService {
             LoggerUtil.error(this.getClass(), "Error finding entry for date: " + e.getMessage(), e);
             return null;
         }
-    }
-
-    /**
-     * Updates session calculations using the command pattern
-     */
-    private WorkUsersSessionsStates updateSessionCalculations(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        UpdateSessionCalculationsCommand updateCommand = sessionCommandFactory.createUpdateSessionCalculationsCommand(session, currentTime);
-        WorkUsersSessionsStates updatedSession = sessionCommandService.executeCommand(updateCommand);
-
-        // Save the updated session
-        SaveSessionCommand saveCommand = sessionCommandFactory.createSaveSessionCommand(updatedSession);
-        sessionCommandService.executeCommand(saveCommand);
-
-        return updatedSession;
     }
 
     /**

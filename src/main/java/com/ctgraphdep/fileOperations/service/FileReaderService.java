@@ -72,7 +72,7 @@ public class FileReaderService {
             }
 
             // If main file doesn't exist or had errors, try the backup
-            Path backupPath = backupService.getBackupPath(path);
+            Path backupPath = backupService.getSimpleBackupPath(path);
             if (Files.exists(backupPath) && Files.size(backupPath) >= 3) {
                 try {
                     LoggerUtil.info(this.getClass(), "Attempting to read from backup file: " + backupPath);
@@ -125,7 +125,7 @@ public class FileReaderService {
             }
 
             // Try backup if main file doesn't exist or is corrupted
-            Path backupPath = backupService.getBackupPath(path);
+            Path backupPath = backupService.getSimpleBackupPath(path);
             if (Files.exists(backupPath) && Files.size(backupPath) >= 3) {
                 byte[] content = Files.readAllBytes(backupPath);
 

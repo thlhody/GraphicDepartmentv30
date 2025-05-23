@@ -10,8 +10,17 @@ public class VersionModelAttribute {
     @Value("${cttt.version:0.0.0}")
     private String currentVersion;
 
+    // Add static version storage
+    private static String appVersion = "0.0.0";
+
     @ModelAttribute("appVersion")
     public String getAppVersion() {
+        appVersion = currentVersion; // Update the static variable
         return currentVersion;
+    }
+
+    // Add static getter for use in services
+    public static String getCurrentVersion() {
+        return appVersion;
     }
 }
