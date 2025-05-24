@@ -10,6 +10,7 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
+import com.ctgraphdep.service.cache.StatusCacheService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.cache.SessionCacheService;
@@ -42,9 +43,14 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Stream;
 
 /**
- * Service responsible for monitoring active user sessions and triggering
- * appropriate notification based on session state.
- * Refactored to use command pattern instead of direct service calls.
+ * ENHANCED: Service responsible for monitoring active user sessions and status synchronization.
+ * Now includes both session monitoring and status cache management.
+ * Key responsibilities:
+ * 1. Monitor active sessions and trigger notifications
+ * 2. Update session calculations in cache
+ * 3. Periodic session file writing for network sync
+ * 4. Status cache synchronization from network flags
+ * 5. Status cache file persistence
  */
 @Service
 public class SessionMonitorService {
@@ -64,12 +70,19 @@ public class SessionMonitorService {
     private SchedulerHealthMonitor healthMonitor;
     @Autowired
     private SessionCacheService sessionCacheService;
+    @Autowired
+    private StatusCacheService statusCacheService; // NEW: Status cache integration
 
+    private volatile boolean isMonitoringInProgress = false;
 
     @Value("${app.session.monitoring.interval:30}")
     private int monitoringInterval;
 
+    @Value("${app.session.sync.interval:1800000}") // 30 minutes default
+    private long syncInterval;
+
     private ScheduledFuture<?> monitoringTask;
+    private ScheduledFuture<?> syncTask; // NEW: Separate sync task
     private volatile boolean isInitialized = false;
 
     public SessionMonitorService(
@@ -77,7 +90,8 @@ public class SessionMonitorService {
             UserService userService, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             TimeValidationService validationService, TimeValidationFactory validationFactory,
             CalculationCommandFactory calculationFactory, CalculationCommandService calculationService,
-            NotificationService notificationService, DataAccessService dataAccessService, MonitoringStateService monitoringStateService) {
+            NotificationService notificationService, DataAccessService dataAccessService,
+            MonitoringStateService monitoringStateService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
@@ -102,24 +116,35 @@ public class SessionMonitorService {
     @PostConstruct
     public void registerWithHealthMonitor() {
         healthMonitor.registerTask("session-monitor", monitoringInterval, status -> {
-                    // Recovery action - if we're unhealthy, restart monitoring
-                    if (monitoringTask == null || monitoringTask.isCancelled()) {
-                        startScheduledMonitoring();
-                    }
-                }
-        );
+            // Recovery action - if we're unhealthy, restart monitoring
+            if (monitoringTask == null || monitoringTask.isCancelled()) {
+                startScheduledMonitoring();
+            }
+        });
+
+        // NEW: Register sync task with health monitor
+        healthMonitor.registerTask("session-sync", (int) (syncInterval / 60000), status -> {
+            // Recovery action for sync task
+            if (syncTask == null || syncTask.isCancelled()) {
+                startScheduledSync();
+            }
+        });
     }
 
     /**
-     * Delayed initialization to ensure system tray is ready
+     * ENHANCED: Delayed initialization to ensure system tray is ready
      */
     private void delayedInitialization() {
         try {
             LoggerUtil.info(this.getClass(), "Starting delayed initialization of session monitoring...");
+
+            // Start both monitoring and sync tasks
             startScheduledMonitoring();
+            startScheduledSync(); // NEW: Start separate sync task
+
             isInitialized = true;
             showTestNotification();
-            LoggerUtil.info(this.getClass(), "Session monitoring initialized successfully");
+            LoggerUtil.info(this.getClass(), "Session monitoring and sync initialized successfully");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in initialization: " + e.getMessage(), e);
             // Even if initialization fails, try to schedule a retry
@@ -133,27 +158,107 @@ public class SessionMonitorService {
     }
 
     /**
-     * Displays a test notification to verify system functioning
+     * NEW: Starts the scheduled sync task for file operations and status cache
      */
-    private void showTestNotification() {
-        try {
-            // Find a currently active user, if any
-            String username = getCurrentActiveUser();
-            if (username != null) {
-                User user = userService.getUserByUsername(username).orElse(null);
-                if (user != null) {
-                    LoggerUtil.info(this.getClass(), "Showing test notification for user: " + username);
-
-                    // Create and execute the test notification command
-                    ShowTestNotificationCommand command = commandFactory.createShowTestNotificationCommand(username);
-                    commandService.executeCommand(command);
-                }
-            } else {
-                LoggerUtil.info(this.getClass(), "No active user found for test notification");
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error showing test notification: " + e.getMessage());
+    private void startScheduledSync() {
+        // Cancel any existing sync task
+        if (syncTask != null && !syncTask.isCancelled()) {
+            syncTask.cancel(false);
         }
+
+        // Schedule sync task at fixed intervals
+        syncTask = taskScheduler.scheduleAtFixedRate(this::performPeriodicSync,
+                Instant.now().plusMillis(syncInterval), Duration.ofMillis(syncInterval));
+
+        LoggerUtil.info(this.getClass(), String.format("Scheduled sync task to run every %d minutes",
+                syncInterval / 60000));
+    }
+
+    /**
+     * NEW: Performs periodic sync operations (every 30 minutes)
+     * Handles file writing and status cache synchronization
+     */
+    private void performPeriodicSync() {
+        try {
+            LoggerUtil.debug(this.getClass(), "Performing periodic sync operations");
+
+            // Record task execution in health monitor
+            healthMonitor.recordTaskExecution("session-sync");
+
+            // 1. SYNC SESSION TO FILE: Write active session to file for network visibility
+            syncActiveSessionToFile();
+
+            // 2. SYNC STATUS FROM NETWORK: Update status cache from network flags
+            statusCacheService.syncFromNetworkFlags();
+
+            // 3. PERSIST STATUS CACHE: Write status cache to local file
+            statusCacheService.writeToFile();
+
+            LoggerUtil.info(this.getClass(), "Completed periodic sync operations successfully");
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error in periodic sync: " + e.getMessage(), e);
+            healthMonitor.recordTaskFailure("session-sync", e.getMessage());
+        }
+    }
+
+    /**
+     * NEW: Syncs active session to file for network visibility
+     * This ensures other instances can see the current user's activity
+     */
+    private void syncActiveSessionToFile() {
+        try {
+            String username = getCurrentActiveUser();
+            if (username == null) {
+                LoggerUtil.debug(this.getClass(), "No active user found for session sync");
+                return;
+            }
+
+            User user = userService.getUserByUsername(username).orElse(null);
+            if (user == null) {
+                LoggerUtil.warn(this.getClass(), "User not found for session sync: " + username);
+                return;
+            }
+
+            // Get current session from cache
+            WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());
+
+            if (session == null) {
+                LoggerUtil.debug(this.getClass(), "No session found in cache for sync: " + username);
+                return;
+            }
+
+            // Only sync if user has an active session
+            if (isActiveSession(session)) {
+                // Update calculations before writing to file
+                UpdateSessionCalculationsCommand updateCommand = commandFactory
+                        .createUpdateSessionCalculationsCommand(session, getStandardTimeValues().getCurrentTime());
+                session = commandService.executeCommand(updateCommand);
+
+                // Write to file for network sync
+                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+                commandService.executeCommand(saveCommand);
+
+                LoggerUtil.info(this.getClass(), String.format("Synced active session to file for user: %s", username));
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format("Session not active, skipping file sync for user: %s (status: %s)",
+                        username, session.getSessionStatus()));
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error syncing session to file: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * ENHANCED: Checks if session is active (online or temporary stop)
+     */
+    private boolean isActiveSession(WorkUsersSessionsStates session) {
+        if (session == null) {
+            return false;
+        }
+        return WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
+                WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
     }
 
     /**
@@ -171,13 +276,25 @@ public class SessionMonitorService {
         // Schedule the first check
         monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(initialDelay));
 
-        LoggerUtil.info(this.getClass(), String.format("Scheduled monitoring task to start in %d minutes and %d seconds", initialDelay.toMinutes(), initialDelay.toSecondsPart()));
+        LoggerUtil.info(this.getClass(), String.format("Scheduled monitoring task to start in %d minutes and %d seconds",
+                initialDelay.toMinutes(), initialDelay.toSecondsPart()));
     }
 
     /**
      * Runs the monitoring task and reschedules for the next check
      */
     private void runAndRescheduleMonitoring() {
+        if (isMonitoringInProgress) {
+            LoggerUtil.warn(this.getClass(), "Previous monitoring task still in progress, skipping this execution");
+
+            // Still reschedule for next time
+            Duration nextDelay = calculateTimeToNextCheck();
+            monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(nextDelay));
+            return;
+        }
+
+        isMonitoringInProgress = true;
+
         try {
             // Record task execution in health monitor
             healthMonitor.recordTaskExecution("session-monitor");
@@ -189,7 +306,8 @@ public class SessionMonitorService {
             Duration nextDelay = calculateTimeToNextCheck();
             monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(nextDelay));
 
-            LoggerUtil.info(this.getClass(), String.format("Next monitoring check scheduled in %d minutes and %d seconds", nextDelay.toMinutes(), nextDelay.toSecondsPart()));
+            LoggerUtil.debug(this.getClass(), String.format("Next monitoring check scheduled in %d minutes and %d seconds",
+                    nextDelay.toMinutes(), nextDelay.toSecondsPart()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in monitoring task: " + e.getMessage(), e);
             // Record failure in health monitor
@@ -197,55 +315,16 @@ public class SessionMonitorService {
             // Reschedule anyway to keep the service running even after errors
             Duration retryDelay = Duration.ofMinutes(5); // Shorter retry interval
             monitoringTask = taskScheduler.schedule(this::runAndRescheduleMonitoring, Instant.now().plus(retryDelay));
-            LoggerUtil.info(this.getClass(), String.format("Rescheduled after error with %d minute retry delay", retryDelay.toMinutes()));
+            LoggerUtil.info(this.getClass(), String.format("Rescheduled after error with %d minute retry delay",
+                    retryDelay.toMinutes()));
+        } finally {
+            isMonitoringInProgress = false;
         }
     }
 
     /**
-     * Calculates time to the next monitoring check based on configured interval
-     */
-    private Duration calculateTimeToNextCheck() {
-
-        LocalDateTime now = getStandardTimeValues().getCurrentTime();
-        LocalDateTime nextCheck;
-
-        // Use the configured monitoring interval (in minutes) from application properties
-        int monitoringIntervalMinutes = monitoringInterval;
-
-        // Calculate next interval mark
-        int minute = now.getMinute();
-        int nextMinute = ((minute / monitoringIntervalMinutes) + 1) * monitoringIntervalMinutes;
-
-        if (nextMinute >= 60) {
-            // If we need to go to the next hour
-            nextCheck = now.plusHours(1).withMinute(nextMinute % 60).withSecond(0).withNano(0);
-        } else {
-            // Go to the next interval mark in this hour
-            nextCheck = now.withMinute(nextMinute).withSecond(0).withNano(0);
-        }
-
-        // Handle special cases for 5:00 AM and 5:00 PM resets
-        LocalDateTime morningReset = now.toLocalDate().atTime(5, 0, 0);
-        LocalDateTime eveningReset = now.toLocalDate().atTime(17, 0, 0);
-
-        // If it's past midnight but before 5:00 AM, check if 5:00 AM is before the next check
-        if (now.getHour() < 5 && morningReset.isAfter(now) && morningReset.isBefore(nextCheck)) {
-            nextCheck = morningReset;
-        }
-
-        // If it's between 5:00 AM and 5:00 PM, check if 5:00 PM is before the next check
-        if (now.getHour() >= 5 && now.getHour() < 17 && eveningReset.isAfter(now) && eveningReset.isBefore(nextCheck)) {
-            nextCheck = eveningReset;
-        }
-
-        Duration duration = Duration.between(now, nextCheck);
-        LoggerUtil.debug(this.getClass(), String.format("Next check scheduled at %s (in %d minutes and %d seconds)", nextCheck, duration.toMinutes(), duration.toSecondsPart()));
-
-        return duration;
-    }
-
-    /**
-     * Main method for checking active user sessions and triggering notification
+     * ENHANCED: Main method for checking active user sessions and triggering notifications
+     * Now focuses only on monitoring, not file I/O
      */
     public void checkActiveSessions() {
         LoggerUtil.debug(this.getClass(), "Checking active sessions on thread: " + Thread.currentThread().getName());
@@ -262,28 +341,24 @@ public class SessionMonitorService {
 
             User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
 
-            // *** CACHE READ: Get current session from cache instead of file ***
+            // Get current session from cache
             WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());
-            // Skip if session is null or not online
-            if (session == null || WorkCode.WORK_OFFLINE.equals(session.getSessionStatus())) {
+
+            // Skip if session is null or not active
+            if (!isActiveSession(session)) {
+                LoggerUtil.debug(this.getClass(), String.format("No active session found for user: %s", username));
                 return;
             }
 
-            // Update calculations using command pattern
-            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, session.getDayEndTime());
+            // OPTIMIZATION: Update calculations in cache only (no file write)
+            UpdateSessionCalculationsCommand updateCommand = commandFactory
+                    .createUpdateSessionCalculationsCacheOnlyCommand(session, getStandardTimeValues().getCurrentTime());
             session = commandService.executeCommand(updateCommand);
 
-            // *** CACHE UPDATE: Update calculated values in cache ***
+            // Update calculated values in cache
             sessionCacheService.updateCalculatedValues(username, session);
 
-            // *** FILE WRITE: Write to file for network sync (every 30 minutes when active) ***
-            if (shouldWriteToFile(session)) {
-                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-                commandService.executeCommand(saveCommand);
-                // Note: SaveSessionCommand already refreshes cache after file write
-            }
-
-            // Check based on CURRENT MONITORING MODE in the centralized service
+            // Check monitoring based on CURRENT MONITORING MODE
             String monitoringMode = monitoringStateService.getMonitoringMode(username);
 
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
@@ -302,6 +377,167 @@ public class SessionMonitorService {
     }
 
     /**
+     * ENHANCED: Shows start day reminder with improved stale session detection
+     */
+    public void checkStartDayReminder() {
+        if (!isInitialized) {
+            return;
+        }
+
+        try {
+            // Only check during working hours on weekdays
+            IsWeekdayCommand weekdayCommand = validationFactory.createIsWeekdayCommand();
+            IsWorkingHoursCommand workingHoursCommand = validationFactory.createIsWorkingHoursCommand();
+
+            boolean isWeekday = validationService.execute(weekdayCommand);
+            boolean isWorkingHours = validationService.execute(workingHoursCommand);
+            LocalDate today = getStandardTimeValues().getCurrentDate();
+
+            // Get current user
+            String username = getCurrentActiveUser();
+            if (username == null) {
+                return;
+            }
+
+            // Check if we already showed notification today
+            if (monitoringStateService.wasStartDayCheckedToday(username, today)) {
+                return;
+            }
+
+            User user = userService.getUserByUsername(username).orElseThrow(() ->
+                    new RuntimeException("User not found: " + username));
+
+            // ENHANCED: Get session from cache first, then check for stale sessions
+            WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());
+
+            // KEY ENHANCEMENT: Stale session detection and reset
+            if (session != null && session.getDayStartTime() != null) {
+                LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+                boolean isActive = isActiveSession(session);
+
+                // If the session is active and from a previous day, reset it
+                if (isActive && !sessionDate.equals(today)) {
+                    LoggerUtil.warn(this.getClass(), String.format(
+                            "Found stale active session from %s for user %s - resetting during morning check",
+                            sessionDate, username));
+
+                    // Reset session through cache and file
+                    resetStaleSession(username, user.getUserId());
+
+                    // Get the fresh session
+                    session = sessionCacheService.readSession(username, user.getUserId());
+
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Reset stale session for user %s during morning check", username));
+
+                    // Record in health monitor
+                    healthMonitor.recordTaskWarning("session-midnight-handler",
+                            "Stale session detected and reset during morning check");
+                }
+            }
+
+            // Only continue with normal checks if it's a weekday during working hours
+            if (!isWeekday || !isWorkingHours) {
+                return;
+            }
+
+            // Check for unresolved worktime entries
+            WorktimeResolutionQuery resolutionQuery = commandFactory.createWorktimeResolutionQuery(username);
+            WorktimeResolutionQuery.ResolutionStatus resolutionStatus = commandService.executeQuery(resolutionQuery);
+
+            // Check if the user has completed a session today
+            boolean hasCompletedSessionToday = false;
+            if (session != null && session.getDayStartTime() != null) {
+                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) &&
+                        WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
+                        Boolean.TRUE.equals(session.getWorkdayCompleted());
+            }
+
+            // If they already completed a session today, don't show reminder
+            if (hasCompletedSessionToday) {
+                return;
+            }
+
+            // If there are unresolved worktime entries, show resolution notification
+            if (resolutionStatus.isNeedsResolution()) {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "User %s has unresolved worktime entries - showing resolution notification", username));
+
+                notificationService.showResolutionReminder(username, user.getUserId(),
+                        WorkCode.RESOLUTION_TITLE, WorkCode.RESOLUTION_MESSAGE,
+                        WorkCode.RESOLUTION_MESSAGE_TRAY, WorkCode.ON_FOR_TWELVE_HOURS);
+
+                monitoringStateService.recordStartDayCheck(username, today);
+                return;
+            }
+
+            // Validate that session exists and is offline
+            if (SessionValidator.exists(session, this.getClass()) &&
+                    session != null && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) &&
+                    !hasActiveSessionToday(session)) {
+
+                // Show notification
+                notificationService.showStartDayReminder(username, user.getUserId());
+
+                // Record start day check
+                monitoringStateService.recordStartDayCheck(username, today);
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error checking start day reminder: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * NEW: Resets a stale session by creating a fresh one
+     */
+    private void resetStaleSession(String username, Integer userId) {
+        try {
+            // Create fresh session
+            WorkUsersSessionsStates freshSession = createFreshSession(username, userId);
+
+            // Save to file and refresh cache
+            SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(freshSession);
+            commandService.executeCommand(saveCommand);
+
+            LoggerUtil.info(this.getClass(), String.format("Created fresh session for user %s", username));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error resetting stale session for user %s: %s", username, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Creates a fresh session
+     */
+    private WorkUsersSessionsStates createFreshSession(String username, Integer userId) {
+        WorkUsersSessionsStates freshSession = new WorkUsersSessionsStates();
+        freshSession.setUserId(userId);
+        freshSession.setUsername(username);
+        freshSession.setSessionStatus(WorkCode.WORK_OFFLINE);
+        freshSession.setDayStartTime(null);
+        freshSession.setDayEndTime(null);
+        freshSession.setCurrentStartTime(null);
+        freshSession.setTotalWorkedMinutes(0);
+        freshSession.setFinalWorkedMinutes(0);
+        freshSession.setTotalOvertimeMinutes(0);
+        freshSession.setLunchBreakDeducted(true);
+        freshSession.setWorkdayCompleted(false);
+        freshSession.setTemporaryStopCount(0);
+        freshSession.setTotalTemporaryStopMinutes(0);
+        freshSession.setTemporaryStops(List.of());
+        freshSession.setLastTemporaryStopTime(null);
+        freshSession.setLastActivity(LocalDateTime.now());
+
+        return freshSession;
+    }
+
+    // ===== KEEP ALL EXISTING METHODS =====
+    // (checkTempStopDuration, checkScheduleCompletion, checkHourlyWarning, etc.)
+    // These methods remain unchanged as they work well
+
+    /**
      * Checks if temporary stop duration exceeds limits and shows warnings
      */
     private void checkTempStopDuration(WorkUsersSessionsStates session) {
@@ -312,7 +548,8 @@ public class SessionMonitorService {
             LocalDateTime now = getStandardTimeValues().getCurrentTime();
 
             // Check if total temporary stop minutes exceed 15 hours
-            if (session.getTotalTemporaryStopMinutes() != null && session.getTotalTemporaryStopMinutes() >= WorkCode.MAX_TEMP_STOP_HOURS * WorkCode.HOUR_DURATION) {
+            if (session.getTotalTemporaryStopMinutes() != null &&
+                    session.getTotalTemporaryStopMinutes() >= WorkCode.MAX_TEMP_STOP_HOURS * WorkCode.HOUR_DURATION) {
                 return;
             }
 
@@ -347,15 +584,13 @@ public class SessionMonitorService {
 
         int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
 
-        // Add this debug logging
-        LoggerUtil.debug(this.getClass(), String.format("Schedule check - User: %s, Schedule: %d hours, " + "Is 8-hour schedule: %b, Required minutes: %d, " +
-                        "Current worked minutes: %d, Notified already: %b", session.getUsername(), scheduleInfo.getScheduleHours(), scheduleInfo.isStandardEightHourSchedule(),
-                scheduleInfo.getFullDayDuration(), workedMinutes, monitoringStateService.wasScheduleNotificationShown(session.getUsername())));
-
         // Only show notification if not already shown for this session and schedule is completed
-        if (scheduleInfo.isScheduleCompleted(workedMinutes) && !monitoringStateService.wasScheduleNotificationShown(session.getUsername())) {
+        if (scheduleInfo.isScheduleCompleted(workedMinutes) &&
+                !monitoringStateService.wasScheduleNotificationShown(session.getUsername())) {
+
             // Use the notification service
-            boolean success = notificationService.showScheduleEndNotification(session.getUsername(), session.getUserId(), session.getFinalWorkedMinutes());
+            boolean success = notificationService.showScheduleEndNotification(session.getUsername(),
+                    session.getUserId(), session.getFinalWorkedMinutes());
 
             if (success) {
                 monitoringStateService.markScheduleNotificationShown(session.getUsername());
@@ -364,7 +599,9 @@ public class SessionMonitorService {
                 SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
                 commandService.executeCommand(saveCommand);
 
-                LoggerUtil.info(this.getClass(), String.format("Schedule completion notification shown for user %s (worked: %d minutes)", session.getUsername(), workedMinutes));
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Schedule completion notification shown for user %s (worked: %d minutes)",
+                        session.getUsername(), workedMinutes));
             }
         }
     }
@@ -378,11 +615,11 @@ public class SessionMonitorService {
 
         // Use MonitoringStateService to check if hourly notification is due
         if (monitoringStateService.isHourlyNotificationDue(username, now)) {
-            // Add detailed logging
             LoggerUtil.info(this.getClass(), String.format("Preparing hourly warning for %s", username));
 
             // Show hourly warning using the notification service
-            boolean success = notificationService.showHourlyWarning(username, session.getUserId(), session.getFinalWorkedMinutes());
+            boolean success = notificationService.showHourlyWarning(username, session.getUserId(),
+                    session.getFinalWorkedMinutes());
 
             if (success) {
                 // Save the updated session
@@ -395,144 +632,45 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Shows start day reminder if user hasn't started their workday
-     * Also checks for and resets stale sessions from previous days
-     */
-    public void checkStartDayReminder() {
-        if (!isInitialized) {
-            return;
-        }
-
-        try {
-            // Only check during working hours on weekdays
-            IsWeekdayCommand weekdayCommand = validationFactory.createIsWeekdayCommand();
-            IsWorkingHoursCommand workingHoursCommand = validationFactory.createIsWorkingHoursCommand();
-
-            boolean isWeekday = validationService.execute(weekdayCommand);
-            boolean isWorkingHours = validationService.execute(workingHoursCommand);
-            LocalDate today = getStandardTimeValues().getCurrentDate();
-
-            // Get current user
-            String username = getCurrentActiveUser();
-            if (username == null) {
-                return;
-            }
-
-            // Check if we already showed notification today using the centralized service
-            if (monitoringStateService.wasStartDayCheckedToday(username, today)) {
-                return;
-            }
-
-            User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
-
-            // Get current session
-            GetCurrentSessionQuery sessionQuery = commandFactory.createGetCurrentSessionQuery(username, user.getUserId());
-            WorkUsersSessionsStates session = commandService.executeQuery(sessionQuery);
-
-            // *** KEY ADDITION: STALE SESSION CHECK ***
-            // If there's an active session, check if it's from a previous day
-            if (session != null && session.getDayStartTime() != null) {
-                LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-                boolean isActive = WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
-
-                // If the session is active and from a previous day, reset it
-                if (isActive && !sessionDate.equals(today)) {
-                    LoggerUtil.warn(this.getClass(), String.format("Found stale active session from %s for user %s - resetting during morning check", sessionDate, username));
-
-                    // Create fresh session
-                    WorkUsersSessionsStates freshSession = createFreshSession(username, user.getUserId());
-
-                    // Save the fresh session
-                    SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(freshSession);
-                    commandService.executeCommand(saveCommand);
-
-                    // Update our session reference to the fresh session
-                    session = freshSession;
-
-                    LoggerUtil.info(this.getClass(), String.format("Reset stale session for user %s during morning check", username));
-
-                    // Record in health monitor
-                    healthMonitor.recordTaskWarning("session-midnight-handler", "Stale session detected and reset during morning check");
-                }
-            }
-            // *** END OF STALE SESSION CHECK ***
-
-            // Only continue with normal checks if it's a weekday during working hours
-            if (!isWeekday || !isWorkingHours) {
-                return;
-            }
-
-            // Check for unresolved worktime entries - this has priority
-            WorktimeResolutionQuery resolutionQuery = commandFactory.createWorktimeResolutionQuery(username);
-            WorktimeResolutionQuery.ResolutionStatus resolutionStatus = commandService.executeQuery(resolutionQuery);
-
-            // Check if the user has completed a session today
-            boolean hasCompletedSessionToday = false;
-            if (session != null && session.getDayStartTime() != null) {
-                hasCompletedSessionToday = session.getDayStartTime().toLocalDate().equals(today) && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && session.getWorkdayCompleted();
-            }
-
-            // If they already completed a session today, don't show reminder
-            if (hasCompletedSessionToday) {
-                return;
-            }
-
-            // If there are unresolved worktime entries, show resolution notification instead of start day reminder
-            if (resolutionStatus.isNeedsResolution()) {
-                LoggerUtil.info(this.getClass(), String.format("User %s has unresolved worktime entries - showing resolution notification", username));
-
-                // Show resolution notification
-                notificationService.showResolutionReminder(username, user.getUserId(), WorkCode.RESOLUTION_TITLE, WorkCode.RESOLUTION_MESSAGE, WorkCode.RESOLUTION_MESSAGE_TRAY,
-                        WorkCode.ON_FOR_TWELVE_HOURS);
-
-                // Record start day check in the centralized service
-                monitoringStateService.recordStartDayCheck(username, today);
-                return;
-            }
-
-            // Use SessionValidator to check if session exists
-            if (!SessionValidator.exists(session, this.getClass())) {
-                return;
-            }
-
-            // Validate that session is in offline state and no active session for today
-            if (session != null && WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) && !hasActiveSessionToday(session)) {
-                // Show notification
-                notificationService.showStartDayReminder(username, user.getUserId());
-
-                // Record start day check in the centralized service
-                monitoringStateService.recordStartDayCheck(username, today);
-            }
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error checking start day reminder: " + e.getMessage(), e);
-        }
-    }
+    // ===== UTILITY METHODS =====
 
     /**
-     * Creates a fresh session
+     * Calculates time to the next monitoring check based on configured interval
      */
-    private WorkUsersSessionsStates createFreshSession(String username, Integer userId) {
-        WorkUsersSessionsStates freshSession = new WorkUsersSessionsStates();
-        freshSession.setUserId(userId);
-        freshSession.setUsername(username);
-        freshSession.setSessionStatus(WorkCode.WORK_OFFLINE);
-        freshSession.setDayStartTime(null);
-        freshSession.setDayEndTime(null);
-        freshSession.setCurrentStartTime(null);
-        freshSession.setTotalWorkedMinutes(0);
-        freshSession.setFinalWorkedMinutes(0);
-        freshSession.setTotalOvertimeMinutes(0);
-        freshSession.setLunchBreakDeducted(true);
-        freshSession.setWorkdayCompleted(false);
-        freshSession.setTemporaryStopCount(0);
-        freshSession.setTotalTemporaryStopMinutes(0);
-        freshSession.setTemporaryStops(List.of());
-        freshSession.setLastTemporaryStopTime(null);
-        freshSession.setLastActivity(LocalDateTime.now());
+    private Duration calculateTimeToNextCheck() {
+        LocalDateTime now = getStandardTimeValues().getCurrentTime();
+        LocalDateTime nextCheck;
 
-        return freshSession;
+        // Use the configured monitoring interval (in minutes) from application properties
+        int monitoringIntervalMinutes = monitoringInterval;
+
+        // Calculate next interval mark
+        int minute = now.getMinute();
+        int nextMinute = ((minute / monitoringIntervalMinutes) + 1) * monitoringIntervalMinutes;
+
+        if (nextMinute >= 60) {
+            // If we need to go to the next hour
+            nextCheck = now.plusHours(1).withMinute(nextMinute % 60).withSecond(0).withNano(0);
+        } else {
+            // Go to the next interval mark in this hour
+            nextCheck = now.withMinute(nextMinute).withSecond(0).withNano(0);
+        }
+
+        // Handle special cases for 5:00 AM and 5:00 PM resets
+        LocalDateTime morningReset = now.toLocalDate().atTime(5, 0, 0);
+        LocalDateTime eveningReset = now.toLocalDate().atTime(17, 0, 0);
+
+        // If it's past midnight but before 5:00 AM, check if 5:00 AM is before the next check
+        if (now.getHour() < 5 && morningReset.isAfter(now) && morningReset.isBefore(nextCheck)) {
+            nextCheck = morningReset;
+        }
+
+        // If it's between 5:00 AM and 5:00 PM, check if 5:00 PM is before the next check
+        if (now.getHour() >= 5 && now.getHour() < 17 && eveningReset.isAfter(now) && eveningReset.isBefore(nextCheck)) {
+            nextCheck = eveningReset;
+        }
+
+        return Duration.between(now, nextCheck);
     }
 
     /**
@@ -545,7 +683,10 @@ public class SessionMonitorService {
         }
 
         try (Stream<Path> pathStream = Files.list(localSessionPath)) {
-            return pathStream.filter(this::isValidSessionFile).max(this::compareByLastModified).map(this::extractUsernameFromSession).orElse(null);
+            return pathStream.filter(this::isValidSessionFile)
+                    .max(this::compareByLastModified)
+                    .map(this::extractUsernameFromSession)
+                    .orElse(null);
         } catch (IOException e) {
             LoggerUtil.error(this.getClass(), "Error getting current user: " + e.getMessage(), e);
             return null;
@@ -585,10 +726,56 @@ public class SessionMonitorService {
     }
 
     /**
+     * Checks if session has activity today
+     */
+    private boolean hasActiveSessionToday(WorkUsersSessionsStates session) {
+        if (session == null || session.getDayStartTime() == null) {
+            return false;
+        }
+
+        LocalDate sessionDate = session.getDayStartTime().toLocalDate();
+        LocalDate today = getStandardTimeValues().getCurrentDate();
+
+        return sessionDate.equals(today);
+    }
+
+    private GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues() {
+        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
+        return validationService.execute(timeCommand);
+    }
+
+    /**
+     * Displays a test notification to verify system functioning
+     */
+    private void showTestNotification() {
+        try {
+            // Find a currently active user, if any
+            String username = getCurrentActiveUser();
+            if (username != null) {
+                User user = userService.getUserByUsername(username).orElse(null);
+                if (user != null) {
+                    LoggerUtil.info(this.getClass(), "Showing test notification for user: " + username);
+
+                    // Create and execute the test notification command
+                    ShowTestNotificationCommand command = commandFactory.createShowTestNotificationCommand(username);
+                    commandService.executeCommand(command);
+                }
+            } else {
+                LoggerUtil.info(this.getClass(), "No active user found for test notification");
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error showing test notification: " + e.getMessage());
+        }
+    }
+
+    // ===== KEEP ALL OTHER EXISTING METHODS =====
+    // (clearMonitoring, stopMonitoring, activateHourlyMonitoring, etc.)
+    // These methods remain unchanged as they work well with the existing system
+
+    /**
      * Clears monitoring state for a user
      */
     public void clearMonitoring(String username) {
-        // Replace multiple direct map accesses with a single centralized call
         monitoringStateService.clearUserState(username);
         clearUserSessionCache(username);
         LoggerUtil.info(this.getClass(), String.format("Cleared monitoring for user %s", username));
@@ -603,24 +790,6 @@ public class SessionMonitorService {
     }
 
     /**
-     * Determines if session should be written to file (for network sync)
-     * Only write when session is active to let other users see activity
-     */
-    private boolean shouldWriteToFile(WorkUsersSessionsStates session) {
-        if (session == null) {
-            return false;
-        }
-        boolean isActivelyWorking = WorkCode.WORK_ONLINE.equals(session.getSessionStatus());
-
-        if (!isActivelyWorking) {
-            LoggerUtil.debug(this.getClass(), "User not actively working (status: " + session.getSessionStatus() + "), skipping file write");
-            return false;
-        }
-        // Write to file when user is actively working (not during temp stops)
-        return true;
-    }
-
-    /**
      * Clear user cache (called during session reset/midnight)
      */
     public void clearUserSessionCache(String username) {
@@ -630,20 +799,6 @@ public class SessionMonitorService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error clearing session cache for user " + username + ": " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * Checks if session has activity today
-     */
-    private boolean hasActiveSessionToday(WorkUsersSessionsStates session) {
-        if (session == null || session.getDayStartTime() == null) {
-            return false;
-        }
-
-        LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-        LocalDate today = getStandardTimeValues().getCurrentDate();
-
-        return sessionDate.equals(today);
     }
 
     /**
@@ -669,9 +824,6 @@ public class SessionMonitorService {
 
     /**
      * Resumes regular schedule completion monitoring after temporary stop ends.
-     * This only applies if the schedule hasn't been completed yet.
-     *
-     * @param username The username
      */
     public void resumeScheduleMonitoring(String username) {
         try {
@@ -804,6 +956,7 @@ public class SessionMonitorService {
             return false;
         }
     }
+
     /**
      * Cancels a scheduled end time for a user
      */
@@ -816,10 +969,5 @@ public class SessionMonitorService {
      */
     public LocalDateTime getScheduledEndTime(String username) {
         return monitoringStateService.getScheduledEndTime(username);
-    }
-
-    private GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues() {
-        GetStandardTimeValuesCommand timeCommand = validationFactory.createGetStandardTimeValuesCommand();
-        return validationService.execute(timeCommand);
     }
 }

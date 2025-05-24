@@ -12,7 +12,6 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.*;
-import com.ctgraphdep.validation.TimeValidationFactory;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
 import org.springframework.format.annotation.DateTimeFormat;

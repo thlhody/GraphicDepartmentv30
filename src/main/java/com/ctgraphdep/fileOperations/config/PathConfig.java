@@ -1,13 +1,16 @@
 package com.ctgraphdep.fileOperations.config;
 
 import com.ctgraphdep.fileOperations.core.FilePath;
+import com.ctgraphdep.fileOperations.events.NetworkStatusChangedEvent;
 import com.ctgraphdep.fileOperations.util.FileOperationsUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
@@ -38,6 +41,9 @@ public class PathConfig {
     private final AtomicBoolean localAvailable = new AtomicBoolean(false);
     // Cache for FilePath objects for commonly used paths
     private final Map<String, FilePath> filePathCache = new HashMap<>();
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     //App Title
     @Value("${app.title:CTTT}")
@@ -391,7 +397,17 @@ public class PathConfig {
     public void setNetworkAvailable(boolean available) {
         boolean previous = networkAvailable.getAndSet(available);
         if (previous != available) {
+            String reason = available ? "Network became available" : "Network became unavailable";
             LoggerUtil.info(this.getClass(), String.format("Network status updated to: %s", available ? "Available" : "Unavailable"));
+
+            // Publish event for any interested services
+            try {
+                NetworkStatusChangedEvent event = new NetworkStatusChangedEvent(this, available, reason);
+                eventPublisher.publishEvent(event);
+                LoggerUtil.debug(this.getClass(), "Published network status event: " + event);
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error publishing network status event: " + e.getMessage());
+            }
         }
     }
 

@@ -9,6 +9,7 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.session.cache.SessionCacheService;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
@@ -44,6 +45,7 @@ public class NotificationCheckerService {
     private final TimeValidationService timeValidationService;
     private final DataAccessService dataAccessService;
     private final SchedulerHealthMonitor healthMonitor;
+    private final SessionCacheService sessionCacheService;
 
     // Flag to indicate if the service is initialized
     private volatile boolean isInitialized = false;
@@ -57,7 +59,8 @@ public class NotificationCheckerService {
             @Lazy SessionCommandFactory sessionCommandFactory,
             TimeValidationService timeValidationService,
             DataAccessService dataAccessService,
-            SchedulerHealthMonitor healthMonitor) {
+            SchedulerHealthMonitor healthMonitor,
+            SessionCacheService sessionCacheService) {
 
         this.notificationService = notificationService;
         this.monitorService = monitorService;
@@ -68,6 +71,7 @@ public class NotificationCheckerService {
         this.timeValidationService = timeValidationService;
         this.dataAccessService = dataAccessService;
         this.healthMonitor = healthMonitor;
+        this.sessionCacheService = sessionCacheService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -106,68 +110,20 @@ public class NotificationCheckerService {
      * This is more frequent than the session monitor (which runs every 5/30 minutes)
      * and allows notifications to be shown more promptly
      */
-    @Scheduled(fixedRate = 120000) // Run every 2 minutes
+    @Scheduled(fixedRate = 120000)
     public void checkForNotifications() {
         if (!isInitialized) {
             return;
         }
 
         try {
-            // Record execution
             healthMonitor.recordTaskExecution("notification-checker");
 
-            // NEW CODE: Quick pre-check for weekend or non-working hours
-            IsWeekdayCommand weekdayCommand = timeValidationService.getValidationFactory().createIsWeekdayCommand();
-            IsWorkingHoursCommand workingHoursCommand = timeValidationService.getValidationFactory().createIsWorkingHoursCommand();
-
-            boolean isWeekday = timeValidationService.execute(weekdayCommand);
-            boolean isWorkingHours = timeValidationService.execute(workingHoursCommand);
-
-            // If it's not a weekday or not working hours, just log and exit early
-            if (!isWeekday || !isWorkingHours) {
-                // Calculate time until next business hours check
-                GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
-                GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
-
-                LocalDateTime now = timeValues.getCurrentTime();
-                LocalDateTime nextCheck;
-
-                if (!isWeekday) {
-                    // If weekend, calculate time until Monday 5 AM
-                    int daysUntilMonday = 8 - now.getDayOfWeek().getValue(); // Monday is 1, so 8-day = days until next Monday
-                    if (daysUntilMonday > 7) daysUntilMonday -= 7; // Make sure we're getting the next Monday
-
-                    nextCheck = now.plusDays(daysUntilMonday)
-                            .withHour(WorkCode.WORK_START_HOUR)
-                            .withMinute(0)
-                            .withSecond(0);
-
-                    LoggerUtil.debug(this.getClass(), String.format("Weekend detected, skipping notification checks until %s", nextCheck.format(DateTimeFormatter.ISO_DATE_TIME)));
-                } else {
-                    // Not working hours but weekday - calculate until next working hours start
-                    if (now.getHour() < WorkCode.WORK_START_HOUR) {
-                        // Before start of day - wait until 5 AM
-                        nextCheck = now.withHour(WorkCode.WORK_START_HOUR)
-                                .withMinute(0)
-                                .withSecond(0);
-                    } else {
-                        // After end of day - wait until tomorrow 5 AM
-                        nextCheck = now.plusDays(1)
-                                .withHour(WorkCode.WORK_START_HOUR)
-                                .withMinute(0)
-                                .withSecond(0);
-                    }
-
-                    LoggerUtil.debug(this.getClass(),
-                            String.format("Outside working hours, skipping notification checks until %s",
-                                    nextCheck.format(DateTimeFormatter.ISO_DATE_TIME)));
-                }
-
+            // Quick pre-check for weekend or non-working hours
+            if (!isCurrentlyWorkingHours()) {
                 return;
             }
 
-
-            // Get the current active user
             User user = getCurrentActiveUser();
             if (user == null) {
                 return;
@@ -176,34 +132,141 @@ public class NotificationCheckerService {
             String username = user.getUsername();
             Integer userId = user.getUserId();
 
-            LoggerUtil.debug(this.getClass(), String.format("Checking notifications for user %s", username));
+            // ========================================
+            // ALWAYS RUN: Non-session notifications
+            // ========================================
+            checkNonSessionNotifications(username, userId);
 
-            // Always check for resolution reminder first (highest priority)
-            checkForResolutionReminder(username, userId);
-
-            // Next check start day reminder if necessary
-            checkForStartDayReminder(username, userId);
-
-            // Get current session and skip if null
-            WorkUsersSessionsStates session = dataAccessService.readLocalSessionFile(username, userId);
-            if (session == null) {
-                return;
-            }
-
-            // Check various notification types based on session state
-            if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-                // Online session - check for schedule completion and hourly warnings
-                checkScheduleCompletion(session, user);
-                checkHourlyWarning(session);
-
-            } else if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                // Temporary stop - check for temp stop notifications
-                checkTempStopDuration(session);
+            // ========================================
+            // CONDITIONAL: Session-dependent notifications
+            // ========================================
+            WorkUsersSessionsStates session = getSessionWithFallback(username, userId);
+            if (session != null) {
+                checkSessionDependentNotifications(session, user);
             }
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error checking for notifications: " + e.getMessage(), e);
             healthMonitor.recordTaskFailure("notification-checker", e.getMessage());
+        }
+    }
+
+    /**
+     * Checks if it's currently working hours and logs appropriate messages
+     * @return true if it's working hours on a weekday, false otherwise
+     */
+    private boolean isCurrentlyWorkingHours() {
+        IsWeekdayCommand weekdayCommand = timeValidationService.getValidationFactory().createIsWeekdayCommand();
+        IsWorkingHoursCommand workingHoursCommand = timeValidationService.getValidationFactory().createIsWorkingHoursCommand();
+
+        boolean isWeekday = timeValidationService.execute(weekdayCommand);
+        boolean isWorkingHours = timeValidationService.execute(workingHoursCommand);
+
+        // If it's working hours on a weekday, return true
+        if (isWeekday && isWorkingHours) {
+            return true;
+        }
+
+        // Otherwise, log why we're skipping and return false
+        logNonWorkingHoursReason(isWeekday);
+        return false;
+    }
+
+    /**
+     * Logs detailed information about why notification checks are being skipped
+     * @param isWeekday whether today is a weekday
+     */
+    private void logNonWorkingHoursReason(boolean isWeekday) {
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        LocalDateTime now = timeValues.getCurrentTime();
+
+        if (!isWeekday) {
+            LocalDateTime nextWorkingTime = calculateNextMondayMorning(now);
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Weekend detected, skipping notification checks until %s",
+                            nextWorkingTime.format(DateTimeFormatter.ISO_DATE_TIME)));
+        } else {
+            LocalDateTime nextWorkingTime = calculateNextWorkingHours(now);
+            LoggerUtil.debug(this.getClass(),
+                    String.format("Outside working hours, skipping notification checks until %s",
+                            nextWorkingTime.format(DateTimeFormatter.ISO_DATE_TIME)));
+        }
+    }
+
+    /**
+     * Calculates the next Monday morning at work start time
+     * @param currentTime the current time
+     * @return LocalDateTime for next Monday at work start hour
+     */
+    private LocalDateTime calculateNextMondayMorning(LocalDateTime currentTime) {
+        int daysUntilMonday = 8 - currentTime.getDayOfWeek().getValue(); // Monday is 1, so 8-day = days until next Monday
+        if (daysUntilMonday > 7) {
+            daysUntilMonday -= 7; // Make sure we're getting the next Monday
+        }
+
+        return currentTime.plusDays(daysUntilMonday)
+                .withHour(WorkCode.WORK_START_HOUR)
+                .withMinute(0)
+                .withSecond(0);
+    }
+
+    /**
+     * Calculates the next working hours start time
+     * @param currentTime the current time
+     * @return LocalDateTime for next working hours start
+     */
+    private LocalDateTime calculateNextWorkingHours(LocalDateTime currentTime) {
+        if (currentTime.getHour() < WorkCode.WORK_START_HOUR) {
+            // Before start of day - wait until work start hour today
+            return currentTime.withHour(WorkCode.WORK_START_HOUR)
+                    .withMinute(0)
+                    .withSecond(0);
+        } else {
+            // After end of day - wait until tomorrow at work start hour
+            return currentTime.plusDays(1)
+                    .withHour(WorkCode.WORK_START_HOUR)
+                    .withMinute(0)
+                    .withSecond(0);
+        }
+    }
+
+    private void checkNonSessionNotifications(String username, Integer userId) {
+        // Always check these regardless of session state
+        checkForResolutionReminder(username, userId);
+        checkForStartDayReminder(username, userId);
+    }
+
+    private WorkUsersSessionsStates getSessionWithFallback(String username, Integer userId) {
+        // Try cache first
+        WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+
+        if (session == null) {
+            LoggerUtil.debug(this.getClass(), String.format("Cache miss for user %s, trying file fallback", username));
+
+            try {
+                // Fallback to read-only file access
+                session = dataAccessService.readLocalSessionFileReadOnly(username, userId);
+
+                if (session != null) {
+                    LoggerUtil.info(this.getClass(), String.format("File fallback successful for user %s", username));
+                    // Refresh cache for next time
+                    sessionCacheService.refreshCacheFromFile(username, session);
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format("File fallback failed for user %s: %s", username, e.getMessage()));
+            }
+        }
+
+        return session;
+    }
+
+    private void checkSessionDependentNotifications(WorkUsersSessionsStates session, User user) {
+        if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
+            checkScheduleCompletion(session, user);
+            checkHourlyWarning(session);
+        } else if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+            checkTempStopDuration(session);
         }
     }
 

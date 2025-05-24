@@ -15,16 +15,15 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 @EnableScheduling
 public class SchedulingConfiguration implements SchedulingConfigurer {
 
-    private final TaskScheduler sessionMonitorScheduler;
+    private final TaskScheduler generalTaskScheduler;
 
-    public SchedulingConfiguration(@Qualifier("sessionMonitorScheduler") TaskScheduler sessionMonitorScheduler) {
-        this.sessionMonitorScheduler = sessionMonitorScheduler;
+    public SchedulingConfiguration(@Qualifier("generalTaskScheduler") TaskScheduler generalTaskScheduler) {
+        this.generalTaskScheduler = generalTaskScheduler;
     }
 
     @Override
     public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
-
-        // Explicitly set the scheduler to use for @Scheduled annotations
-        taskRegistrar.setScheduler(sessionMonitorScheduler);
+        // Use general scheduler for @Scheduled annotations (except SessionMonitor)
+        taskRegistrar.setScheduler(generalTaskScheduler);
     }
 }
