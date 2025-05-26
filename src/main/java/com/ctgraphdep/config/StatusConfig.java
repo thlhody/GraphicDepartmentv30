@@ -10,6 +10,9 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 
 /**
@@ -49,8 +52,8 @@ public class StatusConfig {
             // STEP 1: Get all users from UserService
             var allUsers = userService.getAllUsers().stream()
                     .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals("ROLE_ADMIN") &&
-                            !user.getUsername().equalsIgnoreCase("admin"))
+                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
+                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
                     .toList();
 
             LoggerUtil.info(this.getClass(), String.format("Found %d non-admin users to initialize in status cache", allUsers.size()));
@@ -111,8 +114,8 @@ public class StatusConfig {
             // Find the local user by checking which user has local files
             var allUsers = userService.getAllUsers().stream()
                     .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals("ROLE_ADMIN") &&
-                            !user.getUsername().equalsIgnoreCase("admin"))
+                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
+                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
                     .toList();
 
             for (var user : allUsers) {
@@ -146,10 +149,10 @@ public class StatusConfig {
     private boolean hasLocalSessionFile(String username, Integer userId) {
         try {
             // Try to get local session path and check if file exists
-            java.nio.file.Path sessionPath = java.nio.file.Paths.get(System.getProperty("user.home"), "CTTT", "user_session",
+            Path sessionPath = Paths.get(System.getProperty("user.home"), "CTTT", "user_session",
                     String.format("session_%s_%d.json", username, userId));
 
-            return java.nio.file.Files.exists(sessionPath);
+            return Files.exists(sessionPath);
         } catch (Exception e) {
             // If we can't determine, assume not local
             return false;
@@ -167,8 +170,8 @@ public class StatusConfig {
             // Get current user count from UserService
             long userServiceCount = userService.getAllUsers().stream()
                     .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals("ROLE_ADMIN") &&
-                            !user.getUsername().equalsIgnoreCase("admin"))
+                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
+                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
                     .count();
 
             // Get current cache count
@@ -210,8 +213,8 @@ public class StatusConfig {
             // User service count
             long userServiceCount = userService.getAllUsers().stream()
                     .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals("ROLE_ADMIN") &&
-                            !user.getUsername().equalsIgnoreCase("admin"))
+                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
+                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
                     .count();
 
             // Cache count

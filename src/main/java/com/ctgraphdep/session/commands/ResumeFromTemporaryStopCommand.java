@@ -19,6 +19,7 @@ import java.util.List;
 public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
     private final String username;
     private final Integer userId;
+    private static final long RESUME_COOLDOWN_MS = 1500; // 1.5 seconds
 
     /**
      * Creates a command to resume work after a temporary stop
@@ -36,6 +37,11 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
 
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
+        return executeWithDeduplication(context, username, this::executeResumeLogic, null, RESUME_COOLDOWN_MS);
+    }
+
+
+    public WorkUsersSessionsStates executeResumeLogic(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Resuming work for user %s after temporary stop", username));
 

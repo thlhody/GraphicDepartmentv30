@@ -1,5 +1,6 @@
 package com.ctgraphdep.model;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
@@ -45,6 +46,6 @@ public class User {
 
     // Update isAdmin method to use consistent role checking
     public boolean isAdmin() {
-        return hasRole("ADMIN"); // This will now check for both "ADMIN" and "ROLE_ADMIN"
+        return hasRole(SecurityConstants.ROLE_ADMIN);
     }
 }

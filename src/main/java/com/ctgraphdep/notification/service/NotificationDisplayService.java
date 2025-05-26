@@ -618,6 +618,10 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         };
 
         contentPanel.setPreferredSize(new Dimension(NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT - BUTTONS_PANEL_HEIGHT));
+        contentPanel.setLayout(null); // Use absolute positioning for close button
+
+        // Add close button (this will appear on top of the background)
+        addCloseButton(contentPanel, dialog);
 
         // Make dialog draggable by adding mouse listeners
         MouseAdapter dragAdapter = new MouseAdapter() {
@@ -625,6 +629,11 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
             @Override
             public void mousePressed(MouseEvent e) {
+                // Skip dragging if clicking on close button
+                Component clickedComponent = contentPanel.getComponentAt(e.getPoint());
+                if (clickedComponent instanceof JButton) {
+                    return;
+                }
                 initialClick = e.getPoint();
             }
 
@@ -737,6 +746,112 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             screen = screens[monitorNumber - 1]; // Array is 0-based, config is 1-based
         }
         return screen;
+    }
+
+    /**
+     * Adds a close button to the top right corner of the notification
+     */
+    private void addCloseButton(JPanel contentPanel, JDialog dialog) {
+        // Create close button with × symbol
+        JButton closeButton = new JButton("×");
+        closeButton.setFont(new Font("Arial", Font.BOLD, 20));
+        closeButton.setForeground(Color.WHITE);
+        closeButton.setBackground(new Color(255, 69, 58)); // iOS-style red
+        closeButton.setFocusPainted(false);
+        closeButton.setBorderPainted(false);
+        closeButton.setOpaque(true);
+
+        // Style the button to look circular
+        closeButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 50, 40), 1),
+                BorderFactory.createEmptyBorder(2, 2, 2, 2)
+        ));
+
+        // Position at top right corner with margin
+        int buttonSize = 28;
+        int margin = 12;
+        closeButton.setBounds(NOTIFICATION_WIDTH - buttonSize - margin, margin, buttonSize, buttonSize);
+
+        // Add hover effects
+        closeButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                closeButton.setBackground(new Color(255, 105, 97)); // Lighter red on hover
+                closeButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            }
+
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                closeButton.setBackground(new Color(255, 69, 58)); // Original red
+                closeButton.setCursor(Cursor.getDefaultCursor());
+            }
+        });
+
+        // Add click handler - dismiss without affecting backup logic
+        closeButton.addActionListener(e -> {
+            LoggerUtil.info(this.getClass(), "User dismissed notification via close button");
+            dismissNotificationOnly(dialog);
+        });
+
+        // Add tooltip
+        closeButton.setToolTipText("Close notification");
+
+        contentPanel.add(closeButton);
+    }
+
+    /**
+     * Dismisses the notification dialog without affecting backup tasks or business logic.
+     * This allows the notification to reappear if the underlying condition still exists.
+     */
+    private void dismissNotificationOnly(JDialog dialog) {
+        try {
+            // Get dialog info for logging
+            String username = "unknown";
+            String notificationType = "unknown";
+
+            if (dialog.getRootPane() != null) {
+                Object usernameObj = dialog.getRootPane().getClientProperty("username");
+                Object typeObj = dialog.getRootPane().getClientProperty("notificationType");
+
+                if (usernameObj instanceof String) {
+                    username = (String) usernameObj;
+                }
+                if (typeObj instanceof String) {
+                    notificationType = (String) typeObj;
+                }
+            }
+
+            // Dispose the dialog
+            dialog.dispose();
+
+            // Remove from active dialogs map
+            activeDialogs.entrySet().removeIf(entry ->
+                    entry.getValue() == dialog || entry.getValue() == null || !entry.getValue().isDisplayable());
+
+            // Clean up visibility timers for this specific dialog
+            if (dialog.getRootPane() != null) {
+                Object usernameObj = dialog.getRootPane().getClientProperty("username");
+                Object typeObj = dialog.getRootPane().getClientProperty("notificationType");
+
+                if (usernameObj instanceof String usernameStr && typeObj instanceof String notificationTypeStr) {
+                    String timerKey = usernameStr + "_visibility_" + notificationTypeStr;
+                    Timer timer = timers.remove(timerKey);
+                    if (timer != null) {
+                        timer.stop();
+                        LoggerUtil.debug(this.getClass(), String.format("Stopped visibility timer for dismissed %s notification (%s)", notificationTypeStr, usernameStr));
+                    }
+                }
+            }
+
+            // CRITICAL: Do NOT cancel backup tasks here
+            // Do NOT call backupService.cancelBackupTask(username)
+            // Do NOT call handleNotificationResponse()
+            // Do NOT set userResponded.set(true)
+            // This allows the notification to reappear based on the backup service logic
+
+            LoggerUtil.info(this.getClass(), String.format("Notification dismissed via close button - User: %s, Type: %s (backup tasks preserved)", username, notificationType));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error dismissing notification: " + e.getMessage(), e);
+        }
     }
 
     /**

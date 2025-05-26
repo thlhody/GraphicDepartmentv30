@@ -1,5 +1,6 @@
 package com.ctgraphdep.fileOperations.service;
 
+import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
@@ -119,7 +120,7 @@ public class BackupService {
 
                 // Also create a copy in the structured directory
                 Path backupDir = getBackupDirectory(originalPath, level);
-                Path structuredBackupPath = backupDir.resolve(path.getFileName().toString() + ".bak");
+                Path structuredBackupPath = backupDir.resolve(path.getFileName().toString() + FileTypeConstants.BACKUP_EXTENSION);
                 Files.createDirectories(structuredBackupPath.getParent());
                 Files.copy(path, structuredBackupPath, StandardCopyOption.REPLACE_EXISTING);
                 LoggerUtil.debug(this.getClass(), "Created Level 1 structured backup: " + structuredBackupPath);
@@ -133,7 +134,7 @@ public class BackupService {
 
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
             String originalFilename = path.getFileName().toString();
-            Path timestampedBackupPath = backupDir.resolve(originalFilename + "." + timestamp + ".bak");
+            Path timestampedBackupPath = backupDir.resolve(originalFilename + "." + timestamp + FileTypeConstants.BACKUP_EXTENSION);
 
             // Ensure parent directories exist
             Files.createDirectories(timestampedBackupPath.getParent());
@@ -216,7 +217,7 @@ public class BackupService {
             if (parts.length > 3 && parts[3].matches("\\d{4}")) {
                 backupSubDir = backupSubDir.resolve(parts[3]); // year
                 if (parts.length > 4 && parts[4].matches("\\d{2}")) {
-                    backupSubDir = backupSubDir.resolve(parts[4].replace(".json", "")); // month
+                    backupSubDir = backupSubDir.resolve(parts[4].replace(FileTypeConstants.JSON_EXTENSION, "")); // month
                 }
             }
         }
@@ -321,7 +322,7 @@ public class BackupService {
             try (Stream<Path> files = Files.list(backupDir)) {
                 return files
                         .filter(p -> p.getFileName().toString().startsWith(filenamePrefix + "."))
-                        .filter(p -> p.getFileName().toString().endsWith(".bak"))
+                        .filter(p -> p.getFileName().toString().endsWith(FileTypeConstants.BACKUP_EXTENSION))
                         .max(Comparator.comparing(p -> {
                             try {
                                 return Files.getLastModifiedTime(p);
@@ -355,7 +356,7 @@ public class BackupService {
             try (Stream<Path> files = Files.list(backupDir)) {
                 backups = files
                         .filter(p -> p.getFileName().toString().startsWith(filenamePrefix + "."))
-                        .filter(p -> p.getFileName().toString().endsWith(".bak"))
+                        .filter(p -> p.getFileName().toString().endsWith(FileTypeConstants.BACKUP_EXTENSION))
                         .sorted(Comparator.comparing((Path p) -> {
                             try {
                                 return Files.getLastModifiedTime(p);
@@ -397,7 +398,7 @@ public class BackupService {
             try (Stream<Path> files = Files.list(backupDir)) {
                 backups = files
                         .filter(p -> p.getFileName().toString().startsWith(filenamePrefix + "."))
-                        .filter(p -> p.getFileName().toString().endsWith(".bak"))
+                        .filter(p -> p.getFileName().toString().endsWith(FileTypeConstants.BACKUP_EXTENSION))
                         .sorted(Comparator.comparing(p -> {
                             try {
                                 return Files.getLastModifiedTime(p);
@@ -570,7 +571,7 @@ public class BackupService {
                 @Override
                 public @NotNull FileVisitResult visitFile(@NotNull Path file, @NotNull BasicFileAttributes attrs) throws IOException {
                     // Skip simple .bak files (they're managed separately)
-                    if (file.getFileName().toString().endsWith(".bak") &&
+                    if (file.getFileName().toString().endsWith(FileTypeConstants.BACKUP_EXTENSION) &&
                             !file.getFileName().toString().contains(".")) {
                         return FileVisitResult.CONTINUE;
                     }

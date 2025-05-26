@@ -18,6 +18,7 @@ import java.util.List;
 public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
     private final String username;
     private final Integer userId;
+    private static final long TEMP_STOP_COOLDOWN_MS = 1500; // 1.5 seconds
 
     /**
      * Creates a command to start a temporary stop
@@ -33,8 +34,14 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
         this.userId = userId;
     }
 
+
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
+        return executeWithDeduplication(context, username, this::executeTempStopLogic, null, TEMP_STOP_COOLDOWN_MS);
+    }
+
+
+    public WorkUsersSessionsStates executeTempStopLogic(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Starting temporary stop for user: %s", username));
 

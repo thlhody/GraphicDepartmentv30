@@ -1,4 +1,4 @@
-package com.ctgraphdep.fileOperations.events;
+package com.ctgraphdep.monitoring.events;
 
 import lombok.Getter;
 import org.springframework.context.ApplicationEvent;

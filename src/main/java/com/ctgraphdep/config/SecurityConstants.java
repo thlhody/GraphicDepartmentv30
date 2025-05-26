@@ -22,7 +22,9 @@ public final class SecurityConstants {
     public static final String SPRING_ROLE_CHECKING = "ROLE_CHECKING";
     public static final String SPRING_ROLE_USER_CHECKING = "ROLE_USER_CHECKING";
 
+    public static final String ADMIN_SIMPLE = "admin";
+
     private SecurityConstants() {
-        // Prevent instantiation
+        throw new UnsupportedOperationException("Security class cannot be instantiated");
     }
 }

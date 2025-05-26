@@ -22,6 +22,7 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
     private final Integer userId;
     private final Integer finalMinutes;
     private final LocalDateTime explicitEndTime;
+    private static final long END_COMMAND_COOLDOWN_MS = 2000; // 2 seconds
 
     /**
      * Creates a new command to end a work day with explicit end time
@@ -47,6 +48,11 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
 
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
+        // Use deduplication with custom cooldown
+        return executeWithDeduplication(context, username, this::executeEndDayLogic, null, END_COMMAND_COOLDOWN_MS);
+    }
+
+    public WorkUsersSessionsStates executeEndDayLogic(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Executing EndDayCommand for user %s with %d minutes", username, finalMinutes != null ? finalMinutes : 0));
 

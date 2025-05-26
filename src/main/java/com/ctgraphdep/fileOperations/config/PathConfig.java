@@ -1,7 +1,7 @@
 package com.ctgraphdep.fileOperations.config;
 
 import com.ctgraphdep.fileOperations.core.FilePath;
-import com.ctgraphdep.fileOperations.events.NetworkStatusChangedEvent;
+import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
 import com.ctgraphdep.fileOperations.util.FileOperationsUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;

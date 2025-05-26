@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.FlagInfo;
@@ -448,7 +449,7 @@ public class ReadFileNameStatusService {
      */
     private FlagInfo parseFlagFilename(String filename) {
         // Remove .flag extension
-        filename = filename.replace(".flag", "");
+        filename = filename.replace(FileTypeConstants.FLAG_EXTENSION, "");
 
         // Split by underscore
         String[] parts = filename.split("_");

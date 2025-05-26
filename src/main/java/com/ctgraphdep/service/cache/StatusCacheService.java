@@ -1,8 +1,10 @@
 package com.ctgraphdep.service.cache;
 
+import com.ctgraphdep.config.FileTypeConstants;
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.DataAccessService;
-import com.ctgraphdep.fileOperations.events.NetworkStatusChangedEvent;
+import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
 import com.ctgraphdep.model.FlagInfo;
 import com.ctgraphdep.model.LocalStatusCache;
 import com.ctgraphdep.model.User;
@@ -343,8 +345,8 @@ public class StatusCacheService {
             // Get all non-admin users
             List<User> allUsers = userService.getAllUsers().stream()
                     .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals("ROLE_ADMIN") &&
-                            !user.getUsername().equalsIgnoreCase("admin"))
+                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
+                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
                     .toList();
 
             // Get set of valid usernames for cleanup
@@ -355,7 +357,7 @@ public class StatusCacheService {
             // Remove users that no longer exist or are admin
             Set<String> usernamesToRemove = new HashSet<>();
             for (String username : statusCache.keySet()) {
-                if (!validUsernames.contains(username) || username.equalsIgnoreCase("admin")) {
+                if (!validUsernames.contains(username) || username.equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE)) {
                     usernamesToRemove.add(username);
                 }
             }
@@ -364,14 +366,14 @@ public class StatusCacheService {
             for (String username : usernamesToRemove) {
                 statusCache.remove(username);
                 LoggerUtil.info(this.getClass(),
-                        username.equalsIgnoreCase("admin") ?
+                        username.equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE) ?
                                 "Removed admin user from status cache" :
                                 "Removed non-existent user from status cache: " + username);
             }
 
             // Update/create cache entries for valid users
             for (User user : allUsers) {
-                if (user.isAdmin() || user.getUsername().equalsIgnoreCase("admin")) {
+                if (user.isAdmin() || user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE)) {
                     continue;
                 }
 
@@ -467,8 +469,8 @@ public class StatusCacheService {
         try {
             List<User> allUsers = userService.getAllUsers().stream()
                     .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals("ROLE_ADMIN") &&
-                            !user.getUsername().equalsIgnoreCase("admin"))
+                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
+                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
                     .toList();
 
             for (User user : allUsers) {
@@ -492,10 +494,10 @@ public class StatusCacheService {
     private FlagInfo parseFlagFilename(String filename) {
         try {
             // Remove .flag extension
-            filename = filename.replace(".flag", "");
+            filename = filename.replace(FileTypeConstants.FLAG_EXTENSION, WorkCode.EMPTY);
 
             // Split by underscore
-            String[] parts = filename.split("_");
+            String[] parts = filename.split(WorkCode.SPLIT_UNDERSCORE);
 
             // Expected format: status_username_dateCode_timeCode_statusCode
             if (parts.length >= 5) {
@@ -529,11 +531,11 @@ public class StatusCacheService {
         LocalDate today = LocalDate.now();
 
         switch (code) {
-            case "1a1": return today;
-            case "1b1": return today.minusDays(1);
-            case "1c1": return today.minusDays(2);
+            case WorkCode.TODAY: return today;
+            case WorkCode.TOMORROW: return today.minusDays(1);
+            case WorkCode.YESTERDAY: return today.minusDays(2);
             default:
-                if (code.startsWith("X") && code.length() == 5) {
+                if (code.startsWith(WorkCode.DATE) && code.length() == 5) {
                     try {
                         int month = Integer.parseInt(code.substring(1, 3));
                         int day = Integer.parseInt(code.substring(3, 5));
@@ -551,7 +553,7 @@ public class StatusCacheService {
      * Convert time code to LocalTime (same logic as ReadFileNameStatusService)
      */
     private LocalTime getTimeFromCode(String code) {
-        if (code.startsWith("T") && code.length() == 5) {
+        if (code.startsWith(WorkCode.TIME) && code.length() == 5) {
             try {
                 int hour = Integer.parseInt(code.substring(1, 3));
                 int minute = Integer.parseInt(code.substring(3, 5));
@@ -568,8 +570,8 @@ public class StatusCacheService {
      */
     private String getStatusFromCode(String code) {
         return switch (code) {
-            case "ON" -> WorkCode.WORK_ONLINE;
-            case "TS" -> WorkCode.WORK_TEMPORARY_STOP;
+            case WorkCode.WORK_ON -> WorkCode.WORK_ONLINE;
+            case WorkCode.WORK_TS -> WorkCode.WORK_TEMPORARY_STOP;
             default -> WorkCode.WORK_OFFLINE;
         };
     }

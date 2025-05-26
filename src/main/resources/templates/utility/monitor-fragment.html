@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+
+<!-- Cache & System Monitoring Fragment -->
+<div th:fragment="monitor-utility" class="utility-section" id="monitor-utility">
+  <div class="utility-header">
+    <div class="utility-icon">
+      <i class="bi bi-activity"></i>
+    </div>
+    <div class="utility-info">
+      <h3 class="utility-title">Cache & System Monitor</h3>
+      <p class="utility-description">
+        Monitor cache health and system performance.<br>
+        Validate cache consistency and view diagnostics.
+      </p>
+    </div>
+    <div class="utility-toggle">
+      <button class="btn-subtle" data-bs-toggle="collapse" data-bs-target="#monitor-controls"
+              aria-expanded="false" aria-controls="monitor-controls">
+        <i class="bi bi-chevron-down toggle-icon"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="collapse utility-controls" id="monitor-controls">
+    <div class="controls-grid">
+      <!-- Cache Operations -->
+      <div class="control-group">
+        <label class="control-label">Cache Operations</label>
+        <div class="action-buttons">
+          <button id="view-cache-status-btn" class="btn-action info">
+            <i class="bi bi-eye"></i>
+            <span>Status</span>
+          </button>
+          <button id="validate-cache-btn" class="btn-action warning">
+            <i class="bi bi-check-circle"></i>
+            <span>Validate</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- System Health -->
+      <div class="control-group">
+        <label class="control-label">System Health</label>
+        <div class="action-buttons">
+          <button id="health-check-btn" class="btn-action success" disabled>
+            <i class="bi bi-heart-pulse"></i>
+            <span>Check</span>
+          </button>
+          <button id="diagnostics-btn" class="btn-action secondary" disabled>
+            <i class="bi bi-tools"></i>
+            <span>Diagnostics</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="control-group">
+        <label class="control-label">Quick Stats</label>
+        <div class="stats-display" id="quick-stats">
+          <div class="stat-item">
+            <span class="stat-label">Cache Status</span>
+            <span class="stat-value" id="cache-status-indicator">Unknown</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Last Check</span>
+            <span class="stat-value" id="last-check-time">Never</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Area -->
+    <div id="monitor-results" class="results-area" style="display: none;">
+      <div class="results-header">
+        <h4 class="results-title">Monitor Results</h4>
+        <button id="clear-monitor-results" class="btn-clear">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+      <div id="monitor-content" class="results-content">
+        <!-- Monitor results will be loaded here -->
+      </div>
+    </div>
+  </div>
+</div>
+</html>

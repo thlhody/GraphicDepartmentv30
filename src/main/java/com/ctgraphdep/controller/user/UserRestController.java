@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.user;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
@@ -34,7 +35,7 @@ public class UserRestController extends BaseController {
         LoggerUtil.info(this.getClass(), "Fetching all users at " + getStandardCurrentDateTime());
 
         // Use validateUserAccess for admin role verification
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -53,7 +54,7 @@ public class UserRestController extends BaseController {
         LoggerUtil.info(this.getClass(), "Fetching user with ID: " + userId + " at " + getStandardCurrentDateTime());
 
         // Use validateUserAccess for admin role verification
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -70,7 +71,7 @@ public class UserRestController extends BaseController {
         LoggerUtil.info(this.getClass(), "Updating user with ID: " + userId + " at " + getStandardCurrentDateTime());
 
         // Use validateUserAccess for admin role verification
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
         }
@@ -81,7 +82,7 @@ public class UserRestController extends BaseController {
         }
 
         // Prevent updating to ADMIN role
-        if ("ADMIN".equals(user.getRole())) {
+        if (SecurityConstants.ROLE_ADMIN.equals(user.getRole())) {
             return ResponseEntity.badRequest().body("Cannot update to ADMIN role");
         }
 
@@ -111,7 +112,7 @@ public class UserRestController extends BaseController {
         LoggerUtil.info(this.getClass(), "Deleting user with ID: " + userId + " at " + getStandardCurrentDateTime());
 
         // Use validateUserAccess for admin role verification
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
         }

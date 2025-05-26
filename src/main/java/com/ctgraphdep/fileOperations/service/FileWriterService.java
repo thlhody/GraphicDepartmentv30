@@ -3,221 +3,494 @@ package com.ctgraphdep.fileOperations.service;
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
+import com.ctgraphdep.fileOperations.events.FileEventPublisher;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Enhanced service for writing files with proper locking, backup, and criticality levels.
+ * COMPLETELY REFACTORED: Enhanced service for writing files with comprehensive locking,
+ * retry mechanisms, and request deduplication to eliminate file access conflicts.
+ * Key Features:
+ * - File-level locking with timeout
+ * - Exponential backoff retry for file conflicts
+ * - Request deduplication to prevent rapid clicks
+ * - Coordinated async operations
+ * - Event-driven backup system integration
  */
 @Service
 public class FileWriterService {
+
+    // === CORE DEPENDENCIES ===
     private final ObjectMapper objectMapper;
     private final FilePathResolver pathResolver;
-    private final BackupService backupService;
     private final SyncFilesService syncService;
     private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
+    private final FileEventPublisher fileEventPublisher;
+
+    // === FILE LOCKING SYSTEM ===
+    // Per-file locks to prevent concurrent access to same file
+    private final Map<Path, ReentrantReadWriteLock> fileLocks = new ConcurrentHashMap<>();
+    private static final long FILE_LOCK_TIMEOUT_MS = 5000; // 5 seconds max wait for lock
+
+    // === RETRY CONFIGURATION ===
+    private static final int MAX_RETRIES = 3;
+    private static final long INITIAL_RETRY_DELAY_MS = 500;  // Start with 500ms
+    private static final long MAX_RETRY_DELAY_MS = 3000;     // Cap at 3 seconds
+
+    // === REQUEST DEDUPLICATION ===
+    // Prevent rapid clicks by tracking recent write attempts
+    private final Map<String, Long> lastWriteAttempts = new ConcurrentHashMap<>();
+    private static final long MIN_WRITE_INTERVAL_MS = 1000; // 1 second between writes per user/file
+
+    // === ASYNC OPERATION TRACKING ===
+    // Track ongoing async operations to coordinate with new requests
+    private final Map<String, CompletableFuture<Void>> pendingSyncs = new ConcurrentHashMap<>();
 
     @Autowired
     public FileWriterService(
             ObjectMapper objectMapper,
             FilePathResolver pathResolver,
-            BackupService backupService,
             SyncFilesService syncService,
             PathConfig pathConfig,
-            FileObfuscationService obfuscationService) {
+            FileObfuscationService obfuscationService,
+            FileEventPublisher fileEventPublisher) {
         this.objectMapper = objectMapper;
         this.pathResolver = pathResolver;
-        this.backupService = backupService;
         this.syncService = syncService;
         this.pathConfig = pathConfig;
         this.obfuscationService = obfuscationService;
+        this.fileEventPublisher = fileEventPublisher;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    // ========================================================================
+    // PUBLIC API METHODS
+    // ========================================================================
+
     /**
-     * Determines the criticality level of a file based on its path and type
-     * @param filePath The file path
-     * @return The appropriate criticality level
-     */
-    private BackupService.CriticalityLevel determineCriticalityLevel(FilePath filePath) {
-        Path path = filePath.getPath();
-        String pathStr = path.toString().toLowerCase();
-        String fileName = path.getFileName().toString().toLowerCase();
-
-        LoggerUtil.debug(this.getClass(), "Determining criticality for: " + pathStr);
-
-        // LEVEL1_LOW - Status files, temporary files
-        if (pathStr.contains("status") || fileName.startsWith("status_") ||
-                pathStr.contains("temp") || pathStr.contains("cache")) {
-            return BackupService.CriticalityLevel.LEVEL1_LOW;
-        }
-
-        // LEVEL3_HIGH - Critical user and business data
-        if (pathStr.contains("worktime") || pathStr.contains("registru") ||
-                pathStr.contains("register") || pathStr.contains("timeoff") ||
-                (pathStr.contains("user") && !pathStr.contains("session")) ||
-                pathStr.contains("check") || pathStr.contains("bonus") ||
-                fileName.contains("worktime") || fileName.contains("registru") ||
-                fileName.contains("register") || fileName.contains("timeoff")) {
-            LoggerUtil.info(this.getClass(), "High criticality file detected: " + pathStr);
-            return BackupService.CriticalityLevel.LEVEL3_HIGH;
-        }
-
-        // LEVEL2_MEDIUM - Session files and everything else
-        if (pathStr.contains("session") || fileName.contains("session") ||
-                pathStr.contains("team")) {
-            return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
-        }
-
-        // Default to medium criticality for unknown files
-        return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
-    }
-    /**
-     * Writes data to a file with proper locking and backup based on criticality level
-     * This is the primary method used by the application
+     * Primary write method with full protection against concurrent access conflicts.
+     * This is the main entry point for all file write operations.
+     *
      * @param filePath The file path to write to
      * @param data The data to write
      * @param skipObfuscation Whether to skip obfuscation (for user files)
      * @return The result of the operation
      */
     public <T> FileOperationResult writeFile(FilePath filePath, T data, boolean skipObfuscation) {
+        return writeFileWithBackupControl(filePath, data, skipObfuscation, true);
+    }
+
+    /**
+     * Write file with control over backup creation.
+     *
+     * @param filePath The file path to write to
+     * @param data The data to write
+     * @param skipObfuscation Whether to skip obfuscation
+     * @param shouldCreateBackup Whether backup should be created via events
+     * @return The result of the operation
+     */
+    public <T> FileOperationResult writeFileWithBackupControl(FilePath filePath, T data,
+                                                              boolean skipObfuscation, boolean shouldCreateBackup) {
+
         Path path = filePath.getPath();
+        String username = getCurrentUsername();
+        Integer userId = filePath.getUserId().orElse(null);
 
-        // Determine criticality level for this file
-        BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel(filePath);
+        // 1. REQUEST DEDUPLICATION - Prevent rapid clicks
+        if (!canAttemptWrite(username, path)) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Write attempt too soon for user %s, file %s - ignoring duplicate request",
+                    username, path.getFileName()));
 
-        // Log the determined criticality level
-        LoggerUtil.info(this.getClass(), String.format(
-                "Writing file %s with criticality level %s", path, criticalityLevel));
-
-        // Acquire write lock
-        ReentrantReadWriteLock.WriteLock writeLock = pathResolver.getLock(filePath).writeLock();
-        writeLock.lock();
-
-        try {
-            // Create backup based on criticality level if file exists
-            if (Files.exists(path)) {
-                FileOperationResult backupResult = backupService.createBackup(filePath, criticalityLevel);
-                if (!backupResult.isSuccess()) {
-                    LoggerUtil.warn(this.getClass(), "Failed to create backup: " +
-                            backupResult.getErrorMessage().orElse("Unknown error"));
-                } else {
-                    LoggerUtil.info(this.getClass(), "Successfully created backup with criticality level " +
-                            criticalityLevel);
-                }
-            }
-
-            // Create parent directories if needed
-            Files.createDirectories(path.getParent());
-
-            // Serialize data
-            byte[] content = objectMapper.writeValueAsBytes(data);
-
-            // Apply obfuscation if needed
-            if (!skipObfuscation) {
-                content = obfuscationService.obfuscate(content);
-            }
-
-            try {
-                // Write to file
-                Files.write(path, content);
-                LoggerUtil.info(this.getClass(), "Successfully wrote to file: " + path);
-
-                // For low criticality files, delete backup after successful write
-                if (criticalityLevel == BackupService.CriticalityLevel.LEVEL1_LOW) {
-                    backupService.deleteSimpleBackup(filePath);
-                }
-
-                return FileOperationResult.success(path);
-            } catch (Exception e) {
-                // Restore from backup if write fails
-                try {
-                    // For low/medium criticality, use simple backup
-                    if (criticalityLevel != BackupService.CriticalityLevel.LEVEL3_HIGH) {
-                        backupService.restoreFromSimpleBackup(filePath);
-                    } else {
-                        // For high criticality, use latest backup
-                        backupService.restoreFromLatestBackup(filePath, criticalityLevel);
-                    }
-                    LoggerUtil.warn(this.getClass(), "Successfully restored from backup after write failure");
-                } catch (Exception re) {
-                    LoggerUtil.error(this.getClass(), "Failed to restore from backup: " + re.getMessage(), re);
-                }
-
-                return FileOperationResult.failure(path, "Failed to write file: " + e.getMessage(), e);
-            }
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Error writing file: " + path, e);
-            return FileOperationResult.failure(path, "Error writing file: " + e.getMessage(), e);
-        } finally {
-            writeLock.unlock();
+            // Return success to avoid UI errors from rapid clicking
+            return FileOperationResult.success(path);
         }
+
+        // 2. EXECUTE WITH RETRY AND LOCKING
+        return executeWriteWithRetry(filePath, data, skipObfuscation, shouldCreateBackup, username, userId);
     }
 
     /**
-     * Checks if the current user has permission to write to a file
-     * @param filePath The file path
-     * @return True if the user has permission
-     */
-    public boolean hasWritePermission(FilePath filePath) {
-        // Get current user
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        // Users can always write their own files
-        return filePath.getUsername()
-                .map(username -> username.equals(currentUsername))
-                .orElse(false);
-    }
-
-    /**
-     * Checks if the network is available
-     * @return True if the network is available
-     */
-    private boolean isNetworkAvailable() {
-        return pathConfig.isNetworkAvailable();
-    }
-
-    /**
-     * This methods writes locally and syncs to network if needed
-     * Used by DataAccessService
+     * Writes to local file and syncs to network if available.
+     * Used by data services for operations that need network synchronization.
+     *
+     * @param localPath The local file path to write to
+     * @param data The data to write
+     * @param skipObfuscation Whether to skip obfuscation
+     * @return The result of the write operation
      */
     public <T> FileOperationResult writeWithNetworkSync(FilePath localPath, T data, boolean skipObfuscation) {
         if (!localPath.isLocal()) {
-            return FileOperationResult.failure(localPath.getPath(), "Not a local path");
+            return FileOperationResult.failure(localPath.getPath(), "Path must be local for network sync operation");
         }
 
-        // Direct write
-        FileOperationResult writeResult = writeFile(localPath, data, skipObfuscation);
+        // Write the file with backup enabled
+        FileOperationResult writeResult = writeFileWithBackupControl(localPath, data, skipObfuscation, true);
 
-        // Sync to network if requested and write was successful
+        // If write successful, trigger async network sync
         if (writeResult.isSuccess() && isNetworkAvailable()) {
-            try {
-                FilePath networkPath = pathResolver.toNetworkPath(localPath);
-                syncService.syncToNetwork(localPath, networkPath);
-
-                // For high criticality files, also sync backups to network
-                BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel(localPath);
-                if (criticalityLevel == BackupService.CriticalityLevel.LEVEL3_HIGH) {
-                    // Get current username
-                    String username = SecurityContextHolder.getContext().getAuthentication().getName();
-                    backupService.syncBackupsToNetwork(username, criticalityLevel);
-                    LoggerUtil.info(this.getClass(), "Synced high criticality backups to network for " + username);
-                }
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), "Failed to sync to network: " + e.getMessage(), e);
-                // Don't fail the operation if sync fails - it will be retried later
-            }
+            triggerAsyncNetworkSync(localPath, getCurrentUsername());
         }
 
         return writeResult;
+    }
+
+    // ========================================================================
+    // CORE IMPLEMENTATION WITH LOCKING AND RETRY
+    // ========================================================================
+
+    /**
+     * Execute write operation with comprehensive retry logic and file locking.
+     */
+    private <T> FileOperationResult executeWriteWithRetry(FilePath filePath, T data,
+                                                          boolean skipObfuscation, boolean shouldCreateBackup, String username, Integer userId) {
+
+        Path path = filePath.getPath();
+        Exception lastException = null;
+
+        // Try operation with exponential backoff retry
+        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                if (attempt > 0) {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Retry #%d for file write: %s (user: %s)", attempt, path.getFileName(), username));
+                }
+
+                // Execute the actual write with locking
+                FileOperationResult result = executeLockedWrite(filePath, data, skipObfuscation,
+                        shouldCreateBackup, username, userId);
+
+                if (result.isSuccess()) {
+                    // Record successful write attempt
+                    recordWriteAttempt(username, path);
+
+                    if (attempt > 0) {
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "Write succeeded on retry #%d for file: %s", attempt, path.getFileName()));
+                    }
+
+                    return result;
+                }
+
+                // If write failed but wasn't a file conflict, don't retry
+                if (!isRetriableError(result)) {
+                    return result;
+                }
+
+                lastException = result.getException().orElse(null);
+
+            } catch (Exception e) {
+                lastException = e;
+
+                // Only retry on file access errors
+                if (!isFileAccessError(e)) {
+                    break;
+                }
+            }
+
+            // Calculate delay for next retry (exponential backoff)
+            if (attempt < MAX_RETRIES - 1) {
+                long delay = Math.min(INITIAL_RETRY_DELAY_MS * (1L << attempt), MAX_RETRY_DELAY_MS);
+
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "File access conflict detected, retrying in %dms (attempt %d/%d): %s",
+                        delay, attempt + 1, MAX_RETRIES,
+                        lastException != null ? lastException.getMessage() : "Unknown error"));
+
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+
+        // All retries failed
+        LoggerUtil.error(this.getClass(), String.format(
+                "Failed to write file after %d retries: %s", MAX_RETRIES, path.getFileName()), lastException);
+
+        return FileOperationResult.failure(path,
+                "Failed to write file after retries: " +
+                        (lastException != null ? lastException.getMessage() : "Unknown error"),
+                lastException);
+    }
+
+    /**
+     * Execute write operation with file locking protection.
+     */
+    private <T> FileOperationResult executeLockedWrite(FilePath filePath, T data,
+                                                       boolean skipObfuscation, boolean shouldCreateBackup, String username, Integer userId) {
+
+        Path path = filePath.getPath();
+        long operationStartTime = System.currentTimeMillis();
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Starting file write operation: %s (user: %s, backup: %s)",
+                path.getFileName(), username, shouldCreateBackup));
+
+        // Publish write start event
+        fileEventPublisher.publishFileWriteStart(filePath, username, userId, shouldCreateBackup, data);
+
+        // Get file-specific lock
+        ReentrantReadWriteLock.WriteLock writeLock = getFileLock(path).writeLock();
+
+        try {
+            // Try to acquire write lock with timeout
+            if (!writeLock.tryLock(FILE_LOCK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                throw new RuntimeException("Could not acquire file lock within timeout: " + path.getFileName());
+            }
+
+            try {
+                // Perform the actual file write operation
+                return performFileWrite(filePath, data, skipObfuscation, shouldCreateBackup,
+                        username, userId, operationStartTime);
+
+            } finally {
+                writeLock.unlock();
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            long duration = System.currentTimeMillis() - operationStartTime;
+
+            FileOperationResult result = FileOperationResult.failure(path, "Write operation interrupted", e);
+            fileEventPublisher.publishFileWriteFailure(filePath, username, userId, shouldCreateBackup, result, e, duration);
+            return result;
+
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - operationStartTime;
+
+            FileOperationResult result = FileOperationResult.failure(path, "Write operation failed: " + e.getMessage(), e);
+            fileEventPublisher.publishFileWriteFailure(filePath, username, userId, shouldCreateBackup, result, e, duration);
+            return result;
+        }
+    }
+
+    /**
+     * Perform the actual file write operation (called while holding lock).
+     */
+    private <T> FileOperationResult performFileWrite(FilePath filePath, T data,
+                                                     boolean skipObfuscation, boolean shouldCreateBackup, String username, Integer userId,
+                                                     long operationStartTime) throws Exception {
+
+        Path path = filePath.getPath();
+
+        // Create parent directories if needed
+        Files.createDirectories(path.getParent());
+
+        // Serialize data to JSON
+        byte[] content = objectMapper.writeValueAsBytes(data);
+
+        // Apply obfuscation if requested
+        if (!skipObfuscation) {
+            content = obfuscationService.obfuscate(content);
+        }
+
+        // Write to file
+        Files.write(path, content);
+
+        // Calculate operation duration
+        long operationDuration = System.currentTimeMillis() - operationStartTime;
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Successfully wrote file: %s (duration: %dms)", path, operationDuration));
+
+        // Create success result
+        FileOperationResult result = FileOperationResult.success(path);
+
+        // Publish success event - this triggers backup creation
+        fileEventPublisher.publishFileWriteSuccess(filePath, username, userId, shouldCreateBackup, result, operationDuration);
+
+        return result;
+    }
+
+    // ========================================================================
+    // ASYNC NETWORK SYNC COORDINATION
+    // ========================================================================
+
+    /**
+     * Trigger async network sync without blocking current operation.
+     * Coordinates with ongoing sync operations to avoid conflicts.
+     */
+    private void triggerAsyncNetworkSync(FilePath localPath, String username) {
+        String syncKey = username + ":" + localPath.getPath().getFileName().toString();
+
+        // Check if sync is already in progress for this file
+        CompletableFuture<Void> existingSync = pendingSyncs.get(syncKey);
+        if (existingSync != null && !existingSync.isDone()) {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Network sync already in progress for: %s", localPath.getPath().getFileName()));
+            return;
+        }
+
+        // Start new async sync operation
+        CompletableFuture<Void> syncFuture = CompletableFuture.runAsync(() -> {
+            try {
+                // Small delay to ensure local write is completely finished
+                Thread.sleep(200);
+
+                FilePath networkPath = pathResolver.toNetworkPath(localPath);
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Starting network sync: %s -> %s (user: %s)",
+                        localPath.getPath().getFileName(), networkPath.getPath().getFileName(), username));
+
+                // Perform the sync
+                syncService.syncToNetwork(localPath, networkPath);
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Network sync completed for: %s", localPath.getPath().getFileName()));
+
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Async network sync failed for %s: %s", localPath.getPath().getFileName(), e.getMessage()));
+            }
+        });
+
+        // Track the sync operation
+        pendingSyncs.put(syncKey, syncFuture);
+
+        // Clean up completed sync after it finishes
+        syncFuture.whenComplete((result, throwable) -> {
+            pendingSyncs.remove(syncKey);
+
+            // Cleanup old sync records periodically
+            if (pendingSyncs.size() > 50) {
+                cleanupCompletedSyncs();
+            }
+        });
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Network sync initiated for: %s", localPath.getPath().getFileName()));
+    }
+
+    /**
+     * Clean up completed sync operations from tracking map.
+     */
+    private void cleanupCompletedSyncs() {
+        pendingSyncs.entrySet().removeIf(entry -> entry.getValue().isDone());
+    }
+
+    // ========================================================================
+    // REQUEST DEDUPLICATION SYSTEM
+    // ========================================================================
+
+    /**
+     * Check if write attempt is allowed (prevents rapid clicks).
+     */
+    private boolean canAttemptWrite(String username, Path path) {
+        String key = username + ":" + path.getFileName().toString();
+        Long lastAttempt = lastWriteAttempts.get(key);
+
+        if (lastAttempt == null) {
+            return true;
+        }
+
+        long timeSinceLastAttempt = System.currentTimeMillis() - lastAttempt;
+        return timeSinceLastAttempt >= MIN_WRITE_INTERVAL_MS;
+    }
+
+    /**
+     * Record write attempt timestamp for deduplication.
+     */
+    private void recordWriteAttempt(String username, Path path) {
+        String key = username + ":" + path.getFileName().toString();
+        lastWriteAttempts.put(key, System.currentTimeMillis());
+
+        // Periodic cleanup of old entries
+        if (lastWriteAttempts.size() > 100) {
+            cleanupOldWriteAttempts();
+        }
+    }
+
+    /**
+     * Cleanup old write attempt records to prevent memory leaks.
+     */
+    private void cleanupOldWriteAttempts() {
+        long cutoff = System.currentTimeMillis() - (MIN_WRITE_INTERVAL_MS * 10); // 10 seconds ago
+        lastWriteAttempts.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+    }
+
+    // ========================================================================
+    // FILE LOCKING SYSTEM
+    // ========================================================================
+
+    /**
+     * Get file-specific lock (similar to SyncFilesService pattern).
+     */
+    private ReentrantReadWriteLock getFileLock(Path path) {
+        return fileLocks.computeIfAbsent(path.normalize(), k -> new ReentrantReadWriteLock());
+    }
+
+    // ========================================================================
+    // ERROR HANDLING AND DETECTION
+    // ========================================================================
+
+    /**
+     * Check if exception indicates a file access conflict that should be retried.
+     */
+    private boolean isFileAccessError(Exception e) {
+        if (e instanceof FileSystemException) {
+            return true;
+        }
+
+        String message = e.getMessage();
+        if (message == null) return false;
+
+        return message.contains("process cannot access the file") ||
+                message.contains("being used by another process") ||
+                message.contains("FileSystemException") ||
+                message.contains("Access is denied");
+    }
+
+    /**
+     * Check if operation result indicates a retriable error.
+     */
+    private boolean isRetriableError(FileOperationResult result) {
+        if (result.isSuccess()) {
+            return false;
+        }
+
+        Exception exception = result.getException().orElse(null);
+        return exception != null && isFileAccessError(exception);
+    }
+
+    // ========================================================================
+    // UTILITY METHODS
+    // ========================================================================
+
+    /**
+     * Get current authenticated username safely.
+     */
+    private String getCurrentUsername() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            return auth != null ? auth.getName() : "system";
+        } catch (Exception e) {
+            LoggerUtil.debug(this.getClass(), "Could not get current username, using 'system': " + e.getMessage());
+            return "system";
+        }
+    }
+
+    /**
+     * Check if network is available for sync operations.
+     */
+    private boolean isNetworkAvailable() {
+        return pathConfig.isNetworkAvailable();
     }
 }

@@ -1,4 +1,4 @@
-package com.ctgraphdep.fileOperations.monitor;
+package com.ctgraphdep.monitoring;
 
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.utils.LoggerUtil;

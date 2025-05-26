@@ -1,5 +1,6 @@
-package com.ctgraphdep.fileOperations.monitor;
+package com.ctgraphdep.monitoring;
 
+import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -33,12 +34,12 @@ public class NetworkCleanupService {
 
             // Use try-with-resources to ensure the stream is closed
             try (Stream<Path> paths = Files.list(sessionDir)) {
-                paths.filter(path -> path.getFileName().toString().endsWith(WorkCode.BACKUP_EXTENSION))
+                paths.filter(path -> path.getFileName().toString().endsWith(FileTypeConstants.BACKUP_EXTENSION))
                         .forEach(backupPath -> {
                             try {
                                 // Get the main file path
                                 String backupName = backupPath.getFileName().toString();
-                                String mainName = backupName.substring(0, backupName.length() - WorkCode.BACKUP_EXTENSION.length());
+                                String mainName = backupName.substring(0, backupName.length() - FileTypeConstants.BACKUP_EXTENSION.length());
                                 Path mainPath = backupPath.resolveSibling(mainName);
 
                                 // If main file exists and is valid, we can remove the backup

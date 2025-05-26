@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.admin;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.User;
@@ -40,7 +41,7 @@ public class AdminHolidayController extends BaseController {
         LoggerUtil.info(this.getClass(), "Loading holiday list");
 
         // Use checkUserAccess utility method from BaseController
-        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (accessCheck != null) {
             return accessCheck;
         }
@@ -66,7 +67,7 @@ public class AdminHolidayController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess utility method
-        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (accessCheck != null) {
             return accessCheck;
         }
@@ -92,7 +93,7 @@ public class AdminHolidayController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess utility method
-        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (accessCheck != null) {
             return accessCheck;
         }

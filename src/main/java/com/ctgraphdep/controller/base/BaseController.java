@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.base;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.model.dto.SyncFolderStatusDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
@@ -76,12 +77,12 @@ public abstract class BaseController {
 
         // Map each role to its specific dashboard URL
         return switch (normalizedRole) {
-            case "ADMIN" -> "/admin";
-            case "TEAM_LEADER" -> "/team-lead";
-            case "TL_CHECKING" -> "/team-checking";
-            case "USER_CHECKING" -> "/user-checking";
-            case "CHECKING" -> "/checking";
-            case "USER" -> "/user";
+            case SecurityConstants.ROLE_ADMIN -> "/admin";
+            case SecurityConstants.ROLE_TEAM_LEADER -> "/team-lead";
+            case SecurityConstants.ROLE_TL_CHECKING -> "/team-checking";
+            case SecurityConstants.ROLE_USER_CHECKING -> "/user-checking";
+            case SecurityConstants.ROLE_CHECKING -> "/checking";
+            case SecurityConstants.ROLE_USER -> "/user";
             default -> {
                 // Default to user dashboard if role is not recognized
                 LoggerUtil.warn(this.getClass(), "Unrecognized role for dashboard URL: " + normalizedRole);

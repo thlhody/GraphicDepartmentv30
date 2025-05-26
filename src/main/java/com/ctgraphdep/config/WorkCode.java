@@ -1,15 +1,10 @@
 package com.ctgraphdep.config;
 
-import jakarta.servlet.http.PushBuilder;
-
 import java.time.DayOfWeek;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 public class WorkCode {
-
-    //file format
-    public static final String BACKUP_EXTENSION = ".bak";
 
     //time off codes
     public static final String NATIONAL_HOLIDAY_CODE = "SN";
@@ -76,9 +71,10 @@ public class WorkCode {
 
     //work statuses
     public static final String WORK_ONLINE = "Online";
+    public static final String WORK_ON = "ON";
     public static final String WORK_TEMPORARY_STOP = "Temporary Stop";
+    public static final String WORK_TS = "TS";
     public static final String WORK_OFFLINE = "Offline";
-    public static final String LAST_ACTIVE_NEVER = "Never";
 
     //status dialog codes
     public static final String STATUS_UNKNOWN = "Unknown";
@@ -168,6 +164,18 @@ public class WorkCode {
     public static final String NONE_TYPE = "NONE";
     public static final String TEST_TYPE = "TEST";
     public static final String MOCKUP_TYPE = "MOCKUP";
+
+    public static final String TODAY = "1a1";
+    public static final String TOMORROW = "1b1";
+    public static final String YESTERDAY = "1c1";
+    public static final String DATE = "X";
+    public static final String TIME = "T";
+    public static final String SPLIT_UNDERSCORE = "_";
+    public static final String EMPTY = "";
+
+    private WorkCode() {
+        throw new UnsupportedOperationException("Work Code class cannot be instantiated");
+    }
 }
 
 

@@ -43,7 +43,8 @@ public class SecurityConfig {
                             // User URLs - multiple roles can access
                             .requestMatchers("/user/**").hasAnyRole(SecurityConstants.ROLE_USER, SecurityConstants.ROLE_ADMIN,
                                     SecurityConstants.ROLE_TEAM_LEADER, SecurityConstants.ROLE_TL_CHECKING, SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING)
-
+                            .requestMatchers("/utility/**").hasAnyRole(SecurityConstants.ROLE_USER, SecurityConstants.ROLE_ADMIN, SecurityConstants.ROLE_TEAM_LEADER,
+                                    SecurityConstants.ROLE_TL_CHECKING, SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING)
                             // Specialized user paths with more specific access controls
                             .requestMatchers("/user/check-register/**").hasAnyRole(SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING,
                                     SecurityConstants.ROLE_ADMIN, SecurityConstants.ROLE_TL_CHECKING)

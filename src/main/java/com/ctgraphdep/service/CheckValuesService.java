@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.CheckValuesEntry;
 import com.ctgraphdep.model.User;
@@ -228,7 +229,7 @@ public class CheckValuesService {
             List<User> allUsers = userService.getAllUsers();
 
             return allUsers.stream()
-                    .filter(user -> user.getRole().contains("CHECKING"))
+                    .filter(user -> user.getRole().contains(SecurityConstants.ROLE_CHECKING))
                     .collect(Collectors.toList());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error getting check users: " + e.getMessage());

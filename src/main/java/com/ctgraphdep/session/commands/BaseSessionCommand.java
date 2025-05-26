@@ -4,20 +4,64 @@ import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.utils.LoggerUtil;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
- * Base class for session commands that provides common validation
- * and execution patterns.
+ * Enhanced base class for session commands with built-in deduplication support.
+ * Prevents rapid execution of the same command by the same user.
  *
  * @param <T> The command result type
  */
 public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
 
+    // ========================================================================
+    // COMMAND DEDUPLICATION SYSTEM
+    // ========================================================================
+
+    // Global command execution tracking (shared across all command types)
+    private static final Map<String, Long> activeCommands = new ConcurrentHashMap<>();
+
+    // Default cooldown period (can be overridden by specific commands)
+    private static final long DEFAULT_COMMAND_COOLDOWN_MS = 2000; // 2 seconds
+
     /**
-     * Executes the command with standard error handling and logging.
-     *
-     * @param context The session context
-     * @param commandLogic The command execution logic
-     * @return The command result
+     * Execute command with deduplication protection.
+     * This method should be called by concrete command implementations.
+     */
+    protected T executeWithDeduplication(SessionContext context, String username, CommandExecution<T> commandLogic, T defaultValue) {
+        return executeWithDeduplication(context, username, commandLogic, defaultValue, DEFAULT_COMMAND_COOLDOWN_MS);
+    }
+
+    /**
+     * Execute command with custom cooldown period.
+     */
+    protected T executeWithDeduplication(SessionContext context, String username, CommandExecution<T> commandLogic, T defaultValue, long cooldownMs) {
+
+        String commandKey = getCommandKey(username);
+
+        // Check if command can be executed (deduplication)
+        if (!canExecuteCommand(commandKey, cooldownMs)) {
+            warn(String.format("Command %s already in progress for user %s, ignoring duplicate",
+                    this.getClass().getSimpleName(), username));
+            return defaultValue;
+        }
+
+        // Register command execution
+        registerCommandExecution(commandKey);
+
+        try {
+            // Execute the actual command logic
+            return executeWithErrorHandling(context, commandLogic);
+
+        } finally {
+            // Always cleanup command registration
+            cleanupCommandExecution(commandKey);
+        }
+    }
+
+    /**
+     * Standard error handling execution (existing method).
      */
     protected T executeWithErrorHandling(SessionContext context, CommandExecution<T> commandLogic) {
         try {
@@ -29,12 +73,7 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     }
 
     /**
-     * Executes the command with standard error handling and logging,
-     * returning a default value on error.
-     * @param context The session context
-     * @param commandLogic The command execution logic
-     * @param defaultValue The default value to return on error
-     * @return The command result or default value on error
+     * Error handling with default value (existing method).
      */
     protected T executeWithDefault(SessionContext context, CommandExecution<T> commandLogic, T defaultValue) {
         try {
@@ -45,95 +84,99 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
         }
     }
 
+    // ========================================================================
+    // DEDUPLICATION HELPER METHODS
+    // ========================================================================
+
     /**
-     * Validates that a username is not null or empty.
-     *
-     * @param username The username to validate
-     * @throws RuntimeException if username is null or empty
+     * Generate unique command key for deduplication.
      */
+    private String getCommandKey(String username) {
+        return username + ":" + this.getClass().getSimpleName();
+    }
+
+    /**
+     * Check if command can be executed (not already running).
+     */
+    private boolean canExecuteCommand(String commandKey, long cooldownMs) {
+        Long lastExecution = activeCommands.get(commandKey);
+        if (lastExecution == null) {
+            return true;
+        }
+
+        long timeSinceLastExecution = System.currentTimeMillis() - lastExecution;
+        return timeSinceLastExecution >= cooldownMs;
+    }
+
+    /**
+     * Register command execution start.
+     */
+    private void registerCommandExecution(String commandKey) {
+        activeCommands.put(commandKey, System.currentTimeMillis());
+    }
+
+    /**
+     * Cleanup command execution record.
+     */
+    private void cleanupCommandExecution(String commandKey) {
+        activeCommands.remove(commandKey);
+
+        // Periodic cleanup to prevent memory leaks
+        if (activeCommands.size() > 100) {
+            cleanupOldCommands();
+        }
+    }
+
+    /**
+     * Cleanup old command records.
+     */
+    private static void cleanupOldCommands() {
+        long cutoff = System.currentTimeMillis() - (DEFAULT_COMMAND_COOLDOWN_MS * 5); // 10 seconds ago
+        activeCommands.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+    }
+
+    // ========================================================================
+    // EXISTING VALIDATION AND UTILITY METHODS
+    // ========================================================================
+
     protected void validateUsername(String username) {
         if (username == null || username.trim().isEmpty()) {
             logAndThrow("Username cannot be null or empty");
         }
     }
 
-    /**
-     * Validates that a user ID is not null.
-     *
-     * @param userId The user ID to validate
-     * @throws RuntimeException if user ID is null
-     */
     protected void validateUserId(Integer userId) {
         if (userId == null) {
             logAndThrow("User ID cannot be null");
         }
     }
 
-    /**
-     * Validates a condition and throws an exception with the specified message if false.
-     *
-     * @param condition The condition to validate
-     * @param message The error message if condition is false
-     * @throws RuntimeException if condition is false
-     */
     protected void validateCondition(boolean condition, String message) {
         if (!condition) {
             logAndThrow(message);
         }
     }
 
-    /**
-     * Logs an error message and throws a RuntimeException.
-     *
-     * @param message The error message
-     * @throws RuntimeException with the specified message
-     */
     protected void logAndThrow(String message) {
         LoggerUtil.logAndThrow(this.getClass(), message, new IllegalArgumentException(message));
     }
 
-    /**
-     * Logs a debug message.
-     *
-     * @param message The message to log
-     */
     protected void debug(String message) {
         LoggerUtil.debug(this.getClass(), message);
     }
 
-    /**
-     * Logs an info message.
-     *
-     * @param message The message to log
-     */
     protected void info(String message) {
         LoggerUtil.info(this.getClass(), message);
     }
 
-    /**
-     * Logs a warning message.
-     *
-     * @param message The message to log
-     */
     protected void warn(String message) {
         LoggerUtil.warn(this.getClass(), message);
     }
 
-    /**
-     * Logs an error message.
-     *
-     * @param message The message to log
-     * @param e The exception that caused the error
-     */
     protected void error(String message, Exception e) {
         LoggerUtil.error(this.getClass(), message, e);
     }
 
-    /**
-     * Functional interface for command execution logic.
-     *
-     * @param <R> The command result type
-     */
     @FunctionalInterface
     protected interface CommandExecution<R> {
         R execute(SessionContext context);

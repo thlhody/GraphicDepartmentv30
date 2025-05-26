@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.admin;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
 import com.ctgraphdep.service.AdminBonusService;
@@ -41,7 +42,7 @@ public class AdminBonusController extends BaseController {
 
         try {
             // Use the new role validation method
-            String accessCheck = checkUserAccess(userDetails, "ADMIN");
+            String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
             if (accessCheck != null) {
                 return accessCheck;
             }

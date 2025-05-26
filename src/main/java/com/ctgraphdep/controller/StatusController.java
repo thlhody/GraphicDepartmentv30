@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.ApprovalStatusType;
@@ -89,9 +90,9 @@ public class StatusController extends BaseController {
         model.addAttribute("onlineCount", onlineCount);
         model.addAttribute("isAdminView", currentUser.isAdmin());
         model.addAttribute("hasAdminTeamLeaderRole",
-                currentUser.hasRole("ADMIN") ||
-                        currentUser.hasRole("TEAM_LEADER") ||
-                        currentUser.hasRole("TL_CHECKING"));
+                currentUser.hasRole(SecurityConstants.ROLE_ADMIN) ||
+                        currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER) ||
+                        currentUser.hasRole(SecurityConstants.ROLE_TL_CHECKING));
 
         return "status/status";
     }
@@ -127,9 +128,9 @@ public class StatusController extends BaseController {
             tableModel.addAttribute("isAdminView", currentUser.isAdmin());
 
             // Add the flag for admin/team leader role check
-            boolean hasAdminTeamLeaderRole = currentUser.hasRole("ADMIN") ||
-                    currentUser.hasRole("TEAM_LEADER") ||
-                    currentUser.hasRole("TL_CHECKING");
+            boolean hasAdminTeamLeaderRole = currentUser.hasRole(SecurityConstants.ROLE_ADMIN) ||
+                    currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER) ||
+                    currentUser.hasRole(SecurityConstants.ROLE_TL_CHECKING);
             tableModel.addAttribute("hasAdminTeamLeaderRole", hasAdminTeamLeaderRole);
 
             // Render the table body fragment using Thymeleaf
@@ -419,7 +420,7 @@ public class StatusController extends BaseController {
 
             // For other users' data, only admins and team leaders can view
             boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) &&
-                    !currentUser.hasRole("ADMIN") && !currentUser.hasRole("TEAM_LEADER");
+                    !currentUser.hasRole(SecurityConstants.ROLE_ADMIN) && !currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER);
 
             if (canViewOtherUser) {
                 redirectAttributes.addFlashAttribute("errorMessage",

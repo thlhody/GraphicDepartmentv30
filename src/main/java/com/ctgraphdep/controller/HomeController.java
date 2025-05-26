@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.model.FolderStatus;
@@ -26,23 +27,23 @@ public class HomeController extends BaseController {
             LoggerUtil.info(this.getClass(), "User " + username + " authenticated, determining dashboard");
 
             // Check for specific roles in order of precedence
-            if (hasRole(authentication, "ROLE_ADMIN")) {
+            if (hasRole(authentication, SecurityConstants.SPRING_ROLE_ADMIN)) {
                 LoggerUtil.info(this.getClass(), "Redirecting to admin dashboard");
                 return "redirect:/admin";
             }
-            if (hasRole(authentication, "ROLE_TEAM_LEADER")) {
+            if (hasRole(authentication, SecurityConstants.SPRING_ROLE_TEAM_LEADER)) {
                 LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
                 return "redirect:/team-lead";
             }
-            if (hasRole(authentication, "ROLE_TL_CHECKING")) {
+            if (hasRole(authentication, SecurityConstants.SPRING_ROLE_TL_CHECKING)) {
                 LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
                 return "redirect:/team-checking";
             }
-            if (hasRole(authentication, "ROLE_USER_CHECKING")) {
+            if (hasRole(authentication, SecurityConstants.ROLE_USER_CHECKING)) {
                 LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
                 return "redirect:/user-checking";
             }
-            if (hasRole(authentication, "ROLE_CHECKING")) {
+            if (hasRole(authentication, SecurityConstants.SPRING_ROLE_CHECKING)) {
                 LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
                 return "redirect:/checking";
             }

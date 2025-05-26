@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>User Utilities</title>
+    <link rel="stylesheet" th:href="@{/css/utility.css?v=18782}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187812}">
+</head>
+
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Header Section -->
+        <div class="page-header mb-4">
+            <h1 class="header-title">User Utilities</h1>
+            <p class="header-subtitle">Manage your data, diagnostics, and system tools</p>
+        </div>
+
+        <!-- Toast Alerts System -->
+        <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
+
+        <!-- Utilities Grid -->
+        <div class="utilities-grid">
+
+            <!-- Backup Management -->
+            <div th:replace="~{utility/backup-fragment :: backup-utility}"></div>
+
+            <!-- Cache Monitoring -->
+            <div th:replace="~{utility/monitor-fragment :: monitor-utility}"></div>
+
+            <!-- Session Diagnostics -->
+            <div th:replace="~{utility/session-fragment :: session-utility}"></div>
+
+            <!-- File System Health -->
+            <div th:replace="~{utility/filesystem-fragment :: filesystem-utility}"></div>
+
+            <!-- Quick Actions -->
+            <div th:replace="~{utility/actions-fragment :: actions-utility}"></div>
+
+        </div>
+
+        <!-- Navigation -->
+        <div class="utility-navigation mt-4">
+            <a th:href="@{/}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>Back to Home
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Global Utility JavaScript -->
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/backup-utility.js?v=18785}"></script>
+    <script th:src="@{/js/monitor-utility.js?v=18783}"></script>
+    <script th:src="@{/js/toast-alerts.js?v=18783}"></script>
+</th:block>
+</body>
+</html>

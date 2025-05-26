@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.team;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.TeamMemberDTO;
@@ -42,7 +43,7 @@ public class TeamStatisticsController extends BaseController {
             Model model) {
         try {
             // Check if user has team leader role
-            String accessCheck = checkUserAccess(userDetails, "TEAM_LEADER");
+            String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_TEAM_LEADER);
             if (accessCheck != null) {
                 return accessCheck;
             }
@@ -89,7 +90,7 @@ public class TeamStatisticsController extends BaseController {
 
         try {
             // Check if user has team leader role
-            String accessCheck = checkUserAccess(userDetails, "TEAM_LEADER");
+            String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_TEAM_LEADER);
             if (accessCheck != null) {
                 return accessCheck;
             }
@@ -116,7 +117,7 @@ public class TeamStatisticsController extends BaseController {
 
         try {
             // Check if user has team leader role
-            String accessCheck = checkUserAccess(userDetails, "TEAM_LEADER");
+            String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_TEAM_LEADER);
             if (accessCheck != null) {
                 return accessCheck;
             }

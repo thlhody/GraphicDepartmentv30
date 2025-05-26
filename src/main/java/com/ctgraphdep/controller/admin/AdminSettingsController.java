@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.admin;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
@@ -48,7 +49,7 @@ public class AdminSettingsController extends BaseController {
             Model model) {
 
         // Use checkUserAccess for admin role verification
-        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (accessCheck != null) {
             return accessCheck;
         }
@@ -99,7 +100,7 @@ public class AdminSettingsController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess for consistent access control
-        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (accessCheck != null) {
             return accessCheck;
         }
@@ -135,7 +136,7 @@ public class AdminSettingsController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess for consistent access control
-        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (accessCheck != null) {
             return accessCheck;
         }
@@ -163,7 +164,7 @@ public class AdminSettingsController extends BaseController {
             RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess for consistent access control
-        String accessCheck = checkUserAccess(userDetails, "ADMIN");
+        String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (accessCheck != null) {
             return accessCheck;
         }

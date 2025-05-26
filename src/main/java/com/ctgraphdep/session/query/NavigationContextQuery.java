@@ -1,5 +1,6 @@
 package com.ctgraphdep.session.query;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.session.NavigationContext;
@@ -32,24 +33,24 @@ public class NavigationContextQuery implements SessionQuery<NavigationContext> {
 
         // Set dashboard URL and team leader flag based on role
         switch (normalizedRole) {
-            case "ADMIN":
+            case SecurityConstants.ROLE_ADMIN:
                 dashboardUrl = "/admin";
                 break;
-            case "TEAM_LEADER":
+            case SecurityConstants.ROLE_TEAM_LEADER:
                 dashboardUrl = "/team-lead";
                 isTeamLeaderView = true;
                 break;
-            case "TL_CHECKING":
+            case SecurityConstants.ROLE_TL_CHECKING:
                 dashboardUrl = "/team-checking";
                 isTeamLeaderView = true;
                 break;
-            case "USER_CHECKING":
+            case SecurityConstants.ROLE_USER_CHECKING:
                 dashboardUrl = "/user-checking";
                 break;
-            case "CHECKING":
+            case SecurityConstants.ROLE_CHECKING:
                 dashboardUrl = "/checking";
                 break;
-            case "USER":
+            case SecurityConstants.ROLE_USER:
                 dashboardUrl = "/user";
                 break;
             default:

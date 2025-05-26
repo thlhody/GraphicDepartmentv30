@@ -1,5 +1,6 @@
 package com.ctgraphdep.session.cache;
 
+import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -266,7 +267,7 @@ public class SessionCacheService {
 
             return Files.list(sessionDir)
                     .filter(path -> path.getFileName().toString().startsWith("session_") &&
-                            path.getFileName().toString().endsWith(".json"))
+                            path.getFileName().toString().endsWith(FileTypeConstants.JSON_EXTENSION))
                     .max((p1, p2) -> {
                         try {
                             return Files.getLastModifiedTime(p1).compareTo(Files.getLastModifiedTime(p2));
@@ -292,7 +293,7 @@ public class SessionCacheService {
         try {
             String filename = sessionPath.getFileName().toString();
             // Format: session_username_userId.json
-            String[] parts = filename.replace("session_", "").replace(".json", "").split("_");
+            String[] parts = filename.replace("session_", "").replace(FileTypeConstants.JSON_EXTENSION, "").split("_");
             return parts.length >= 1 ? parts[0] : null;
         } catch (Exception e) {
             LoggerUtil.warn(this.getClass(), "Error extracting username from path: " + sessionPath);
@@ -318,7 +319,7 @@ public class SessionCacheService {
                     .map(path -> {
                         try {
                             String filename = path.getFileName().toString();
-                            String[] parts = filename.replace("session_", "").replace(".json", "").split("_");
+                            String[] parts = filename.replace("session_", "").replace(FileTypeConstants.JSON_EXTENSION, "").split("_");
                             return parts.length >= 2 ? Integer.parseInt(parts[1]) : null;
                         } catch (Exception e) {
                             return null;

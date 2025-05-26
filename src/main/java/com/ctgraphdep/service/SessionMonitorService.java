@@ -3,6 +3,7 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
+import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
@@ -39,6 +40,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Stream;
 
@@ -73,7 +77,15 @@ public class SessionMonitorService {
     @Autowired
     private StatusCacheService statusCacheService; // NEW: Status cache integration
 
-    private volatile boolean isMonitoringInProgress = false;
+    // Track last file write times to coordinate with session commands
+    private final Map<String, Long> lastFileWrites = new ConcurrentHashMap<>();
+    private static final long MIN_FILE_WRITE_INTERVAL_MS = 5000; // 5 seconds minimum between file writes
+
+    // Track ongoing file operations to avoid conflicts
+    private final Set<String> activeFileOperations = ConcurrentHashMap.newKeySet();
+
+    // Track which users have pending file sync needs
+    private final Set<String> pendingFileSyncs = ConcurrentHashMap.newKeySet();
 
     @Value("${app.session.monitoring.interval:30}")
     private int monitoringInterval;
@@ -83,6 +95,8 @@ public class SessionMonitorService {
 
     private ScheduledFuture<?> monitoringTask;
     private ScheduledFuture<?> syncTask; // NEW: Separate sync task
+
+    private volatile boolean isMonitoringInProgress = false;
     private volatile boolean isInitialized = false;
 
     public SessionMonitorService(
@@ -214,6 +228,17 @@ public class SessionMonitorService {
                 return;
             }
 
+            if (!canWriteToFile(username)) {
+                LoggerUtil.debug(this.getClass(), "Skipping file sync - recent file operation detected for user: " + username);
+
+                // Mark as needing sync later
+                pendingFileSyncs.add(username);
+                return;
+            }
+
+            // Remove from pending syncs if we're about to sync
+            pendingFileSyncs.remove(username);
+
             User user = userService.getUserByUsername(username).orElse(null);
             if (user == null) {
                 LoggerUtil.warn(this.getClass(), "User not found for session sync: " + username);
@@ -230,21 +255,34 @@ public class SessionMonitorService {
 
             // Only sync if user has an active session
             if (isActiveSession(session)) {
-                // Update calculations before writing to file
-                UpdateSessionCalculationsCommand updateCommand = commandFactory
-                        .createUpdateSessionCalculationsCommand(session, getStandardTimeValues().getCurrentTime());
-                session = commandService.executeCommand(updateCommand);
 
-                // Write to file for network sync
-                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-                commandService.executeCommand(saveCommand);
+                // *** COORDINATE WITH FILE OPERATIONS ***
+                markFileOperationActive(username);
 
-                LoggerUtil.info(this.getClass(), String.format("Synced active session to file for user: %s", username));
+                try {
+                    // Update calculations before writing to file (final calculation)
+                    UpdateSessionCalculationsCommand updateCommand = commandFactory
+                            .createUpdateSessionCalculationsCommand(session, getStandardTimeValues().getCurrentTime());
+                    session = commandService.executeCommand(updateCommand);
+
+                    // Write to file for network sync
+                    SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+                    commandService.executeCommand(saveCommand);
+
+                    // Record successful file write
+                    recordFileWrite(username);
+
+                    LoggerUtil.info(this.getClass(), String.format("Synced active session to file for user: %s", username));
+
+                } finally {
+                    // Always cleanup file operation marker
+                    markFileOperationComplete(username);
+                }
+
             } else {
                 LoggerUtil.debug(this.getClass(), String.format("Session not active, skipping file sync for user: %s (status: %s)",
                         username, session.getSessionStatus()));
             }
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error syncing session to file: " + e.getMessage(), e);
         }
@@ -351,8 +389,7 @@ public class SessionMonitorService {
             }
 
             // OPTIMIZATION: Update calculations in cache only (no file write)
-            UpdateSessionCalculationsCommand updateCommand = commandFactory
-                    .createUpdateSessionCalculationsCacheOnlyCommand(session, getStandardTimeValues().getCurrentTime());
+            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, getStandardTimeValues().getCurrentTime());
             session = commandService.executeCommand(updateCommand);
 
             // Update calculated values in cache
@@ -578,26 +615,36 @@ public class SessionMonitorService {
             return;
         }
 
-        // Use WorkScheduleQuery to get schedule info
         WorkScheduleQuery query = commandFactory.createWorkScheduleQuery(sessionDate, user.getSchedule());
         WorkScheduleQuery.ScheduleInfo scheduleInfo = commandService.executeQuery(query);
 
         int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
 
-        // Only show notification if not already shown for this session and schedule is completed
         if (scheduleInfo.isScheduleCompleted(workedMinutes) &&
                 !monitoringStateService.wasScheduleNotificationShown(session.getUsername())) {
 
-            // Use the notification service
             boolean success = notificationService.showScheduleEndNotification(session.getUsername(),
                     session.getUserId(), session.getFinalWorkedMinutes());
 
             if (success) {
                 monitoringStateService.markScheduleNotificationShown(session.getUsername());
 
-                // Save the updated session
-                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-                commandService.executeCommand(saveCommand);
+                // *** ENHANCED: Only write to file if safe, otherwise mark for later sync ***
+                if (canWriteToFile(session.getUsername())) {
+                    markFileOperationActive(session.getUsername());
+                    try {
+                        SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+                        commandService.executeCommand(saveCommand);
+                        recordFileWrite(session.getUsername());
+                        LoggerUtil.debug(this.getClass(), "Wrote session after schedule notification");
+                    } finally {
+                        markFileOperationComplete(session.getUsername());
+                    }
+                } else {
+                    // Mark for later sync
+                    pendingFileSyncs.add(session.getUsername());
+                    LoggerUtil.debug(this.getClass(), "Marked session for later sync after schedule notification");
+                }
 
                 LoggerUtil.info(this.getClass(), String.format(
                         "Schedule completion notification shown for user %s (worked: %d minutes)",
@@ -613,20 +660,30 @@ public class SessionMonitorService {
         String username = session.getUsername();
         LocalDateTime now = getStandardTimeValues().getCurrentTime();
 
-        // Use MonitoringStateService to check if hourly notification is due
         if (monitoringStateService.isHourlyNotificationDue(username, now)) {
             LoggerUtil.info(this.getClass(), String.format("Preparing hourly warning for %s", username));
 
-            // Show hourly warning using the notification service
             boolean success = notificationService.showHourlyWarning(username, session.getUserId(),
                     session.getFinalWorkedMinutes());
 
             if (success) {
-                // Save the updated session
-                SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
-                commandService.executeCommand(saveCommand);
+                // *** ENHANCED: Only write to file if safe, otherwise mark for later sync ***
+                if (canWriteToFile(username)) {
+                    markFileOperationActive(username);
+                    try {
+                        SaveSessionCommand saveCommand = commandFactory.createSaveSessionCommand(session);
+                        commandService.executeCommand(saveCommand);
+                        recordFileWrite(username);
+                        LoggerUtil.debug(this.getClass(), "Wrote session after hourly warning");
+                    } finally {
+                        markFileOperationComplete(username);
+                    }
+                } else {
+                    // Mark for later sync
+                    pendingFileSyncs.add(username);
+                    LoggerUtil.debug(this.getClass(), "Marked session for later sync after hourly warning");
+                }
 
-                // Record the warning in the centralized service
                 monitoringStateService.recordHourlyNotification(username, now);
             }
         }
@@ -698,7 +755,7 @@ public class SessionMonitorService {
      */
     private boolean isValidSessionFile(Path path) {
         String filename = path.getFileName().toString();
-        return filename.startsWith("session_") && filename.endsWith(".json");
+        return filename.startsWith("session_") && filename.endsWith(FileTypeConstants.JSON_EXTENSION);
     }
 
     /**
@@ -718,7 +775,7 @@ public class SessionMonitorService {
     private String extractUsernameFromSession(Path sessionPath) {
         try {
             String filename = sessionPath.getFileName().toString();
-            String[] parts = filename.replace("session_", "").replace(".json", "").split("_");
+            String[] parts = filename.replace("session_", "").replace(FileTypeConstants.JSON_EXTENSION, "").split("_");
             return parts.length >= 2 ? parts[0] : null;
         } catch (Exception e) {
             return null;
@@ -767,10 +824,6 @@ public class SessionMonitorService {
             LoggerUtil.error(this.getClass(), "Error showing test notification: " + e.getMessage());
         }
     }
-
-    // ===== KEEP ALL OTHER EXISTING METHODS =====
-    // (clearMonitoring, stopMonitoring, activateHourlyMonitoring, etc.)
-    // These methods remain unchanged as they work well with the existing system
 
     /**
      * Clears monitoring state for a user
@@ -969,5 +1022,103 @@ public class SessionMonitorService {
      */
     public LocalDateTime getScheduledEndTime(String username) {
         return monitoringStateService.getScheduledEndTime(username);
+    }
+
+
+    // ========================================================================
+    // FILE OPERATION COORDINATION METHODS
+    // ========================================================================
+
+    /**
+     * Check if it's safe to write to file (avoid conflicts with session commands).
+     */
+    private boolean canWriteToFile(String username) {
+        // Check if there's an ongoing file operation by session commands
+        if (activeFileOperations.contains(username)) {
+            LoggerUtil.debug(this.getClass(), "File operation in progress for user: " + username);
+            return false;
+        }
+
+        // Check minimum interval since last write
+        Long lastWrite = lastFileWrites.get(username);
+        if (lastWrite == null) {
+            return true;
+        }
+
+        long timeSinceLastWrite = System.currentTimeMillis() - lastWrite;
+        boolean canWrite = timeSinceLastWrite >= MIN_FILE_WRITE_INTERVAL_MS;
+
+        if (!canWrite) {
+            LoggerUtil.debug(this.getClass(), String.format("Too soon since last write for user %s (%dms ago)",
+                    username, timeSinceLastWrite));
+        }
+
+        return canWrite;
+    }
+
+    /**
+     * Record file write timestamp for coordination.
+     */
+    private void recordFileWrite(String username) {
+        lastFileWrites.put(username, System.currentTimeMillis());
+
+        // Cleanup old entries periodically
+        if (lastFileWrites.size() > 20) {
+            cleanupOldFileWrites();
+        }
+    }
+
+    /**
+     * Mark file operation as active (called by session commands).
+     */
+    public void markFileOperationActive(String username) {
+        activeFileOperations.add(username);
+        LoggerUtil.debug(this.getClass(), "Marked file operation active for user: " + username);
+    }
+
+    /**
+     * Mark file operation as complete (called by session commands).
+     */
+    public void markFileOperationComplete(String username) {
+        activeFileOperations.remove(username);
+        LoggerUtil.debug(this.getClass(), "Marked file operation complete for user: " + username);
+
+        // Check if this user has pending sync needs
+        if (pendingFileSyncs.contains(username)) {
+            LoggerUtil.info(this.getClass(), "User has pending sync needs, scheduling immediate sync: " + username);
+            scheduleImmediateSync(username);
+        }
+    }
+
+    /**
+     * Schedule immediate sync for user with pending needs.
+     */
+    private void scheduleImmediateSync(String username) {
+        // Schedule sync with small delay to ensure command completion
+        taskScheduler.schedule(() -> {
+            try {
+                if (canWriteToFile(username)) {
+                    syncActiveSessionToFile();
+                } else {
+                    LoggerUtil.debug(this.getClass(), "Still cannot sync for user: " + username);
+                }
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error in immediate sync: " + e.getMessage(), e);
+            }
+        }, Instant.now().plusMillis(2000)); // 2 second delay
+    }
+
+    /**
+     * Cleanup old file write records to prevent memory leaks.
+     */
+    private void cleanupOldFileWrites() {
+        long cutoff = System.currentTimeMillis() - (MIN_FILE_WRITE_INTERVAL_MS * 10);
+        int initialSize = lastFileWrites.size();
+        lastFileWrites.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+
+        int cleaned = initialSize - lastFileWrites.size();
+        if (cleaned > 0) {
+            LoggerUtil.debug(this.getClass(), "Cleaned up " + cleaned + " old file write records");
+        }
     }
 }

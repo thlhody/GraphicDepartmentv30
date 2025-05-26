@@ -1,5 +1,6 @@
 package com.ctgraphdep.fileOperations.core;
 
+import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.fileOperations.model.FileTransactionResult;
 import com.ctgraphdep.fileOperations.service.BackupService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -234,7 +235,7 @@ public class FileTransaction {
 
                 // Create backup of target if it exists
                 if (Files.exists(targetPath)) {
-                    Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + ".bak");
+                    Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + FileTypeConstants.BACKUP_EXTENSION);
                     Files.copy(targetPath, backupPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     LoggerUtil.debug(this.getClass(), "Created backup: " + backupPath);
                 }
@@ -245,7 +246,7 @@ public class FileTransaction {
 
                 // Delete backup on success only for low criticality files
                 if (criticalityLevel == BackupService.CriticalityLevel.LEVEL1_LOW) {
-                    Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + ".bak");
+                    Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + FileTypeConstants.BACKUP_EXTENSION);
                     if (Files.exists(backupPath)) {
                         Files.delete(backupPath);
                     }

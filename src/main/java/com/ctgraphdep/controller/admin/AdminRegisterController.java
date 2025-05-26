@@ -1,5 +1,6 @@
 package com.ctgraphdep.controller.admin;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.SyncStatusWorktime;
 import com.ctgraphdep.model.*;
@@ -62,7 +63,7 @@ public class AdminRegisterController extends BaseController {
 
         try {
             // Use checkUserAccess from BaseController for consistent access control
-            String accessCheck = checkUserAccess(userDetails, "ADMIN");
+            String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
             if (accessCheck != null) {
                 return accessCheck;
             }
@@ -124,7 +125,7 @@ public class AdminRegisterController extends BaseController {
             @RequestParam Integer month) {
 
         // Use validateUserAccess for REST controllers
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -139,7 +140,7 @@ public class AdminRegisterController extends BaseController {
             @RequestBody Map<String, Object> request) {
 
         // Use validateUserAccess for REST controllers
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
         }
@@ -228,7 +229,7 @@ public class AdminRegisterController extends BaseController {
             @RequestBody Map<String, Object> request) {
 
         // Use validateUserAccess for REST controllers
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -265,7 +266,7 @@ public class AdminRegisterController extends BaseController {
             @RequestParam Integer month) {
 
         // Use validateUserAccess for REST controllers
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -284,19 +285,17 @@ public class AdminRegisterController extends BaseController {
             @RequestParam Integer month) {
 
         // Use validateUserAccess for REST controllers
-        User currentUser = validateUserAccess(userDetails, "ADMIN");
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         try {
             // Get user details
-            User user = getUserService().getUserById(userId)
-                    .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+            User user = getUserService().getUserById(userId).orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
 
             // Load register entries
-            List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(
-                    user.getUsername(), userId, year, month);
+            List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(user.getUsername(), userId, year, month);
 
             // Get bonus configuration and calculation result if exists
             BonusConfiguration bonusConfig = BonusConfiguration.getDefaultConfig();
@@ -313,8 +312,7 @@ public class AdminRegisterController extends BaseController {
             byte[] excelBytes = adminRegisterExcelExporter.exportToExcel(user, entries, bonusConfig, bonusResult, year, month);
 
             // Set up response headers
-            String filename = String.format("register_report_%s_%d_%02d.xlsx",
-                    user.getUsername(), year, month);
+            String filename = String.format("register_report_%s_%d_%02d.xlsx", user.getUsername(), year, month);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));

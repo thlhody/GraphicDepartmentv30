@@ -1,5 +1,6 @@
 package com.ctgraphdep.fileOperations.service;
 
+import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
@@ -21,12 +22,12 @@ import java.util.stream.Stream;
  * This service provides utilities for administrators to view, restore, and manage backups.
  */
 @Service
-public class AdminBackupUtilityService {
+public class BackupUtilityService {
     private final PathConfig pathConfig;
     private final BackupService backupService;
 
     @Autowired
-    public AdminBackupUtilityService(
+    public BackupUtilityService(
             PathConfig pathConfig,
             BackupService backupService) {
         this.pathConfig = pathConfig;
@@ -67,9 +68,7 @@ public class AdminBackupUtilityService {
                 }
             }
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Found %d backups for user %s, file type %s with criticality %s",
-                    backups.size(), username, fileType, level));
+            LoggerUtil.info(this.getClass(), String.format("Found %d backups for user %s, file type %s with criticality %s", backups.size(), username, fileType, level));
 
             return backups;
         } catch (Exception e) {
@@ -95,7 +94,7 @@ public class AdminBackupUtilityService {
                         String fileName = p.getFileName().toString().toLowerCase();
                         return fileName.contains(username.toLowerCase()) &&
                                 fileName.contains(fileType.toLowerCase()) &&
-                                fileName.endsWith(".bak");
+                                fileName.endsWith(FileTypeConstants.BACKUP_EXTENSION);
                     })
                     .toList();
 
@@ -269,14 +268,12 @@ public class AdminBackupUtilityService {
 
             // Create admin-specific backup with date and admin tag
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            Path adminBackupDir = pathConfig.getLocalPath()
-                    .resolve(pathConfig.getBackupPath())
-                    .resolve("admin_backups");
+            Path adminBackupDir = pathConfig.getLocalPath().resolve(pathConfig.getBackupPath()).resolve("admin_backups");
 
             Files.createDirectories(adminBackupDir);
 
             Path adminBackup = adminBackupDir.resolve(
-                    path.getFileName() + ".admin_backup." + timestamp + ".bak");
+                    path.getFileName() + ".admin_backup." + timestamp +FileTypeConstants.BACKUP_EXTENSION);
 
             Files.copy(path, adminBackup, StandardCopyOption.REPLACE_EXISTING);
 

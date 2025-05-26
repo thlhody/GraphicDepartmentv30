@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.User;
@@ -40,7 +41,7 @@ public class UserManagementService {
 
     public List<User> getNonAdminUsers() {
         return getAllUsers().stream()
-                .filter(user -> !user.hasRole("ADMIN"))  // Use hasRole method instead
+                .filter(user -> !user.hasRole(SecurityConstants.ROLE_ADMIN))  // Use hasRole method instead
                 .collect(Collectors.toList());
     }
 
@@ -137,7 +138,7 @@ public class UserManagementService {
 
                 // Preserve admin role if exists
                 if (existingUser.isAdmin()) {
-                    user.setRole("ADMIN");
+                    user.setRole(SecurityConstants.ROLE_ADMIN);
                 }
 
                 users.set(index, user);
@@ -228,7 +229,7 @@ public class UserManagementService {
         if (user.getSchedule() == null || user.getSchedule() < 1) {
             throw new IllegalArgumentException("Invalid schedule value");
         }
-        if ("ADMIN".equals(user.getRole())) {
+        if (SecurityConstants.ROLE_ADMIN.equals(user.getRole())) {
             throw new IllegalArgumentException("Cannot assign admin role");
         }
     }

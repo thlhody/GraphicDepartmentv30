@@ -1,5 +1,6 @@
 package com.ctgraphdep.utils;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.worktime.WorkTimeResultDTO;
@@ -57,7 +58,7 @@ public class WorkTimeExcelExporter {
 
     private List<User> filterNonAdminUsers(List<User> users) {
         return users.stream()
-                .filter(user -> !user.getRole().contains("ADMIN"))
+                .filter(user -> !user.getRole().contains(SecurityConstants.ROLE_ADMIN))
                 .toList();
     }
 

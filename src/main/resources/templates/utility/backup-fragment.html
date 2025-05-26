@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+
+<!-- Backup Management Fragment -->
+<div th:fragment="backup-utility" class="utility-section" id="backup-utility">
+    <div class="utility-header">
+        <div class="utility-icon">
+            <i class="bi bi-archive"></i>
+        </div>
+        <div class="utility-info">
+            <h3 class="utility-title">Backup Management</h3>
+            <p class="utility-description">
+                View and restore backups of your work files.<br>
+                Create manual backups for important data.
+            </p>
+        </div>
+        <div class="utility-toggle">
+            <button class="btn-subtle" data-bs-toggle="collapse" data-bs-target="#backup-controls"
+                    aria-expanded="false" aria-controls="backup-controls">
+                <i class="bi bi-chevron-down toggle-icon"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="collapse utility-controls" id="backup-controls">
+        <div class="controls-grid">
+            <!-- File Selection -->
+            <div class="control-group">
+                <label for="backup-file-type" class="control-label">File Type</label>
+                <select id="backup-file-type" class="form-control-subtle">
+                    <option value="worktime">Work Time</option>
+                    <option value="register">Work Register</option>
+                    <option value="session">Session</option>
+                    <option value="check_register">Check Register</option>
+                    <option value="timeoff_tracker">Time Off Tracker</option>
+                </select>
+            </div>
+
+            <!-- Period Selection -->
+            <div class="control-group">
+                <label for="backup-year" class="control-label">Period</label>
+                <div class="period-controls">
+                    <select id="backup-year" class="form-control-subtle">
+                        <option th:value="${#dates.year(#dates.createNow())}"
+                                th:text="${#dates.year(#dates.createNow())}"
+                                selected>Current Year
+                        </option>
+                        <option th:value="${#dates.year(#dates.createNow()) - 1}"
+                                th:text="${#dates.year(#dates.createNow()) - 1}">Previous Year
+                        </option>
+                    </select>
+                    <label for="backup-month"></label><select id="backup-month" class="form-control-subtle">
+                    <option value="1">Jan</option>
+                    <option value="2">Feb</option>
+                    <option value="3">Mar</option>
+                    <option value="4">Apr</option>
+                    <option value="5">May</option>
+                    <option value="6">Jun</option>
+                    <option value="7">Jul</option>
+                    <option value="8">Aug</option>
+                    <option value="9">Sep</option>
+                    <option value="10">Oct</option>
+                    <option value="11">Nov</option>
+                    <option value="12">Dec</option>
+                </select>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="control-group">
+                <label class="control-label">Actions</label>
+                <div class="action-buttons">
+                    <button id="list-backups-btn" class="btn-action primary">
+                        <i class="bi bi-list"></i>
+                        <span>List</span>
+                    </button>
+                    <button id="create-backup-btn" class="btn-action success">
+                        <i class="bi bi-plus"></i>
+                        <span>Create</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div id="backup-results" class="results-area" style="display: none;">
+            <div class="results-header">
+                <h4 class="results-title">Available Backups</h4>
+                <span id="backup-count" class="results-badge">0</span>
+            </div>
+            <div id="backup-list" class="results-content">
+                <!-- Backup items will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+  alert('FRAGMENT SCRIPT LOADED!');
+  console.log('FRAGMENT SCRIPT LOADED!');
+</script>
+
+
+</html>
