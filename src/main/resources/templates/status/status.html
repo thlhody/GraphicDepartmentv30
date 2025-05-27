@@ -111,7 +111,7 @@
                                 <div class="d-flex gap-2 justify-content-end">
 
                                     <!-- Check Register Button - Grey -->
-                                    <a th:if="${status.hasRole('CHECKING') || status.hasRole('USER_CHECKING')}"
+                                    <a th:if="${status.hasRole('CHECKING') || status.hasRole('USER_CHECKING') || status.hasRole('TL_CHECKING')}"
                                        th:href="@{/status/check-register-status(username=${status.username})}"
                                        class="btn btn-sm btn-outline-secondary">
                                         <i class="bi bi-check-square me-1"></i>Checks
