@@ -82,7 +82,7 @@
                             <label for="searchTerm" class="form-label">Search Terms</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="searchTerm" name="searchTerm"
-                                       placeholder="Search by order ID, designer, check type..."
+                                       placeholder="Search by OMS ID, designer, check type..."
                                        th:value="${param.searchTerm}">
                                 <button class="btn btn-primary" type="submit">
                                     <i class="bi bi-search me-1"></i>Search
@@ -194,12 +194,18 @@
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                     <h6 class="card-subtitle mb-0 me-3">Check Types:</h6>
                     <div class="d-flex flex-wrap gap-2">
-                        <span class="badge bg-primary">GPT:
-                            <span id="count-gpt"
-                                  th:text="${summary.checkTypeCounts['GPT'] != null ? summary.checkTypeCounts['GPT'] : 0}">0</span></span>
                         <span class="badge bg-success">LAYOUT:
                             <span id="count-layout"
                                   th:text="${summary.checkTypeCounts['LAYOUT'] != null ? summary.checkTypeCounts['LAYOUT'] : 0}">0</span></span>
+                        <span class="badge bg-success">KIPSTA LAYOUT:
+                            <span id="count-kipsta-layout"
+                                  th:text="${summary.checkTypeCounts['KIPSTA LAYOUT'] != null ? summary.checkTypeCounts['KIPSTA LAYOUT'] : 0}">0</span></span>
+                        <span class="badge bg-success">LAYOUT CHANGES:
+                            <span id="count-layout-changes"
+                                  th:text="${summary.checkTypeCounts['LAYOUT CHANGES'] != null ? summary.checkTypeCounts['LAYOUT CHANGES'] : 0}">0</span></span>
+                        <span class="badge bg-primary">GPT:
+                            <span id="count-gpt"
+                                  th:text="${summary.checkTypeCounts['GPT'] != null ? summary.checkTypeCounts['GPT'] : 0}">0</span></span>
                         <span class="badge bg-info">PRODUCTION:
                             <span id="count-production"
                                   th:text="${summary.checkTypeCounts['PRODUCTION'] != null ? summary.checkTypeCounts['PRODUCTION'] : 0}">0</span></span>
@@ -208,9 +214,26 @@
                                   th:text="${summary.checkTypeCounts['SAMPLE'] != null ? summary.checkTypeCounts['SAMPLE'] : 0}">0</span></span>
                         <span class="badge bg-danger">OMS PRODUCTION:
                             <span id="count-oms-production"
-                                  th:text="${summary.checkTypeCounts['OMS_PRODUCTION'] != null ? summary.checkTypeCounts['OMS_PRODUCTION'] : 0}">0</span></span>
-                        <span class="badge bg-secondary">Others:
-                            <span id="count-others">0</span></span>
+                                  th:text="${summary.checkTypeCounts['OMS PRODUCTION'] != null ? summary.checkTypeCounts['OMS PRODUCTION'] : 0}">0</span></span>
+                        <span class="badge bg-info">KIPSTA PRODUCTION:
+                            <span id="count-kipsta-production"
+                                  th:text="${summary.checkTypeCounts['KIPSTA PRODUCTION'] != null ? summary.checkTypeCounts['KIPSTA PRODUCTION'] : 0}">0</span></span>
+                    </div>
+                </div>
+
+                <!-- Approval Status Metrics - Single line -->
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <h6 class="card-subtitle mb-0 me-3">Approval Status:</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge bg-success">APPROVED:
+                            <span id="count-approved"
+                                  th:text="${summary.approvalStatusCounts['APPROVED'] != null ? summary.approvalStatusCounts['APPROVED'] : 0}">0</span></span>
+                        <span class="badge bg-warning">PARTIALLY APPROVED:
+                            <span id="count-partially-approved"
+                                  th:text="${summary.approvalStatusCounts['PARTIALLY APPROVED'] != null ? summary.approvalStatusCounts['PARTIALLY APPROVED'] : 0}">0</span></span>
+                        <span class="badge bg-danger">CORRECTION:
+                            <span id="count-correction"
+                                  th:text="${summary.approvalStatusCounts['CORRECTION'] != null ? summary.approvalStatusCounts['CORRECTION'] : 0}">0</span></span>
                     </div>
                 </div>
 
@@ -220,11 +243,11 @@
                     <div class="d-flex flex-wrap gap-4">
                         <span>Total Entries:
                             <strong id="total-entries" th:text="${summary.totalEntries}">0</strong></span>
-                        <span>Avg Files:
-                            <strong id="avg-files" th:text="${#numbers.formatDecimal(summary.avgFiles, 1, 2)}">0.00</strong></span>
-                        <span>Avg Articles:
-                            <strong id="avg-articles" th:text="${#numbers.formatDecimal(summary.avgArticles, 1, 2)}">0.00</strong></span>
-                        <span>Total Order Value:
+                        <span>Total Articles:
+                            <strong id="total-articles" th:text="${summary.totalArticles}">0</strong></span>
+                        <span>Total Files:
+                            <strong id="total-files" th:text="${summary.totalFiles}">0</strong></span>
+                        <span>Total Value:
                             <strong id="total-order-value" th:text="${#numbers.formatDecimal(summary.totalOrderValue, 1, 2)}">0.00</strong></span>
                     </div>
                 </div>
@@ -257,14 +280,13 @@
                         <tr>
                             <th class="text-center" style="width: 40px;">ID</th>
                             <th style="width: 90px;">Date</th>
-                            <th style="width: 120px;">Order ID</th>
+                            <th style="width: 120px;">OMS ID</th>
                             <th style="width: 100px;">Prod. ID</th>
-                            <th style="width: 100px;">OMS ID</th>
                             <th>Designer</th>
-                            <th style="width: 100px;">Check Type</th>
-                            <th style="width: 40px;">Art</th>
-                            <th style="width: 40px;">Files</th>
-                            <th style="width: 90px;">Approval</th>
+                            <th style="width: 120px;">Check Type</th>
+                            <th style="width: 50px;">Art</th>
+                            <th style="width: 50px;">Files</th>
+                            <th style="width: 100px;">Approval</th>
                             <th style="width: 80px;">Value</th>
                             <th>Error Desc</th>
                             <th style="width: 90px;">Status</th>
@@ -274,18 +296,20 @@
                         <tr th:each="entry : ${entries}">
                             <td class="text-center" th:text="${entry.entryId}"></td>
                             <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
-                            <td th:text="${entry.orderId}"></td>
-                            <td th:text="${entry.productionId}"></td>
                             <td th:text="${entry.omsId}"></td>
+                            <td th:text="${entry.productionId}"></td>
                             <td th:text="${entry.designerName}"></td>
                             <td>
                                 <span th:switch="${entry.checkType}" class="badge"
                                       th:class="${'badge ' +
-                                        (entry.checkType == 'GPT' ? 'bg-primary' :
-                                         entry.checkType == 'LAYOUT' ? 'bg-success' :
+                                        (entry.checkType == 'LAYOUT' ? 'bg-success' :
+                                         entry.checkType == 'KIPSTA LAYOUT' ? 'bg-success' :
+                                         entry.checkType == 'LAYOUT CHANGES' ? 'bg-success' :
+                                         entry.checkType == 'GPT' ? 'bg-primary' :
                                          entry.checkType == 'PRODUCTION' ? 'bg-info' :
                                          entry.checkType == 'SAMPLE' ? 'bg-warning' :
-                                         entry.checkType == 'OMS_PRODUCTION' ? 'bg-danger' :
+                                         entry.checkType == 'OMS PRODUCTION' ? 'bg-danger' :
+                                         entry.checkType == 'KIPSTA PRODUCTION' ? 'bg-info' :
                                          'bg-secondary')}">
                                     <th:block th:text="${entry.checkType}">Check Type</th:block>
                                 </span>
@@ -310,8 +334,10 @@
                                     <span th:case="'CHECKING_DONE'" class="badge bg-success">Complete</span>
                                     <span th:case="'TL_CHECK_DONE'" class="badge bg-primary">TL.Approved</span>
                                     <span th:case="'TL_EDITED'" class="badge bg-info">TL.Edited</span>
+                                    <span th:case="'TL_BLANK'" class="badge bg-danger">TL.Removed</span>
                                     <span th:case="'ADMIN_EDITED'" class="badge bg-warning">A.Edited</span>
                                     <span th:case="'ADMIN_DONE'" class="badge bg-success">A.Done</span>
+                                    <span th:case="*" class="badge bg-secondary" th:text="${entry.adminSync}">Unknown</span>
                                 </span>
                             </td>
                         </tr>

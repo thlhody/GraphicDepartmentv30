@@ -379,13 +379,8 @@ public class StatusService {
 
     // Filter check register entries based on search criteria.
     public List<RegisterCheckEntry> filterCheckRegisterEntries(
-            List<RegisterCheckEntry> entries,
-            String searchTerm,
-            LocalDate startDate,
-            LocalDate endDate,
-            String checkType,
-            String designerName,
-            String approvalStatus) {
+            List<RegisterCheckEntry> entries, String searchTerm, LocalDate startDate, LocalDate endDate,
+            String checkType, String designerName, String approvalStatus) {
 
         List<RegisterCheckEntry> filteredEntries = new ArrayList<>(entries);
 
@@ -431,6 +426,7 @@ public class StatusService {
     }
 
     // Calculate check register summary statistics
+    // Calculate check register summary statistics
     public Map<String, Object> calculateCheckRegisterSummary(List<RegisterCheckEntry> entries) {
         Map<String, Object> summary = new HashMap<>();
 
@@ -438,9 +434,12 @@ public class StatusService {
             // Return empty summary for no entries
             summary.put("totalEntries", 0);
             summary.put("checkTypeCounts", new HashMap<>());
+            summary.put("approvalStatusCounts", new HashMap<>());
             summary.put("avgArticles", 0.0);
             summary.put("avgFiles", 0.0);
             summary.put("totalOrderValue", 0.0);
+            summary.put("totalArticles", 0);
+            summary.put("totalFiles", 0);
             return summary;
         }
 
@@ -448,6 +447,13 @@ public class StatusService {
         Map<String, Long> checkTypeCounts = entries.stream()
                 .collect(Collectors.groupingBy(
                         entry -> entry.getCheckType() != null ? entry.getCheckType() : "UNKNOWN",
+                        Collectors.counting()
+                ));
+
+        // Count each approval status
+        Map<String, Long> approvalStatusCounts = entries.stream()
+                .collect(Collectors.groupingBy(
+                        entry -> entry.getApprovalStatus() != null ? entry.getApprovalStatus() : "UNKNOWN",
                         Collectors.counting()
                 ));
 
@@ -464,6 +470,7 @@ public class StatusService {
         // Add to summary map
         summary.put("totalEntries", totalEntries);
         summary.put("checkTypeCounts", checkTypeCounts);
+        summary.put("approvalStatusCounts", approvalStatusCounts);
         summary.put("totalArticles", totalArticles);
         summary.put("totalFiles", totalFiles);
         summary.put("avgArticles", avgArticles);
