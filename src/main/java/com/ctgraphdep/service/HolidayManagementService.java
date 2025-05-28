@@ -2,6 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
@@ -21,11 +22,13 @@ import java.util.concurrent.locks.ReentrantLock;
 public class HolidayManagementService {
     private final UserService userService;
     private final DataAccessService dataAccessService;
+    private final WorktimeDataService worktimeDataService;
     private final ReentrantLock holidayLock = new ReentrantLock();
 
-    public HolidayManagementService(UserService userService, DataAccessService dataAccessService) {
+    public HolidayManagementService(UserService userService, DataAccessService dataAccessService, WorktimeDataService worktimeDataService) {
         this.userService = userService;
         this.dataAccessService = dataAccessService;
+        this.worktimeDataService = worktimeDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -276,7 +279,7 @@ public class HolidayManagementService {
      * Load time off entries for a specific month
      */
     private List<WorkTimeTable> loadMonthlyTimeoffs(String username, YearMonth yearMonth) {
-        List<WorkTimeTable> monthEntries = dataAccessService.readNetworkUserWorktimeReadOnly(username, yearMonth.getYear(), yearMonth.getMonthValue());
+        List<WorkTimeTable> monthEntries = worktimeDataService.readUserLocalReadOnly(username, yearMonth.getYear(), yearMonth.getMonthValue(), username);
 
         // Filter only time off entries (include all types)
         return monthEntries.stream().filter(entry -> entry.getTimeOffType() != null &&

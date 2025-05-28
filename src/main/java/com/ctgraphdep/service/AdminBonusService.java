@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.BonusEntry;
 import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
 import com.ctgraphdep.model.User;
@@ -14,14 +15,12 @@ import java.util.*;
 @Service
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminBonusService {
-    private final DataAccessService dataAccessService;
+    private final RegisterDataService registerDataService;
     private final UserService userService;
     private final AdminBonusExcelExporter adminBonusExcelExporter;
 
-    public AdminBonusService(
-            DataAccessService dataAccessService,
-            UserService userService, AdminBonusExcelExporter adminBonusExcelExporter) {
-        this.dataAccessService = dataAccessService;
+    public AdminBonusService(RegisterDataService registerDataService, UserService userService, AdminBonusExcelExporter adminBonusExcelExporter) {
+        this.registerDataService = registerDataService;
         this.userService = userService;
         this.adminBonusExcelExporter = adminBonusExcelExporter;
         LoggerUtil.initialize(this.getClass(), null);
@@ -30,7 +29,7 @@ public class AdminBonusService {
     public Map<Integer, BonusEntryDTO> loadBonusData(Integer year, Integer month) {
         try {
             // Get bonus data with null check
-            List<BonusEntry> bonusData = dataAccessService.readAdminBonus(year, month);
+            List<BonusEntry> bonusData = registerDataService.readAdminBonus(year, month);
             if (bonusData == null) {
                 bonusData = new ArrayList<>(); // Initialize empty list if null
             }

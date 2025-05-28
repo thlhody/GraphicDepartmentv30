@@ -1,6 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -21,15 +22,17 @@ public class TeamStatisticsService {
     private final UserService userService;
     private final WorktimeManagementService worktimeManagementService;
     private final UserRegisterService registerService;
+    private final RegisterDataService registerDataService;
 
     public TeamStatisticsService(DataAccessService dataAccessService,
                                  UserService userService,
                                  WorktimeManagementService worktimeManagementService,
-                                 UserRegisterService registerService) {
+                                 UserRegisterService registerService, RegisterDataService registerDataService) {
         this.dataAccessService = dataAccessService;
         this.userService = userService;
         this.worktimeManagementService = worktimeManagementService;
         this.registerService = registerService;
+        this.registerDataService = registerDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -53,7 +56,7 @@ public class TeamStatisticsService {
             }
 
             // Save initial team members to JSON with year and month
-            dataAccessService.writeTeamMembers(teamMemberDTOS, teamLeadUsername, year, month);
+            registerDataService.writeTeamMembers(teamMemberDTOS, teamLeadUsername, year, month);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Initialized %d team members for team lead %s for period %d/%d",
@@ -76,7 +79,7 @@ public class TeamStatisticsService {
     public void updateTeamStatistics(String teamLeadUsername, int year, int month) {
         try {
             // Read existing team members for the specified period
-            List<TeamMemberDTO> teamMemberDTOS = dataAccessService.readTeamMembers(teamLeadUsername, year, month);
+            List<TeamMemberDTO> teamMemberDTOS = registerDataService.readTeamMembers(teamLeadUsername, year, month);
 
             if (teamMemberDTOS.isEmpty()) {
                 LoggerUtil.warn(this.getClass(),
@@ -100,7 +103,7 @@ public class TeamStatisticsService {
             }
 
             // Save updated team members with year and month
-            dataAccessService.writeTeamMembers(teamMemberDTOS, teamLeadUsername, year, month);
+            registerDataService.writeTeamMembers(teamMemberDTOS, teamLeadUsername, year, month);
 
             LoggerUtil.info(this.getClass(),
                     String.format("Updated statistics for %d team members for team lead %s for period %d/%d",
@@ -145,7 +148,7 @@ public class TeamStatisticsService {
      */
     public List<TeamMemberDTO> getTeamMembers(String teamLeadUsername, int year, int month) {
         try {
-            List<TeamMemberDTO> teamMemberDTOS = dataAccessService.readTeamMembers(teamLeadUsername, year, month);
+            List<TeamMemberDTO> teamMemberDTOS = registerDataService.readTeamMembers(teamLeadUsername, year, month);
 
             // If no members found, return empty list instead of null
             if (teamMemberDTOS == null) {
@@ -167,7 +170,7 @@ public class TeamStatisticsService {
     }
 
     private void updateWorkTimeStats(TeamMemberDTO member, int year, int month) {
-        List<WorkTimeTable> worktime = worktimeManagementService.loadMonthWorktime(
+        List<WorkTimeTable> worktime = worktimeManagementService.loadViewOnlyWorktime(
                 member.getUsername(), year, month);
 
         if (worktime == null || worktime.isEmpty()) {

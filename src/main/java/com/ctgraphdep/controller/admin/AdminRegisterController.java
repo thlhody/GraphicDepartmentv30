@@ -2,7 +2,7 @@ package com.ctgraphdep.controller.admin;
 
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 import com.ctgraphdep.model.dto.RegisterSummaryDTO;
@@ -189,7 +189,7 @@ public class AdminRegisterController extends BaseController {
 
                         // IMPORTANT: Preserve the original adminSync status from the client
                         String adminSync = data.get("adminSync") != null ?
-                                data.get("adminSync").toString() : SyncStatusWorktime.USER_DONE.name();
+                                data.get("adminSync").toString() : SyncStatusMerge.USER_DONE.name();
 
                         return RegisterEntry.builder()
                                 .entryId(Integer.parseInt(data.get("entryId").toString()))
@@ -271,8 +271,7 @@ public class AdminRegisterController extends BaseController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        List<RegisterEntry> entries = adminRegisterService.loadUserRegisterEntries(
-                username, userId, year, month);
+        List<RegisterEntry> entries = adminRegisterService.readMergedAdminEntries(username, userId, year, month);
         RegisterSummaryDTO summary = adminRegisterService.calculateRegisterSummary(entries);
         return ResponseEntity.ok(summary);
     }
@@ -325,6 +324,37 @@ public class AdminRegisterController extends BaseController {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error exporting Excel: " + e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PostMapping("/confirm-all-changes")
+    public ResponseEntity<?> confirmAllChanges(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam Integer userId,
+            @RequestParam Integer year,
+            @RequestParam Integer month) {
+
+        // Use validateUserAccess for REST controllers
+        User currentUser = validateUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
+        }
+
+        try {
+            String username = getUserService().getUserById(userId)
+                    .map(User::getUsername)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            int confirmedCount = adminRegisterService.confirmAllAdminChanges(username, userId, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Admin confirmed %d changes for user %s - %d/%d", confirmedCount, username, year, month));
+
+            return ResponseEntity.ok().body(String.format("Confirmed %d changes", confirmedCount));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error confirming admin changes: " + e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Error confirming changes: " + e.getMessage());
         }
     }
 }

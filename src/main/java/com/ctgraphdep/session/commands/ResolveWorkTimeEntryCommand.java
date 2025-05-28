@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -61,7 +61,7 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             // Find the unresolved entry for this date
             WorkTimeTable entry = entries.stream()
                     .filter(e -> e.getWorkDate() != null && e.getWorkDate().equals(entryDate))
-                    .filter(e -> e.getAdminSync() == SyncStatusWorktime.USER_IN_PROCESS)
+                    .filter(e -> e.getAdminSync() == SyncStatusMerge.USER_IN_PROCESS)
                     .filter(e -> e.getDayStartTime() != null && e.getDayEndTime() == null)
                     .findFirst()
                     .orElse(null);
@@ -110,7 +110,7 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
         entry.setTotalWorkedMinutes(rawMinutes);
         entry.setTotalOvertimeMinutes(result.getOvertimeMinutes());
         entry.setLunchBreakDeducted(result.isLunchDeducted());
-        entry.setAdminSync(SyncStatusWorktime.USER_INPUT);
+        entry.setAdminSync(SyncStatusMerge.USER_INPUT);
     }
 
     /**

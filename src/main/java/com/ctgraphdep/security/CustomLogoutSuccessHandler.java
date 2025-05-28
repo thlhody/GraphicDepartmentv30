@@ -1,6 +1,7 @@
 package com.ctgraphdep.security;
 
-import com.ctgraphdep.service.CheckValuesCacheManager;
+import com.ctgraphdep.service.cache.CheckValuesCacheManager;
+import com.ctgraphdep.service.cache.RegisterCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -14,23 +15,23 @@ import java.io.IOException;
 public class CustomLogoutSuccessHandler implements LogoutSuccessHandler {
 
     private final CheckValuesCacheManager checkValuesCacheManager;
+    private final RegisterCacheService registerCacheService;
 
-    public CustomLogoutSuccessHandler(CheckValuesCacheManager checkValuesCacheManager) {
+    public CustomLogoutSuccessHandler(CheckValuesCacheManager checkValuesCacheManager, RegisterCacheService registerCacheService) {
         this.checkValuesCacheManager = checkValuesCacheManager;
+        this.registerCacheService = registerCacheService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     @Override
-    public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response,
-                                Authentication authentication) throws IOException {
+    public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
         try {
             // Clear all cached check values when any user logs out
             checkValuesCacheManager.clearAllCachedCheckValues();
-
+            registerCacheService.clearAllCache();
             // Log the logout
             if (authentication != null) {
-                LoggerUtil.info(this.getClass(),
-                        "User logged out and cleared check values cache: " + authentication.getName());
+                LoggerUtil.info(this.getClass(), "User logged out and cleared check values cache: " + authentication.getName());
             } else {
                 LoggerUtil.info(this.getClass(), "Session ended and cleared check values cache");
             }

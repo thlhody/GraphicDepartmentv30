@@ -1,8 +1,8 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusWorktime;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -30,7 +30,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class WorktimeManagementService {
-    private final DataAccessService dataAccessService;
+
+    private final WorktimeDataService worktimeDataService;
     private final UserService userService;
     private final HolidayManagementService holidayManagementService;
     private final WorktimeMergeService worktimeMergeService;
@@ -41,10 +42,9 @@ public class WorktimeManagementService {
     private final ReentrantLock adminLock = new ReentrantLock();
     private final ReentrantLock consolidationLock = new ReentrantLock();
 
-    public WorktimeManagementService(
-            DataAccessService dataAccessService, UserService userService, HolidayManagementService holidayManagementService,
+    public WorktimeManagementService(WorktimeDataService worktimeDataService, UserService userService, HolidayManagementService holidayManagementService,
             WorktimeMergeService worktimeMergeService, TimeValidationService timeValidationService) {
-        this.dataAccessService = dataAccessService;
+        this.worktimeDataService = worktimeDataService;
         this.userService = userService;
         this.holidayManagementService = holidayManagementService;
         this.worktimeMergeService = worktimeMergeService;
@@ -62,54 +62,32 @@ public class WorktimeManagementService {
         Integer userId = getUserId(username);
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        // If accessing own data, use normal local path flow
-        if (currentUsername.equals(username)) {
-            userLock.readLock().lock();
-            try {
-                List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
-                List<WorkTimeTable> userEntries = loadUserEntries(username, year, month);
+        userLock.readLock().lock();
+        try {
+            // Use WorktimeDataService - handles smart fallback automatically
+            List<WorkTimeTable> userEntries = worktimeDataService.readUserLocalReadOnly(
+                    username, year, month, currentUsername);
 
-                // Check if local entries are empty but network entries might exist
-                boolean localEntriesEmpty = (userEntries == null || userEntries.isEmpty());
+            // Load admin entries for merging
+            List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
 
-                if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
-                    try {
-                        // Try to read network entries (in read-only mode to avoid triggering any actions)
-                        List<WorkTimeTable> networkEntries = dataAccessService.readNetworkUserWorktimeReadOnly(username, year, month);
+            // Merge user + admin entries
+            List<WorkTimeTable> mergedEntries = worktimeMergeService.mergeEntries(
+                    userEntries, adminEntries, userId);
 
-                        if (networkEntries != null && !networkEntries.isEmpty()) {
-                            // Network has entries but local is empty - use network entries to prevent data loss
-                            LoggerUtil.info(this.getClass(), "Local worktime entries missing but found entries on network. Restoring data.");
-                            userEntries = networkEntries;
-                        }
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(), "Error reading network worktime: " + e.getMessage());
-                    }
-                }
-
-                // Ensure userEntries is not null
-                if (userEntries == null) {
-                    userEntries = new ArrayList<>();
-                }
-
-                // Use the merge service for consistent merging
-                List<WorkTimeTable> mergedEntries = worktimeMergeService.mergeEntries(userEntries, adminEntries, userId);
-
-                if (!adminEntries.isEmpty() || !userEntries.isEmpty()) {
-                    dataAccessService.writeUserWorktime(username, mergedEntries, year, month);
-                }
-
-                return mergedEntries.stream().sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
-            } finally {
-                userLock.readLock().unlock();
+            // Write back merged entries if there's data to merge
+            if (!adminEntries.isEmpty() || !userEntries.isEmpty()) {
+                worktimeDataService.writeUserLocalWithSyncAndBackup(
+                        username, mergedEntries, year, month);
             }
-        }
 
-        // For admin/team leader viewing others, read directly from network
-        if (dataAccessService.isNetworkAvailable()) {
-            return dataAccessService.readNetworkUserWorktimeReadOnly(username, year, month);
+            return mergedEntries.stream()
+                    .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
+                    .collect(Collectors.toList());
+
+        } finally {
+            userLock.readLock().unlock();
         }
-        throw new RuntimeException("Network access required to view other users' worktime");
     }
 
     /**
@@ -128,7 +106,7 @@ public class WorktimeManagementService {
             validateEntries(entries, userId);
 
             // Set sync status for all entries
-            entries.forEach(entry -> entry.setAdminSync(SyncStatusWorktime.USER_INPUT));
+            entries.forEach(entry -> entry.setAdminSync(SyncStatusMerge.USER_INPUT));
 
             // Group entries by month for processing
             Map<YearMonth, List<WorkTimeTable>> entriesByMonth = entries.stream().collect(Collectors.groupingBy(entry -> YearMonth.from(entry.getWorkDate())));
@@ -153,10 +131,11 @@ public class WorktimeManagementService {
     public List<WorkTimeTable> loadViewOnlyWorktime(String username, int year, int month) {
         Integer userId = getUserId(username);
 
-        // Only read from network for admins/team leaders viewing others
-        List<WorkTimeTable> userEntries = dataAccessService.readNetworkUserWorktimeReadOnly(username, year, month);
+        // Network read-only - no local file access, no write-back
+        List<WorkTimeTable> userEntries = worktimeDataService.readUserFromNetworkOnly(username, year, month);
         List<WorkTimeTable> adminEntries = loadAdminEntries(userId, year, month);
 
+        // Simple merge for display only (no write-back)
         Map<LocalDate, WorkTimeTable> mergedMap = new HashMap<>();
 
         if (userEntries != null) {
@@ -165,8 +144,8 @@ public class WorktimeManagementService {
 
         if (adminEntries != null) {
             adminEntries.forEach(adminEntry -> {
-                if (adminEntry.getAdminSync() == SyncStatusWorktime.ADMIN_EDITED) {
-                    adminEntry.setAdminSync(SyncStatusWorktime.USER_DONE);
+                if (adminEntry.getAdminSync() == SyncStatusMerge.ADMIN_EDITED) {
+                    adminEntry.setAdminSync(SyncStatusMerge.USER_DONE);
                     mergedMap.put(adminEntry.getWorkDate(), adminEntry);
                 }
             });
@@ -193,7 +172,7 @@ public class WorktimeManagementService {
             entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparing(WorkTimeTable::getUserId));
 
             try {
-                dataAccessService.writeUserWorktime(username, entries, year, month, operatingUsername);
+                worktimeDataService.writeUserLocalWithSyncAndBackup(username, entries, year, month);
                 LoggerUtil.info(this.getClass(), String.format("Saved worktime entry for user %s - %d/%d using file-based auth", username, year, month));
             } catch (Exception e) {
                 LoggerUtil.error(this.getClass(), String.format("Failed to save worktime entry for user %s: %s", username, e.getMessage()));
@@ -213,7 +192,7 @@ public class WorktimeManagementService {
         }
 
         // Fetch the data here
-        List<WorkTimeTable> entries = dataAccessService.readNetworkAdminWorktime(date.getYear(), date.getMonthValue());
+        List<WorkTimeTable> entries = worktimeDataService.readAdminByUserNetworkReadOnly(date.getYear(), date.getMonthValue());
 
         // Create and execute the command with the fetched data
         IsNationalHolidayCommand command = timeValidationService.getValidationFactory().createIsNationalHolidayCommand(date, entries);
@@ -237,7 +216,7 @@ public class WorktimeManagementService {
             remainingEntries.addAll(newEntries);
             remainingEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparing(WorkTimeTable::getUserId));
 
-            dataAccessService.writeUserWorktime(username, remainingEntries, year, month);
+            worktimeDataService.writeUserLocalWithSyncAndBackup(username, remainingEntries, year, month);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error processing month entries for %s: %s", username, e.getMessage()));
@@ -247,7 +226,7 @@ public class WorktimeManagementService {
 
     public List<WorkTimeTable> loadUserEntries(String username, int year, int month, String operatingUsername) {
         try {
-            List<WorkTimeTable> entries = dataAccessService.readUserWorktime(username, year, month, operatingUsername);
+            List<WorkTimeTable> entries = worktimeDataService.readUserLocalReadOnly(username, year, month, operatingUsername);
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading user entries for %s: %s", username, e.getMessage()));
@@ -381,7 +360,7 @@ public class WorktimeManagementService {
     private List<WorkTimeTable> processUserEntries(User user, int year, int month, Map<String, WorkTimeTable> adminEntriesMap) {
         try {
             // Load user entries from network with null safety
-            List<WorkTimeTable> userEntries = dataAccessService.readNetworkUserWorktimeReadOnly(user.getUsername(), year, month);
+            List<WorkTimeTable> userEntries = worktimeDataService.readUserFromNetworkOnly(user.getUsername(), year, month);
 
             if (userEntries == null) {
                 userEntries = new ArrayList<>();
@@ -392,16 +371,15 @@ public class WorktimeManagementService {
 
             // First, check for resolved entries that should replace unresolved admin entries
             for (WorkTimeTable userEntry : userEntries) {
-                if (SyncStatusWorktime.USER_INPUT.equals(userEntry.getAdminSync())) {
+                if (SyncStatusMerge.USER_INPUT.equals(userEntry.getAdminSync())) {
                     // This is a resolved entry from the user
                     String entryKey = createEntryKey(userEntry.getUserId(), userEntry.getWorkDate());
 
                     // Check if admin has an unresolved entry for this date
                     WorkTimeTable adminEntry = adminEntriesMap != null ? adminEntriesMap.get(entryKey) : null;
 
-                    if (adminEntry != null && SyncStatusWorktime.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
-                        LoggerUtil.info(this.getClass(),
-                                String.format("Admin consolidation: Updating admin USER_IN_PROCESS entry with user's resolved entry for %s",
+                    if (adminEntry != null && SyncStatusMerge.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
+                        LoggerUtil.info(this.getClass(), String.format("Admin consolidation: Updating admin USER_IN_PROCESS entry with user's resolved entry for %s",
                                         userEntry.getWorkDate()));
 
                         // Use the resolved user entry instead of the unresolved admin entry
@@ -424,12 +402,12 @@ public class WorktimeManagementService {
 
                     // Only include admin entry if it's for this user
                     if (adminEntry.getUserId().equals(user.getUserId())) {
-                        if (SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
+                        if (SyncStatusMerge.ADMIN_BLANK.equals(adminEntry.getAdminSync())) {
                             // Keep ADMIN_BLANK entries to ensure they're properly handled
                             processedEntries.add(adminEntry);
                             processedEntriesMap.put(entryKey, adminEntry);
                         }
-                        else if (!SyncStatusWorktime.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
+                        else if (!SyncStatusMerge.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
                             // Include all admin entries EXCEPT USER_IN_PROCESS
                             processedEntries.add(adminEntry);
                             processedEntriesMap.put(entryKey, adminEntry);
@@ -471,7 +449,7 @@ public class WorktimeManagementService {
 
         // Filter out USER_IN_PROCESS entries
         return allEntries.stream()
-                .filter(entry -> !SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync()))
+                .filter(entry -> !SyncStatusMerge.USER_IN_PROCESS.equals(entry.getAdminSync()))
                 .collect(Collectors.toList());
     }
 
@@ -485,12 +463,12 @@ public class WorktimeManagementService {
             // Use the most appropriate method to load entries
             if (currentUsername != null && currentUsername.equals(username)) {
                 // Normal security context flow for user accessing their own data
-                List<WorkTimeTable> entries = dataAccessService.readUserWorktime(username, year, month);
+                List<WorkTimeTable> entries = worktimeDataService.readUserLocalReadOnly(username, year, month,username);
                 return entries != null ? entries : new ArrayList<>();
             } else {
                 // For admin or team lead accessing other user data
                 try {
-                    return dataAccessService.readNetworkUserWorktimeReadOnly(username, year, month);
+                    return worktimeDataService.readUserFromNetworkOnly(username, year, month);
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), String.format("Error reading network worktime for user %s: %s", username, e.getMessage()));
                     return new ArrayList<>();
@@ -504,7 +482,7 @@ public class WorktimeManagementService {
 
     private List<WorkTimeTable> loadAdminEntries(int year, int month) {
         try {
-            List<WorkTimeTable> adminEntries = dataAccessService.readLocalAdminWorktime(year, month);
+            List<WorkTimeTable> adminEntries = worktimeDataService.readAdminLocalReadOnly(year, month);
             return adminEntries != null ? adminEntries : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading admin entries for %d/%d: %s", year, month, e.getMessage()));
@@ -514,11 +492,11 @@ public class WorktimeManagementService {
 
     private List<WorkTimeTable> loadAdminEntries(Integer userId, int year, int month) {
         try {
-            List<WorkTimeTable> adminEntries = dataAccessService.readNetworkAdminWorktime(year, month);
+            List<WorkTimeTable> adminEntries = worktimeDataService.readAdminByUserNetworkReadOnly(year, month);
             return adminEntries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
-                    .filter(entry -> entry.getAdminSync() == SyncStatusWorktime.ADMIN_EDITED
-                            || entry.getAdminSync() == SyncStatusWorktime.ADMIN_BLANK)
+                    .filter(entry -> entry.getAdminSync() == SyncStatusMerge.ADMIN_EDITED
+                            || entry.getAdminSync() == SyncStatusMerge.ADMIN_BLANK)
                     .collect(Collectors.toList());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading admin entries for user %d: %s", userId, e.getMessage()));
@@ -528,7 +506,7 @@ public class WorktimeManagementService {
 
     private List<WorkTimeTable> loadAdminWorktime(int year, int month) {
         try {
-            return dataAccessService.readLocalAdminWorktime(year, month);
+            return worktimeDataService.readAdminLocalReadOnly(year, month);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading admin worktime for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
@@ -543,7 +521,7 @@ public class WorktimeManagementService {
                     .thenComparing(WorkTimeTable::getUserId));
 
             // Save to admin worktime - this will handle local save and network sync
-            dataAccessService.writeAdminWorktime(entries, year, month);
+            worktimeDataService.writeAdminLocalWithSyncAndBackup(entries, year, month);
 
             LoggerUtil.info(this.getClass(), String.format("Saved %d consolidated entries for %d/%d", entries.size(), month, year));
 
@@ -559,7 +537,7 @@ public class WorktimeManagementService {
             entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparing(WorkTimeTable::getUserId));
 
             // Write using DataAccessService which handles local save and network sync
-            dataAccessService.writeAdminWorktime(entries, year, month);
+            worktimeDataService.writeAdminLocalWithSyncAndBackup(entries, year, month);
 
             LoggerUtil.info(this.getClass(), String.format("Saved %d entries to admin worktime", entries.size()));
         } catch (Exception e) {
@@ -648,7 +626,7 @@ public class WorktimeManagementService {
         entry.setUserId(userId);
         entry.setWorkDate(date);
         entry.setTimeOffType(null);
-        entry.setAdminSync(SyncStatusWorktime.ADMIN_BLANK);
+        entry.setAdminSync(SyncStatusMerge.ADMIN_BLANK);
         resetEntryValues(entry);
         return entry;
     }
@@ -658,7 +636,7 @@ public class WorktimeManagementService {
         entry.setUserId(userId);
         entry.setWorkDate(date);
         entry.setTimeOffType(type.toUpperCase());
-        entry.setAdminSync(SyncStatusWorktime.ADMIN_EDITED);
+        entry.setAdminSync(SyncStatusMerge.ADMIN_EDITED);
         resetEntryValues(entry);
         return entry;
     }
@@ -682,7 +660,7 @@ public class WorktimeManagementService {
         entry.setTemporaryStopCount(0);
         entry.setTotalTemporaryStopMinutes(0);
         entry.setTotalOvertimeMinutes(0);
-        entry.setAdminSync(SyncStatusWorktime.ADMIN_EDITED);
+        entry.setAdminSync(SyncStatusMerge.ADMIN_EDITED);
 
         return entry;
     }

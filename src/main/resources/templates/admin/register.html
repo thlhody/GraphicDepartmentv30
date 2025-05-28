@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Admin Register Management</title>
-    <link rel="stylesheet" th:href="@{/css/register-admin.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/register-admin.css?v=18783}">
     <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
@@ -37,8 +37,8 @@
                         <h5 class="card-title mb-0">Period & User Select</h5>
                     </div>
                     <div class="card-body period-selector">
-                        <!-- Single line with all fields and buttons -->
-                        <div class="d-flex align-items-end gap-2">
+                        <!-- First line: Selectors -->
+                        <div class="d-flex align-items-end gap-2 mb-3">
                             <div class="flex-grow-1">
                                 <label class="form-label" for="yearSelect">Year</label>
                                 <select name="year" id="yearSelect" class="form-select field-empty"
@@ -68,8 +68,15 @@
                                     </option>
                                 </select>
                             </div>
-                            <button type="submit" class="btn btn-primary">Load</button>
+                        </div>
+
+                        <!-- Second line: Buttons -->
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-primary">Load</button>
                             <button id="clearTable" class="btn btn-secondary">Clear</button>
+                            <button id="confirmChanges" class="btn btn-warning" title="Resolve conflicts - approve admin version">
+                                <i class="bi bi-check-circle me-1"></i>Resolve
+                            </button>
                             <button id="saveChanges" class="btn btn-success">Save</button>
                             <button id="exportExcel" class="btn btn-info">
                                 <i class="bi bi-file-earmark-excel me-2"></i>Export
@@ -78,7 +85,6 @@
                     </div>
                 </div>
             </div>
-
             <!-- Bonus Configuration -->
             <div class="col-flex-6">
                 <div class="card shadow-sm h-100">
@@ -155,100 +161,100 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Bonus Calculation Results -->
-        <div class="card shadow-sm mb-4" id="bonusResults" style="display: none;">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Bonus Calculation Results</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered mb-0">
-                        <thead class="bg-light">
-                        <tr>
-                            <th>Name</th>
-                            <th>Entries</th>
-                            <th>Art Nr.</th>
-                            <th>CG</th>
-                            <th>Misc</th>
-                            <th>Worked D</th>
-                            <th>Worked%</th>
-                            <th>Bonus%</th>
-                            <th>Bonus$</th>
-                            <th>1MAgo</th>
-                            <th>2MAgo</th>
-                            <th>3MAgo</th>
-                        </tr>
-                        </thead>
-                        <tbody id="bonusResultsBody">
-                        <!-- Populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
+    <!-- Bonus Calculation Results -->
+    <div class="card shadow-sm mb-4" id="bonusResults" style="display: none;">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Bonus Calculation Results</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered mb-0">
+                    <thead class="bg-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Entries</th>
+                        <th>Art Nr.</th>
+                        <th>CG</th>
+                        <th>Misc</th>
+                        <th>Worked D</th>
+                        <th>Worked%</th>
+                        <th>Bonus%</th>
+                        <th>Bonus$</th>
+                        <th>1MAgo</th>
+                        <th>2MAgo</th>
+                        <th>3MAgo</th>
+                    </tr>
+                    </thead>
+                    <tbody id="bonusResultsBody">
+                    <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
             </div>
         </div>
+    </div>
 
-        <!-- Register Entries Table -->
-        <div class="card shadow-sm mb-4 register-form">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Register Entries</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table id="registerTable" class="table table-hover table-striped mb-0">
-                        <thead class="bg-light">
-                        <tr>
-                            <th><input type="checkbox" id="selectAll" aria-label="Select all entries"></th>
-                            <th>Date</th>
-                            <th>Order ID</th>
-                            <th>Production ID</th>
-                            <th>OMS ID/Email</th>
-                            <th>Client</th>
-                            <th>Action Type</th>
-                            <th>Print Preps Types</th>
-                            <th>Colors</th>
-                            <th>Art Nr.</th>
-                            <th>CG</th>
-                            <th>Notes</th>
-                            <th>Status</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr th:each="entry : ${entries}">
-                            <td>
-                                <div class="form-check">
-                                    <input type="checkbox"
-                                           class="form-check-input entry-select"
-                                           th:id="${'entry-' + entry.entryId}"
-                                           th:value="${entry.entryId}"
-                                           id="entry-select-${entry.entryId}">
-                                    <label class="form-check-label"
-                                           th:for="${'entry-' + entry.entryId}"
-                                           for="entry-select-${entry.entryId}"
-                                           th:text="${'SE-' + entry.entryId}">Select entry</label>
-                                </div>
-                            </td>
-                            <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">29/11/2024</td>
-                            <td th:text="${entry.orderId}">1234/25/AB</td>
-                            <td th:text="${entry.productionId}">CVEX25-12345</td>
-                            <td th:text="${entry.omsId}">OMS/SampleID</td>
-                            <td th:text="${entry.clientName}">Client</td>
-                            <td th:text="${entry.actionType}">ORDIN</td>
-                            <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
-                            <td th:text="${entry.colorsProfile}">A</td>
-                            <td th:text="${entry.articleNumbers}">5</td>
-                            <td class="cg-editable" th:text="${entry.graphicComplexity}">2.5</td>
-                            <td th:text="${entry.observations}">Notes</td>
-                            <td>
+    <!-- Register Entries Table -->
+    <div class="card shadow-sm mb-4 register-form">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Register Entries</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table id="registerTable" class="table table-hover table-striped mb-0">
+                    <thead class="bg-light">
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" aria-label="Select all entries"></th>
+                        <th>Date</th>
+                        <th>Order ID</th>
+                        <th>Production ID</th>
+                        <th>OMS ID/Email</th>
+                        <th>Client</th>
+                        <th>Action Type</th>
+                        <th>Print Preps Types</th>
+                        <th>Colors</th>
+                        <th>Art Nr.</th>
+                        <th>CG</th>
+                        <th>Notes</th>
+                        <th>Status</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="entry : ${entries}">
+                        <td>
+                            <div class="form-check">
+                                <input type="checkbox"
+                                       class="form-check-input entry-select"
+                                       th:id="${'entry-' + entry.entryId}"
+                                       th:value="${entry.entryId}"
+                                       id="entry-select-${entry.entryId}">
+                                <label class="form-check-label"
+                                       th:for="${'entry-' + entry.entryId}"
+                                       for="entry-select-${entry.entryId}"
+                                       th:text="${'SE-' + entry.entryId}">Select entry</label>
+                            </div>
+                        </td>
+                        <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">29/11/2024</td>
+                        <td th:text="${entry.orderId}">1234/25/AB</td>
+                        <td th:text="${entry.productionId}">CVEX25-12345</td>
+                        <td th:text="${entry.omsId}">OMS/SampleID</td>
+                        <td th:text="${entry.clientName}">Client</td>
+                        <td th:text="${entry.actionType}">ORDIN</td>
+                        <td th:text="${#strings.listJoin(entry.printPrepTypes, ', ')}">DIGITAL, SBS</td>
+                        <td th:text="${entry.colorsProfile}">A</td>
+                        <td th:text="${entry.articleNumbers}">5</td>
+                        <td class="cg-editable" th:text="${entry.graphicComplexity}">2.5</td>
+                        <td th:text="${entry.observations}">Notes</td>
+                        <td>
                                 <span class="badge" th:text="${entry.adminSync}"
                                       th:classappend="${entry.adminSync == 'ADMIN_EDITED' ? 'bg-primary' : entry.adminSync == 'USER_INPUT' ? 'bg-success' : 'bg-secondary'}">
                                     USER_INPUT
                                 </span>
-                            </td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -269,7 +275,7 @@
         };
     </script>
     <!-- Include your external JS file -->
-    <script th:src="@{/js/register-admin.js?v=18781}"></script>
+    <script th:src="@{/js/register-admin.js?v=18792}"></script>
 </th:block>
 </body>
 </html>

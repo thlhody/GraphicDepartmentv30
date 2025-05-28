@@ -249,3 +249,151 @@
         max-width: 50%;
     }
 }
+
+/* Add these styles to your register-admin.css file */
+
+/* ADMIN_CHECK row highlighting - contained within table */
+.admin-check-entry {
+    background-color: #fff3cd !important;
+    border-left: 3px solid #ffc107 !important;
+    position: relative;
+}
+
+/* Add warning icon to the first cell instead of outside table */
+.admin-check-entry td:first-child {
+    position: relative;
+}
+
+.admin-check-entry td:first-child::before {
+    content: "⚠️";
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    z-index: 1;
+}
+
+/* CG cell attention styling */
+.admin-attention {
+    background-color: #ffeaa7 !important;
+    border: 2px solid #fdcb6e !important;
+    border-radius: 4px;
+    position: relative;
+    font-weight: bold;
+}
+
+.admin-attention:hover {
+    background-color: #fdcb6e !important;
+    box-shadow: 0 0 0 3px rgba(253, 203, 110, 0.3) !important;
+}
+
+/* Checkbox styling for ADMIN_CHECK entries */
+.admin-check-entry .entry-select {
+    accent-color: #ffc107;
+    transform: scale(1.2);
+    border: 2px solid #ffc107;
+}
+
+.admin-check-entry .form-check-label {
+    color: #856404;
+    font-weight: bold;
+}
+
+/* Badge pulsing animation */
+.badge-pulse {
+    animation: pulse 2s infinite;
+    position: relative;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    50% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 5px rgba(220, 53, 69, 0.2);
+    }
+    100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+
+/* Status badge enhanced tooltips */
+.badge[title] {
+    cursor: help;
+    position: relative;
+}
+
+.badge[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    opacity: 0;
+    animation: tooltipFadeIn 0.3s ease-in-out forwards;
+}
+
+@keyframes tooltipFadeIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(5px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Enhanced status colors */
+.badge.bg-info {
+    background-color: #17a2b8 !important;
+    color: white;
+}
+
+.badge.bg-primary {
+    background-color: #007bff !important;
+    color: white;
+}
+
+.badge.bg-success {
+    background-color: #28a745 !important;
+    color: white;
+}
+
+.badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #212529;
+}
+
+.badge.bg-danger {
+    background-color: #dc3545 !important;
+    color: white;
+}
+
+/* Table row hover effects for better UX */
+#registerTable tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.admin-check-entry:hover {
+    background-color: #ffeaa7 !important;
+}
+
+/* Additional visual cues for admin attention */
+.admin-check-entry .cg-editable {
+    position: relative;
+}
+
+.admin-check-entry .cg-editable::after {
+    content: "👁️";
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    font-size: 12px;
+    opacity: 0.7;
+}

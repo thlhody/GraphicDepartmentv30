@@ -1,4 +1,4 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.service.cache;
 
 import com.ctgraphdep.model.CheckValuesEntry;
 import com.ctgraphdep.utils.LoggerUtil;

@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.query;
 
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
@@ -48,7 +48,7 @@ public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>
 
             // Filter for unresolved entries (USER_IN_PROCESS status from before today)
             List<WorkTimeTable> result = unresolvedEntries.stream()
-                    .filter(entry -> entry.getAdminSync() == SyncStatusWorktime.USER_IN_PROCESS)
+                    .filter(entry -> entry.getAdminSync() == SyncStatusMerge.USER_IN_PROCESS)
                     .filter(entry -> entry.getWorkDate() != null && entry.getWorkDate().isBefore(currentDate))
                     .filter(entry -> entry.getTimeOffType() == null)
                     .filter(entry -> entry.getDayStartTime() != null && entry.getDayEndTime() == null)

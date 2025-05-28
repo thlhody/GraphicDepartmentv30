@@ -5,7 +5,6 @@ import com.ctgraphdep.fileOperations.data.*;
 import com.ctgraphdep.fileOperations.events.FileEventPublisher;
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
 import com.ctgraphdep.fileOperations.DataAccessService;
-import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.monitoring.NetworkStatusMonitor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -159,9 +158,8 @@ public class FileOperationsConfig {
             FileWriterService fileWriterService,
             FileReaderService fileReaderService,
             FilePathResolver pathResolver,
-            PathConfig pathConfig,
-            FileAccessSecurityRules securityRules) {
-        return new WorktimeDataService(fileWriterService, fileReaderService, pathResolver, pathConfig, securityRules);
+            PathConfig pathConfig, SyncFilesService syncFilesService) {
+        return new WorktimeDataService(fileWriterService, fileReaderService, pathResolver, pathConfig, syncFilesService);
     }
 
     /**
@@ -172,10 +170,8 @@ public class FileOperationsConfig {
             FileWriterService fileWriterService,
             FileReaderService fileReaderService,
             FilePathResolver pathResolver,
-            PathConfig pathConfig,
-            FileAccessSecurityRules securityRules,
-            SyncFilesService syncFilesService) {
-        return new RegisterDataService(fileWriterService, fileReaderService, pathResolver, pathConfig, securityRules, syncFilesService);
+            PathConfig pathConfig, SyncFilesService syncFilesService) {
+        return new RegisterDataService(fileWriterService, fileReaderService, pathResolver, pathConfig, syncFilesService);
     }
 
     /**
@@ -198,8 +194,8 @@ public class FileOperationsConfig {
             FileWriterService fileWriterService,
             FileReaderService fileReaderService,
             FilePathResolver pathResolver,
-            PathConfig pathConfig) {
-        return new TimeOffDataService(fileWriterService, fileReaderService, pathResolver, pathConfig);
+            PathConfig pathConfig, SyncFilesService syncFilesService){
+        return new TimeOffDataService(fileWriterService, fileReaderService, pathResolver, pathConfig, syncFilesService);
     }
 
     // ===== MAIN FACADE SERVICE =====

@@ -7,158 +7,203 @@ import com.ctgraphdep.fileOperations.service.FilePathResolver;
 import com.ctgraphdep.fileOperations.service.FileReaderService;
 import com.ctgraphdep.fileOperations.service.FileWriterService;
 import com.ctgraphdep.fileOperations.service.SyncFilesService;
-import com.ctgraphdep.model.BonusEntry;
-import com.ctgraphdep.model.RegisterEntry;
-import com.ctgraphdep.model.RegisterCheckEntry;
+import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.TeamMemberDTO;
-import com.ctgraphdep.security.FileAccessSecurityRules;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 /**
- * Domain service for all register-related data operations.
- * Handles user registers, check registers, admin registers, team operations, and bonus management with event-driven backups.
+ * REDESIGNED RegisterDataService with clear separation of concerns.
+ * Key Principles:
+ * - No security validation (handled at controller/service layer)
+ * - Explicit backup and sync control
+ * - Clear user vs admin operation patterns
+ * - Smart fallback with sync-to-local when needed (using SyncFilesService)
+ * - Merge-specific methods for admin operations
+ * Sync Logic:
+ * - Normal flow: Local → Network (local is source of truth)
+ * - Missing local: Network → Local (bootstrap local from network)
+ * - After bootstrap: Resume normal Local → Network flow
  */
 @Service
 public class RegisterDataService {
+
     private final FileWriterService fileWriterService;
     private final FileReaderService fileReaderService;
     private final FilePathResolver pathResolver;
     private final PathConfig pathConfig;
-    private final FileAccessSecurityRules securityRules;
     private final SyncFilesService syncFilesService;
 
-    public RegisterDataService(
-            FileWriterService fileWriterService,
-            FileReaderService fileReaderService,
-            FilePathResolver pathResolver,
-            PathConfig pathConfig,
-            FileAccessSecurityRules securityRules,
-            SyncFilesService syncFilesService) {
+    public RegisterDataService(FileWriterService fileWriterService, FileReaderService fileReaderService, FilePathResolver pathResolver,
+                               PathConfig pathConfig, SyncFilesService syncFilesService) {
         this.fileWriterService = fileWriterService;
         this.fileReaderService = fileReaderService;
         this.pathResolver = pathResolver;
         this.pathConfig = pathConfig;
-        this.securityRules = securityRules;
         this.syncFilesService = syncFilesService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    // ===== USER REGISTER OPERATIONS =====
+    // ========================================================================
+    // USER REGISTER OPERATIONS
+    // ========================================================================
 
     /**
-     * Writes user register entries using event-driven backups.
+     * Writes user register with explicit backup and sync control.
+     * Pattern: Local First -> Backup -> Network Overwrite
+     *
+     * @param username Username
+     * @param userId User ID
+     * @param entries Register entries
+     * @param year Year
+     * @param month Month
      */
-    public void writeUserRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
-        securityRules.validateFileAccess(username, true);
-
+    public void writeUserLocalWithSyncAndBackup(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.REGISTER, params);
 
-            // Use FileWriterService with network sync - triggers events and backups
+            // Step 1: Write to local with backup enabled
             FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, entries, true);
 
             if (!result.isSuccess()) {
-                throw new RuntimeException("Failed to write register: " + result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write user register: " + result.getErrorMessage().orElse("Unknown error"));
             }
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d register entries for user %s - %d/%d",
-                    entries.size(), username, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d user register entries for %s - %d/%d (with backup and sync)", entries.size(), username, year, month));
 
         } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(), String.format(
-                    "Error writing register for user %s: %s", username, e.getMessage()), e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error writing user register for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
         }
     }
 
     /**
-     * Reads user register entries.
+     * Reads user register with smart fallback logic.
+     * Pattern: Local for own data, Network for others, Smart sync when missing
+     *
+     * @param username Username to read
+     * @param userId User ID
+     * @param currentUsername Current authenticated user
+     * @param year Year
+     * @param month Month
+     * @return Register entries
      */
-    public List<RegisterEntry> readUserRegister(String username, Integer userId, int year, int month) {
+    public List<RegisterEntry> readUserLocalReadOnly(String username, Integer userId, String currentUsername, int year, int month) {
         try {
-            // Get current user from security context
-            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
+            boolean isOwnData = username.equals(currentUsername);
 
-            // If accessing own data, use local path
-            if (currentUsername.equals(username)) {
-                LoggerUtil.info(this.getClass(), String.format("Reading local register for user %s", username));
-                FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.REGISTER, params);
-                Optional<List<RegisterEntry>> entries = fileReaderService.readLocalFile(localPath, new TypeReference<>() {}, true);
-                return entries.orElse(new ArrayList<>());
+            if (isOwnData) {
+                // Reading own data - local first with smart fallback
+                return readOwnDataWithSmartFallback(username, userId, year, month, params);
+            } else {
+                // Reading other user's data - network first
+                return readOtherUserDataFromNetwork(username, userId, year, month, params);
             }
 
-            // If accessing other user's data, try network path
-            if (pathConfig.isNetworkAvailable()) {
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Reading network register for user %s by %s", username, currentUsername));
-
-                FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.REGISTER, params);
-                Optional<List<RegisterEntry>> entries = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
-                return entries.orElse(new ArrayList<>());
-            }
-
-            throw new RuntimeException("Network access required but not available");
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading register for user %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error reading user register for %s - %d/%d: %s", username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
-    /**
-     * Reads register entries in read-only mode.
-     */
-    public List<RegisterEntry> readRegisterReadOnly(String username, Integer userId, int year, int month) {
-        try {
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
+    private List<RegisterEntry> readOwnDataWithSmartFallback(String username, Integer userId, int year, int month, Map<String, Object> params) {
+        FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.REGISTER, params);
 
-            // First try network if available
-            if (pathConfig.isNetworkAvailable()) {
-                FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.REGISTER, params);
-                Optional<List<RegisterEntry>> entries = fileReaderService.readFileReadOnly(networkPath, new TypeReference<>() {}, true);
+        // Try local first
+        Optional<List<RegisterEntry>> localEntries = fileReaderService.readLocalFile(localPath, new TypeReference<>() {}, true);
 
-                if (entries.isPresent()) {
-                    return entries.get();
+        if (localEntries.isPresent() && !localEntries.get().isEmpty()) {
+            LoggerUtil.debug(this.getClass(), String.format("Found local data for %s - %d/%d (%d entries)", username, year, month, localEntries.get().size()));
+            return localEntries.get();
+        }
+
+        // Local is missing/empty - try network and sync to local if found
+        if (pathConfig.isNetworkAvailable()) {
+            FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.REGISTER, params);
+
+            Optional<List<RegisterEntry>> networkEntries = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
+
+            if (networkEntries.isPresent() && !networkEntries.get().isEmpty()) {
+                LoggerUtil.info(this.getClass(), String.format("Found network data for %s - %d/%d, syncing from network to local", username, year, month));
+
+                // Use SyncFilesService to sync from network to local
+                try {
+                    syncFilesService.syncToLocal(networkPath, localPath).get(); // Wait for completion
+                    LoggerUtil.info(this.getClass(), String.format("Successfully synced network → local for %s - %d/%d", username, year, month));
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), String.format("Failed to sync network → local for %s - %d/%d: %s", username, year, month, e.getMessage()));
+                    // Continue anyway - return the network data
                 }
+
+                return networkEntries.get();
             }
+        }
 
-            // Fall back to local file
-            FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.REGISTER, params);
-            Optional<List<RegisterEntry>> entries = fileReaderService.readFileReadOnly(localPath, new TypeReference<>() {}, true);
+        // Both local and network are missing/empty - return empty list
+        LoggerUtil.debug(this.getClass(), String.format("No data found for %s - %d/%d, returning empty list", username, year, month));
+        return new ArrayList<>();
+    }
 
-            return entries.orElse(new ArrayList<>());
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Read-only register access failed for %s - %d/%d: %s", username, year, month, e.getMessage()));
+    private List<RegisterEntry> readOtherUserDataFromNetwork(String username, Integer userId, int year, int month, Map<String, Object> params) {
+        if (!pathConfig.isNetworkAvailable()) {
+            LoggerUtil.warn(this.getClass(), "Network not available for reading other user data");
             return new ArrayList<>();
         }
+
+        FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.REGISTER, params);
+
+        Optional<List<RegisterEntry>> networkEntries = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
+
+        if (networkEntries.isPresent()) {
+            LoggerUtil.debug(this.getClass(), String.format("Read other user data from network for %s - %d/%d (%d entries)", username, year, month, networkEntries.get().size()));
+            return networkEntries.get();
+        }
+
+        return new ArrayList<>();
     }
 
     /**
-     * Reads network user register.
+     * Reads user register from network ONLY without any sync or backup operations.
+     * Pattern: Network-only, no fallback, no sync, no local operations
+     * This is for when you specifically want to see what's on the network
+     * without affecting local files in any way.
+     *
+     * @param username Username
+     * @param userId User ID
+     * @param year Year
+     * @param month Month
+     * @return User register entries from network, or empty if not found
      */
-    public List<RegisterEntry> readNetworkUserRegister(String username, Integer userId, int year, int month) {
+    public List<RegisterEntry> readUserFromNetworkOnly(String username, Integer userId, int year, int month) {
         try {
+            if (!pathConfig.isNetworkAvailable()) {
+                LoggerUtil.debug(this.getClass(), String.format("Network not available for user network-only read %s - %d/%d", username, year, month));
+                return new ArrayList<>();
+            }
+
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.REGISTER, params);
-            Optional<List<RegisterEntry>> userEntriesOpt = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
-            return userEntriesOpt.orElse(new ArrayList<>());
+
+            Optional<List<RegisterEntry>> networkEntries = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
+
+            if (networkEntries.isPresent()) {
+                LoggerUtil.debug(this.getClass(), String.format("Read user network-only data for %s - %d/%d (%d entries)", username, year, month, networkEntries.get().size()));
+                return networkEntries.get();
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format("No user network data found for %s - %d/%d", username, year, month));
+                return new ArrayList<>();
+            }
+
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Error reading network user register for %s (%d/%d): %s", username, year, month, e.getMessage()));
+            LoggerUtil.debug(this.getClass(), String.format("Error reading user network-only data for %s - %d/%d: %s", username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -210,114 +255,178 @@ public class RegisterDataService {
         return allEntries;
     }
 
-    // ===== CHECK REGISTER OPERATIONS =====
+    // ========================================================================
+    // ADMIN REGISTER OPERATIONS
+    // ========================================================================
 
     /**
-     * Writes user check register entries using event-driven backups.
+     * Writes admin register with explicit backup and sync control.
+     * Pattern: Local First -> Backup -> Network Overwrite
+     *
+     * @param username Username (target user)
+     * @param userId User ID
+     * @param entries Admin register entries
+     * @param year Year
+     * @param month Month
      */
-    public void writeUserCheckRegister(String username, Integer userId, List<RegisterCheckEntry> entries, int year, int month) {
-        securityRules.validateFileAccess(username, true);
-
+    public void writeAdminLocalWithSyncAndBackup(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.CHECK_REGISTER, params);
+            FilePath localPath = pathResolver.getLocalPath(username, userId,
+                    FilePathResolver.FileType.ADMIN_REGISTER, params);
 
-            // Use FileWriterService with network sync - triggers events and backups
+            // Step 1: Write to local with backup enabled
             FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, entries, true);
 
             if (!result.isSuccess()) {
-                throw new RuntimeException("Failed to write check register: " + result.getErrorMessage().orElse("Unknown error"));
+                throw new RuntimeException("Failed to write admin register: " +
+                        result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d check register entries for user %s - %d/%d",
+                    "Successfully wrote %d admin register entries for %s - %d/%d (with backup and sync)",
                     entries.size(), username, year, month));
 
         } catch (Exception e) {
             LoggerUtil.logAndThrow(this.getClass(), String.format(
-                    "Error writing check register for user %s: %s", username, e.getMessage()), e);
+                    "Error writing admin register for %s - %d/%d: %s",
+                    username, year, month, e.getMessage()), e);
         }
     }
 
     /**
-     * Reads user check register entries.
+     * Reads admin register with smart fallback logic.
+     * Pattern: Local first with smart sync when missing
+     *
+     * @param username Username (target user)
+     * @param userId User ID
+     * @param year Year
+     * @param month Month
+     * @return Admin register entries
      */
-    public List<RegisterCheckEntry> readUserCheckRegister(String username, Integer userId, int year, int month) {
+    public List<RegisterEntry> readAdminLocalReadOnly(String username, Integer userId, int year, int month) {
         try {
-            // Get current user from security context
-            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
+            FilePath localPath = pathResolver.getLocalPath(username, userId,
+                    FilePathResolver.FileType.ADMIN_REGISTER, params);
 
-            // If accessing own data, use local path
-            if (currentUsername.equals(username)) {
-                LoggerUtil.info(this.getClass(), String.format("Reading local check register for user %s", username));
-                FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.CHECK_REGISTER, params);
-                Optional<List<RegisterCheckEntry>> entries = fileReaderService.readLocalFile(localPath, new TypeReference<>() {}, true);
-                return entries.orElse(new ArrayList<>());
+            // Try local first
+            Optional<List<RegisterEntry>> localEntries = fileReaderService.readLocalFile(
+                    localPath, new TypeReference<>() {}, true);
+
+            if (localEntries.isPresent() && !localEntries.get().isEmpty()) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Found local admin data for %s - %d/%d (%d entries)",
+                        username, year, month, localEntries.get().size()));
+                return localEntries.get();
             }
 
-            // If accessing other user's data, try network path
+            // Local is missing/empty - try network and sync to local if found
             if (pathConfig.isNetworkAvailable()) {
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Reading network check register for user %s by %s", username, currentUsername));
+                FilePath networkPath = pathResolver.getNetworkPath(username, userId,
+                        FilePathResolver.FileType.ADMIN_REGISTER, params);
 
-                FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.CHECK_REGISTER, params);
-                Optional<List<RegisterCheckEntry>> entries = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
-                return entries.orElse(new ArrayList<>());
+                Optional<List<RegisterEntry>> networkEntries = fileReaderService.readNetworkFile(
+                        networkPath, new TypeReference<>() {}, true);
+
+                if (networkEntries.isPresent() && !networkEntries.get().isEmpty()) {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Found network admin data for %s - %d/%d, syncing from network to local",
+                            username, year, month));
+
+                    // Use SyncFilesService to sync from network to local
+                    try {
+                        syncFilesService.syncToLocal(networkPath, localPath).get(); // Wait for completion
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "Successfully synced admin network → local for %s - %d/%d",
+                                username, year, month));
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(), String.format(
+                                "Failed to sync admin network → local for %s - %d/%d: %s",
+                                username, year, month, e.getMessage()));
+                        // Continue anyway - return the network data
+                    }
+
+                    return networkEntries.get();
+                }
             }
 
-            throw new RuntimeException("Network access required but not available");
+            // Both local and network are missing/empty - return empty list
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "No admin data found for %s - %d/%d, returning empty list",
+                    username, year, month));
+            return new ArrayList<>();
+
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading check register for user %s: %s", username, e.getMessage()));
+                    "Error reading admin register for %s - %d/%d: %s",
+                    username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
     /**
-     * Reads check register in read-only mode.
+     * Reads admin register from network ONLY for merge operations.
+     * Pattern: Network-only, no fallback, no sync, no local operations
+     * This is specifically for admin merge at login - we only want to CHECK
+     * if admin register exists on network, without affecting local files.
+     *
+     * @param username Username (target user)
+     * @param userId User ID
+     * @param year Year
+     * @param month Month
+     * @return Admin register entries from network, or empty if not found
      */
-    public List<RegisterCheckEntry> readCheckRegisterReadOnly(String username, Integer userId, int year, int month) {
+    public List<RegisterEntry> readAdminByUserNetworkReadOnly(String username, Integer userId, int year, int month) {
         try {
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            // Get network path for check register
-            FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.CHECK_REGISTER, params);
-
-            // Log exact path being accessed
-            LoggerUtil.debug(this.getClass(), "Attempting to read check register from: " + networkPath.getPath().toString());
-
-            // Check if file exists
-            if (Files.exists(networkPath.getPath())) {
-                LoggerUtil.debug(this.getClass(), "Check register file exists, size: " + Files.size(networkPath.getPath()));
-            } else {
-                LoggerUtil.debug(this.getClass(), "Check register file does not exist at path: " + networkPath.getPath().toString());
-            }
-
-            // Read file
-            Optional<List<RegisterCheckEntry>> entriesOpt = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
-
-            if (entriesOpt.isPresent()) {
-                List<RegisterCheckEntry> entries = entriesOpt.get();
+            if (!pathConfig.isNetworkAvailable()) {
                 LoggerUtil.debug(this.getClass(), String.format(
-                        "Successfully read network check register for user %s (%d/%d) with %d entries",
-                        username, month, year, entries.size()));
-                return entries;
-            } else {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "No network check register found for user %s (%d/%d)", username, month, year));
+                        "Network not available for admin merge read %s - %d/%d",
+                        username, year, month));
                 return new ArrayList<>();
             }
+
+            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
+            FilePath networkPath = pathResolver.getNetworkPath(username, userId,
+                    FilePathResolver.FileType.ADMIN_REGISTER, params);
+
+            Optional<List<RegisterEntry>> networkEntries = fileReaderService.readNetworkFile(
+                    networkPath, new TypeReference<>() {}, true);
+
+            if (networkEntries.isPresent()) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Read admin network data for merge %s - %d/%d (%d entries)",
+                        username, year, month, networkEntries.get().size()));
+                return networkEntries.get();
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "No admin network data found for merge %s - %d/%d",
+                        username, year, month));
+                return new ArrayList<>();
+            }
+
         } catch (Exception e) {
             LoggerUtil.debug(this.getClass(), String.format(
-                    "Error reading network check register for user %s (%d/%d): %s", username, month, year, e.getMessage()));
+                    "Error reading admin network data for merge %s - %d/%d: %s",
+                    username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
 
-    // ===== TEAM OPERATIONS =====
+
+    // ========================================================================
+    // TEAM LEAD STATISTICS LOCAL ONLY
+    // ========================================================================
 
     /**
-     * Reads team members data.
+     * Reads team members data from local storage only.
+     * Pattern: Local only, no network sync
+     * This is for team lead statistics that stay local.
+     *
+     * @param teamLeadUsername Team lead username
+     * @param year Year
+     * @param month Month
+     * @return Team member data
      */
     public List<TeamMemberDTO> readTeamMembers(String teamLeadUsername, int year, int month) {
         try {
@@ -333,22 +442,29 @@ public class RegisterDataService {
     }
 
     /**
-     * Writes team members data using event-driven backups.
+     * Writes team members data to local storage only with backup.
+     * Pattern: Local only with backup, no network sync
+     * This keeps team lead statistics local but backed up.
+     *
+     * @param teamMemberDTOS Team member data
+     * @param teamLeadUsername Team lead username
+     * @param year Year
+     * @param month Month
      */
     public void writeTeamMembers(List<TeamMemberDTO> teamMemberDTOS, String teamLeadUsername, int year, int month) {
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath teamPath = pathResolver.getLocalPath(teamLeadUsername, null, FilePathResolver.FileType.TEAM, params);
 
-            // Use FileWriterService with network sync - triggers events and backups
-            FileOperationResult result = fileWriterService.writeWithNetworkSync(teamPath, teamMemberDTOS, true);
+            // Use writeFile (local only) with backup enabled, no network sync
+            FileOperationResult result = fileWriterService.writeFile(teamPath, teamMemberDTOS, true);
 
             if (!result.isSuccess()) {
                 throw new RuntimeException("Failed to write team members: " + result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d team members for %s (%d/%d)",
+                    "Successfully wrote %d team members for %s (%d/%d) - local only with backup",
                     teamMemberDTOS.size(), teamLeadUsername, year, month));
 
         } catch (Exception e) {
@@ -357,132 +473,18 @@ public class RegisterDataService {
         }
     }
 
-    /**
-     * Writes team lead check register entries using event-driven backups.
-     */
-    public void writeLocalTeamCheckRegister(String username, Integer userId, List<RegisterCheckEntry> entries, int year, int month) {
-        // Get current authenticated user (the team lead)
-        String teamLeadUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        // Validate the team lead's permissions, not the target user's
-        securityRules.validateFileAccess(teamLeadUsername, true);
-
-        try {
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            // Get path for the team lead's version of the user's check register
-            FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.LEAD_CHECK_REGISTER, params);
-
-            // Use FileWriterService with network sync - triggers events and backups
-            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, entries, true);
-
-            if (!result.isSuccess()) {
-                throw new RuntimeException("Failed to write team check register: " + result.getErrorMessage().orElse("Unknown error"));
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d team check register entries for user %s - %d/%d",
-                    entries.size(), username, year, month));
-
-        } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(), String.format(
-                    "Error writing team check register for user %s: %s", username, e.getMessage()), e);
-        }
-    }
+    // ========================================================================
+    // ADMIN BONUS LOCAL ONLY
+    // ========================================================================
 
     /**
-     * Reads local lead check register.
-     */
-    public List<RegisterCheckEntry> readLocalLeadCheckRegister(String username, Integer userId, int year, int month) {
-        try {
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            FilePath leadCheckPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.LEAD_CHECK_REGISTER, params);
-            Optional<List<RegisterCheckEntry>> teamLeadEntriesOpt = fileReaderService.readFileReadOnly(leadCheckPath, new TypeReference<>() {}, true);
-            return teamLeadEntriesOpt.orElse(new ArrayList<>());
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Error reading local lead check register for %s (%d/%d): %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    // ===== ADMIN REGISTER OPERATIONS =====
-
-    /**
-     * Reads local admin register.
-     */
-    public List<RegisterEntry> readLocalAdminRegister(String username, Integer userId, int year, int month) {
-        try {
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            FilePath adminPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.ADMIN_REGISTER, params);
-            Optional<List<RegisterEntry>> adminEntriesOpt = fileReaderService.readLocalFile(adminPath, new TypeReference<>() {}, true);
-            return adminEntriesOpt.orElse(new ArrayList<>());
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Error reading local admin register for %s (%d/%d): %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Writes local admin register using event-driven backups.
-     */
-    public void writeLocalAdminRegister(String username, Integer userId, List<RegisterEntry> entries, int year, int month) {
-        try {
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            FilePath adminPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.ADMIN_REGISTER, params);
-
-            // Use FileWriterService with network sync - triggers events and backups
-            FileOperationResult result = fileWriterService.writeWithNetworkSync(adminPath, entries, true);
-
-            if (!result.isSuccess()) {
-                throw new RuntimeException("Failed to write admin register: " + result.getErrorMessage().orElse("Unknown error"));
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d admin register entries for user %s - %d/%d",
-                    entries.size(), username, year, month));
-
-        } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(), String.format(
-                    "Error writing admin register for user %s: %s", username, e.getMessage()), e);
-        }
-    }
-
-    /**
-     * Syncs admin register to network explicitly using SyncFilesService.
-     */
-    public void syncAdminRegisterToNetwork(String username, Integer userId, int year, int month) {
-        try {
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.ADMIN_REGISTER, params);
-            FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.ADMIN_REGISTER, params);
-
-            // Using CompletableFuture with explicit wait for completion
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Starting explicit sync of admin register for user %s - %d/%d", username, year, month));
-
-            CompletableFuture<FileOperationResult> future = syncFilesService.syncToNetwork(localPath, networkPath);
-
-            // Wait for the sync to complete
-            FileOperationResult result = future.get();  // Using .get() to wait for completion
-
-            if (!result.isSuccess()) {
-                throw new RuntimeException("Failed to sync admin register to network: " + result.getErrorMessage().orElse("Unknown error"));
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully synced admin register for user %s - %d/%d to network", username, year, month));
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to sync admin register to network: " + e.getMessage());
-            throw new RuntimeException("Failed to sync admin register to network", e);
-        }
-    }
-
-    // ===== BONUS OPERATIONS =====
-
-    /**
-     * Reads admin bonus entries.
+     * Reads admin bonus entries from local storage only.
+     * Pattern: Local only, no network sync
+     * This is for admin bonus data that stays local.
+     *
+     * @param year Year
+     * @param month Month
+     * @return Admin bonus entries
      */
     public List<BonusEntry> readAdminBonus(int year, int month) {
         try {
@@ -498,22 +500,28 @@ public class RegisterDataService {
     }
 
     /**
-     * Writes admin bonus entries using event-driven backups.
+     * Writes admin bonus entries to local storage only with backup.
+     * Pattern: Local only with backup, no network sync
+     * This keeps admin bonus data local but backed up.
+     *
+     * @param entries Bonus entries
+     * @param year Year
+     * @param month Month
      */
     public void writeAdminBonus(List<BonusEntry> entries, int year, int month) {
         try {
             Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
             FilePath bonusPath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.ADMIN_BONUS, params);
 
-            // Use FileWriterService with network sync - triggers events and backups
-            FileOperationResult result = fileWriterService.writeWithNetworkSync(bonusPath, entries, true);
+            // Use writeFileWithBackupControl (local only) with backup enabled, no network sync
+            FileOperationResult result = fileWriterService.writeFileWithBackupControl(bonusPath, entries, true, true);
 
             if (!result.isSuccess()) {
                 throw new RuntimeException("Failed to write bonus entries: " + result.getErrorMessage().orElse("Unknown error"));
             }
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d bonus entries for %d/%d", entries.size(), year, month));
+                    "Successfully wrote %d bonus entries for %d/%d - local only with backup", entries.size(), year, month));
 
         } catch (Exception e) {
             LoggerUtil.logAndThrow(this.getClass(), String.format(

@@ -1,171 +1,130 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.enums.RegisterMergeRule;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.exception.RegisterValidationException;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.RegisterEntry;
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.service.cache.RegisterCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class UserRegisterService {
 
-    private final DataAccessService dataAccessService;
+    private final RegisterDataService registerDataService;
+    private final RegisterCacheService registerCacheService;
+    private final RegisterMergeService registerMergeService;
 
     @Autowired
-    public UserRegisterService(DataAccessService dataAccessService) {
-        this.dataAccessService = dataAccessService;
+    public UserRegisterService(RegisterDataService registerDataService, RegisterCacheService registerCacheService, RegisterMergeService registerMergeService) {
+        this.registerDataService = registerDataService;
+        this.registerCacheService = registerCacheService;
+        this.registerMergeService = registerMergeService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    @PreAuthorize("#username == authentication.name or hasAnyRole('ADMIN', 'TEAM_LEADER')")
     public List<RegisterEntry> loadMonthEntries(String username, Integer userId, int year, int month) {
-        try {
-            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
 
-            // If accessing own data, use local path and merge with admin entries
-            if (currentUsername.equals(username)) {
-                // First try to read local entries
-                List<RegisterEntry> userEntries = dataAccessService.readUserRegister(username, userId, year, month);
+        if (currentUsername.equals(username)) {
+            // Check if this is NOT the current month
+            LocalDate currentDate = LocalDate.now();
+            boolean isCurrentMonth = (year == currentDate.getYear() && month == currentDate.getMonthValue());
 
-                // Check if local entries are empty
-                boolean localEntriesEmpty = (userEntries == null || userEntries.isEmpty());
-
-                // If local is empty and network is available, check network first to prevent data loss
-                if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
-                    try {
-                        // Try to read network entries
-                        List<RegisterEntry> networkEntries = dataAccessService.readNetworkUserRegister(username, userId, year, month);
-                        if (networkEntries != null && !networkEntries.isEmpty()) {
-                            // If network has entries but local is empty, use network entries as base
-                            LoggerUtil.info(this.getClass(), "Local register entries missing but found entries on network. Restoring data.");
-                            userEntries = networkEntries;
-                        }
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(), "Error reading network register: " + e.getMessage());
-                    }
-                }
-
-                // Ensure userEntries is not null
-                if (userEntries == null) {
-                    userEntries = new ArrayList<>();
-                }
-
-                // Read admin entries
-                List<RegisterEntry> adminEntries = new ArrayList<>();
-                if (dataAccessService.isNetworkAvailable()) {
-                    try {
-                        adminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(), "Admin register not found: " + e.getMessage());
-                    }
-                }
-
-                // Merge entries
-                List<RegisterEntry> mergedEntries = mergeEntries(userEntries, adminEntries);
-
-                // Write back the merged entries
-                dataAccessService.writeUserRegister(username, userId, mergedEntries, year, month);
-                return mergedEntries;
+            if (!isCurrentMonth) {
+                // For non-current months, perform merge first to get admin changes
+                LoggerUtil.info(this.getClass(), String.format("Performing on-demand merge for %s - %d/%d (non-current month)", username, year, month));
+                registerMergeService.performUserLoginMerge(username, userId, year, month);
             }
 
-            // For admin/team leader accessing other users, read directly from network
-            return dataAccessService.readNetworkUserRegister(username, userId, year, month);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error loading entries: " + e.getMessage());
-            return new ArrayList<>();
+            // Use cache - will load fresh merged data
+            return registerCacheService.getMonthEntries(username, userId, year, month);
         }
+
+        // Admin accessing other users - direct network read
+        return registerDataService.readUserFromNetworkOnly(username, userId, year, month);
     }
-
-    private List<RegisterEntry> mergeEntries(List<RegisterEntry> userEntries, List<RegisterEntry> adminEntries) {
-        // Create map of admin entries for quick lookup
-        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream().collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
-
-        // Update user entries based on admin entries
-        return userEntries.stream()
-                .map(userEntry -> {
-                    RegisterEntry adminEntry = adminEntriesMap.get(userEntry.getEntryId());
-                    if (adminEntry != null && adminEntry.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name())) {
-                        adminEntry.setAdminSync(SyncStatusWorktime.USER_DONE.name());
-                        return adminEntry;
-                    }
-                    return userEntry;
-                })
-                .collect(Collectors.toList());
-    }
-
     public void saveEntry(String username, Integer userId, RegisterEntry entry) {
         validateEntry(entry);
 
         // Set initial state
         entry.setUserId(userId);
-        entry.setAdminSync(SyncStatusWorktime.USER_INPUT.name());
 
         int year = entry.getDate().getYear();
         int month = entry.getDate().getMonthValue();
 
         try {
-            // Load existing entries from local storage
-            List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month);
+            // Ensure cache is loaded for this month (loads from file if cache empty)
+            LoggerUtil.debug(this.getClass(), String.format("Ensuring cache is loaded for %s - %d/%d", username, month, year));
+            registerCacheService.getMonthEntries(username, userId, year, month);
 
-            // Check if local entries are empty or null
-            boolean localEntriesEmpty = (entries == null || entries.isEmpty());
-
-            // DATA LOSS PROTECTION: If local is empty but network has data, use network data as base
-            if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
-                try {
-                    List<RegisterEntry> networkEntries = dataAccessService.readNetworkUserRegister(username, userId, year, month);
-                    if (networkEntries != null && !networkEntries.isEmpty()) {
-                        LoggerUtil.info(this.getClass(), "Local register entries missing but found entries on network. Using network data as base for update.");
-                        entries = networkEntries;
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), "Error reading network register during save operation: " + e.getMessage());
-                }
-            }
-
-            // Ensure entries is not null after potential network recovery
-            if (entries == null) {
-                entries = new ArrayList<>();
-            }
-
-            // Also check for admin entries to ensure we have the most complete data
-            if (dataAccessService.isNetworkAvailable()) {
-                try {
-                    List<RegisterEntry> adminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
-                    if (adminEntries != null && !adminEntries.isEmpty()) {
-                        // Merge admin entries before adding the new entry
-                        entries = mergeEntries(entries, adminEntries);
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), "Could not check admin register entries: " + e.getMessage());
-                }
-            }
-
-            // Update or add entry
+            // Generate entry ID if needed (new entry)
             if (entry.getEntryId() == null) {
-                entry.setEntryId(generateNextEntryId(entries));
-                entries.add(entry);
+                // Get current entries from cache to determine next ID
+                List<RegisterEntry> currentEntries = registerCacheService.getMonthEntries(username, userId, year, month);
+                entry.setEntryId(generateNextEntryId(currentEntries));
+
+                // NEW ENTRY: Always USER_INPUT
+                entry.setAdminSync(SyncStatusMerge.USER_INPUT.name());
+
+                LoggerUtil.info(this.getClass(), String.format("New entry %d created with USER_INPUT status", entry.getEntryId()));
             } else {
-                entries.removeIf(e -> e.getEntryId().equals(entry.getEntryId()));
-                entries.add(entry);
+                // EXISTING ENTRY: Check current status to determine new status
+                RegisterEntry existingEntry = registerCacheService.getEntry(username, userId, entry.getEntryId(), year, month);
+
+                if (existingEntry != null) {
+                    String currentStatus = existingEntry.getAdminSync();
+
+                    // Step 4: User edits approved entry: USER_DONE → USER_EDITED
+                    // OR: User edits admin-modified entry: ADMIN_EDITED → USER_EDITED
+                    if (SyncStatusMerge.USER_DONE.name().equals(currentStatus) ||
+                            SyncStatusMerge.ADMIN_EDITED.name().equals(currentStatus)) {
+
+                        entry.setAdminSync(SyncStatusMerge.USER_EDITED.name());
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "Entry %d status changed: %s → USER_EDITED (user modified approved entry)",
+                                entry.getEntryId(), currentStatus));
+
+                    } else {
+                        // Keep existing status for other cases (USER_INPUT, USER_EDITED, etc.)
+                        entry.setAdminSync(currentStatus);
+                        LoggerUtil.debug(this.getClass(), String.format(
+                                "Entry %d keeping existing status: %s", entry.getEntryId(), currentStatus));
+                    }
+                } else {
+                    // Entry not found in cache, treat as new
+                    entry.setAdminSync(SyncStatusMerge.USER_INPUT.name());
+                    LoggerUtil.warn(this.getClass(), String.format(
+                            "Entry %d not found in cache, treating as new with USER_INPUT status", entry.getEntryId()));
+                }
             }
 
-            // Sort entries
-            entries.sort(Comparator.comparing(RegisterEntry::getDate).reversed()
-                    .thenComparing(RegisterEntry::getEntryId, Comparator.reverseOrder()));
+            // Add/update entry using cache (which will write-through to file)
+            boolean success;
 
-            // Save and sync
-            dataAccessService.writeUserRegister(username, userId, entries, year, month);
-            LoggerUtil.info(this.getClass(), String.format("Successfully saved entry %d for user %s",
-                    entry.getEntryId(), username));
+            // Check if entry exists in cache
+            RegisterEntry existingEntry = registerCacheService.getEntry(username, userId, entry.getEntryId(), year, month);
+
+            if (existingEntry != null) {
+                LoggerUtil.debug(this.getClass(), String.format("Updating existing entry %d in cache", entry.getEntryId()));
+                success = registerCacheService.updateEntry(username, userId, entry);
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format("Adding new entry %d to cache", entry.getEntryId()));
+                success = registerCacheService.addEntry(username, userId, entry);
+            }
+
+            if (!success) {
+                throw new RuntimeException("Failed to save entry to cache");
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Successfully saved entry %d for user %s with status %s", entry.getEntryId(), username, entry.getAdminSync()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error saving entry for user %s: %s", username, e.getMessage()));
@@ -173,32 +132,37 @@ public class UserRegisterService {
         }
     }
 
-    @PreAuthorize("#username == authentication.name")
     public void deleteEntry(String username, Integer userId, Integer entryId, int year, int month) {
         try {
-            // Load existing entries
-            List<RegisterEntry> entries = dataAccessService.readUserRegister(username, userId, year, month);
-            if (entries != null) {
-                // Verify entry exists and belongs to user
-                boolean entryExists = entries.stream().anyMatch(e -> e.getEntryId().equals(entryId) && e.getUserId().equals(userId));
+            // Verify entry exists in cache (this will load from file if needed)
+            RegisterEntry existingEntry = registerCacheService.getEntry(username, userId, entryId, year, month);
 
-                if (!entryExists) {
-                    throw new IllegalArgumentException("Entry not found or access denied");
-                }
-
-                // Remove entry
-                entries.removeIf(entry -> entry.getEntryId().equals(entryId));
-
-                // Save and sync
-                dataAccessService.writeUserRegister(username, userId, entries, year, month);
-
-                LoggerUtil.info(this.getClass(), String.format("Deleted register entry %d for user %s", entryId, username));
+            if (existingEntry == null) {
+                throw new IllegalArgumentException("Entry not found");
             }
+
+            // Verify entry belongs to user
+            if (!existingEntry.getUserId().equals(userId)) {
+                throw new IllegalArgumentException("Access denied - entry belongs to different user");
+            }
+
+            // Delete entry using cache (which will write-through to file)
+            boolean success = registerCacheService.deleteEntry(username, userId, entryId, year, month);
+
+            if (!success) {
+                throw new RuntimeException("Failed to delete entry from cache");
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Deleted register entry %d for user %s", entryId, username));
+
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error deleting entry %d for user %s: %s", entryId, username, e.getMessage()));
             throw new RuntimeException("Failed to delete entry", e);
         }
     }
+
+    // === UNCHANGED METHODS ===
+
 
     private void validateEntry(RegisterEntry entry) {
         if (entry == null) {
@@ -227,9 +191,14 @@ public class UserRegisterService {
                 .orElse(0) + 1;
     }
 
+    // === SEARCH METHOD - KEEPING FILE-BASED FOR NOW ===
+    // Note: This method searches across multiple months, which doesn't fit well with month-based cache.
+    // For now, keeping the file-based search. Could be optimized later if needed.
     public List<RegisterEntry> performFullRegisterSearch(String username, Integer userId, String query) {
+        LoggerUtil.info(this.getClass(), "Performing full register search across multiple months (file-based)");
+
         // First, retrieve all entries
-        List<RegisterEntry> allEntries = dataAccessService.findRegisterFiles(username, userId);
+        List<RegisterEntry> allEntries = registerDataService.findRegisterFiles(username, userId);
 
         // If no query, return all entries sorted by date
         if (query == null || query.trim().isEmpty()) {

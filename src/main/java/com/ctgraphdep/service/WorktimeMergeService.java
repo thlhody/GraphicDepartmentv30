@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.enums.WorktimeMergeRule;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -72,8 +72,8 @@ public class WorktimeMergeService {
 
             // Add specific handling for USER_INPUT vs USER_IN_PROCESS conflict
             if (userEntry != null && adminEntry != null &&
-                    SyncStatusWorktime.USER_INPUT.equals(userEntry.getAdminSync()) &&
-                    SyncStatusWorktime.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
+                    SyncStatusMerge.USER_INPUT.equals(userEntry.getAdminSync()) &&
+                    SyncStatusMerge.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
 
                 LoggerUtil.warn(this.getClass(), String.format("Conflict detected: User has resolved entry (USER_INPUT) for %s, " +
                                 "but admin has unresolved entry (USER_IN_PROCESS). Keeping user's resolved entry.", date));
@@ -83,8 +83,8 @@ public class WorktimeMergeService {
                 continue;  // Skip the normal merge process for this entry
             }
 
-            boolean isUserInProcess = userEntry != null && SyncStatusWorktime.USER_IN_PROCESS.equals(userEntry.getAdminSync());
-            boolean isAdminBlank = adminEntry != null && SyncStatusWorktime.ADMIN_BLANK.equals(adminEntry.getAdminSync());
+            boolean isUserInProcess = userEntry != null && SyncStatusMerge.USER_IN_PROCESS.equals(userEntry.getAdminSync());
+            boolean isAdminBlank = adminEntry != null && SyncStatusMerge.ADMIN_BLANK.equals(adminEntry.getAdminSync());
 
             try {
                 WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, adminEntry);
@@ -139,15 +139,15 @@ public class WorktimeMergeService {
         }
 
         // Special case: Resolved user entries take precedence over unresolved admin entries
-        if (SyncStatusWorktime.USER_INPUT.equals(user.getAdminSync()) &&
-                admin != null && SyncStatusWorktime.USER_IN_PROCESS.equals(admin.getAdminSync())) {
+        if (SyncStatusMerge.USER_INPUT.equals(user.getAdminSync()) &&
+                admin != null && SyncStatusMerge.USER_IN_PROCESS.equals(admin.getAdminSync())) {
 
             LoggerUtil.info(this.getClass(), String.format("Admin consolidation: Updating admin USER_IN_PROCESS entry with user's resolved entry for %s", user.getWorkDate()));
             return user;
         }
 
         // Skip USER_IN_PROCESS entries - they should remain in user file only
-        if (SyncStatusWorktime.USER_IN_PROCESS.equals(user.getAdminSync())) {
+        if (SyncStatusMerge.USER_IN_PROCESS.equals(user.getAdminSync())) {
             LoggerUtil.debug(this.getClass(), String.format("Admin consolidation: Skipping USER_IN_PROCESS entry for date %s", user.getWorkDate()));
             return null;
         }

@@ -1,7 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkTimeSummary;
@@ -138,7 +138,7 @@ public class WorktimeDisplayService {
         WorkTimeTable displayEntry = WorkTimeEntryUtil.copyWorkTimeEntry(entry);
 
         // For USER_IN_PROCESS entries, show only partial information
-        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+        if (SyncStatusMerge.USER_IN_PROCESS.equals(entry.getAdminSync())) {
             // Keep information that is already available
             if (displayEntry.getTotalWorkedMinutes() == null || displayEntry.getTotalWorkedMinutes() == 0) {
                 displayEntry.setTotalWorkedMinutes(null);
@@ -223,7 +223,7 @@ public class WorktimeDisplayService {
 
         for (WorkTimeTable entry : worktimeData) {
             // Skip in-process entries
-            if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+            if (SyncStatusMerge.USER_IN_PROCESS.equals(entry.getAdminSync())) {
                 continue;
             }
 

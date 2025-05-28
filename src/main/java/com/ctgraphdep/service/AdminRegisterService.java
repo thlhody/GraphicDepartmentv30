@@ -1,8 +1,7 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.enums.RegisterMergeRule;
-import com.ctgraphdep.enums.SyncStatusWorktime;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 import com.ctgraphdep.model.dto.RegisterSummaryDTO;
@@ -20,30 +19,238 @@ import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * REFACTORED AdminRegisterService to use the new RegisterMergeService.
+ * Key Changes:
+ * - Removed old merge logic from loadUserRegisterEntries()
+ * - Removed manual status processing from saveAdminRegisterEntries()
+ * - Now delegates merge operations to RegisterMergeService
+ * - Simplified and cleaner code focused on business logic
+ */
 @Service
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminRegisterService {
-    private final DataAccessService dataAccessService;
+
     private final BonusCalculatorUtil bonusCalculator;
     private final WorktimeManagementService worktimeManagementService;
     private final UserService userService;
     private final TimeValidationService timeValidationService;
+    private final RegisterDataService registerDataService;
+    private final RegisterMergeService registerMergeService; // NEW: Added merge service dependency
 
     @Autowired
-    public AdminRegisterService(DataAccessService dataAccessService,
-                                BonusCalculatorUtil bonusCalculator,
-                                WorktimeManagementService worktimeManagementService, UserService userService, TimeValidationService timeValidationService) {
-        this.dataAccessService = dataAccessService;
+    public AdminRegisterService(BonusCalculatorUtil bonusCalculator,
+                                WorktimeManagementService worktimeManagementService,
+                                UserService userService,
+                                TimeValidationService timeValidationService,
+                                RegisterDataService registerDataService,
+                                RegisterMergeService registerMergeService) { // NEW: Added parameter
         this.bonusCalculator = bonusCalculator;
         this.worktimeManagementService = worktimeManagementService;
         this.userService = userService;
         this.timeValidationService = timeValidationService;
+        this.registerDataService = registerDataService;
+        this.registerMergeService = registerMergeService; // NEW: Initialize dependency
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    // ========================================================================
+    // REFACTORED METHODS - Now using RegisterMergeService
+    // ========================================================================
+
+    /**
+     * REFACTORED: Load user register entries using the new merge service.
+     * This method now simply delegates to RegisterMergeService.performAdminLoadMerge()
+     * which handles all the complex merge logic, bootstrapping, and file operations.
+     * @param username Username
+     * @param userId User ID
+     * @param year Year
+     * @param month Month
+     * @return Merged register entries ready for admin view
+     */
+    public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, Integer year, Integer month) {
+        LoggerUtil.info(this.getClass(), String.format(
+                "Loading register entries for %s - %d/%d using RegisterMergeService", username, year, month));
+        LoggerUtil.info(this.getClass(), String.format(
+                "=== SERVICE ENTRY === Loading register entries for %s - %d/%d using RegisterMergeService, Thread: %s, Timestamp: %d",
+                username, year, month, Thread.currentThread().getName(), System.currentTimeMillis()));
+
+        try {
+            // Delegate to the new merge service - handles everything:
+            // 1. Load user entries from network
+            // 2. Load admin entries from local
+            // 3. Bootstrap or merge as needed
+            // 4. Save result to admin local file
+            // 5. Return merged entries for display
+            List<RegisterEntry> mergedEntries = registerMergeService.performAdminLoadMerge(username, userId, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "=== SERVICE EXIT === Successfully loaded %d register entries for %s - %d/%d, Thread: %s, Timestamp: %d",
+                    mergedEntries.size(), username, year, month, Thread.currentThread().getName(), System.currentTimeMillis()));
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully loaded %d register entries for %s - %d/%d",
+                    mergedEntries.size(), username, year, month));
+
+            return sortEntriesForDisplay(mergedEntries);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error loading register entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format(
+                    "=== SERVICE ERROR === Error loading register entries for %s - %d/%d: %s, Thread: %s",
+                    username, year, month, e.getMessage(), Thread.currentThread().getName()), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Reads already-merged admin register entries without triggering new merge operations.
+     * Use this for read-only operations like summaries after the initial load/merge has been completed.
+     *
+     * @param username Username
+     * @param userId User ID
+     * @param year Year
+     * @param month Month
+     * @return Already-merged register entries from admin file
+     */
+    public List<RegisterEntry> readMergedAdminEntries(String username, Integer userId, Integer year, Integer month) {
+        try {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Reading merged admin entries for %s - %d/%d (read-only)", username, year, month));
+
+            // Read directly from admin's local file (already merged by previous load operation)
+            List<RegisterEntry> entries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Successfully read %d merged admin entries for %s - %d/%d",
+                    entries.size(), username, year, month));
+
+            return sortEntriesForDisplay(entries);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error reading merged admin entries for %s - %d/%d: %s",
+                    username, year, month, e.getMessage()), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * REFACTORED: Save admin register entries using the new merge service.
+     * This method now delegates status processing to RegisterMergeService.performAdminSaveProcessing()
+     * which handles all status transitions and cleanup operations.
+     *
+     * @param username Username
+     * @param userId User ID
+     * @param year Year
+     * @param month Month
+     * @param entries Entries to save
+     */
+    public void saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month, List<RegisterEntry> entries) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Saving %d entries for user %s - %d/%d using RegisterMergeService",
+                    entries.size(), username, year, month));
+
+            // 1. Process entries using the new merge service - handles:
+            //    - Status transitions (USER_INPUT → USER_DONE, etc.)
+            //    - ADMIN_BLANK removal
+            //    - Final status consolidation
+            List<RegisterEntry> processedEntries = registerMergeService.performAdminSaveProcessing(entries);
+
+            // 2. Save processed entries to admin file
+            registerDataService.writeAdminLocalWithSyncAndBackup(username, userId, processedEntries, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully saved %d processed entries for user %s - %d/%d",
+                    processedEntries.size(), username, year, month));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error saving admin register entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            throw new RuntimeException("Failed to save admin register entries", e);
+        }
+    }
+
+    /**
+     * Resolve all ADMIN_CHECK conflicts by changing them to ADMIN_EDITED
+     * This ensures admin's decision takes precedence over user edits
+     */
+    public int confirmAllAdminChanges(String username, Integer userId, Integer year, Integer month) {
+        try {
+            // Read current admin entries
+            List<RegisterEntry> currentEntries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
+
+            if (currentEntries == null || currentEntries.isEmpty()) {
+                LoggerUtil.info(this.getClass(), String.format("No entries found to confirm for %s - %d/%d", username, year, month));
+                return 0;
+            }
+
+            // Count and resolve ADMIN_CHECK conflicts
+            int resolvedCount = 0;
+            List<RegisterEntry> updatedEntries = new ArrayList<>();
+
+            for (RegisterEntry entry : currentEntries) {
+                if (SyncStatusMerge.ADMIN_CHECK.name().equals(entry.getAdminSync())) {
+                    // Resolve conflict: ADMIN_CHECK → ADMIN_EDITED (admin's final decision)
+                    RegisterEntry resolvedEntry = RegisterEntry.builder()
+                            .entryId(entry.getEntryId())
+                            .userId(entry.getUserId())
+                            .date(entry.getDate())
+                            .orderId(entry.getOrderId())
+                            .productionId(entry.getProductionId())
+                            .omsId(entry.getOmsId())
+                            .clientName(entry.getClientName())
+                            .actionType(entry.getActionType())
+                            .printPrepTypes(entry.getPrintPrepTypes() != null ?
+                                    List.copyOf(entry.getPrintPrepTypes()) : null)
+                            .colorsProfile(entry.getColorsProfile())
+                            .articleNumbers(entry.getArticleNumbers())
+                            .graphicComplexity(entry.getGraphicComplexity())
+                            .observations(entry.getObservations())
+                            .adminSync(SyncStatusMerge.ADMIN_EDITED.name()) // ADMIN_CHECK → ADMIN_EDITED (admin decision)
+                            .build();
+
+                    updatedEntries.add(resolvedEntry);
+                    resolvedCount++;
+
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Resolved conflict for entry %d: ADMIN_CHECK → ADMIN_EDITED (admin decision)", entry.getEntryId()));
+                } else {
+                    // Keep other entries unchanged
+                    updatedEntries.add(entry);
+                }
+            }
+
+            if (resolvedCount > 0) {
+                // Save the updated entries
+                registerDataService.writeAdminLocalWithSyncAndBackup(username, userId, updatedEntries, year, month);
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Successfully resolved %d ADMIN_CHECK conflicts for %s - %d/%d",
+                        resolvedCount, username, year, month));
+            } else {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "No ADMIN_CHECK conflicts found to resolve for %s - %d/%d", username, year, month));
+            }
+
+            return resolvedCount;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error resolving admin conflicts for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            throw new RuntimeException("Failed to resolve admin conflicts", e);
+        }
+    }
+
+    // ========================================================================
+    // UNCHANGED METHODS - Business logic remains the same
+    // ========================================================================
+
     public Optional<BonusEntry> loadBonusEntry(Integer userId, Integer year, Integer month) {
         try {
-            List<BonusEntry> bonusEntries = dataAccessService.readAdminBonus(year, month);
+            List<BonusEntry> bonusEntries = registerDataService.readAdminBonus(year, month);
             return bonusEntries.stream()
                     .filter(entry -> entry.getEmployeeId().equals(userId))
                     .findFirst();
@@ -54,127 +261,12 @@ public class AdminRegisterService {
         }
     }
 
-    public List<RegisterEntry> loadUserRegisterEntries(String username, Integer userId, Integer year, Integer month) {
-        // 1. Load user entries from network location
-        List<RegisterEntry> userEntries = dataAccessService.readNetworkUserRegister(username, userId, year, month);
-        if (userEntries == null) {
-            userEntries = new ArrayList<>();
-        }
-
-        // 2. Check local admin file
-        List<RegisterEntry> adminEntries;
-        try {
-            adminEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
-            if (adminEntries == null) {
-                adminEntries = new ArrayList<>();
-            }
-        } catch (Exception e) {
-            // If no local admin file exists, create it with user entries
-            adminEntries = userEntries.stream().map(this::copyEntry).collect(Collectors.toList());
-        }
-
-        // 3. Merge entries based on status
-        List<RegisterEntry> mergedEntries = mergeEntries(userEntries, adminEntries);
-
-        // 4. Save merged entries to local admin register file
-        dataAccessService.writeLocalAdminRegister(username, userId, mergedEntries, year, month);
-
-        // 5. Sync local admin register to network
-        dataAccessService.syncAdminRegisterToNetwork(username, userId, year, month);
-
-        return mergedEntries;
-    }
-
-    private List<RegisterEntry> mergeEntries(List<RegisterEntry> userEntries, List<RegisterEntry> adminEntries) {
-        Map<Integer, RegisterEntry> adminEntriesMap = adminEntries.stream().collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
-        return userEntries.stream().map(userEntry -> RegisterMergeRule.apply(userEntry, adminEntriesMap.get(userEntry.getEntryId()))).collect(Collectors.toList());
-    }
-
-    public void saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month, List<RegisterEntry> entries) {
-        try {
-            // First, get any existing entries - this is critical for preserving all previous edits
-            List<RegisterEntry> existingEntries;
-            try {
-                existingEntries = dataAccessService.readLocalAdminRegister(username, userId, year, month);
-                LoggerUtil.info(this.getClass(),
-                        String.format("Found %d existing entries in admin register", existingEntries.size()));
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(),
-                        String.format("No existing admin register found, creating new one: %s", e.getMessage()));
-                existingEntries = new ArrayList<>();
-            }
-
-            // Create a map of existing entries by ID for quick lookup
-            Map<Integer, RegisterEntry> existingEntriesMap = existingEntries.stream()
-                    .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry, (e1, e2) -> e1));
-
-            // Create the final list of entries to save
-            List<RegisterEntry> updatedEntries = new ArrayList<>();
-
-            // Process each entry from the incoming request
-            for (RegisterEntry entry : entries) {
-                RegisterEntry entryToSave = copyEntry(entry); // Create a copy to avoid reference issues
-
-                // Check if there's an existing entry with this ID
-                RegisterEntry existingEntry = existingEntriesMap.get(entry.getEntryId());
-
-                if (existingEntry != null) {
-                    // If existing entry is already ADMIN_EDITED and new entry is not, preserve the ADMIN_EDITED status
-                    if (existingEntry.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name()) &&
-                            !entry.getAdminSync().equals(SyncStatusWorktime.ADMIN_EDITED.name())) {
-                        entryToSave.setAdminSync(SyncStatusWorktime.ADMIN_EDITED.name());
-                        LoggerUtil.debug(this.getClass(),
-                                String.format("Preserving ADMIN_EDITED status for entry %d", entry.getEntryId()));
-                    }
-                }
-
-                // Apply entry status updates based on sync state
-                if (entryToSave.getAdminSync().equals(SyncStatusWorktime.USER_INPUT.name())) {
-                    entryToSave.setAdminSync(SyncStatusWorktime.USER_DONE.name());
-                    LoggerUtil.debug(this.getClass(),
-                            String.format("Updated entry %d status from USER_INPUT to USER_DONE", entry.getEntryId()));
-                }
-
-                updatedEntries.add(entryToSave);
-            }
-
-            // Save to admin file with the complete updated list
-            dataAccessService.writeLocalAdminRegister(username, userId, updatedEntries, year, month);
-            LoggerUtil.info(this.getClass(),
-                    String.format("Saved %d entries to admin register for user %s", updatedEntries.size(), username));
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error saving admin register entries: %s", e.getMessage()), e);
-            throw new RuntimeException("Failed to save admin register entries", e);
-        }
-    }
-
-    private RegisterEntry copyEntry(RegisterEntry source) {
-        return RegisterEntry.builder()
-                .entryId(source.getEntryId())
-                .userId(source.getUserId())
-                .date(source.getDate())
-                .orderId(source.getOrderId())
-                .productionId(source.getProductionId())
-                .omsId(source.getOmsId())
-                .clientName(source.getClientName())
-                .actionType(source.getActionType())
-                .printPrepTypes(new ArrayList<>(source.getPrintPrepTypes()))
-                .colorsProfile(source.getColorsProfile())
-                .articleNumbers(source.getArticleNumbers())
-                .graphicComplexity(source.getGraphicComplexity())
-                .observations(source.getObservations())
-                .adminSync(source.getAdminSync())
-                .build();
-    }
-
     public BonusCalculationResultDTO calculateBonusFromRequest(Map<String, Object> request) {
         try {
             // Convert and validate entries
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> entriesData = (List<Map<String, Object>>) request.get("entries");
-            List<RegisterEntry> entries = convertToRegisterEntries(entriesData); // Use the plural version
+            List<RegisterEntry> entries = convertToRegisterEntries(entriesData);
 
             Integer userId = (Integer) request.get("userId");
             Integer year = (Integer) request.get("year");
@@ -195,6 +287,129 @@ public class AdminRegisterService {
             LoggerUtil.error(this.getClass(), "Error in bonus calculation: " + e.getMessage());
             throw new RuntimeException("Failed to calculate bonus", e);
         }
+    }
+
+    public BonusCalculationResultDTO calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config) {
+        // Filter valid entries for bonus calculation
+        List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
+
+        // Get worked days from worktime service
+        int workedDays = worktimeManagementService.getWorkedDays(userId, year, month);
+
+        // Calculate sums
+        int numberOfEntries = validEntries.size();
+        double sumArticleNumbers = validEntries.stream().mapToDouble(RegisterEntry::getArticleNumbers).sum();
+        double sumComplexity = validEntries.stream().mapToDouble(RegisterEntry::getGraphicComplexity).sum();
+
+        // Load previous months' data
+        PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(userId, year, month);
+
+        // Calculate bonus
+        BonusCalculationResultDTO result = bonusCalculator.calculateBonus(numberOfEntries, workedDays, sumArticleNumbers, sumComplexity, config);
+
+        // Create a new result with previous months included
+        return BonusCalculationResultDTO.builder()
+                .entries(result.getEntries())
+                .articleNumbers(result.getArticleNumbers())
+                .graphicComplexity(result.getGraphicComplexity())
+                .misc(result.getMisc())
+                .workedDays(result.getWorkedDays())
+                .workedPercentage(result.getWorkedPercentage())
+                .bonusPercentage(result.getBonusPercentage())
+                .bonusAmount(result.getBonusAmount())
+                .previousMonths(previousMonths)
+                .build();
+    }
+
+    public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResultDTO result, String username) {
+        try {
+            // Get user's employeeId
+            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+            // Create bonus entry from calculation result
+            BonusEntry bonusEntry = BonusEntry.fromBonusCalculationResult(username, employeeId, result);
+            LoggerUtil.info(this.getClass(), String.format("Created bonus entry for employee %d with amount %f", employeeId, bonusEntry.getBonusAmount()));
+
+            // Load and set previous months' bonuses
+            PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(employeeId, year, month);
+            bonusEntry.setPreviousMonths(previousMonths);
+
+            // Read existing bonus entries
+            List<BonusEntry> existingEntries;
+            try {
+                existingEntries = registerDataService.readAdminBonus(year, month);
+            } catch (Exception e) {
+                existingEntries = new ArrayList<>();
+            }
+
+            // Find and replace or add the entry for this employee
+            existingEntries.removeIf(entry -> entry.getEmployeeId().equals(employeeId));
+            existingEntries.add(bonusEntry);
+
+            // Save all entries
+            registerDataService.writeAdminBonus(existingEntries, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format("Successfully saved bonus calculation for user %s (Employee ID: %d) for %d/%d", username, employeeId, year, month));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error processing bonus calculation for user %d: %s", userId, e.getMessage()));
+            throw new RuntimeException("Failed to process bonus calculation", e);
+        }
+    }
+
+    public BonusCalculationResultDTO loadSavedBonusResult(Integer userId, Integer year, Integer month) {
+        try {
+            // Get user's employeeId
+            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+            Optional<BonusEntry> bonusEntryOpt = loadBonusEntry(employeeId, year, month);
+
+            if (bonusEntryOpt.isEmpty()) {
+                return null;
+            }
+
+            BonusEntry entry = bonusEntryOpt.get();
+
+            return BonusCalculationResultDTO.builder()
+                    .entries(entry.getEntries())
+                    .articleNumbers(entry.getArticleNumbers())
+                    .graphicComplexity(entry.getGraphicComplexity())
+                    .misc(entry.getMisc())
+                    .workedDays(entry.getWorkedDays())
+                    .workedPercentage(entry.getWorkedPercentage())
+                    .bonusPercentage(entry.getBonusPercentage())
+                    .bonusAmount(entry.getBonusAmount())
+                    .previousMonths(entry.getPreviousMonths())
+                    .build();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error loading bonus result for user %d: %s", userId, e.getMessage()));
+            throw new RuntimeException("Failed to load bonus result", e);
+        }
+    }
+
+    public RegisterSummaryDTO calculateRegisterSummary(List<RegisterEntry> entries) {
+        // Filter valid entries
+        List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
+
+        return RegisterSummaryDTO.builder()
+                .totalEntries(validEntries.size())
+                .averageArticleNumbers(validEntries.stream()
+                        .mapToDouble(RegisterEntry::getArticleNumbers)
+                        .average()
+                        .orElse(0.0))
+                .averageGraphicComplexity(validEntries.stream()
+                        .mapToDouble(RegisterEntry::getGraphicComplexity)
+                        .average()
+                        .orElse(0.0))
+                .build();
+    }
+
+    // ========================================================================
+    // PRIVATE HELPER METHODS - Unchanged
+    // ========================================================================
+
+    private List<RegisterEntry> filterValidEntriesForBonus(List<RegisterEntry> entries) {
+        List<String> bonusEligibleTypes = ActionType.getBonusEligibleValues();
+        return entries.stream().filter(entry -> bonusEligibleTypes.contains(entry.getActionType())).collect(Collectors.toList());
     }
 
     private List<RegisterEntry> convertToRegisterEntries(List<Map<String, Object>> entriesData) {
@@ -242,130 +457,6 @@ public class AdminRegisterService {
                 .build();
     }
 
-    private Integer convertToInteger(Object value) {
-        if (value == null) return 0;
-        if (value instanceof Integer) return (Integer) value;
-        if (value instanceof Number) return ((Number) value).intValue();
-        try {
-            return Integer.parseInt(value.toString());
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private Double convertToDouble(Object value) {
-        if (value == null) return 0.0;
-        if (value instanceof Double) return (Double) value;
-        if (value instanceof Number) return ((Number) value).doubleValue();
-        try {
-            return Double.parseDouble(value.toString());
-        } catch (NumberFormatException e) {
-            return 0.0;
-        }
-    }
-
-    private LocalDate parseLocalDate(Object value) {
-        if (value == null) return getStandardCurrentDate();
-        if (value instanceof LocalDate) return (LocalDate) value;
-        try {
-            return LocalDate.parse(String.valueOf(value));
-        } catch (Exception e) {
-            return getStandardCurrentDate();
-        }
-    }
-
-    // Gets the standard current date from the time validation service
-    private LocalDate getStandardCurrentDate() {
-        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
-        return timeValues.getCurrentDate();
-    }
-
-    //Calculate bonus for filtered entries
-    public BonusCalculationResultDTO calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config) {
-        // Filter valid entries for bonus calculation
-        List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
-
-        // Get worked days from worktime service
-        int workedDays = worktimeManagementService.getWorkedDays(userId, year, month);
-
-        // Calculate sums
-        int numberOfEntries = validEntries.size();
-        double sumArticleNumbers = validEntries.stream().mapToDouble(RegisterEntry::getArticleNumbers).sum();
-        double sumComplexity = validEntries.stream().mapToDouble(RegisterEntry::getGraphicComplexity).sum();
-
-        // Load previous months' data
-        PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(userId, year, month);
-
-        // Calculate bonus
-        BonusCalculationResultDTO result = bonusCalculator.calculateBonus(numberOfEntries, workedDays, sumArticleNumbers, sumComplexity, config);
-
-        // Create a new result with previous months included
-        return BonusCalculationResultDTO.builder()
-                .entries(result.getEntries())
-                .articleNumbers(result.getArticleNumbers())
-                .graphicComplexity(result.getGraphicComplexity())
-                .misc(result.getMisc())
-                .workedDays(result.getWorkedDays())
-                .workedPercentage(result.getWorkedPercentage())
-                .bonusPercentage(result.getBonusPercentage())
-                .bonusAmount(result.getBonusAmount())
-                .previousMonths(previousMonths)
-                .build();
-    }
-
-    // Save bonus calculation result
-    public void saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResultDTO result, String username) {
-        try {
-            // Get user's employeeId
-            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
-
-            // Create bonus entry from calculation result
-            BonusEntry bonusEntry = BonusEntry.fromBonusCalculationResult(username, employeeId, result);
-            LoggerUtil.info(this.getClass(), String.format("Created bonus entry for employee %d with amount %f", employeeId, bonusEntry.getBonusAmount()));
-
-            // Load and set previous months' bonuses
-            PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(employeeId, year, month);
-            bonusEntry.setPreviousMonths(previousMonths);
-
-            // Read existing bonus entries
-            List<BonusEntry> existingEntries;
-            try {
-                existingEntries = dataAccessService.readAdminBonus(year, month);
-            } catch (Exception e) {
-                existingEntries = new ArrayList<>();
-            }
-
-            // Find and replace or add the entry for this employee
-            existingEntries.removeIf(entry -> entry.getEmployeeId().equals(employeeId));
-            existingEntries.add(bonusEntry);
-
-            // Save all entries
-            dataAccessService.writeAdminBonus(existingEntries, year, month);
-
-            LoggerUtil.info(this.getClass(), String.format("Successfully saved bonus calculation for user %s (Employee ID: %d) for %d/%d", username, employeeId, year, month));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error processing bonus calculation for user %d: %s", userId, e.getMessage()));
-            throw new RuntimeException("Failed to process bonus calculation", e);
-        }
-    }
-
-    private Double loadMonthBonus(Integer employeeId, YearMonth month) {
-        try {
-            List<BonusEntry> entries = dataAccessService.readAdminBonus(month.getYear(), month.getMonthValue());
-
-            return entries.stream()
-                    .filter(entry -> entry.getEmployeeId().equals(employeeId))
-                    .map(BonusEntry::getBonusAmount)
-                    .findFirst()
-                    .orElse(0.0);
-
-        } catch (Exception e) {
-            LoggerUtil.info(this.getClass(), String.format("No bonus entry found for employee %d in %s: %s", employeeId, month, e.getMessage()));
-            return 0.0;
-        }
-    }
-
     private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, Integer year, Integer month) {
         try {
             // Get employee ID first
@@ -401,55 +492,81 @@ public class AdminRegisterService {
         }
     }
 
-    public BonusCalculationResultDTO loadSavedBonusResult(Integer userId, Integer year, Integer month) {
+    private Double loadMonthBonus(Integer employeeId, YearMonth month) {
         try {
-            // Get user's employeeId
-            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            List<BonusEntry> entries = registerDataService.readAdminBonus(month.getYear(), month.getMonthValue());
 
-            Optional<BonusEntry> bonusEntryOpt = loadBonusEntry(employeeId, year, month);
+            return entries.stream()
+                    .filter(entry -> entry.getEmployeeId().equals(employeeId))
+                    .map(BonusEntry::getBonusAmount)
+                    .findFirst()
+                    .orElse(0.0);
 
-            if (bonusEntryOpt.isEmpty()) {
-                return null;
-            }
-
-            BonusEntry entry = bonusEntryOpt.get();
-
-            return BonusCalculationResultDTO.builder()
-                    .entries(entry.getEntries())
-                    .articleNumbers(entry.getArticleNumbers())
-                    .graphicComplexity(entry.getGraphicComplexity())
-                    .misc(entry.getMisc())
-                    .workedDays(entry.getWorkedDays())
-                    .workedPercentage(entry.getWorkedPercentage())
-                    .bonusPercentage(entry.getBonusPercentage())
-                    .bonusAmount(entry.getBonusAmount())
-                    .previousMonths(entry.getPreviousMonths())
-                    .build();
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error loading bonus result for user %d: %s", userId, e.getMessage()));
-            throw new RuntimeException("Failed to load bonus result", e);
+            LoggerUtil.info(this.getClass(), String.format("No bonus entry found for employee %d in %s: %s", employeeId, month, e.getMessage()));
+            return 0.0;
         }
     }
 
-    private List<RegisterEntry> filterValidEntriesForBonus(List<RegisterEntry> entries) {
-        List<String> bonusEligibleTypes = ActionType.getBonusEligibleValues();
-        return entries.stream().filter(entry -> bonusEligibleTypes.contains(entry.getActionType())).collect(Collectors.toList());
+    private Integer convertToInteger(Object value) {
+        if (value == null) return 0;
+        if (value instanceof Integer) return (Integer) value;
+        if (value instanceof Number) return ((Number) value).intValue();
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
-    public RegisterSummaryDTO calculateRegisterSummary(List<RegisterEntry> entries) {
-        // Filter valid entries
-        List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
+    private Double convertToDouble(Object value) {
+        if (value == null) return 0.0;
+        if (value instanceof Double) return (Double) value;
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            return 0.0;
+        }
+    }
 
-        return RegisterSummaryDTO.builder()
-                .totalEntries(validEntries.size())
-                .averageArticleNumbers(validEntries.stream()
-                        .mapToDouble(RegisterEntry::getArticleNumbers)
-                        .average()
-                        .orElse(0.0))
-                .averageGraphicComplexity(validEntries.stream()
-                        .mapToDouble(RegisterEntry::getGraphicComplexity)
-                        .average()
-                        .orElse(0.0))
-                .build();
+    private LocalDate parseLocalDate(Object value) {
+        if (value == null) return getStandardCurrentDate();
+        if (value instanceof LocalDate) return (LocalDate) value;
+        try {
+            return LocalDate.parse(String.valueOf(value));
+        } catch (Exception e) {
+            return getStandardCurrentDate();
+        }
+    }
+
+    private List<RegisterEntry> sortEntriesForDisplay(List<RegisterEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return entries;
+        }
+
+        return entries.stream()
+                .sorted((e1, e2) -> {
+                    // First sort by date (newest first)
+                    int dateCompare = e2.getDate().compareTo(e1.getDate());
+                    if (dateCompare != 0) {
+                        return dateCompare;
+                    }
+
+                    // Then by ID (highest first)
+                    if (e1.getEntryId() == null && e2.getEntryId() == null) return 0;
+                    if (e1.getEntryId() == null) return 1;
+                    if (e2.getEntryId() == null) return -1;
+
+                    return e2.getEntryId().compareTo(e1.getEntryId());
+                })
+                .collect(Collectors.toList());
+    }
+
+    // Gets the standard current date from the time validation service
+    private LocalDate getStandardCurrentDate() {
+        GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
+        GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
+        return timeValues.getCurrentDate();
     }
 }

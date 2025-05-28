@@ -1,7 +1,7 @@
 package com.ctgraphdep.session.commands;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -161,7 +161,7 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
                 entry.setTemporaryStopCount(session.getTemporaryStopCount());
                 entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
                 entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
-                entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS); // Mark as in-process
+                entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS); // Mark as in-process
 
                 // Save the updated entry
                 context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);

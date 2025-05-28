@@ -1,6 +1,8 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.CheckRegisterDataService;
+import com.ctgraphdep.fileOperations.data.RegisterDataService;
+import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.model.dto.*;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -19,19 +21,24 @@ import java.util.stream.Collectors;
  */
 @Service
 public class StatusService {
-    private final DataAccessService dataAccessService;
+    private final WorktimeDataService worktimeDataService;
     private final UserRegisterService userRegisterService;
     private final WorktimeDisplayService worktimeDisplayService;
     private final TimeOffManagementService timeOffManagementService;
     private final TimeValidationService timeValidationService;
+    private final RegisterDataService registerDataService;
+    private final CheckRegisterDataService checkRegisterDataService;
 
-    public StatusService(DataAccessService dataAccessService, UserRegisterService userRegisterService,
-                         WorktimeDisplayService worktimeDisplayService, TimeOffManagementService timeOffManagementService, TimeValidationService timeValidationService) {
-        this.dataAccessService = dataAccessService;
+    public StatusService(WorktimeDataService worktimeDataService, UserRegisterService userRegisterService, WorktimeDisplayService worktimeDisplayService,
+                         TimeOffManagementService timeOffManagementService, TimeValidationService timeValidationService, RegisterDataService registerDataService,
+                         CheckRegisterDataService checkRegisterDataService) {
+        this.worktimeDataService = worktimeDataService;
         this.userRegisterService = userRegisterService;
         this.worktimeDisplayService = worktimeDisplayService;
         this.timeOffManagementService = timeOffManagementService;
         this.timeValidationService = timeValidationService;
+        this.registerDataService = registerDataService;
+        this.checkRegisterDataService = checkRegisterDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -40,7 +47,7 @@ public class StatusService {
 
         try {
             // Use read-only method from DataAccessService
-            List<WorkTimeTable> userEntries = dataAccessService.readWorktimeReadOnly(username, year, month);
+            List<WorkTimeTable> userEntries = worktimeDataService.readUserFromNetworkOnly(username, year, month);
 
             if (userEntries.isEmpty()) {
                 return new ArrayList<>();
@@ -104,7 +111,7 @@ public class StatusService {
     public List<RegisterEntry> loadRegisterEntriesForPeriod(User user, int year, int month) {
         try {
             // Use read-only method from DataAccessService
-            return dataAccessService.readRegisterReadOnly(user.getUsername(), user.getUserId(), year, month);
+            return registerDataService.readUserFromNetworkOnly(user.getUsername(), user.getUserId(), year, month);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading register entries for user %s: %s", user.getUsername(), e.getMessage()));
             return new ArrayList<>();
@@ -361,7 +368,7 @@ public class StatusService {
 
         try {
             // Use read-only method from DataAccessService (would need to be implemented)
-            List<RegisterCheckEntry> entries = dataAccessService.readCheckRegisterReadOnly(username, userId, year, month);
+            List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterFromNetworkOnly(username, userId, year, month);
 
             if (entries == null || entries.isEmpty()) {
                 // Return empty list instead of null

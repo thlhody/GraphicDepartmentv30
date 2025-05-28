@@ -10,7 +10,7 @@ import java.util.function.BiFunction;
 
 /**
  * Merge rules for check register entries between user entries and team leader entries.
- * Similar to RegisterMergeRule but uses CheckingStatus values instead of SyncStatusWorktime.
+ * Similar to RegisterMergeRule but uses CheckingStatus values instead of SyncStatusMerge.
  */
 public enum CheckRegisterMergeRule {
 

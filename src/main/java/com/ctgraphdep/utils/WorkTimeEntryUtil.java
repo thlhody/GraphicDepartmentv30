@@ -1,6 +1,6 @@
 package com.ctgraphdep.utils;
 
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.WorkTimeTable;
 
 import java.time.DayOfWeek;
@@ -94,12 +94,12 @@ public class WorkTimeEntryUtil {
         if (entry == null) return false;
 
         // Never display ADMIN_BLANK entries
-        if (SyncStatusWorktime.ADMIN_BLANK.equals(entry.getAdminSync())) {
+        if (SyncStatusMerge.ADMIN_BLANK.equals(entry.getAdminSync())) {
             return false;
         }
 
         // Display USER_IN_PROCESS entries with partial info
-        if (SyncStatusWorktime.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+        if (SyncStatusMerge.USER_IN_PROCESS.equals(entry.getAdminSync())) {
             return true;
         }
 

@@ -2,7 +2,7 @@ package com.ctgraphdep.controller.admin;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeSummary;
@@ -257,11 +257,11 @@ public class AdminWorkTimeController extends BaseController {
 
         // Count by status
         counts.put("adminEditedCount", allEntries.stream()
-                .filter(e -> SyncStatusWorktime.ADMIN_EDITED.equals(e.getAdminSync())).count());
+                .filter(e -> SyncStatusMerge.ADMIN_EDITED.equals(e.getAdminSync())).count());
         counts.put("userInputCount", allEntries.stream()
-                .filter(e -> SyncStatusWorktime.USER_INPUT.equals(e.getAdminSync())).count());
+                .filter(e -> SyncStatusMerge.USER_INPUT.equals(e.getAdminSync())).count());
         counts.put("syncedCount", allEntries.stream()
-                .filter(e -> SyncStatusWorktime.USER_DONE.equals(e.getAdminSync())).count());
+                .filter(e -> SyncStatusMerge.USER_DONE.equals(e.getAdminSync())).count());
 
         return counts;
     }

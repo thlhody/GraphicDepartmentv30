@@ -62,8 +62,7 @@ public class Application {
                 }
             });
         } else {
-            LoggerUtil.error(this.getClass(), "System tray not supported on this platform. Headless: " +
-                            GraphicsEnvironment.isHeadless() + ", Tray supported: " + SystemTray.isSupported());
+            LoggerUtil.error(this.getClass(), "System tray not supported on this platform. Headless: " + GraphicsEnvironment.isHeadless() + ", Tray supported: " + SystemTray.isSupported());
         }
     }
 }

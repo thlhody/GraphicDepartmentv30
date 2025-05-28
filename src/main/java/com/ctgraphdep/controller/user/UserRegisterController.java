@@ -76,8 +76,7 @@ public class UserRegisterController extends BaseController {
             try {
                 // Create and execute validation command directly
                 TimeValidationFactory validationFactory = getTimeValidationService().getValidationFactory();
-                ValidatePeriodCommand validateCommand = validationFactory.createValidatePeriodCommand(
-                        selectedYear, selectedMonth, 24); // 24 months ahead max
+                ValidatePeriodCommand validateCommand = validationFactory.createValidatePeriodCommand(selectedYear, selectedMonth, 24); // 24 months ahead max
                 getTimeValidationService().execute(validateCommand);
             } catch (IllegalArgumentException e) {
                 // Handle validation failure gracefully

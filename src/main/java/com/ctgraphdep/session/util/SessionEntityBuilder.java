@@ -1,7 +1,7 @@
 package com.ctgraphdep.session.util;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -53,7 +53,7 @@ public class SessionEntityBuilder {
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
         entry.setLunchBreakDeducted(session.getLunchBreakDeducted() != null ? session.getLunchBreakDeducted() : false);
-        entry.setAdminSync(SyncStatusWorktime.USER_IN_PROCESS);
+        entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS);
         entry.setTimeOffType(null);
         return entry;
     }

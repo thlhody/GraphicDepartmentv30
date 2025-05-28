@@ -5,6 +5,7 @@ import com.ctgraphdep.enums.CheckRegisterMergeRule;
 import com.ctgraphdep.enums.CheckingStatus;
 import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.CheckRegisterDataService;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -28,11 +29,13 @@ public class CheckRegisterService {
 
     private final DataAccessService dataAccessService;
     private final UserService userService;
+    private final CheckRegisterDataService checkRegisterDataService;
 
     @Autowired
-    public CheckRegisterService(DataAccessService dataAccessService, UserService userService) {
+    public CheckRegisterService(DataAccessService dataAccessService, UserService userService, CheckRegisterDataService checkRegisterDataService) {
         this.dataAccessService = dataAccessService;
         this.userService = userService;
+        this.checkRegisterDataService = checkRegisterDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -110,139 +113,97 @@ public class CheckRegisterService {
      */
     private List<RegisterCheckEntry> loadAndMergeUserEntries(String username, Integer userId, int year, int month) {
         try {
-            // First try to read local entries
-            List<RegisterCheckEntry> userEntries = dataAccessService.readUserCheckRegister(username, userId, year, month);
+            // Step 1: Read user entries (smart fallback already built-in)
+            // This handles: local first → network fallback → sync to local if needed
+            List<RegisterCheckEntry> userEntries = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
 
-            // Check if local entries are empty
-            boolean localEntriesEmpty = (userEntries == null || userEntries.isEmpty());
+            // Step 2: Read team lead entries from network (users need to see team lead reviews from other machines)
+            // This handles: network only → no local operations
+            List<RegisterCheckEntry> teamLeadEntries = checkRegisterDataService.readTeamLeadCheckRegisterFromNetworkOnly(username, userId, year, month);
 
-            // If local is empty and network is available, check network first to prevent data loss
-            if (localEntriesEmpty && dataAccessService.isNetworkAvailable()) {
-                try {
-                    // Check if there are entries on the network before we overwrite them
-                    List<RegisterCheckEntry> networkEntries = dataAccessService.readCheckRegisterReadOnly(username, userId, year, month);
-                    if (networkEntries != null && !networkEntries.isEmpty()) {
-                        // If network has entries but local is empty, use network entries as base
-                        LoggerUtil.info(this.getClass(), "Local check register entries missing but found entries on network. Restoring data.");
-                        userEntries = networkEntries;
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), "Error reading network check register: " + e.getMessage());
-                }
-            }
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Merging check register for %s - %d/%d: %d user entries + %d team lead entries",
+                    username, year, month, userEntries.size(), teamLeadEntries.size()));
 
-            // Ensure userEntries is not null
-            if (userEntries == null) {
-                userEntries = new ArrayList<>();
-            }
-
-            // Try to read team lead entries if network is available
-            List<RegisterCheckEntry> teamLeadEntries = new ArrayList<>();
-            if (dataAccessService.isNetworkAvailable()) {
-                try {
-                    teamLeadEntries = dataAccessService.readLocalLeadCheckRegister(username, userId, year, month);
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), "Team lead check register not found: " + e.getMessage());
-                }
-            }
-
-            // Merge entries based on status
+            // Step 3: Merge entries based on status using merge rules
             List<RegisterCheckEntry> mergedEntries = mergeEntries(userEntries, teamLeadEntries);
 
-            // Sort entries before saving (newest first)
+            // Step 4: Sort entries before saving (newest first)
             sortEntries(mergedEntries);
 
-            // Write back to ensure files are in sync
-            dataAccessService.writeUserCheckRegister(username, userId, mergedEntries, year, month);
+            // Step 5: Write back to ensure files are in sync (local with backup and network sync)
+            checkRegisterDataService.writeUserCheckRegisterWithSyncAndBackup(username, userId, mergedEntries, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully merged and saved %d check register entries for %s - %d/%d",
+                    mergedEntries.size(), username, year, month));
 
             return mergedEntries;
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error loading and merging user entries: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error loading and merging user entries for %s - %d/%d: %s",
+                    username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
 
     /**
      * Load team check register for a specific user
-     * Enhanced to check for and incorporate newer user entries and repair null IDs
+     * SIMPLIFIED VERSION - Trusts data service layer, eliminates duplication
+     * This is what team leads see when reviewing a user's check register
      */
     public List<RegisterCheckEntry> loadTeamCheckRegister(String username, Integer userId, int year, int month) {
         try {
-            // First get the team lead entries
-            List<RegisterCheckEntry> teamEntries = dataAccessService.readLocalLeadCheckRegister(username, userId, year, month);
+            // Step 1: Read team lead entries (smart fallback already built-in)
+            // This handles: local first → network fallback → sync to local if needed
+            List<RegisterCheckEntry> teamEntries = checkRegisterDataService.readTeamLeadCheckRegisterLocalReadOnly(username, userId, year, month);
 
-            // Initialize if null
-            if (teamEntries == null) {
-                teamEntries = new ArrayList<>();
-            }
-
-            // Fix any null IDs in team entries first
-            repairNullEntryIds(teamEntries);
-
+            // Step 2: If team register is empty, check if we need to initialize from user entries
             if (teamEntries.isEmpty()) {
-                LoggerUtil.info(this.getClass(), "Team register for " + username + " appears outdated or empty, checking for user entries");
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Team register for %s - %d/%d is empty, checking for user entries to initialize",
+                        username, year, month));
 
-                // Check if user has entries that the team register doesn't reflect
-                List<RegisterCheckEntry> userEntries = loadUserEntriesDirectly(username, userId, year, month);
+                // Read user entries from network to check if initialization is needed
+                List<RegisterCheckEntry> userEntries = checkRegisterDataService.readUserCheckRegisterFromNetworkOnly(username, userId, year, month);
 
-                // Fix any null IDs in user entries
-                if (userEntries != null && !userEntries.isEmpty()) {
-                    repairNullEntryIds(userEntries);
+                if (!userEntries.isEmpty()) {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Found %d user entries for %s - %d/%d. Auto-initializing team register.",
+                            userEntries.size(), username, year, month));
 
-                    // Check if we already have this initialization in progress
-                    if (teamEntries.isEmpty()) {
-                        // If team entries is empty, this is a new initialization
-                        LoggerUtil.info(this.getClass(), "Found " + userEntries.size() + " user entries but team register is empty. Initializing.");
-
-                        // Create copies of all entries with status set to CHECKING_INPUT initially
-                        List<RegisterCheckEntry> initializedEntries = userEntries.stream().map(this::copyEntryWithCheckingInput).collect(Collectors.toList());
-
-                        // Sort entries before saving (newest first)
-                        sortEntries(initializedEntries);
-
-                        // Save and return the initialized entries
-                        saveTeamCheckRegister(username, userId, initializedEntries, year, month);
-                        return initializedEntries;
-                    } else {
-                        // Try to merge user entries with team entries that don't already exist
-                        LoggerUtil.info(this.getClass(), "Found user entries that might not be in team register. Attempting to merge.");
-
-                        // Get the set of existing entry IDs in team entries
-                        Set<Integer> existingIds = teamEntries.stream().map(RegisterCheckEntry::getEntryId).filter(Objects::nonNull).collect(Collectors.toSet());
-
-                        // Add any user entries that don't already exist in team entries
-                        for (RegisterCheckEntry userEntry : userEntries) {
-                            if (userEntry.getEntryId() != null && !existingIds.contains(userEntry.getEntryId())) {
-                                // This is a new entry from the user that isn't in team entries
-                                RegisterCheckEntry copyEntry = copyEntryWithCheckingInput(userEntry);
-                                teamEntries.add(copyEntry);
-                                LoggerUtil.info(this.getClass(), "Added missing entry ID " + userEntry.getEntryId() + " to team register for " + username);
-                            }
-                        }
-
-                        // Sort entries before saving (newest first)
-                        sortEntries(teamEntries);
-
-                        // Save the updated entries
-                        saveTeamCheckRegister(username, userId, teamEntries, year, month);
-                    }
+                    // Initialize team register from user entries
+                    return initializeTeamCheckRegister(username, userId, year, month);
+                } else {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "No user entries found for %s - %d/%d. Team register remains empty.",
+                            username, year, month));
                 }
             }
 
-            // Ensure entries are sorted with the newest first
+            // Step 3: Fix any null IDs and sort entries
+            repairNullEntryIds(teamEntries);
             sortEntries(teamEntries);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Loaded team check register for %s - %d/%d: %d entries",
+                    username, year, month, teamEntries.size()));
+
             return teamEntries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error loading team check register for %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error loading team check register for %s - %d/%d: %s",
+                    username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
 
     /**
      * Initialize a team check register from a user's check register
-     * Copies entries and sets status to CHECKING_INPUT initially
-     * If user register is empty, creates an empty team register
+     * SIMPLIFIED VERSION - Trusts data service layer, eliminates duplication
+     * Creates team register by copying user entries with CHECKING_INPUT status
      */
     public List<RegisterCheckEntry> initializeTeamCheckRegister(String username, Integer userId, int year, int month) {
         try {
@@ -252,52 +213,63 @@ public class CheckRegisterService {
                 throw new IllegalStateException("No authenticated user found");
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Team lead %s initializing check register for %s", teamLeadUser.getUsername(), username));
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Team lead %s initializing check register for %s - %d/%d",
+                    teamLeadUser.getUsername(), username, year, month));
 
-            // First try to read the user's check register from network (preferred source)
-            List<RegisterCheckEntry> userEntries = null;
-            if (dataAccessService.isNetworkAvailable()) {
-                try {
-                    LoggerUtil.info(this.getClass(), "Reading network check register for user " + username + " by " + teamLeadUser.getUsername());
-                    userEntries = dataAccessService.readCheckRegisterReadOnly(username, userId, year, month);
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), "Error reading network check register: " + e.getMessage());
-                }
+            // Step 1: Read user entries from network (preferred source for team leads)
+            // This handles: network only → no local operations → no sync
+            List<RegisterCheckEntry> userEntries = checkRegisterDataService.readUserCheckRegisterFromNetworkOnly(username, userId, year, month);
+
+            // Step 2: If no network entries, fallback to local as last resort
+            if (userEntries.isEmpty()) {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "No network entries found for %s - %d/%d, trying local as fallback",
+                        username, year, month));
+
+                userEntries = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
             }
 
-            // If not found on network or network unavailable, try local file as fallback
-            if (userEntries == null || userEntries.isEmpty()) {
-                try {
-                    LoggerUtil.info(this.getClass(), "Reading local check register for user " + username);
-                    userEntries = dataAccessService.readUserCheckRegister(username, userId, year, month);
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), "Error reading local check register: " + e.getMessage());
-                }
+            // Step 3: Create team register entries
+            List<RegisterCheckEntry> teamEntries;
+
+            if (userEntries.isEmpty()) {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "No user entries found for %s - %d/%d, creating empty team register",
+                        username, year, month));
+                teamEntries = new ArrayList<>();
+            } else {
+                // Create copies of all entries with status set to CHECKING_INPUT initially
+                teamEntries = userEntries.stream()
+                        .map(this::copyEntryWithCheckingInput)
+                        .collect(Collectors.toList());
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Initialized team register for %s - %d/%d with %d entries from user register",
+                        username, year, month, teamEntries.size()));
             }
 
-            // If still no entries found, create an empty team register
-            if (userEntries == null || userEntries.isEmpty()) {
-                LoggerUtil.info(this.getClass(), String.format("No entries found in user check register for %s - %d/%d, creating empty team register", username, year, month));
-                // Create empty team register - crucially, this uses the team lead's credentials
-                saveTeamCheckRegister(username, userId, new ArrayList<>(), year, month);
-                return new ArrayList<>();
-            }
-
-            // Create copies of all entries with status set to CHECKING_INPUT initially
-            List<RegisterCheckEntry> teamEntries = userEntries.stream().map(this::copyEntryWithCheckingInput).collect(Collectors.toList());
-
-            // Sort entries (newest first)
+            // Step 4: Fix any null IDs and sort entries
+            repairNullEntryIds(teamEntries);
             sortEntries(teamEntries);
 
-            // Save the team check register
-            saveTeamCheckRegister(username, userId, teamEntries, year, month);
-            LoggerUtil.info(this.getClass(), String.format("Initialized team check register for %s with %d entries", username, teamEntries.size()));
+            // Step 5: Save the team check register (local with backup and network sync)
+            checkRegisterDataService.writeTeamLeadCheckRegisterWithSyncAndBackup(username, userId, teamEntries, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully initialized team check register for %s - %d/%d with %d entries",
+                    username, year, month, teamEntries.size()));
+
             return teamEntries;
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error initializing team check register for %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error initializing team check register for %s - %d/%d: %s",
+                    username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
+
 
     /**
      * Creates a copy of an entry with status set to CHECKING_INPUT
@@ -348,26 +320,13 @@ public class CheckRegisterService {
                     }).collect(Collectors.toList());
 
             // Save updated entries
-            saveTeamCheckRegister(username, userId, updatedEntries, year, month);
+            checkRegisterDataService.writeTeamLeadCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
             LoggerUtil.info(this.getClass(), String.format("Marked all entries as checked for %s - %d/%d", username, year, month));
 
             return updatedEntries;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error marking entries as checked for %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to mark entries as checked", e);
-        }
-    }
-
-    /**
-     * Saves the team check register
-     * This method accesses team lead check register with the team lead's credentials
-     */
-    public void saveTeamCheckRegister(String username, Integer userId, List<RegisterCheckEntry> entries, int year, int month) {
-        try {
-            dataAccessService.writeLocalTeamCheckRegister(username, userId, entries, year, month);
-            LoggerUtil.info(this.getClass(), String.format("Saved team check register for %s with %d entries", username, entries.size()));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error saving team check register for %s: %s", username, e.getMessage()));
         }
     }
 
@@ -410,7 +369,7 @@ public class CheckRegisterService {
             }
 
             // Save updated list
-            saveTeamCheckRegister(username, userId, entries, year, month);
+            checkRegisterDataService.writeTeamLeadCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
             LoggerUtil.info(this.getClass(), String.format("Updated entry %d in team check register for %s", entry.getEntryId(), username));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error updating entry in team check register for %s: %s", username, e.getMessage()), e);
@@ -466,7 +425,7 @@ public class CheckRegisterService {
             }
 
             // Save updated list
-            saveTeamCheckRegister(username, userId, entries, year, month);
+            checkRegisterDataService.writeTeamLeadCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
             LoggerUtil.info(this.getClass(), String.format("Marked entry %d for deletion in team check register for %s", entryId, username));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error marking entry for deletion for %s: %s", username, e.getMessage()));
@@ -487,7 +446,7 @@ public class CheckRegisterService {
 
         try {
             // Load existing entries
-            List<RegisterCheckEntry> entries = dataAccessService.readUserCheckRegister(username, userId, year, month);
+            List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
             if (entries == null) entries = new ArrayList<>();
 
             // Fix any existing entries with null IDs first before adding/updating
@@ -523,7 +482,7 @@ public class CheckRegisterService {
             }
 
             // Save and sync
-            dataAccessService.writeUserCheckRegister(username, userId, entries, year, month);
+            checkRegisterDataService.writeUserCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
             LoggerUtil.info(this.getClass(), String.format("Successfully saved check entry for user %s with ID %d", username, entry.getEntryId()));
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error saving check entry for user %s: %s", username, e.getMessage()));
@@ -537,7 +496,7 @@ public class CheckRegisterService {
     public void deleteUserEntry(String username, Integer userId, Integer entryId, int year, int month) {
         try {
             // Load existing entries
-            List<RegisterCheckEntry> entries = dataAccessService.readUserCheckRegister(username, userId, year, month);
+            List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
             if (entries != null) {
                 // Verify entry exists and belongs to user
                 boolean entryExists = entries.stream().anyMatch(e -> e.getEntryId().equals(entryId));
@@ -550,7 +509,7 @@ public class CheckRegisterService {
                 entries.removeIf(entry -> entry.getEntryId().equals(entryId));
 
                 // Save and sync
-                dataAccessService.writeUserCheckRegister(username, userId, entries, year, month);
+                checkRegisterDataService.writeUserCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
                 LoggerUtil.info(this.getClass(), String.format("Deleted check entry %d for user %s", entryId, username));
             }
         } catch (Exception e) {
@@ -597,7 +556,7 @@ public class CheckRegisterService {
     public List<RegisterCheckEntry> loadUserEntriesDirectly(String username, Integer userId, int year, int month) {
         try {
             LoggerUtil.info(this.getClass(), "Reading user check register directly for " + username);
-            List<RegisterCheckEntry> entries = dataAccessService.readUserCheckRegister(username, userId, year, month);
+            List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
 
             // Ensure entries are sorted (newest first)
             if (entries != null && !entries.isEmpty()) {
@@ -756,7 +715,7 @@ public class CheckRegisterService {
                 if (entries == null) entries = new ArrayList<>();
                 repairNullEntryIds(entries);
             } else {
-                entries = dataAccessService.readUserCheckRegister(username, userId, year, month);
+                entries = checkRegisterDataService.readUserCheckRegisterFromNetworkOnly(username, userId, year, month);
                 if (entries == null) entries = new ArrayList<>();
                 fixNullEntryIds(entries);
             }
@@ -780,11 +739,11 @@ public class CheckRegisterService {
 
             // Save to appropriate location
             if (isTeamLead) {
-                saveTeamCheckRegister(username, userId, entries, year, month);
+                checkRegisterDataService.writeTeamLeadCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
                 LoggerUtil.info(this.getClass(), String.format("Saved team entry %d for user %s",
                         entry.getEntryId(), username));
             } else {
-                dataAccessService.writeUserCheckRegister(username, userId, entries, year, month);
+                checkRegisterDataService.writeUserCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
                 LoggerUtil.info(this.getClass(), String.format("Saved user entry %d for user %s",
                         entry.getEntryId(), username));
             }

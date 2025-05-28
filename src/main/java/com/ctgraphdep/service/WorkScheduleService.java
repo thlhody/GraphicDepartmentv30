@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -18,14 +18,14 @@ import java.util.List;
 public class WorkScheduleService {
 
     private final UserService userService;
-    private final DataAccessService dataAccessService;
+    private final WorktimeDataService worktimeDataService;
 
     // Default target work units per hour
-    private static final double DEFAULT_TARGET_WORK_UNITS_PER_HOUR = 4.5;
+    private static final double DEFAULT_TARGET_WORK_UNITS_PER_HOUR = 4.0;
 
-    public WorkScheduleService(UserService userService, DataAccessService dataAccessService) {
+    public WorkScheduleService(UserService userService, WorktimeDataService worktimeDataService) {
         this.userService = userService;
-        this.dataAccessService = dataAccessService;
+        this.worktimeDataService = worktimeDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -46,7 +46,7 @@ public class WorkScheduleService {
             int hoursPerDay = user.getSchedule() != null ? user.getSchedule() : 8;
 
             // Get worktime data to check for time off
-            List<WorkTimeTable> worktimeData = dataAccessService.readWorktimeReadOnly(username, year, month);
+            List<WorkTimeTable> worktimeData = worktimeDataService.readUserFromNetworkOnly(username, year, month);
 
             // Calculate work days excluding weekends and time off days
             int workDays = calculateWorkDays(year, month, worktimeData);

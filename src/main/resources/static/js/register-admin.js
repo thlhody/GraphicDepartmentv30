@@ -73,7 +73,37 @@ document.addEventListener('DOMContentLoaded', function() {
     debugThymeleafData();
     debugFormStructure();
     setTimeout(() => {debugPrintPrepTypesDisplay();}, 1000);
+    // Add status badge updates
+    setTimeout(updateStatusBadges, 500);
 
+    // Update badges after any table changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList' && mutation.target.matches('#registerTable tbody')) {
+                updateStatusBadges();
+            }
+        });
+    });
+
+    const tableBody = document.querySelector('#registerTable tbody');
+    if (tableBody) {
+        observer.observe(tableBody, { childList: true, subtree: true });
+    }
+
+    // Manual attachment for confirm button
+    setTimeout(() => {
+        const confirmBtn = document.getElementById('confirmChanges');
+        if (confirmBtn) {
+            console.log('Manually attaching confirm button listener');
+            confirmBtn.onclick = function(e) {
+                e.preventDefault();
+                console.log('Confirm button clicked!');
+                confirmAllChanges();
+            };
+        } else {
+            console.error('confirmChanges button not found after timeout');
+        }
+    }, 1000);
 });
 
 // Add a function to calculate summary directly from entries
@@ -90,6 +120,63 @@ function calculateSummaryFromEntries(entries) {
     sum + (entry.graphicComplexity || 0), 0) / validEntries.length;
 
     updateSummaryDisplay();
+}
+
+// ===== ADMIN_CHECK STATUS BADGE STYLING =====
+
+function updateStatusBadges() {
+    const statusBadges = document.querySelectorAll('td:nth-child(13) .badge');
+
+    statusBadges.forEach(badge => {
+        const statusText = badge.textContent.trim();
+
+        // Clear existing classes
+        badge.classList.remove('bg-primary', 'bg-success', 'bg-secondary', 'bg-warning', 'bg-danger');
+
+        // Apply appropriate styling based on status
+        switch(statusText) {
+            case 'USER_INPUT':
+                badge.classList.add('bg-info');
+                badge.title = 'New user entry - needs admin review';
+                break;
+            case 'ADMIN_EDITED':
+                badge.classList.add('bg-primary');
+                badge.title = 'Admin approved/edited - will be synced to user';
+                break;
+            case 'USER_DONE':
+                badge.classList.add('bg-success');
+                badge.title = 'Completed - user and admin are in sync';
+                break;
+            case 'USER_EDITED':
+                badge.classList.add('bg-warning');
+                badge.title = 'User modified approved entry - needs admin attention';
+                break;
+            case 'ADMIN_CHECK':
+                badge.classList.add('bg-danger');
+                badge.classList.add('badge-pulse'); // Add pulsing animation
+                badge.title = 'CONFLICT - Requires immediate admin review';
+                // Add pulsing CSS if not already present
+                if (!document.querySelector('#admin-check-pulse-style')) {
+                    const style = document.createElement('style');
+                    style.id = 'admin-check-pulse-style';
+                    style.textContent = `
+                        .badge-pulse {
+                            animation: pulse 2s infinite;
+                        }
+                        @keyframes pulse {
+                            0% { opacity: 1; }
+                            50% { opacity: 0.5; }
+                            100% { opacity: 1; }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+                break;
+            default:
+                badge.classList.add('bg-secondary');
+                break;
+        }
+    });
 }
 
 // Add this new function to ensure year and month are marked as filled
@@ -154,6 +241,28 @@ function initializeEditableCG() {
     cgCells.forEach(cell => {
         cell.setAttribute('tabindex', '0');
         cell.style.cursor = 'pointer';
+
+        // Highlight ADMIN_CHECK entries
+        const row = cell.closest('tr');
+        const statusBadge = row.querySelector('td:nth-child(13) .badge');
+        if (statusBadge && statusBadge.textContent.trim() === 'ADMIN_CHECK') {
+            // Highlight the entire row for admin attention
+            row.classList.add('table-warning');
+            row.classList.add('admin-check-entry');
+
+            // Auto-select checkbox for admin review
+            const checkbox = row.querySelector('.entry-select');
+            if (checkbox) {
+                checkbox.checked = true;
+                checkbox.style.accentColor = '#ffc107'; // Warning color
+            }
+
+            // Add attention indicator to the CG cell
+            cell.classList.add('admin-attention');
+            cell.title = 'CONFLICT: This entry needs your review. Click to edit or save to approve.';
+
+            console.log(`ADMIN_CHECK entry found: Entry ID ${row.querySelector('.entry-select')?.value}`);
+        }
 
         // Click handler
         cell.addEventListener('click', function() {
@@ -282,7 +391,10 @@ function initializeFormHandling() {
 
     if (loadDataBtn) {
         console.log("Load data button found:", loadDataBtn);
-
+        // CHECK: See if there are already event listeners
+        console.log("Button click handlers before adding:", loadDataBtn.onclick);
+        // REMOVE any existing listeners first
+        loadDataBtn.removeEventListener('click', handleLoadClick);
         loadDataBtn.addEventListener('click', function(e) {
             e.preventDefault();
             const userSelect = document.getElementById('userSelect');
@@ -343,6 +455,41 @@ function initializeFormHandling() {
             showError("UI initialization error: Unable to find Load button");
         }
     }
+}
+
+// Separate function to avoid multiple anonymous functions
+function handleLoadClick(e) {
+    console.log("=== LOAD BUTTON CLICKED ===");
+    console.log("Event:", e);
+    console.log("Timestamp:", new Date().toISOString());
+
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
+
+    // Disable button immediately to prevent double clicks
+    this.disabled = true;
+    this.textContent = 'Loading...';
+
+    const userSelect = document.getElementById('userSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+
+    const userId = userSelect?.value;
+    const year = yearSelect?.value;
+    const month = monthSelect?.value;
+
+    console.log("Navigation data:", {userId, year, month});
+
+    if (!userId) {
+        showError("Please select a user");
+        // Re-enable button
+        this.disabled = false;
+        this.textContent = 'Load';
+        return;
+    }
+
+    console.log("Navigating to:", `/admin/register?userId=${userId}&year=${year}&month=${month}`);
+    window.location.href = `/admin/register?userId=${userId}&year=${year}&month=${month}`;
 }
 
 // Add this function to your script
@@ -434,8 +581,101 @@ function initializeEventListeners() {
     };
 
     Object.entries(listeners).forEach(([id, handler]) => {
-        document.getElementById(id)?.addEventListener('click', handler);
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('click', handler);
+        }
     });
+
+    // Add confirm changes button separately with debug
+    const confirmButton = document.getElementById('confirmChanges');
+    if (confirmButton) {
+        console.log('Confirm button found, attaching event listener');
+        confirmButton.addEventListener('click', confirmAllChanges);
+    } else {
+        console.error('Confirm button not found!');
+    }
+}
+
+function debugConfirmButton() {
+    console.log('=== DEBUG CONFIRM BUTTON ===');
+
+    const button = document.getElementById('confirmChanges');
+    console.log('Button found:', !!button);
+    console.log('Button element:', button);
+
+    if (button) {
+        console.log('Button onclick:', button.onclick);
+        console.log('Button listeners:', getEventListeners ? getEventListeners(button) : 'getEventListeners not available');
+
+        // Test direct click
+        button.addEventListener('click', () => {
+            console.log('DIRECT CLICK TEST - Button clicked!');
+        });
+    }
+
+    console.log('validateUserContext exists:', typeof validateUserContext);
+    console.log('showWarning exists:', typeof showWarning);
+    console.log('state object:', state);
+}
+
+async function confirmAllChanges() {
+    console.log('=== CONFIRM ALL CHANGES (ADMIN_CHECK) ===');
+
+    if (!validateUserContext()) {
+        showWarning('Please select a user and period before confirming changes.');
+        return;
+    }
+
+    // Count ADMIN_CHECK entries (conflicts that need admin review)
+    const allRows = Array.from(document.querySelectorAll('#registerTable tbody tr'));
+    const adminCheckRows = allRows.filter(row => {
+        const statusBadge = row.querySelector('td:nth-child(13) .badge');
+        const statusText = statusBadge ? statusBadge.textContent.trim() : '';
+        return statusText === 'ADMIN_CHECK';
+    });
+
+    console.log('ADMIN_CHECK rows found:', adminCheckRows.length);
+
+    if (adminCheckRows.length === 0) {
+        showWarning('No conflicts to resolve. All entries are already synchronized.');
+        return;
+    }
+
+    if (!confirm(`Resolve ${adminCheckRows.length} conflicts? This will approve the admin version and mark them as final.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/admin/register/confirm-all-changes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                userId: state.currentUser.userId,
+                year: state.currentYear,
+                month: state.currentMonth
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to resolve conflicts: ${errorText}`);
+        }
+
+        const result = await response.text();
+        showSuccessMessage(`Successfully resolved conflicts: ${result}`);
+
+        // Reload the page to show updated statuses
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+
+    } catch (error) {
+        console.error('Error resolving conflicts:', error);
+        showError(`Failed to resolve conflicts: ${error.message}`);
+    }
 }
 
 // API Interactions
@@ -600,136 +840,295 @@ function updateSummaryFromEntries(entries) {
     updateSummaryDisplay();
 }
 
+// ===== REFACTORED SAVE CHANGES FUNCTION =====
+
 async function saveChanges() {
-    if (!state.currentUser) {
-        showError('No user selected');
-        return;
-    }
+    if (!validateSaveContext()) return;
 
     try {
-        // Get ALL entries from the table, not just the edited ones
-        const allEntries = Array.from(document.querySelectorAll('#registerTable tbody tr'))
-            .filter(row => row.style.display !== 'none') // Only include visible rows
-            .map(row => {
-            // Convert date from dd/MM/yyyy to yyyy-MM-dd format
-            const dateText = row.querySelector('td:nth-child(2)').textContent;
-            const [day, month, year] = dateText.split('/');
-            const isoDate = `${year}-${month}-${day}`;
+        const tableEntries = collectTableEntries();
+        const processedEntries = processEntryStatuses(tableEntries);
+        const changesSummary = analyzeChanges(processedEntries);
 
-            // Get print prep types text
-            const printPrepTypesCell = row.querySelector('td:nth-child(8)');
-            const printPrepTypesText = printPrepTypesCell ? printPrepTypesCell.textContent.trim() : '';
-
-            // Improved print prep types handling
-            let printPrepTypes;
-            if (!printPrepTypesText || printPrepTypesText.trim() === '' || printPrepTypesText.toLowerCase() === 'null') {
-                // Default to DIGITAL if empty or null
-                printPrepTypes = ['DIGITAL'];
-            } else {
-                // Handle case where text might contain 'null' string
-                printPrepTypes = printPrepTypesText
-                    .split(',')
-                    .map(type => type.trim())
-                    .filter(type => type && type.toLowerCase() !== 'null');
-
-                // If we filtered everything out, use default
-                if (printPrepTypes.length === 0) {
-                    printPrepTypes = ['DIGITAL'];
-                }
-            }
-
-            // Important: Get the current syncStatus from the badge
-            const statusBadge = row.querySelector('td:nth-child(13) .badge');
-            let adminSync = statusBadge ? statusBadge.textContent.trim() : "USER_DONE";
-
-            // Check if this row was just edited
-            const checkbox = row.querySelector('.entry-select');
-            const editedCG = row.querySelector('.cg-editable.field-edited');
-
-            // If currently edited, mark as ADMIN_EDITED
-            if ((checkbox && checkbox.checked) || editedCG) {
-                adminSync = "ADMIN_EDITED";
-            }
-
-            return {
-                entryId: parseInt(row.querySelector('.entry-select').value),
-                userId: state.currentUser.userId,
-                date: isoDate,
-                orderId: row.querySelector('td:nth-child(3)').textContent,
-                productionId: row.querySelector('td:nth-child(4)').textContent,
-                omsId: row.querySelector('td:nth-child(5)').textContent,
-                clientName: row.querySelector('td:nth-child(6)').textContent,
-                actionType: row.querySelector('td:nth-child(7)').textContent,
-                printPrepTypes: printPrepTypes,
-                colorsProfile: row.querySelector('td:nth-child(9)').textContent,
-                articleNumbers: parseInt(row.querySelector('td:nth-child(10)').textContent) || 0,
-                graphicComplexity: parseFloat(row.querySelector('td:nth-child(11)').textContent) || 0,
-                observations: row.querySelector('td:nth-child(12)').textContent || "",
-                adminSync: adminSync // Use the current or updated status
-            };
-        });
-
-        // Check if anything has been edited in this session
-        const hasEdits = allEntries.some(entry => entry.adminSync === "ADMIN_EDITED");
-
-        if (!hasEdits) {
-            showWarning('No changes detected. Nothing to save.');
+        if (!changesSummary.hasChanges) {
+            showWarning('No changes or approvals to save.');
             return;
         }
 
-        // Log the payload for debugging
-        console.log('Saving all entries with their current status:', allEntries);
-
-        const response = await fetch('/admin/register/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                username: state.currentUser.username,
-                userId: state.currentUser.userId,
-                year: state.currentYear,
-                month: state.currentMonth,
-                entries: allEntries
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server response:', response.status, errorText);
-            throw new Error(`Save failed: ${errorText || response.statusText}`);
-        }
-
-        // Show success message
-        const alertsContainer = document.querySelector('.alerts');
-        if (alertsContainer) {
-            alertsContainer.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="bi bi-check-circle me-2"></i>
-                    Changes saved successfully. Reloading page...
-                </div>
-            `;
-        }
-
-        // Clear all "field-edited" classes to reset edit state
-        document.querySelectorAll('.field-edited').forEach(element => {
-            element.classList.remove('field-edited');
-        });
-
-        // Uncheck all checkboxes
-        document.querySelectorAll('.entry-select').forEach(checkbox => {
-            checkbox.checked = false;
-        });
-
-        // Reload after successful save
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
+        await executeSave(processedEntries, changesSummary);
+        handleSaveSuccess(changesSummary);
 
     } catch (error) {
-        console.error('Save error:', error);
-        showError('Failed to save changes: ' + error.message);
+        handleSaveError(error);
     }
+}
+
+// ===== VALIDATION =====
+function validateSaveContext() {
+    if (!state.currentUser?.userId) {
+        showError('No user selected');
+        return false;
+    }
+
+    const visibleRows = document.querySelectorAll('#registerTable tbody tr:not([style*="display: none"])');
+    if (visibleRows.length === 0) {
+        showWarning('No entries to save');
+        return false;
+    }
+
+    return true;
+}
+
+// ===== DATA COLLECTION =====
+function collectTableEntries() {
+    const rows = document.querySelectorAll('#registerTable tbody tr:not([style*="display: none"])');
+
+    return Array.from(rows).map(row => {
+        const entryData = extractRowData(row);
+        const currentStatus = extractCurrentStatus(row);
+        const editState = analyzeRowEditState(row);
+
+        return {
+            ...entryData,
+            originalStatus: currentStatus,
+            editState: editState
+        };
+    });
+}
+
+function extractRowData(row) {
+    // Convert date from dd/MM/yyyy to yyyy-MM-dd
+    const dateText = row.querySelector('td:nth-child(2)').textContent.trim();
+    const [day, month, year] = dateText.split('/');
+    const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+
+    // Handle print prep types with proper defaults
+    const printPrepTypes = extractPrintPrepTypes(row);
+
+    return {
+        entryId: parseInt(row.querySelector('.entry-select').value),
+        userId: state.currentUser.userId,
+        date: isoDate,
+        orderId: getTextContent(row, 3),
+        productionId: getTextContent(row, 4),
+        omsId: getTextContent(row, 5),
+        clientName: getTextContent(row, 6),
+        actionType: getTextContent(row, 7),
+        printPrepTypes: printPrepTypes,
+        colorsProfile: getTextContent(row, 9),
+        articleNumbers: parseInt(getTextContent(row, 10)) || 0,
+        graphicComplexity: parseFloat(getTextContent(row, 11)) || 0,
+        observations: getTextContent(row, 12) || ""
+    };
+}
+
+function extractPrintPrepTypes(row) {
+    const cell = row.querySelector('td:nth-child(8)');
+    const text = cell ? cell.textContent.trim() : '';
+
+    if (!text || text.toLowerCase() === 'null') {
+        return ['DIGITAL'];
+    }
+
+    const types = text.split(',')
+        .map(type => type.trim())
+        .filter(type => type && type.toLowerCase() !== 'null');
+
+    return types.length > 0 ? types : ['DIGITAL'];
+}
+
+function extractCurrentStatus(row) {
+    const statusBadge = row.querySelector('td:nth-child(13) .badge');
+    return statusBadge ? statusBadge.textContent.trim() : 'USER_DONE';
+}
+
+function analyzeRowEditState(row) {
+    const checkbox = row.querySelector('.entry-select');
+    const editedCG = row.querySelector('.cg-editable.field-edited');
+
+    return {
+        isSelected: checkbox ? checkbox.checked : false,
+        hasCGEdit: !!editedCG,
+        isExplicitlyEdited: (checkbox && checkbox.checked) || !!editedCG
+    };
+}
+
+function getTextContent(row, cellIndex) {
+    const cell = row.querySelector(`td:nth-child(${cellIndex})`);
+    return cell ? cell.textContent.trim() : '';
+}
+
+// ===== STATUS PROCESSING =====
+function processEntryStatuses(tableEntries) {
+    return tableEntries.map(entry => {
+        const newStatus = determineNewStatus(entry.originalStatus, entry.editState);
+
+        return {
+            entryId: entry.entryId,
+            userId: entry.userId,
+            date: entry.date,
+            orderId: entry.orderId,
+            productionId: entry.productionId,
+            omsId: entry.omsId,
+            clientName: entry.clientName,
+            actionType: entry.actionType,
+            printPrepTypes: entry.printPrepTypes,
+            colorsProfile: entry.colorsProfile,
+            articleNumbers: entry.articleNumbers,
+            graphicComplexity: entry.graphicComplexity,
+            observations: entry.observations,
+            adminSync: newStatus,
+            // Keep metadata for analysis
+            _originalStatus: entry.originalStatus,
+            _wasEdited: entry.editState.isExplicitlyEdited
+        };
+    });
+}
+
+function determineNewStatus(originalStatus, editState) {
+    // Step 2: Admin edits entry (changes CG) → ADMIN_EDITED
+    if (editState.isExplicitlyEdited) {
+        console.log(`Entry explicitly edited, status: ${originalStatus} → ADMIN_EDITED`);
+        return 'ADMIN_EDITED';
+    }
+
+    // Step 2: Admin approves user input → ADMIN_EDITED
+    if (originalStatus === 'USER_INPUT') {
+        console.log(`Approving USER_INPUT → ADMIN_EDITED`);
+        return 'ADMIN_EDITED';
+    }
+
+    // Step 6: Admin saves after reviewing conflict → ADMIN_EDITED
+    // This is the key fix: ADMIN_CHECK entries become ADMIN_EDITED when admin saves
+    if (originalStatus === 'ADMIN_CHECK') {
+        console.log(`Auto-approving conflict: ADMIN_CHECK → ADMIN_EDITED (admin reviewed and saved)`);
+        return 'ADMIN_EDITED';
+    }
+
+    // Keep existing status for all other cases
+    console.log(`Keeping original status: ${originalStatus}`);
+    return originalStatus;
+}
+
+// ===== CHANGE ANALYSIS =====
+function analyzeChanges(processedEntries) {
+    const approvals = processedEntries.filter(entry =>
+    entry._originalStatus === 'USER_INPUT' && entry.adminSync === 'ADMIN_EDITED'
+    );
+
+    const edits = processedEntries.filter(entry =>
+    entry._wasEdited && entry.adminSync === 'ADMIN_EDITED'
+    );
+
+    const conflictResolutions = processedEntries.filter(entry =>
+    entry._originalStatus === 'ADMIN_CHECK' && entry.adminSync === 'ADMIN_EDITED'
+    );
+
+    const hasChanges = approvals.length > 0 || edits.length > 0 || conflictResolutions.length > 0;
+
+    return {
+        hasChanges,
+        approvals: approvals.length,
+        edits: edits.length,
+        conflictResolutions: conflictResolutions.length,
+        total: processedEntries.length,
+        summary: `${approvals.length} approvals, ${edits.length} edits, ${conflictResolutions.length} conflict resolutions`
+    };
+}
+
+
+// ===== SAVE EXECUTION =====
+async function executeSave(entries, changesSummary) {
+    console.log(`Saving ${changesSummary.summary} out of ${changesSummary.total} entries`);
+
+    const payload = {
+        username: state.currentUser.username,
+        userId: state.currentUser.userId,
+        year: state.currentYear,
+        month: state.currentMonth,
+        entries: entries.map(entry => {
+            // Remove metadata before sending
+            const {_originalStatus, _wasEdited, ...cleanEntry} = entry;
+            return cleanEntry;
+        })
+    };
+
+    console.log('Save payload:', payload);
+
+    const response = await fetch('/admin/register/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Save failed (${response.status}): ${errorText || response.statusText}`);
+    }
+
+    return await response.text(); // Success response
+}
+
+// ===== SUCCESS HANDLING =====
+function handleSaveSuccess(changesSummary) {
+    showSuccessMessage(`Successfully saved ${changesSummary.summary}`);
+    resetEditState();
+    schedulePageReload();
+}
+
+function showSuccessMessage(message) {
+    const alertsContainer = document.querySelector('.alerts');
+    if (alertsContainer) {
+        alertsContainer.innerHTML = `
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle me-2"></i>
+                ${message}. Reloading page...
+            </div>
+        `;
+    }
+}
+
+function resetEditState() {
+    // Clear visual edit indicators
+    document.querySelectorAll('.field-edited').forEach(element => {
+        element.classList.remove('field-edited');
+    });
+
+    // Uncheck all selection checkboxes
+    document.querySelectorAll('.entry-select').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+
+    // Uncheck select all
+    const selectAll = document.getElementById('selectAll');
+    if (selectAll) selectAll.checked = false;
+}
+
+function schedulePageReload() {
+    setTimeout(() => {
+        window.location.reload();
+    }, 1500);
+}
+
+// ===== ERROR HANDLING =====
+function handleSaveError(error) {
+    console.error('Save operation failed:', error);
+
+    let errorMessage = 'Failed to save changes';
+
+    if (error.message.includes('403')) {
+        errorMessage = 'Access denied - insufficient permissions';
+    } else if (error.message.includes('404')) {
+        errorMessage = 'Save endpoint not found - please refresh page';
+    } else if (error.message.includes('500')) {
+        errorMessage = 'Server error - please try again';
+    } else if (error.message) {
+        errorMessage = `Save failed: ${error.message}`;
+    }
+
+    showError(errorMessage);
 }
 
 function clearTable() {

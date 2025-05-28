@@ -3,6 +3,7 @@ package com.ctgraphdep.security;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.service.RegisterMergeService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -21,13 +22,15 @@ public class AuthenticationService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final CustomUserDetailsService userDetailsService;
+    private final RegisterMergeService registerMergeService;
 
-    public AuthenticationService(DataAccessService dataAccessService, UserService userService,
-            PasswordEncoder passwordEncoder, CustomUserDetailsService userDetailsService) {
+    public AuthenticationService(DataAccessService dataAccessService, UserService userService, PasswordEncoder passwordEncoder,
+                                 CustomUserDetailsService userDetailsService, RegisterMergeService registerMergeService) {
         this.dataAccessService = dataAccessService;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
+        this.registerMergeService = registerMergeService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -136,7 +139,18 @@ public class AuthenticationService {
                         LoggerUtil.warn(this.getClass(), "Failed to handle local storage: " + e.getMessage() + " - continuing with login");
                     }
                 }
-
+                // NEW: Trigger user login merge for non-admin users only
+                if (!user.isAdmin()) {  // Only merge for regular users
+                    try {
+                        LoggerUtil.info(this.getClass(), "Triggering user login merge for: " + username);
+                        registerMergeService.performUserLoginMerge(username);
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(), "User login merge failed for " + username + ": " + e.getMessage());
+                        // Continue with login - merge failure shouldn't block user
+                    }
+                } else {
+                    LoggerUtil.debug(this.getClass(), "Skipping user login merge for admin user: " + username);
+                }
                 LoggerUtil.info(this.getClass(), String.format("Successfully handled login for user: %s (rememberMe: %s)", username, rememberMe));
             } else {
                 throw new UsernameNotFoundException("User not found after authentication");

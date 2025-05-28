@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.statistics.ChartDataDTO;
@@ -17,12 +17,13 @@ import java.util.stream.Collectors;
 @Service
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminStatisticsService {
-    private final DataAccessService dataAccess;
+
+    private final RegisterDataService registerDataService;
     private final UserService userService;
 
     @Autowired
-    public AdminStatisticsService(DataAccessService dataAccess, UserService userService) {
-        this.dataAccess = dataAccess;
+    public AdminStatisticsService(RegisterDataService registerDataService, UserService userService) {
+        this.registerDataService = registerDataService;
         this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -49,7 +50,7 @@ public class AdminStatisticsService {
         for (User user : users) {
             try {
                 // Use readUserRegister method with isAdmin set to true to read from network path
-                List<RegisterEntry> userEntries = dataAccess.readRegisterReadOnly(
+                List<RegisterEntry> userEntries = registerDataService.readUserFromNetworkOnly(
                         user.getUsername(),
                         user.getUserId(),
                         year,

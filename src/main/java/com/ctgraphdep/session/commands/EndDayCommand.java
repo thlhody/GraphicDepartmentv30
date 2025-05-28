@@ -9,7 +9,7 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusWorktime;
+import com.ctgraphdep.enums.SyncStatusMerge;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -175,7 +175,7 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
 
             // Set the end time on the entry
             entry.setDayEndTime(endTime);
-            entry.setAdminSync(SyncStatusWorktime.USER_INPUT);
+            entry.setAdminSync(SyncStatusMerge.USER_INPUT);
 
             // Calculate overtime using schedule info if needed
             if (scheduleInfo != null && session.getTotalWorkedMinutes() != null) {

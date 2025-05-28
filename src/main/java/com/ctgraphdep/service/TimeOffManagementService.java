@@ -1,8 +1,9 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusWorktime;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.fileOperations.data.TimeOffDataService;
+import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -30,7 +31,8 @@ import java.util.stream.Collectors;
 @Service
 public class TimeOffManagementService {
 
-    private final DataAccessService dataAccessService;
+    private final TimeOffDataService timeOffDataService;
+    private final WorktimeDataService worktimeDataService;
     private final HolidayManagementService holidayManagementService;
     private final TimeValidationService timeValidationService;
     private final WorktimeManagementService worktimeManagementService;
@@ -40,12 +42,13 @@ public class TimeOffManagementService {
     private final Map<String, ReentrantReadWriteLock> userTrackerLocks = new HashMap<>();
 
     public TimeOffManagementService(
-            DataAccessService dataAccessService,
+             TimeOffDataService timeOffDataService, WorktimeDataService worktimeDataService,
             HolidayManagementService holidayManagementService,
             TimeValidationService timeValidationService,
             WorktimeManagementService worktimeManagementService,
             TimeOffRequestValidator timeOffValidator, UserService userService) {
-        this.dataAccessService = dataAccessService;
+        this.timeOffDataService = timeOffDataService;
+        this.worktimeDataService = worktimeDataService;
         this.holidayManagementService = holidayManagementService;
         this.timeValidationService = timeValidationService;
         this.worktimeManagementService = worktimeManagementService;
@@ -61,7 +64,7 @@ public class TimeOffManagementService {
      */
     public void ensureTrackerExists(User user, Integer userId, int year) {
         // Try to load existing tracker
-        TimeOffTracker tracker = dataAccessService.readTimeOffTracker(user.getUsername(), userId, year);
+        TimeOffTracker tracker = timeOffDataService.readUserLocalTrackerReadOnly(user.getUsername(), userId, year);
 
         // If tracker doesn't exist, initialize it
         if (tracker == null) {
@@ -79,7 +82,7 @@ public class TimeOffManagementService {
                     .build();
 
             // Save the new tracker
-            dataAccessService.writeTimeOffTracker(tracker, year);
+            timeOffDataService.writeUserLocalTrackerWithSyncAndBackup(tracker, year);
         }
 
         // Sync tracker with worktime files
@@ -95,7 +98,7 @@ public class TimeOffManagementService {
         readLock.lock();
         try {
             // Read the tracker using DataAccessService
-            TimeOffTracker tracker = dataAccessService.readTimeOffTracker(username, userId, year);
+            TimeOffTracker tracker = timeOffDataService.readUserLocalTrackerReadOnly(username, userId, year);
 
             // If no tracker exists yet, create a new one
             if (tracker == null) {
@@ -115,7 +118,7 @@ public class TimeOffManagementService {
                         .build();
 
                 // Save the new tracker
-                dataAccessService.writeTimeOffTracker(newTracker, year);
+                timeOffDataService.writeUserLocalTrackerWithSyncAndBackup(newTracker, year);
                 return newTracker;
             }
 
@@ -130,7 +133,7 @@ public class TimeOffManagementService {
                 tracker.setAvailableHolidayDays(currentAvailableDays);
 
                 // Save the updated tracker
-                dataAccessService.writeTimeOffTracker(tracker, year);
+                timeOffDataService.writeUserLocalTrackerWithSyncAndBackup(tracker, year);
             }
 
             return tracker;
@@ -173,7 +176,7 @@ public class TimeOffManagementService {
         ReentrantReadWriteLock.WriteLock writeLock = getUserTrackerLock(tracker.getUsername()).writeLock();
         writeLock.lock();
         try {
-            dataAccessService.writeTimeOffTracker(tracker, year);
+            timeOffDataService.writeUserLocalTrackerWithSyncAndBackup(tracker, year);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error saving time off tracker for %s (year %d): %s",
                     tracker.getUsername(), year, e.getMessage()));
@@ -291,8 +294,7 @@ public class TimeOffManagementService {
      */
     private void updateWorktimeWithTimeOff(User user, List<LocalDate> dates, String timeOffType) {
         // Group dates by month for efficient processing
-        Map<YearMonth, List<LocalDate>> datesByMonth = dates.stream()
-                .collect(Collectors.groupingBy(YearMonth::from));
+        Map<YearMonth, List<LocalDate>> datesByMonth = dates.stream().collect(Collectors.groupingBy(YearMonth::from));
 
         // Process each month
         datesByMonth.forEach((yearMonth, monthDates) -> {
@@ -301,7 +303,7 @@ public class TimeOffManagementService {
                 int month = yearMonth.getMonthValue();
 
                 // Load existing worktime entries for the month
-                List<WorkTimeTable> entries = dataAccessService.readUserWorktime(user.getUsername(), year, month);
+                List<WorkTimeTable> entries = timeOffDataService.readWorktimeForTimeOffReadOnly(user.getUsername(), year, month);
                 if (entries == null) {
                     entries = new ArrayList<>();
                 }
@@ -322,7 +324,7 @@ public class TimeOffManagementService {
                     entry.setUserId(user.getUserId());
                     entry.setWorkDate(date);
                     entry.setTimeOffType(timeOffType);
-                    entry.setAdminSync(SyncStatusWorktime.USER_INPUT);
+                    entry.setAdminSync(SyncStatusMerge.USER_INPUT);
 
                     // Reset work-related fields for time off
                     WorkTimeEntryUtil.resetWorkFields(entry);
@@ -333,7 +335,7 @@ public class TimeOffManagementService {
 
                 // Convert back to list and save
                 List<WorkTimeTable> updatedEntries = new ArrayList<>(entriesMap.values());
-                dataAccessService.writeUserWorktime(user.getUsername(), updatedEntries, year, month);
+                worktimeDataService.writeUserLocalWithSyncAndBackup(user.getUsername(), updatedEntries, year, month);
 
                 LoggerUtil.info(this.getClass(),
                         String.format("Updated worktime entries for %s - %d/%d with %d time off days",
@@ -710,7 +712,7 @@ public class TimeOffManagementService {
     public TimeOffSummaryDTO calculateTimeOffSummaryReadOnly(String username, int year) {
         try {
             // Get all time off entries for the year
-            List<WorkTimeTable> timeOffEntries = dataAccessService.readTimeOffReadOnly(username, year);
+            List<WorkTimeTable> timeOffEntries = timeOffDataService.readTimeOffReadOnly(username, year);
 
             // Count by type
             int snDays = 0, coDays = 0, cmDays = 0;
@@ -782,7 +784,7 @@ public class TimeOffManagementService {
     public TimeOffTracker loadTimeOffTrackerReadOnly(String username, Integer userId, int year) {
         try {
             // Read the tracker directly using DataAccessService
-            return dataAccessService.readTimeOffTrackerReadOnly(username, userId, year);
+            return timeOffDataService.readUserLocalTrackerReadOnly(username, userId, year);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error loading time off tracker in read-only mode for %s (year %d): %s", username, year, e.getMessage()));
             return null;
@@ -799,7 +801,7 @@ public class TimeOffManagementService {
         for (int month = 1; month <= 12; month++) {
             try {
                 // Load worktime entries for the month - use read-only approach
-                List<WorkTimeTable> entries = dataAccessService.readWorktimeReadOnly(username, year, month);
+                List<WorkTimeTable> entries = worktimeDataService.readUserLocalReadOnly(username, year, month,username);
 
                 if (entries != null && !entries.isEmpty()) {
                     // Filter for time off entries only
