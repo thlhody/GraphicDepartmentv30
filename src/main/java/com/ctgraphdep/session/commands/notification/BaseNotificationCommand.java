@@ -1,6 +1,5 @@
 package com.ctgraphdep.session.commands.notification;
 
-import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.commands.BaseSessionCommand;
 
 /**
@@ -20,24 +19,8 @@ public abstract class BaseNotificationCommand<T> extends BaseSessionCommand<T> {
      * @param userId The user ID
      */
     protected BaseNotificationCommand(String username, Integer userId) {
-        validateUsername(username);
 
         this.username = username;
         this.userId = userId;
-    }
-
-    /**
-     * Records notification display in the tracking system.
-     *
-     * @param context The session context
-     * @param notificationType The type of notification
-     */
-    protected void recordNotificationDisplay(SessionContext context, String notificationType) {
-        try {
-            context.getNotificationService().recordNotificationTime(username, notificationType);
-            debug("Recorded notification display for user: " + username + ", type: " + notificationType);
-        } catch (Exception e) {
-            warn("Failed to record notification display: " + e.getMessage());
-        }
     }
 }

@@ -3,14 +3,13 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
-import com.ctgraphdep.config.FileTypeConstants;
-import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.service.cache.StatusCacheService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
@@ -35,16 +34,12 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
-import java.util.stream.Stream;
 
 /**
  * ENHANCED: Service responsible for monitoring active user sessions and status synchronization.
@@ -60,15 +55,14 @@ import java.util.stream.Stream;
 public class SessionMonitorService {
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
-    private final UserService userService;
     private final TaskScheduler taskScheduler;
     private final TimeValidationService validationService;
     private final TimeValidationFactory validationFactory;
     private final CalculationCommandFactory calculationFactory;
     private final CalculationCommandService calculationService;
     private final NotificationService notificationService;
-    private final DataAccessService dataAccessService;
     private final MonitoringStateService monitoringStateService;
+    private final UserContextService userContextService;
 
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
@@ -100,24 +94,20 @@ public class SessionMonitorService {
     private volatile boolean isInitialized = false;
 
     public SessionMonitorService(
-            SessionCommandService commandService, SessionCommandFactory commandFactory,
-            UserService userService, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
-            TimeValidationService validationService, TimeValidationFactory validationFactory,
-            CalculationCommandFactory calculationFactory, CalculationCommandService calculationService,
-            NotificationService notificationService, DataAccessService dataAccessService,
-            MonitoringStateService monitoringStateService) {
+            SessionCommandService commandService, SessionCommandFactory commandFactory, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
+            TimeValidationService validationService, TimeValidationFactory validationFactory, CalculationCommandFactory calculationFactory, CalculationCommandService calculationService,
+            NotificationService notificationService, MonitoringStateService monitoringStateService, UserContextService userContextService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
-        this.userService = userService;
         this.taskScheduler = taskScheduler;
         this.validationService = validationService;
         this.validationFactory = validationFactory;
         this.calculationFactory = calculationFactory;
         this.calculationService = calculationService;
         this.notificationService = notificationService;
-        this.dataAccessService = dataAccessService;
         this.monitoringStateService = monitoringStateService;
+        this.userContextService = userContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -222,7 +212,7 @@ public class SessionMonitorService {
      */
     private void syncActiveSessionToFile() {
         try {
-            String username = getCurrentActiveUser();
+            String username = userContextService.getCurrentUsername();
             if (username == null) {
                 LoggerUtil.debug(this.getClass(), "No active user found for session sync");
                 return;
@@ -239,7 +229,7 @@ public class SessionMonitorService {
             // Remove from pending syncs if we're about to sync
             pendingFileSyncs.remove(username);
 
-            User user = userService.getUserByUsername(username).orElse(null);
+            User user = userContextService.getCurrentUser();
             if (user == null) {
                 LoggerUtil.warn(this.getClass(), "User not found for session sync: " + username);
                 return;
@@ -372,12 +362,12 @@ public class SessionMonitorService {
 
         try {
             checkStartDayReminder();
-            String username = getCurrentActiveUser();
+            String username = userContextService.getCurrentUsername();
             if (username == null) {
                 return;
             }
 
-            User user = userService.getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found: " + username));
+            User user = userContextService.getCurrentUser();
 
             // Get current session from cache
             WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());
@@ -431,7 +421,7 @@ public class SessionMonitorService {
             LocalDate today = getStandardTimeValues().getCurrentDate();
 
             // Get current user
-            String username = getCurrentActiveUser();
+            String username = userContextService.getCurrentUsername();
             if (username == null) {
                 return;
             }
@@ -441,8 +431,7 @@ public class SessionMonitorService {
                 return;
             }
 
-            User user = userService.getUserByUsername(username).orElseThrow(() ->
-                    new RuntimeException("User not found: " + username));
+            User user = userContextService.getCurrentUser();
 
             // ENHANCED: Get session from cache first, then check for stale sessions
             WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());
@@ -731,58 +720,6 @@ public class SessionMonitorService {
     }
 
     /**
-     * Gets the currently active user by scanning session files
-     */
-    private String getCurrentActiveUser() {
-        Path localSessionPath = dataAccessService.getLocalSessionPath("", 0).getParent();
-        if (!Files.exists(localSessionPath)) {
-            return null;
-        }
-
-        try (Stream<Path> pathStream = Files.list(localSessionPath)) {
-            return pathStream.filter(this::isValidSessionFile)
-                    .max(this::compareByLastModified)
-                    .map(this::extractUsernameFromSession)
-                    .orElse(null);
-        } catch (IOException e) {
-            LoggerUtil.error(this.getClass(), "Error getting current user: " + e.getMessage(), e);
-            return null;
-        }
-    }
-
-    /**
-     * Checks if a file is a valid session file
-     */
-    private boolean isValidSessionFile(Path path) {
-        String filename = path.getFileName().toString();
-        return filename.startsWith("session_") && filename.endsWith(FileTypeConstants.JSON_EXTENSION);
-    }
-
-    /**
-     * Compares two paths by last modified time
-     */
-    private int compareByLastModified(Path p1, Path p2) {
-        try {
-            return Files.getLastModifiedTime(p2).compareTo(Files.getLastModifiedTime(p1));
-        } catch (IOException e) {
-            return 0;
-        }
-    }
-
-    /**
-     * Extracts username from the session file path
-     */
-    private String extractUsernameFromSession(Path sessionPath) {
-        try {
-            String filename = sessionPath.getFileName().toString();
-            String[] parts = filename.replace("session_", "").replace(FileTypeConstants.JSON_EXTENSION, "").split("_");
-            return parts.length >= 2 ? parts[0] : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
      * Checks if session has activity today
      */
     private boolean hasActiveSessionToday(WorkUsersSessionsStates session) {
@@ -806,20 +743,9 @@ public class SessionMonitorService {
      */
     private void showTestNotification() {
         try {
-            // Find a currently active user, if any
-            String username = getCurrentActiveUser();
-            if (username != null) {
-                User user = userService.getUserByUsername(username).orElse(null);
-                if (user != null) {
-                    LoggerUtil.info(this.getClass(), "Showing test notification for user: " + username);
-
-                    // Create and execute the test notification command
-                    ShowTestNotificationCommand command = commandFactory.createShowTestNotificationCommand(username);
-                    commandService.executeCommand(command);
-                }
-            } else {
-                LoggerUtil.info(this.getClass(), "No active user found for test notification");
-            }
+            // Create and execute the test notification command
+            ShowTestNotificationCommand command = commandFactory.createShowTestNotificationCommand();
+            commandService.executeCommand(command);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error showing test notification: " + e.getMessage());
         }
@@ -1105,7 +1031,7 @@ public class SessionMonitorService {
             } catch (Exception e) {
                 LoggerUtil.error(this.getClass(), "Error in immediate sync: " + e.getMessage(), e);
             }
-        }, Instant.now().plusMillis(2000)); // 2 second delay
+        }, Instant.now().plusMillis(2000)); // 2-second delay
     }
 
     /**

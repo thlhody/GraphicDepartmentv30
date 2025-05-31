@@ -26,9 +26,7 @@ public abstract class BaseController {
     private final TimeValidationService timeValidationService;
     protected final Class<?> loggerClass;
 
-    protected BaseController(UserService userService,
-                             FolderStatus folderStatus,
-                             TimeValidationService timeValidationService) {  // Modified constructor
+    protected BaseController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService) {  // Modified constructor
         this.userService = userService;
         this.folderStatus = folderStatus;
         this.timeValidationService = timeValidationService;

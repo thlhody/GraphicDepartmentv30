@@ -102,9 +102,7 @@ public class SessionService {
             if (localSessionEmpty && sessionCommandService.getContext().getDataAccessService().isNetworkAvailable()) {
                 try {
                     // Try to read directly from network
-                    WorkUsersSessionsStates networkSession = sessionCommandService.getContext().getDataAccessService()
-                            .readNetworkSessionFileReadOnly(username, userId);
-
+                    WorkUsersSessionsStates networkSession = sessionCommandService.getContext().getSessionDataService().readNetworkSessionFileReadOnly(username, userId);
                     if (networkSession != null) {
                         // Network has a session but local is missing - use network data
                         LoggerUtil.info(this.getClass(), "Local session missing but found session on network. Restoring data.");

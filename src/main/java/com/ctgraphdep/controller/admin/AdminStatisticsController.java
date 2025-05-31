@@ -23,19 +23,13 @@ public class AdminStatisticsController extends BaseController {
 
     private final AdminStatisticsService statisticsService;
 
-    protected AdminStatisticsController(UserService userService,
-                                        FolderStatus folderStatus,
-                                        TimeValidationService timeValidationService,
-                                        AdminStatisticsService statisticsService) {
+    protected AdminStatisticsController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService, AdminStatisticsService statisticsService) {
         super(userService, folderStatus, timeValidationService);
         this.statisticsService = statisticsService;
     }
 
     @GetMapping
-    public String getStatisticsPage(
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
-            Model model) {
+    public String getStatisticsPage(@RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month, Model model) {
 
         // Use determineYear and determineMonth from BaseController
         int selectedYear = determineYear(year);

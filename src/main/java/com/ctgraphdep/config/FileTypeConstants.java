@@ -95,8 +95,7 @@ public final class FileTypeConstants {
      */
     public static boolean isKnownFileType(String filename) {
         String lowerFilename = filename.toLowerCase();
-        return TYPE_TO_PREFIX_MAP.values().stream()
-                .anyMatch(prefix -> lowerFilename.startsWith(prefix.toLowerCase()));
+        return TYPE_TO_PREFIX_MAP.values().stream().anyMatch(prefix -> lowerFilename.startsWith(prefix.toLowerCase()));
     }
 
     /**

@@ -5,14 +5,13 @@ import com.ctgraphdep.fileOperations.data.*;
 import com.ctgraphdep.fileOperations.events.FileEventPublisher;
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.monitoring.BackupEventMonitor;  // CHANGED: Import from monitoring package
+import com.ctgraphdep.security.UserContextCache;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.monitoring.NetworkStatusMonitor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.*;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
@@ -90,7 +89,7 @@ public class FileOperationsConfig {
     @Bean
     public FileEventPublisher fileEventPublisher(
             ApplicationEventPublisher applicationEventPublisher,
-            BackupEventConfiguration.BackupEventMonitor backupEventMonitor) {
+            BackupEventMonitor backupEventMonitor) {  // CHANGED: Use the service instead of inner class
         return new FileEventPublisher(applicationEventPublisher, backupEventMonitor);
     }
 
@@ -101,8 +100,9 @@ public class FileOperationsConfig {
     @Bean
     public BackupEventListener backupEventListener(
             BackupService backupService,
-            ApplicationEventPublisher applicationEventPublisher) {
-        return new BackupEventListener(backupService, applicationEventPublisher);
+            ApplicationEventPublisher applicationEventPublisher,
+            BackupEventMonitor backupEventMonitor) {  // ADDED: BackupEventMonitor dependency
+        return new BackupEventListener(backupService, applicationEventPublisher, backupEventMonitor);
     }
 
     // ===== READER AND WRITER SERVICES =====
@@ -131,8 +131,10 @@ public class FileOperationsConfig {
             SyncFilesService syncFilesService,
             PathConfig pathConfig,
             FileObfuscationService fileObfuscationService,
-            FileEventPublisher fileEventPublisher) {
-        return new FileWriterService(objectMapper, filePathResolver, syncFilesService, pathConfig, fileObfuscationService, fileEventPublisher);
+            FileEventPublisher fileEventPublisher,
+            @Lazy UserContextCache userContextCache) {
+        return new FileWriterService(objectMapper, filePathResolver, syncFilesService,
+                pathConfig, fileObfuscationService, fileEventPublisher, userContextCache);
     }
 
     // ===== DOMAIN-SPECIFIC DATA SERVICES =====
@@ -205,20 +207,8 @@ public class FileOperationsConfig {
      * This maintains backward compatibility while providing a cleaner architecture.
      */
     @Bean
-    public DataAccessService dataAccessService(
-            UserDataService userDataService,
-            WorktimeDataService worktimeDataService,
-            RegisterDataService registerDataService,
-            SessionDataService sessionDataService,
-            TimeOffDataService timeOffDataService,
-            PathConfig pathConfig) {
-        return new DataAccessService(
-                userDataService,
-                worktimeDataService,
-                registerDataService,
-                sessionDataService,
-                timeOffDataService,
-                pathConfig);
+    public DataAccessService dataAccessService(PathConfig pathConfig) {
+        return new DataAccessService(pathConfig);
     }
 
     // ===== NETWORK AND MONITORING =====

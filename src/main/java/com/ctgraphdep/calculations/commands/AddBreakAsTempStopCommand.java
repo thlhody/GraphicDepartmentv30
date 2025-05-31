@@ -8,7 +8,6 @@ import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 
 /**
  * Command to add a break as temporary stop

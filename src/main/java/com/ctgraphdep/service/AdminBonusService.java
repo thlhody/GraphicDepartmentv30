@@ -1,6 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.BonusEntry;
 import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
@@ -46,21 +45,15 @@ public class AdminBonusService {
                         User user = userOpt.get();
                         BonusEntryDTO dto = new BonusEntryDTO(entry, user.getName());
                         enrichedData.put(entry.getEmployeeId(), dto);
-                        LoggerUtil.info(this.getClass(),
-                                String.format("Successfully enriched data for employee %d: %s",
-                                        entry.getEmployeeId(), user.getName()));
+                        LoggerUtil.info(this.getClass(), String.format("Successfully enriched data for employee %d: %s", entry.getEmployeeId(), user.getName()));
                     } else {
                         // Fallback to using username if user not found
                         BonusEntryDTO dto = new BonusEntryDTO(entry, entry.getUsername());
                         enrichedData.put(entry.getEmployeeId(), dto);
-                        LoggerUtil.warn(this.getClass(),
-                                String.format("User not found for employee ID %d, using username",
-                                        entry.getEmployeeId()));
+                        LoggerUtil.warn(this.getClass(), String.format("User not found for employee ID %d, using username", entry.getEmployeeId()));
                     }
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(),
-                            String.format("Error processing employee ID %d: %s",
-                                    entry.getEmployeeId(), e.getMessage()));
+                    LoggerUtil.error(this.getClass(), String.format("Error processing employee ID %d: %s", entry.getEmployeeId(), e.getMessage()));
                     // Continue processing other entries
                 }
             }
@@ -68,9 +61,7 @@ public class AdminBonusService {
             return enrichedData;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error loading bonus data for %d/%d: %s",
-                            year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error loading bonus data for %d/%d: %s", year, month, e.getMessage()));
             return new HashMap<>(); // Return empty map instead of null
         }
     }
@@ -80,9 +71,7 @@ public class AdminBonusService {
             Map<Integer, BonusEntryDTO> bonusData = loadBonusData(year, month);
             return adminBonusExcelExporter.exportToExcel(bonusData, year, month);
         } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(),
-                    String.format("Error exporting bonus data for %d/%d: %s", year, month, e.getMessage()),
-                    e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error exporting bonus data for %d/%d: %s", year, month, e.getMessage()), e);
         }
         return null;
     }
@@ -92,9 +81,7 @@ public class AdminBonusService {
             Map<Integer, BonusEntryDTO> bonusData = loadBonusData(year, month);
             return adminBonusExcelExporter.exportUserToExcel(bonusData, year, month);
         } catch (Exception e) {
-            LoggerUtil.logAndThrow(this.getClass(),
-                    String.format("Error exporting user bonus data for %d/%d: %s", year, month, e.getMessage()),
-                    e);
+            LoggerUtil.logAndThrow(this.getClass(), String.format("Error exporting user bonus data for %d/%d: %s", year, month, e.getMessage()), e);
         }
         return null;
     }

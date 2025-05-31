@@ -2,7 +2,6 @@ package com.ctgraphdep.enums;
 
 /**
  * Enhanced SyncStatusMerge enum to handle all register entry states in the merge system.
- *
  * Status Flow:
  * USER_INPUT → USER_DONE (admin approves)
  * USER_DONE → USER_EDITED (user modifies after approval)

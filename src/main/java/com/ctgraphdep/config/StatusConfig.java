@@ -78,7 +78,7 @@ public class StatusConfig {
             }
 
             // STEP 3: Refresh all user data from UserService (names, roles, etc.)
-            statusCacheService.refreshAllUsersFromUserService();
+            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
             LoggerUtil.info(this.getClass(), "Refreshed user data from UserService");
 
             // STEP 4: Sync from network flags to get any existing status updates
@@ -187,7 +187,7 @@ public class StatusConfig {
                         userServiceCount, cacheCount));
 
                 // Refresh cache to fix mismatch
-                statusCacheService.refreshAllUsersFromUserService();
+                statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
                 statusCacheService.writeToFile();
 
                 long newCacheCount = statusCacheService.getAllUserStatuses().size();
@@ -247,7 +247,7 @@ public class StatusConfig {
             statusCacheService.clearAllCache();
 
             // Rebuild from UserService
-            statusCacheService.refreshAllUsersFromUserService();
+            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
 
             // Sync from network flags
             statusCacheService.syncFromNetworkFlags();

@@ -37,13 +37,8 @@ public class AdminWorkTimeController extends BaseController {
     private final WorktimeDisplayService worktimeDisplayService;
     private final WorkTimeExcelExporter excelExporter;
 
-    protected AdminWorkTimeController(UserService userService,
-                                      FolderStatus folderStatus,
-                                      TimeValidationService timeValidationService,
-                                      WorktimeManagementService worktimeManagementService,
-                                      UserManagementService userManagementService,
-                                      WorktimeDisplayService worktimeDisplayService,
-                                      WorkTimeExcelExporter excelExporter) {
+    protected AdminWorkTimeController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService, WorktimeManagementService worktimeManagementService,
+                                      UserManagementService userManagementService, WorktimeDisplayService worktimeDisplayService, WorkTimeExcelExporter excelExporter) {
         super(userService, folderStatus, timeValidationService);
         this.worktimeManagementService = worktimeManagementService;
         this.userManagementService = userManagementService;
@@ -52,12 +47,8 @@ public class AdminWorkTimeController extends BaseController {
     }
 
     @GetMapping
-    public String getWorktimePage(
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
-            @RequestParam(required = false) Integer selectedUserId,
-            Model model,
-            RedirectAttributes redirectAttributes) {
+    public String getWorktimePage(@RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
+                                  @RequestParam(required = false) Integer selectedUserId, Model model, RedirectAttributes redirectAttributes) {
 
         try {
             // Use determineYear and determineMonth from BaseController
@@ -106,19 +97,12 @@ public class AdminWorkTimeController extends BaseController {
     }
 
     @GetMapping("/export")
-    public ResponseEntity<byte[]> exportToExcel(
-            @RequestParam int year,
-            @RequestParam int month) {
+    public ResponseEntity<byte[]> exportToExcel(@RequestParam int year, @RequestParam int month) {
         try {
             List<User> nonAdminUsers = userManagementService.getNonAdminUsers();
             Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap = convertToUserEntriesMap(worktimeManagementService.getViewableEntries(year, month));
 
-            byte[] excelData = excelExporter.exportToExcel(
-                    nonAdminUsers,
-                    userEntriesMap,
-                    year,
-                    month
-            );
+            byte[] excelData = excelExporter.exportToExcel(nonAdminUsers, userEntriesMap, year, month);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%d_%02d.xlsx\"", year, month))
@@ -132,12 +116,8 @@ public class AdminWorkTimeController extends BaseController {
 
     @PostMapping("/update")
     @ResponseBody
-    public ResponseEntity<?> updateWorktime(
-            @RequestParam Integer userId,
-            @RequestParam int year,
-            @RequestParam int month,
-            @RequestParam int day,
-            @RequestParam String value) {
+    public ResponseEntity<?> updateWorktime(@RequestParam Integer userId, @RequestParam int year, @RequestParam int month,
+                                            @RequestParam int day, @RequestParam String value) {
         try {
             LocalDate date = LocalDate.of(year, month, day);
             worktimeManagementService.processWorktimeUpdate(userId, date, value);
@@ -151,11 +131,7 @@ public class AdminWorkTimeController extends BaseController {
     }
 
     @PostMapping("/holiday/add")
-    public String addNationalHoliday(
-            @RequestParam int year,
-            @RequestParam int month,
-            @RequestParam int day,
-            RedirectAttributes redirectAttributes) {
+    public String addNationalHoliday(@RequestParam int year, @RequestParam int month, @RequestParam int day, RedirectAttributes redirectAttributes) {
 
         try {
             LocalDate holidayDate = LocalDate.of(year, month, day);
@@ -198,13 +174,11 @@ public class AdminWorkTimeController extends BaseController {
         return String.format("redirect:/admin/worktime?year=%d&month=%d", year, month);
     }
 
-    private void prepareWorkTimeModel(Model model, int year, int month, Integer selectedUserId,
-                                      List<User> nonAdminUsers,
+    private void prepareWorkTimeModel(Model model, int year, int month, Integer selectedUserId, List<User> nonAdminUsers,
                                       Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
 
         // Calculate summaries
-        Map<Integer, WorkTimeSummary> summaries = worktimeDisplayService.calculateUserSummaries(
-                userEntriesMap, nonAdminUsers, year, month);
+        Map<Integer, WorkTimeSummary> summaries = worktimeDisplayService.calculateUserSummaries(userEntriesMap, nonAdminUsers, year, month);
 
         // Add model attributes
         model.addAttribute("currentYear", year);
@@ -233,8 +207,7 @@ public class AdminWorkTimeController extends BaseController {
 
     private Map<Integer, Map<LocalDate, WorkTimeTable>> convertToUserEntriesMap(
             List<WorkTimeTable> entries) {
-        return entries.stream()
-                .collect(Collectors.groupingBy(
+        return entries.stream().collect(Collectors.groupingBy(
                         WorkTimeTable::getUserId,
                         Collectors.toMap(WorkTimeTable::getWorkDate, entry -> entry,
                                 (existing, replacement) -> replacement, TreeMap::new)
@@ -244,24 +217,17 @@ public class AdminWorkTimeController extends BaseController {
     private Map<String, Long> calculateEntryCounts(Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
         Map<String, Long> counts = new HashMap<>();
 
-        List<WorkTimeTable> allEntries = userEntriesMap.values().stream()
-                .flatMap(map -> map.values().stream()).toList();
+        List<WorkTimeTable> allEntries = userEntriesMap.values().stream().flatMap(map -> map.values().stream()).toList();
 
         // Count time off types
-        counts.put("snCount", allEntries.stream()
-                .filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType())).count());
-        counts.put("coCount", allEntries.stream()
-                .filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType())).count());
-        counts.put("cmCount", allEntries.stream()
-                .filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType())).count());
+        counts.put("snCount", allEntries.stream().filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType())).count());
+        counts.put("coCount", allEntries.stream().filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType())).count());
+        counts.put("cmCount", allEntries.stream().filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType())).count());
 
         // Count by status
-        counts.put("adminEditedCount", allEntries.stream()
-                .filter(e -> SyncStatusMerge.ADMIN_EDITED.equals(e.getAdminSync())).count());
-        counts.put("userInputCount", allEntries.stream()
-                .filter(e -> SyncStatusMerge.USER_INPUT.equals(e.getAdminSync())).count());
-        counts.put("syncedCount", allEntries.stream()
-                .filter(e -> SyncStatusMerge.USER_DONE.equals(e.getAdminSync())).count());
+        counts.put("adminEditedCount", allEntries.stream().filter(e -> SyncStatusMerge.ADMIN_EDITED.equals(e.getAdminSync())).count());
+        counts.put("userInputCount", allEntries.stream().filter(e -> SyncStatusMerge.USER_INPUT.equals(e.getAdminSync())).count());
+        counts.put("syncedCount", allEntries.stream().filter(e -> SyncStatusMerge.USER_DONE.equals(e.getAdminSync())).count());
 
         return counts;
     }

@@ -4,11 +4,10 @@ import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
 import com.ctgraphdep.fileOperations.events.FileEventPublisher;
+import com.ctgraphdep.security.UserContextCache;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.FileSystemException;
@@ -40,6 +39,7 @@ public class FileWriterService {
     private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
     private final FileEventPublisher fileEventPublisher;
+    private final UserContextCache userContextCache;
 
     // === FILE LOCKING SYSTEM ===
     // Per-file locks to prevent concurrent access to same file
@@ -67,13 +67,15 @@ public class FileWriterService {
             SyncFilesService syncService,
             PathConfig pathConfig,
             FileObfuscationService obfuscationService,
-            FileEventPublisher fileEventPublisher) {
+            FileEventPublisher fileEventPublisher,
+            UserContextCache userContextCache) {
         this.objectMapper = objectMapper;
         this.pathResolver = pathResolver;
         this.syncService = syncService;
         this.pathConfig = pathConfig;
         this.obfuscationService = obfuscationService;
         this.fileEventPublisher = fileEventPublisher;
+        this.userContextCache = userContextCache;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -103,8 +105,7 @@ public class FileWriterService {
      * @param shouldCreateBackup Whether backup should be created via events
      * @return The result of the operation
      */
-    public <T> FileOperationResult writeFileWithBackupControl(FilePath filePath, T data,
-                                                              boolean skipObfuscation, boolean shouldCreateBackup) {
+    public <T> FileOperationResult writeFileWithBackupControl(FilePath filePath, T data, boolean skipObfuscation, boolean shouldCreateBackup) {
 
         Path path = filePath.getPath();
         String username = getCurrentUsername();
@@ -112,9 +113,7 @@ public class FileWriterService {
 
         // 1. REQUEST DEDUPLICATION - Prevent rapid clicks
         if (!canAttemptWrite(username, path)) {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Write attempt too soon for user %s, file %s - ignoring duplicate request",
-                    username, path.getFileName()));
+            LoggerUtil.warn(this.getClass(), String.format("Write attempt too soon for user %s, file %s - ignoring duplicate request", username, path.getFileName()));
 
             // Return success to avoid UI errors from rapid clicking
             return FileOperationResult.success(path);
@@ -475,15 +474,17 @@ public class FileWriterService {
     // ========================================================================
 
     /**
-     * Get current authenticated username safely.
+     * Get current authenticated username using the UserContextCache directly.
+     * This works for both web requests and background tasks and avoids circular dependencies.
      */
     private String getCurrentUsername() {
         try {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            return auth != null ? auth.getName() : "system";
+            String username = userContextCache.getCurrentUsername();
+            LoggerUtil.debug(this.getClass(), "Current username resolved to: " + username);
+            return username;
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), "Could not get current username, using 'system': " + e.getMessage());
-            return "system";
+            LoggerUtil.error(this.getClass(), "Error getting current username: " + e.getMessage(), e);
+            return "system"; // Final fallback
         }
     }
 

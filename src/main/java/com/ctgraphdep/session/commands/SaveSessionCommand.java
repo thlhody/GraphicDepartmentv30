@@ -26,8 +26,7 @@ public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStat
             String username = session.getUsername();
             debug(String.format("Saving session for user %s", username));
 
-            // Use DataAccessService to write session file
-            ctx.getDataAccessService().writeLocalSessionFile(session);
+            ctx.getSessionDataService().writeLocalSessionFile(session);
             ctx.getSessionCacheService().refreshCacheFromFile(username, session);
             // Also update the user's status in the centralized status system
             // This ensures that the status is always in sync with the session file

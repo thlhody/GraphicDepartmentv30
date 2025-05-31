@@ -27,8 +27,7 @@ import java.util.Map;
 public class AdminBonusController extends BaseController {
     private final AdminBonusService adminBonusService;
 
-    public AdminBonusController(UserService userService, FolderStatus folderStatus,
-                                AdminBonusService adminBonusService, TimeValidationService timeValidationService) {
+    public AdminBonusController(UserService userService, FolderStatus folderStatus, AdminBonusService adminBonusService, TimeValidationService timeValidationService) {
         super(userService, folderStatus, timeValidationService);
         this.adminBonusService = adminBonusService;
     }

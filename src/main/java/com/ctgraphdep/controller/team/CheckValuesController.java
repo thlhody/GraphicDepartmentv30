@@ -42,9 +42,7 @@ public class CheckValuesController extends BaseController {
      * Display check values page
      */
     @GetMapping
-    public String showCheckValues(
-            @AuthenticationPrincipal UserDetails userDetails,
-            Model model) {
+    public String showCheckValues(@AuthenticationPrincipal UserDetails userDetails, Model model) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing check values page at " + getStandardCurrentDateTime());
@@ -78,10 +76,7 @@ public class CheckValuesController extends BaseController {
 
     @ResponseBody
     @GetMapping("/{username}/{userId}")
-    public ResponseEntity<UsersCheckValueEntry> getUserCheckValues(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable String username,
-            @PathVariable String userId) {
+    public ResponseEntity<UsersCheckValueEntry> getUserCheckValues(@AuthenticationPrincipal UserDetails userDetails, @PathVariable String username, @PathVariable String userId) {
 
         try {
             // Verify current user is authorized
@@ -127,11 +122,8 @@ public class CheckValuesController extends BaseController {
      */
     @PostMapping("/{username}/{userId}")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> saveUserCheckValues(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable String username,
-            @PathVariable Integer userId,
-            @RequestBody Map<String, Object> requestMap) {
+    public ResponseEntity<Map<String, String>> saveUserCheckValues(@AuthenticationPrincipal UserDetails userDetails, @PathVariable String username,
+                                                                   @PathVariable Integer userId, @RequestBody Map<String, Object> requestMap) {
 
         try {
             // Verify current user is authorized
@@ -204,8 +196,7 @@ public class CheckValuesController extends BaseController {
             existingEntry.setLatestEntry(LocalDateTime.now().toString());
 
             // Log values for debugging
-            LoggerUtil.info(this.getClass(), "Saving check values for user " + username +
-                    " with workUnitsPerHour: " + checkValues.getWorkUnitsPerHour());
+            LoggerUtil.info(this.getClass(), "Saving check values for user " + username + " with workUnitsPerHour: " + checkValues.getWorkUnitsPerHour());
 
             // Save entry
             checkValuesService.saveUserCheckValues(existingEntry, username, userId);
@@ -217,8 +208,7 @@ public class CheckValuesController extends BaseController {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error saving check values for user " + username + ": " + e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("status", "error", "message", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 
@@ -248,9 +238,7 @@ public class CheckValuesController extends BaseController {
      */
     @ResponseBody
     @PostMapping("/batch")
-    public ResponseEntity<Map<String, String>> saveBatchCheckValues(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody List<Map<String, Object>> requestList) {
+    public ResponseEntity<Map<String, String>> saveBatchCheckValues(@AuthenticationPrincipal UserDetails userDetails, @RequestBody List<Map<String, Object>> requestList) {
 
         try {
             // Verify current user is authorized
@@ -365,8 +353,7 @@ public class CheckValuesController extends BaseController {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error saving batch check values: " + e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("status", "error", "message", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 

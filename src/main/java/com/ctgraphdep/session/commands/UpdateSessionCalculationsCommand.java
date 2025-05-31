@@ -19,15 +19,6 @@ public class UpdateSessionCalculationsCommand extends BaseSessionCommand<WorkUse
     private final boolean cacheOnlyMode; // NEW: Don't write to file if true
 
     /**
-     * Creates a command to update session calculations (with file write)
-     * @param session The session to update
-     * @param explicitEndTime The explicit end time to use (optional)
-     */
-    public UpdateSessionCalculationsCommand(WorkUsersSessionsStates session, LocalDateTime explicitEndTime) {
-        this(session, explicitEndTime, false); // Default to file write mode
-    }
-
-    /**
      * Creates a command to update session calculations with cache-only option
      * @param session The session to update
      * @param explicitEndTime The explicit end time to use (optional)

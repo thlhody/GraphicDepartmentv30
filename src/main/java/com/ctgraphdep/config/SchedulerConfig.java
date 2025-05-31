@@ -3,11 +3,18 @@ package com.ctgraphdep.config;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
+/**
+ * Centralized configuration for all task schedulers and executors in the application.
+ * This class manages all thread pools to provide better control and monitoring.
+ */
 @Configuration
 public class SchedulerConfig {
 
@@ -26,10 +33,13 @@ public class SchedulerConfig {
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
         scheduler.setAwaitTerminationSeconds(10); // Increased timeout
         scheduler.initialize();
+
+        LoggerUtil.info(this.getClass(), "Initialized SessionMonitor scheduler with single thread");
         return scheduler;
     }
 
     @Bean(name = "generalTaskScheduler")
+    @Primary  // Mark as primary to resolve TaskExecutor ambiguity
     public TaskScheduler generalTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 
@@ -45,6 +55,8 @@ public class SchedulerConfig {
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
         scheduler.setAwaitTerminationSeconds(5);
         scheduler.initialize();
+
+        LoggerUtil.info(this.getClass(), "Initialized GeneralTask scheduler with " + poolSize + " threads (marked as @Primary)");
         return scheduler;
     }
 
@@ -59,6 +71,39 @@ public class SchedulerConfig {
         scheduler.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         scheduler.setErrorHandler(throwable -> LoggerUtil.error(this.getClass(), "Stalled notification task execution error", throwable));
         scheduler.initialize();
+
+        LoggerUtil.info(this.getClass(), "Initialized StalledNotification scheduler with 5 threads");
         return scheduler;
+    }
+
+    /**
+     * MOVED FROM BackupEventConfiguration: Custom task executor for backup operations.
+     * Provides dedicated thread pool for backup processing to avoid blocking main operations.
+     */
+    @Bean(name = "backupTaskExecutor")
+    public TaskExecutor backupTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+
+        // Configure thread pool for backup operations
+        executor.setCorePoolSize(2);              // Minimum threads for backup operations
+        executor.setMaxPoolSize(4);               // Maximum threads for backup operations
+        executor.setQueueCapacity(50);            // Queue size for pending backup operations
+        executor.setKeepAliveSeconds(60);         // Thread idle timeout
+        executor.setThreadNamePrefix("backup-event-"); // Thread naming for easier debugging
+
+        // Configure rejection policy
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+
+        // Wait for tasks to complete on shutdown
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+
+        executor.initialize();
+
+        LoggerUtil.info(this.getClass(),
+                "Initialized backup task executor with core pool size: " + executor.getCorePoolSize() +
+                        ", max pool size: " + executor.getMaxPoolSize());
+
+        return executor;
     }
 }

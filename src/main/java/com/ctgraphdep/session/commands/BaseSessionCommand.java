@@ -26,14 +26,6 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     private static final long DEFAULT_COMMAND_COOLDOWN_MS = 2000; // 2 seconds
 
     /**
-     * Execute command with deduplication protection.
-     * This method should be called by concrete command implementations.
-     */
-    protected T executeWithDeduplication(SessionContext context, String username, CommandExecution<T> commandLogic, T defaultValue) {
-        return executeWithDeduplication(context, username, commandLogic, defaultValue, DEFAULT_COMMAND_COOLDOWN_MS);
-    }
-
-    /**
      * Execute command with custom cooldown period.
      */
     protected T executeWithDeduplication(SessionContext context, String username, CommandExecution<T> commandLogic, T defaultValue, long cooldownMs) {

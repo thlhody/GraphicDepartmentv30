@@ -314,12 +314,8 @@ public class StatusController extends BaseController {
     }
 
     @GetMapping("/timeoff-history")
-    public String getTimeOffHistory(
-            @RequestParam(required = false) Integer userId,
-            @RequestParam(required = false) String username,
-            @RequestParam(required = false) Integer year,
-            Model model,
-            RedirectAttributes redirectAttributes) {
+    public String getTimeOffHistory(@RequestParam(required = false) Integer userId, @RequestParam(required = false) String username,
+                                    @RequestParam(required = false) Integer year, Model model, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing time off history at " + getStandardCurrentDateTime());
@@ -358,7 +354,7 @@ public class StatusController extends BaseController {
             TimeOffTracker tracker = statusService.getTimeOffTrackerReadOnly(user.getUsername(), user.getUserId(), selectedYear);
 
             // Calculate time off summary directly from tracker
-            TimeOffSummaryDTO summary = statusService.getTimeOffSummaryFromTracker(user.getUsername(), selectedYear);
+            TimeOffSummaryDTO summary = statusService.getTimeOffSummaryFromTracker(user.getUsername(), user.getUserId(), selectedYear);
 
             // Add data to model
             model.addAttribute("user", user);
@@ -378,13 +374,8 @@ public class StatusController extends BaseController {
     }
 
     @GetMapping("/worktime-status")
-    public String getWorktimeStatus(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) String username,
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
-            Model model,
-            RedirectAttributes redirectAttributes) {
+    public String getWorktimeStatus(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) String username, @RequestParam(required = false) Integer year,
+                                    @RequestParam(required = false) Integer month, Model model, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing worktime status at " + getStandardCurrentDateTime());
@@ -393,10 +384,7 @@ public class StatusController extends BaseController {
             User currentUser = getUser(userDetails);
 
             // Determine target user (user being viewed)
-            User targetUser = username != null && !username.isEmpty() ?
-                    getUserService().getUserByUsername(username)
-                            .orElseThrow(() -> new RuntimeException("User not found")) :
-                    currentUser;
+            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
 
             // Use determineYear and determineMonth from BaseController
             int currentYear = determineYear(year);
@@ -413,28 +401,22 @@ public class StatusController extends BaseController {
                 redirectAttributes.addFlashAttribute("periodError", userMessage);
                 // Reset to current period (or adjust as needed)
                 LocalDate currentDate = getStandardCurrentDate();
-                return "redirect:/status/worktime-status?username=" + (username != null ? username : "") +
-                        "&year=" + currentDate.getYear() +
-                        "&month=" + currentDate.getMonthValue();
+                return "redirect:/status/worktime-status?username=" + (username != null ? username : "") + "&year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
             }
 
             // For other users' data, only admins and team leaders can view
-            boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) &&
-                    !currentUser.hasRole(SecurityConstants.ROLE_ADMIN) && !currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER);
+            boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) && !currentUser.hasRole(SecurityConstants.ROLE_ADMIN) && !currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER);
 
             if (canViewOtherUser) {
-                redirectAttributes.addFlashAttribute("errorMessage",
-                        "You don't have permission to view other users' worktime data");
+                redirectAttributes.addFlashAttribute("errorMessage", "You don't have permission to view other users' worktime data");
                 return "redirect:/status";
             }
 
             // Load work time data using StatusService (read-only operation)
-            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(
-                    targetUser.getUsername(), targetUser.getUserId(), currentYear, currentMonth);
+            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(targetUser.getUsername(), targetUser.getUserId(), currentYear, currentMonth);
 
             // Prepare display data using StatusService (now returns DTOs)
-            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(
-                    targetUser, worktimeData, currentYear, currentMonth);
+            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(targetUser, worktimeData, currentYear, currentMonth);
 
             // Add all data to model
             model.addAllAttributes(displayData);
@@ -465,22 +447,17 @@ public class StatusController extends BaseController {
             User currentUser = getUser(userDetails);
 
             // Determine target user using simplified logic
-            User targetUser = username != null && !username.isEmpty() ?
-                    getUserService().getUserByUsername(username)
-                            .orElseThrow(() -> new RuntimeException("User not found")) :
-                    currentUser;
+            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
 
             // Use determineYear and determineMonth from BaseController
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
             // Load worktime data using StatusService
-            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(
-                    targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
+            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
 
             // Get display data which includes the summary
-            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(
-                    targetUser, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(targetUser, worktimeData, selectedYear, selectedMonth);
 
             // Extract the DTOs from display data
             @SuppressWarnings("unchecked")
@@ -488,8 +465,7 @@ public class StatusController extends BaseController {
             WorkTimeSummaryDTO summaryDTO = (WorkTimeSummaryDTO) displayData.get("summary");
 
             // Use the updated exporter to generate Excel data with DTOs
-            byte[] excelData = userWorktimeExcelExporter.exportToExcel(
-                    targetUser, entryDTOs, summaryDTO, selectedYear, selectedMonth);
+            byte[] excelData = userWorktimeExcelExporter.exportToExcel(targetUser, entryDTOs, summaryDTO, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,

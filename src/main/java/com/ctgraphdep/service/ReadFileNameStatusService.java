@@ -3,10 +3,12 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.FlagInfo;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.dto.UserStatusDTO;
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.service.cache.StatusCacheService;
 import com.ctgraphdep.session.cache.SessionCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -14,8 +16,6 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -24,11 +24,11 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Simplified service for managing user status information via network flag files.
- * Now delegates cache operations to StatusCacheService and session reads to SessionCacheService.
+ * REFACTORED service for managing user status information via network flag files.
+ * Now uses SessionDataService for all status and flag operations instead of DataAccessService.
+ * Delegates cache operations to StatusCacheService and session reads to SessionCacheService.
  * Responsibilities:
  * 1. Managing network flag creation for local user
  * 2. Delegating cache operations to StatusCacheService
@@ -37,15 +37,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 public class ReadFileNameStatusService {
 
-    private final UserService userService;
-    private final DataAccessService dataAccessService;
     private final TimeValidationService timeValidationService;
     private final StatusCacheService statusCacheService;
     private final SessionCacheService sessionCacheService;
-
-    // Local user tracking - keep this for flag creation logic
-    private volatile User localUser;
-    private final AtomicBoolean initializedLocalUser = new AtomicBoolean(false);
+    private final SessionDataService sessionDataService;
+    private final DataAccessService dataAccessService;
+    private final UserContextService userContextService;
 
     // Simplified pending updates for edge cases
     private final List<PendingStatusUpdate> pendingStatusUpdates = new ArrayList<>();
@@ -68,17 +65,14 @@ public class ReadFileNameStatusService {
     }
 
     @Autowired
-    public ReadFileNameStatusService(
-            UserService userService,
-            DataAccessService dataAccessService,
-            TimeValidationService timeValidationService,
-            StatusCacheService statusCacheService,
-            SessionCacheService sessionCacheService) {
-        this.userService = userService;
-        this.dataAccessService = dataAccessService;
+    public ReadFileNameStatusService(TimeValidationService timeValidationService, StatusCacheService statusCacheService, SessionCacheService sessionCacheService,
+                                     SessionDataService sessionDataService, DataAccessService dataAccessService, UserContextService userContextService) {
         this.timeValidationService = timeValidationService;
         this.statusCacheService = statusCacheService;
         this.sessionCacheService = sessionCacheService;
+        this.sessionDataService = sessionDataService;      // NEW
+        this.dataAccessService = dataAccessService;        // Keep for isNetworkAvailable()
+        this.userContextService = userContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -90,9 +84,6 @@ public class ReadFileNameStatusService {
         try {
             LoggerUtil.info(this.getClass(), "Initializing ReadFileNameStatusService");
 
-            // Load the local user for flag creation
-            loadLocalUser();
-
             // Update current user's status from session
             updateCurrentUserStatusFromSession();
 
@@ -103,116 +94,60 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * Loads the local user on initialization or when needed
+     * Gets the current user - always available from UserContextService
      */
-    private synchronized void loadLocalUser() {
-        try {
-            // Clear previous user before loading
-            localUser = null;
-
-            List<User> localUsers = dataAccessService.readLocalUser();
-            if (localUsers != null && !localUsers.isEmpty()) {
-                localUser = localUsers.get(0);
-                LoggerUtil.info(this.getClass(), "Local user loaded: " + localUser.getUsername());
-            } else {
-                LoggerUtil.warn(this.getClass(), "No local users found in file");
-            }
-
-            // Always mark as initialized, even if we didn't find a user
-            initializedLocalUser.set(true);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to load local user: " + e.getMessage(), e);
-            initializedLocalUser.set(true); // Still mark as initialized to prevent repeated attempts
-        }
+    private User getCurrentUser() {
+        return userContextService.getCurrentUser();
     }
 
     /**
-     * Checks if the given username matches the local user
-     */
-    private boolean isLocalUser(String username) {
-        // Force local user load if not loaded yet
-        if (localUser == null || !initializedLocalUser.get()) {
-            loadLocalUser();
-        }
-
-        boolean result = localUser != null && username.equals(localUser.getUsername());
-        LoggerUtil.debug(this.getClass(), String.format("isLocalUser check for %s: %b (local user is %s)",
-                username, result, localUser != null ? localUser.getUsername() : "null"));
-
-        return result;
-    }
-
-    /**
-     * ENHANCED: Updates the current user's status based on their session file.
+     * REFACTORED: Updates the current user's status based on their session file.
      * Now uses SessionCacheService instead of direct file access.
      */
     private void updateCurrentUserStatusFromSession() {
-        String username = getCurrentUsername();
-        if (username == null) {
+        User user = getCurrentUser();
+        if (user == null) {
+            LoggerUtil.warn(this.getClass(), "No current user available");
             return;
         }
 
+        String username = user.getUsername();
+        Integer userId = user.getUserId();
+
         try {
-            // Get current user details
-            User currentUser = userService.getUserByUsername(username).orElse(null);
-            if (currentUser == null) {
-                return;
-            }
+            // Use SessionCacheService to read session
+            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
 
-            // CHANGED: Use SessionCacheService instead of direct file read
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, currentUser.getUserId());
-
-            // ENHANCED: If session cache is null, try direct file read as fallback
+            // Fallback to direct file read if needed
             if (session == null) {
-                LoggerUtil.debug(this.getClass(), "Session not found in cache, attempting direct file read as fallback");
-                try {
-                    session = dataAccessService.readLocalSessionFileReadOnly(username, currentUser.getUserId());
-                } catch (Exception e) {
-                    LoggerUtil.debug(this.getClass(), "Direct file read also failed: " + e.getMessage());
-                    return;
-                }
+                session = sessionDataService.readLocalSessionFileReadOnly(username, userId);
             }
 
             if (session == null) {
-                LoggerUtil.debug(this.getClass(), "No session found for user " + username + ", skipping status update");
+                LoggerUtil.debug(this.getClass(), "No session found for user " + username);
                 return;
             }
 
-            // Update status based on session state
+            // Update status based on session
             String status = session.getSessionStatus();
             if (status == null) {
                 status = WorkCode.WORK_OFFLINE;
             }
 
-            // Use last activity time from session or current time if not available
             LocalDateTime timestamp = session.getLastActivity();
             if (timestamp == null) {
                 timestamp = getStandardCurrentTime();
             }
 
-            // Update the status using cache service
-            updateUserStatus(username, currentUser.getUserId(), status, timestamp);
+            // ✅ ALWAYS create network flag since this is THE local user
+            updateUserStatus(username, userId, status, timestamp);
 
-            LoggerUtil.info(this.getClass(), String.format("Updated %s's status to %s based on session", username, status));
+            LoggerUtil.info(this.getClass(),
+                    String.format("Updated %s's status to %s based on session", username, status));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error updating current user status from session: %s", e.getMessage()));
-        }
-    }
-
-    /**
-     * Gets the currently logged-in username from security context.
-     */
-    private String getCurrentUsername() {
-        try {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null) {
-                return auth.getName();
-            }
-            return null;
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), "Could not get current username: " + e.getMessage());
-            return null;
+            LoggerUtil.error(this.getClass(),
+                    "Error updating current user status from session: " + e.getMessage());
         }
     }
 
@@ -230,37 +165,19 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * SIMPLIFIED: Updates user's status by creating flag and updating cache.
-     * No longer handles file I/O - delegated to StatusCacheService.
+     * REFACTORED: Updates user's status by creating flag and updating cache.
+     * Now uses SessionDataService for flag operations.
      */
     public void updateUserStatus(String username, Integer userId, String status, LocalDateTime timestamp) {
         try {
-            // 1. Update cache in memory ONLY (no file write)
+            // 1. Update cache in memory
             statusCacheService.updateUserStatus(username, userId, status, timestamp);
 
-            // 2. Create network flag (if local user) - keep this logic
-            if (isLocalUser(username)) {
-                createNetworkStatusFlagInternal(username, status, timestamp);
-                LoggerUtil.info(this.getClass(), String.format("Updated status for local user %s to %s", username, status));
-            } else if (!initializedLocalUser.get()) {
-                // If local user is not initialized yet, try to load it
-                loadLocalUser();
+            // 2. ALWAYS create network flag (this is THE local user)
+            createNetworkStatusFlagInternal(username, status, timestamp);
 
-                // After loading, check again if this is the local user
-                if (localUser != null && username.equals(localUser.getUsername())) {
-                    createNetworkStatusFlagInternal(username, status, timestamp);
-                    LoggerUtil.info(this.getClass(), String.format("Updated status for newly loaded local user %s to %s", username, status));
-                } else {
-                    // Queue this update for later if we couldn't load user and it might be local user
-                    LoggerUtil.debug(this.getClass(), String.format("Queueing status update for user %s until local user is known", username));
-                    pendingStatusUpdates.add(new PendingStatusUpdate(username, userId, status, timestamp));
-                }
-            } else {
-                // Just log without creating network flag for non-local users
-                LoggerUtil.debug(this.getClass(), String.format("Updated cache only for non-local user %s to %s", username, status));
-            }
-
-            // 3. NO FILE WRITE - removed saveStatusCache() call
+            LoggerUtil.info(this.getClass(),
+                    String.format("Updated status for user %s to %s", username, status));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating user status: " + e.getMessage(), e);
@@ -268,7 +185,7 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * Internal method to create a network flag file
+     * REFACTORED: Internal method to create a network flag file using SessionDataService
      */
     private void createNetworkStatusFlagInternal(String username, String status, LocalDateTime timestamp) {
         // Convert status to code for flag filename
@@ -278,8 +195,8 @@ public class ReadFileNameStatusService {
         String dateCode = getDateCode(timestamp.toLocalDate());
         String timeCode = "T" + timestamp.format(DateTimeFormatter.ofPattern("HHmm"));
 
-        // Create flag file on network
-        dataAccessService.createNetworkStatusFlag(username, dateCode, timeCode, statusCode);
+        // Create flag file on network using SessionDataService
+        sessionDataService.createNetworkStatusFlag(username, dateCode, timeCode, statusCode);
         LoggerUtil.debug(this.getClass(), String.format("Created network status flag for user %s with status %s", username, status));
     }
 
@@ -322,48 +239,40 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * ENHANCED: Periodically updates the current user's timestamp based on session.
-     * Now uses SessionCacheService with fallback to file read.
+     * REFACTORED: Periodically updates the current user's timestamp based on session.
+     * Now uses SessionCacheService with fallback to SessionDataService.
      */
     @Scheduled(fixedRateString = "${app.status.time.update.interval:1200000}")
     public void updateCurrentUserTimestamp() {
-        String currentUsername = getCurrentUsername();
-        if (currentUsername == null) {
+        User user = getCurrentUser();
+        if (user == null) {
             LoggerUtil.debug(this.getClass(), "No current user, skipping timestamp update");
             return;
         }
 
+        String username = user.getUsername();
+        Integer userId = user.getUserId();
+
         try {
-            // Get current user from security context
-            User currentUser = userService.getUserByUsername(currentUsername).orElse(null);
-            if (currentUser == null) {
-                return;
-            }
+            // Read session from cache
+            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
 
-            // CHANGED: Use SessionCacheService first
-            WorkUsersSessionsStates session = sessionCacheService.readSession(currentUsername, currentUser.getUserId());
-
-            // ENHANCED: Fallback to direct file read if cache is empty
+            // Fallback to file read
             if (session == null) {
-                LoggerUtil.debug(this.getClass(), "Session not in cache, trying direct file read for timestamp update");
-                try {
-                    session = dataAccessService.readLocalSessionFileReadOnly(currentUsername, currentUser.getUserId());
-                } catch (Exception e) {
-                    LoggerUtil.debug(this.getClass(), "Could not read session file: " + e.getMessage());
-                    return;
-                }
+                session = sessionDataService.readLocalSessionFileReadOnly(username, userId);
             }
 
             if (session == null) {
                 return;
             }
 
-            // Only update if user is online or temporary stop
-            if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+            // Only update if user is active
+            if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
+                    WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
 
-                // Update with same status but current time
-                updateUserStatus(currentUsername, currentUser.getUserId(), session.getSessionStatus(), getStandardCurrentTime());
-                LoggerUtil.debug(this.getClass(), String.format("Updated timestamp for current user %s with status %s", currentUsername, session.getSessionStatus()));
+                updateUserStatus(username, userId, session.getSessionStatus(), getStandardCurrentTime());
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Updated timestamp for user %s with status %s", username, session.getSessionStatus()));
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error updating current user timestamp: " + e.getMessage(), e);
@@ -395,7 +304,7 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * Cleans up stale status flag files on the network.
+     * REFACTORED: Cleans up stale status flag files on the network using SessionDataService.
      * Prevents directory clutter by removing old offline status flags.
      */
     @Scheduled(fixedRate = 3600000)
@@ -411,8 +320,8 @@ public class ReadFileNameStatusService {
             // Calculate cutoff date (3 days old)
             LocalDate cutoffDate = getStandardCurrentDate().minusDays(3);
 
-            // Get all network flag files
-            List<Path> flagFiles = dataAccessService.readNetworkStatusFlags();
+            // Get all network flag files using SessionDataService
+            List<Path> flagFiles = sessionDataService.readNetworkStatusFlags();
 
             int removedCount = 0;
 
@@ -425,8 +334,8 @@ public class ReadFileNameStatusService {
                     if (flagInfo != null && flagInfo.getTimestamp().toLocalDate().isBefore(cutoffDate)) {
                         // Only remove flag if old and the user is offline
                         if (flagInfo.getStatus().equals(WorkCode.WORK_OFFLINE)) {
-                            // Delete the flag file
-                            if (dataAccessService.deleteNetworkStatusFlag(flagPath)) {
+                            // Delete the flag file using SessionDataService
+                            if (sessionDataService.deleteNetworkStatusFlag(flagPath)) {
                                 removedCount++;
                             }
                         }

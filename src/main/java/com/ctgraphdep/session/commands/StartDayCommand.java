@@ -54,7 +54,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
 
         if (needsReset) {
             info(String.format("Session reset needed for user %s", username));
-            resetSessionBeforeStart(context, timeValues);
+            resetSessionBeforeStart(context);
         }
 
         // Create new session with standardized start time
@@ -82,7 +82,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
     /**
      * Reset session before starting new one.
      */
-    private void resetSessionBeforeStart(SessionContext context, GetStandardTimeValuesCommand.StandardTimeValues timeValues) {
+    private void resetSessionBeforeStart(SessionContext context) {
         context.getSessionMonitorService().clearMonitoring(username);
 
         // Create fresh offline session

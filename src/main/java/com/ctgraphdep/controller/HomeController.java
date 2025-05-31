@@ -39,7 +39,7 @@ public class HomeController extends BaseController {
                 LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
                 return "redirect:/team-checking";
             }
-            if (hasRole(authentication, SecurityConstants.ROLE_USER_CHECKING)) {
+            if (hasRole(authentication, SecurityConstants.SPRING_ROLE_USER_CHECKING)) {
                 LoggerUtil.info(this.getClass(), "Redirecting to team leader dashboard");
                 return "redirect:/user-checking";
             }

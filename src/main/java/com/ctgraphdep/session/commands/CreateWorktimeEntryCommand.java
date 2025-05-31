@@ -13,7 +13,6 @@ import java.time.LocalDate;
 public class CreateWorktimeEntryCommand extends BaseSessionCommand<WorkTimeTable> {
     private final String username;
     private final WorkUsersSessionsStates session;
-    private final String operatingUsername;
 
     /**
      * Creates a command to create a worktime entry from a session
@@ -29,7 +28,6 @@ public class CreateWorktimeEntryCommand extends BaseSessionCommand<WorkTimeTable
 
         this.username = username;
         this.session = session;
-        this.operatingUsername = operatingUsername;
     }
 
     @Override

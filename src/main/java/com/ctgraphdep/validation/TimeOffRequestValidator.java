@@ -36,7 +36,7 @@ public class TimeOffRequestValidator {
      * @param endDate The end date of the time-off period
      * @param timeOffType The type of time-off (CO, CM)
      * @param availableDays Available paid days for CO requests
-     * @return ValidationResult containing the result of the validation
+     * @return ValidationServiceResult containing the result of the validation
      */
     public ValidationResult validateRequest(
             LocalDate startDate,

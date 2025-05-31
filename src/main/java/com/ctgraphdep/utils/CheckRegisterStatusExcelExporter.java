@@ -22,7 +22,6 @@ public class CheckRegisterStatusExcelExporter {
 
     /**
      * Export check register entries to Excel based on check-register-status.html view
-     *
      * @param user The user whose check register is being exported
      * @param entries The check register entries to export
      * @param year The year of the report

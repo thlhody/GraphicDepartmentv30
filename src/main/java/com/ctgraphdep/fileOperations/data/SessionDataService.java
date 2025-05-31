@@ -412,4 +412,5 @@ public class SessionDataService {
             throw new IllegalArgumentException("Session must have both username and userId");
         }
     }
+
 }

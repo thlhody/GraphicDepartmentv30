@@ -26,21 +26,15 @@ import java.util.stream.Collectors;
 public class TeamStatisticsController extends BaseController {
     private final TeamStatisticsService teamStatisticsService;
 
-    public TeamStatisticsController(
-            UserService userService,
-            FolderStatus folderStatus,
-            TeamStatisticsService teamStatisticsService,
-            TimeValidationService timeValidationService) {
+    public TeamStatisticsController(UserService userService, FolderStatus folderStatus,
+                                    TeamStatisticsService teamStatisticsService, TimeValidationService timeValidationService) {
         super(userService, folderStatus, timeValidationService);
         this.teamStatisticsService = teamStatisticsService;
     }
 
     @GetMapping
-    public String showTeamStats(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
-            Model model) {
+    public String showTeamStats(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
+                                Model model) {
         try {
             // Check if user has team leader role
             String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_TEAM_LEADER);
@@ -55,13 +49,10 @@ public class TeamStatisticsController extends BaseController {
             int selectedMonth = determineMonth(month);
 
             // Get all non-admin users for selection
-            List<User> availableUsers = getUserService().getAllUsers().stream()
-                    .filter(user -> !user.isAdmin())
-                    .collect(Collectors.toList());
+            List<User> availableUsers = getUserService().getAllUsers().stream().filter(user -> !user.isAdmin()).collect(Collectors.toList());
 
             // Load existing team members if any
-            List<TeamMemberDTO> teamMemberDTOS = teamStatisticsService.getTeamMembers(
-                    teamLead.getUsername(), selectedYear, selectedMonth);
+            List<TeamMemberDTO> teamMemberDTOS = teamStatisticsService.getTeamMembers(teamLead.getUsername(), selectedYear, selectedMonth);
 
             // Add data to model
             model.addAttribute("teamLead", teamLead);
@@ -81,12 +72,8 @@ public class TeamStatisticsController extends BaseController {
     }
 
     @PostMapping("/initialize")
-    public String initializeTeamMembers(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam List<Integer> selectedUsers,
-            @RequestParam Integer year,
-            @RequestParam Integer month,
-            RedirectAttributes redirectAttributes) {
+    public String initializeTeamMembers(@AuthenticationPrincipal UserDetails userDetails, @RequestParam List<Integer> selectedUsers, @RequestParam Integer year,
+                                        @RequestParam Integer month, RedirectAttributes redirectAttributes) {
 
         try {
             // Check if user has team leader role
@@ -109,11 +96,8 @@ public class TeamStatisticsController extends BaseController {
     }
 
     @PostMapping("/update")
-    public String updateTeamStats(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam Integer year,
-            @RequestParam Integer month,
-            RedirectAttributes redirectAttributes) {
+    public String updateTeamStats(@AuthenticationPrincipal UserDetails userDetails, @RequestParam Integer year,
+                                  @RequestParam Integer month, RedirectAttributes redirectAttributes) {
 
         try {
             // Check if user has team leader role

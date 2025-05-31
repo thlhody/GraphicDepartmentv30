@@ -387,10 +387,6 @@ public class PathConfig {
         return networkPath.resolve(userTimeoff).resolve(String.format(timeoffFormat, username, userId, year));
     }
 
-    // Local/Network check
-    public boolean isLocalAvailable() {
-        return localAvailable.get();
-    }
     public boolean isNetworkAvailable() {
         return networkAvailable.get();
     }

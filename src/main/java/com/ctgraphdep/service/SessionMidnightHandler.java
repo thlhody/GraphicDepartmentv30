@@ -23,7 +23,6 @@ import java.util.List;
 /**
  * ENHANCED: Component responsible for resetting sessions at midnight.
  * Now includes status cache management and coordination with cache services.
- *
  * Key responsibilities:
  * 1. Reset user session files to fresh state
  * 2. Clear all monitoring state
@@ -101,7 +100,7 @@ public class SessionMidnightHandler {
             LoggerUtil.info(this.getClass(), String.format("Cleared session cache for user %s", username));
 
             // STEP 4: NEW - Refresh status cache with updated user data from UserService
-            statusCacheService.refreshAllUsersFromUserService();
+            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
             LoggerUtil.info(this.getClass(), "Refreshed status cache with updated user data from UserService");
 
             // STEP 5: NEW - Write status cache to file for persistence
@@ -253,7 +252,7 @@ public class SessionMidnightHandler {
 
             // Clear and rebuild status cache
             statusCacheService.clearAllCache();
-            statusCacheService.refreshAllUsersFromUserService();
+            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
             statusCacheService.writeToFile();
             LoggerUtil.info(this.getClass(), "Cleared and rebuilt status cache");
 

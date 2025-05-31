@@ -113,10 +113,6 @@ public enum CheckRegisterMergeRule {
      * @return The merged entry, or null if the entry should be removed
      */
     public static RegisterCheckEntry apply(RegisterCheckEntry user, RegisterCheckEntry teamLead) {
-        LoggerUtil.debug(CheckRegisterMergeRule.class,
-                String.format("Merging - User: %s, TeamLead: %s",
-                        user != null ? user.getAdminSync() : "null",
-                        teamLead != null ? teamLead.getAdminSync() : "null"));
 
         // Special case: If teamLead has TL_BLANK status, remove entry regardless of user entry status
         if (teamLead != null && CheckingStatus.TL_BLANK.name().equals(teamLead.getAdminSync())) {
@@ -138,13 +134,7 @@ public enum CheckRegisterMergeRule {
         return Arrays.stream(values())
                 .filter(rule -> rule.condition.test(user, teamLead))
                 .findFirst()
-                .map(rule -> {
-                    RegisterCheckEntry result = rule.action.apply(user, teamLead);
-                    LoggerUtil.debug(CheckRegisterMergeRule.class,
-                            String.format("Applied rule %s, result status: %s",
-                                    rule.name(), result != null ? result.getAdminSync() : "null"));
-                    return result;
-                })
+                .map(rule -> rule.action.apply(user, teamLead))
                 .orElse(user);
     }
 

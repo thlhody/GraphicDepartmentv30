@@ -8,8 +8,8 @@ import com.ctgraphdep.config.WorkCode;
  */
 public class TestNotificationEvent extends NotificationEvent {
 
-    public TestNotificationEvent(String username) {
-        super(username, null);
+    public TestNotificationEvent() {
+        super(null, null);
         setPriority(10); // Highest priority
     }
 

@@ -132,15 +132,11 @@ public abstract class BaseDashboardController {
 
         // Only allow exact matches - no more special compatibility
         if (normalizedUserRole.equals(normalizedRequiredRole)) {
-            LoggerUtil.debug(this.getClass(),
-                    String.format("Role match for user %s: %s matches required role %s",
-                            user.getUsername(), normalizedUserRole, normalizedRequiredRole));
+            LoggerUtil.debug(this.getClass(), String.format("Role match for user %s: %s matches required role %s", user.getUsername(), normalizedUserRole, normalizedRequiredRole));
             return true;
         }
 
-        LoggerUtil.debug(this.getClass(),
-                String.format("Role mismatch for user %s: %s does not match required role %s",
-                        user.getUsername(), normalizedUserRole, normalizedRequiredRole));
+        LoggerUtil.debug(this.getClass(), String.format("Role mismatch for user %s: %s does not match required role %s", user.getUsername(), normalizedUserRole, normalizedRequiredRole));
 
         return false;
     }

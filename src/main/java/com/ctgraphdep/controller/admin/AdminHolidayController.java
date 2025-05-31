@@ -28,10 +28,7 @@ public class AdminHolidayController extends BaseController {
 
     private final HolidayManagementService holidayManagementService;
 
-    public AdminHolidayController(UserService userService,
-                                  FolderStatus folderStatus,
-                                  TimeValidationService timeValidationService,
-                                  HolidayManagementService holidayManagementService) {
+    public AdminHolidayController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService, HolidayManagementService holidayManagementService) {
         super(userService, folderStatus, timeValidationService);
         this.holidayManagementService = holidayManagementService;
     }
@@ -46,7 +43,7 @@ public class AdminHolidayController extends BaseController {
             return accessCheck;
         }
 
-        List<PaidHolidayEntryDTO> entries = holidayManagementService.loadHolidayListWithoutAdmins();
+        List<PaidHolidayEntryDTO> entries = holidayManagementService.loadHolidayList();
         LoggerUtil.debug(this.getClass(), "Found " + entries.size() + " entries");
 
         model.addAttribute("entries", entries);

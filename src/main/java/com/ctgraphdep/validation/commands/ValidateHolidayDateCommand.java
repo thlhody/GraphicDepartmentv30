@@ -1,6 +1,5 @@
 package com.ctgraphdep.validation.commands;
 
-import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeProvider;
 
 import java.time.DayOfWeek;

@@ -12,7 +12,6 @@ import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -376,46 +375,5 @@ public class WorktimeDataService {
                     year, month, e.getMessage()));
             return new ArrayList<>();
         }
-    }
-
-    // ========================================================================
-    // TIME OFF OPERATIONS
-    // ========================================================================
-
-    /**
-     * Reads time off entries in read-only mode.
-     * Uses readUserFromNetworkOnly for consistent network-only access.
-     */
-    public List<WorkTimeTable> readTimeOffReadOnly(String username, int year) {
-        List<WorkTimeTable> allEntries = new ArrayList<>();
-
-        // Only load last 12 months to improve performance
-        int currentMonth = LocalDate.now().getMonthValue();
-        int currentYear = LocalDate.now().getYear();
-
-        // Only process months for the requested year
-        for (int month = 1; month <= 12; month++) {
-            // Skip future months
-            if (year > currentYear || (year == currentYear && month > currentMonth)) {
-                continue;
-            }
-
-            try {
-                List<WorkTimeTable> monthEntries = readUserFromNetworkOnly(username, year, month);
-                if (monthEntries != null && !monthEntries.isEmpty()) {
-                    // Filter for time off entries only
-                    List<WorkTimeTable> timeOffEntries = monthEntries.stream()
-                            .filter(entry -> entry.getTimeOffType() != null)
-                            .toList();
-                    allEntries.addAll(timeOffEntries);
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Read-only time-off access failed for %s - %d/%d: %s",
-                        username, year, month, e.getMessage()));
-            }
-        }
-
-        return allEntries;
     }
 }

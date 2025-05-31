@@ -1,7 +1,7 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.SecurityConstants;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.CheckValuesEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
@@ -21,11 +21,11 @@ import java.util.stream.Collectors;
 @Service
 public class CheckValuesService {
 
-    private final DataAccessService dataAccessService;
+    private final UserDataService userDataService;
     private final UserService userService;
 
-    public CheckValuesService(DataAccessService dataAccessService, UserService userService) {
-        this.dataAccessService = dataAccessService;
+    public CheckValuesService(UserDataService userDataService, UserService userService) {
+        this.userDataService = userDataService;
         this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -89,8 +89,7 @@ public class CheckValuesService {
 
             // Get the user's name if it's not set
             if (entry.getName() == null) {
-                User user = userService.getUserById(userId)
-                        .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+                User user = userService.getUserById(userId).orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
                 entry.setName(user.getName());
             }
 
@@ -100,7 +99,7 @@ public class CheckValuesService {
                 entry.setLatestEntry(entry.getCheckValuesEntry().getCreatedAt().toString());
             }
 
-            dataAccessService.writeUserCheckValues(entry, username, userId);
+            userDataService.writeUserCheckValuesWithSyncAndBackup(entry,username,userId);
             LoggerUtil.info(this.getClass(), "Saved check values for user " + username);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error saving check values for user " + username + ": " + e.getMessage());
@@ -198,7 +197,7 @@ public class CheckValuesService {
                 return createDefaultCheckValuesEntry("unknown", -1);
             }
 
-            Optional<UsersCheckValueEntry> existingEntry = dataAccessService.readUserCheckValues(username, userId);
+            Optional<UsersCheckValueEntry> existingEntry = userDataService.readUserCheckValuesReadOnly(username,userId);
 
             if (existingEntry.isPresent()) {
                 return existingEntry.get();
@@ -207,7 +206,7 @@ public class CheckValuesService {
                 UsersCheckValueEntry newEntry = createDefaultCheckValuesEntry(username, userId);
 
                 // Save the default entry to create the file
-                dataAccessService.writeUserCheckValues(newEntry, username, userId);
+                userDataService.writeUserCheckValuesWithSyncAndBackup(newEntry, username, userId);
                 LoggerUtil.info(this.getClass(), "Created default check values file for user " + username);
 
                 return newEntry;

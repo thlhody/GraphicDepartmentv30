@@ -31,22 +31,15 @@ public class AdminSettingsController extends BaseController {
     private final HolidayManagementService holidayManagementService;
 
     @Autowired
-    public AdminSettingsController(
-            UserService userService,
-            FolderStatus folderStatus,
-            TimeValidationService timeValidationService,
-            UserManagementService userManagementService,
-            HolidayManagementService holidayManagementService) {
+    public AdminSettingsController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService,
+            UserManagementService userManagementService, HolidayManagementService holidayManagementService) {
         super(userService, folderStatus, timeValidationService);
         this.userManagementService = userManagementService;
         this.holidayManagementService = holidayManagementService;
     }
 
     @GetMapping
-    public String settings(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) Integer userId,
-            Model model) {
+    public String settings(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) Integer userId, Model model) {
 
         // Use checkUserAccess for admin role verification
         String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
@@ -92,12 +85,8 @@ public class AdminSettingsController extends BaseController {
     }
 
     @PostMapping("/user")
-    public String saveUser(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @ModelAttribute("userForm") User user,
-            @RequestParam(required = false) Boolean isNewUser,
-            @RequestParam(defaultValue = "21") Integer paidHolidayDays,
-            RedirectAttributes redirectAttributes) {
+    public String saveUser(@AuthenticationPrincipal UserDetails userDetails, @ModelAttribute("userForm") User user, @RequestParam(required = false) Boolean isNewUser,
+            @RequestParam(defaultValue = "21") Integer paidHolidayDays, RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess for consistent access control
         String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
@@ -117,23 +106,18 @@ public class AdminSettingsController extends BaseController {
             }
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
-            return "redirect:/admin/settings" +
-                    (isNewUser ? "" : "?userId=" + user.getUserId());
+            return "redirect:/admin/settings" + (isNewUser ? "" : "?userId=" + user.getUserId());
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error saving user: " + e.getMessage());
             redirectAttributes.addFlashAttribute("errorMessage", "Error saving user");
-            return "redirect:/admin/settings" +
-                    (isNewUser ? "" : "?userId=" + user.getUserId());
+            return "redirect:/admin/settings" + (isNewUser ? "" : "?userId=" + user.getUserId());
         }
 
         return "redirect:/admin/settings";
     }
 
     @GetMapping("/user/delete/{userId}")
-    public String deleteUser(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable Integer userId,
-            RedirectAttributes redirectAttributes) {
+    public String deleteUser(@AuthenticationPrincipal UserDetails userDetails, @PathVariable Integer userId, RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess for consistent access control
         String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
@@ -157,11 +141,8 @@ public class AdminSettingsController extends BaseController {
     }
 
     @PostMapping("/change-password")
-    public String changePassword(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam String currentPassword,
-            @RequestParam String newPassword,
-            RedirectAttributes redirectAttributes) {
+    public String changePassword(@AuthenticationPrincipal UserDetails userDetails, @RequestParam String currentPassword,
+            @RequestParam String newPassword, RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess for consistent access control
         String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);

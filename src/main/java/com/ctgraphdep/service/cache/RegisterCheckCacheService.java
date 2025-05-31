@@ -1,7 +1,7 @@
 package com.ctgraphdep.service.cache;
 
-import com.ctgraphdep.fileOperations.data.RegisterDataService;
-import com.ctgraphdep.model.RegisterEntry;
+import com.ctgraphdep.fileOperations.data.CheckRegisterDataService;
+import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,8 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Thread-safe register cache service with write-through pattern.
- * Manages in-memory register data per month to eliminate file concurrency issues.
+ * Thread-safe check register cache service with write-through pattern.
+ * Manages in-memory check register data per month to eliminate file concurrency issues.
  * Features:
  * - Per-user, per-month caching
  * - Write-through: cache updates immediately trigger file writes
@@ -22,40 +22,57 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * - Thread-safe operations
  */
 @Service
-public class RegisterCacheService {
+public class RegisterCheckCacheService {
 
-    private final RegisterDataService registerDataService;
+    private final CheckRegisterDataService checkRegisterDataService;
+
     // Thread-safe cache - monthKey as key (format: "username-year-month")
-    private final ConcurrentHashMap<String, RegisterCacheEntry> registerCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RegisterCheckCacheEntry> checkRegisterCache = new ConcurrentHashMap<>();
+
     // Global cache lock for operations that affect multiple entries
     private final ReentrantReadWriteLock globalLock = new ReentrantReadWriteLock();
 
+    // Current user info (since it's 1 app/1 user)
+    private String currentUsername;
+    private Integer currentUserId;
 
     @Autowired
-    public RegisterCacheService(RegisterDataService registerDataService) {
-        this.registerDataService = registerDataService;
+    public RegisterCheckCacheService(CheckRegisterDataService checkRegisterDataService) {
+        this.checkRegisterDataService = checkRegisterDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     @PostConstruct
     public void initializeCache() {
+        LoggerUtil.info(this.getClass(), "Initializing check register cache service...");
         // Cache will be populated on first access to any month
     }
 
     /**
-     * Get register entries for a specific month (loads from file if not cached)
+     * Set current user info (called at login/startup)
+     * @param username Current username
+     * @param userId Current user ID
+     */
+    public void setCurrentUser(String username, Integer userId) {
+        this.currentUsername = username;
+        this.currentUserId = userId;
+        LoggerUtil.info(this.getClass(), String.format("Set current user: %s (ID: %d)", username, userId));
+    }
+
+    /**
+     * Get check register entries for a specific month (loads from file if not cached)
      * @param username Username
      * @param userId User ID
      * @param year Year
      * @param month Month
-     * @return List of register entries for the month
+     * @return List of check register entries for the month
      */
-    public List<RegisterEntry> getMonthEntries(String username, Integer userId, int year, int month) {
+    public List<RegisterCheckEntry> getMonthEntries(String username, Integer userId, int year, int month) {
         try {
             String monthKey = createMonthKey(username, year, month);
 
             // Try cache first
-            RegisterCacheEntry cacheEntry = registerCache.get(monthKey);
+            RegisterCheckCacheEntry cacheEntry = checkRegisterCache.get(monthKey);
 
             if (cacheEntry != null && cacheEntry.isValid()) {
                 LoggerUtil.debug(this.getClass(), String.format("Cache hit for %s - %d/%d", username, month, year));
@@ -63,7 +80,7 @@ public class RegisterCacheService {
             }
 
             // Cache miss - load from file
-            LoggerUtil.info(this.getClass(), String.format("Loading register entries from file for %s - %d/%d", username, month, year));
+            LoggerUtil.info(this.getClass(), String.format("Loading check register entries from file for %s - %d/%d", username, month, year));
             return loadMonthFromFile(username, userId, year, month);
 
         } catch (Exception e) {
@@ -73,13 +90,13 @@ public class RegisterCacheService {
     }
 
     /**
-     * Add new register entry with write-through
+     * Add new check register entry with write-through
      * @param username Username
      * @param userId User ID
-     * @param entry Register entry to add
+     * @param entry Check register entry to add
      * @return true if entry was added successfully
      */
-    public boolean addEntry(String username, Integer userId, RegisterEntry entry) {
+    public boolean addEntry(String username, Integer userId, RegisterCheckEntry entry) {
         try {
             if (entry == null || entry.getDate() == null) {
                 LoggerUtil.warn(this.getClass(), "Cannot add null entry or entry without date");
@@ -93,7 +110,7 @@ public class RegisterCacheService {
             // Ensure month is loaded in cache
             ensureMonthLoaded(username, userId, year, month);
 
-            RegisterCacheEntry cacheEntry = registerCache.get(monthKey);
+            RegisterCheckCacheEntry cacheEntry = checkRegisterCache.get(monthKey);
             if (cacheEntry == null || !cacheEntry.isValid()) {
                 LoggerUtil.error(this.getClass(), String.format("Failed to load cache for %s - %d/%d", username, month, year));
                 return false;
@@ -125,13 +142,13 @@ public class RegisterCacheService {
     }
 
     /**
-     * Update existing register entry with write-through
+     * Update existing check register entry with write-through
      * @param username Username
      * @param userId User ID
-     * @param entry Register entry to update
+     * @param entry Check register entry to update
      * @return true if entry was updated successfully
      */
-    public boolean updateEntry(String username, Integer userId, RegisterEntry entry) {
+    public boolean updateEntry(String username, Integer userId, RegisterCheckEntry entry) {
         try {
             if (entry == null || entry.getDate() == null || entry.getEntryId() == null) {
                 LoggerUtil.warn(this.getClass(), "Cannot update null entry or entry without date/ID");
@@ -145,7 +162,7 @@ public class RegisterCacheService {
             // Ensure month is loaded in cache
             ensureMonthLoaded(username, userId, year, month);
 
-            RegisterCacheEntry cacheEntry = registerCache.get(monthKey);
+            RegisterCheckCacheEntry cacheEntry = checkRegisterCache.get(monthKey);
             if (cacheEntry == null || !cacheEntry.isValid()) {
                 LoggerUtil.error(this.getClass(), String.format("Failed to load cache for %s - %d/%d", username, month, year));
                 return false;
@@ -175,7 +192,7 @@ public class RegisterCacheService {
     }
 
     /**
-     * Delete register entry with write-through
+     * Delete check register entry with write-through
      * @param username Username
      * @param userId User ID
      * @param entryId Entry ID to delete
@@ -195,7 +212,7 @@ public class RegisterCacheService {
             // Ensure month is loaded in cache
             ensureMonthLoaded(username, userId, year, month);
 
-            RegisterCacheEntry cacheEntry = registerCache.get(monthKey);
+            RegisterCheckCacheEntry cacheEntry = checkRegisterCache.get(monthKey);
             if (cacheEntry == null || !cacheEntry.isValid()) {
                 LoggerUtil.error(this.getClass(), String.format("Failed to load cache for %s - %d/%d", username, month, year));
                 return false;
@@ -225,22 +242,22 @@ public class RegisterCacheService {
     }
 
     /**
-     * Get specific register entry
+     * Get specific check register entry
      * @param username Username
      * @param userId User ID
      * @param entryId Entry ID
      * @param year Year
      * @param month Month
-     * @return Register entry or null if not found
+     * @return Check register entry or null if not found
      */
-    public RegisterEntry getEntry(String username, Integer userId, Integer entryId, int year, int month) {
+    public RegisterCheckEntry getEntry(String username, Integer userId, Integer entryId, int year, int month) {
         try {
             String monthKey = createMonthKey(username, year, month);
 
             // Ensure month is loaded in cache
             ensureMonthLoaded(username, userId, year, month);
 
-            RegisterCacheEntry cacheEntry = registerCache.get(monthKey);
+            RegisterCheckCacheEntry cacheEntry = checkRegisterCache.get(monthKey);
             if (cacheEntry != null && cacheEntry.isValid()) {
                 return cacheEntry.getEntry(entryId);
             }
@@ -263,7 +280,7 @@ public class RegisterCacheService {
         globalLock.writeLock().lock();
         try {
             String monthKey = createMonthKey(username, year, month);
-            RegisterCacheEntry removed = registerCache.remove(monthKey);
+            RegisterCheckCacheEntry removed = checkRegisterCache.remove(monthKey);
             if (removed != null) {
                 removed.clear();
                 LoggerUtil.info(this.getClass(), String.format("Cleared cache for %s - %d/%d", username, month, year));
@@ -279,13 +296,37 @@ public class RegisterCacheService {
     public void clearAllCache() {
         globalLock.writeLock().lock();
         try {
-            for (RegisterCacheEntry entry : registerCache.values()) {
+            for (RegisterCheckCacheEntry entry : checkRegisterCache.values()) {
                 entry.clear();
             }
-            registerCache.clear();
-            LoggerUtil.info(this.getClass(), "Cleared entire register cache");
+            checkRegisterCache.clear();
+            LoggerUtil.info(this.getClass(), "Cleared entire check register cache");
         } finally {
             globalLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Get cache status for monitoring
+     * @return Cache status information
+     */
+    public String getCacheStatus() {
+        globalLock.readLock().lock();
+        try {
+            StringBuilder status = new StringBuilder();
+            status.append("Check Register Cache Status:\n");
+            status.append("Current user: ").append(currentUsername).append(" (ID: ").append(currentUserId).append(")\n");
+            status.append("Total cached months: ").append(checkRegisterCache.size()).append("\n");
+
+            checkRegisterCache.forEach((monthKey, entry) -> status.append("Month: ").append(monthKey)
+                    .append(", Entries: ").append(entry.getEntryCount())
+                    .append(", Valid: ").append(entry.isValid())
+                    .append(", Dirty: ").append(entry.isDirty())
+                    .append(", Age: ").append(entry.getCacheAge()).append("ms\n"));
+
+            return status.toString();
+        } finally {
+            globalLock.readLock().unlock();
         }
     }
 
@@ -294,21 +335,21 @@ public class RegisterCacheService {
     /**
      * Load month data from file into cache
      */
-    private List<RegisterEntry> loadMonthFromFile(String username, Integer userId, int year, int month) {
+    private List<RegisterCheckEntry> loadMonthFromFile(String username, Integer userId, int year, int month) {
         try {
-            // Load from file
-            List<RegisterEntry> entriesFromFile = registerDataService.readUserFromNetworkOnly(username, userId, year, month);
+            // Load from file (with smart fallback logic)
+            List<RegisterCheckEntry> entriesFromFile = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
             if (entriesFromFile == null) {
                 entriesFromFile = new ArrayList<>();
             }
 
             // Create and populate cache entry
             String monthKey = createMonthKey(username, year, month);
-            RegisterCacheEntry cacheEntry = new RegisterCacheEntry();
+            RegisterCheckCacheEntry cacheEntry = new RegisterCheckCacheEntry();
             cacheEntry.initializeFromFile(username, userId, year, month, entriesFromFile);
 
             // Store in cache
-            registerCache.put(monthKey, cacheEntry);
+            checkRegisterCache.put(monthKey, cacheEntry);
 
             return cacheEntry.getAllEntries();  // This will be sorted!
 
@@ -320,21 +361,22 @@ public class RegisterCacheService {
     }
 
     /**
-     * Write month data from cache to file using DataAccessService
+     * Write month data from cache to file using CheckRegisterDataService
      */
-    private boolean writeMonthToFile(RegisterCacheEntry cacheEntry) {
+    private boolean writeMonthToFile(RegisterCheckCacheEntry cacheEntry) {
         try {
             if (cacheEntry == null || !cacheEntry.isValid()) {
                 LoggerUtil.warn(this.getClass(), "Cannot write invalid cache entry to file");
                 return false;
             }
-            List<RegisterEntry> entries = cacheEntry.getAllEntries();
+
+            List<RegisterCheckEntry> entries = cacheEntry.getAllEntries();
 
             LoggerUtil.debug(this.getClass(), String.format("Writing %d entries from cache to file for %s - %d/%d",
                     entries.size(), cacheEntry.getUsername(), cacheEntry.getMonth(), cacheEntry.getYear()));
 
-            // Use DataAccessService to write - this handles all the file operations, backup, and sync
-            registerDataService.writeUserLocalWithSyncAndBackup(cacheEntry.getUsername(), cacheEntry.getUserId(), entries, cacheEntry.getYear(), cacheEntry.getMonth());
+            // Use CheckRegisterDataService to write - this handles all the file operations, backup, and sync
+            checkRegisterDataService.writeUserCheckRegisterWithSyncAndBackup(cacheEntry.getUsername(), cacheEntry.getUserId(), entries, cacheEntry.getYear(), cacheEntry.getMonth());
 
             // Mark cache as clean after successful write
             cacheEntry.markClean();
@@ -345,7 +387,6 @@ public class RegisterCacheService {
             return true;
 
         } catch (Exception e) {
-            assert cacheEntry != null;
             LoggerUtil.error(this.getClass(), String.format("Error writing cache to file for %s - %d/%d: %s", cacheEntry.getUsername(), cacheEntry.getMonth(), cacheEntry.getYear(), e.getMessage()), e);
             return false;
         }
@@ -357,7 +398,7 @@ public class RegisterCacheService {
     private void ensureMonthLoaded(String username, Integer userId, int year, int month) {
         String monthKey = createMonthKey(username, year, month);
 
-        if (!registerCache.containsKey(monthKey)) {
+        if (!checkRegisterCache.containsKey(monthKey)) {
             loadMonthFromFile(username, userId, year, month);
         }
     }

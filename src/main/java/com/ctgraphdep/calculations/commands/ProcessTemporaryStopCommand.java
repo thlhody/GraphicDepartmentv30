@@ -7,7 +7,6 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 
 /**
  * Command to process starting a temporary stop

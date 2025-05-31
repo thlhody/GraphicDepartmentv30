@@ -1,9 +1,10 @@
 package com.ctgraphdep.fileOperations.events;
 
-import com.ctgraphdep.fileOperations.config.BackupEventConfiguration;
 import com.ctgraphdep.fileOperations.core.FilePath;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
+import com.ctgraphdep.monitoring.BackupEventMonitor;  // CHANGED: Import from monitoring package
 import com.ctgraphdep.utils.LoggerUtil;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -11,16 +12,19 @@ import org.springframework.stereotype.Service;
 /**
  * Service for publishing file operation events.
  * Provides a clean interface for other services to trigger backup and monitoring events.
+ * UPDATED: Now uses the dedicated BackupEventMonitor service from monitoring package.
  */
 @Service
 public class FileEventPublisher {
 
     private final ApplicationEventPublisher eventPublisher;
-    private final BackupEventConfiguration.BackupEventMonitor eventMonitor;
+
+    @Getter
+    private final BackupEventMonitor eventMonitor;  // CHANGED: Use the service instead of inner class
 
     @Autowired
     public FileEventPublisher(ApplicationEventPublisher eventPublisher,
-                              BackupEventConfiguration.BackupEventMonitor eventMonitor) {
+                              BackupEventMonitor eventMonitor) {  // CHANGED: Parameter type
         this.eventPublisher = eventPublisher;
         this.eventMonitor = eventMonitor;
         LoggerUtil.initialize(this.getClass(), null);
@@ -168,14 +172,6 @@ public class FileEventPublisher {
     }
 
     /**
-     * Gets the current event monitor statistics.
-     * Useful for health checks and monitoring.
-     */
-    public BackupEventConfiguration.BackupEventMonitor getEventMonitor() {
-        return eventMonitor;
-    }
-
-    /**
      * Gets a summary of event processing statistics.
      */
     public String getEventStatistics() {
@@ -191,5 +187,12 @@ public class FileEventPublisher {
         return eventMonitor.getLastEventTimestamp() == 0 || // No events yet (startup)
                 timeSinceLastEvent < 300000 || // Activity within 5 minutes
                 eventMonitor.getBackupSuccessRate() > 90.0; // High success rate
+    }
+
+    /**
+     * Gets detailed health status from the monitoring service.
+     */
+    public String getDetailedHealthStatus() {
+        return eventMonitor.getDetailedHealthStatus();
     }
 }

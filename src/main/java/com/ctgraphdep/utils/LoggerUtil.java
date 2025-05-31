@@ -42,9 +42,4 @@ public final class LoggerUtil {
         LoggerFactory.getLogger(clazz).error(message, e);
         throw new RuntimeException(message, e);
     }
-    public static void logIllegalArgumentException(Class<?> clazz, String message) {
-        LoggerFactory.getLogger(clazz).error(message);
-        throw new IllegalArgumentException(message);
-    }
-
 }

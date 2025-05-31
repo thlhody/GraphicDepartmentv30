@@ -34,28 +34,46 @@ public class SecurityConfig {
         try {
             http
                     .authorizeHttpRequests(authorize -> authorize
-                            .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/logs/**","/api/system/status", "/update/**").permitAll()
+                            .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/logs/**","/api/system/status", "/update/**", "/utility/**").permitAll()
                             .requestMatchers("/admin/**").hasRole(SecurityConstants.ROLE_ADMIN)
                             .requestMatchers("/team-lead/**").hasRole(SecurityConstants.ROLE_TEAM_LEADER)
                             .requestMatchers("/team-checking/**").hasRole(SecurityConstants.ROLE_TL_CHECKING)
                             .requestMatchers("/checking/**").hasRole(SecurityConstants.ROLE_CHECKING)
 
                             // User URLs - multiple roles can access
-                            .requestMatchers("/user/**").hasAnyRole(SecurityConstants.ROLE_USER, SecurityConstants.ROLE_ADMIN,
-                                    SecurityConstants.ROLE_TEAM_LEADER, SecurityConstants.ROLE_TL_CHECKING, SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING)
-                            .requestMatchers("/utility/**").hasAnyRole(SecurityConstants.ROLE_USER, SecurityConstants.ROLE_ADMIN, SecurityConstants.ROLE_TEAM_LEADER,
-                                    SecurityConstants.ROLE_TL_CHECKING, SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING)
+                            .requestMatchers("/user/**").hasAnyRole(
+                                    SecurityConstants.ROLE_USER,
+                                    SecurityConstants.ROLE_ADMIN,
+                                    SecurityConstants.ROLE_TEAM_LEADER,
+                                    SecurityConstants.ROLE_TL_CHECKING,
+                                    SecurityConstants.ROLE_USER_CHECKING,
+                                    SecurityConstants.ROLE_CHECKING)
+                            .requestMatchers("/utility/**").hasAnyRole(
+                                    SecurityConstants.ROLE_USER,
+                                    SecurityConstants.ROLE_ADMIN,
+                                    SecurityConstants.ROLE_TEAM_LEADER,
+                                    SecurityConstants.ROLE_TL_CHECKING,
+                                    SecurityConstants.ROLE_USER_CHECKING,
+                                    SecurityConstants.ROLE_CHECKING)
+
                             // Specialized user paths with more specific access controls
-                            .requestMatchers("/user/check-register/**").hasAnyRole(SecurityConstants.ROLE_USER_CHECKING, SecurityConstants.ROLE_CHECKING,
-                                    SecurityConstants.ROLE_ADMIN, SecurityConstants.ROLE_TL_CHECKING)
-                            .requestMatchers("/team/check-register/**").hasAnyRole(SecurityConstants.ROLE_TEAM_LEADER, SecurityConstants.ROLE_TL_CHECKING, SecurityConstants.ROLE_ADMIN)
-                            .requestMatchers("/user-checking/**").hasAnyRole(SecurityConstants.ROLE_USER_CHECKING)
+                            .requestMatchers("/user/check-register/**").hasAnyRole(
+                                    SecurityConstants.ROLE_USER_CHECKING,
+                                    SecurityConstants.ROLE_CHECKING,
+                                    SecurityConstants.ROLE_ADMIN,
+                                    SecurityConstants.ROLE_TL_CHECKING)
+                            .requestMatchers("/team/check-register/**").hasAnyRole(
+                                    SecurityConstants.ROLE_TEAM_LEADER,
+                                    SecurityConstants.ROLE_TL_CHECKING,
+                                    SecurityConstants.ROLE_ADMIN)
+                            .requestMatchers("/user-checking/**").hasAnyRole(
+                                    SecurityConstants.ROLE_USER_CHECKING,
+                                    SecurityConstants.ROLE_CHECKING,
+                                    SecurityConstants.ROLE_USER)
                             .anyRequest().authenticated()
                     )
                     .formLogin(form -> form
-                            .loginPage("/login")
-                            .permitAll()
-                            .successHandler((request, response, authentication) -> {
+                            .loginPage("/login").permitAll().successHandler((request, response, authentication) -> {
                                 try {
                                     boolean rememberMe = "on".equals(request.getParameter("rememberMe"));
                                     String username = authentication.getName();

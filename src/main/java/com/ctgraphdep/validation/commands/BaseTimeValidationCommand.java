@@ -1,8 +1,5 @@
 package com.ctgraphdep.validation.commands;
 
-import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.query.BaseSessionQuery;
-import com.ctgraphdep.utils.CommandExecutorUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeProvider;
 import com.ctgraphdep.validation.TimeValidationCommand;
@@ -26,21 +23,6 @@ public abstract class BaseTimeValidationCommand<T> implements TimeValidationComm
             LoggerUtil.logAndThrow(this.getClass(), "TimeProvider cannot be null", new IllegalArgumentException("TimeProvider cannot be null"));
         }
         this.timeProvider = timeProvider;
-    }
-
-    /**
-     * Template method for executing validation commands with standardized logging and exception handling.
-     *
-     * @param execution The execution logic
-     * @return The execution result
-     */
-    protected T executeValidation(CommandExecution<T> execution) {
-        try {
-            return execution.execute();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error in validation: " + e.getMessage(), e);
-            throw e;
-        }
     }
 
     /**

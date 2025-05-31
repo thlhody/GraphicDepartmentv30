@@ -4,13 +4,15 @@ import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.SessionDataService;
+import com.ctgraphdep.fileOperations.data.UserDataService;  // CHANGED: Use UserDataService instead of UserService
 import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
 import com.ctgraphdep.model.FlagInfo;
 import com.ctgraphdep.model.LocalStatusCache;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusInfo;
 import com.ctgraphdep.model.dto.UserStatusDTO;
-import com.ctgraphdep.service.UserService;
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,16 +30,19 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
- * Thread-safe status cache service.
+ * REFACTORED Thread-safe status cache service - NO CIRCULAR DEPENDENCY.
+ * Enhanced to serve as the primary data source for user information (excluding passwords).
+ * Now reads user data directly from files via UserDataService instead of UserService.
+ * This breaks the circular dependency: StatusCacheService → UserDataService (no cycle).
  * Manages in-memory status data to reduce file I/O operations.
- * Follows the same pattern as SessionCacheService.
  */
 @Service
 public class StatusCacheService {
 
     private final DataAccessService dataAccessService;
-    private final UserService userService;
-
+    private final SessionDataService sessionDataService;
+    private final UserDataService userDataService;
+    private final UserContextService userContextService;
     private volatile boolean isInitialStartup = true;
 
     // Thread-safe cache - username as key
@@ -47,22 +52,224 @@ public class StatusCacheService {
     private final ReentrantReadWriteLock globalLock = new ReentrantReadWriteLock();
 
     @Autowired
-    public StatusCacheService(DataAccessService dataAccessService, UserService userService) {
+    public StatusCacheService(DataAccessService dataAccessService,
+                              SessionDataService sessionDataService,
+                              UserDataService userDataService, UserContextService userContextService) {
         this.dataAccessService = dataAccessService;
-        this.userService = userService;
+        this.sessionDataService = sessionDataService;
+        this.userDataService = userDataService;
+        this.userContextService = userContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    // ========================================================================
+    // USER OBJECT CONVERSION METHODS (For UserServiceImpl Integration)
+    // ========================================================================
+
+    /**
+     * Get all users as User objects (primary method for UserServiceImpl)
+     * Returns complete User objects without passwords
+     * @return List of User objects from cache
+     */
+    public List<User> getAllUsersAsUserObjects() {
+        globalLock.readLock().lock();
+        try {
+            List<User> result = new ArrayList<>();
+
+            for (StatusCacheEntry entry : statusCache.values()) {
+                if (entry.isValid()) {
+                    User user = entry.toUser();
+                    if (user != null) {
+                        result.add(user);
+                    }
+                }
+            }
+
+            // Sort by name for consistent ordering
+            result.sort(Comparator.comparing(User::getName, String.CASE_INSENSITIVE_ORDER));
+
+            LoggerUtil.debug(this.getClass(), "Retrieved " + result.size() + " users as User objects from cache");
+            return result;
+
+        } finally {
+            globalLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Get specific user as User object (for UserServiceImpl)
+     * @param username Username to lookup
+     * @return User object from cache, or empty if not found
+     */
+    public Optional<User> getUserAsUserObject(String username) {
+        StatusCacheEntry entry = statusCache.get(username);
+        if (entry != null && entry.isValid()) {
+            User user = entry.toUser();
+            if (user != null) {
+                LoggerUtil.debug(this.getClass(), "Retrieved user as User object from cache: " + username);
+                return Optional.of(user);
+            }
+        }
+
+        LoggerUtil.debug(this.getClass(), "User not found in cache: " + username);
+        return Optional.empty();
+    }
+
+    /**
+     * Get user by ID as User object (for UserServiceImpl)
+     * @param userId User ID to lookup
+     * @return User object from cache, or empty if not found
+     */
+    public Optional<User> getUserByIdAsUserObject(Integer userId) {
+        globalLock.readLock().lock();
+        try {
+            for (StatusCacheEntry entry : statusCache.values()) {
+                if (entry.isValid() && userId.equals(entry.getUserId())) {
+                    User user = entry.toUser();
+                    if (user != null) {
+                        LoggerUtil.debug(this.getClass(), "Retrieved user by ID as User object from cache: " + userId);
+                        return Optional.of(user);
+                    }
+                }
+            }
+
+            LoggerUtil.debug(this.getClass(), "User not found by ID in cache: " + userId);
+            return Optional.empty();
+
+        } finally {
+            globalLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Update user in cache (write-through support)
+     * Called after user data changes to keep cache in sync
+     * @param user Updated user object
+     */
+    public void updateUserInCache(User user) {
+        if (user == null || user.getUsername() == null) {
+            LoggerUtil.warn(this.getClass(), "Cannot update cache: invalid user object");
+            return;
+        }
+
+        try {
+            String username = user.getUsername();
+            StatusCacheEntry cacheEntry = statusCache.get(username);
+
+            if (cacheEntry != null && cacheEntry.isValid()) {
+                // Update existing entry
+                cacheEntry.updateFromUser(user);
+                LoggerUtil.debug(this.getClass(), "Updated user in cache: " + username);
+            } else {
+                // Create new entry from complete user data
+                StatusCacheEntry newEntry = new StatusCacheEntry();
+                newEntry.initializeFromCompleteUser(user, WorkCode.WORK_OFFLINE);
+                statusCache.put(username, newEntry);
+                LoggerUtil.info(this.getClass(), "Added new user to cache: " + username);
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error updating user in cache for " + user.getUsername() + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Remove user from cache (for user deletion)
+     * @param username Username to remove
+     */
+    public void removeUserFromCache(String username) {
+        try {
+            StatusCacheEntry removed = statusCache.remove(username);
+            boolean wasRemoved = removed != null;
+
+            if (wasRemoved) {
+                LoggerUtil.info(this.getClass(), "Removed user from cache: " + username);
+            } else {
+                LoggerUtil.debug(this.getClass(), "User not found in cache for removal: " + username);
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error removing user from cache: " + username + " - " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get non-admin users as User objects (for UserServiceImpl)
+     * @return List of non-admin User objects from cache
+     */
+    public List<User> getNonAdminUsersAsUserObjects() {
+        return getAllUsersAsUserObjects().stream()
+                .filter(user -> !user.isAdmin())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Check if cache has any data (for UserServiceImpl empty state handling)
+     * @return true if cache has valid user entries
+     */
+    public boolean hasUserData() {
+        return statusCache.values().stream().anyMatch(StatusCacheEntry::isValid);
+    }
+
+    /**
+     * Get count of cached users
+     * @return Number of valid user entries in cache
+     */
+    public int getCachedUserCount() {
+        return (int) statusCache.values().stream().filter(StatusCacheEntry::isValid).count();
+    }
+
+    // ========================================================================
+    // INITIALIZATION AND NETWORK EVENTS
+    // ========================================================================
+
     @PostConstruct
     public void initializeCache() {
+        LoggerUtil.info(this.getClass(), "=== STARTING CACHE INITIALIZATION ===");
+        // STEP 1: Initialize user context FIRST
+        initializeUserContext();
+
+        // STEP 2: Then proceed with cache initialization
         if (isInitialStartup) {
             performStartupInitialization();
             isInitialStartup = false;
         } else {
-            // Normal operation - use existing smart logic
             performNormalInitialization();
         }
     }
+
+    /**
+     * Initialize user context from local user file (runs once at startup)
+     * This establishes the single PC user before any session operations
+     */
+    private void initializeUserContext() {
+        try {
+            LoggerUtil.info(this.getClass(), "Scanning for local user to initialize context...");
+
+            // Scan for ANY local user file to establish default user context
+            Optional<User> localUser = userDataService.scanForAnyLocalUser();
+
+            if (localUser.isPresent()) {
+                User user = localUser.get();
+
+                // Initialize UserContextService with this default user
+                userContextService.initializeFromUser(user);
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Initialized user context from local file: %s (ID: %d, Role: %s)",
+                        user.getUsername(), user.getUserId(), user.getRole()));
+
+                // Now cache operations can use userContextService.getCurrentUser()
+
+            } else {
+                LoggerUtil.warn(this.getClass(), "No local user file found - UserContextService will use system user until login");
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error scanning for local user: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * Listens for network status changes and updates cache when network becomes available
      */
@@ -96,7 +303,7 @@ public class StatusCacheService {
 
             // Rebuild cache from network (like midnight reset)
             clearAllCache();
-            refreshAllUsersFromUserService();
+            refreshAllUsersFromUserDataServiceWithCompleteData();  // CHANGED: Method name
             syncFromNetworkFlags();
             writeToFile();
 
@@ -109,41 +316,41 @@ public class StatusCacheService {
     }
 
     private void performStartupInitialization() {
-        LoggerUtil.info(this.getClass(), "Startup: Always rebuilding status cache from network...");
+        LoggerUtil.info(this.getClass(), "Startup: Always rebuilding status cache from files...");  // CHANGED: Message
 
         try {
             // Always try to rebuild from scratch (like midnight reset)
-            createEmptyCacheFromUserService();
+            createEmptyCacheFromUserDataServiceWithCompleteData();  // CHANGED: Method name
             syncFromNetworkFlags();
             writeToFile();
 
             LoggerUtil.info(this.getClass(), "Startup: Successfully rebuilt cache with " + statusCache.size() + " users");
 
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), "Startup: Network rebuild failed, falling back to local cache: " + e.getMessage());
+            LoggerUtil.warn(this.getClass(), "Startup: File rebuild failed, falling back to local cache: " + e.getMessage());  // CHANGED: Message
 
-            // Network failed - try to load from local file as fallback
+            // File reading failed - try to load from local file as fallback using SessionDataService
             try {
-                LocalStatusCache savedCache = dataAccessService.readLocalStatusCache();
+                LocalStatusCache savedCache = sessionDataService.readLocalStatusCache();
                 if (savedCache != null && savedCache.getUserStatuses() != null && !savedCache.getUserStatuses().isEmpty()) {
                     populateCacheFromFile(savedCache);
                     LoggerUtil.info(this.getClass(), "Startup: Using local cache as fallback with " + statusCache.size() + " users");
                 } else {
                     // Even local cache failed - create minimal cache
-                    createEmptyCacheFromUserService();
-                    LoggerUtil.warn(this.getClass(), "Startup: Both network and local cache failed, created minimal cache");
+                    createEmptyCacheFromUserDataServiceWithCompleteData();  // CHANGED: Method name
+                    LoggerUtil.warn(this.getClass(), "Startup: Both file reading and local cache failed, created minimal cache");  // CHANGED: Message
                 }
             } catch (Exception localError) {
                 LoggerUtil.error(this.getClass(), "Startup: Complete initialization failure: " + localError.getMessage());
-                createEmptyCacheFromUserService(); // Last resort
+                createEmptyCacheFromUserDataServiceWithCompleteData(); // Last resort  // CHANGED: Method name
             }
         }
     }
 
     private void performNormalInitialization() {
-        // Your existing smart logic
+        // Your existing smart logic using SessionDataService
         try {
-            LocalStatusCache savedCache = dataAccessService.readLocalStatusCache();
+            LocalStatusCache savedCache = sessionDataService.readLocalStatusCache();
             if (savedCache != null && savedCache.getUserStatuses() != null && !savedCache.getUserStatuses().isEmpty()) {
                 populateCacheFromFile(savedCache);
             } else {
@@ -152,9 +359,13 @@ public class StatusCacheService {
             }
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during normal initialization: " + e.getMessage());
-            createEmptyCacheFromUserService();
+            createEmptyCacheFromUserDataServiceWithCompleteData();  // CHANGED: Method name
         }
     }
+
+    // ========================================================================
+    // STATUS OPERATIONS
+    // ========================================================================
 
     /**
      * Update user status in cache (memory-only)
@@ -169,15 +380,21 @@ public class StatusCacheService {
             StatusCacheEntry cacheEntry = statusCache.computeIfAbsent(username, k -> new StatusCacheEntry());
 
             if (!cacheEntry.isValid()) {
-                // Initialize entry if not valid
-                User user = userService.getUserByUsername(username).orElse(null);
-                if (user != null) {
-                    cacheEntry.initializeFromUserData(username, userId, user.getName(), user.getRole(), status);
-                    LoggerUtil.debug(this.getClass(), "Initialized new cache entry for user: " + username);
+                // CHANGED: Try to get complete user data from UserDataService instead of UserService
+                Optional<User> userOpt = findUserInUserDataService(username, userId);
+                if (userOpt.isPresent()) {
+                    User user = userOpt.get();
+                    cacheEntry.initializeFromCompleteUser(user, status);
+                    LoggerUtil.debug(this.getClass(), "Initialized new cache entry with complete data for user: " + username);
                 } else {
                     LoggerUtil.warn(this.getClass(), "Cannot initialize cache entry for unknown user: " + username);
                     return;
                 }
+            }
+
+            if (isAdminUser(cacheEntry)) {
+                LoggerUtil.debug(this.getClass(), "Skipping status update for admin user: " + username);
+                return;
             }
 
             // Update status
@@ -200,7 +417,7 @@ public class StatusCacheService {
             List<UserStatusDTO> result = new ArrayList<>();
 
             for (StatusCacheEntry entry : statusCache.values()) {
-                if (entry.isValid()) {
+                if (entry.isValid() && !isAdminUser(entry)) { // NEW: Filter out admin
                     UserStatusDTO dto = entry.toUserStatusDTO();
                     if (dto != null) {
                         result.add(dto);
@@ -225,8 +442,116 @@ public class StatusCacheService {
         }
     }
 
+    // ========================================================================
+    // CACHE REFRESH METHODS (CHANGED TO USE UserDataService)
+    // ========================================================================
+
     /**
-     * Sync status from network flags (called by SessionMonitorService)
+     * CHANGED: Update all users from UserDataService with complete data (called at midnight)
+     * Refreshes user information like names, roles, and additional user data
+     */
+    public void refreshAllUsersFromUserDataServiceWithCompleteData() {
+        globalLock.writeLock().lock();
+        try {
+            LoggerUtil.info(this.getClass(), "Refreshing all users from UserDataService with complete data");
+
+            // CHANGED: Get all non-admin users with complete data from UserDataService
+            List<User> allUsers = userDataService.readAllUsersForCachePopulation();
+            // Get set of valid usernames for cleanup
+            Set<String> validUsernames = allUsers.stream()
+                    .map(User::getUsername)
+                    .collect(Collectors.toSet());
+
+            // Only remove users that no longer exist (keep admin users)
+            Set<String> usernamesToRemove = new HashSet<>();
+            for (String username : statusCache.keySet()) {
+                if (!validUsernames.contains(username)) {
+                    usernamesToRemove.add(username);
+                }
+            }
+
+            // Remove only non-existent users
+            for (String username : usernamesToRemove) {
+                statusCache.remove(username);
+                LoggerUtil.info(this.getClass(), "Removed non-existent user from status cache: " + username);
+            }
+
+            // Update/create cache entries for valid users with complete data
+            for (User user : allUsers) {
+                StatusCacheEntry cacheEntry = statusCache.computeIfAbsent(user.getUsername(), k -> new StatusCacheEntry());
+
+                if (!cacheEntry.isValid()) {
+                    // Initialize new entry with complete user data
+                    cacheEntry.initializeFromCompleteUser(user, WorkCode.WORK_OFFLINE);
+                } else {
+                    // Update existing entry with new user data
+                    cacheEntry.updateFromUser(user);
+                }
+            }
+
+            LoggerUtil.info(this.getClass(), "Refreshed complete information for " + allUsers.size() +
+                    " users and removed " + usernamesToRemove.size() + " invalid users");
+
+        } finally {
+            globalLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * CHANGED: Create empty cache from UserDataService data with complete user information
+     */
+    private void createEmptyCacheFromUserDataServiceWithCompleteData() {
+        try {
+            // CHANGED: Get users from UserDataService instead of UserService
+            List<User> allUsers = userDataService.readAllUsersForCachePopulation();
+
+            for (User user : allUsers) {
+                StatusCacheEntry cacheEntry = new StatusCacheEntry();
+                cacheEntry.initializeFromCompleteUser(user, WorkCode.WORK_OFFLINE);
+                statusCache.put(user.getUsername(), cacheEntry);
+            }
+
+            LoggerUtil.info(this.getClass(), "Created empty cache from UserDataService with complete data for " + allUsers.size() + " users");
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error creating empty cache from UserDataService: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * CHANGED: Helper method to find user in UserDataService (replaces UserService calls)
+     * @param username Username to find
+     * @param userId User ID (can be null)
+     * @return User if found
+     */
+    private Optional<User> findUserInUserDataService(String username, Integer userId) {
+        try {
+            // Try to read from network first (login authority)
+            if (userId != null) {
+                Optional<User> networkUser = userDataService.adminReadUserNetworkOnly(username, userId);
+                if (networkUser.isPresent()) {
+                    return networkUser;
+                }
+            }
+
+            // Fallback: scan all users and find by username
+            List<User> allUsers = userDataService.readAllUsersForCachePopulation();
+            return allUsers.stream()
+                    .filter(user -> username.equals(user.getUsername()))
+                    .findFirst();
+
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), "Error finding user in UserDataService: " + username + " - " + e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // ========================================================================
+    // EXISTING METHODS (UNCHANGED)
+    // ========================================================================
+
+    /**
+     * REFACTORED: Sync status from network flags using SessionDataService
      * Updates existing cache entries without rebuilding entire cache
      */
     public void syncFromNetworkFlags() {
@@ -238,8 +563,8 @@ public class StatusCacheService {
 
             LoggerUtil.debug(this.getClass(), "Syncing status from network flags");
 
-            // Read all network flag files
-            List<Path> flagFiles = dataAccessService.readNetworkStatusFlags();
+            // Read all network flag files using SessionDataService
+            List<Path> flagFiles = sessionDataService.readNetworkStatusFlags();
 
             // Parse flags and find latest for each user
             Map<String, FlagInfo> latestFlags = new HashMap<>();
@@ -296,7 +621,7 @@ public class StatusCacheService {
     }
 
     /**
-     * Write cache to local_status.json file
+     * REFACTORED: Write cache to local_status.json file using SessionDataService
      * Called by SessionMonitorService every 30 minutes
      */
     public void writeToFile() {
@@ -321,8 +646,8 @@ public class StatusCacheService {
 
             cacheToSave.setUserStatuses(userStatuses);
 
-            // Write to file using DataAccessService
-            dataAccessService.writeLocalStatusCache(cacheToSave);
+            // Write to file using SessionDataService
+            sessionDataService.writeLocalStatusCache(cacheToSave);
 
             LoggerUtil.info(this.getClass(), "Successfully wrote status cache to file with " + userStatuses.size() + " users");
 
@@ -330,70 +655,6 @@ public class StatusCacheService {
             LoggerUtil.error(this.getClass(), "Error writing status cache to file: " + e.getMessage(), e);
         } finally {
             globalLock.readLock().unlock();
-        }
-    }
-
-    /**
-     * Update all users from UserService (called at midnight)
-     * Refreshes user information like names and roles
-     */
-    public void refreshAllUsersFromUserService() {
-        globalLock.writeLock().lock();
-        try {
-            LoggerUtil.info(this.getClass(), "Refreshing all users from UserService");
-
-            // Get all non-admin users
-            List<User> allUsers = userService.getAllUsers().stream()
-                    .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
-                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
-                    .toList();
-
-            // Get set of valid usernames for cleanup
-            Set<String> validUsernames = allUsers.stream()
-                    .map(User::getUsername)
-                    .collect(Collectors.toSet());
-
-            // Remove users that no longer exist or are admin
-            Set<String> usernamesToRemove = new HashSet<>();
-            for (String username : statusCache.keySet()) {
-                if (!validUsernames.contains(username) || username.equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE)) {
-                    usernamesToRemove.add(username);
-                }
-            }
-
-            // Remove invalid users
-            for (String username : usernamesToRemove) {
-                statusCache.remove(username);
-                LoggerUtil.info(this.getClass(),
-                        username.equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE) ?
-                                "Removed admin user from status cache" :
-                                "Removed non-existent user from status cache: " + username);
-            }
-
-            // Update/create cache entries for valid users
-            for (User user : allUsers) {
-                if (user.isAdmin() || user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE)) {
-                    continue;
-                }
-
-                StatusCacheEntry cacheEntry = statusCache.computeIfAbsent(user.getUsername(), k -> new StatusCacheEntry());
-
-                if (!cacheEntry.isValid()) {
-                    // Initialize new entry
-                    cacheEntry.initializeFromUserData(user.getUsername(), user.getUserId(),
-                            user.getName(), user.getRole(), WorkCode.WORK_OFFLINE);
-                } else {
-                    // Update user info only
-                    cacheEntry.updateUserInfo(user.getName(), user.getRole());
-                }
-            }
-
-            LoggerUtil.info(this.getClass(), "Refreshed information for " + allUsers.size() +
-                    " users and removed " + usernamesToRemove.size() + " invalid users");
-
-        } finally {
-            globalLock.writeLock().unlock();
         }
     }
 
@@ -422,6 +683,7 @@ public class StatusCacheService {
 
             statusCache.forEach((username, entry) -> status.append("User: ").append(username)
                     .append(", Valid: ").append(entry.isValid())
+                    .append(", Complete: ").append(entry.hasCompleteUserData())
                     .append(", Status: ").append(entry.getStatus())
                     .append(", Age: ").append(entry.getCacheAge()).append("ms\n"));
 
@@ -453,38 +715,13 @@ public class StatusCacheService {
      * Rebuild entire cache from network flags and user service
      */
     private void rebuildCacheFromNetworkFlags() {
-        // First create entries for all users from UserService
-        createEmptyCacheFromUserService();
+        // CHANGED: First create entries for all users from UserDataService
+        createEmptyCacheFromUserDataServiceWithCompleteData();
 
         // Then update with network flag data
         syncFromNetworkFlags();
 
         LoggerUtil.info(this.getClass(), "Rebuilt cache from network flags");
-    }
-
-    /**
-     * Create empty cache from UserService data
-     */
-    private void createEmptyCacheFromUserService() {
-        try {
-            List<User> allUsers = userService.getAllUsers().stream()
-                    .filter(user -> !user.isAdmin() &&
-                            !user.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) &&
-                            !user.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE))
-                    .toList();
-
-            for (User user : allUsers) {
-                StatusCacheEntry cacheEntry = new StatusCacheEntry();
-                cacheEntry.initializeFromUserData(user.getUsername(), user.getUserId(),
-                        user.getName(), user.getRole(), WorkCode.WORK_OFFLINE);
-                statusCache.put(user.getUsername(), cacheEntry);
-            }
-
-            LoggerUtil.info(this.getClass(), "Created empty cache from UserService with " + allUsers.size() + " users");
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error creating empty cache from UserService: " + e.getMessage(), e);
-        }
     }
 
     /**
@@ -574,5 +811,15 @@ public class StatusCacheService {
             case WorkCode.WORK_TS -> WorkCode.WORK_TEMPORARY_STOP;
             default -> WorkCode.WORK_OFFLINE;
         };
+    }
+
+    /**
+     * Check if cache entry represents an admin user
+     */
+    private boolean isAdminUser(StatusCacheEntry entry) {
+        return entry.getRole() != null &&
+                (entry.getRole().equals(SecurityConstants.SPRING_ROLE_ADMIN) ||
+                        entry.getRole().equals(SecurityConstants.ROLE_ADMIN) ||
+                        entry.getUsername().equalsIgnoreCase(SecurityConstants.ADMIN_SIMPLE));
     }
 }

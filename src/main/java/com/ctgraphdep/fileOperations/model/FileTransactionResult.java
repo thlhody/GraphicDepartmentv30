@@ -36,15 +36,6 @@ public class FileTransactionResult {
         return new FileTransactionResult(transactionId, false, errorMessage, results);
     }
 
-
-    public List<FileOperationResult> getOperationResults() {
-        return new ArrayList<>(operationResults);
-    }
-
-    public int getOperationCount() {
-        return operationResults.size();
-    }
-
     @Override
     public String toString() {
         if (success) {

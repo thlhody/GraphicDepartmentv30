@@ -4,14 +4,15 @@ import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.notification.api.NotificationService;
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.session.cache.SessionCacheService;
-import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +23,9 @@ import java.time.LocalDateTime;
 @Getter
 public class SessionContext {
     // Core dependencies
-    private final DataAccessService dataAccessService;
     private final WorktimeManagementService worktimeManagementService;
     private final UserService userService;
+    private final UserContextService userContextService;
     private final SessionStatusService sessionStatusService;
     private final SessionMonitorService sessionMonitorService;
     private final FolderStatus folderStatus;
@@ -32,6 +33,8 @@ public class SessionContext {
     private final TimeValidationService validationService;
     private final NotificationService notificationService;
     private final SessionService sessionService;
+    private final SessionDataService sessionDataService;
+    private final DataAccessService dataAccessService;
 
     @Autowired
     private SessionCacheService sessionCacheService;
@@ -43,17 +46,20 @@ public class SessionContext {
 
     // Constructor with dependency injection
     public SessionContext(
-            DataAccessService dataAccessService,
             WorktimeManagementService worktimeManagementService,
-            UserService userService,
+            UserService userService, UserContextService userContextService,
             SessionStatusService sessionStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
             FolderStatus folderStatus,
-            SessionCommandFactory commandFactory, TimeValidationService validationService, NotificationService notificationService, SessionService sessionService) {
+            SessionCommandFactory commandFactory,
+            TimeValidationService validationService,
+            NotificationService notificationService,
+            SessionService sessionService,
+            SessionDataService sessionDataService, DataAccessService dataAccessService) {
 
-        this.dataAccessService = dataAccessService;
         this.worktimeManagementService = worktimeManagementService;
         this.userService = userService;
+        this.userContextService = userContextService;
         this.sessionStatusService = sessionStatusService;
         this.sessionMonitorService = sessionMonitorService;
         this.folderStatus = folderStatus;
@@ -61,6 +67,8 @@ public class SessionContext {
         this.validationService = validationService;
         this.notificationService = notificationService;
         this.sessionService = sessionService;
+        this.sessionDataService = sessionDataService;
+        this.dataAccessService = dataAccessService;
 
         // Initialize calculation components
         this.calculationFactory = new CalculationCommandFactory();
@@ -90,7 +98,7 @@ public class SessionContext {
             return sessionCacheService.readSession(username, userId);
         } catch (Exception e) {
             // Fallback to direct file read if cache fails
-            return dataAccessService.readLocalSessionFile(username, userId);
+            return sessionDataService.readLocalSessionFile(username, userId);
         }
     }
 

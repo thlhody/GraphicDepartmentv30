@@ -414,7 +414,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
     private void showTestNotification(TestNotificationEvent event) {
         try {
-            LoggerUtil.info(this.getClass(), "Attempting to show test notification for user: " + event.getUsername());
+            LoggerUtil.info(this.getClass(), "Attempting to show test notification for user. ");
 
             // Use the standard notification flag for synchronization
             final boolean[] dialogDisplayed = new boolean[1];
@@ -429,11 +429,11 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                     addTestButtons(components, userResponded);
 
                     try {
-                        showDialog(components.dialog(), event.getUsername(), event.getNotificationType());
+                        showDialog(components.dialog(), "Test", event.getNotificationType());
                         dialogDisplayed[0] = true;
 
                         // Generate unique ID for test notification
-                        String testNotificationId = "test_" + event.getUsername() + "_" + System.currentTimeMillis();
+                        String testNotificationId = "test_" + "Test" + "_" + System.currentTimeMillis();
 
                         // Store dialog for cleanup
                         activeDialogs.put(testNotificationId, components.dialog());
@@ -441,7 +441,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                         LoggerUtil.info(this.getClass(), "Test dialog displayed successfully");
 
                         // Add auto-close timer
-                        setupAutoCloseTimer(components.dialog(), event.getUsername(),event.getUserId(), event.getTimeoutPeriod(), event.getNotificationType(), userResponded);
+                        setupAutoCloseTimer(components.dialog(), "Test", event.getUserId(), event.getTimeoutPeriod(), event.getNotificationType(), userResponded);
 
                     } catch (Exception e) {
                         LoggerUtil.error(this.getClass(), "Failed to display test dialog: " + e.getMessage());
@@ -553,12 +553,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
         // Calculate dialog position based on configuration
         positionDialogBasedOnConfig(dialog);
-//
-//        // Make sure shape is properly set (fix for white background issue)
-//        dialog.setShape(new RoundRectangle2D.Double(0, 0, dialog.getWidth(), dialog.getHeight(), 20, 20));
-//
-//        // Ensure proper decoration settings
-//        dialog.setUndecorated(true);
 
         // Set visibility and focus
         dialog.setVisible(true);

@@ -101,5 +101,5 @@ public interface NotificationService {
      */
     boolean cancelNotificationBackup(String username);
 
-    boolean showTestNotification(String username);
+    boolean showTestNotification();
 }

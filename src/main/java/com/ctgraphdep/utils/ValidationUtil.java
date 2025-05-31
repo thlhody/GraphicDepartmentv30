@@ -51,17 +51,4 @@ public final class ValidationUtil {
             throw new IllegalArgumentException(paramName + " must be positive");
         }
     }
-
-    /**
-     * Validates that a string is not null or empty.
-     *
-     * @param value The string to validate
-     * @param paramName The parameter name for error messages
-     * @throws IllegalArgumentException if string is null or empty
-     */
-    public static void validateNotEmpty(String value, String paramName) {
-        if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException(paramName + " cannot be null or empty");
-        }
-    }
 }

@@ -106,8 +106,8 @@ public class SessionCommandFactory {
     //========
 
     // Creates a command to show a test notification
-    public ShowTestNotificationCommand createShowTestNotificationCommand(String username) {
-        return new ShowTestNotificationCommand(username);
+    public ShowTestNotificationCommand createShowTestNotificationCommand() {
+        return new ShowTestNotificationCommand();
     }
 
     // Creates a command to continue working

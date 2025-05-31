@@ -5,13 +5,13 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ApprovalStatusType;
 import com.ctgraphdep.enums.CheckType;
 import com.ctgraphdep.enums.CheckingStatus;
-import com.ctgraphdep.exception.RegisterValidationException;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.cache.CheckValuesCacheManager;
+import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.utils.CheckRegisterExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -33,8 +33,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Controller for check register operations
- * Handles regular user operations on check register entries
+ * Controller for check register operations - FULLY REFACTORED
+ * Handles regular user operations on check register entries using ServiceResult pattern
+ * All service calls now use ServiceResult for consistent error handling
  */
 @Controller
 @RequestMapping("/user/check-register")
@@ -59,13 +60,13 @@ public class CheckRegisterController extends BaseController {
     }
 
     /**
-     * Display check register page
+     * Display check register page - REFACTORED with ServiceResult handling
      */
     @GetMapping
     public String showCheckRegister(@AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) String username,
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month, Model model) {
+                                    @RequestParam(required = false) String username,
+                                    @RequestParam(required = false) Integer year,
+                                    @RequestParam(required = false) Integer month, Model model) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing check register page at " + getStandardCurrentDateTime());
@@ -77,6 +78,7 @@ public class CheckRegisterController extends BaseController {
             }
             LoggerUtil.info(this.getClass(), "User role in showCheckRegister: '" + currentUser.getRole() + "'");
 
+            // Initialize check values cache if needed
             if (hasCheckingRole(currentUser) && !checkValuesCacheManager.hasCachedCheckValues(currentUser.getUsername())) {
                 LoggerUtil.info(this.getClass(), "Cache not initialized for " + currentUser.getUsername() + ", loading values now");
                 loadCheckValuesForUser(currentUser);
@@ -123,26 +125,51 @@ public class CheckRegisterController extends BaseController {
             model.addAttribute("userName", currentUser.getName());
             model.addAttribute("userDisplayName", currentUser.getName() != null ? currentUser.getName() : currentUser.getUsername());
 
-            // Load entries
-            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+            // Load entries using ServiceResult pattern
+            ServiceResult<List<RegisterCheckEntry>> entriesResult = checkRegisterService.loadMonthEntries(
+                    currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
-            model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
+            if (entriesResult.isSuccess()) {
+                List<RegisterCheckEntry> entries = entriesResult.getData();
+                model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
 
-            // Add flag for entries that can be edited (only CHECKING_INPUT entries)
-            if (entries != null && !entries.isEmpty()) {
-                List<Integer> editableEntryIds = entries.stream().filter(entry -> CheckingStatus.CHECKING_INPUT.name().equals(entry.getAdminSync()))
-                        .map(RegisterCheckEntry::getEntryId).collect(Collectors.toList());
-                model.addAttribute("editableEntryIds", editableEntryIds);
+                // Add flag for entries that can be edited (only CHECKING_INPUT entries)
+                if (entries != null && !entries.isEmpty()) {
+                    List<Integer> editableEntryIds = entries.stream()
+                            .filter(entry -> CheckingStatus.CHECKING_INPUT.name().equals(entry.getAdminSync()))
+                            .map(RegisterCheckEntry::getEntryId)
+                            .collect(Collectors.toList());
+                    model.addAttribute("editableEntryIds", editableEntryIds);
+                }
+
+                // Handle warnings if any
+                if (entriesResult.hasWarnings()) {
+                    model.addAttribute("warningMessage", "Data loaded with warnings: " + String.join(", ", entriesResult.getWarnings()));
+                }
+
+                LoggerUtil.info(this.getClass(), String.format("Successfully loaded %d entries for %s",
+                        entries != null ? entries.size() : 0, currentUser.getUsername()));
+
+            } else {
+                // Handle error but provide fallback data
+                String errorMessage = handleServiceError(entriesResult, "loading check register entries");
+                model.addAttribute("errorMessage", errorMessage);
+                model.addAttribute("entries", new ArrayList<>());
+                model.addAttribute("editableEntryIds", new ArrayList<>());
+
+                LoggerUtil.error(this.getClass(), String.format("Failed to load entries for %s: %s",
+                        currentUser.getUsername(), entriesResult.getErrorMessage()));
             }
 
             return "user/check-register";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error loading check register page: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Unexpected error loading check register page: " + e.getMessage(), e);
 
             // Set error attributes while preserving basic functionality
-            model.addAttribute("error", "Error loading check register data: " + e.getMessage());
+            model.addAttribute("errorMessage", "An unexpected error occurred while loading check register data");
             model.addAttribute("entries", new ArrayList<>());
+            model.addAttribute("editableEntryIds", new ArrayList<>());
             model.addAttribute("checkTypes", CheckType.getValues());
             model.addAttribute("approvalStatusTypes", ApprovalStatusType.getValues());
             model.addAttribute("currentYear", year != null ? year : getStandardCurrentDate().getYear());
@@ -157,22 +184,22 @@ public class CheckRegisterController extends BaseController {
     }
 
     /**
-     * Save new check entry
+     * Save new check entry - REFACTORED with ServiceResult handling
      */
     @PostMapping("/entry")
     public String saveEntry(@AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
-            @RequestParam(required = false) String omsId,
-            @RequestParam(required = false) String productionId,
-            @RequestParam(required = false) String designerName,
-            @RequestParam(required = false) String checkType,
-            @RequestParam(required = false) Integer articleNumbers,
-            @RequestParam(required = false) Integer filesNumbers,
-            @RequestParam(required = false) String errorDescription,
-            @RequestParam(required = false) String approvalStatus,
-            @RequestParam(required = false) Double orderValue,
-            @RequestParam Integer year, @RequestParam Integer month,
-            RedirectAttributes redirectAttributes) {
+                            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
+                            @RequestParam(required = false) String omsId,
+                            @RequestParam(required = false) String productionId,
+                            @RequestParam(required = false) String designerName,
+                            @RequestParam(required = false) String checkType,
+                            @RequestParam(required = false) Integer articleNumbers,
+                            @RequestParam(required = false) Integer filesNumbers,
+                            @RequestParam(required = false) String errorDescription,
+                            @RequestParam(required = false) String approvalStatus,
+                            @RequestParam(required = false) Double orderValue,
+                            @RequestParam Integer year, @RequestParam Integer month,
+                            RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Creating new check entry at " + getStandardCurrentDateTime());
@@ -189,38 +216,55 @@ public class CheckRegisterController extends BaseController {
                     checkType, articleNumbers, filesNumbers, errorDescription,
                     approvalStatus, orderValue);
 
-            // Save through service
-            checkRegisterService.saveEntry(false, currentUser.getUsername(), currentUser.getUserId(), entry);
-            redirectAttributes.addFlashAttribute("successMessage", "Check entry added successfully");
+            // Save through service using ServiceResult pattern
+            ServiceResult<RegisterCheckEntry> result = checkRegisterService.saveUserEntry(
+                    currentUser.getUsername(), currentUser.getUserId(), entry);
 
-        } catch (RegisterValidationException e) {
-            return String.format("redirect:/user/check-register?error=%s&year=%d&month=%d", e.getErrorCode(), year, month);
+            if (result.isSuccess()) {
+                redirectAttributes.addFlashAttribute("successMessage", "Check entry added successfully");
+
+                // Handle warnings if any
+                if (result.hasWarnings()) {
+                    redirectAttributes.addFlashAttribute("infoMessage",
+                            "Entry saved with notes: " + String.join(", ", result.getWarnings()));
+                }
+
+                LoggerUtil.info(this.getClass(), String.format("Successfully created entry for %s", currentUser.getUsername()));
+            } else {
+                // Handle different error types gracefully
+                String errorMessage = handleServiceError(result, "creating entry");
+                redirectAttributes.addFlashAttribute("errorMessage", errorMessage);
+
+                LoggerUtil.warn(this.getClass(), String.format("Failed to create entry for %s: %s",
+                        currentUser.getUsername(), result.getErrorMessage()));
+            }
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error saving check entry: " + e.getMessage());
-            return String.format("redirect:/user/check-register?error=save_failed&year=%d&month=%d", year, month);
+            LoggerUtil.error(this.getClass(), "Unexpected error saving check entry: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "An unexpected error occurred while saving entry");
         }
 
         return "redirect:/user/check-register?year=" + year + "&month=" + month;
     }
 
     /**
-     * Update existing check entry
+     * Update existing check entry - REFACTORED with ServiceResult handling
      */
     @PostMapping("/entry/{entryId}")
     public String updateEntry(@AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable Integer entryId,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
-            @RequestParam String omsId,
-            @RequestParam(required = false) String productionId,
-            @RequestParam String designerName,
-            @RequestParam String checkType,
-            @RequestParam Integer articleNumbers,
-            @RequestParam Integer filesNumbers,
-            @RequestParam(required = false) String errorDescription,
-            @RequestParam String approvalStatus,
-            @RequestParam(required = false) Double orderValue,
-            @RequestParam Integer year, @RequestParam Integer month,
-            RedirectAttributes redirectAttributes) {
+                              @PathVariable Integer entryId,
+                              @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
+                              @RequestParam String omsId,
+                              @RequestParam(required = false) String productionId,
+                              @RequestParam String designerName,
+                              @RequestParam String checkType,
+                              @RequestParam Integer articleNumbers,
+                              @RequestParam Integer filesNumbers,
+                              @RequestParam(required = false) String errorDescription,
+                              @RequestParam String approvalStatus,
+                              @RequestParam(required = false) Double orderValue,
+                              @RequestParam Integer year, @RequestParam Integer month,
+                              RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Updating check entry " + entryId + " at " + getStandardCurrentDateTime());
@@ -231,26 +275,7 @@ public class CheckRegisterController extends BaseController {
                 return "redirect:/login";
             }
 
-            // First, check if the entry exists and can be edited
-            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
-
-            if (entries != null) {
-                // Find the entry with the given ID
-                RegisterCheckEntry existingEntry = entries.stream().filter(e -> e.getEntryId().equals(entryId)).findFirst().orElse(null);
-
-                // Check if the entry exists and has CHECKING_INPUT status
-                if (existingEntry == null) {
-                    redirectAttributes.addFlashAttribute("errorMessage", "Entry not found");
-                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
-                }
-
-                // Check if the entry can be edited (only CHECKING_INPUT entries can be edited by users)
-                if (!CheckingStatus.CHECKING_INPUT.name().equals(existingEntry.getAdminSync())) {
-                    redirectAttributes.addFlashAttribute("errorMessage", "This entry cannot be edited because it has been reviewed by a team lead");
-                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
-                }
-            }
-
+            // Create entry with existing ID
             RegisterCheckEntry entry = RegisterCheckEntry.builder()
                     .entryId(entryId)
                     .date(date)
@@ -265,26 +290,43 @@ public class CheckRegisterController extends BaseController {
                     .orderValue(orderValue)
                     .build();
 
-            checkRegisterService.saveUserEntry(currentUser.getUsername(), currentUser.getUserId(), entry);
-            redirectAttributes.addFlashAttribute("successMessage", "Check entry updated successfully");
+            // Save through service using ServiceResult pattern
+            ServiceResult<RegisterCheckEntry> result = checkRegisterService.saveUserEntry(
+                    currentUser.getUsername(), currentUser.getUserId(), entry);
 
-        } catch (RegisterValidationException e) {
-            LoggerUtil.warn(this.getClass(), "Validation error while updating check entry: " + e.getMessage());
-            return String.format("redirect:/user/check-register?error=%s&year=%d&month=%d", e.getErrorCode(), year, month);
+            if (result.isSuccess()) {
+                redirectAttributes.addFlashAttribute("successMessage", "Check entry updated successfully");
+
+                // Handle warnings if any
+                if (result.hasWarnings()) {
+                    redirectAttributes.addFlashAttribute("infoMessage",
+                            "Entry updated with notes: " + String.join(", ", result.getWarnings()));
+                }
+
+                LoggerUtil.info(this.getClass(), String.format("Successfully updated entry %d for %s", entryId, currentUser.getUsername()));
+            } else {
+                // Handle different error types gracefully
+                String errorMessage = handleServiceError(result, "updating entry");
+                redirectAttributes.addFlashAttribute("errorMessage", errorMessage);
+
+                LoggerUtil.warn(this.getClass(), String.format("Failed to update entry %d for %s: %s",
+                        entryId, currentUser.getUsername(), result.getErrorMessage()));
+            }
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error updating check entry: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("errorMessage", "Failed to update check entry: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Unexpected error updating check entry: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "An unexpected error occurred while updating entry");
         }
 
         return "redirect:/user/check-register?year=" + year + "&month=" + month;
     }
 
     /**
-     * Delete check entry
+     * Delete check entry - REFACTORED with ServiceResult handling
      */
     @PostMapping("/delete")
     public String deleteEntry(@AuthenticationPrincipal UserDetails userDetails, @RequestParam Integer entryId,
-            @RequestParam Integer year, @RequestParam Integer month, RedirectAttributes redirectAttributes) {
+                              @RequestParam Integer year, @RequestParam Integer month, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Deleting check entry " + entryId + " at " + getStandardCurrentDateTime());
@@ -295,39 +337,32 @@ public class CheckRegisterController extends BaseController {
                 return "redirect:/login";
             }
 
-            // First, check if the entry exists and can be deleted
-            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
+            // Delete through service using ServiceResult pattern
+            ServiceResult<Void> result = checkRegisterService.deleteUserEntry(
+                    currentUser.getUsername(), currentUser.getUserId(), entryId, year, month);
 
-            if (entries != null) {
-                // Find the entry with the given ID
-                RegisterCheckEntry existingEntry = entries.stream().filter(e -> e.getEntryId().equals(entryId)).findFirst().orElse(null);
+            if (result.isSuccess()) {
+                redirectAttributes.addFlashAttribute("successMessage", "Check entry deleted successfully");
+                LoggerUtil.info(this.getClass(), String.format("Successfully deleted entry %d for %s", entryId, currentUser.getUsername()));
+            } else {
+                // Handle different error types gracefully
+                String errorMessage = handleServiceError(result, "deleting entry");
+                redirectAttributes.addFlashAttribute("errorMessage", errorMessage);
 
-                // Check if the entry exists and has CHECKING_INPUT status
-                if (existingEntry == null) {
-                    redirectAttributes.addFlashAttribute("errorMessage", "Entry not found");
-                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
-                }
-
-                // Check if the entry can be deleted (only CHECKING_INPUT entries can be deleted by users)
-                if (!CheckingStatus.CHECKING_INPUT.name().equals(existingEntry.getAdminSync())) {
-                    redirectAttributes.addFlashAttribute("errorMessage", "This entry cannot be deleted because it has been reviewed by a team lead");
-                    return "redirect:/user/check-register?year=" + year + "&month=" + month;
-                }
+                LoggerUtil.warn(this.getClass(), String.format("Failed to delete entry %d for %s: %s",
+                        entryId, currentUser.getUsername(), result.getErrorMessage()));
             }
 
-            checkRegisterService.deleteUserEntry(currentUser.getUsername(), currentUser.getUserId(), entryId, year, month);
-            redirectAttributes.addFlashAttribute("successMessage", "Check entry deleted successfully");
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error deleting check entry: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("errorMessage", "Error deleting check entry");
+            LoggerUtil.error(this.getClass(), "Unexpected error deleting check entry: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "An unexpected error occurred while deleting entry");
         }
 
         return "redirect:/user/check-register?year=" + year + "&month=" + month;
     }
 
     /**
-     * Search across all check register entries
-     * This is a placeholder for future implementation
+     * Search across all check register entries - REFACTORED with ServiceResult handling
      */
     @GetMapping("/search")
     public ResponseEntity<List<RegisterCheckEntry>> performSearch(@AuthenticationPrincipal UserDetails userDetails, @RequestParam() String query) {
@@ -341,15 +376,36 @@ public class CheckRegisterController extends BaseController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
-            // Perform search
-            List<RegisterCheckEntry> searchResults = checkRegisterService.performFullRegisterSearch(currentUser.getUsername(), currentUser.getUserId(), query);
-            return ResponseEntity.ok(searchResults);
+            // Perform search using ServiceResult pattern
+            ServiceResult<List<RegisterCheckEntry>> searchResult = checkRegisterService.performFullRegisterSearch(
+                    currentUser.getUsername(), currentUser.getUserId(), query);
+
+            if (searchResult.isSuccess()) {
+                List<RegisterCheckEntry> results = searchResult.getData();
+                LoggerUtil.info(this.getClass(), String.format("Search completed successfully, found %d results", results.size()));
+                return ResponseEntity.ok(results);
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("Search failed for %s: %s",
+                        currentUser.getUsername(), searchResult.getErrorMessage()));
+
+                if (searchResult.isValidationError()) {
+                    return ResponseEntity.badRequest().build();
+                } else if (searchResult.isUnauthorized()) {
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                } else {
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+                }
+            }
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error performing check register search: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Unexpected error performing check register search: " + e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
+    /**
+     * Export to Excel - ENHANCED with ServiceResult handling
+     */
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportToExcel(@AuthenticationPrincipal UserDetails userDetails, @RequestParam int year, @RequestParam int month) {
 
@@ -362,17 +418,55 @@ public class CheckRegisterController extends BaseController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
-            // Load entries
-            List<RegisterCheckEntry> entries = checkRegisterService.loadMonthEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
+            // Load entries using ServiceResult pattern
+            ServiceResult<List<RegisterCheckEntry>> entriesResult = checkRegisterService.loadMonthEntries(
+                    currentUser.getUsername(), currentUser.getUserId(), year, month);
+
+            if (entriesResult.isFailure()) {
+                LoggerUtil.error(this.getClass(), String.format("Failed to load entries for export for %s: %s",
+                        currentUser.getUsername(), entriesResult.getErrorMessage()));
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+
+            List<RegisterCheckEntry> entries = entriesResult.getData();
 
             // Generate Excel using our exporter
             byte[] excelData = checkRegisterExcelExporter.exportToExcel(currentUser, entries, year, month);
 
-            return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%d_%02d.xlsx\"", year, month))
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM).body(excelData);
+            LoggerUtil.info(this.getClass(), String.format("Successfully exported %d entries to Excel for %s",
+                    entries.size(), currentUser.getUsername()));
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%d_%02d.xlsx\"", year, month))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(excelData);
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error exporting check register to Excel: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Unexpected error exporting check register to Excel: " + e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    // ========================================================================
+    // HELPER METHODS FOR ERROR HANDLING
+    // ========================================================================
+
+    /**
+     * Handles ServiceResult errors with appropriate user-friendly messages
+     */
+    private String handleServiceError(ServiceResult<?> result, String operation) {
+        if (result.isValidationError()) {
+            return "Validation error: " + result.getErrorMessage();
+        } else if (result.isSystemError()) {
+            return "System error occurred while " + operation + ". Please try again.";
+        } else if (result.isBusinessError()) {
+            return "Error " + operation + ": " + result.getErrorMessage();
+        } else if (result.isNotFound()) {
+            return "Required data not found for " + operation;
+        } else if (result.isUnauthorized()) {
+            return "You are not authorized to perform this " + operation;
+        } else {
+            return "Error occurred while " + operation + ": " + result.getErrorMessage();
         }
     }
 
@@ -386,7 +480,8 @@ public class CheckRegisterController extends BaseController {
 
             if (userCheckValues != null && userCheckValues.getCheckValuesEntry() != null) {
                 // Log the actual values being loaded
-                LoggerUtil.info(this.getClass(), String.format("Loading check values for %s: workUnitsPerHour=%f", user.getUsername(), userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
+                LoggerUtil.info(this.getClass(), String.format("Loading check values for %s: workUnitsPerHour=%f",
+                        user.getUsername(), userCheckValues.getCheckValuesEntry().getWorkUnitsPerHour()));
 
                 // Cache the check values
                 checkValuesCacheManager.cacheCheckValues(user.getUsername(), userCheckValues.getCheckValuesEntry());
@@ -408,9 +503,12 @@ public class CheckRegisterController extends BaseController {
         String role = user.getRole();
 
         // Check for roles without the ROLE_ prefix
-        boolean hasRole = role.contains(SecurityConstants.ROLE_TL_CHECKING) || role.contains(SecurityConstants.ROLE_USER_CHECKING) || role.equals(SecurityConstants.ROLE_CHECKING);
+        boolean hasRole = role.contains(SecurityConstants.ROLE_TL_CHECKING) ||
+                role.contains(SecurityConstants.ROLE_USER_CHECKING) ||
+                role.equals(SecurityConstants.ROLE_CHECKING);
 
-        LoggerUtil.info(this.getClass(), String.format("ROLE CHECK: User %s has role '%s', checking role result: %b", user.getUsername(), role, hasRole));
+        LoggerUtil.info(this.getClass(), String.format("ROLE CHECK: User %s has role '%s', checking role result: %b",
+                user.getUsername(), role, hasRole));
 
         return hasRole;
     }

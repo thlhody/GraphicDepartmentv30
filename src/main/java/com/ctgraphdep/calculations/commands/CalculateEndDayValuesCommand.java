@@ -31,9 +31,8 @@ public class CalculateEndDayValuesCommand extends BaseCalculationCommand<WorkUse
     @Override
     protected WorkUsersSessionsStates executeCommand(CalculationContext context) {
         // Use builder to update all values
-        return SessionEntityBuilder.updateSession(session, builder -> {
-            builder.status(WorkCode.WORK_OFFLINE).dayEndTime(endTime).finalWorkedMinutes(finalMinutes != null ? finalMinutes : session.getFinalWorkedMinutes()).workdayCompleted(true);
-        });
+        return SessionEntityBuilder.updateSession(session, builder -> builder.status(WorkCode.WORK_OFFLINE).
+                dayEndTime(endTime).finalWorkedMinutes(finalMinutes != null ? finalMinutes : session.getFinalWorkedMinutes()).workdayCompleted(true));
     }
 
     @Override

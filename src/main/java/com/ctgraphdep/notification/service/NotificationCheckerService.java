@@ -4,11 +4,13 @@ import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.session.cache.SessionCacheService;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.SessionCommandFactory;
@@ -43,9 +45,11 @@ public class NotificationCheckerService {
     private final SessionCommandService sessionCommandService;
     private final SessionCommandFactory sessionCommandFactory;
     private final TimeValidationService timeValidationService;
-    private final DataAccessService dataAccessService;
     private final SchedulerHealthMonitor healthMonitor;
     private final SessionCacheService sessionCacheService;
+    private final UserContextService userContextService;
+    private final UserService userService;
+    private final SessionDataService sessionDataService;
 
     // Flag to indicate if the service is initialized
     private volatile boolean isInitialized = false;
@@ -58,9 +62,8 @@ public class NotificationCheckerService {
             @Lazy SessionCommandService sessionCommandService,
             @Lazy SessionCommandFactory sessionCommandFactory,
             TimeValidationService timeValidationService,
-            DataAccessService dataAccessService,
             SchedulerHealthMonitor healthMonitor,
-            SessionCacheService sessionCacheService) {
+            SessionCacheService sessionCacheService, UserContextService userContextService, UserService userService, SessionDataService sessionDataService) {
 
         this.notificationService = notificationService;
         this.monitorService = monitorService;
@@ -69,9 +72,11 @@ public class NotificationCheckerService {
         this.sessionCommandService = sessionCommandService;
         this.sessionCommandFactory = sessionCommandFactory;
         this.timeValidationService = timeValidationService;
-        this.dataAccessService = dataAccessService;
         this.healthMonitor = healthMonitor;
         this.sessionCacheService = sessionCacheService;
+        this.userContextService = userContextService;
+        this.userService = userService;
+        this.sessionDataService = sessionDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -246,7 +251,7 @@ public class NotificationCheckerService {
 
             try {
                 // Fallback to read-only file access
-                session = dataAccessService.readLocalSessionFileReadOnly(username, userId);
+                session = sessionDataService.readLocalSessionFileReadOnly(username, userId);
 
                 if (session != null) {
                     LoggerUtil.info(this.getClass(), String.format("File fallback successful for user %s", username));
@@ -422,18 +427,30 @@ public class NotificationCheckerService {
      */
     private User getCurrentActiveUser() {
         try {
-            // Get the list of local users from data access service
-            List<User> localUsers = dataAccessService.readLocalUser();
+            // Get current user from UserContextService (cache-based)
+            User currentUser = userContextService.getCurrentUser();
 
-            // Return the first user (since it's a single-user application)
-            if (!localUsers.isEmpty()) {
-                return localUsers.get(0);
+            // Check if we got a real user (not system user)
+            if (currentUser != null && !"system".equals(currentUser.getUsername())) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Got current active user from UserContextService: %s (ID: %d)",
+                        currentUser.getUsername(), currentUser.getUserId()));
+                return currentUser;
             }
 
-            LoggerUtil.warn(this.getClass(), "No local user found");
+            // Fallback: Try to get any non-admin user from UserService (cache-based)
+            List<User> localUsers = userService.getNonAdminUsers(null);
+            if (localUsers != null && !localUsers.isEmpty()) {
+                User fallbackUser = localUsers.get(0);
+                LoggerUtil.info(this.getClass(), String.format("Using fallback user from cache: %s (ID: %d)", fallbackUser.getUsername(), fallbackUser.getUserId()));
+                return fallbackUser;
+            }
+
+            LoggerUtil.warn(this.getClass(), "No active user found in cache");
             return null;
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error getting current user: " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), "Error getting current active user: " + e.getMessage(), e);
             return null;
         }
     }

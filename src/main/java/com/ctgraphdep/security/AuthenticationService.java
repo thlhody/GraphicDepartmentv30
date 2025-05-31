@@ -1,8 +1,11 @@
 package com.ctgraphdep.security;
 
+import com.ctgraphdep.config.SecurityConstants;
+import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.service.CheckRegisterService;
 import com.ctgraphdep.service.RegisterMergeService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -12,45 +15,65 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
 
+/**
+ * REFACTORED AuthenticationService using UserDataService for user operations.
+ * Handles authentication status, user authentication, and post-login operations.
+ * Uses UserDataService for all user data operations and DataAccessService only for system utilities.
+ */
 @Service
 public class AuthenticationService {
 
-    private final DataAccessService dataAccessService;
+    private final DataAccessService dataAccessService;  // Keep for system utilities only
+    private final UserDataService userDataService;      // NEW - Primary user data operations
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final CustomUserDetailsService userDetailsService;
     private final RegisterMergeService registerMergeService;
+    private final CheckRegisterService checkRegisterService;
+    private final UserContextService userContextService;
 
-    public AuthenticationService(DataAccessService dataAccessService, UserService userService, PasswordEncoder passwordEncoder,
-                                 CustomUserDetailsService userDetailsService, RegisterMergeService registerMergeService) {
+    public AuthenticationService(
+            DataAccessService dataAccessService,
+            UserDataService userDataService,        // NEW dependency
+            UserService userService,
+            PasswordEncoder passwordEncoder,
+            CustomUserDetailsService userDetailsService,
+            RegisterMergeService registerMergeService,
+            CheckRegisterService checkRegisterService,
+            UserContextService userContextService) {
         this.dataAccessService = dataAccessService;
+        this.userDataService = userDataService;      // NEW
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
         this.registerMergeService = registerMergeService;
+        this.checkRegisterService = checkRegisterService;
+        this.userContextService = userContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    /**
+     * REFACTORED: Get authentication status using UserDataService
+     */
     public AuthenticationStatus getAuthenticationStatus() {
         try {
-            // Use PathConfig for network status
+            // Check network status via DataAccessService (system utility)
             boolean networkAvailable = dataAccessService.isNetworkAvailable();
 
-            // Check if there are any local user files
+            // Check if local users exist via UserDataService
             boolean offlineModeAvailable = false;
             try {
-                List<User> localUsers = dataAccessService.getAllUsers();
-                offlineModeAvailable = localUsers != null && !localUsers.isEmpty();
+                offlineModeAvailable = userDataService.hasLocalUsersForAuthenticationStatus();
             } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), "Error checking local users: " + e.getMessage());
+                LoggerUtil.warn(this.getClass(), "Error checking local users via UserDataService: " + e.getMessage());
             }
 
             String status = networkAvailable ? "ONLINE" : offlineModeAvailable ? "OFFLINE" : "UNAVAILABLE";
 
-            LoggerUtil.info(this.getClass(), String.format("Authentication Status: Network=%b, Local=%b, Status=%s", networkAvailable, offlineModeAvailable, status));
+            LoggerUtil.info(this.getClass(), String.format("Authentication Status: Network=%b, Local=%b, Status=%s",
+                    networkAvailable, offlineModeAvailable, status));
 
             return new AuthenticationStatus(networkAvailable, offlineModeAvailable, status);
         } catch (Exception e) {
@@ -59,51 +82,21 @@ public class AuthenticationService {
         }
     }
 
-    private Optional<User> getUserFromLocalStorage(String username) {
-        try {
-            // Get all users and find the one with matching username
-            List<User> localUsers = dataAccessService.getAllUsers();
-            if (localUsers != null) {
-                return localUsers.stream()
-                        .filter(u -> u.getUsername().equals(username))
-                        .findFirst();
-            }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), "Error reading local users: " + e.getMessage());
-        }
-        return Optional.empty();
-    }
-
-    private void storeUserDataLocally(User user) {
-        try {
-            // Get the full user data
-            Optional<User> fullUserData = userService.getCompleteUserByUsername(user.getUsername());
-
-            if (fullUserData.isPresent()) {
-                // Store the complete user object using the new method
-                dataAccessService.writeUser(fullUserData.get());
-                LoggerUtil.info(this.getClass(),
-                        String.format("Stored complete user data locally for: %s", user.getUsername()));
-            } else {
-                LoggerUtil.error(this.getClass(),
-                        String.format("Could not find complete user data for: %s", user.getUsername()));
-                throw new RuntimeException("Failed to store complete user data locally");
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error storing user data locally: %s", e.getMessage()));
-            throw new RuntimeException("Failed to store user data locally", e);
-        }
-    }
-
+    /**
+     * UNCHANGED: Authentication logic remains the same
+     */
     public UserDetails authenticateUser(String username, String password, boolean offlineMode) {
         // Get the full user object without sanitization
-        UserDetails userDetails = offlineMode ? userDetailsService.loadUserByUsernameOffline(username) : userDetailsService.loadUserByUsername(username);
+        UserDetails userDetails = offlineMode ?
+                userDetailsService.loadUserByUsernameOffline(username) :
+                userDetailsService.loadUserByUsername(username);
 
         // Add debug logs to track password handling
-        LoggerUtil.debug(this.getClass(), String.format("Authenticating user: %s, Encoded password from details: %s", username, userDetails.getPassword()));
+        LoggerUtil.debug(this.getClass(), String.format("Authenticating user: %s, Encoded password from details: %s",
+                username, userDetails.getPassword()));
 
-        LoggerUtil.debug(this.getClass(), String.format("Password matcher result: %b", passwordEncoder.matches(password, userDetails.getPassword())));
+        LoggerUtil.debug(this.getClass(), String.format("Password matcher result: %b",
+                passwordEncoder.matches(password, userDetails.getPassword())));
 
         if (passwordEncoder.matches(password, userDetails.getPassword())) {
             LoggerUtil.info(this.getClass(), String.format("Successfully authenticated user %s", username));
@@ -114,51 +107,278 @@ public class AuthenticationService {
         throw new BadCredentialsException("Invalid credentials");
     }
 
+    /**
+     * REFACTORED: Handle successful login with UserDataService integration
+     */
     public void handleSuccessfulLogin(String username, boolean rememberMe) {
         try {
-            Optional<User> userOptional = userService.getUserByUsername(username);
+            // Step 1: Update user context cache
+            updateUserContextCache(username);
 
-            if (userOptional.isEmpty()) {
-                userOptional = getUserFromLocalStorage(username);
+            // Step 2: Retrieve user data with fallback
+            User user = retrieveUserData(username);
+
+            // Step 3: Handle local storage operations if needed
+            if (rememberMe) {
+                handleLocalStorageOperations(user);
             }
 
-            if (userOptional.isPresent()) {
-                User user = userOptional.get();
+            // Step 4: Perform role-based data merges
+            performRoleBasedDataMerges(user);
 
-                // Only create local directories and store user data if rememberMe is true
-                if (rememberMe) {
-                    try {
-                        boolean dirsOk = dataAccessService.revalidateLocalDirectories(user.isAdmin());
-                        if (!dirsOk) {
-                            LoggerUtil.warn(this.getClass(),
-                                    "Directory validation failed for user " + username +
-                                            " - some operations may fail");
-                        }
-                        storeUserDataLocally(user);
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(), "Failed to handle local storage: " + e.getMessage() + " - continuing with login");
-                    }
-                }
-                // NEW: Trigger user login merge for non-admin users only
-                if (!user.isAdmin()) {  // Only merge for regular users
-                    try {
-                        LoggerUtil.info(this.getClass(), "Triggering user login merge for: " + username);
-                        registerMergeService.performUserLoginMerge(username);
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(), "User login merge failed for " + username + ": " + e.getMessage());
-                        // Continue with login - merge failure shouldn't block user
-                    }
-                } else {
-                    LoggerUtil.debug(this.getClass(), "Skipping user login merge for admin user: " + username);
-                }
-                LoggerUtil.info(this.getClass(), String.format("Successfully handled login for user: %s (rememberMe: %s)", username, rememberMe));
-            } else {
-                throw new UsernameNotFoundException("User not found after authentication");
-            }
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully handled login for user: %s (rememberMe: %s, cache updated: %s)",
+                    username, rememberMe, userContextService.isCacheInitialized()));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error handling login for user %s: %s", username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error handling login for user %s: %s", username, e.getMessage()));
             throw new RuntimeException("Failed to handle login", e);
         }
+    }
+
+    /**
+     * UNCHANGED: Update user context cache
+     */
+    private void updateUserContextCache(String username) {
+        try {
+            userContextService.handleSuccessfulLogin(username);
+            LoggerUtil.debug(this.getClass(), "User context cache updated for: " + username);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Failed to update user context cache for %s: %s", username, e.getMessage()));
+            throw new RuntimeException("Failed to update user context cache", e);
+        }
+    }
+
+    /**
+     * REFACTORED: Retrieve user data using UserService first, UserDataService fallback
+     */
+    private User retrieveUserData(String username) {
+        // Try to get user from service first (cache-based)
+        Optional<User> userOptional = userService.getUserByUsername(username);
+
+        // Fallback to UserDataService if not found in cache
+        if (userOptional.isEmpty()) {
+            LoggerUtil.debug(this.getClass(),
+                    "User not found in service cache, trying UserDataService for: " + username);
+            userOptional = getUserFromUserDataService(username);
+        }
+
+        if (userOptional.isPresent()) {
+            LoggerUtil.debug(this.getClass(), "Successfully retrieved user data for: " + username);
+            return userOptional.get();
+        } else {
+            LoggerUtil.error(this.getClass(), "User not found in any storage for: " + username);
+            throw new UsernameNotFoundException("User not found after authentication: " + username);
+        }
+    }
+
+    /**
+     * REFACTORED: Handle local storage operations using UserDataService
+     */
+    private void handleLocalStorageOperations(User user) {
+        try {
+            // Validate local directories (DataAccessService utility function)
+            boolean dirsOk = dataAccessService.revalidateLocalDirectories(user.isAdmin());
+            if (!dirsOk) {
+                LoggerUtil.warn(this.getClass(),
+                        "Directory validation failed for user " + user.getUsername() + " - some operations may fail");
+            }
+
+            // Store user data locally using UserDataService
+            storeUserDataLocally(user);
+
+            LoggerUtil.debug(this.getClass(), "Local storage operations completed for: " + user.getUsername());
+
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Failed to handle local storage for %s: %s - continuing with login",
+                    user.getUsername(), e.getMessage()));
+            // Don't throw - local storage failure shouldn't block login
+        }
+    }
+
+    /**
+     * UNCHANGED: Role-based data merges
+     */
+    private void performRoleBasedDataMerges(User user) {
+        String username = user.getUsername();
+        String role = user.getRole();
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Determining data merge operations for user %s with role: %s", username, role));
+
+        // Skip all merges for admin users
+        if (user.isAdmin()) {
+            LoggerUtil.debug(this.getClass(), "Skipping all merges for admin user: " + username);
+            return;
+        }
+
+        // Determine what data this user should have access to based on role
+        UserDataAccessPattern accessPattern = determineUserDataAccessPattern(role);
+
+        switch (accessPattern) {
+            case NORMAL_REGISTER_ONLY:
+                performNormalRegisterMergeOnly(username);
+                break;
+
+            case BOTH_REGISTERS:
+                performNormalRegisterMerge(username);
+                performCheckRegisterMerge(username);
+                break;
+
+            case CHECK_REGISTER_ONLY:
+                performCheckRegisterMergeOnly(username);
+                break;
+
+            case NO_MERGES:
+                LoggerUtil.debug(this.getClass(), "No data merges required for user: " + username);
+                break;
+
+            default:
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Unknown access pattern for user %s with role %s - skipping merges", username, role));
+        }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Completed data merges for user %s (pattern: %s)", username, accessPattern));
+    }
+
+    /**
+     * UNCHANGED: Determine user data access pattern based on role
+     */
+    private UserDataAccessPattern determineUserDataAccessPattern(String role) {
+        if (role == null) {
+            return UserDataAccessPattern.NO_MERGES;
+        }
+
+        // ✅ Check specific roles FIRST
+        if (role.contains(SecurityConstants.ROLE_USER_CHECKING) || role.contains(SecurityConstants.ROLE_TL_CHECKING)) {
+            return UserDataAccessPattern.BOTH_REGISTERS;
+        }
+
+        // ✅ Then check broader roles
+        if (role.contains(SecurityConstants.ROLE_USER) || role.contains(SecurityConstants.ROLE_TEAM_LEADER)) {
+            return UserDataAccessPattern.NORMAL_REGISTER_ONLY;
+        }
+
+        // ✅ Finally check pure CHECKING role
+        if (role.contains(SecurityConstants.ROLE_CHECKING)) {
+            return UserDataAccessPattern.CHECK_REGISTER_ONLY;
+        }
+
+        return UserDataAccessPattern.NO_MERGES;
+    }
+
+    /**
+     * UNCHANGED: Perform normal register merge only (for USER, TEAM_LEADER roles)
+     */
+    private void performNormalRegisterMergeOnly(String username) {
+        try {
+            LoggerUtil.info(this.getClass(), "Performing normal register merge for: " + username);
+            registerMergeService.performUserLoginMerge(username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Normal register merge failed for %s: %s - continuing with login", username, e.getMessage()));
+            // Don't throw - merge failure shouldn't block login
+        }
+    }
+
+    /**
+     * UNCHANGED: Perform check register merge only (for CHECKING role)
+     */
+    private void performCheckRegisterMergeOnly(String username) {
+        try {
+            LoggerUtil.info(this.getClass(), "Performing check register merge for: " + username);
+            checkRegisterService.performCheckRegisterLoginMerge(username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Check register merge failed for %s: %s - continuing with login", username, e.getMessage()));
+            // Don't throw - merge failure shouldn't block login
+        }
+    }
+
+    /**
+     * UNCHANGED: Perform normal register merge (part of both registers pattern)
+     */
+    private void performNormalRegisterMerge(String username) {
+        try {
+            LoggerUtil.info(this.getClass(), "Performing normal register merge (part of both) for: " + username);
+            registerMergeService.performUserLoginMerge(username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Normal register merge (part of both) failed for %s: %s - continuing", username, e.getMessage()));
+            // Don't throw - continue to check register merge
+        }
+    }
+
+    /**
+     * UNCHANGED: Perform check register merge (part of both registers pattern)
+     */
+    private void performCheckRegisterMerge(String username) {
+        try {
+            LoggerUtil.info(this.getClass(), "Performing check register merge (part of both) for: " + username);
+            checkRegisterService.performCheckRegisterLoginMerge(username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Check register merge (part of both) failed for %s: %s - continuing", username, e.getMessage()));
+            // Don't throw - merge failure shouldn't block login
+        }
+    }
+
+    // ========================================================================
+    // REFACTORED HELPER METHODS USING USER DATA SERVICE
+    // ========================================================================
+
+    /**
+     * REFACTORED: Get user from UserDataService instead of DataAccessService
+     */
+    private Optional<User> getUserFromUserDataService(String username) {
+        try {
+            // Use UserDataService authentication method
+            return userDataService.findUserByUsernameForAuthentication(username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(),
+                    "Error reading user from UserDataService: " + e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * REFACTORED: Store user data locally using UserDataService
+     */
+    private void storeUserDataLocally(User user) {
+        try {
+            // Use UserDataService for remember me storage
+            boolean stored = userDataService.storeUserDataForRememberMe(user);
+
+            if (stored) {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Stored complete user data locally for: %s", user.getUsername()));
+            } else {
+                LoggerUtil.error(this.getClass(), String.format(
+                        "Failed to store user data locally for: %s", user.getUsername()));
+                throw new RuntimeException("Failed to store complete user data locally");
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error storing user data locally: %s", e.getMessage()));
+            throw new RuntimeException("Failed to store user data locally", e);
+        }
+    }
+
+    // ========================================================================
+    // ENUM FOR USER DATA ACCESS PATTERNS (UNCHANGED)
+    // ========================================================================
+
+    /**
+     * Enum defining different user data access patterns based on roles
+     */
+    private enum UserDataAccessPattern {
+        NORMAL_REGISTER_ONLY,    // USER, TEAM_LEADER
+        CHECK_REGISTER_ONLY,     // CHECKING
+        BOTH_REGISTERS,          // USER_CHECKING, TL_CHECKING
+        NO_MERGES                // Unknown roles or admin
     }
 }

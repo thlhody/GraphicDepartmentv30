@@ -1,8 +1,10 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.VersionModelAttribute;
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,25 +17,32 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service for logging user activity to individual log files
- * with periodic network synchronization and graceful network failure handling
+ * REFACTORED service for logging user activity to individual log files
+ * with periodic network synchronization and graceful network failure handling.
+ * Now uses SessionDataService for all log operations and UserContextService for user info.
  */
 @Service
 public class UserLogService {
-
     private final DataAccessService dataAccessService;
+    private final SessionDataService sessionDataService;       // NEW - Log operations
+    private final UserContextService userContextService;       // NEW - Current user info
+    private final UserService userService;                     // NEW - User data from cache
 
     // Configurable retry parameters
     private static final int MAX_RETRIES = 5;
     private static final long RETRY_DELAY_MS = 120000; // 2 minutes
 
     @Autowired
-    public UserLogService(DataAccessService dataAccessService) {
+    public UserLogService(DataAccessService dataAccessService, SessionDataService sessionDataService, UserContextService userContextService, UserService userService) {
         this.dataAccessService = dataAccessService;
+        this.sessionDataService = sessionDataService;
+        this.userContextService = userContextService;
+        this.userService = userService;
+        LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**
-     * Scheduled task to sync application logs to network
+     * REFACTORED: Scheduled task to sync application logs to network
      * Runs every 30 minutes
      */
     @Scheduled(fixedRate = 1800000) // 30 minutes in milliseconds
@@ -42,9 +51,10 @@ public class UserLogService {
     }
 
     /**
-     * Sync log for a specific user
+     * REFACTORED: Sync log for a specific user using SessionDataService
      */
     private void syncUserLog(String username) {
+        // Use SessionDataService to check network availability
         if (!dataAccessService.isNetworkAvailable()) {
             LoggerUtil.info(this.getClass(), "Network unavailable, skipping log sync");
             return;
@@ -74,23 +84,23 @@ public class UserLogService {
     }
 
     /**
-     * Manually triggered log sync with graceful network unavailability handling
+     * REFACTORED: Manually triggered log sync with graceful network unavailability handling
      * @return SyncResult with status and message
      */
     public SyncResult manualSync() {
-        // Get username from local users file
+        // Get username from UserContextService (cache-based)
         String username = getLocalUsername();
         LoggerUtil.info(this.getClass(), "Attempting to sync logs for user: " + username);
 
-        // Check network availability first
+        // Check network availability via SessionDataService
         if (!dataAccessService.isNetworkAvailable()) {
             LoggerUtil.warn(this.getClass(), "Network is not available. Cannot sync logs.");
             return new SyncResult(false, "Network is currently unavailable. Log sync will be performed automatically when connection is restored.");
         }
 
         try {
-            // Check if local log file exists
-            if (!dataAccessService.localLogExists()) {
+            // Check if local log file exists using SessionDataService
+            if (!sessionDataService.localLogExists()) {
                 LoggerUtil.warn(this.getClass(), "Local log file does not exist");
                 return new SyncResult(false, "Local log file not found");
             }
@@ -111,7 +121,7 @@ public class UserLogService {
     }
 
     /**
-     * Sync file with robust retry mechanism
+     * REFACTORED: Sync file with robust retry mechanism using SessionDataService
      */
     private boolean syncWithRetry(String username) throws IOException {
         IOException lastException = null;
@@ -121,10 +131,12 @@ public class UserLogService {
 
         for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
-                // Copy log file using DataAccessService with version
-                dataAccessService.syncLogToNetwork(username, currentVersion);
+                // Copy log file using SessionDataService with version
+                sessionDataService.syncLogToNetwork(username, currentVersion);
 
-                LoggerUtil.info(this.getClass(), String.format("Successfully synced log for user %s with version %s on attempt %d", username, currentVersion, (attempt + 1)));
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Successfully synced log for user %s with version %s on attempt %d",
+                        username, currentVersion, (attempt + 1)));
                 return true; // Success
             } catch (IOException e) {
                 lastException = e;
@@ -149,35 +161,48 @@ public class UserLogService {
     }
 
     /**
-     * Get username from local users file
+     * REFACTORED: Get username using UserContextService (cache-based)
      */
     private String getLocalUsername() {
         try {
-            // Read local users file using existing method
-            List<User> users = dataAccessService.readLocalUser();
+            // First try to get current user from UserContextService (cache-based)
+            String currentUsername = userContextService.getCurrentUsername();
 
-            // If users exist, return the first user's username
-            if (users != null && !users.isEmpty()) {
-                return users.get(0).getUsername();
+            // If we got a real user (not "system"), use it
+            if (currentUsername != null && !"system".equals(currentUsername)) {
+                return currentUsername;
             }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error reading local user", e);
-        }
 
-        // Fallback to system username
-        return System.getProperty("user.name");
+            // Fallback: Try to get any local user from UserService (cache-based)
+            List<User> users = userService.getNonAdminUsers(null);
+            if (users != null && !users.isEmpty()) {
+                String fallbackUsername = users.get(0).getUsername();
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Using fallback username from cache: %s", fallbackUsername));
+                return fallbackUsername;
+            }
+
+            // Last resort: system username
+            LoggerUtil.warn(this.getClass(), "No users found in cache, using system username");
+            return System.getProperty("user.name");
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting local username: " + e.getMessage(), e);
+            // Ultimate fallback
+            return System.getProperty("user.name");
+        }
     }
 
     /**
-     * Get list of user logs with version information
+     * REFACTORED: Get list of user logs with version information using SessionDataService
      */
     public List<UserLogInfo> getUserLogsWithVersionInfo() {
-        List<String> usernames = dataAccessService.getUserLogsList();
+        List<String> usernames = sessionDataService.getUserLogsList();
         List<UserLogInfo> userLogsInfo = new ArrayList<>();
 
         for (String username : usernames) {
-            String logFilename = dataAccessService.getLogFilename(username);
-            String version = dataAccessService.extractVersionFromLogFilename(logFilename);
+            String logFilename = sessionDataService.getLogFilename(username);
+            String version = sessionDataService.extractVersionFromLogFilename(logFilename);
             userLogsInfo.add(new UserLogInfo(username, version));
         }
 
@@ -185,10 +210,10 @@ public class UserLogService {
     }
 
     /**
-     * Get log content for a specific user
+     * REFACTORED: Get log content for a specific user using SessionDataService
      */
     public Optional<String> getUserLogContent(String username) {
-        return dataAccessService.getUserLogContent(username);
+        return sessionDataService.getUserLogContent(username);
     }
 
     /**

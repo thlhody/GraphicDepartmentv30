@@ -170,10 +170,6 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             this.lunchBreakDuration = lunchBreakDuration;
         }
 
-        public boolean isStandardEightHourSchedule() {
-            return scheduleHours == WorkCode.INTERVAL_HOURS_C;
-        }
-
         /**
          * Checks if a specific time meets or exceeds the scheduled duration
          */

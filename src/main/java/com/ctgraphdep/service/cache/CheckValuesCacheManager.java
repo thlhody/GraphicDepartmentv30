@@ -22,9 +22,11 @@ public class CheckValuesCacheManager {
         if (username != null && values != null) {
             checkValuesCache.put(username, values);
             // Add detailed logging
-            LoggerUtil.info(this.getClass(), String.format(
-                    "CACHE UPDATE: Cached check values for user %s: workUnitsPerHour=%f, layoutValue=%f",
-                    username, values.getWorkUnitsPerHour(), values.getLayoutValue()));
+            LoggerUtil.info(this.getClass(), String.format("CACHE UPDATE: Cached check values for user %s: " +
+                            "WU/H=%f, Values=LV:%f, KPLV:%f, LCHV:%f, GPTFV:%f, PV:%f, ReV:%f, SV:%f, OMSPV:%f, KPV:%f",
+                    username, values.getWorkUnitsPerHour(), values.getLayoutValue(), values.getKipstaLayoutValue(), values.getLayoutChangesValue(),
+                    values.getGptFilesValue(), values.getProductionValue(), values.getReorderValue(), values.getSampleValue(), values.getOmsProductionValue(),
+                    values.getKipstaProductionValue()));
         }
     }
 
@@ -107,15 +109,10 @@ public class CheckValuesCacheManager {
     private double getDefaultCheckTypeValue(String checkType) {
         return switch (checkType) {
             case "LAYOUT" -> 1.0;
-            case "KIPSTA LAYOUT" -> 0.25;
-            case "LAYOUT CHANGES" -> 0.25;
-            case "GPT" -> 0.1;
-            case "PRODUCTION" -> 0.1;
-            case "REORDER" -> 0.1;
+            case "KIPSTA LAYOUT", "LAYOUT CHANGES" -> 0.25;
             case "SAMPLE" -> 0.3;
-            case "OMS PRODUCTION" -> 0.1;
-            case "KIPSTA PRODUCTION" -> 0.1;
-            default -> 0.1;
+            case "GPT", "PRODUCTION", "REORDER", "OMS PRODUCTION", "KIPSTA PRODUCTION" -> 0.1;
+            default -> 0.11;
         };
     }
 }

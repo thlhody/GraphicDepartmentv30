@@ -1,7 +1,9 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.User;
+import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.StatusCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -10,136 +12,245 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
+/**
+ * REFACTORED UserServiceImpl using StatusCacheService + UserDataService.
+ * User operations: Local writes with network sync + cache updates.
+ * Key Changes:
+ * - All reads from StatusCacheService (cache-based, no file I/O)
+ * - User writes via UserDataService. User*() methods (local → network sync)
+ * - Cache updates after successful writes (write-through pattern)
+ * - No more sanitization (cache provides clean User objects)
+ * - No more batch operations (individual user operations only)
+ */
 @Service
 public class UserServiceImpl implements UserService {
-    private final DataAccessService dataAccessService;
+    private final UserDataService userDataService;           // NEW - User file operations
+    private final StatusCacheService statusCacheService;     // NEW - Cache operations
+    private final UserContextService userContextService;     // NEW - Current user context
     private final PasswordEncoder passwordEncoder;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     @Autowired
-    public UserServiceImpl(DataAccessService dataAccessService, PasswordEncoder passwordEncoder) {
-        this.dataAccessService = dataAccessService;
+    public UserServiceImpl(UserDataService userDataService, StatusCacheService statusCacheService, UserContextService userContextService, PasswordEncoder passwordEncoder) {
+        this.userDataService = userDataService;
+        this.statusCacheService = statusCacheService;
+        this.userContextService = userContextService;
         this.passwordEncoder = passwordEncoder;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    /**
+     * REFACTORED: Get user by username from cache (no passwords)
+     */
     @Override
     public Optional<User> getUserByUsername(String username) {
-        List<User> users = getAllUsers();
-        return users.stream()
-                .filter(user -> user.getUsername() != null && user.getUsername().equals(username))
-                .findFirst()
-                .map(this::sanitizeUser);  // For display/general use
+        Optional<User> user = statusCacheService.getUserAsUserObject(username);
+
+        if (user.isPresent()) {
+            LoggerUtil.debug(this.getClass(), String.format("Retrieved user from cache: %s (ID: %d)", username, user.get().getUserId()));
+        } else {
+            LoggerUtil.debug(this.getClass(), "User not found in cache: " + username);
+        }
+        return user;
     }
 
-    // New method for getting complete user data including sensitive info
-    public Optional<User> getCompleteUserByUsername(String username) {
-        List<User> users = getAllUsers();
-        return users.stream()
-                .filter(user -> user.getUsername() != null && user.getUsername().equals(username))
-                .findFirst();  // Return complete user without sanitization
-    }
-
+    /**
+     * REFACTORED: Get user by ID from cache
+     */
     @Override
     public Optional<User> getUserById(Integer userId) {
-        List<User> users = getAllUsers();
-        return users.stream()
-                .filter(user -> user.getUserId() != null && user.getUserId().equals(userId))
-                .findFirst()
-                .map(this::sanitizeUser);
+        Optional<User> user = statusCacheService.getUserByIdAsUserObject(userId);
+
+        if (user.isPresent()) {
+            LoggerUtil.debug(this.getClass(), String.format("Retrieved user by ID from cache: %d", userId));
+        } else {
+            LoggerUtil.debug(this.getClass(), "User not found by ID in cache: " + userId);
+        }
+        return user;
     }
 
+    /**
+     * REFACTORED: Get all users from cache
+     */
     @Override
     public List<User> getAllUsers() {
-        return dataAccessService.readUsersNetwork();
+        List<User> users = statusCacheService.getAllUsersAsUserObjects();
+
+        LoggerUtil.debug(this.getClass(), String.format("Retrieved %d users from cache", users.size()));
+
+        return users;
     }
 
+    /**
+     * REFACTORED: Get non-admin users from cache
+     */
     @Override
     public List<User> getNonAdminUsers(List<User> allUsers) {
-        return allUsers.stream()
-                .filter(user -> !user.isAdmin())
-                .map(this::sanitizeUser)
-                .collect(Collectors.toList());
+        // Use cache method instead of filtering provided list
+        return statusCacheService.getNonAdminUsersAsUserObjects();
     }
 
+    /**
+     * REFACTORED: Update user with local write + network sync + cache update
+     */
     @Override
     public boolean updateUser(User user) {
         lock.writeLock().lock();
         try {
-            List<User> users = getAllUsers();
-            int index = findUserIndex(users, user.getUserId());
+            String username = user.getUsername();
+            Integer userId = user.getUserId();
 
-            if (index >= 0) {
-                validateUserUpdate(user, users.get(index), users);
-                User existingUser = users.get(index);
-                encryptPassword(user, existingUser);
-                users.set(index, user);
-                saveUsers(users);
-                return true;
+            // Get current user context to determine if this its own data
+            String currentUsername = userContextService.getCurrentUsername();
+
+            // Validate user can update this data
+            if (!currentUsername.equals(username)) {
+                LoggerUtil.warn(this.getClass(), String.format("User %s attempted to update data for %s - access denied", currentUsername, username));
+                return false;
             }
-            return false;
+
+            // Get existing user data to preserve password
+            Optional<User> existingUserOptional = userDataService.userReadLocalReadOnly(username, userId, currentUsername);
+            if (existingUserOptional.isEmpty()) {
+                LoggerUtil.error(this.getClass(), String.format("User update failed: existing user not found %s-%d", username, userId));
+                return false;
+            }
+
+            User existingUser = existingUserOptional.get();
+
+            // Validate update permissions
+            validateUserUpdate(user, existingUser);
+
+            // Handle password preservation
+            encryptPassword(user, existingUser);
+
+            // USER WRITE PATTERN: Local → Network sync
+            userDataService.userWriteLocalWithSyncAndBackup(user);
+
+            // Update cache (write-through)
+            statusCacheService.updateUserInCache(user);
+
+            LoggerUtil.info(this.getClass(), String.format("User successfully updated: %s (ID: %d)", username, userId));
+            return true;
+
         } finally {
             lock.writeLock().unlock();
         }
     }
 
+    /**
+     * REFACTORED: Delete user (admin only - delegates to UserManagementService logic)
+     */
     @Override
     public void deleteUser(Integer userId) {
+
         lock.writeLock().lock();
         try {
-            List<User> users = getAllUsers();
-            Optional<User> userToDelete = users.stream()
-                    .filter(u -> u.getUserId().equals(userId))
-                    .findFirst();
-
-            if (userToDelete.isPresent()) {
-                if (userToDelete.get().isAdmin()) {
-                    throw new IllegalArgumentException("Cannot delete admin user");
-                }
-                users.removeIf(user -> user.getUserId().equals(userId));
-                saveUsers(users);
+            Optional<User> userToDelete = getUserById(userId);
+            if (userToDelete.isEmpty()) {
+                LoggerUtil.warn(this.getClass(), String.format("Delete failed: user ID %d not found", userId));
+                return;
             }
+
+            User user = userToDelete.get();
+            if (user.isAdmin()) {
+                throw new IllegalArgumentException("Cannot delete admin user");
+            }
+
+            String username = user.getUsername();
+
+            // ADMIN DELETE PATTERN: Direct network delete (since this is admin operation)
+            boolean deleted = userDataService.adminDeleteUserNetworkOnly(username, userId);
+
+            if (deleted) {
+                // Remove from cache
+                statusCacheService.removeUserFromCache(username);
+
+                LoggerUtil.info(this.getClass(), String.format("Successfully deleted user: %s (ID: %d)", username, userId));
+            } else {
+                LoggerUtil.error(this.getClass(), String.format("Failed to delete user file: %s-%d", username, userId));
+            }
+
         } finally {
             lock.writeLock().unlock();
         }
     }
 
+    /**
+     * REFACTORED: Change password for current user (users can only change their own)
+     */
     @Override
     public boolean changePassword(Integer userId, String currentPassword, String newPassword) {
         lock.writeLock().lock();
         try {
-            List<User> users = getAllUsers();
-            int index = findUserIndex(users, userId);
+            // Get current user context
+            String currentUsername = userContextService.getCurrentUsername();
+            Integer currentUserId = userContextService.getCurrentUserId();
 
-            if (index >= 0) {
-                User user = users.get(index);
-                if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-                    return false;
-                }
-
-                user.setPassword(passwordEncoder.encode(newPassword));
-                users.set(index, user);
-                saveUsers(users);
-                return true;
+            // Users can only change their own password (unless admin)
+            if (!userContextService.isCurrentUserAdmin() && !userId.equals(currentUserId)) {
+                LoggerUtil.warn(this.getClass(), String.format("User %s attempted to change password for user ID %d - access denied", currentUsername, userId));
+                return false;
             }
-            return false;
+
+            // Get user from cache first
+            Optional<User> userOptional = getUserById(userId);
+            if (userOptional.isEmpty()) {
+                LoggerUtil.warn(this.getClass(), String.format("Password change failed: user ID %d not found", userId));
+                return false;
+            }
+
+            User user = userOptional.get();
+            String username = user.getUsername();
+
+            // Read complete user data with password
+            Optional<User> completeUser = userDataService.userReadLocalReadOnly(username, userId, currentUsername);
+            if (completeUser.isEmpty()) {
+                LoggerUtil.warn(this.getClass(), String.format("Password change failed: complete user data not found %s-%d", username, userId));
+                return false;
+            }
+
+            User userWithPassword = completeUser.get();
+
+            // Verify current password
+            if (!passwordEncoder.matches(currentPassword, userWithPassword.getPassword())) {
+                LoggerUtil.info(this.getClass(), String.format("Password change failed for user ID %d: incorrect current password", userId));
+                return false;
+            }
+
+            // Update password
+            userWithPassword.setPassword(passwordEncoder.encode(newPassword));
+
+            // USER WRITE PATTERN: Local → Network sync
+            userDataService.userWriteLocalWithSyncAndBackup(userWithPassword);
+
+            // Update cache (password won't be stored in cache, but other data might have changed)
+            statusCacheService.updateUserInCache(userWithPassword);
+
+            LoggerUtil.info(this.getClass(), String.format("Successfully changed password for user ID %d", userId));
+            return true;
+
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    private void saveUsers(List<User> users) {
-        try {
-            dataAccessService.writeUsersNetwork(users);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Failed to save users: " + e.getMessage());
-            throw new RuntimeException("Failed to save users", e);
-        }
+    /**
+     * Find user by employee ID (cache-based)
+     */
+    public Optional<User> findByEmployeeId(Integer employeeId) {
+        return getAllUsers().stream().filter(user -> employeeId.equals(user.getEmployeeId())).findFirst();
     }
 
-    private void validateUserUpdate(User user, User existingUser, List<User> allUsers) {
+    // ========================================================================
+    // VALIDATION METHODS (UPDATED)
+    // ========================================================================
+
+    /**
+     * REFACTORED: Validate user update using cache data
+     */
+    private void validateUserUpdate(User user, User existingUser) {
         if (existingUser.isAdmin() && !user.isAdmin()) {
             throw new IllegalArgumentException("Cannot remove admin role");
         }
@@ -148,15 +259,18 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Cannot grant admin role");
         }
 
-        boolean usernameExists = allUsers.stream()
-                .anyMatch(other -> other.getUsername().equals(user.getUsername()) &&
-                        !other.getUserId().equals(user.getUserId()));
+        // Check username uniqueness using cache
+        List<User> allUsers = getAllUsers();
+        boolean usernameExists = allUsers.stream().anyMatch(other -> other.getUsername().equals(user.getUsername()) && !other.getUserId().equals(user.getUserId()));
 
         if (usernameExists) {
             throw new IllegalArgumentException("Username already exists");
         }
     }
 
+    /**
+     * Handle password encryption (preserve existing if not provided)
+     */
     private void encryptPassword(User user, User existingUser) {
         if (user.getPassword() == null || user.getPassword().isEmpty()) {
             // If updating and no new password provided, keep existing password
@@ -167,53 +281,5 @@ public class UserServiceImpl implements UserService {
             // If password is not already encrypted, encrypt it
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
-    }
-
-
-    private int findUserIndex(List<User> users, Integer userId) {
-        for (int i = 0; i < users.size(); i++) {
-            if (users.get(i).getUserId().equals(userId)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private User sanitizeUser(User user) {
-        if (user == null) {
-            LoggerUtil.error(this.getClass(), "Attempting to sanitize null user");
-            return null;
-        }
-
-        try {
-            User sanitized = new User();
-            sanitized.setUserId(user.getUserId());
-            sanitized.setUsername(user.getUsername());
-            sanitized.setName(user.getName());       // Make sure this is preserved
-            sanitized.setEmployeeId(user.getEmployeeId());
-            sanitized.setSchedule(user.getSchedule());
-            sanitized.setRole(user.getRole());
-
-            // Verify sanitized user
-            if (sanitized.getName() == null) {
-                LoggerUtil.warn(this.getClass(), String.format("Sanitized user '%s' has null name (original name: %s)", sanitized.getUsername(), user.getName()));
-            }
-
-            // Log sanitization results
-//            LoggerUtil.debug(this.getClass(), String.format("Found user by username '%s': Yes", user.getUsername()));
-//            LoggerUtil.debug(this.getClass(), String.format("User details - ID: %d, Name: %s", user.getUserId(), user.getName()));
-//            LoggerUtil.debug(this.getClass(), String.format("Sanitized user details - ID: %d, Name: %s", sanitized.getUserId(), sanitized.getName()));
-
-            return sanitized;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error sanitizing user: %s", e.getMessage()));
-            throw new RuntimeException("Failed to sanitize user", e);
-        }
-    }
-
-    public Optional<User> findByEmployeeId(Integer employeeId) {
-        return getAllUsers().stream()
-                .filter(user -> employeeId.equals(user.getEmployeeId()))
-                .findFirst();
     }
 }

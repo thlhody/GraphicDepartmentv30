@@ -43,19 +43,12 @@ public class AdminStatisticsService {
 
     private List<RegisterEntry> getAllEntriesForMonth(Integer year, Integer month) {
         List<RegisterEntry> allEntries = new ArrayList<>();
-        List<User> users = userService.getAllUsers().stream()
-                .filter(user -> !user.isAdmin())
-                .toList();
+        List<User> users = userService.getAllUsers().stream().filter(user -> !user.isAdmin()).toList();
 
         for (User user : users) {
             try {
                 // Use readUserRegister method with isAdmin set to true to read from network path
-                List<RegisterEntry> userEntries = registerDataService.readUserFromNetworkOnly(
-                        user.getUsername(),
-                        user.getUserId(),
-                        year,
-                        month
-                );
+                List<RegisterEntry> userEntries = registerDataService.readUserFromNetworkOnly(user.getUsername(), user.getUserId(), year, month);
 
                 if (userEntries != null) {
                     allEntries.addAll(userEntries);
@@ -69,56 +62,31 @@ public class AdminStatisticsService {
 
     private ChartDataDTO calculateClientDistribution(List<RegisterEntry> entries) {
         Map<String, Integer> distribution = entries.stream()
-                .collect(Collectors.groupingBy(
-                        RegisterEntry::getClientName,
-                        Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
-                ));
+                .collect(Collectors.groupingBy(RegisterEntry::getClientName, Collectors.collectingAndThen(Collectors.counting(), Long::intValue)));
 
-        return ChartDataDTO.builder()
-                .labels(new ArrayList<>(distribution.keySet()))
-                .data(new ArrayList<>(distribution.values()))
-                .build();
+        return ChartDataDTO.builder().labels(new ArrayList<>(distribution.keySet())).data(new ArrayList<>(distribution.values())).build();
     }
 
     private ChartDataDTO calculateActionTypeDistribution(List<RegisterEntry> entries) {
         Map<String, Integer> distribution = entries.stream()
-                .collect(Collectors.groupingBy(
-                        RegisterEntry::getActionType,
-                        Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
-                ));
+                .collect(Collectors.groupingBy(RegisterEntry::getActionType, Collectors.collectingAndThen(Collectors.counting(), Long::intValue)));
 
-        return ChartDataDTO.builder()
-                .labels(new ArrayList<>(distribution.keySet()))
-                .data(new ArrayList<>(distribution.values()))
-                .build();
+        return ChartDataDTO.builder().labels(new ArrayList<>(distribution.keySet())).data(new ArrayList<>(distribution.values())).build();
     }
 
     private ChartDataDTO calculatePrintPrepTypeDistribution(List<RegisterEntry> entries) {
-        Map<String, Integer> distribution = entries.stream()
-                .flatMap(entry -> entry.getPrintPrepTypes().stream())
-                .collect(Collectors.groupingBy(
-                        type -> type,
-                        Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
-                ));
+        Map<String, Integer> distribution = entries.stream().flatMap(entry -> entry.getPrintPrepTypes().stream())
+                .collect(Collectors.groupingBy(type -> type, Collectors.collectingAndThen(Collectors.counting(), Long::intValue)));
 
-        return ChartDataDTO.builder()
-                .labels(new ArrayList<>(distribution.keySet()))
-                .data(new ArrayList<>(distribution.values()))
-                .build();
+        return ChartDataDTO.builder().labels(new ArrayList<>(distribution.keySet())).data(new ArrayList<>(distribution.values())).build();
     }
 
     private double calculateAverageArticles(List<RegisterEntry> entries) {
-        return entries.stream()
-                .mapToInt(RegisterEntry::getArticleNumbers)
-                .average()
-                .orElse(0.0);
+        return entries.stream().mapToInt(RegisterEntry::getArticleNumbers).average().orElse(0.0);
     }
 
     private double calculateAverageComplexity(List<RegisterEntry> entries) {
-        return entries.stream()
-                .mapToDouble(RegisterEntry::getGraphicComplexity)
-                .average()
-                .orElse(0.0);
+        return entries.stream().mapToDouble(RegisterEntry::getGraphicComplexity).average().orElse(0.0);
     }
 
     public Map<String, Map<String, Integer>> getMonthlyEntriesForYear(Integer year) {
@@ -128,23 +96,17 @@ public class AdminStatisticsService {
 
         // Initialize all months with 0
         String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-        Arrays.asList(months).forEach(month -> {
-            regularEntries.put(month, 0);
-            spizedEntries.put(month, 0);
-        });
+        Arrays.asList(months).forEach(month -> {regularEntries.put(month, 0);spizedEntries.put(month, 0);});
 
         // For each month
         for (int month = 1; month <= 12; month++) {
             List<RegisterEntry> entries = getAllEntriesForMonth(year, month);
 
             // Count regular entries (excluding IMPOSTARE and ORDIN SPIZED)
-            int regularCount = (int) entries.stream()
-                    .filter(entry -> !"IMPOSTARE".equals(entry.getActionType())
-                            && !"ORDIN SPIZED".equals(entry.getActionType()))
-                    .count();
+            int regularCount = (int) entries.stream().filter(entry -> !"IMPOSTARE".equals(entry.getActionType()) && !"SPIZED".contains(entry.getActionType())).count();
 
             // Count ORDIN SPIZED entries
-            int spizedCount = (int) entries.stream().filter(entry -> "ORDIN SPIZED".equals(entry.getActionType())).count();
+            int spizedCount = (int) entries.stream().filter(entry -> "SPIZED".contains(entry.getActionType())).count();
 
             regularEntries.put(months[month - 1], regularCount);
             spizedEntries.put(months[month - 1], spizedCount);
@@ -169,9 +131,7 @@ public class AdminStatisticsService {
         }
 
         // Count entries per day
-        entries.stream()
-                .filter(entry -> !"IMPOSTARE".equals(entry.getActionType()))
-                .forEach(entry -> {
+        entries.stream().filter(entry -> !"IMPOSTARE".equals(entry.getActionType())).forEach(entry -> {
                     Integer day = entry.getDate().getDayOfMonth();
                     dailyEntries.merge(day, 1, Integer::sum);
                 });

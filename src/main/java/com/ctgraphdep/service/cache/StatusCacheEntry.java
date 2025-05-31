@@ -1,5 +1,6 @@
 package com.ctgraphdep.service.cache;
 
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusInfo;
 import com.ctgraphdep.model.dto.UserStatusDTO;
 import lombok.Data;
@@ -9,7 +10,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Thread-safe cache entry for user status data.
- * Manages status information with thread-safe operations.
+ * Enhanced to store complete user information for cache-based operations.
  */
 @Data
 public class StatusCacheEntry {
@@ -24,6 +25,11 @@ public class StatusCacheEntry {
     private String status;
     private LocalDateTime lastActive;
     private String role;
+
+    // === ADDITIONAL USER DATA (for complete User object conversion) ===
+    private Integer employeeId;
+    private Integer schedule;
+    private Integer paidHolidayDays;
 
     // === CACHE METADATA ===
     private long lastUpdated;
@@ -56,6 +62,45 @@ public class StatusCacheEntry {
             this.status = statusInfo.getStatus();
             this.lastActive = statusInfo.getLastActive();
             this.role = statusInfo.getRole();
+
+            // Note: UserStatusInfo doesn't contain employeeId, schedule, paidHolidayDays
+            // These will need to be set separately or loaded from User data
+
+            // Update metadata
+            this.lastUpdated = System.currentTimeMillis();
+            this.initialized = true;
+
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Initialize cache entry from complete User data (thread-safe)
+     * This is the preferred method for complete user information
+     * @param user Complete user object
+     * @param defaultStatus Default status to set if no current status
+     */
+    public void initializeFromCompleteUser(User user, String defaultStatus) {
+        lock.writeLock().lock();
+        try {
+            if (user == null) {
+                this.initialized = false;
+                return;
+            }
+
+            // Set all user fields
+            this.username = user.getUsername();
+            this.userId = user.getUserId();
+            this.name = user.getName();
+            this.role = user.getRole();
+            this.employeeId = user.getEmployeeId();
+            this.schedule = user.getSchedule();
+            this.paidHolidayDays = user.getPaidHolidayDays();
+
+            // Set default status (will be updated by network flags)
+            this.status = defaultStatus;
+            this.lastActive = null; // No activity yet
 
             // Update metadata
             this.lastUpdated = System.currentTimeMillis();
@@ -92,11 +137,14 @@ public class StatusCacheEntry {
     }
 
     /**
-     * Update user information (name, role) from UserService data (thread-safe)
+     * Update user information (name, role, employeeId, schedule, holidayDays) from UserService data (thread-safe)
      * @param name User's display name
      * @param role User's role
+     * @param employeeId Employee ID
+     * @param schedule Work schedule
+     * @param paidHolidayDays Paid holiday days
      */
-    public void updateUserInfo(String name, String role) {
+    public void updateUserInfo(String name, String role, Integer employeeId, Integer schedule, Integer paidHolidayDays) {
         lock.writeLock().lock();
         try {
             if (!initialized) {
@@ -105,10 +153,68 @@ public class StatusCacheEntry {
 
             this.name = name;
             this.role = role;
+            this.employeeId = employeeId;
+            this.schedule = schedule;
+            this.paidHolidayDays = paidHolidayDays;
             this.lastUpdated = System.currentTimeMillis();
 
         } finally {
             lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Update user information from User object (thread-safe)
+     * @param user Complete user object with updated information
+     */
+    public void updateFromUser(User user) {
+        lock.writeLock().lock();
+        try {
+            if (!initialized || user == null) {
+                return;
+            }
+
+            // Update all user info (keep current status and lastActive)
+            this.name = user.getName();
+            this.role = user.getRole();
+            this.employeeId = user.getEmployeeId();
+            this.schedule = user.getSchedule();
+            this.paidHolidayDays = user.getPaidHolidayDays();
+            this.lastUpdated = System.currentTimeMillis();
+
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Convert cache entry to complete User object (thread-safe)
+     * This is the key method for cache-based user operations
+     * @return Complete User object without password
+     */
+    public User toUser() {
+        lock.readLock().lock();
+        try {
+            if (!initialized) {
+                return null;
+            }
+
+            User user = new User();
+            user.setUserId(this.userId);
+            user.setUsername(this.username);
+            user.setName(this.name);
+            user.setRole(this.role);
+            user.setEmployeeId(this.employeeId);
+            user.setSchedule(this.schedule);
+            user.setPaidHolidayDays(this.paidHolidayDays);
+
+            // Don't set password - this is cache data
+            user.setPassword(null);
+
+            return user;
+
+        } finally {
+            lock.readLock().unlock();
         }
     }
 
@@ -195,6 +301,11 @@ public class StatusCacheEntry {
             this.status = defaultStatus;
             this.lastActive = null; // No activity yet
 
+            // These will need to be populated separately or from complete User data
+            this.employeeId = null;
+            this.schedule = null;
+            this.paidHolidayDays = null;
+
             this.lastUpdated = System.currentTimeMillis();
             this.initialized = true;
 
@@ -215,6 +326,9 @@ public class StatusCacheEntry {
             this.status = null;
             this.lastActive = null;
             this.role = null;
+            this.employeeId = null;
+            this.schedule = null;
+            this.paidHolidayDays = null;
 
             this.lastUpdated = 0;
             this.initialized = false;
@@ -238,6 +352,21 @@ public class StatusCacheEntry {
     }
 
     /**
+     * Check if entry has complete user data (not just status data)
+     * @return true if has employeeId, schedule, paidHolidayDays
+     */
+    public boolean hasCompleteUserData() {
+        lock.readLock().lock();
+        try {
+            return initialized && employeeId != null && schedule != null && paidHolidayDays != null;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    // === PRIVATE HELPER METHODS ===
+
+    /**
      * Format datetime for display
      */
     private String formatDateTime(LocalDateTime dateTime) {
@@ -245,5 +374,12 @@ public class StatusCacheEntry {
             return "--/--/---- :: --:--";
         }
         return dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    /**
+     * Check if role indicates admin user
+     */
+    private boolean isAdminRole(String role) {
+        return role != null && (role.equals("ROLE_ADMIN") || role.contains("ADMIN"));
     }
 }

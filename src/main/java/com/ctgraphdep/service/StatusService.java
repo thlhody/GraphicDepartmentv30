@@ -5,6 +5,7 @@ import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.model.dto.*;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -75,10 +76,8 @@ public class StatusService {
     }
 
     // Loads register entries for search functionality.
-    public List<RegisterEntry> loadRegisterEntriesForSearch(User user, String searchTerm, LocalDate startDate,
-                                                            LocalDate endDate, String actionType, String printPrepTypes,
-                                                            String clientName, Integer requestedYear, Integer requestedMonth,
-                                                            int displayYear, int displayMonth) {
+    public List<RegisterEntry> loadRegisterEntriesForSearch(User user, String searchTerm, LocalDate startDate, LocalDate endDate, String actionType, String printPrepTypes,
+                                                            String clientName, Integer requestedYear, Integer requestedMonth, int displayYear, int displayMonth) {
         List<RegisterEntry> entriesToSearch;
 
         // Case 1: Date range specified that spans multiple months
@@ -97,14 +96,7 @@ public class StatusService {
         }
 
         // Apply all filters
-        return filterRegisterEntries(
-                entriesToSearch,
-                searchTerm,
-                startDate,
-                endDate,
-                actionType,
-                printPrepTypes,
-                clientName);
+        return filterRegisterEntries(entriesToSearch, searchTerm, startDate, endDate, actionType, printPrepTypes, clientName);
     }
 
     // Load register entries for a period using an optimized read-only approach
@@ -119,17 +111,32 @@ public class StatusService {
     }
 
     // Loads all relevant entries for filtering and exporting.
-    public List<RegisterEntry> loadAllRelevantEntries(User user, Integer year, Integer month,
-                                                      LocalDate startDate, LocalDate endDate) {
+    public List<RegisterEntry> loadAllRelevantEntries(User user, Integer year, Integer month, LocalDate startDate, LocalDate endDate) {
         List<RegisterEntry> allEntries = new ArrayList<>();
         LocalDate currentDate = getStandardCurrentDate();
+        List<String> warnings = new ArrayList<>();
 
         // If specific year and month provided
         if (year != null && month != null) {
-            List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), year, month);
-            if (monthEntries != null) {
-                allEntries.addAll(monthEntries);
+            ServiceResult<List<RegisterEntry>> monthEntriesResult = userRegisterService.loadMonthEntries(
+                    user.getUsername(), user.getUserId(), year, month);
+
+            if (monthEntriesResult.isSuccess()) {
+                List<RegisterEntry> monthEntries = monthEntriesResult.getData();
+                if (monthEntries != null) {
+                    allEntries.addAll(monthEntries);
+                }
+
+                // Collect warnings if any
+                if (monthEntriesResult.hasWarnings()) {
+                    warnings.addAll(monthEntriesResult.getWarnings());
+                }
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("Failed to load entries for %s - %d/%d: %s",
+                        user.getUsername(), year, month, monthEntriesResult.getErrorMessage()));
             }
+
+            logWarningsIfPresent(warnings, user.getUsername());
             return allEntries;
         }
 
@@ -140,16 +147,28 @@ public class StatusService {
 
             YearMonth current = start;
             while (!current.isAfter(end)) {
-                try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+                ServiceResult<List<RegisterEntry>> monthEntriesResult = userRegisterService.loadMonthEntries(
+                        user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+
+                if (monthEntriesResult.isSuccess()) {
+                    List<RegisterEntry> monthEntries = monthEntriesResult.getData();
                     if (monthEntries != null) {
                         allEntries.addAll(monthEntries);
                     }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
+
+                    // Collect warnings if any
+                    if (monthEntriesResult.hasWarnings()) {
+                        warnings.addAll(monthEntriesResult.getWarnings());
+                    }
+                } else {
+                    LoggerUtil.warn(this.getClass(), String.format("Failed to load entries for %s - %d/%d: %s",
+                            user.getUsername(), current.getYear(), current.getMonthValue(), monthEntriesResult.getErrorMessage()));
                 }
+
                 current = current.plusMonths(1);
             }
+
+            logWarningsIfPresent(warnings, user.getUsername());
             return allEntries;
         }
 
@@ -160,63 +179,104 @@ public class StatusService {
 
             YearMonth current = start;
             while (!current.isAfter(now)) {
-                try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+                ServiceResult<List<RegisterEntry>> monthEntriesResult = userRegisterService.loadMonthEntries(
+                        user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+
+                if (monthEntriesResult.isSuccess()) {
+                    List<RegisterEntry> monthEntries = monthEntriesResult.getData();
                     if (monthEntries != null) {
                         allEntries.addAll(monthEntries);
                     }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
+
+                    // Collect warnings if any
+                    if (monthEntriesResult.hasWarnings()) {
+                        warnings.addAll(monthEntriesResult.getWarnings());
+                    }
+                } else {
+                    LoggerUtil.warn(this.getClass(), String.format("Failed to load entries for %s - %d/%d: %s",
+                            user.getUsername(), current.getYear(), current.getMonthValue(), monthEntriesResult.getErrorMessage()));
                 }
+
                 current = current.plusMonths(1);
             }
+
+            logWarningsIfPresent(warnings, user.getUsername());
             return allEntries;
         }
 
         // If only year provided, load all months for that year
         if (year != null) {
             for (int m = 1; m <= 12; m++) {
-                try {
-                    List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), year, m);
+                ServiceResult<List<RegisterEntry>> monthEntriesResult = userRegisterService.loadMonthEntries(
+                        user.getUsername(), user.getUserId(), year, m);
+
+                if (monthEntriesResult.isSuccess()) {
+                    List<RegisterEntry> monthEntries = monthEntriesResult.getData();
                     if (monthEntries != null) {
                         allEntries.addAll(monthEntries);
                     }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), year, m, e.getMessage()));
+
+                    // Collect warnings if any
+                    if (monthEntriesResult.hasWarnings()) {
+                        warnings.addAll(monthEntriesResult.getWarnings());
+                    }
+                } else {
+                    LoggerUtil.warn(this.getClass(), String.format("Failed to load entries for %s - %d/%d: %s",
+                            user.getUsername(), year, m, monthEntriesResult.getErrorMessage()));
                 }
             }
+
+            logWarningsIfPresent(warnings, user.getUsername());
             return allEntries;
         }
 
         // Default: load current month and previous month
+        // Load current month
+        ServiceResult<List<RegisterEntry>> currentMonthResult = userRegisterService.loadMonthEntries(
+                user.getUsername(), user.getUserId(), currentDate.getYear(), currentDate.getMonthValue());
 
-        try {
-            List<RegisterEntry> currentMonthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), currentDate.getYear(), currentDate.getMonthValue());
+        if (currentMonthResult.isSuccess()) {
+            List<RegisterEntry> currentMonthEntries = currentMonthResult.getData();
             if (currentMonthEntries != null) {
                 allEntries.addAll(currentMonthEntries);
             }
 
-            // Previous month
-            LocalDate prevMonth = currentDate.minusMonths(1);
-            List<RegisterEntry> prevMonthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), prevMonth.getYear(), prevMonth.getMonthValue());
+            // Collect warnings if any
+            if (currentMonthResult.hasWarnings()) {
+                warnings.addAll(currentMonthResult.getWarnings());
+            }
+        } else {
+            LoggerUtil.warn(this.getClass(), String.format("Failed to load current month entries for %s: %s",
+                    user.getUsername(), currentMonthResult.getErrorMessage()));
+        }
+
+        // Load previous month
+        LocalDate prevMonth = currentDate.minusMonths(1);
+        ServiceResult<List<RegisterEntry>> prevMonthResult = userRegisterService.loadMonthEntries(
+                user.getUsername(), user.getUserId(), prevMonth.getYear(), prevMonth.getMonthValue());
+
+        if (prevMonthResult.isSuccess()) {
+            List<RegisterEntry> prevMonthEntries = prevMonthResult.getData();
             if (prevMonthEntries != null) {
                 allEntries.addAll(prevMonthEntries);
             }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format("Error loading recent entries for %s: %s", user.getUsername(), e.getMessage()));
+
+            // Collect warnings if any
+            if (prevMonthResult.hasWarnings()) {
+                warnings.addAll(prevMonthResult.getWarnings());
+            }
+        } else {
+            LoggerUtil.warn(this.getClass(), String.format("Failed to load previous month entries for %s: %s",
+                    user.getUsername(), prevMonthResult.getErrorMessage()));
         }
 
+        logWarningsIfPresent(warnings, user.getUsername());
         return allEntries;
     }
 
     // Filter register entries based on search criteria.
-    public List<RegisterEntry> filterRegisterEntries(List<RegisterEntry> entries,
-                                                     String searchTerm,
-                                                     LocalDate startDate,
-                                                     LocalDate endDate,
-                                                     String actionType,
-                                                     String printPrepTypes,
-                                                     String clientName) {
+    public List<RegisterEntry> filterRegisterEntries(List<RegisterEntry> entries, String searchTerm, LocalDate startDate,
+                                                     LocalDate endDate, String actionType, String printPrepTypes, String clientName) {
         List<RegisterEntry> filteredEntries = new ArrayList<>(entries);
 
         // Filter by search term (search across multiple fields)
@@ -269,63 +329,98 @@ public class StatusService {
 
     private List<RegisterEntry> loadRegisterEntriesForDateRange(User user, LocalDate startDate, LocalDate endDate) {
         List<RegisterEntry> allEntries = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
 
         YearMonth start = YearMonth.from(startDate);
         YearMonth end = YearMonth.from(endDate);
 
         YearMonth current = start;
         while (!current.isAfter(end)) {
-            try {
-                List<RegisterEntry> monthEntries = userRegisterService.loadMonthEntries(user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
+            ServiceResult<List<RegisterEntry>> monthEntriesResult = userRegisterService.loadMonthEntries(
+                    user.getUsername(), user.getUserId(), current.getYear(), current.getMonthValue());
 
+            if (monthEntriesResult.isSuccess()) {
+                List<RegisterEntry> monthEntries = monthEntriesResult.getData();
                 if (monthEntries != null) {
                     allEntries.addAll(monthEntries);
                 }
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), String.format("Error loading entries for %s - %d/%d: %s", user.getUsername(), current.getYear(), current.getMonthValue(), e.getMessage()));
+
+                // Collect warnings if any
+                if (monthEntriesResult.hasWarnings()) {
+                    warnings.addAll(monthEntriesResult.getWarnings());
+                    LoggerUtil.debug(this.getClass(), String.format("Loaded entries for %s - %d/%d with warnings: %s",
+                            user.getUsername(), current.getYear(), current.getMonthValue(),
+                            String.join(", ", monthEntriesResult.getWarnings())));
+                }
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("Failed to load entries for %s - %d/%d: %s",
+                        user.getUsername(), current.getYear(), current.getMonthValue(), monthEntriesResult.getErrorMessage()));
             }
 
             current = current.plusMonths(1);
         }
 
+        // Log summary of warnings if any were collected
+        logWarningsIfPresent(warnings, user.getUsername());
+
+        LoggerUtil.info(this.getClass(), String.format("Loaded %d total entries for %s from %s to %s",
+                allEntries.size(), user.getUsername(), startDate, endDate));
+
         return allEntries;
     }
 
-    // Gets TimeOffTracker data for a user for a specific year in read-only mode
+    /**
+     * Gets TimeOffTracker data for a user for a specific year in read-only mode.
+     * Updated to use the refactored TimeOffManagementService.
+     */
     public TimeOffTracker getTimeOffTrackerReadOnly(String username, Integer userId, int year) {
         try {
-            LoggerUtil.info(this.getClass(), String.format("Retrieving time off tracker for user %s for year %d in read-only mode", username, year));
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Retrieving time off tracker for user %s for year %d in read-only mode", username, year));
 
-            // Use the read-only method from TimeOffManagementService
-            TimeOffTracker tracker = timeOffManagementService.loadTimeOffTrackerReadOnly(username, userId, year);
+            // Use the main method from TimeOffManagementService
+            // It automatically handles own-data vs other-user-data based on security context
+            TimeOffTracker tracker = timeOffManagementService.getYearTracker(username, userId, year);
 
             if (tracker != null) {
-                LoggerUtil.info(this.getClass(), String.format("Successfully retrieved time off tracker for %s with %d requests", username, tracker.getRequests().size()));
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Successfully retrieved time off tracker for %s with %d requests",
+                        username, tracker.getRequests() != null ? tracker.getRequests().size() : 0));
             } else {
-                LoggerUtil.info(this.getClass(), String.format("No time off tracker found for user %s for year %d", username, year));
+                LoggerUtil.info(this.getClass(), String.format(
+                        "No time off tracker found for user %s for year %d", username, year));
             }
 
             return tracker;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error retrieving time off tracker for %s (%d): %s", username, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error retrieving time off tracker for %s (%d): %s", username, year, e.getMessage()));
             return null;
         }
     }
 
-    // Gets time off data from TimeOffTracker file in a format compatible with the existing view. Only returns APPROVED records.
+    /**
+     * Gets time off data from TimeOffTracker in a format compatible with the existing view.
+     * Only returns APPROVED records.
+     * Updated to use the refactored TimeOffManagementService.
+     */
     public List<WorkTimeTable> getApprovedTimeOffFromTracker(String username, Integer userId, int year) {
         try {
-            LoggerUtil.info(this.getClass(), String.format("Getting approved time off from tracker for user %s for year %d", username, year));
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Getting approved time off from tracker for user %s for year %d", username, year));
 
-            // Get the tracker directly using read-only method
-            TimeOffTracker tracker = timeOffManagementService.loadTimeOffTrackerReadOnly(username, userId, year);
+            // Use the main method from TimeOffManagementService
+            // It automatically handles own-data vs other-user-data based on security context
+            TimeOffTracker tracker = timeOffManagementService.getYearTracker(username, userId, year);
 
             if (tracker == null || tracker.getRequests() == null || tracker.getRequests().isEmpty()) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "No tracker or requests found for %s - %d", username, year));
                 return new ArrayList<>();
             }
 
             // Convert approved requests to WorkTimeTable entries
-            return tracker.getRequests().stream()
+            List<WorkTimeTable> approvedEntries = tracker.getRequests().stream()
                     .filter(request -> "APPROVED".equals(request.getStatus()))
                     .map(request -> {
                         WorkTimeTable entry = new WorkTimeTable();
@@ -336,20 +431,44 @@ public class StatusService {
                     })
                     .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
                     .collect(Collectors.toList());
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Converted %d approved requests to WorkTimeTable entries for %s",
+                    approvedEntries.size(), username));
+
+            return approvedEntries;
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error getting approved time off from tracker for %s (%d): %s", username, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error getting approved time off from tracker for %s (%d): %s", username, year, e.getMessage()));
             return new ArrayList<>();
         }
     }
-    // Gets time off summary directly from TimeOffTracker file. This only counts APPROVED requests.
-    public TimeOffSummaryDTO getTimeOffSummaryFromTracker(String username, int year) {
-        try {
-            LoggerUtil.info(this.getClass(), String.format("Calculating time off summary from tracker for user %s for year %d", username, year));
 
-            // Delegate to TimeOffManagementService for calculation
-            return timeOffManagementService.calculateTimeOffSummaryReadOnly(username, year);
+    /**
+     * Gets time off summary directly from TimeOffTracker. This only counts APPROVED requests.
+     * Updated to use the refactored TimeOffManagementService.
+     */
+    public TimeOffSummaryDTO getTimeOffSummaryFromTracker(String username, int userId, int year) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Calculating time off summary from tracker for user %s for year %d", username, year));
+
+            // Use the main method from TimeOffManagementService
+            // It automatically handles own-data vs other-user-data based on security context
+            TimeOffSummaryDTO summary = timeOffManagementService.calculateTimeOffSummary(username, userId, year);
+
+            if (summary != null) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Successfully calculated summary for %s: CO=%d, SN=%d, CM=%d",
+                        username, summary.getCoDays(), summary.getSnDays(), summary.getCmDays()));
+            }
+
+            return summary;
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error calculating time off summary from tracker for %s (%d): %s", username, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error calculating time off summary from tracker for %s (%d): %s", username, year, e.getMessage()));
 
             // Return default summary on error
             return TimeOffSummaryDTO.builder()
@@ -385,9 +504,8 @@ public class StatusService {
     }
 
     // Filter check register entries based on search criteria.
-    public List<RegisterCheckEntry> filterCheckRegisterEntries(
-            List<RegisterCheckEntry> entries, String searchTerm, LocalDate startDate, LocalDate endDate,
-            String checkType, String designerName, String approvalStatus) {
+    public List<RegisterCheckEntry> filterCheckRegisterEntries(List<RegisterCheckEntry> entries, String searchTerm, LocalDate startDate, LocalDate endDate,
+                                                               String checkType, String designerName, String approvalStatus) {
 
         List<RegisterCheckEntry> filteredEntries = new ArrayList<>(entries);
 
@@ -432,7 +550,6 @@ public class StatusService {
         return filteredEntries;
     }
 
-    // Calculate check register summary statistics
     // Calculate check register summary statistics
     public Map<String, Object> calculateCheckRegisterSummary(List<RegisterCheckEntry> entries) {
         Map<String, Object> summary = new HashMap<>();
@@ -492,6 +609,17 @@ public class StatusService {
         return entries.stream().map(RegisterCheckEntry::getDesignerName).filter(name -> name != null && !name.isEmpty()).collect(Collectors.toCollection(HashSet::new));
     }
 
+    /**
+     * Helper method to log warnings summary
+     */
+    private void logWarningsIfPresent(List<String> warnings, String username) {
+        if (!warnings.isEmpty()) {
+            // Remove duplicates and log summary
+            Set<String> uniqueWarnings = new LinkedHashSet<>(warnings);
+            LoggerUtil.info(this.getClass(), String.format("Completed loading entries for %s with %d warnings: %s",
+                    username, uniqueWarnings.size(), String.join("; ", uniqueWarnings)));
+        }
+    }
 
     private void validateInput(User user, List<WorkTimeTable> worktimeData) {
         if (user == null) {

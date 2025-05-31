@@ -2,6 +2,7 @@ package com.ctgraphdep.fileOperations.events;
 
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.service.BackupService;
+import com.ctgraphdep.monitoring.BackupEventMonitor;  // CHANGED: Import from monitoring package
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -14,38 +15,40 @@ import java.nio.file.Path;
 /**
  * Event listener that handles file operation events and creates backups accordingly.
  * This component decouples backup creation from file writing operations.
+ * UPDATED: Uses dedicated BackupTaskExecutor and integrates with new BackupEventMonitor.
  */
 @Component
 public class BackupEventListener {
 
     private final BackupService backupService;
     private final ApplicationEventPublisher eventPublisher;
+    private final BackupEventMonitor backupEventMonitor;  // ADDED: Direct reference for statistics
 
     @Autowired
-    public BackupEventListener(BackupService backupService, ApplicationEventPublisher eventPublisher) {
+    public BackupEventListener(BackupService backupService,
+                               ApplicationEventPublisher eventPublisher,
+                               BackupEventMonitor backupEventMonitor) {  // ADDED: Inject monitor
         this.backupService = backupService;
         this.eventPublisher = eventPublisher;
+        this.backupEventMonitor = backupEventMonitor;  // ADDED
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**
      * Handles successful file write events and creates backups if requested.
      * This method runs asynchronously to avoid blocking the main file write operation.
+     * UPDATED: Uses backupTaskExecutor specifically and records statistics.
      */
     @EventListener
-    @Async
+    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
     public void handleFileWriteSuccess(FileWriteSuccessEvent event) {
         // Check if backup should be created
         if (!event.isShouldCreateBackup()) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Skipping backup for %s - backup disabled for this operation (Event ID: %s)",
-                    event.getFilePath().getPath().getFileName(), event.getEventId()));
+            LoggerUtil.debug(this.getClass(), String.format("Skipping backup for %s - backup disabled for this operation (Event ID: %s)", event.getFilePath().getPath().getFileName(), event.getEventId()));
             return;
         }
 
-        LoggerUtil.info(this.getClass(), String.format(
-                "Processing backup request for %s (Event ID: %s)",
-                event.getFilePath().getPath().getFileName(), event.getEventId()));
+        LoggerUtil.info(this.getClass(), String.format("Processing backup request for %s (Event ID: %s)", event.getFilePath().getPath().getFileName(), event.getEventId()));
 
         long backupStartTime = System.currentTimeMillis();
         String backupPath = null;
@@ -56,8 +59,7 @@ public class BackupEventListener {
             // Determine criticality level based on file path and type
             BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel(event.getFilePath());
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Creating %s backup for %s (user: %s, Event ID: %s)",
+            LoggerUtil.info(this.getClass(), String.format("Creating %s backup for %s (user: %s, Event ID: %s)",
                     criticalityLevel,
                     event.getFilePath().getPath().getFileName(),
                     event.getUsername(),
@@ -69,6 +71,9 @@ public class BackupEventListener {
             if (backupResult.isSuccess()) {
                 backupSuccess = true;
                 backupPath = backupResult.getFilePath().toString();
+
+                // ADDED: Record successful backup in monitor
+                backupEventMonitor.recordBackupCreated();
 
                 LoggerUtil.info(this.getClass(), String.format(
                         "Event-driven backup created successfully: %s (level: %s, user: %s, Event ID: %s)",
@@ -90,6 +95,10 @@ public class BackupEventListener {
                 }
             } else {
                 errorMessage = backupResult.getErrorMessage().orElse("Unknown backup error");
+
+                // ADDED: Record backup failure in monitor
+                backupEventMonitor.recordBackupFailure();
+
                 LoggerUtil.error(this.getClass(), String.format(
                         "Event-driven backup failed for %s: %s (Event ID: %s)",
                         event.getFilePath().getPath().getFileName(), errorMessage, event.getEventId()));
@@ -97,6 +106,10 @@ public class BackupEventListener {
 
         } catch (Exception e) {
             errorMessage = e.getMessage();
+
+            // ADDED: Record backup failure in monitor
+            backupEventMonitor.recordBackupFailure();
+
             LoggerUtil.error(this.getClass(), String.format(
                     "Exception during event-driven backup creation for %s: %s (Event ID: %s)",
                     event.getFilePath().getPath().getFileName(), e.getMessage(), event.getEventId()), e);
@@ -120,8 +133,10 @@ public class BackupEventListener {
 
     /**
      * Handles file write failures for logging and potential recovery operations.
+     * UPDATED: Uses backupTaskExecutor specifically.
      */
     @EventListener
+    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
     public void handleFileWriteFailure(FileWriteFailureEvent event) {
         LoggerUtil.warn(this.getClass(), String.format(
                 "File write failed for %s by user %s: %s (Event ID: %s)",
@@ -136,8 +151,10 @@ public class BackupEventListener {
 
     /**
      * Handles backup operation events for monitoring and statistics.
+     * UPDATED: Uses backupTaskExecutor specifically.
      */
     @EventListener
+    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
     public void handleBackupOperation(BackupOperationEvent event) {
         if (event.isBackupSuccess()) {
             LoggerUtil.debug(this.getClass(), String.format(
@@ -155,8 +172,10 @@ public class BackupEventListener {
 
     /**
      * Handles file sync events for monitoring.
+     * UPDATED: Uses backupTaskExecutor specifically.
      */
     @EventListener
+    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
     public void handleFileSync(FileSyncEvent event) {
         if (event.isSyncSuccess()) {
             LoggerUtil.debug(this.getClass(), String.format(
@@ -198,11 +217,6 @@ public class BackupEventListener {
         }
 
         // LEVEL2_MEDIUM - Session files and everything else
-        if (pathStr.contains("session") || fileName.contains("session") ||
-                pathStr.contains("team")) {
-            return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
-        }
-
         // Default to medium criticality for unknown files
         return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
     }

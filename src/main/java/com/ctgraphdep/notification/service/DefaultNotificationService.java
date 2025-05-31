@@ -245,14 +245,14 @@ public class DefaultNotificationService implements NotificationService {
     /**
      * For testing - shows a test notification
      */
-    public boolean showTestNotification(String username) {
+    public boolean showTestNotification() {
         try {
             // Create and publish test notification event
-            TestNotificationEvent event = new TestNotificationEvent(username);
+            TestNotificationEvent event = new TestNotificationEvent();
             eventPublisher.publishEvent(event);
             return true;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error showing test notification for user %s: %s", username, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error showing test notification for user: %s",  e.getMessage()), e);
             healthMonitor.recordTaskFailure("notification-service", e.getMessage());
             return false;
         }
