@@ -1,6 +1,7 @@
 package com.ctgraphdep.fileOperations.service;
 
 import com.ctgraphdep.config.FileTypeConstants;
+import com.ctgraphdep.config.FileTypeConstants.CriticalityLevel;
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
@@ -26,36 +27,23 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Enhanced service for handling file backup operations with different criticality levels.
+ * REFACTORED: Enhanced service for handling file backup operations with different criticality levels.
+ * Key Changes:
+ * - Now uses FileTypeConstants.CriticalityLevel enum (moved from this class)
+ * - Leverages FileTypeConstants utility methods for max backup counts
+ * - Simplified criticality logic using centralized FileTypeConstants
+ * - Cleaner API with consistent enum usage
+ * - Better integration with the centralized file type system
  */
 @Service
 public class BackupService {
     @Value("${app.backup.extension:.bak}")
     private String backupExtension;
 
-    // These values are used across multiple methods so they remain instance variables
-    @Value("${app.backup.max.level1:3}")
-    private int maxBackupsLevel1;
-
-    @Value("${app.backup.max.level2:5}")
-    private int maxBackupsLevel2;
-
-    @Value("${app.backup.max.level3:10}")
-    private int maxBackupsLevel3;
-
     @Value("${app.backup.retention.days:30}")
     private int backupRetentionDays;
 
     private final PathConfig pathConfig;
-
-    /**
-     * Criticality levels for different types of files
-     */
-    public enum CriticalityLevel {
-        LEVEL1_LOW,      // Status files - no special backup needed
-        LEVEL2_MEDIUM,   // Session files - keep backups but minimal rotation
-        LEVEL3_HIGH      // Worktime and Register files - comprehensive backup strategy
-    }
 
     @Autowired
     public BackupService(PathConfig pathConfig) {
@@ -65,12 +53,12 @@ public class BackupService {
 
     @PostConstruct
     public void init() {
-        LoggerUtil.info(this.getClass(), "BackupService initializing...");
+        LoggerUtil.info(this.getClass(), "BackupService initializing with FileTypeConstants integration...");
         try {
             // Verify backup directory structure exists
             Path baseBackupDir = pathConfig.getLocalPath().resolve(pathConfig.getBackupPath());
 
-            // Create criticality level directories if they don't exist
+            // Create criticality level directories using FileTypeConstants enum
             Path level1Dir = baseBackupDir.resolve(pathConfig.getLevelLow());
             Path level2Dir = baseBackupDir.resolve(pathConfig.getLevelMedium());
             Path level3Dir = baseBackupDir.resolve(pathConfig.getLevelHigh());
@@ -96,9 +84,11 @@ public class BackupService {
     }
 
     /**
-     * Creates a backup of a file with the specified criticality level
+     * Creates a backup of a file with the specified criticality level.
+     * Now uses FileTypeConstants.CriticalityLevel enum and utility methods.
+     *
      * @param originalPath The file to back up
-     * @param level The criticality level determining backup strategy
+     * @param level The criticality level determining backup strategy (from FileTypeConstants)
      * @return The result of the operation
      */
     public FileOperationResult createBackup(FilePath originalPath, CriticalityLevel level) {
@@ -112,115 +102,110 @@ public class BackupService {
         try {
             // For Level 1 (low criticality), just create a simple backup
             if (level == CriticalityLevel.LEVEL1_LOW) {
-                // For low criticality, create both a simple .bak and a structured backup
-                Path simpleBackupPath = getSimpleBackupPath(path);
-                Files.createDirectories(simpleBackupPath.getParent());
-                Files.copy(path, simpleBackupPath, StandardCopyOption.REPLACE_EXISTING);
-                LoggerUtil.debug(this.getClass(), "Created simple backup: " + simpleBackupPath);
-
-                // Also create a copy in the structured directory
-                Path backupDir = getBackupDirectory(originalPath, level);
-                Path structuredBackupPath = backupDir.resolve(path.getFileName().toString() + FileTypeConstants.BACKUP_EXTENSION);
-                Files.createDirectories(structuredBackupPath.getParent());
-                Files.copy(path, structuredBackupPath, StandardCopyOption.REPLACE_EXISTING);
-                LoggerUtil.debug(this.getClass(), "Created Level 1 structured backup: " + structuredBackupPath);
-
-                return FileOperationResult.success(simpleBackupPath);
+                return createLevel1Backup(originalPath);
             }
 
-            // For Level 2 and 3, create a comprehensive backup with timestamp
-            Path backupDir = getBackupDirectory(originalPath, level);
-            LoggerUtil.debug(this.getClass(), "Using backup directory for " + level + ": " + backupDir);
+            // For Level 2 and 3, create comprehensive backup with timestamp
+            return createComprehensiveBackup(originalPath, level);
 
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String originalFilename = path.getFileName().toString();
-            Path timestampedBackupPath = backupDir.resolve(originalFilename + "." + timestamp + FileTypeConstants.BACKUP_EXTENSION);
-
-            // Ensure parent directories exist
-            Files.createDirectories(timestampedBackupPath.getParent());
-
-            // Create the backup with explicit logging
-            try {
-                Files.copy(path, timestampedBackupPath, StandardCopyOption.REPLACE_EXISTING);
-                LoggerUtil.info(this.getClass(), "Created " + level + " backup: " + timestampedBackupPath);
-            } catch (IOException e) {
-                LoggerUtil.error(this.getClass(), "Failed to create timestamped backup at " + timestampedBackupPath + ": " + e.getMessage());
-                throw e;
-            }
-
-            // For Level 2 & 3, also create a simple .bak file for quick recovery
-            Path simpleBackupPath = getSimpleBackupPath(path);
-            Files.createDirectories(simpleBackupPath.getParent());
-            Files.copy(path, simpleBackupPath, StandardCopyOption.REPLACE_EXISTING);
-            LoggerUtil.debug(this.getClass(), "Created simple backup: " + simpleBackupPath);
-
-            // Enforce backup rotation policy
-            enforceBackupRotationPolicy(originalPath, level);
-
-            return FileOperationResult.success(timestampedBackupPath);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Failed to create %s backup for %s: %s",
                     level, path, e.getMessage()), e);
             return FileOperationResult.failure(path, "Failed to create backup: " + e.getMessage(), e);
         }
     }
+
     /**
-     * Creates a simple .bak backup file next to the original
+     * Creates a Level 1 (low criticality) backup - simple strategy.
      */
-    private FileOperationResult createSimpleBackup(FilePath originalPath) {
+    private FileOperationResult createLevel1Backup(FilePath originalPath) throws IOException {
         Path path = originalPath.getPath();
-        try {
-            Path simpleBackupPath = getSimpleBackupPath(path);
-            Files.createDirectories(simpleBackupPath.getParent());
-            Files.copy(path, simpleBackupPath, StandardCopyOption.REPLACE_EXISTING);
-            LoggerUtil.debug(this.getClass(), "Created simple backup: " + simpleBackupPath);
-            return FileOperationResult.success(simpleBackupPath);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Failed to create simple backup for %s: %s",
-                    path, e.getMessage()));
-            return FileOperationResult.failure(path, "Failed to create simple backup: " + e.getMessage(), e);
-        }
+
+        // Create both a simple .bak and a structured backup for Level 1
+        Path simpleBackupPath = getSimpleBackupPath(path);
+        Files.createDirectories(simpleBackupPath.getParent());
+        Files.copy(path, simpleBackupPath, StandardCopyOption.REPLACE_EXISTING);
+        LoggerUtil.debug(this.getClass(), "Created simple backup: " + simpleBackupPath);
+
+        // Also create a copy in the structured directory
+        Path backupDir = getBackupDirectory(originalPath, CriticalityLevel.LEVEL1_LOW);
+        Path structuredBackupPath = backupDir.resolve(path.getFileName().toString() + FileTypeConstants.BACKUP_EXTENSION);
+        Files.createDirectories(structuredBackupPath.getParent());
+        Files.copy(path, structuredBackupPath, StandardCopyOption.REPLACE_EXISTING);
+        LoggerUtil.debug(this.getClass(), "Created Level 1 structured backup: " + structuredBackupPath);
+
+        return FileOperationResult.success(simpleBackupPath);
     }
 
     /**
-     * Gets the backup directory for a file based on criticality level
+     * Creates comprehensive backup for Level 2 and Level 3 criticality.
+     */
+    private FileOperationResult createComprehensiveBackup(FilePath originalPath, CriticalityLevel level) throws IOException {
+        Path path = originalPath.getPath();
+        Path backupDir = getBackupDirectory(originalPath, level);
+        LoggerUtil.debug(this.getClass(), "Using backup directory for " + level + ": " + backupDir);
+
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String originalFilename = path.getFileName().toString();
+        Path timestampedBackupPath = backupDir.resolve(originalFilename + "." + timestamp + FileTypeConstants.BACKUP_EXTENSION);
+
+        // Ensure parent directories exist
+        Files.createDirectories(timestampedBackupPath.getParent());
+
+        // Create the timestamped backup
+        Files.copy(path, timestampedBackupPath, StandardCopyOption.REPLACE_EXISTING);
+        LoggerUtil.info(this.getClass(), "Created " + level + " backup: " + timestampedBackupPath);
+
+        // For Level 2 & 3, also create a simple .bak file for quick recovery
+        Path simpleBackupPath = getSimpleBackupPath(path);
+        Files.createDirectories(simpleBackupPath.getParent());
+        Files.copy(path, simpleBackupPath, StandardCopyOption.REPLACE_EXISTING);
+        LoggerUtil.debug(this.getClass(), "Created simple backup: " + simpleBackupPath);
+
+        // Enforce backup rotation policy using FileTypeConstants utility
+        enforceBackupRotationPolicy(originalPath, level);
+
+        return FileOperationResult.success(timestampedBackupPath);
+    }
+
+    /**
+     * Gets the backup directory for a file based on criticality level.
+     * Now uses FileTypeConstants for file type detection.
      */
     private Path getBackupDirectory(FilePath originalPath, CriticalityLevel level) {
         // Base backup directory
         Path backupSubDir = getPath(level);
 
-        // Get the original filename and extract key components
+        // Get the original filename and extract key components using FileTypeConstants
         String filename = originalPath.getPath().getFileName().toString();
         LoggerUtil.debug(this.getClass(), "Creating backup directory for file: " + filename);
 
-        // Extract file type from the filename (e.g., "registru" from "registru_oana_5_2025_05.json")
-        String[] parts = filename.split("_");
-        if (parts.length > 0) {
-            String fileType = parts[0]; // e.g., "registru", "worktime", "session"
+        // Use FileTypeConstants to detect file type
+        String fileType = FileTypeConstants.extractFileTypeFromFilename(filename);
+        if (fileType != null) {
+            // Use the detected file type for directory structure
             backupSubDir = backupSubDir.resolve(fileType);
-
-            // Add username if available in the filename or from FilePath object
-            String username = null;
-            if (parts.length > 1) {
-                username = parts[1]; // Extract username from filename
-            } else {
-                // Try to get username from FilePath object
-                username = originalPath.getUsername().orElse(null);
-            }
-
-            if (username != null) {
-                backupSubDir = backupSubDir.resolve(username);
-            }
-
-            // Add year/month organization if available in the filename
-            // For files like "registru_oana_5_2025_05.json"
-            if (parts.length > 3 && parts[3].matches("\\d{4}")) {
-                backupSubDir = backupSubDir.resolve(parts[3]); // year
-                if (parts.length > 4 && parts[4].matches("\\d{2}")) {
-                    backupSubDir = backupSubDir.resolve(parts[4].replace(FileTypeConstants.JSON_EXTENSION, "")); // month
-                }
+            LoggerUtil.debug(this.getClass(), "Detected file type: " + fileType);
+        } else {
+            // Fallback to extracting from filename manually for unknown types
+            String[] parts = filename.split("_");
+            if (parts.length > 0) {
+                String fileTypeFromName = parts[0]; // e.g., "registru", "worktime", "session"
+                backupSubDir = backupSubDir.resolve(fileTypeFromName);
             }
         }
+
+        // Add username if available
+        String username = extractUsernameFromFilename(filename);
+        if (username == null) {
+            username = originalPath.getUsername().orElse(null);
+        }
+        if (username != null) {
+            backupSubDir = backupSubDir.resolve(username);
+        }
+
+        // Add year/month organization if available in the filename
+        backupSubDir = addDateOrganization(backupSubDir, filename);
 
         try {
             Files.createDirectories(backupSubDir);
@@ -232,19 +217,45 @@ public class BackupService {
         return backupSubDir;
     }
 
+    /**
+     * Helper method to extract username from filename patterns.
+     */
+    private String extractUsernameFromFilename(String filename) {
+        String[] parts = filename.split("_");
+        if (parts.length > 1) {
+            return parts[1]; // Usually username is second part: "type_username_..."
+        }
+        return null;
+    }
+
+    /**
+     * Helper method to add date-based organization to back up directory.
+     */
+    private Path addDateOrganization(Path backupSubDir, String filename) {
+        // Extract year/month from patterns like "registru_oana_5_2025_05.json"
+        String[] parts = filename.split("_");
+        if (parts.length > 3 && parts[3].matches("\\d{4}")) {
+            backupSubDir = backupSubDir.resolve(parts[3]); // year
+            if (parts.length > 4 && parts[4].matches("\\d{2}")) {
+                backupSubDir = backupSubDir.resolve(parts[4].replace(FileTypeConstants.JSON_EXTENSION, "")); // month
+            }
+        }
+        return backupSubDir;
+    }
+
+    /**
+     * Gets the appropriate level directory path based on criticality.
+     */
     private @NotNull Path getPath(CriticalityLevel level) {
         Path baseBackupDir = pathConfig.getLocalPath().resolve(pathConfig.getBackupPath());
 
         // Get the appropriate level directory based on criticality
-        final String levelDir;
-        switch (level) {
-            case LEVEL1_LOW -> levelDir = pathConfig.getLevelLow();
-            case LEVEL2_MEDIUM -> levelDir = pathConfig.getLevelMedium();
-            case LEVEL3_HIGH -> levelDir = pathConfig.getLevelHigh();
-            default -> levelDir = pathConfig.getLevelLow();
-        }
+        final String levelDir = switch (level) {
+            case LEVEL1_LOW -> pathConfig.getLevelLow();
+            case LEVEL2_MEDIUM -> pathConfig.getLevelMedium();
+            case LEVEL3_HIGH -> pathConfig.getLevelHigh();
+        };
 
-        // Add criticality level subdirectory
         return baseBackupDir.resolve(levelDir);
     }
 
@@ -273,9 +284,11 @@ public class BackupService {
     }
 
     /**
-     * Restores a file from the latest comprehensive backup
+     * Restores a file from the latest comprehensive backup.
+     * Now uses FileTypeConstants.CriticalityLevel.
+     *
      * @param originalPath The file to restore
-     * @param level The criticality level
+     * @param level The criticality level (from FileTypeConstants)
      * @return The result of the operation
      */
     public FileOperationResult restoreFromLatestBackup(FilePath originalPath, CriticalityLevel level) {
@@ -308,7 +321,8 @@ public class BackupService {
     }
 
     /**
-     * Finds the latest backup file for a given path and criticality level
+     * Finds the latest backup file for a given path and criticality level.
+     * Now uses FileTypeConstants.CriticalityLevel.
      */
     public Optional<Path> findLatestBackup(FilePath originalPath, CriticalityLevel level) {
         Path backupDir = getBackupDirectory(originalPath, level);
@@ -338,9 +352,11 @@ public class BackupService {
     }
 
     /**
-     * Lists all available backups for a file
+     * Lists all available backups for a file.
+     * Now uses FileTypeConstants.CriticalityLevel and includes max backup info.
+     *
      * @param originalPath The original file path
-     * @param level The criticality level
+     * @param level The criticality level (from FileTypeConstants)
      * @return List of available backup paths sorted by date (newest first)
      */
     public List<Path> listAvailableBackups(FilePath originalPath, CriticalityLevel level) {
@@ -367,8 +383,9 @@ public class BackupService {
                         .collect(Collectors.toList());
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Found %d backups for %s with level %s",
-                    backups.size(), originalPath.getPath(), level));
+            int maxBackups = FileTypeConstants.getMaxBackups(level);
+            LoggerUtil.info(this.getClass(), String.format("Found %d backups for %s with level %s (max: %d)",
+                    backups.size(), originalPath.getPath(), level, maxBackups));
 
             return backups;
         } catch (Exception e) {
@@ -378,7 +395,8 @@ public class BackupService {
     }
 
     /**
-     * Enforces backup rotation policy based on criticality level
+     * Enforces backup rotation policy based on criticality level.
+     * Now uses FileTypeConstants.getMaxBackups() for consistent limits.
      */
     private void enforceBackupRotationPolicy(FilePath originalPath, CriticalityLevel level) {
         // Skip for Level 1 as we don't keep multiple backups
@@ -409,19 +427,14 @@ public class BackupService {
                         .toList();
             }
 
-            // Determine max backups based on criticality level
-            final int maxBackups;
-            switch (level) {
-                case LEVEL2_MEDIUM -> maxBackups = maxBackupsLevel2;
-                case LEVEL3_HIGH -> maxBackups = maxBackupsLevel3;
-                default -> maxBackups = maxBackupsLevel1;
-            }
+            // Use FileTypeConstants to get max backups for this level
+            int maxBackups = FileTypeConstants.getMaxBackups(level);
 
             // Delete the oldest backups if we have too many
             if (backups.size() > maxBackups) {
                 int toDelete = backups.size() - maxBackups;
-                LoggerUtil.info(this.getClass(), String.format("Deleting %d oldest backups for %s",
-                        toDelete, originalPath.getPath()));
+                LoggerUtil.info(this.getClass(), String.format("Deleting %d oldest backups for %s (max allowed: %d)",
+                        toDelete, originalPath.getPath(), maxBackups));
 
                 for (int i = 0; i < toDelete; i++) {
                     try {
@@ -484,9 +497,11 @@ public class BackupService {
     }
 
     /**
-     * Syncs local backup to network
+     * Syncs local backup to network.
+     * Now uses FileTypeConstants.CriticalityLevel.
+     *
      * @param username The username for the backup
-     * @param level The criticality level
+     * @param level The criticality level (from FileTypeConstants)
      */
     public void syncBackupsToNetwork(String username, CriticalityLevel level) {
         if (!pathConfig.isNetworkAvailable()) {
@@ -496,13 +511,11 @@ public class BackupService {
 
         try {
             // Get the appropriate level directory based on criticality
-            final String levelDir;
-            switch (level) {
-                case LEVEL1_LOW -> levelDir = pathConfig.getLevelLow();
-                case LEVEL2_MEDIUM -> levelDir = pathConfig.getLevelMedium();
-                case LEVEL3_HIGH -> levelDir = pathConfig.getLevelHigh();
-                default -> levelDir = pathConfig.getLevelLow();
-            }
+            final String levelDir = switch (level) {
+                case LEVEL1_LOW -> pathConfig.getLevelLow();
+                case LEVEL2_MEDIUM -> pathConfig.getLevelMedium();
+                case LEVEL3_HIGH -> pathConfig.getLevelHigh();
+            };
 
             // Source local backup directory
             Path localBackupDir = pathConfig.getLocalPath()
@@ -523,7 +536,7 @@ public class BackupService {
             Files.createDirectories(networkBackupDir);
 
             // Use a visitor to copy files recursively
-            Files.walkFileTree(localBackupDir, new SimpleFileVisitor<Path>() {
+            Files.walkFileTree(localBackupDir, new SimpleFileVisitor<>() {
                 @Override
                 public @NotNull FileVisitResult visitFile(@NotNull Path file, @NotNull BasicFileAttributes attrs) throws IOException {
                     Path relativePath = localBackupDir.relativize(file);
@@ -567,7 +580,7 @@ public class BackupService {
             FileTime cutoffTime = FileTime.fromMillis(System.currentTimeMillis() - retentionMillis);
 
             // Walk through all backup files
-            Files.walkFileTree(baseBackupDir, new SimpleFileVisitor<Path>() {
+            Files.walkFileTree(baseBackupDir, new SimpleFileVisitor<>() {
                 @Override
                 public @NotNull FileVisitResult visitFile(@NotNull Path file, @NotNull BasicFileAttributes attrs) throws IOException {
                     // Skip simple .bak files (they're managed separately)
@@ -591,5 +604,39 @@ public class BackupService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during backup cleanup: " + e.getMessage());
         }
+    }
+
+    // ===== DIAGNOSTIC AND UTILITY METHODS =====
+
+    /**
+     * Gets diagnostic information about backup configuration for a file.
+     * Uses FileTypeConstants for comprehensive analysis.
+     *
+     * @param originalPath The file to analyze
+     * @return Diagnostic information string
+     */
+    public String getBackupDiagnostics(FilePath originalPath) {
+        String filename = originalPath.getPath().getFileName().toString();
+
+        // Use FileTypeConstants for complete analysis
+        String fileTypeDiag = FileTypeConstants.getFileTypeDiagnostics(filename);
+        CriticalityLevel level = FileTypeConstants.getCriticalityLevelForFilename(filename);
+
+        StringBuilder diag = new StringBuilder();
+        diag.append("=== BACKUP DIAGNOSTICS ===\n");
+        diag.append(fileTypeDiag);
+        diag.append("\nBackup Configuration:\n");
+        diag.append("Backup Directory: ").append(getBackupDirectory(originalPath, level)).append("\n");
+        diag.append("Simple Backup Path: ").append(getSimpleBackupPath(originalPath.getPath())).append("\n");
+
+        // Check existing backups
+        List<Path> existingBackups = listAvailableBackups(originalPath, level);
+        diag.append("Existing Backups: ").append(existingBackups.size()).append("\n");
+
+        if (!existingBackups.isEmpty()) {
+            diag.append("Latest Backup: ").append(existingBackups.get(0).getFileName()).append("\n");
+        }
+
+        return diag.toString();
     }
 }

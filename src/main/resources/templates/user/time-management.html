@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}" lang="en">
+<head>
+    <title>Time Management</title>
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=18785}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=18785}">
+</head>
+<body>
+<div layout:fragment="content">
+    <!-- Toast Alert Container -->
+    <div id="toastAlertContainer" class="toast-alert-container"></div>
+
+    <div class="container py-4">
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title"><i class="bi bi-calendar-clock me-2"></i>Time Management</h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
+                    <span th:text="${user.name}"></span>
+                </div>
+                <div class="badge bg-secondary rounded-pill">
+                    <i class="bi bi-calendar me-1"></i>
+                    <span th:text="${T(java.time.Month).of(currentMonth)} + ' ' + ${currentYear}">Current Month</span>
+                </div>
+            </div>
+            <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
+                <i class="bi bi-grid me-2"></i>Dashboard
+            </a>
+        </div>
+
+        <!-- Main Content Row -->
+        <div class="row g-4">
+
+            <!-- Left Panel: Compact Month Summary -->
+            <div class="col-lg-3">
+                <div class="summary-card card h-100">
+                    <div class="card-header py-2">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-calendar3 me-2"></i>Month Overview
+                        </h6>
+                    </div>
+                    <div class="card-body compact-summary">
+
+                        <!-- Work Days Section - Compact -->
+                        <div class="summary-section mb-3">
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-light rounded mb-1">
+                                <span class="small">Work Days</span>
+                                <span class="badge bg-primary rounded-pill" th:text="${summary.totalWorkDays}">22</span>
+                            </div>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-light rounded mb-1">
+                                <span class="small">Worked</span>
+                                <span class="badge bg-success rounded-pill" th:text="${summary.daysWorked}">15</span>
+                            </div>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-warning bg-opacity-10 rounded">
+                                <span class="small fw-bold">Remaining</span>
+                                <span class="badge bg-warning rounded-pill" th:text="${summary.remainingWorkDays}">4</span>
+                            </div>
+                        </div>
+                        <!-- Available Leave Balance - Compact -->
+                        <div class="p-3 bg-success bg-opacity-10 rounded">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="small fw-bold text-success">
+                                    <i class="bi bi-calendar-check me-1"></i>Available CO
+                                </span>
+                                <span class="badge bg-success" th:text="${timeOffSummary.availablePaidDays}">12</span>
+                            </div>
+                        </div>
+                        <!-- Time Off Breakdown - Compact -->
+                        <div class="summary-section mb-3">
+                            <h6 class="section-title mb-2">
+                                <i class="bi bi-calendar-x me-1"></i>Time Off
+                            </h6>
+                            <div class="summary-item-mini d-flex justify-content-between align-items-center mb-1 py-1 px-2">
+                                <span class="text-muted small">Holidays</span>
+                                <span class="badge bg-secondary rounded-pill small" th:text="${summary.snDays}">2</span>
+                            </div>
+                            <div class="summary-item-mini d-flex justify-content-between align-items-center mb-1 py-1 px-2">
+                                <span class="text-muted small">Vacation</span>
+                                <span class="badge bg-info rounded-pill small" th:text="${summary.coDays}">1</span>
+                            </div>
+                            <div class="summary-item-mini d-flex justify-content-between align-items-center py-1 px-2">
+                                <span class="text-muted small">Medical</span>
+                                <span class="badge bg-danger rounded-pill small" th:text="${summary.cmDays}">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Hours Summary - Compact -->
+                        <div class="summary-section mb-3">
+                            <h6 class="section-title mb-2">
+                                <i class="bi bi-clock-history me-1"></i>Hours
+                            </h6>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-light rounded mb-1">
+                                <span class="small">Regular</span>
+                                <strong class="small" th:text="${summary.formattedRegularHours + ' Hr'}">120:00 Hr</strong>
+                            </div>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-light rounded mb-1">
+                                <span class="small">Overtime</span>
+                                <strong class="small" th:text="${summary.formattedOvertimeHours + ' Hr'}">120:00 Hr</strong>
+                            </div>
+
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-success bg-opacity-10 rounded">
+                                <span class="small text-success fw-bold">Total</span>
+                                <strong class="small text-success" th:text="${summary.formattedTotalHours + ' Hr'}">128:00 Hr</strong>
+                            </div>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-light rounded mb-1">
+                                <span class="small">Not Counted</span>
+                                <strong class="small"  th:text="${summary.discardedMinutes + ' Min'}">0 Min</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Enhanced Functionality -->
+            <div class="col-lg-9">
+
+                <!-- Compact Time Off Request Form -->
+                <div class="timeoff-card card mb-4">
+                    <div class="card-header py-2">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-calendar-plus me-2"></i>Request Time Off
+                        </h6>
+                    </div>
+                    <div class="card-body py-3">
+                        <form th:action="@{/user/time-management/timeoff-request}" method="post"
+                              class="needs-validation" novalidate id="timeoffForm">
+
+                            <!-- Compact Date Selection Row -->
+                            <div class="row g-3 mb-3 align-items-end">
+                                <!-- Single Day Toggle -->
+                                <div class="col-md-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="singleDayRequest" name="isSingleDayRequest">
+                                        <label class="form-check-label small" for="singleDayRequest">Single Day</label>
+                                    </div>
+                                </div>
+
+                                <!-- Start Date -->
+                                <div class="col-md-3">
+                                    <label for="startDate" class="form-label small">Start Date</label>
+                                    <input type="date" id="startDate" class="form-control form-control-sm" name="startDate" required
+                                           th:min="${minDate}" th:max="${maxDate}" th:value="${today}">
+                                </div>
+
+                                <!-- End Date -->
+                                <div class="col-md-3" id="endDateContainer">
+                                    <label for="endDate" class="form-label small">End Date</label>
+                                    <input type="date" id="endDate" class="form-control form-control-sm" name="endDate" required
+                                           th:min="${minDate}" th:max="${maxDate}" th:value="${today}">
+                                </div>
+
+                                <!-- Leave Type Inline -->
+                                <div class="col-md-3">
+                                    <label class="form-label small">Type</label>
+                                    <div class="d-flex gap-2">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="timeOffType" id="typeCO" value="CO" required>
+                                            <label class="form-check-label small" for="typeCO">CO</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="timeOffType" id="typeCM" value="CM" required>
+                                            <label class="form-check-label small" for="typeCM">CM</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <div class="col-md-1">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-send"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Daily Records with Temporary Stop Column -->
+                <div class="card shadow-sm">
+                    <div class="card-header py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-table me-2"></i>Daily Records
+                                <small class="text-muted">Double-click to edit</small>
+                            </h6>
+                            <form th:action="@{/user/time-management}" method="get"
+                                  class="d-flex gap-2 align-items-center">
+                                <select name="year" class="form-select form-select-sm" style="width: 100px"
+                                        onchange="this.form.submit()" aria-label="Select year">
+                                    <option th:each="yr : ${#numbers.sequence(2020, 2030)}"
+                                            th:value="${yr}" th:text="${yr}" th:selected="${yr == currentYear}">
+                                    </option>
+                                </select>
+                                <select name="month" class="form-select form-select-sm" style="width: 130px"
+                                        onchange="this.form.submit()" aria-label="Select month">
+                                    <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                            th:value="${m}" th:text="${T(java.time.Month).of(m)}"
+                                            th:selected="${m == currentMonth}">
+                                    </option>
+                                </select>
+                                <a class="btn btn-sm btn-outline-primary" th:href="@{/user/time-management}">Current</a>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Work Time Data Display -->
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 table-sm" id="worktimeTable">
+                                <thead class="bg-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Start</th>
+                                    <th>Temp Stop</th>
+                                    <th>End</th>
+                                    <th>Time Off</th>
+                                    <th>Raw Work</th>
+                                    <th>Schedule</th>
+                                    <th>OT</th>
+                                    <th>Discarded</th>
+                                    <th>Status</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="record : ${worktimeData}"
+                                    class="worktime-entry"
+                                    th:classappend="${#temporals.format(record.workDate, 'yyyy-MM-dd') == #temporals.format(#temporals.createNow(), 'yyyy-MM-dd')} ? 'current-day' : ''">
+
+                                    <!-- Date -->
+                                    <td class="date-cell">
+                                        <span th:text="${record.formattedDate}" class="fw-medium small"></span>
+                                        <br>
+                                        <small class="text-muted" th:text="${#temporals.dayOfWeekName(record.workDate)}"></small>
+                                    </td>
+
+                                    <!-- Editable Start Time -->
+                                    <td class="editable-cell time-cell"
+                                        th:data-field="startTime"
+                                        th:data-date="${record.workDate}"
+                                        th:data-original="${record.formattedStartTime}">
+                                        <span class="cell-value" th:text="${record.formattedStartTime ?: '-'}"></span>
+                                        <i class="bi bi-pencil-square edit-icon d-none"></i>
+                                    </td>
+
+                                    <!-- Temporary Stop (from original worktime.html) -->
+                                    <td class="temp-stop-cell">
+                                        <span th:if="${record.formattedTemporaryStop}"
+                                              class="badge bg-warning rounded-pill small"
+                                              th:text="${record.formattedTemporaryStop}">
+                                        </span>
+                                        <span th:unless="${record.formattedTemporaryStop}">-</span>
+                                    </td>
+
+                                    <!-- Editable End Time -->
+                                    <td class="editable-cell time-cell"
+                                        th:data-field="endTime"
+                                        th:data-date="${record.workDate}"
+                                        th:data-original="${record.formattedEndTime}">
+                                        <span class="cell-value" th:text="${record.formattedEndTime ?: '-'}"></span>
+                                        <i class="bi bi-pencil-square edit-icon d-none"></i>
+                                    </td>
+
+                                    <!-- Time Off (conditionally editable) -->
+                                    <td class="editable-cell timeoff-cell"
+                                        th:data-field="timeOff"
+                                        th:data-date="${record.workDate}"
+                                        th:data-original="${record.timeOffType}"
+                                        th:classappend="${record.timeOffType == 'SN' or record.timeOffType == 'CO' or record.timeOffType == 'CM'} ? 'non-editable' : ''">
+                                        <span th:if="${record.timeOffType}"
+                                              th:class="${'badge rounded-pill ' + record.timeOffClass + ' small'}"
+                                              th:text="${record.timeOffType}"></span>
+                                        <span th:unless="${record.timeOffType}" class="cell-value">-</span>
+                                        <i class="bi bi-pencil-square edit-icon d-none"
+                                           th:classappend="${record.timeOffType == 'SN' or record.timeOffType == 'CO' or record.timeOffType == 'CM'} ? 'd-none-force' : ''"></i>
+                                    </td>
+
+                                    <!-- Read-only Raw Work -->
+                                    <td class="text-center small">
+                                        <span th:if="${record.formattedRawTime}"
+                                              th:text="${record.formattedRawTime}"
+                                              class="fw-medium">--:--</span>
+                                        <span th:unless="${record.formattedRawTime}">-</span>
+                                        <div th:if="${record.lunchBreakApplied}" class="mt-1">
+                                            <span class="badge bg-secondary lunch-break small">30m</span>
+                                        </div>
+                                    </td>
+
+                                    <!-- Read-only Schedule Work -->
+                                    <td class="text-center small">
+                                        <span th:if="${record.formattedScheduledTime}"
+                                              th:text="${record.formattedScheduledTime}"
+                                              class="fw-medium">--:--</span>
+                                        <span th:unless="${record.formattedScheduledTime}">-</span>
+                                    </td>
+
+                                    <!-- Read-only Overtime -->
+                                    <td class="text-center small">
+                                        <span th:if="${record.formattedOvertimeTime}"
+                                              class="badge bg-success rounded-pill overtime-display small"
+                                              th:text="${record.formattedOvertimeTime}">--:--</span>
+                                        <span th:unless="${record.formattedOvertimeTime}">-</span>
+                                    </td>
+
+                                    <!-- Read-only Discarded -->
+                                    <td class="text-center small">
+                                        <span th:if="${record.discardedMinutes != null && record.discardedMinutes > 0}"
+                                              class="text-warning fw-medium"
+                                              th:text="${record.discardedMinutes + 'm'}">0</span>
+                                        <span th:unless="${record.discardedMinutes != null && record.discardedMinutes > 0}">-</span>
+                                    </td>
+
+                                    <!-- Entry Status Indicator -->
+                                    <td class="text-center">
+                                        <span th:if="${#temporals.format(record.workDate, 'yyyy-MM-dd') == #temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}"
+                                              class="badge bg-warning small" title="Current day - edit tomorrow">
+                                            <i class="bi bi-clock"></i>
+                                        </span>
+                                        <span th:unless="${#temporals.format(record.workDate, 'yyyy-MM-dd') == #temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}"
+                                              class="badge bg-success small" title="Editable">
+                                            <i class="bi bi-pencil"></i>
+                                        </span>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Table Footer with Legend -->
+                    <div class="card-footer bg-light py-2">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <small class="text-muted">
+                                    <strong>Editing:</strong> Double-click Start/End Time cells to edit (24-hour format).
+                                    SN/CO/CM entries are read-only.
+                                </small>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock text-warning"></i> Current Day &nbsp;&nbsp;
+                                    <i class="bi bi-pencil text-success"></i> Editable
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay d-none">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Saving...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Page Scripts -->
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/toast-alerts.js?v=18785}"></script>
+    <script th:src="@{/js/time-management.js?v=18785}"></script>
+</th:block>
+</body>
+</html>

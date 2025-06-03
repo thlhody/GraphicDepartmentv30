@@ -7,6 +7,7 @@ import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.notification.service.NotificationBackupService;
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.service.cache.StatusCacheService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
@@ -40,6 +41,7 @@ public class SessionMidnightHandler {
     private final MonitoringStateService monitoringStateService;
     private final StatusCacheService statusCacheService; // NEW: Status cache integration
     private final SessionCacheService sessionCacheService; // NEW: Session cache integration
+    private final UserContextService userContextService;
 
     public SessionMidnightHandler(
             SessionCommandService commandService,
@@ -49,7 +51,7 @@ public class SessionMidnightHandler {
             NotificationBackupService notificationBackupService,
             MonitoringStateService monitoringStateService,
             StatusCacheService statusCacheService, // NEW
-            SessionCacheService sessionCacheService) { // NEW
+            SessionCacheService sessionCacheService, UserContextService userContextService) { // NEW
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.healthMonitor = healthMonitor;
@@ -58,6 +60,7 @@ public class SessionMidnightHandler {
         this.monitoringStateService = monitoringStateService;
         this.statusCacheService = statusCacheService; // NEW
         this.sessionCacheService = sessionCacheService; // NEW
+        this.userContextService = userContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -107,12 +110,15 @@ public class SessionMidnightHandler {
             statusCacheService.writeToFile();
             LoggerUtil.info(this.getClass(), "Persisted status cache to file after user data refresh");
 
-            // STEP 6: Reset notification system
+            // STEP 6: NEW - Reset UserContextCache (access counter, failure state)
+            userContextService.performMidnightReset();
+            LoggerUtil.info(this.getClass(), "Reset UserContextCache access counter and failure state");
+
+            // STEP 7: Reset notification system
             resetNotificationSystem(username);
 
-            // STEP 7: Cancel backup task explicitly
+            // STEP 8: Cancel backup task explicitly
             notificationBackupService.cancelBackupTask(username);
-
             LoggerUtil.info(this.getClass(), "Completed comprehensive midnight reset for user " + username);
 
         } catch (Exception e) {

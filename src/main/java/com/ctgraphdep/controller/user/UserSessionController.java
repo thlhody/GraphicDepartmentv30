@@ -82,7 +82,7 @@ public class UserSessionController extends BaseController {
 
             // Check for unresolved work time entries using a query
             if (!skipResolutionCheck) {
-                GetUnresolvedEntriesQuery unresolvedQuery = commandFactory.createGetUnresolvedEntriesQuery(currentUser.getUsername(), currentUser.getUserId());
+                GetUnresolvedEntriesQuery unresolvedQuery = commandFactory.createGetUnresolvedEntriesQuery(currentUser.getUsername());
                 List<ResolutionCalculationDTO> unresolvedEntries = commandService.executeQuery(unresolvedQuery);
 
                 model.addAttribute("hasUnresolvedEntries", !unresolvedEntries.isEmpty());
@@ -295,7 +295,7 @@ public class UserSessionController extends BaseController {
             }
 
             // Use SessionService to calculate resolution values
-            ResolutionCalculationDTO result = sessionService.calculateResolutionValues(currentUser.getUsername(), currentUser.getUserId(), entryDate, endHour, endMinute);
+            ResolutionCalculationDTO result = sessionService.calculateResolutionValues(currentUser.getUsername(), entryDate, endHour, endMinute);
 
             // Still need to execute the command to actually save the resolution
             if (result.getSuccess()) {
@@ -308,9 +308,8 @@ public class UserSessionController extends BaseController {
 
                 if (success) {
                     LoggerUtil.info(this.getClass(), "Successfully resolved worktime entry for " + entryDate);
-                    redirectAttributes.addFlashAttribute("successMessage",
-                            "Work session from " + entryDate.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")) +
-                                    " resolved successfully");
+                    redirectAttributes.addFlashAttribute("successMessage", "Work session from " + entryDate.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy")) +
+                            " resolved successfully");
                 } else {
                     LoggerUtil.warn(this.getClass(), "Failed to resolve worktime entry for " + entryDate);
                     redirectAttributes.addFlashAttribute("errorMessage", "Failed to resolve work session");
@@ -350,7 +349,6 @@ public class UserSessionController extends BaseController {
         // Use SessionService to calculate resolution values
         return sessionService.calculateResolutionValues(
                 currentUser.getUsername(),
-                currentUser.getUserId(),
                 entryDate,
                 endHour,
                 endMinute);

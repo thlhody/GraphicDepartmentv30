@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+
+<!-- System Health Fragment -->
+<div th:fragment="health-utility" class="utility-section" id="health-utility">
+    <div class="utility-header">
+        <div class="utility-icon">
+            <i class="bi bi-heart-pulse"></i>
+        </div>
+        <div class="utility-info">
+            <h3 class="utility-title">System Health</h3>
+            <p class="utility-description">
+                Monitor system health and task status.<br>
+                Check scheduled tasks and monitoring state.
+            </p>
+        </div>
+        <div class="utility-toggle">
+            <button class="btn-subtle" data-bs-toggle="collapse" data-bs-target="#health-controls"
+                    aria-expanded="false" aria-controls="health-controls">
+                <i class="bi bi-chevron-down toggle-icon"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="collapse utility-controls" id="health-controls">
+        <div class="controls-grid">
+            <!-- Overall Health -->
+            <div class="control-group">
+                <label class="control-label">Overall System Health</label>
+                <div class="stats-display" id="health-overview">
+                    <div class="stat-item">
+                        <span class="stat-label">System Status</span>
+                        <span class="stat-value" id="overall-health">Checking...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Healthy Tasks</span>
+                        <span class="stat-value" id="healthy-tasks-count">0/0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Last Check</span>
+                        <span class="stat-value" id="last-health-check">Never</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Health Operations -->
+            <div class="control-group">
+                <label class="control-label">Health Operations</label>
+                <div class="action-buttons">
+                    <button id="overall-health-btn" class="btn-action success">
+                        <i class="bi bi-heart-pulse"></i>
+                        <span>Overall Health</span>
+                    </button>
+                    <button id="task-health-btn" class="btn-action info">
+                        <i class="bi bi-list-task"></i>
+                        <span>Task Details</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Monitoring State -->
+            <div class="control-group">
+                <label class="control-label">Personal Monitoring</label>
+                <div class="action-buttons">
+                    <button id="monitoring-state-btn" class="btn-action secondary">
+                        <i class="bi bi-eye"></i>
+                        <span>My State</span>
+                    </button>
+                    <button id="health-summary-btn" class="btn-action secondary">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span>Summary</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div id="health-results" class="results-area" style="display: none;">
+            <div class="results-header">
+                <h4 class="results-title">Health Report</h4>
+                <button id="clear-health-results" class="btn-clear">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div id="health-content" class="results-content">
+                <!-- Health results will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+</html>

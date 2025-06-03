@@ -15,32 +15,75 @@
             </p>
         </div>
         <div class="utility-toggle">
-            <span class="coming-soon-badge">Coming Soon</span>
+            <button class="btn-subtle" data-bs-toggle="collapse" data-bs-target="#session-controls"
+                    aria-expanded="false" aria-controls="session-controls">
+                <i class="bi bi-chevron-down toggle-icon"></i>
+            </button>
         </div>
     </div>
 
-    <div class="utility-controls coming-soon-content">
-        <div class="coming-soon-message">
-            <i class="bi bi-tools"></i>
-            <h4>Session Management Tools</h4>
-            <p>Advanced session diagnostics and management features will be available in a future update.</p>
-            <div class="planned-features">
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>Session state monitoring</span>
+    <div class="collapse utility-controls" id="session-controls">
+        <div class="controls-grid">
+            <!-- Session Status -->
+            <div class="control-group">
+                <label class="control-label">Session Status</label>
+                <div class="stats-display" id="session-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Current User</span>
+                        <span class="stat-value" id="current-username">Loading...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Session Health</span>
+                        <span class="stat-value" id="session-health">Checking...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Cache Status</span>
+                        <span class="stat-value" id="cache-health">Checking...</span>
+                    </div>
                 </div>
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>Reset stuck sessions</span>
+            </div>
+
+            <!-- Session Operations -->
+            <div class="control-group">
+                <label class="control-label">Session Operations</label>
+                <div class="action-buttons">
+                    <button id="check-session-btn" class="btn-action info">
+                        <i class="bi bi-search"></i>
+                        <span>Check Status</span>
+                    </button>
+                    <button id="manual-reset-btn" class="btn-action warning">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        <span>Manual Reset</span>
+                    </button>
                 </div>
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>Clear temporary data</span>
+            </div>
+
+            <!-- Context Information -->
+            <div class="control-group">
+                <label class="control-label">Context Information</label>
+                <div class="action-buttons">
+                    <button id="context-status-btn" class="btn-action secondary">
+                        <i class="bi bi-info-circle"></i>
+                        <span>Context Status</span>
+                    </button>
+                    <button id="reset-status-btn" class="btn-action secondary">
+                        <i class="bi bi-clock-history"></i>
+                        <span>Reset History</span>
+                    </button>
                 </div>
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>Monitoring state reset</span>
-                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div id="session-results" class="results-area" style="display: none;">
+            <div class="results-header">
+                <h4 class="results-title">Session Diagnostics</h4>
+                <button id="clear-session-results" class="btn-clear">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div id="session-content" class="results-content">
+                <!-- Session results will be loaded here -->
             </div>
         </div>
     </div>

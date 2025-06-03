@@ -251,14 +251,14 @@ public class DashboardManager {
     }
     private DashboardCardDTO createTimeOffCard() {
         return DashboardCardDTO.builder()
-                .title("Time Off")
-                .subtitle("Request leave")
+                .title("Work Time Management")
+                .subtitle("Manage Time")
                 .color("info")
                 .icon("calendar-fill")
                 .badge("Request")
                 .badgeColor("info")
-                .actionText("Add Time Off")
-                .actionUrl("/user/timeoff")
+                .actionText("Edit Work Time")
+                .actionUrl("/user/time-management")
                 .external(false)
                 .permission(PermissionFilterService.PERMISSION_REQUEST_TIMEOFF)
                 .build();

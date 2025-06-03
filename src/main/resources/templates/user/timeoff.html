@@ -18,17 +18,49 @@
                 </h1>
                 <div class="badge bg-primary rounded-pill">
                     <i class="bi bi-person me-2"></i>
-                    <span th:text="${user.name}"></span>
+                    <span th:text="${userDisplayName}">Unknown User</span>
                 </div>
             </div>
             <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
                 <i class="bi bi-grid me-2"></i>Dashboard
             </a>
         </div>
-        <!-- Alert System -->
+
+        <!-- Loading Indicator (shown during optimization) -->
+        <div id="loadingIndicator" class="alert alert-info d-none">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span>Processing your request with optimized batch operations...</span>
+            </div>
+        </div>
+
+        <!-- Alert System with Auto-Refresh -->
         <div class="mb-4">
             <div th:replace="~{alerts/alerts :: alerts}"></div>
+
+            <!-- Success Alert with Auto-Refresh -->
+            <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+                <i class="bi bi-check-circle me-2"></i>
+                <span th:text="${successMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-arrow-clockwise me-1"></i>
+                        Page will refresh automatically to show updated data...
+                    </small>
+                </div>
+            </div>
+
+            <!-- Optimization Info (can be removed in production) -->
+            <div th:if="${param.optimized}" class="alert alert-info alert-dismissible fade show">
+                <i class="bi bi-lightning me-2"></i>
+                <strong>Optimized Loading:</strong> Used batch processing to load your yearly data efficiently.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
         </div>
+
         <!-- Leave Request Form -->
         <div class="row g-4">
             <!-- Summary Card -->
@@ -85,7 +117,7 @@
                         </h5>
                     </div>
                     <div class="card-body">
-                        <form th:action="@{/user/timeoff}" method="post" class="needs-validation" novalidate>
+                        <form th:action="@{/user/timeoff}" method="post" class="needs-validation" novalidate id="timeoffForm">
                             <!-- Single Day Toggle -->
                             <div class="form-check form-section">
                                 <input class="form-check-input" type="checkbox" id="singleDayRequest"
@@ -169,13 +201,14 @@
                                             <li>For single day requests, both start and end dates will be set to the
                                                 same day
                                             </li>
+                                            <li><strong>Optimized Processing:</strong> Your request uses batch operations for faster processing</li>
                                         </ul>
                                     </div>
                                 </div>
                             </div>
                             <!-- Submit Button -->
                             <div class="d-grid mt-4">
-                                <button type="submit" class="btn btn-primary">
+                                <button type="submit" class="btn btn-primary" id="submitBtn">
                                     <i class="bi bi-send me-2"></i>Submit Request
                                 </button>
                             </div>
@@ -186,9 +219,77 @@
         </div>
     </div>
 </div>
+
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
     <script th:src="@{/js/timeoff.js?v=18781}"></script>
+    <script>
+        // Enhanced timeoff.js with optimization features
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('timeoffForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+
+            // Auto-refresh after success message
+            const successAlert = document.querySelector('.alert-success');
+            if (successAlert) {
+                setTimeout(function() {
+                    console.log('Auto-refreshing page after successful time off request...');
+                    window.location.href = window.location.pathname + '?optimized=true';
+                }, 3000); // 3 second delay to show success message
+            }
+
+            // Show loading indicator during form submission
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    // Show loading indicator
+                    if (loadingIndicator) {
+                        loadingIndicator.classList.remove('d-none');
+                    }
+
+                    // Update submit button
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+                    }
+
+                    console.log('Submitting time off request with optimized batch processing...');
+                });
+            }
+
+            // Original timeoff.js functionality
+            const startDateInput = form.querySelector('input[name="startDate"]');
+            const endDateInput = form.querySelector('input[name="endDate"]');
+            const singleDayCheckbox = document.getElementById('singleDayRequest');
+            const endDateContainer = document.getElementById('endDateContainer');
+
+            // Single day request handling
+            if (singleDayCheckbox) {
+                singleDayCheckbox.addEventListener('change', function () {
+                    endDateContainer.style.display = this.checked ? 'none' : 'block';
+                    if (this.checked) {
+                        endDateInput.value = startDateInput.value;
+                    }
+                });
+            }
+
+            // Start date changes
+            if (startDateInput) {
+                startDateInput.addEventListener('change', function () {
+                    if (singleDayCheckbox.checked) {
+                        endDateInput.value = this.value;
+                    }
+                });
+            }
+
+            // Performance monitoring (can be removed in production)
+            const perfStart = performance.now();
+            window.addEventListener('load', function() {
+                const loadTime = performance.now() - perfStart;
+                console.log(`Optimized time off page loaded in ${loadTime.toFixed(2)}ms`);
+            });
+        });
+    </script>
 </th:block>
 </body>
 </html>

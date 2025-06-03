@@ -54,7 +54,7 @@ public class FileWriterService {
     // === REQUEST DEDUPLICATION ===
     // Prevent rapid clicks by tracking recent write attempts
     private final Map<String, Long> lastWriteAttempts = new ConcurrentHashMap<>();
-    private static final long MIN_WRITE_INTERVAL_MS = 1000; // 1 second between writes per user/file
+    private static final long MIN_WRITE_INTERVAL_MS = 10; // 1 second between writes per user/file
 
     // === ASYNC OPERATION TRACKING ===
     // Track ongoing async operations to coordinate with new requests
@@ -147,6 +147,32 @@ public class FileWriterService {
 
         return writeResult;
     }
+
+    /**
+     * Writes to local file and syncs to network if available.
+     * Used by data services for operations that need network synchronization.
+     *
+     * @param localPath The local file path to write to
+     * @param data The data to write
+     * @param skipObfuscation Whether to skip obfuscation
+     * @return The result of the write operation
+     */
+    public <T> FileOperationResult writeWithNetworkSyncNoBackup(FilePath localPath, T data, boolean skipObfuscation) {
+        if (!localPath.isLocal()) {
+            return FileOperationResult.failure(localPath.getPath(), "Path must be local for network sync operation");
+        }
+
+        // Write the file with backup enabled
+        FileOperationResult writeResult = writeFileWithBackupControl(localPath, data, skipObfuscation, false);
+
+        // If write successful, trigger async network sync
+        if (writeResult.isSuccess() && isNetworkAvailable()) {
+            triggerAsyncNetworkSync(localPath, getCurrentUsername());
+        }
+
+        return writeResult;
+    }
+
 
     // ========================================================================
     // CORE IMPLEMENTATION WITH LOCKING AND RETRY

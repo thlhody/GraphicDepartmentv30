@@ -36,20 +36,24 @@
             <i class="bi bi-check-circle"></i>
             <span>Validate</span>
           </button>
+          <button id="refresh-cache-btn" class="btn-action success">
+            <i class="bi bi-arrow-repeat"></i>
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
-      <!-- System Health -->
+      <!-- Cache Data Check -->
       <div class="control-group">
-        <label class="control-label">System Health</label>
+        <label class="control-label">Data Verification</label>
         <div class="action-buttons">
-          <button id="health-check-btn" class="btn-action success" disabled>
-            <i class="bi bi-heart-pulse"></i>
-            <span>Check</span>
+          <button id="check-user-data-btn" class="btn-action secondary">
+            <i class="bi bi-people"></i>
+            <span>User Data</span>
           </button>
-          <button id="diagnostics-btn" class="btn-action secondary" disabled>
-            <i class="bi bi-tools"></i>
-            <span>Diagnostics</span>
+          <button id="user-count-btn" class="btn-action secondary">
+            <i class="bi bi-hash"></i>
+            <span>User Count</span>
           </button>
         </div>
       </div>
@@ -57,15 +61,33 @@
       <!-- Quick Stats -->
       <div class="control-group">
         <label class="control-label">Quick Stats</label>
-        <div class="stats-display" id="quick-stats">
+        <div class="stats-display" id="monitor-stats">
           <div class="stat-item">
             <span class="stat-label">Cache Status</span>
             <span class="stat-value" id="cache-status-indicator">Unknown</span>
           </div>
           <div class="stat-item">
+            <span class="stat-label">Cached Users</span>
+            <span class="stat-value" id="cached-users-count">0</span>
+          </div>
+          <div class="stat-item">
             <span class="stat-label">Last Check</span>
             <span class="stat-value" id="last-check-time">Never</span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cache Health Overview -->
+    <div class="monitor-section">
+      <h5>Cache Health Overview</h5>
+      <div class="validation-result" id="cache-health-overview">
+        <div class="result-item">
+          <i class="bi bi-circle-fill" id="cache-health-icon" style="color: #6c757d;"></i>
+          <span id="cache-health-text">Cache health not checked yet</span>
+        </div>
+        <div class="result-meta" id="cache-health-details" style="display: none;">
+          <!-- Health details will be populated here -->
         </div>
       </div>
     </div>

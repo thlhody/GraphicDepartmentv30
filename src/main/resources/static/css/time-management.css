@@ -1,0 +1,686 @@
+/**
+ * Refactored Unified Time Management Styles
+ * Compact layout with enhanced functionality
+ */
+
+/* ========================================================================
+   COMPACT SUMMARY CARD STYLES (30% size reduction)
+   ======================================================================== */
+
+.summary-card {
+    transition: transform 0.2s ease;
+    border-radius: 0.5rem;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Compact summary body */
+.compact-summary {
+    padding: 0.75rem !important;
+    font-size: 0.875rem;
+}
+
+/* Compact summary items */
+.summary-item-compact {
+    transition: transform 0.1s ease;
+    border-radius: 0.375rem;
+    margin-bottom: 0.25rem;
+}
+
+.summary-item-compact:hover {
+    transform: translateY(-1px);
+}
+
+/* Mini summary items for time off breakdown */
+.summary-item-mini {
+    font-size: 0.8rem;
+    border-radius: 0.25rem;
+}
+
+.summary-item-mini:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Section titles in compact summary */
+.section-title {
+    font-size: 0.9rem;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+/* Compact badges */
+.summary-card .badge.small {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* ========================================================================
+   COMPACT TIME OFF REQUEST FORM
+   ======================================================================== */
+
+.timeoff-card {
+    transition: all 0.3s ease;
+    border-radius: 0.5rem;
+}
+
+.timeoff-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Compact form controls */
+.timeoff-card .form-control-sm {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.5rem;
+}
+
+/* Compact form check */
+.timeoff-card .form-check-inline {
+    margin-right: 0.75rem;
+}
+
+.timeoff-card .form-check-label {
+    font-size: 0.875rem;
+    margin-bottom: 0;
+}
+
+/* Compact button */
+.timeoff-card .btn-sm {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Form layout improvements */
+.timeoff-card .row.g-3 {
+    --bs-gutter-x: 0.75rem;
+}
+
+/* ========================================================================
+   ENHANCED TABLE STYLES WITH TEMPORARY STOP
+   ======================================================================== */
+
+/* Compact table */
+.table-sm {
+    font-size: 0.85rem;
+}
+
+.table-sm th,
+.table-sm td {
+    padding: 0.5rem 0.25rem;
+    vertical-align: middle;
+}
+
+.table-sm th {
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: #495057;
+}
+
+/* Specific column styling */
+.date-cell {
+    min-width: 80px;
+}
+
+.time-cell {
+    min-width: 70px;
+    text-align: center;
+}
+
+.temp-stop-cell {
+    min-width: 80px;
+    text-align: center;
+}
+
+.timeoff-cell {
+    min-width: 70px;
+    text-align: center;
+}
+
+/* ========================================================================
+   ENHANCED WORKTIME ENTRY STYLING (Whole Month View)
+   ======================================================================== */
+
+/* Base worktime entry */
+.worktime-entry {
+    transition: background-color 0.15s ease;
+}
+
+.worktime-entry:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Empty day styling for whole month view */
+.worktime-entry.empty-day {
+    background-color: rgba(248, 249, 250, 0.3);
+}
+
+.worktime-entry.empty-day:hover {
+    background-color: rgba(13, 110, 253, 0.08);
+}
+
+.worktime-entry.empty-day .cell-value {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+/* Weekend day styling */
+.worktime-entry.weekend-day {
+    background-color: rgba(108, 117, 125, 0.08);
+    color: #6c757d;
+}
+
+.worktime-entry.weekend-day .editable-cell {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.worktime-entry.weekend-day:hover {
+    background-color: rgba(108, 117, 125, 0.12);
+}
+
+/* Current day styling (enhanced) */
+.current-day {
+    background-color: rgba(255, 193, 7, 0.08);
+    border-left: 4px solid #ffc107;
+}
+
+.current-day .editable-cell {
+    cursor: not-allowed !important;
+    opacity: 0.7;
+}
+
+.current-day .editable-cell:hover {
+    background-color: rgba(255, 193, 7, 0.15) !important;
+}
+
+/* Future day styling (enhanced) */
+.future-day {
+    background-color: rgba(108, 117, 125, 0.05);
+    border-left: 4px solid #6c757d;
+}
+
+.future-day .editable-cell {
+    cursor: not-allowed !important;
+    opacity: 0.5;
+}
+
+.future-day .editable-cell:hover {
+    background-color: rgba(108, 117, 125, 0.1) !important;
+}
+
+/* ========================================================================
+   ENHANCED INLINE EDITING STYLES (Time Off vs Time Logic)
+   ======================================================================== */
+
+/* Editable cell styles */
+.editable-cell {
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0.5rem 0.25rem !important;
+    border-radius: 0.25rem;
+}
+
+.editable-cell:hover {
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+.editable-cell.editing {
+    background-color: rgba(255, 193, 7, 0.2);
+    border: 2px solid #ffc107;
+    border-radius: 0.25rem;
+}
+
+/* Disabled/Non-editable states with improved logic */
+.editable-cell.disabled,
+.editable-cell.non-editable {
+    cursor: not-allowed;
+    opacity: 0.7;
+    background-color: rgba(108, 117, 125, 0.05);
+}
+
+.editable-cell.disabled:hover,
+.editable-cell.non-editable:hover {
+    background-color: rgba(108, 117, 125, 0.1);
+}
+
+/* Special styling for time fields disabled due to time off */
+.editable-cell.non-editable[data-field="startTime"],
+.editable-cell.non-editable[data-field="endTime"] {
+    background-color: rgba(255, 193, 7, 0.05);
+    border-left: 3px solid #ffc107;
+}
+
+.editable-cell.non-editable[data-field="startTime"]:hover,
+.editable-cell.non-editable[data-field="endTime"]:hover {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+/* Empty day styling for whole month view */
+.worktime-entry.empty-day {
+    background-color: rgba(248, 249, 250, 0.5);
+}
+
+.worktime-entry.empty-day:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Weekend day styling */
+.worktime-entry.weekend-day {
+    background-color: rgba(108, 117, 125, 0.05);
+    color: #6c757d;
+}
+
+.worktime-entry.weekend-day .editable-cell {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Time off conflict indicators */
+.time-field-blocked {
+    position: relative;
+}
+
+.time-field-blocked::after {
+    content: "⚠️";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+/* Force hide edit icons for non-editable cells */
+.non-editable .edit-icon,
+.d-none-force {
+    display: none !important;
+}
+
+/* Edit icon */
+.edit-icon {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    color: #6c757d;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.editable-cell:hover .edit-icon {
+    opacity: 1;
+}
+
+.editable-cell.disabled .edit-icon {
+    display: none;
+}
+
+/* Inline editor with 24-hour format enforcement */
+.inline-editor {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: inherit;
+    padding: 0;
+    outline: none;
+    font-family: inherit;
+    text-align: center;
+}
+
+.inline-editor:focus {
+    background-color: white;
+    border: 1px solid #007bff;
+    border-radius: 0.25rem;
+    padding: 0.25rem;
+}
+
+/* Specific styling for time inputs to enforce 24-hour format */
+.inline-editor[type="time"] {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+}
+
+.inline-editor[type="time"]::-webkit-calendar-picker-indicator {
+    opacity: 0.6;
+}
+
+/* Time off cell special styling */
+.editable-cell[data-field="timeOff"] .cell-value {
+    min-height: 1.5rem;
+    display: inline-block;
+}
+
+/* Validation feedback */
+.cell-error {
+    border: 2px solid #dc3545 !important;
+    background-color: rgba(220, 53, 69, 0.1) !important;
+}
+
+.cell-success {
+    border: 2px solid #198754 !important;
+    background-color: rgba(25, 135, 84, 0.1) !important;
+}
+
+/* Field status indicators */
+.field-status {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #28a745;
+}
+
+.field-status.saving {
+    background-color: #ffc107;
+    animation: pulse 1s infinite;
+}
+
+.field-status.error {
+    background-color: #dc3545;
+}
+
+/* ========================================================================
+   CURRENT/FUTURE DAY STYLING
+   ======================================================================== */
+
+/* Current day styling */
+.current-day {
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+.current-day .editable-cell {
+    cursor: not-allowed !important;
+    opacity: 0.7;
+}
+
+.current-day .editable-cell:hover {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
+
+/* Future day styling */
+.future-day {
+    background-color: rgba(108, 117, 125, 0.05);
+}
+
+.future-day .editable-cell {
+    cursor: not-allowed !important;
+    opacity: 0.5;
+}
+
+.future-day .editable-cell:hover {
+    background-color: rgba(108, 117, 125, 0.1) !important;
+}
+
+/* ========================================================================
+   BADGE AND STATUS STYLING
+   ======================================================================== */
+
+/* Lunch break indicator */
+.lunch-break {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+}
+
+/* Overtime display */
+.overtime-display {
+    min-width: 40px;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+/* Small badges for compact layout */
+.badge.small {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+}
+
+/* ========================================================================
+   LOADING AND FEEDBACK STYLES
+   ======================================================================== */
+
+/* Loading overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-overlay .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Remove old alert system styling - replaced with toast */
+.alert-dismissible {
+    display: none !important;
+}
+
+/* Pulse animation */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* ========================================================================
+   RESPONSIVE DESIGN FOR COMPACT LAYOUT
+   ======================================================================== */
+
+@media (max-width: 992px) {
+/* Stack panels on medium screens */
+    .col-lg-3, .col-lg-9 {
+        margin-bottom: 1rem;
+    }
+
+    /* Adjust compact summary for medium screens */
+    .compact-summary {
+        padding: 1rem !important;
+    }
+
+    /* Stack form elements on medium screens */
+    .timeoff-card .row .col-md-3,
+    .timeoff-card .row .col-md-2,
+    .timeoff-card .row .col-md-1 {
+        margin-bottom: 0.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+/* Mobile optimizations */
+    .summary-item-compact {
+        padding: 0.5rem !important;
+        margin-bottom: 0.25rem;
+    }
+
+    .table-sm {
+        font-size: 0.75rem;
+    }
+
+    .table-sm th, .table-sm td {
+        padding: 0.25rem 0.125rem;
+    }
+
+    .editable-cell {
+        min-width: 60px;
+        padding: 0.25rem 0.125rem !important;
+    }
+
+    .edit-icon {
+        right: 2px;
+        font-size: 0.6rem;
+    }
+
+    /* Hide some columns on mobile to save space */
+    .temp-stop-cell,
+    .table-sm th:nth-child(3),
+    .table-sm td:nth-child(3) {
+        display: none;
+    }
+
+    /* Compact time off form on mobile */
+    .timeoff-card .row {
+        flex-direction: column;
+    }
+
+    .timeoff-card .col-md-3,
+    .timeoff-card .col-md-2,
+    .timeoff-card .col-md-1 {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* ========================================================================
+   PRINT STYLES
+   ======================================================================== */
+
+@media print {
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+    }
+
+    .badge {
+        border: 1px solid #dee2e6 !important;
+        color: #212529 !important;
+        background-color: transparent !important;
+    }
+
+    .btn {
+        display: none !important;
+    }
+
+    .table-sm th, .table-sm td {
+        padding: 0.25rem !important;
+    }
+
+    .edit-icon {
+        display: none !important;
+    }
+
+    .editable-cell {
+        cursor: default !important;
+    }
+
+    .loading-overlay,
+    .toast-alert-container {
+        display: none !important;
+    }
+
+    /* Ensure time off form doesn't print */
+    .timeoff-card {
+        display: none !important;
+    }
+}
+
+/* ========================================================================
+   TOOLTIP STYLES
+   ======================================================================== */
+
+.tooltip-inner {
+    background-color: rgba(33, 37, 41, 0.95);
+    border-radius: 0.25rem;
+    max-width: 200px;
+    padding: 0.4rem;
+    text-align: center;
+    font-size: 0.8rem;
+}
+
+/* Help text for editing */
+.editing-help {
+    position: absolute;
+    bottom: -25px;
+    left: 0;
+    font-size: 0.7rem;
+    color: #6c757d;
+    background-color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    white-space: nowrap;
+    z-index: 1000;
+}
+
+/* ========================================================================
+   HEADER AND LAYOUT IMPROVEMENTS
+   ======================================================================== */
+
+.page-header {
+    margin-bottom: 1.5rem;
+}
+
+.header-title {
+    color: #495057;
+    margin-bottom: 0;
+}
+
+/* Card header improvements */
+.card-header {
+    background-color: rgba(13, 110, 253, 0.05);
+    border-bottom: 1px solid rgba(13, 110, 253, 0.1);
+}
+
+.card-footer {
+    background-color: rgba(248, 249, 250, 0.8);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* ========================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ======================================================================== */
+
+/* Focus states for keyboard navigation */
+.editable-cell:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .editable-cell:hover {
+        background-color: rgba(13, 110, 253, 0.2);
+        border: 1px solid #007bff;
+    }
+
+    .non-editable {
+        background-color: rgba(108, 117, 125, 0.1);
+        border: 1px solid #6c757d;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .summary-item-compact,
+    .timeoff-card,
+    .editable-cell,
+    .edit-icon {
+        transition: none;
+    }
+
+    .pulse {
+        animation: none;
+    }
+}

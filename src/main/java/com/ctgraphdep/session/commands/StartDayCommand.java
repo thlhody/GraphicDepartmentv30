@@ -69,8 +69,7 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
         WorkTimeTable entry = context.executeCommand(createEntryCommand);
 
         // Save worktime entry using standardized date values
-        context.getWorktimeManagementService().saveWorkTimeEntry(username, entry,
-                timeValues.getCurrentDate().getYear(), timeValues.getCurrentDate().getMonthValue(), username);
+        context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, timeValues.getCurrentDate().getYear(), timeValues.getCurrentDate().getMonthValue(), username);
 
         // Start session monitoring
         context.getSessionMonitorService().startEnhancedMonitoring(username);

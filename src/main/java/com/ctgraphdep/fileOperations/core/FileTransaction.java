@@ -1,8 +1,8 @@
 package com.ctgraphdep.fileOperations.core;
 
 import com.ctgraphdep.config.FileTypeConstants;
+import com.ctgraphdep.config.FileTypeConstants.CriticalityLevel;
 import com.ctgraphdep.fileOperations.model.FileTransactionResult;
-import com.ctgraphdep.fileOperations.service.BackupService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 
@@ -15,9 +15,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Enhanced transaction class that represents a transactional unit of file operations.
+ * REFACTORED: Enhanced transaction class that represents a transactional unit of file operations.
  * Multiple file operations can be grouped together to be committed or rolled back as a unit.
- * Now supports criticality levels for different types of files.
+ * Key Changes:
+ * - Now uses FileTypeConstants.CriticalityLevel enum (moved from BackupService)
+ * - Leverages FileTypeConstants.getCriticalityLevelForFilename() for centralized logic
+ * - Simplified criticality determination using unified file type system
+ * - Cleaner integration with the centralized backup strategy
  */
 @Getter
 public class FileTransaction {
@@ -206,7 +210,8 @@ public class FileTransaction {
     }
 
     /**
-     * Represents a sync operation in a transaction
+     * REFACTORED: Represents a sync operation in a transaction.
+     * Now uses FileTypeConstants for criticality determination.
      */
     private static class SyncOperation extends FileOperation {
         private final FilePath sourceFile;
@@ -230,8 +235,8 @@ public class FileTransaction {
                 // Create target directory if it doesn't exist
                 Files.createDirectories(targetPath.getParent());
 
-                // Determine criticality level based on file type
-                BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel();
+                // Determine criticality level using FileTypeConstants
+                CriticalityLevel criticalityLevel = determineCriticalityLevel();
 
                 // Create backup of target if it exists
                 if (Files.exists(targetPath)) {
@@ -245,7 +250,7 @@ public class FileTransaction {
                 LoggerUtil.debug(this.getClass(), "Copied file from " + sourcePath + " to " + targetPath);
 
                 // Delete backup on success only for low criticality files
-                if (criticalityLevel == BackupService.CriticalityLevel.LEVEL1_LOW) {
+                if (criticalityLevel == CriticalityLevel.LEVEL1_LOW) {
                     Path backupPath = targetPath.resolveSibling(targetPath.getFileName() + FileTypeConstants.BACKUP_EXTENSION);
                     if (Files.exists(backupPath)) {
                         Files.delete(backupPath);
@@ -261,30 +266,21 @@ public class FileTransaction {
         }
 
         /**
-         * Determines the criticality level of a file based on its path
-         * @return The appropriate criticality level
+         * REFACTORED: Determines the criticality level using FileTypeConstants.
+         * Replaces hardcoded string matching with centralized logic.
+         *
+         * @return The appropriate criticality level from FileTypeConstants
          */
-        private BackupService.CriticalityLevel determineCriticalityLevel() {
-            Path path = targetFile.getPath();
-            String pathStr = path.toString().toLowerCase();
+        private CriticalityLevel determineCriticalityLevel() {
+            String fileName = targetFile.getPath().getFileName().toString();
 
-            // Status files - Low criticality
-            if (pathStr.contains("status") || path.getFileName().toString().startsWith("status_")) {
-                return BackupService.CriticalityLevel.LEVEL1_LOW;
-            }
+            // Use FileTypeConstants for centralized criticality determination
+            CriticalityLevel level = FileTypeConstants.getCriticalityLevelForFilename(fileName);
 
-            // Session files - Medium criticality
-            if (pathStr.contains("session") || path.getFileName().toString().contains("session")) {
-                return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
-            }
+            LoggerUtil.debug(this.getClass(), String.format("Transaction file %s determined as %s criticality",
+                    fileName, level));
 
-            // Worktime or Register files - High criticality
-            if (pathStr.contains("worktime") || pathStr.contains("register")) {
-                return BackupService.CriticalityLevel.LEVEL3_HIGH;
-            }
-
-            // Default to medium criticality for unknown files
-            return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
+            return level;
         }
     }
 }

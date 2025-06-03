@@ -3,34 +3,147 @@ package com.ctgraphdep.security;
 import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 /**
- * REFACTORED: Service that provides user context for both web and background operations.
- * FIXED CIRCULAR DEPENDENCY: Now uses UserDataService directly instead of UserService.
- * OLD: UserContextService → UserService → UserContextService (CIRCULAR)
- * NEW: UserContextService → UserDataService (CLEAN)
- * This service acts as the primary interface for getting current user information
- * throughout the application, replacing the need for complex authentication context management.
+ * ENHANCED UserContextService with Role Elevation Support.
+ * NEW FEATURE: Admin role elevation without losing original user context.
+ *
+ * Key Features:
+ * - Maintains original user for background processes
+ * - Supports temporary admin elevation for web interface
+ * - Clean separation between admin UI and background operations
+ * - Original user context preserved during admin sessions
  */
 @Service
 public class UserContextService {
 
     private final UserContextCache userContextCache;
-    private final UserDataService userDataService;  // CHANGED: Direct UserDataService instead of UserService
+    private final UserDataService userDataService;
 
     public UserContextService(UserContextCache userContextCache, UserDataService userDataService) {
         this.userContextCache = userContextCache;
-        this.userDataService = userDataService;  // CHANGED: Inject UserDataService
+        this.userDataService = userDataService;
         LoggerUtil.initialize(this.getClass(), null);
     }
+
+    // ========================================================================
+    // EXISTING API METHODS (ENHANCED FOR ELEVATION)
+    // ========================================================================
+
     /**
-     * Initialize user context from User object (for startup)
-     * @param user The user to set in context
+     * Get current user - ENHANCED to consider elevation
+     * Returns elevated admin if present, otherwise original user
+     *
+     * @return Current user (never null, falls back to system user)
+     */
+    public User getCurrentUser() {
+        return userContextCache.getCurrentUser();
+    }
+
+    /**
+     * Get current username - ENHANCED to consider elevation
+     *
+     * @return Current username (never null)
+     */
+    public String getCurrentUsername() {
+        return userContextCache.getCurrentUsername();
+    }
+
+    /**
+     * Check if cache is healthy
+     *
+     * @return true if cache has valid original user data
+     */
+    public boolean isCacheHealthy() {
+        return userContextCache.isHealthy();
+    }
+
+    /**
+     * Forces cache refresh for emergency situations
+     *
+     * @return true if refresh was successful
+     */
+    public boolean forceRefresh() {
+        return userContextCache.forceRefresh();
+    }
+
+    /**
+     * Check if we have a real user (not system user) - ENHANCED for elevation
+     *
+     * @return true if current user is a real authenticated user (original or elevated)
+     */
+    public boolean hasRealUser() {
+        User user = getCurrentUser();
+        return user != null && !"system".equals(user.getUsername());
+    }
+
+    /**
+     * Get current user ID - ENHANCED for elevation
+     *
+     * @return Current user ID (elevated admin or original user) or null for system user
+     */
+    public Integer getCurrentUserId() {
+        User user = getCurrentUser();
+        return user != null ? user.getUserId() : null;
+    }
+
+    /**
+     * Check if current user is admin - ENHANCED for elevation
+     *
+     * @return true if current user has admin role (considers elevation)
+     */
+    public boolean isCurrentUserAdmin() {
+        User user = getCurrentUser();
+        return user != null && user.isAdmin();
+    }
+
+    /**
+     * Get current user role - ENHANCED for elevation
+     *
+     * @return Current user role (elevated admin or original user) or "SYSTEM"
+     */
+    public String getCurrentUserRole() {
+        User user = getCurrentUser();
+        return user != null ? user.getRole() : "SYSTEM";
+    }
+
+    /**
+     * Check if cache is properly initialized - ENHANCED for elevation
+     *
+     * @return true if cache has valid user data (original user exists)
+     */
+    public boolean isCacheInitialized() {
+        // Check if we have a valid original user (ignoring elevation)
+        User originalUser = userContextCache.getOriginalUser();
+        return originalUser != null && !"system".equals(originalUser.getUsername());
+    }
+
+    /**
+     * Performs midnight reset of user context cache - ENHANCED for elevation
+     * Clears admin elevation and refreshes original user context
+     */
+    public void performMidnightReset() {
+        try {
+            // Clear any admin elevation
+            if (userContextCache.isElevated()) {
+                userContextCache.clearAdminElevation();
+                LoggerUtil.info(this.getClass(), "Admin elevation cleared during midnight reset");
+            }
+
+            // Perform standard midnight reset
+            userContextCache.midnightReset();
+            LoggerUtil.info(this.getClass(), "UserContextService midnight reset completed");
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during midnight reset: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Initialize user context from User object (for startup) - UNCHANGED
      */
     public void initializeFromUser(User user) {
         try {
@@ -48,25 +161,28 @@ public class UserContextService {
             throw new RuntimeException("Failed to initialize user context", e);
         }
     }
+
     /**
-     * REFACTORED: Handle successful login - updates cache with authenticated user
-     * Now uses UserDataService directly for user lookup
-     * @param username The authenticated username
+     * ENHANCED: Handle successful login - now supports admin elevation
+     * For regular users: updates cache normally
+     * For admin users: elevates role without losing original user
      */
     public void handleSuccessfulLogin(String username) {
         try {
-            // CHANGED: Get complete user data from UserDataService instead of UserService
+            // Get complete user data from UserDataService
             Optional<User> userOptional = userDataService.findUserByUsernameForAuthentication(username);
 
             if (userOptional.isPresent()) {
                 User user = userOptional.get();
 
-                // Update cache with complete user data
-                userContextCache.updateFromLogin(user);
+                if (user.isAdmin()) {
+                    // ADMIN LOGIN - Elevate role without losing original user
+                    handleAdminElevation(user);
+                } else {
+                    // REGULAR USER LOGIN - Normal cache update
+                    handleRegularUserLogin(user);
+                }
 
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Login cache updated for user: %s (ID: %d, Role: %s)",
-                        user.getUsername(), user.getUserId(), user.getRole()));
             } else {
                 LoggerUtil.error(this.getClass(), "User not found after authentication: " + username);
                 throw new RuntimeException("User not found after authentication");
@@ -79,95 +195,139 @@ public class UserContextService {
     }
 
     /**
-     * Handle logout - invalidates cache
+     * Handle logout - ENHANCED to clear elevation properly
      */
     public void handleLogout() {
-        userContextCache.invalidateCache();
-        LoggerUtil.info(this.getClass(), "User context cache cleared on logout");
+        boolean wasElevated = userContextCache.isElevated();
+
+        if (wasElevated) {
+            // Admin logout - just clear elevation, keep original user
+            userContextCache.clearAdminElevation();
+            LoggerUtil.info(this.getClass(), "Admin elevation cleared on logout - original user context preserved");
+        } else {
+            // Regular user logout - full cache invalidation
+            // userContextCache.invalidateCache();
+            LoggerUtil.info(this.getClass(), "User context cache cleared on logout");
+        }
     }
 
-    /**
-     * Get current user - works for both web and background contexts
-     * @return Current user (never null, falls back to system user)
-     */
-    public User getCurrentUser() {
-        return userContextCache.getCurrentUser();
-    }
+    // ========================================================================
+    // NEW: ADMIN ELEVATION METHODS
+    // ========================================================================
 
     /**
-     * Get current username - convenience method
-     * @return Current username or "system"
+     * NEW: Elevate to admin role without losing original user context
+     *
+     * @param adminUser The admin user to elevate to
      */
-    public String getCurrentUsername() {
-        return userContextCache.getCurrentUsername();
-    }
-
-    /**
-     * REFACTORED: Get sanitized current user (for display purposes)
-     * Now uses UserDataService for lookup instead of UserService
-     * @return Sanitized user without sensitive information
-     */
-    public User getCurrentUserSanitized() {
-        User user = getCurrentUser();
-        if (user == null || "system".equals(user.getUsername())) {
-            return user; // System user is already clean
+    public void elevateToAdminRole(User adminUser) {
+        if (adminUser == null || !adminUser.isAdmin()) {
+            LoggerUtil.error(this.getClass(), "Cannot elevate: invalid admin user");
+            throw new IllegalArgumentException("Invalid admin user for elevation");
         }
 
-        // CHANGED: Get sanitized version from UserDataService instead of UserService
-        // Use smart fallback pattern: local first for own data
-        Optional<User> sanitizedUser = userDataService.userReadLocalReadOnly(user.getUsername(), user.getUserId(), user.getUsername());
-
-        if (sanitizedUser.isPresent()) {
-            // Return user without password (UserDataService read method provides this)
-            User cleanUser = sanitizedUser.get();
-            cleanUser.setPassword(null); // Ensure no password in sanitized version
-            return cleanUser;
+        try {
+            userContextCache.elevateToAdminRole(adminUser);
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully elevated to admin role: %s", adminUser.getUsername()));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error elevating to admin role for %s: %s", adminUser.getUsername(), e.getMessage()), e);
+            throw new RuntimeException("Failed to elevate to admin role", e);
         }
-
-        return user; // Fallback to cached user
     }
 
     /**
-     * Check if we have a real user (not system user)
-     * @return true if current user is a real authenticated user
+     * NEW: Clear admin elevation (return to original user)
      */
-    public boolean hasRealUser() {
-        User user = getCurrentUser();
-        return user != null && !"system".equals(user.getUsername());
+    public void clearAdminElevation() {
+        try {
+            userContextCache.clearAdminElevation();
+            LoggerUtil.info(this.getClass(), "Admin elevation cleared successfully");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error clearing admin elevation: " + e.getMessage(), e);
+        }
     }
 
     /**
-     * Get current user ID - convenience method
-     * @return Current user ID or null for system user
+     * NEW: Check if currently elevated to admin
+     *
+     * @return true if admin elevation is active
      */
-    public Integer getCurrentUserId() {
-        User user = getCurrentUser();
-        return user != null ? user.getUserId() : null;
+    public boolean isElevated() {
+        return userContextCache.isElevated();
     }
 
     /**
-     * Check if current user is admin
-     * @return true if current user has admin role
+     * NEW: Get elevated admin user if present
+     *
+     * @return Admin user if elevated, null otherwise
      */
-    public boolean isCurrentUserAdmin() {
-        User user = getCurrentUser();
-        return user != null && user.isAdmin();
+    public User getElevatedAdminUser() {
+        return userContextCache.getElevatedAdminUser();
     }
 
     /**
-     * Get current user role
-     * @return Current user role or "SYSTEM"
+     * NEW: Get original user (ignoring elevation)
+     * This is for background processes that should always use the original user
+     *
+     * @return Original user (never null, falls back to system user)
      */
-    public String getCurrentUserRole() {
-        User user = getCurrentUser();
-        return user != null ? user.getRole() : "SYSTEM";
+    public User getOriginalUser() {
+        return userContextCache.getOriginalUser();
+    }
+
+    // ========================================================================
+    // PRIVATE HELPER METHODS FOR LOGIN HANDLING
+    // ========================================================================
+
+    /**
+     * Handle admin elevation during login
+     */
+    private void handleAdminElevation(User adminUser) {
+        try {
+            // Check if we have an original user context
+            if (!userContextCache.isHealthy()) {
+                LoggerUtil.warn(this.getClass(),
+                        "No healthy original user context for admin elevation - this may affect background processes");
+            }
+
+            // Elevate to admin role
+            userContextCache.elevateToAdminRole(adminUser);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Admin elevation successful: %s (original user context preserved)",
+                    adminUser.getUsername()));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error during admin elevation for %s: %s", adminUser.getUsername(), e.getMessage()), e);
+            throw new RuntimeException("Failed to handle admin elevation", e);
+        }
     }
 
     /**
-     * Check if cache is properly initialized
-     * @return true if cache has valid user data
+     * Handle regular user login
      */
-    public boolean isCacheInitialized() {
-        return hasRealUser();
+    private void handleRegularUserLogin(User user) {
+        try {
+            // Clear any existing admin elevation first
+            if (userContextCache.isElevated()) {
+                userContextCache.clearAdminElevation();
+                LoggerUtil.info(this.getClass(), "Cleared existing admin elevation for regular user login");
+            }
+
+            // Update cache with regular user
+            userContextCache.updateFromLogin(user);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Regular user login successful: %s (ID: %d, Role: %s)",
+                    user.getUsername(), user.getUserId(), user.getRole()));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error during regular user login for %s: %s", user.getUsername(), e.getMessage()), e);
+            throw new RuntimeException("Failed to handle regular user login", e);
+        }
     }
 }

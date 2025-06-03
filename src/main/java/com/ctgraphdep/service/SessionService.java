@@ -15,6 +15,7 @@ import com.ctgraphdep.model.dto.session.EndTimeCalculationDTO;
 import com.ctgraphdep.model.dto.session.ResolutionCalculationDTO;
 import com.ctgraphdep.model.dto.session.WorkSessionDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.cache.SessionCacheService;
@@ -48,9 +49,9 @@ public class SessionService {
     private final CalculationCommandService calculationService;
     private final CalculationCommandFactory calculationFactory;
     private final TimeValidationService timeValidationService;
-    private final UserService userService;
     private final SessionMonitorService sessionMonitorService;
     private final WorktimeManagementService worktimeManagementService;
+    private final UserContextService userContextService;
 
     @Autowired
     private SessionCacheService sessionCacheService;
@@ -60,23 +61,17 @@ public class SessionService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, dd MMM yyyy");
 
     @Autowired
-    public SessionService(
-            SessionCommandService sessionCommandService,
-            SessionCommandFactory sessionCommandFactory,
-            CalculationCommandService calculationService,
-            CalculationCommandFactory calculationFactory,
-            TimeValidationService timeValidationService,
-            UserService userService,
-            SessionMonitorService sessionMonitorService,
-            WorktimeManagementService worktimeManagementService) {
+    public SessionService(SessionCommandService sessionCommandService, SessionCommandFactory sessionCommandFactory, CalculationCommandService calculationService,
+                          CalculationCommandFactory calculationFactory, TimeValidationService timeValidationService, SessionMonitorService sessionMonitorService,
+                          WorktimeManagementService worktimeManagementService, UserContextService userContextService) {
         this.sessionCommandService = sessionCommandService;
         this.sessionCommandFactory = sessionCommandFactory;
         this.calculationService = calculationService;
         this.calculationFactory = calculationFactory;
         this.timeValidationService = timeValidationService;
-        this.userService = userService;
         this.sessionMonitorService = sessionMonitorService;
         this.worktimeManagementService = worktimeManagementService;
+        this.userContextService = userContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -123,7 +118,7 @@ public class SessionService {
             }
 
             // Get user schedule
-            int userSchedule = getUserSchedule(userId);
+            int userSchedule = getUserSchedule();
 
             // Update calculations if session is active - BUT ONLY IN CACHE
             if (isActiveSession(session)) {
@@ -165,15 +160,14 @@ public class SessionService {
     /**
      * Gets unresolved work time entries with recommended end times
      * @param username The username
-     * @param userId The user ID
      * @return List of resolution DTOs
      */
-    public List<ResolutionCalculationDTO> getUnresolvedWorkTimeEntries(String username, Integer userId) {
+    public List<ResolutionCalculationDTO> getUnresolvedWorkTimeEntries(String username) {
         try {
             LoggerUtil.info(this.getClass(), "Getting unresolved work time entries for user: " + username);
 
             // Get user schedule
-            int userSchedule = getUserSchedule(userId);
+            int userSchedule = getUserSchedule();
 
             // Get unresolved entries
             List<WorkTimeTable> unresolvedEntries = getUnresolvedEntries(username);
@@ -202,7 +196,7 @@ public class SessionService {
             // Get current time and user schedule
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = getStandardTimeValues();
             LocalDate currentDate = timeValues.getCurrentDate();
-            int userSchedule = getUserSchedule(userId);
+            int userSchedule = getUserSchedule();
 
             // Get current session FROM CACHE
             WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
@@ -255,13 +249,12 @@ public class SessionService {
     /**
      * Calculates resolution values for a specific work date and end time
      * @param username The username
-     * @param userId The user ID
      * @param workDate The work date
      * @param endHour End hour (0-23)
      * @param endMinute End minute (0-59)
      * @return DTO with calculated values
      */
-    public ResolutionCalculationDTO calculateResolutionValues(String username, Integer userId, LocalDate workDate, int endHour, int endMinute) {
+    public ResolutionCalculationDTO calculateResolutionValues(String username, LocalDate workDate, int endHour, int endMinute) {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Calculating resolution values for user %s, date %s at %02d:%02d", username, workDate, endHour, endMinute));
 
@@ -271,7 +264,7 @@ public class SessionService {
             }
 
             // Get user schedule
-            int userSchedule = getUserSchedule(userId);
+            int userSchedule = getUserSchedule();
 
             // Find the work time entry for this date
             WorkTimeTable entry = findEntryForDate(username, workDate);
@@ -351,8 +344,13 @@ public class SessionService {
     /**
      * Gets the user's schedule (hours)
      */
-    private int getUserSchedule(Integer userId) {
-        return userService.getUserById(userId).map(User::getSchedule).orElse(8); // Default to 8 hours
+    private int getUserSchedule() {
+        User currentUser = userContextService.getCurrentUser();
+        if (currentUser != null && currentUser.getSchedule() != null) {
+            return currentUser.getSchedule();
+        }
+        LoggerUtil.warn(this.getClass(), "No current user or schedule found, defaulting to 8 hours");
+        return 8; // Default fallback
     }
 
     /**

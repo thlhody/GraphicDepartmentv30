@@ -1,5 +1,6 @@
 package com.ctgraphdep.monitoring;
 
+import com.ctgraphdep.security.UserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,11 +22,17 @@ import java.util.function.Consumer;
 @Component
 public class SchedulerHealthMonitor {
 
+    private final UserContextService userContextService;
+
     @Value("${app.session.monitoring.interval:30}")
     private int expectedMonitoringInterval;
 
     private final Map<String, TaskStatus> monitoredTasks = new ConcurrentHashMap<>();
     private final Map<String, Consumer<TaskStatus>> recoveryActions = new ConcurrentHashMap<>();
+
+    public SchedulerHealthMonitor(UserContextService userContextService) {
+        this.userContextService = userContextService;
+    }
 
     /**
      * Registers a task to be monitored
@@ -164,6 +171,21 @@ public class SchedulerHealthMonitor {
                 }
             }
         });
+    }
+    @Scheduled(fixedRate = 300000) // 5 minutes
+    public void checkUserContextHealth() {
+        boolean healthy = userContextService.isCacheHealthy();
+        if (!healthy) {
+            LoggerUtil.error(this.getClass(), "UserContextCache is unhealthy - attempting emergency refresh");
+
+            // Try emergency refresh
+            boolean refreshed = userContextService.forceRefresh();
+            if (refreshed) {
+                LoggerUtil.info(this.getClass(), "Emergency refresh successful");
+            } else {
+                LoggerUtil.error(this.getClass(), "Emergency refresh failed - user context may be compromised");
+            }
+        }
     }
 
     /**

@@ -8,39 +8,114 @@
             <i class="bi bi-lightning"></i>
         </div>
         <div class="utility-info">
-            <h3 class="utility-title">Quick Actions</h3>
+            <h3 class="utility-title">Emergency Actions</h3>
             <p class="utility-description">
-                Common utility operations for quick access.<br>
-                Emergency resets and system shortcuts.
+                Quick emergency operations and system shortcuts.<br>
+                One-click solutions for common issues.
             </p>
         </div>
         <div class="utility-toggle">
-            <span class="coming-soon-badge">Coming Soon</span>
+            <button class="btn-subtle" data-bs-toggle="collapse" data-bs-target="#actions-controls"
+                    aria-expanded="false" aria-controls="actions-controls">
+                <i class="bi bi-chevron-down toggle-icon"></i>
+            </button>
         </div>
     </div>
 
-    <div class="utility-controls coming-soon-content">
-        <div class="coming-soon-message">
-            <i class="bi bi-lightning-charge"></i>
-            <h4>Quick Action Tools</h4>
-            <p>One-click utility operations and emergency tools will be available in a future update.</p>
-            <div class="planned-features">
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>Emergency cache reset</span>
+    <div class="collapse utility-controls" id="actions-controls">
+        <div class="controls-grid">
+            <!-- Emergency Operations -->
+            <div class="control-group">
+                <label class="control-label">Emergency Operations</label>
+                <div class="action-buttons">
+                    <button id="emergency-cache-reset-btn" class="btn-action" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <span>Emergency Reset</span>
+                    </button>
+                    <button id="force-cache-refresh-btn" class="btn-action warning">
+                        <i class="bi bi-arrow-repeat"></i>
+                        <span>Force Refresh</span>
+                    </button>
                 </div>
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>Force sync operations</span>
+            </div>
+
+            <!-- Quick Cache Operations -->
+            <div class="control-group">
+                <label class="control-label">Quick Cache Operations</label>
+                <div class="action-buttons">
+                    <button id="check-cache-data-btn" class="btn-action info">
+                        <i class="bi bi-search"></i>
+                        <span>Check Data</span>
+                    </button>
+                    <button id="validate-cache-quick-btn" class="btn-action success">
+                        <i class="bi bi-check-circle"></i>
+                        <span>Validate</span>
+                    </button>
                 </div>
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>Clear temporary files</span>
+            </div>
+
+            <!-- System Shortcuts -->
+            <div class="control-group">
+                <label class="control-label">System Shortcuts</label>
+                <div class="action-buttons">
+                    <button id="quick-health-check-btn" class="btn-action secondary">
+                        <i class="bi bi-heart-pulse"></i>
+                        <span>Health Check</span>
+                    </button>
+                    <button id="refresh-all-data-btn" class="btn-action primary">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        <span>Refresh All</span>
+                    </button>
                 </div>
-                <div class="feature-item">
-                    <i class="bi bi-check2"></i>
-                    <span>System health shortcuts</span>
+            </div>
+        </div>
+
+        <!-- Action Status Display -->
+        <div class="monitor-section">
+            <h5>Action Status</h5>
+            <div class="stats-display" id="actions-status">
+                <div class="stat-item">
+                    <span class="stat-label">Last Action</span>
+                    <span class="stat-value" id="last-action">None</span>
                 </div>
+                <div class="stat-item">
+                    <span class="stat-label">Action Result</span>
+                    <span class="stat-value" id="action-result">Ready</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Action Time</span>
+                    <span class="stat-value" id="action-time">--:--:--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emergency Information -->
+        <div class="monitor-section">
+            <h5>Emergency Information</h5>
+            <div class="status-display">
+                <div class="status-text">
+                    <strong>Emergency Reset:</strong> Clears all caches and performs a complete system reset.
+                    Use this if you're experiencing persistent issues.<br><br>
+
+                    <strong>Force Refresh:</strong> Refreshes all user data from files without clearing caches.
+                    Use this if data seems outdated.<br><br>
+
+                    <strong>Quick Actions:</strong> These operations are designed to resolve common issues
+                    quickly without requiring a full application restart.
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div id="actions-results" class="results-area" style="display: none;">
+            <div class="results-header">
+                <h4 class="results-title">Action Results</h4>
+                <button id="clear-actions-results" class="btn-clear">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div id="actions-content" class="results-content">
+                <!-- Action results will be loaded here -->
             </div>
         </div>
     </div>

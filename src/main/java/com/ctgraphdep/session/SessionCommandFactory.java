@@ -164,8 +164,8 @@ public class SessionCommandFactory {
         return new SessionStatusQuery(username, userId);
     }
 
-    public GetUnresolvedEntriesQuery createGetUnresolvedEntriesQuery(String username, Integer userId) {
-        return new GetUnresolvedEntriesQuery(username, userId);
+    public GetUnresolvedEntriesQuery createGetUnresolvedEntriesQuery(String username) {
+        return new GetUnresolvedEntriesQuery(username);
     }
     /**
      * Creates a query to check if a user is in temporary stop monitoring mode

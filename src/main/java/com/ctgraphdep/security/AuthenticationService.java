@@ -8,6 +8,7 @@ import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.service.CheckRegisterService;
 import com.ctgraphdep.service.RegisterMergeService;
 import com.ctgraphdep.service.UserService;
+import com.ctgraphdep.service.WorktimeLoginMergeService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -32,6 +33,7 @@ public class AuthenticationService {
     private final CustomUserDetailsService userDetailsService;
     private final RegisterMergeService registerMergeService;
     private final CheckRegisterService checkRegisterService;
+    private final WorktimeLoginMergeService worktimeLoginMergeService;
     private final UserContextService userContextService;
 
     public AuthenticationService(
@@ -42,6 +44,7 @@ public class AuthenticationService {
             CustomUserDetailsService userDetailsService,
             RegisterMergeService registerMergeService,
             CheckRegisterService checkRegisterService,
+            WorktimeLoginMergeService worktimeLoginMergeService,
             UserContextService userContextService) {
         this.dataAccessService = dataAccessService;
         this.userDataService = userDataService;      // NEW
@@ -50,6 +53,7 @@ public class AuthenticationService {
         this.userDetailsService = userDetailsService;
         this.registerMergeService = registerMergeService;
         this.checkRegisterService = checkRegisterService;
+        this.worktimeLoginMergeService = worktimeLoginMergeService;
         this.userContextService = userContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -91,12 +95,7 @@ public class AuthenticationService {
                 userDetailsService.loadUserByUsernameOffline(username) :
                 userDetailsService.loadUserByUsername(username);
 
-        // Add debug logs to track password handling
-        LoggerUtil.debug(this.getClass(), String.format("Authenticating user: %s, Encoded password from details: %s",
-                username, userDetails.getPassword()));
-
-        LoggerUtil.debug(this.getClass(), String.format("Password matcher result: %b",
-                passwordEncoder.matches(password, userDetails.getPassword())));
+        LoggerUtil.debug(this.getClass(), String.format("Authenticating user: %s", username));
 
         if (passwordEncoder.matches(password, userDetails.getPassword())) {
             LoggerUtil.info(this.getClass(), String.format("Successfully authenticated user %s", username));
@@ -108,46 +107,106 @@ public class AuthenticationService {
     }
 
     /**
-     * REFACTORED: Handle successful login with UserDataService integration
+     * ENHANCED: Handle successful login with role elevation support
+     * Determines whether to use elevation (admin) or normal login (regular user)
      */
     public void handleSuccessfulLogin(String username, boolean rememberMe) {
         try {
-            // Step 1: Update user context cache
-            updateUserContextCache(username);
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Processing login for user: %s (rememberMe: %s)", username, rememberMe));
 
-            // Step 2: Retrieve user data with fallback
+            // Step 1: Retrieve and validate user data
             User user = retrieveUserData(username);
+
+            // Step 2: Determine login type and handle accordingly
+            if (user.isAdmin()) {
+                handleAdminLogin(user, rememberMe);
+            } else {
+                handleRegularUserLogin(user, rememberMe);
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully completed login processing for user: %s (admin: %s, elevated: %s)",
+                    username, user.isAdmin(), userContextService.isElevated()));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error handling login for user %s: %s", username, e.getMessage()), e);
+            throw new RuntimeException("Failed to handle login", e);
+        }
+    }
+
+    // ========================================================================
+    // LOGIN TYPE HANDLERS
+    // ========================================================================
+
+    /**
+     * NEW: Handle admin login with elevation
+     */
+    private void handleAdminLogin(User adminUser, boolean rememberMe) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Processing admin login: %s", adminUser.getUsername()));
+
+            // Step 1: Ensure we have a healthy original user context for background processes
+            if (!userContextService.isCacheInitialized()) {
+                LoggerUtil.warn(this.getClass(),
+                        "No original user context found - background processes may use system user");
+            }
+
+            // Step 2: Elevate to admin role (preserves original user context)
+            userContextService.elevateToAdminRole(adminUser);
+
+            // Step 3: Handle local storage if requested (for admin user)
+            if (rememberMe) {
+                handleLocalStorageOperations(adminUser);
+            }
+
+            // Step 4: Skip data merges for admin users (they don't need user data merges)
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Admin login completed: %s (elevation active, original user preserved)",
+                    adminUser.getUsername()));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error during admin login for %s: %s", adminUser.getUsername(), e.getMessage()), e);
+            throw new RuntimeException("Failed to handle admin login", e);
+        }
+    }
+
+    /**
+     * Handle regular user login (existing logic)
+     */
+    private void handleRegularUserLogin(User user, boolean rememberMe) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Processing regular user login: %s", user.getUsername()));
+
+            // Step 1: Clear any existing admin elevation
+            if (userContextService.isElevated()) {
+                userContextService.clearAdminElevation();
+                LoggerUtil.info(this.getClass(), "Cleared existing admin elevation for regular user login");
+            }
+
+            // Step 2: Update user context normally
+            userContextService.handleSuccessfulLogin(user.getUsername());
 
             // Step 3: Handle local storage operations if needed
             if (rememberMe) {
                 handleLocalStorageOperations(user);
             }
 
-            // Step 4: Perform role-based data merges
+            // Step 4: Perform role-based data merges (existing logic)
             performRoleBasedDataMerges(user);
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully handled login for user: %s (rememberMe: %s, cache updated: %s)",
-                    username, rememberMe, userContextService.isCacheInitialized()));
+                    "Regular user login completed: %s (cache updated)",
+                    user.getUsername()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
-                    "Error handling login for user %s: %s", username, e.getMessage()));
-            throw new RuntimeException("Failed to handle login", e);
-        }
-    }
-
-    /**
-     * UNCHANGED: Update user context cache
-     */
-    private void updateUserContextCache(String username) {
-        try {
-            userContextService.handleSuccessfulLogin(username);
-            LoggerUtil.debug(this.getClass(), "User context cache updated for: " + username);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Failed to update user context cache for %s: %s", username, e.getMessage()));
-            throw new RuntimeException("Failed to update user context cache", e);
+                    "Error during regular user login for %s: %s", user.getUsername(), e.getMessage()), e);
+            throw new RuntimeException("Failed to handle regular user login", e);
         }
     }
 
@@ -214,6 +273,8 @@ public class AuthenticationService {
             LoggerUtil.debug(this.getClass(), "Skipping all merges for admin user: " + username);
             return;
         }
+
+        performWorktimeMerge(username);
 
         // Determine what data this user should have access to based on role
         UserDataAccessPattern accessPattern = determineUserDataAccessPattern(role);
@@ -326,6 +387,23 @@ public class AuthenticationService {
             // Don't throw - merge failure shouldn't block login
         }
     }
+
+    /**
+     * NEW: Perform worktime merge (for all non-admin users)
+     */
+    private void performWorktimeMerge(String username) {
+        try {
+            LoggerUtil.info(this.getClass(), "Performing worktime merge for: " + username);
+            worktimeLoginMergeService.performUserWorktimeLoginMerge(username);
+            LoggerUtil.info(this.getClass(), "Worktime merge completed for: " + username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Worktime merge failed for %s: %s - continuing with login", username, e.getMessage()));
+            // Don't throw - merge failure shouldn't block login
+        }
+    }
+
+
 
     // ========================================================================
     // REFACTORED HELPER METHODS USING USER DATA SERVICE

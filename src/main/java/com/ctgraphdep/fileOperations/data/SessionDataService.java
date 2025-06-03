@@ -64,14 +64,13 @@ public class SessionDataService {
             );
 
             // Use FileWriterService with network sync - triggers events and backups
-            FileOperationResult result = fileWriterService.writeWithNetworkSync(localPath, session, true);
+            FileOperationResult result = fileWriterService.writeWithNetworkSyncNoBackup(localPath, session, true);
 
             if (!result.isSuccess()) {
                 throw new RuntimeException("Failed to write session file: " + result.getErrorMessage().orElse("Unknown error"));
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Saved session for user %s with status %s",
-                    session.getUsername(), session.getSessionStatus()));
+            LoggerUtil.info(this.getClass(), String.format("Saved session for user %s with status %s", session.getUsername(), session.getSessionStatus()));
 
         } catch (Exception e) {
             LoggerUtil.logAndThrow(this.getClass(), "Failed to write session file: " + e.getMessage(), e);
@@ -151,7 +150,7 @@ public class SessionDataService {
             FilePath cachePath = pathResolver.getLocalPath(null, null, FilePathResolver.FileType.STATUS, new HashMap<>());
 
             // Use FileWriterService without network sync for cache data - still triggers events for backup
-            FileOperationResult result = fileWriterService.writeFile(cachePath, cache, true);
+            FileOperationResult result = fileWriterService.writeFileWithBackupControl(cachePath, cache, true,false);
 
             if (!result.isSuccess()) {
                 LoggerUtil.error(this.getClass(), "Failed to write local status cache: " + result.getErrorMessage().orElse("Unknown error"));

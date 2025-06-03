@@ -9,11 +9,9 @@ import java.util.List;
 
 public class GetUnresolvedEntriesQuery implements SessionQuery<List<ResolutionCalculationDTO>> {
     private final String username;
-    private final Integer userId;
 
-    public GetUnresolvedEntriesQuery(String username, Integer userId) {
+    public GetUnresolvedEntriesQuery(String username) {
         this.username = username;
-        this.userId = userId;
     }
 
     @Override
@@ -22,6 +20,6 @@ public class GetUnresolvedEntriesQuery implements SessionQuery<List<ResolutionCa
         SessionService sessionService = context.getSessionService();
 
         // Use SessionService to get unresolved entries
-        return sessionService.getUnresolvedWorkTimeEntries(username, userId);
+        return sessionService.getUnresolvedWorkTimeEntries(username);
     }
 }

@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Utilities</title>
-    <link rel="stylesheet" th:href="@{/css/utility.css?v=18782}">
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187812}">
+    <link rel="stylesheet" th:href="@{/css/utility.css?v=18786}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=18785}">
 </head>
 
 <body>
@@ -13,30 +13,91 @@
         <!-- Header Section -->
         <div class="page-header mb-4">
             <h1 class="header-title">User Utilities</h1>
-            <p class="header-subtitle">Manage your data, diagnostics, and system tools</p>
+            <p class="header-subtitle">
+                Complete self-service tools for backup management, diagnostics, and troubleshooting
+            </p>
+            <div class="header-stats">
+                <div class="stat-card">
+                    <i class="bi bi-person-check"></i>
+                    <div class="stat-info">
+                        <span class="stat-label">Current User</span>
+                        <span class="stat-value" th:text="${user.username}">Username</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="bi bi-clock"></i>
+                    <div class="stat-info">
+                        <span class="stat-label">Last Updated</span>
+                        <span class="stat-value" th:text="${#temporals.format(currentTime, 'HH:mm:ss')}">--:--:--</span>
+                    </div>
+                </div>
+                <div class="stat-card" id="system-health-indicator">
+                    <i class="bi bi-heart-pulse"></i>
+                    <div class="stat-info">
+                        <span class="stat-label">System Health</span>
+                        <span class="stat-value" id="health-status">Checking...</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Toast Alerts System -->
         <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
 
+        <!-- Quick Actions Bar -->
+        <div class="quick-actions-bar mb-4">
+            <button id="emergency-reset-btn" class="btn-emergency" title="Emergency Cache Reset">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>Emergency Reset</span>
+            </button>
+            <button id="manual-session-reset-btn" class="btn-warning" title="Manual Session Reset">
+                <i class="bi bi-arrow-clockwise"></i>
+                <span>Session Reset</span>
+            </button>
+            <button id="refresh-all-btn" class="btn-primary" title="Refresh All Data">
+                <i class="bi bi-arrow-repeat"></i>
+                <span>Refresh All</span>
+            </button>
+            <button id="system-summary-btn" class="btn-info" title="System Summary">
+                <i class="bi bi-clipboard-data"></i>
+                <span>System Summary</span>
+            </button>
+        </div>
+
         <!-- Utilities Grid -->
         <div class="utilities-grid">
 
-            <!-- Backup Management -->
+            <!-- Backup Management - Enhanced -->
             <div th:replace="~{utility/backup-fragment :: backup-utility}"></div>
 
-            <!-- Cache Monitoring -->
+            <!-- Cache & System Monitoring - Enhanced -->
             <div th:replace="~{utility/monitor-fragment :: monitor-utility}"></div>
 
-            <!-- Session Diagnostics -->
+            <!-- Session Diagnostics - Now Functional -->
             <div th:replace="~{utility/session-fragment :: session-utility}"></div>
 
-            <!-- File System Health -->
-            <div th:replace="~{utility/filesystem-fragment :: filesystem-utility}"></div>
+            <!-- System Health - Now Functional -->
+            <div th:replace="~{utility/health-fragment :: health-utility}"></div>
 
-            <!-- Quick Actions -->
+            <!-- File System & Diagnostics - Now Functional -->
+            <div th:replace="~{utility/diagnostics-fragment :: diagnostics-utility}"></div>
+
+            <!-- Quick Actions - Now Functional -->
             <div th:replace="~{utility/actions-fragment :: actions-utility}"></div>
 
+        </div>
+
+        <!-- System Status Summary -->
+        <div class="system-status-summary mt-4" id="system-status-summary" style="display: none;">
+            <div class="status-header">
+                <h4>System Status Summary</h4>
+                <button id="close-summary" class="btn-close">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="status-content" id="system-summary-content">
+                <!-- System summary will be loaded here -->
+            </div>
         </div>
 
         <!-- Navigation -->
@@ -44,15 +105,185 @@
             <a th:href="@{/}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left me-2"></i>Back to Home
             </a>
+            <div class="navigation-info">
+                <span class="info-text">
+                    <i class="bi bi-info-circle"></i>
+                    All utilities are designed for self-service troubleshooting and recovery
+                </span>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Global Utility JavaScript -->
+<!-- Enhanced Utility JavaScript with Full Functionality -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/backup-utility.js?v=18785}"></script>
-    <script th:src="@{/js/monitor-utility.js?v=18783}"></script>
-    <script th:src="@{/js/toast-alerts.js?v=18783}"></script>
+    <!-- Core utility scripts -->
+    <script th:src="@{/js/toast-alerts.js?v=18785}"></script>
+
+    <!-- Individual utility modules -->
+    <script th:src="@{/js/backup-utility.js?v=18790}"></script>
+    <script th:src="@{/js/monitor-utility.js?v=18791}"></script>
+    <script th:src="@{/js/session-utility.js?v=18785}"></script>
+    <script th:src="@{/js/health-utility.js?v=18791}"></script>
+    <script th:src="@{/js/diagnostics-utility.js?v=18791}"></script>
+    <script th:src="@{/js/actions-utility.js?v=18791}"></script>
+
+    <!-- Main utility coordinator -->
+    <script th:src="@{/js/utility-main.js?v=18791}"></script>
+
+    <!-- Initialization script -->
+    <script th:inline="javascript">
+        $(document).ready(function() {
+            console.log('🔧 User Utilities fully loaded - Self-service mode active');
+            console.log('📦 Loaded utilities:', {
+                backup: typeof window.BackupUtility !== 'undefined' ? '✅' : '❌',
+                monitor: typeof window.MonitorUtility !== 'undefined' ? '✅' : '❌',
+                session: typeof window.SessionUtility !== 'undefined' ? '✅' : '❌',
+                health: typeof window.HealthUtility !== 'undefined' ? '✅' : '❌',
+                diagnostics: typeof window.DiagnosticsUtility !== 'undefined' ? '✅' : '❌',
+                actions: typeof window.ActionsUtility !== 'undefined' ? '✅' : '❌',
+                main: typeof window.UtilityMain !== 'undefined' ? '✅' : '❌'
+            });
+
+            // Initialize system health check
+            if (typeof window.initializeSystemHealth === 'function') {
+                window.initializeSystemHealth();
+            }
+
+            // Setup quick actions
+            setupQuickActions();
+
+            // Initialize auto-refresh for all utilities
+            initializeAutoRefresh();
+
+            // Show welcome message
+            setTimeout(function() {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Welcome', 'All utility services are ready for self-service operations', 'info');
+                }
+            }, 1500);
+        });
+
+        // Quick Actions Setup
+        function setupQuickActions() {
+            console.log('🚀 Setting up quick actions...');
+
+            // Emergency Reset
+            $('#emergency-reset-btn').click(function() {
+                if (confirm('⚠️ EMERGENCY RESET ⚠️\n\nThis will completely reset all cached data and session state.\nThis action should only be used if you are experiencing severe issues.\n\nAre you absolutely sure you want to continue?')) {
+                    if (typeof window.performEmergencyReset === 'function') {
+                        window.performEmergencyReset();
+                    } else if (typeof window.ActionsUtility !== 'undefined') {
+                        window.ActionsUtility.emergencyReset();
+                    }
+                }
+            });
+
+            // Manual Session Reset
+            $('#manual-session-reset-btn').click(function() {
+                if (confirm('Reset your current session?\n\nThis will:\n• Clear session data\n• Reset monitoring state\n• Refresh user context\n\nContinue?')) {
+                    if (typeof window.performSessionReset === 'function') {
+                        window.performSessionReset();
+                    } else if (typeof window.SessionUtility !== 'undefined') {
+                        window.SessionUtility.performReset();
+                    }
+                }
+            });
+
+            // Refresh All
+            $('#refresh-all-btn').click(function() {
+                if (typeof window.refreshAllUtilities === 'function') {
+                    window.refreshAllUtilities();
+                } else if (typeof window.ActionsUtility !== 'undefined') {
+                    window.ActionsUtility.refreshAll();
+                }
+            });
+
+            // System Summary
+            $('#system-summary-btn').click(function() {
+                if (typeof window.showSystemSummary === 'function') {
+                    window.showSystemSummary();
+                } else if (typeof window.DiagnosticsUtility !== 'undefined') {
+                    window.DiagnosticsUtility.getSystemSummary();
+                }
+            });
+
+            // Close Summary
+            $('#close-summary').click(function() {
+                $('#system-status-summary').fadeOut();
+            });
+        }
+
+        // Auto-refresh setup for all utilities
+        function initializeAutoRefresh() {
+            console.log('⏰ Initializing auto-refresh for all utilities...');
+
+            // Refresh system status every 5 minutes
+            setInterval(function() {
+                if (typeof window.refreshSystemStatus === 'function') {
+                    window.refreshSystemStatus();
+                }
+            }, 300000); // 5 minutes
+
+            // Refresh individual utility overviews
+            setInterval(function() {
+                // Health overview
+                if (typeof window.HealthUtility !== 'undefined' && window.HealthUtility.refreshOverview) {
+                    window.HealthUtility.refreshOverview();
+                }
+
+                // Monitor overview
+                if (typeof window.MonitorUtility !== 'undefined' && window.MonitorUtility.refreshOverview) {
+                    window.MonitorUtility.refreshOverview();
+                }
+
+                // Session overview
+                if (typeof window.SessionUtility !== 'undefined' && window.SessionUtility.refreshStatus) {
+                    window.SessionUtility.refreshStatus();
+                }
+            }, 180000); // 3 minutes
+
+            console.log('✅ Auto-refresh initialized for all utilities');
+        }
+
+        // Global error handler for utility operations
+        window.addEventListener('error', function(event) {
+            console.error('Utility Error:', event.error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('System Error', 'An unexpected error occurred. Check console for details.', 'error');
+            }
+        });
+
+        // Global utility status checker
+        window.checkUtilityStatus = function() {
+            const utilities = {
+                'Backup Management': typeof window.BackupUtility !== 'undefined',
+                'Cache Monitoring': typeof window.MonitorUtility !== 'undefined',
+                'Session Diagnostics': typeof window.SessionUtility !== 'undefined',
+                'System Health': typeof window.HealthUtility !== 'undefined',
+                'Diagnostics': typeof window.DiagnosticsUtility !== 'undefined',
+                'Quick Actions': typeof window.ActionsUtility !== 'undefined',
+                'Main Coordinator': typeof window.UtilityMain !== 'undefined'
+            };
+
+            const allLoaded = Object.values(utilities).every(Boolean);
+            const loadedCount = Object.values(utilities).filter(Boolean).length;
+            const totalCount = Object.keys(utilities).length;
+
+            console.log(`📊 Utility Status: ${loadedCount}/${totalCount} loaded`);
+            console.table(utilities);
+
+            if (typeof window.showToast === 'function') {
+                const message = allLoaded ?
+                'All utilities are loaded and ready' :
+                `${loadedCount}/${totalCount} utilities loaded`;
+                const type = allLoaded ? 'success' : 'warning';
+                window.showToast('Utility Status', message, type);
+            }
+
+            return utilities;
+        };
+
+        console.log('✅ Utility initialization complete');
+    </script>
 </th:block>
-</body>
-</html>

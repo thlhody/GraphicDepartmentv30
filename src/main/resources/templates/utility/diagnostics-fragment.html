@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+
+<!-- Diagnostics Fragment -->
+<div th:fragment="diagnostics-utility" class="utility-section" id="diagnostics-utility">
+    <div class="utility-header">
+        <div class="utility-icon">
+            <i class="bi bi-bug"></i>
+        </div>
+        <div class="utility-info">
+            <h3 class="utility-title">System Diagnostics</h3>
+            <p class="utility-description">
+                Comprehensive system diagnostics and troubleshooting.<br>
+                File operation analysis and backup event monitoring.
+            </p>
+        </div>
+        <div class="utility-toggle">
+            <button class="btn-subtle" data-bs-toggle="collapse" data-bs-target="#diagnostics-controls"
+                    aria-expanded="false" aria-controls="diagnostics-controls">
+                <i class="bi bi-chevron-down toggle-icon"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="collapse utility-controls" id="diagnostics-controls">
+        <div class="controls-grid">
+            <!-- File Selection for Diagnostics -->
+            <div class="control-group">
+                <label for="diag-file-type" class="control-label">File Type</label>
+                <select id="diag-file-type" class="form-control-subtle">
+                    <option value="">Select for specific diagnostics</option>
+                    <option value="worktime">Work Time</option>
+                    <option value="register">Work Register</option>
+                    <option value="session">Session</option>
+                    <option value="check_register">Check Register</option>
+                    <option value="timeoff_tracker">Time Off Tracker</option>
+                </select>
+            </div>
+
+            <!-- Period Selection for File Diagnostics -->
+            <div class="control-group">
+                <label for="diag-year" class="control-label">Period (Optional)</label>
+                <div class="period-controls">
+                    <select id="diag-year" class="form-control-subtle">
+                        <option value="">Any Year</option>
+                        <option th:value="${#dates.year(#dates.createNow())}"
+                                th:text="${#dates.year(#dates.createNow())}"
+                                selected>Current Year
+                        </option>
+                        <option th:value="${#dates.year(#dates.createNow()) - 1}"
+                                th:text="${#dates.year(#dates.createNow()) - 1}">Previous Year
+                        </option>
+                    </select>
+                    <label for="diag-month"></label><select id="diag-month" class="form-control-subtle">
+                        <option value="">Any Month</option>
+                        <option value="1">Jan</option>
+                        <option value="2">Feb</option>
+                        <option value="3">Mar</option>
+                        <option value="4">Apr</option>
+                        <option value="5">May</option>
+                        <option value="6">Jun</option>
+                        <option value="7">Jul</option>
+                        <option value="8">Aug</option>
+                        <option value="9">Sep</option>
+                        <option value="10">Oct</option>
+                        <option value="11">Nov</option>
+                        <option value="12">Dec</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Diagnostic Operations -->
+            <div class="control-group">
+                <label class="control-label">Diagnostic Operations</label>
+                <div class="action-buttons">
+                    <button id="backup-events-diag-btn" class="btn-action info">
+                        <i class="bi bi-activity"></i>
+                        <span>Backup Events</span>
+                    </button>
+                    <button id="system-summary-diag-btn" class="btn-action primary">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span>System Summary</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Diagnostic Stats -->
+        <div class="monitor-section">
+            <h5>Quick System Overview</h5>
+            <div class="stats-display" id="quick-diagnostics">
+                <div class="stat-item">
+                    <span class="stat-label">Current User</span>
+                    <span class="stat-value" id="diag-current-user" th:text="${user.username}">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">User Role</span>
+                    <span class="stat-value" id="diag-user-role" th:text="${user.role}">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">System Time</span>
+                    <span class="stat-value" id="diag-system-time">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div id="diagnostics-results" class="results-area" style="display: none;">
+            <div class="results-header">
+                <h4 class="results-title">Diagnostic Report</h4>
+                <button id="clear-diagnostics-results" class="btn-clear">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div id="diagnostics-content" class="results-content">
+                <!-- Diagnostics results will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+</html>

@@ -38,7 +38,7 @@ public class PaidHolidayEntryDTO {
                 .name(user.getName())
                 .employeeId(user.getEmployeeId())
                 .schedule(user.getSchedule())
-                .paidHolidayDays(0) // Default to 0 days
+                .paidHolidayDays(user.getPaidHolidayDays())
                 .build();
     }
 }

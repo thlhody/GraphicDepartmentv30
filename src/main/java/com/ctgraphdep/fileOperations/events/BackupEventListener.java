@@ -1,8 +1,11 @@
 package com.ctgraphdep.fileOperations.events;
 
+import com.ctgraphdep.config.FileTypeConstants;
+import com.ctgraphdep.config.FileTypeConstants.CriticalityLevel;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
+import com.ctgraphdep.fileOperations.core.FilePath;
 import com.ctgraphdep.fileOperations.service.BackupService;
-import com.ctgraphdep.monitoring.BackupEventMonitor;  // CHANGED: Import from monitoring package
+import com.ctgraphdep.monitoring.BackupEventMonitor;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -10,45 +13,50 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-import java.nio.file.Path;
-
 /**
- * Event listener that handles file operation events and creates backups accordingly.
+ * REFACTORED: Event listener that handles file operation events and creates backups accordingly.
  * This component decouples backup creation from file writing operations.
- * UPDATED: Uses dedicated BackupTaskExecutor and integrates with new BackupEventMonitor.
+ * Key Changes:
+ * - Now uses FileTypeConstants.CriticalityLevel enum instead of BackupService.CriticalityLevel
+ * - Leverages FileTypeConstants.getCriticalityLevelForFilename() for centralized logic
+ * - Simplified criticality determination - one line instead of complex hardcoded rules
+ * - Enhanced logging with file type diagnostics
+ * - Better integration with centralized file type classification system
  */
 @Component
 public class BackupEventListener {
 
     private final BackupService backupService;
     private final ApplicationEventPublisher eventPublisher;
-    private final BackupEventMonitor backupEventMonitor;  // ADDED: Direct reference for statistics
+    private final BackupEventMonitor backupEventMonitor;
 
     @Autowired
     public BackupEventListener(BackupService backupService,
                                ApplicationEventPublisher eventPublisher,
-                               BackupEventMonitor backupEventMonitor) {  // ADDED: Inject monitor
+                               BackupEventMonitor backupEventMonitor) {
         this.backupService = backupService;
         this.eventPublisher = eventPublisher;
-        this.backupEventMonitor = backupEventMonitor;  // ADDED
+        this.backupEventMonitor = backupEventMonitor;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**
-     * Handles successful file write events and creates backups if requested.
+     * REFACTORED: Handles successful file write events and creates backups if requested.
      * This method runs asynchronously to avoid blocking the main file write operation.
-     * UPDATED: Uses backupTaskExecutor specifically and records statistics.
+     * Now uses FileTypeConstants for all criticality decisions.
      */
     @EventListener
-    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
+    @Async("backupTaskExecutor")
     public void handleFileWriteSuccess(FileWriteSuccessEvent event) {
         // Check if backup should be created
         if (!event.isShouldCreateBackup()) {
-            LoggerUtil.debug(this.getClass(), String.format("Skipping backup for %s - backup disabled for this operation (Event ID: %s)", event.getFilePath().getPath().getFileName(), event.getEventId()));
+            LoggerUtil.debug(this.getClass(), String.format("Skipping backup for %s - backup disabled for this operation (Event ID: %s)",
+                    event.getFilePath().getPath().getFileName(), event.getEventId()));
             return;
         }
 
-        LoggerUtil.info(this.getClass(), String.format("Processing backup request for %s (Event ID: %s)", event.getFilePath().getPath().getFileName(), event.getEventId()));
+        LoggerUtil.info(this.getClass(), String.format("Processing backup request for %s (Event ID: %s)",
+                event.getFilePath().getPath().getFileName(), event.getEventId()));
 
         long backupStartTime = System.currentTimeMillis();
         String backupPath = null;
@@ -56,31 +64,37 @@ public class BackupEventListener {
         boolean backupSuccess = false;
 
         try {
-            // Determine criticality level based on file path and type
-            BackupService.CriticalityLevel criticalityLevel = determineCriticalityLevel(event.getFilePath());
+            // Determine criticality level using FileTypeConstants
+            CriticalityLevel criticalityLevel = determineCriticalityLevel(event.getFilePath());
 
-            LoggerUtil.info(this.getClass(), String.format("Creating %s backup for %s (user: %s, Event ID: %s)",
+            // Enhanced logging with file type information
+            String fileName = event.getFilePath().getPath().getFileName().toString();
+            String fileType = FileTypeConstants.extractFileTypeFromFilename(fileName);
+
+            LoggerUtil.info(this.getClass(), String.format("Creating %s backup for %s (file type: %s, user: %s, Event ID: %s)",
                     criticalityLevel,
-                    event.getFilePath().getPath().getFileName(),
+                    fileName,
+                    fileType != null ? fileType : "unknown",
                     event.getUsername(),
                     event.getEventId()));
 
-            // Create the backup
+            // Create the backup using the determined criticality level
             FileOperationResult backupResult = backupService.createBackup(event.getFilePath(), criticalityLevel);
 
             if (backupResult.isSuccess()) {
                 backupSuccess = true;
                 backupPath = backupResult.getFilePath().toString();
 
-                // ADDED: Record successful backup in monitor
+                // Record successful backup in monitor
                 backupEventMonitor.recordBackupCreated();
 
                 LoggerUtil.info(this.getClass(), String.format(
-                        "Event-driven backup created successfully: %s (level: %s, user: %s, Event ID: %s)",
-                        backupPath, criticalityLevel, event.getUsername(), event.getEventId()));
+                        "Event-driven backup created successfully: %s (level: %s, max backups: %d, user: %s, Event ID: %s)",
+                        backupPath, criticalityLevel, FileTypeConstants.getMaxBackups(criticalityLevel),
+                        event.getUsername(), event.getEventId()));
 
                 // For high criticality files, also sync backups to network
-                if (criticalityLevel == BackupService.CriticalityLevel.LEVEL3_HIGH && event.getUsername() != null) {
+                if (criticalityLevel == CriticalityLevel.LEVEL3_HIGH && event.getUsername() != null) {
                     try {
                         backupService.syncBackupsToNetwork(event.getUsername(), criticalityLevel);
                         LoggerUtil.info(this.getClass(), String.format(
@@ -96,18 +110,18 @@ public class BackupEventListener {
             } else {
                 errorMessage = backupResult.getErrorMessage().orElse("Unknown backup error");
 
-                // ADDED: Record backup failure in monitor
+                // Record backup failure in monitor
                 backupEventMonitor.recordBackupFailure();
 
                 LoggerUtil.error(this.getClass(), String.format(
                         "Event-driven backup failed for %s: %s (Event ID: %s)",
-                        event.getFilePath().getPath().getFileName(), errorMessage, event.getEventId()));
+                        fileName, errorMessage, event.getEventId()));
             }
 
         } catch (Exception e) {
             errorMessage = e.getMessage();
 
-            // ADDED: Record backup failure in monitor
+            // Record backup failure in monitor
             backupEventMonitor.recordBackupFailure();
 
             LoggerUtil.error(this.getClass(), String.format(
@@ -133,10 +147,9 @@ public class BackupEventListener {
 
     /**
      * Handles file write failures for logging and potential recovery operations.
-     * UPDATED: Uses backupTaskExecutor specifically.
      */
     @EventListener
-    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
+    @Async("backupTaskExecutor")
     public void handleFileWriteFailure(FileWriteFailureEvent event) {
         LoggerUtil.warn(this.getClass(), String.format(
                 "File write failed for %s by user %s: %s (Event ID: %s)",
@@ -151,10 +164,9 @@ public class BackupEventListener {
 
     /**
      * Handles backup operation events for monitoring and statistics.
-     * UPDATED: Uses backupTaskExecutor specifically.
      */
     @EventListener
-    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
+    @Async("backupTaskExecutor")
     public void handleBackupOperation(BackupOperationEvent event) {
         if (event.isBackupSuccess()) {
             LoggerUtil.debug(this.getClass(), String.format(
@@ -172,10 +184,9 @@ public class BackupEventListener {
 
     /**
      * Handles file sync events for monitoring.
-     * UPDATED: Uses backupTaskExecutor specifically.
      */
     @EventListener
-    @Async("backupTaskExecutor")  // SPECIFIED: Use dedicated backup executor
+    @Async("backupTaskExecutor")
     public void handleFileSync(FileSyncEvent event) {
         if (event.isSyncSuccess()) {
             LoggerUtil.debug(this.getClass(), String.format(
@@ -189,35 +200,54 @@ public class BackupEventListener {
     }
 
     /**
-     * Determines the criticality level of a file based on its path and type.
-     * This logic mirrors the logic in FileWriterService but is centralized here for the event system.
+     * REFACTORED: Determines the criticality level using FileTypeConstants.
+     * Replaces complex hardcoded string matching with centralized logic.
+     *
+     * @param filePath The file path to analyze
+     * @return The criticality level from FileTypeConstants
      */
-    private BackupService.CriticalityLevel determineCriticalityLevel(com.ctgraphdep.fileOperations.core.FilePath filePath) {
-        Path path = filePath.getPath();
-        String pathStr = path.toString().toLowerCase();
-        String fileName = path.getFileName().toString().toLowerCase();
+    private CriticalityLevel determineCriticalityLevel(FilePath filePath) {
+        String fileName = filePath.getPath().getFileName().toString();
 
-        LoggerUtil.debug(this.getClass(), "Determining criticality for: " + pathStr);
+        // Use FileTypeConstants for centralized criticality determination
+        CriticalityLevel level = FileTypeConstants.getCriticalityLevelForFilename(fileName);
 
-        // LEVEL1_LOW - Status files, temporary files
-        if (pathStr.contains("status") || fileName.startsWith("status_") ||
-                pathStr.contains("temp") || pathStr.contains("cache")) {
-            return BackupService.CriticalityLevel.LEVEL1_LOW;
-        }
+        // Enhanced debugging with file type information
+        String fileType = FileTypeConstants.extractFileTypeFromFilename(fileName);
+        String description = FileTypeConstants.getCriticalityDescription(level);
 
-        // LEVEL3_HIGH - Critical user and business data
-        if (pathStr.contains("worktime") || pathStr.contains("registru") ||
-                pathStr.contains("register") || pathStr.contains("timeoff") ||
-                (pathStr.contains("user") && !pathStr.contains("session")) ||
-                pathStr.contains("check") || pathStr.contains("bonus") ||
-                fileName.contains("worktime") || fileName.contains("registru") ||
-                fileName.contains("register") || fileName.contains("timeoff")) {
-            LoggerUtil.debug(this.getClass(), "High criticality file detected: " + pathStr);
-            return BackupService.CriticalityLevel.LEVEL3_HIGH;
-        }
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Criticality determination for %s: detected type=%s, level=%s (%s)",
+                fileName,
+                fileType != null ? fileType : "unknown",
+                level,
+                description));
 
-        // LEVEL2_MEDIUM - Session files and everything else
-        // Default to medium criticality for unknown files
-        return BackupService.CriticalityLevel.LEVEL2_MEDIUM;
+        return level;
+    }
+
+    /**
+     * NEW: Diagnostic method for troubleshooting backup issues.
+     * Uses FileTypeConstants comprehensive diagnostics.
+     *
+     * @param filePath The file path to diagnose
+     * @return Diagnostic information string
+     */
+    public String getBackupDiagnostics(FilePath filePath) {
+        String fileName = filePath.getPath().getFileName().toString();
+
+        StringBuilder diag = new StringBuilder();
+        diag.append("=== BACKUP EVENT LISTENER DIAGNOSTICS ===\n");
+
+        // Use FileTypeConstants comprehensive diagnostics
+        diag.append(FileTypeConstants.getFileTypeDiagnostics(fileName));
+
+        // Add event-specific information
+        CriticalityLevel level = determineCriticalityLevel(filePath);
+        diag.append("\nEvent Processing:\n");
+        diag.append("Will sync to network: ").append(level == CriticalityLevel.LEVEL3_HIGH ? "Yes" : "No").append("\n");
+        diag.append("Async executor: backupTaskExecutor\n");
+
+        return diag.toString();
     }
 }

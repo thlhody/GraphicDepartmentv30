@@ -15,24 +15,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * REFACTORED TimeOffCacheService - Pure Caching Layer.
- * Key Principles (following RegisterCacheService pattern):
- * - Pure caching, no business logic
- * - Write-through: cache updates immediately trigger service operations
- * - Year-based memory management (yearly tracker files)
- * - Thread-safe operations using TimeOffCacheEntry
- * - Delegates ALL business logic to TimeOffManagementService
- * Cache Key Pattern: "username-year" (similar to RegisterCache's "username-year-month")
- * Responsibilities:
- * 1. Cache yearly tracker data for fast access
- * 2. Write-through operations for updates
- * 3. Cache invalidation and management
- * 4. Thread-safe concurrent access
- * What this service does NOT do:
- * - No worktime scanning or merging (TimeOffManagementService handles this)
- * - No holiday balance calculations (TimeOffManagementService handles this)
- * - No file operations (TimeOffManagementService → TimeOffDataService handles this)
- * - No business validation (TimeOffManagementService handles this)
+ * REFACTORED TimeOffCacheService - Clean Architecture Implementation.
+ * Key Principles:
+ * 1. Cache yearly trackers (built from final worktime files)
+ * 2. Write-through for time off requests
+ * 3. Tracker is display/summary layer (yearly-based)
+ * 4. All display operations use cache (fast!)
+ * Cache Pattern:
+ * - Key: "username-year"
+ * - Value: TimeOffTracker (yearly summary)
+ * - Source: Final worktime files (merged at login)
+ * - Write-through: Updates tracker + worktime + user balance
  */
 @Service
 public class TimeOffCacheService {
@@ -52,17 +45,12 @@ public class TimeOffCacheService {
     }
 
     // ========================================================================
-    // MAIN CACHE OPERATIONS
+    // MAIN CACHE OPERATIONS - CLEAN ARCHITECTURE
     // ========================================================================
 
     /**
-     * Get time off tracker for a specific year (loads via service if not cached).
-     * Main entry point - follows the exact same pattern as RegisterCacheService.getMonthEntries()
-     *
-     * @param username Username
-     * @param userId User ID
-     * @param year Year
-     * @return Time off tracker for the year
+     * Get time off tracker for display (builds from final worktime files if not cached)
+     * This is the main entry point for timeoff page display
      */
     public TimeOffTracker getYearTracker(String username, Integer userId, int year) {
         try {
@@ -76,24 +64,21 @@ public class TimeOffCacheService {
                 return cacheEntry.getTracker();
             }
 
-            // Cache miss or expired - load via service (which handles all business logic)
-            LoggerUtil.info(this.getClass(), String.format("Loading time off tracker via service for %s - %d", username, year));
-            return loadYearFromService(username, userId, year);
+            // Cache miss or expired - build from final worktime files
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Building tracker from final worktime files for %s - %d", username, year));
+            return loadTrackerFromWorktimeFiles(username, userId, year);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error getting year tracker for %s - %d: %s", username, year, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error getting year tracker for %s - %d: %s", username, year, e.getMessage()), e);
             return null;
         }
     }
 
     /**
-     * Add time off request with write-through.
-     * Follows same pattern as RegisterCacheService.addEntry()
-     * @param username Username
-     * @param userId User ID
-     * @param dates List of dates for time off
-     * @param timeOffType Time off type (CO, SN, CM)
-     * @return true if request was added successfully
+     * Add time off request with write-through to all layers
+     * CLEAN FLOW: worktime → balance → tracker → cache
      */
     public boolean addTimeOffRequest(String username, Integer userId, List<LocalDate> dates, String timeOffType) {
         try {
@@ -105,39 +90,41 @@ public class TimeOffCacheService {
             int year = dates.get(0).getYear();
             String yearKey = createYearKey(username, year);
 
-            LoggerUtil.info(this.getClass(), String.format("Adding time off request for %s - %d dates, type %s", username, dates.size(), timeOffType));
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Processing time off request for %s - %d dates, type %s", username, dates.size(), timeOffType));
 
-            // Write-through: delegate to service for business logic and persistence
+            // Write-through: Update all layers via TimeOffManagementService
+            // This updates: worktime files → user balance → tracker
             boolean success = timeOffManagementService.addTimeOffRequest(username, userId, dates, timeOffType);
 
             if (!success) {
-                LoggerUtil.warn(this.getClass(), String.format("Failed to add time off request via service for %s", username));
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Failed to add time off request via service for %s", username));
                 return false;
             }
 
             // Invalidate cache to force reload with fresh data on next access
             clearYear(username, year);
 
-            LoggerUtil.info(this.getClass(), String.format("Successfully added %d time off requests for %s - %d (%s)", dates.size(), username, year, timeOffType));
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully added %d time off requests for %s - %d (%s)",
+                    dates.size(), username, year, timeOffType));
+
             return true;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error adding time off request for %s: %s", username, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error adding time off request for %s: %s", username, e.getMessage()), e);
             return false;
         }
     }
 
     /**
-     * Get time off summary from cache (delegates to service if cache miss).
-     *
-     * @param username Username
-     * @param userId User ID
-     * @param year Year
-     * @return Time off summary
+     * Get time off summary from cached tracker (fast display)
      */
     public TimeOffSummaryDTO getTimeOffSummary(String username, Integer userId, int year) {
         try {
-            // Get tracker from cache (or load via service)
+            // Get tracker from cache (built from final worktime files)
             TimeOffTracker tracker = getYearTracker(username, userId, year);
 
             if (tracker == null) {
@@ -145,7 +132,7 @@ public class TimeOffCacheService {
                 return createEmptySummary();
             }
 
-            // Delegate summary calculation to service
+            // Calculate summary from tracker (fast!)
             return timeOffManagementService.calculateTimeOffSummary(username, userId, year);
 
         } catch (Exception e) {
@@ -155,16 +142,11 @@ public class TimeOffCacheService {
     }
 
     /**
-     * Get upcoming time off from cache (delegates to service if cache miss).
-     *
-     * @param username Username
-     * @param userId User ID
-     * @param year Year
-     * @return List of upcoming time off entries
+     * Get upcoming time off from cached tracker (fast display)
      */
     public List<WorkTimeTable> getUpcomingTimeOff(String username, Integer userId, int year) {
         try {
-            // Get tracker from cache (or load via service)
+            // Get tracker from cache (built from final worktime files)
             TimeOffTracker tracker = getYearTracker(username, userId, year);
 
             if (tracker == null) {
@@ -172,12 +154,37 @@ public class TimeOffCacheService {
                 return new ArrayList<>();
             }
 
-            // Delegate to service for business logic
+            // Get upcoming entries from service (uses tracker)
             return timeOffManagementService.getUpcomingTimeOff(username, userId, year);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error getting upcoming time off for %s - %d: %s", username, year, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error getting upcoming time off for %s - %d: %s", username, year, e.getMessage()));
             return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Refresh tracker from worktime files (after external changes)
+     * Use this when worktime files are updated outside of this service
+     */
+    public boolean refreshTrackerFromWorktime(String username, Integer userId, int year) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Refreshing tracker from worktime files for %s - %d", username, year));
+
+            // Clear cache to force rebuild
+            clearYear(username, year);
+
+            // Rebuild from worktime files
+            TimeOffTracker refreshedTracker = loadTrackerFromWorktimeFiles(username, userId, year);
+
+            return refreshedTracker != null;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error refreshing tracker for %s - %d: %s", username, year, e.getMessage()));
+            return false;
         }
     }
 
@@ -186,11 +193,7 @@ public class TimeOffCacheService {
     // ========================================================================
 
     /**
-     * Clear specific year from cache.
-     * Same pattern as RegisterCacheService.clearMonth()
-     *
-     * @param username Username
-     * @param year Year
+     * Clear specific year from cache
      */
     public void clearYear(String username, int year) {
         globalLock.writeLock().lock();
@@ -207,8 +210,7 @@ public class TimeOffCacheService {
     }
 
     /**
-     * Clear entire cache.
-     * Same pattern as RegisterCacheService.clearAllCache()
+     * Clear entire cache
      */
     public void clearAllCache() {
         globalLock.writeLock().lock();
@@ -224,9 +226,7 @@ public class TimeOffCacheService {
     }
 
     /**
-     * Get cache statistics for monitoring.
-     *
-     * @return Cache statistics
+     * Get cache statistics for monitoring
      */
     public String getCacheStatistics() {
         globalLock.readLock().lock();
@@ -235,27 +235,33 @@ public class TimeOffCacheService {
             long validEntries = timeOffCache.values().stream().filter(TimeOffCacheEntry::isValid).count();
             long expiredEntries = timeOffCache.values().stream().filter(TimeOffCacheEntry::isExpired).count();
 
-            return String.format("TimeOffCache: %d total, %d valid, %d expired", totalEntries, validEntries, expiredEntries);
+            return String.format("TimeOffCache: %d total, %d valid, %d expired",
+                    totalEntries, validEntries, expiredEntries);
         } finally {
             globalLock.readLock().unlock();
         }
     }
 
     // ========================================================================
-    // PRIVATE HELPER METHODS
+    // PRIVATE IMPLEMENTATION METHODS
     // ========================================================================
 
     /**
-     * Load year data from service into cache.
-     * Same pattern as RegisterCacheService.loadMonthFromFile()
+     * Load tracker from final worktime files (source of truth)
+     * This builds the yearly display layer from monthly worktime data
      */
-    private TimeOffTracker loadYearFromService(String username, Integer userId, int year) {
+    private TimeOffTracker loadTrackerFromWorktimeFiles(String username, Integer userId, int year) {
         try {
-            // Delegate to service for all business logic (worktime merge, etc.)
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Building tracker from final worktime files for %s - %d", username, year));
+
+            // Use TimeOffManagementService to build tracker from worktime files
+            // This reads the final, merged worktime files (already processed at login)
             TimeOffTracker tracker = timeOffManagementService.getYearTracker(username, userId, year);
 
             if (tracker == null) {
-                LoggerUtil.debug(this.getClass(), String.format("Service returned null tracker for %s - %d", username, year));
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Service returned null tracker for %s - %d", username, year));
                 return null;
             }
 
@@ -267,27 +273,28 @@ public class TimeOffCacheService {
             // Store in cache
             timeOffCache.put(yearKey, cacheEntry);
 
-            LoggerUtil.info(this.getClass(), String.format("Successfully loaded and cached tracker for %s - %d with %d requests",
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully built and cached tracker for %s - %d with %d requests",
                     username, year, tracker.getRequests() != null ? tracker.getRequests().size() : 0));
 
             return tracker;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error loading year from service for %s - %d: %s", username, year, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error building tracker from worktime for %s - %d: %s", username, year, e.getMessage()), e);
             return null;
         }
     }
 
     /**
-     * Create year key for cache indexing.
-     * Same pattern as RegisterCacheService.createMonthKey()
+     * Create year key for cache indexing
      */
     private String createYearKey(String username, int year) {
         return String.format("%s-%d", username, year);
     }
 
     /**
-     * Create empty time off summary.
+     * Create empty time off summary
      */
     private TimeOffSummaryDTO createEmptySummary() {
         return TimeOffSummaryDTO.builder()

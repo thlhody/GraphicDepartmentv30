@@ -50,18 +50,53 @@ public class HolidayManagementService {
     // ============= Admin Operations =============
 
     /**
-     * REFACTORED: Load holiday list from cache instead of separate files
+     * ENHANCED: Load holiday list with comprehensive debug logging
      */
     public List<PaidHolidayEntryDTO> loadHolidayList() {
         try {
-            // Get all users from cache and convert to holiday entries
+            LoggerUtil.info(this.getClass(), "=== LOADING HOLIDAY LIST DEBUG ===");
+
+            // Step 1: Get all users from cache
             List<User> users = statusCacheService.getAllUsersAsUserObjects();
-            List<PaidHolidayEntryDTO> entries = users.stream().filter(user -> !user.isAdmin()).map(PaidHolidayEntryDTO::fromUser).collect(Collectors.toList());
-            LoggerUtil.debug(this.getClass(), String.format("Loaded %d holiday entries from cache", entries.size()));
+            LoggerUtil.info(this.getClass(), String.format("Step 1: Got %d users from cache", users.size()));
+
+            // Step 2: Debug each user's data
+            for (User user : users) {
+                if (!user.isAdmin()) {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "🔍 USER DEBUG: %s (ID: %d) - paidHolidayDays: %s, role: %s",
+                            user.getUsername(),
+                            user.getUserId(),
+                            user.getPaidHolidayDays(),
+                            user.getRole()));
+                }
+            }
+
+            // Step 3: Create DTOs and debug them
+            List<PaidHolidayEntryDTO> entries = users.stream()
+                    .filter(user -> !user.isAdmin())
+                    .map(user -> {
+                        PaidHolidayEntryDTO dto = PaidHolidayEntryDTO.fromUser(user);
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "🔍 DTO DEBUG: %s -> DTO paidHolidayDays: %d",
+                                user.getUsername(), dto.getPaidHolidayDays()));
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+
+            LoggerUtil.info(this.getClass(), String.format("Step 3: Created %d holiday entries", entries.size()));
+
+            // Step 4: Final verification
+            LoggerUtil.info(this.getClass(), "=== FINAL HOLIDAY ENTRIES ===");
+            for (PaidHolidayEntryDTO entry : entries) {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Final Entry: %s (ID: %d) = %d days",
+                        entry.getUsername(), entry.getUserId(), entry.getPaidHolidayDays()));
+            }
 
             return entries;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error reading holiday list from cache: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error reading holiday list from cache: " + e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -101,11 +136,14 @@ public class HolidayManagementService {
     }
 
     /**
-     * REFACTORED: Update user holiday days using dedicated UserDataService methods
+     * ENHANCED: Update user holiday days with debug logging
      */
     public void updateUserHolidayDays(Integer userId, Integer holidayDays) {
         try {
-            // Get the user from cache
+            LoggerUtil.info(this.getClass(), String.format(
+                    "=== UPDATING HOLIDAY DAYS DEBUG: userId=%d, newDays=%d ===", userId, holidayDays));
+
+            // Step 1: Get user from cache
             Optional<User> userOptional = statusCacheService.getUserByIdAsUserObject(userId);
             if (userOptional.isEmpty()) {
                 throw new IllegalArgumentException("User not found with ID: " + userId);
@@ -114,25 +152,42 @@ public class HolidayManagementService {
             User user = userOptional.get();
             String username = user.getUsername();
 
-            // Determine if this is admin or user context
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Step 1: Found user %s, current holidayDays: %s", username, user.getPaidHolidayDays()));
+
+            // Step 2: Determine context
             String currentUsername = userContextService.getCurrentUsername();
             boolean isAdminContext = !currentUsername.equals(username);
 
-            // Use dedicated holiday methods + cache sync
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Step 2: Current user: %s, target user: %s, isAdmin context: %s",
+                    currentUsername, username, isAdminContext));
+
+            // Step 3: Update file
             if (isAdminContext) {
-                // Use dedicated admin holiday method
+                LoggerUtil.info(this.getClass(), "Step 3: Using admin update method");
                 userDataService.updateUserHolidayDaysAdmin(username, userId, holidayDays);
             } else {
-                // Use dedicated user holiday method
+                LoggerUtil.info(this.getClass(), "Step 3: Using user update method");
                 userDataService.updateUserHolidayDaysUser(username, userId, holidayDays);
             }
 
-            // Update cache after successful file operation
+            // Step 4: Update cache
             user.setPaidHolidayDays(holidayDays);
             statusCacheService.updateUserInCache(user);
 
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Step 4: Updated cache for user %s with %d days", username, holidayDays));
+
+            // Step 5: Verify cache update
+            Optional<User> verifyUser = statusCacheService.getUserByIdAsUserObject(userId);
+            verifyUser.ifPresent(value -> LoggerUtil.info(this.getClass(), String.format(
+                    "Step 5: Cache verification - user %s now has %s days",
+                    username, value.getPaidHolidayDays())));
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error updating holiday days for user %d: %s", userId, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error updating holiday days for user %d: %s", userId, e.getMessage()), e);
             throw new RuntimeException("Failed to update holiday days", e);
         }
     }

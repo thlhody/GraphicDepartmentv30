@@ -11,7 +11,7 @@
             <h3 class="utility-title">Backup Management</h3>
             <p class="utility-description">
                 View and restore backups of your work files.<br>
-                Create manual backups for important data.
+                Create manual backups and emergency recovery.
             </p>
         </div>
         <div class="utility-toggle">
@@ -50,19 +50,19 @@
                         </option>
                     </select>
                     <label for="backup-month"></label><select id="backup-month" class="form-control-subtle">
-                    <option value="1">Jan</option>
-                    <option value="2">Feb</option>
-                    <option value="3">Mar</option>
-                    <option value="4">Apr</option>
-                    <option value="5">May</option>
-                    <option value="6">Jun</option>
-                    <option value="7">Jul</option>
-                    <option value="8">Aug</option>
-                    <option value="9">Sep</option>
-                    <option value="10">Oct</option>
-                    <option value="11">Nov</option>
-                    <option value="12">Dec</option>
-                </select>
+                        <option value="1">Jan</option>
+                        <option value="2">Feb</option>
+                        <option value="3">Mar</option>
+                        <option value="4">Apr</option>
+                        <option value="5">May</option>
+                        <option value="6">Jun</option>
+                        <option value="7">Jul</option>
+                        <option value="8">Aug</option>
+                        <option value="9">Sep</option>
+                        <option value="10">Oct</option>
+                        <option value="11">Nov</option>
+                        <option value="12">Dec</option>
+                    </select>
                 </div>
             </div>
 
@@ -78,6 +78,48 @@
                         <i class="bi bi-plus"></i>
                         <span>Create</span>
                     </button>
+                    <button id="restore-latest-btn" class="btn-action warning">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        <span>Restore Latest</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Operations -->
+        <div class="monitor-section">
+            <h5>Advanced Operations</h5>
+            <div class="action-buttons">
+                <button id="backup-diagnostics-btn" class="btn-action info">
+                    <i class="bi bi-bug"></i>
+                    <span>Diagnostics</span>
+                </button>
+                <button id="memory-backup-btn" class="btn-action secondary">
+                    <i class="bi bi-memory"></i>
+                    <span>Memory Backup</span>
+                </button>
+                <button id="cleanup-backup-btn" class="btn-action" style="background: #6c757d; color: white;">
+                    <i class="bi bi-trash"></i>
+                    <span>Cleanup</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Backup Stats -->
+        <div class="monitor-section">
+            <h5>Backup Information</h5>
+            <div class="stats-display" id="backup-info">
+                <div class="stat-item">
+                    <span class="stat-label">Available Backups</span>
+                    <span class="stat-value" id="backup-count-display">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Last Operation</span>
+                    <span class="stat-value" id="last-backup-operation">None</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Operation Time</span>
+                    <span class="stat-value" id="backup-operation-time">--:--:--</span>
                 </div>
             </div>
         </div>
@@ -86,7 +128,12 @@
         <div id="backup-results" class="results-area" style="display: none;">
             <div class="results-header">
                 <h4 class="results-title">Available Backups</h4>
-                <span id="backup-count" class="results-badge">0</span>
+                <div class="results-controls">
+                    <span id="backup-count" class="results-badge">0</span>
+                    <button id="clear-backup-results" class="btn-clear">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
             </div>
             <div id="backup-list" class="results-content">
                 <!-- Backup items will be loaded here -->
@@ -94,10 +141,5 @@
         </div>
     </div>
 </div>
-<script>
-  alert('FRAGMENT SCRIPT LOADED!');
-  console.log('FRAGMENT SCRIPT LOADED!');
-</script>
-
 
 </html>

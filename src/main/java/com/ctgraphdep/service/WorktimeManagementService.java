@@ -9,10 +9,12 @@ import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.IsNationalHolidayCommand;
 import com.ctgraphdep.validation.commands.ValidateHolidayDateCommand;
+import lombok.Getter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -453,7 +455,288 @@ public class WorktimeManagementService {
                 .collect(Collectors.toList());
     }
 
+// ========================================================================
+// NEW: INDIVIDUAL FIELD UPDATE OPERATIONS
+// ========================================================================
+
+    /**
+     * Update start time for a specific worktime entry
+     */
+    public boolean updateStartTime(String username, Integer userId, LocalDate date, LocalDateTime startTime) {
+        userLock.writeLock().lock();
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Updating start time for %s on %s to %s", username, date, startTime));
+
+            // Validate edit permissions
+            FieldEditValidation validation = canEditField(username, userId, date, "startTime");
+            if (!validation.isCanEdit()) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Cannot edit start time for %s on %s: %s", username, date, validation.getReason()));
+                return false;
+            }
+
+            // Load current month entries
+            int year = date.getYear();
+            int month = date.getMonthValue();
+            List<WorkTimeTable> entries = loadUserEntries(username, year, month);
+
+            // Find and update the specific entry
+            boolean entryFound = false;
+            for (WorkTimeTable entry : entries) {
+                if (entry.getUserId().equals(userId) && entry.getWorkDate().equals(date)) {
+                    entry.setDayStartTime(startTime);
+                    entry.setAdminSync(SyncStatusMerge.USER_INPUT);
+                    entryFound = true;
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Updated start time for entry on %s", date));
+                    break;
+                }
+            }
+
+            // If entry doesn't exist, create new one
+            if (!entryFound) {
+                WorkTimeTable newEntry = createNewWorktimeEntry(userId, date);
+                newEntry.setDayStartTime(startTime);
+                newEntry.setAdminSync(SyncStatusMerge.USER_INPUT);
+                entries.add(newEntry);
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Created new entry with start time for %s on %s", username, date));
+            }
+
+            // Save back to file
+            worktimeDataService.writeUserLocalWithSyncAndBackup(username, entries, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully updated start time for %s on %s", username, date));
+            return true;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error updating start time for %s on %s: %s", username, date, e.getMessage()), e);
+            return false;
+        } finally {
+            userLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Update end time for a specific worktime entry
+     */
+    public boolean updateEndTime(String username, Integer userId, LocalDate date, LocalDateTime endTime) {
+        userLock.writeLock().lock();
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Updating end time for %s on %s to %s", username, date, endTime));
+
+            // Validate edit permissions
+            FieldEditValidation validation = canEditField(username, userId, date, "endTime");
+            if (!validation.isCanEdit()) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Cannot edit end time for %s on %s: %s", username, date, validation.getReason()));
+                return false;
+            }
+
+            // Load current month entries
+            int year = date.getYear();
+            int month = date.getMonthValue();
+            List<WorkTimeTable> entries = loadUserEntries(username, year, month);
+
+            // Find and update the specific entry
+            boolean entryFound = false;
+            for (WorkTimeTable entry : entries) {
+                if (entry.getUserId().equals(userId) && entry.getWorkDate().equals(date)) {
+                    entry.setDayEndTime(endTime);
+
+                    // Recalculate total worked minutes if both start and end times exist
+                    if (entry.getDayStartTime() != null && endTime != null) {
+                        int totalMinutes = calculateTotalMinutes(entry.getDayStartTime(), endTime);
+                        entry.setTotalWorkedMinutes(totalMinutes);
+
+                        // Determine lunch break
+                        boolean lunchBreak = totalMinutes > (6 * 60); // More than 6 hours
+                        entry.setLunchBreakDeducted(lunchBreak);
+
+                        LoggerUtil.debug(this.getClass(), String.format(
+                                "Recalculated total minutes: %d, lunch break: %s", totalMinutes, lunchBreak));
+                    }
+
+                    entry.setAdminSync(SyncStatusMerge.USER_INPUT);
+                    entryFound = true;
+                    break;
+                }
+            }
+
+            // If entry doesn't exist, create new one
+            if (!entryFound) {
+                WorkTimeTable newEntry = createNewWorktimeEntry(userId, date);
+                newEntry.setDayEndTime(endTime);
+                newEntry.setAdminSync(SyncStatusMerge.USER_INPUT);
+                entries.add(newEntry);
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Created new entry with end time for %s on %s", username, date));
+            }
+
+            // Save back to file
+            worktimeDataService.writeUserLocalWithSyncAndBackup(username, entries, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully updated end time for %s on %s", username, date));
+            return true;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error updating end time for %s on %s: %s", username, date, e.getMessage()), e);
+            return false;
+        } finally {
+            userLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Clear time off type for a specific worktime entry
+     */
+    public void clearTimeOff(String username, Integer userId, LocalDate date) {
+        userLock.writeLock().lock();
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Clearing time off for %s on %s", username, date));
+
+            // Basic validation - current day check
+            LocalDate today = LocalDate.now();
+            if (date.equals(today)) {
+                LoggerUtil.warn(this.getClass(), "Cannot edit current day");
+                return;
+            }
+
+            // Load current month entries
+            int year = date.getYear();
+            int month = date.getMonthValue();
+            List<WorkTimeTable> entries = loadUserEntries(username, year, month);
+
+            // Find and clear the time off entry
+            boolean entryFound = false;
+            for (WorkTimeTable entry : entries) {
+                if (entry.getUserId().equals(userId) && entry.getWorkDate().equals(date)) {
+                    entry.setTimeOffType(null);
+                    entry.setAdminSync(SyncStatusMerge.USER_INPUT);
+                    entryFound = true;
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Cleared time off for entry on %s", date));
+                    break;
+                }
+            }
+
+            if (entryFound) {
+                // Save back to file
+                worktimeDataService.writeUserLocalWithSyncAndBackup(username, entries, year, month);
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Successfully cleared time off for %s on %s", username, date));
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "No entry found to clear for %s on %s", username, date));
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error clearing time off for %s on %s: %s", username, date, e.getMessage()), e);
+        } finally {
+            userLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Check if a field can be edited for a specific date
+     */
+    public FieldEditValidation canEditField(String username, Integer userId, LocalDate date, String fieldType) {
+        try {
+            // Check if current day
+            LocalDate today = LocalDate.now();
+            if (date.equals(today)) {
+                return new FieldEditValidation(false, "Cannot edit current day", null);
+            }
+
+            // Check if future date
+            if (date.isAfter(today)) {
+                return new FieldEditValidation(false, "Cannot edit future dates", null);
+            }
+
+            // Check if weekend (for time off)
+            if ("timeOff".equals(fieldType) && isWeekend(date)) {
+                return new FieldEditValidation(false, "Cannot add time off on weekends", null);
+            }
+
+            // Check if national holiday (skip this check for now, can add later)
+            // if (isNationalHoliday(date)) {
+            //     return new FieldEditValidation(false, "Date is a national holiday", null);
+            // }
+
+            // Load existing entry to check status
+            int year = date.getYear();
+            int month = date.getMonthValue();
+            List<WorkTimeTable> entries = loadUserEntries(username, year, month);
+
+            WorkTimeTable existingEntry = entries.stream()
+                    .filter(entry -> entry.getUserId().equals(userId) && entry.getWorkDate().equals(date))
+                    .findFirst()
+                    .orElse(null);
+
+            // Check status if entry exists
+            if (existingEntry != null) {
+                SyncStatusMerge status = existingEntry.getAdminSync();
+                if (status == SyncStatusMerge.USER_IN_PROCESS) {
+                    return new FieldEditValidation(false, "Entry is currently in process", status);
+                }
+                if (status == SyncStatusMerge.USER_DONE && !"timeOff".equals(fieldType)) {
+                    // Allow time off changes even on DONE entries, but not time changes
+                    return new FieldEditValidation(false, "Entry is already completed", status);
+                }
+            }
+
+            // All checks passed
+            return new FieldEditValidation(true, "Can edit",
+                    existingEntry != null ? existingEntry.getAdminSync() : null);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error checking edit permissions for %s on %s: %s", username, date, e.getMessage()));
+            return new FieldEditValidation(false, "Error checking permissions", null);
+        }
+    }
+
     // ============= HELPER METHODS =============
+
+    /**
+     * Create a new worktime entry with default values
+     */
+    private WorkTimeTable createNewWorktimeEntry(Integer userId, LocalDate date) {
+        WorkTimeTable entry = new WorkTimeTable();
+        entry.setUserId(userId);
+        entry.setWorkDate(date);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setLunchBreakDeducted(false);
+        entry.setAdminSync(SyncStatusMerge.USER_INPUT);
+        return entry;
+    }
+
+    /**
+     * Calculate total minutes between start and end time
+     */
+    private int calculateTotalMinutes(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null || endTime.isBefore(startTime)) {
+            return 0;
+        }
+        return (int) Duration.between(startTime, endTime).toMinutes();
+    }
+
+    /**
+     * Check if date is weekend
+     */
+    private boolean isWeekend(LocalDate date) {
+        return date.getDayOfWeek().getValue() >= 6; // Saturday = 6, Sunday = 7
+    }
 
     private List<WorkTimeTable> loadUserEntries(String username, int year, int month) {
         try {
@@ -778,6 +1061,23 @@ public class WorktimeManagementService {
         return userService.getUserByUsername(username)
                 .map(User::getUserId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+    }
+
+
+    /**
+     * Validation result class for field editing
+     */
+    @Getter
+    public static class FieldEditValidation {
+        private final boolean canEdit;
+        private final String reason;
+        private final SyncStatusMerge currentStatus;
+
+        public FieldEditValidation(boolean canEdit, String reason, SyncStatusMerge currentStatus) {
+            this.canEdit = canEdit;
+            this.reason = reason;
+            this.currentStatus = currentStatus;
+        }
     }
 
 }

@@ -1,20 +1,13 @@
 package com.ctgraphdep.controller.user;
 
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
-import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.FolderStatus;
+import com.ctgraphdep.model.User;
+import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.WorktimeManagementService;
 import com.ctgraphdep.service.cache.TimeOffCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.WorkTimeEntryUtil;
-import com.ctgraphdep.validation.TimeOffRequestValidator;
 import com.ctgraphdep.validation.TimeValidationService;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,29 +19,44 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+/**
+ * REFACTORED TimeOffController - Clean Architecture Implementation.
+ * Key Changes:
+ * 1. Uses TimeOffCacheService instead of direct file access
+ * 2. Cache is built from final worktime files (merged at login)
+ * 3. Write-through operations for time off requests
+ * 4. Fast display using cached tracker data
+ * Flow:
+ * - Page Load: Cache builds tracker from final worktime → fast display
+ * - Time Off Request: Write-through (worktime → balance → tracker → cache)
+ */
 @Controller
 @RequestMapping("/user/timeoff")
 @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserTimeOffController extends BaseController {
 
     private final TimeOffCacheService timeOffCacheService;
-    private final TimeOffRequestValidator timeOffValidator;
-    private final WorktimeManagementService worktimeManagementService;
 
-    public UserTimeOffController(UserService userService, FolderStatus folderStatus, TimeOffCacheService timeOffCacheService,
-                                 TimeValidationService timeValidationService, TimeOffRequestValidator timeOffValidator, WorktimeManagementService worktimeManagementService) {
-        super(userService, folderStatus, timeValidationService);
+    public UserTimeOffController(
+            UserService userService,
+            FolderStatus folderStatus,
+            TimeValidationService validationService,
+            TimeOffCacheService timeOffCacheService) {
+        super(userService, folderStatus, validationService);
         this.timeOffCacheService = timeOffCacheService;
-        this.timeOffValidator = timeOffValidator;
-        this.worktimeManagementService = worktimeManagementService;
     }
 
+    /**
+     * Display time off page - uses cache for fast display
+     */
     @GetMapping
-    public String showTimeOffPage(@AuthenticationPrincipal UserDetails userDetails, Model model) {
+    public String getTimeOffPage(@AuthenticationPrincipal UserDetails userDetails, Model model, RedirectAttributes redirectAttributes) {
+
         try {
-            LoggerUtil.info(this.getClass(), "Accessing time off page at " + getStandardCurrentDateTime());
+            LoggerUtil.info(this.getClass(), "Loading time off page at " + getStandardCurrentDateTime());
 
             // Get user and add common model attributes
             User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
@@ -56,179 +64,184 @@ public class UserTimeOffController extends BaseController {
                 return "redirect:/login";
             }
 
-            // Load time off data from cache (this triggers worktime merge if needed)
-            int currentYear = getStandardCurrentDate().getYear();
-            timeOffCacheService.getYearTracker(currentUser.getUsername(), currentUser.getUserId(), currentYear);
+            String username = currentUser.getUsername();
+            Integer userId = currentUser.getUserId();
+            int currentYear = LocalDate.now().getYear();
 
-            // Prepare time off page model
-            prepareTimeOffPageModel(model, currentUser, currentYear);
+            LoggerUtil.info(this.getClass(), String.format("Loading time off data for %s - %d (using cache)", username, currentYear));
+
+            // Get time off summary from cache (builds from final worktime files if needed)
+            TimeOffSummaryDTO summary = timeOffCacheService.getTimeOffSummary(username, userId, currentYear);
+
+            // Prepare model for display
+            model.addAttribute("user", sanitizeUserData(currentUser));
+            model.addAttribute("summary", summary);
+            model.addAttribute("currentYear", currentYear);
+
+            // Add date constraints for form
+            LocalDate today = getStandardCurrentDate();
+            model.addAttribute("today", today.toString());
+            model.addAttribute("minDate", today.minusDays(7).toString()); // Allow 1 week back
+            model.addAttribute("maxDate", today.plusMonths(6).toString()); // 6 months ahead
+            LoggerUtil.info(this.getClass(),"DEBUG - Summary availablePaidDays = " + summary.getAvailablePaidDays());
+
+
+            LoggerUtil.info(this.getClass(), String.format("Successfully loaded time off page for %s with %d available days", username, summary.getAvailablePaidDays()));
+
             return "user/timeoff";
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error loading time off page: " + e.getMessage(), e);
-            model.addAttribute("errorMessage", "Error loading time off data");
-            return "user/timeoff";
+            redirectAttributes.addFlashAttribute("error", "Error loading time off data. Please try again.");
+            return "redirect:/user/dashboard";
         }
     }
 
+    /**
+     * Process time off request - write-through to all layers
+     */
     @PostMapping
-    public String processTimeOffRequest(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-                                        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate, @RequestParam(required = false) String timeOffType,
-                                        @RequestParam(defaultValue = "false") boolean isSingleDayRequest, RedirectAttributes redirectAttributes) {
+    public String submitTimeOffRequest(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam String timeOffType,
+            @RequestParam(required = false) boolean isSingleDayRequest,
+            RedirectAttributes redirectAttributes) {
 
         try {
-            LoggerUtil.info(this.getClass(), "Processing time off request at " + getStandardCurrentDateTime());
+            LoggerUtil.info(this.getClass(), String.format("Processing time off request: %s to %s (%s, single: %s)", startDate, endDate, timeOffType, isSingleDayRequest));
 
-            // Get the user
+            // Get user
             User currentUser = getUser(userDetails);
             if (currentUser == null) {
-                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
+                LoggerUtil.error(this.getClass(), "Unauthorized time off request attempt");
+                redirectAttributes.addFlashAttribute("error", "Authentication required");
                 return "redirect:/login";
             }
 
-            // Basic validation
-            if (startDate == null) {
-                redirectAttributes.addFlashAttribute("errorMessage", "Start date is required");
-                return "redirect:/user/timeoff?error=date_required";
+            String username = currentUser.getUsername();
+            Integer userId = currentUser.getUserId();
+
+            // Parse and validate dates
+            List<LocalDate> dates = parseDateRange(startDate, endDate, isSingleDayRequest);
+            if (dates.isEmpty()) {
+                redirectAttributes.addFlashAttribute("error", "Invalid date range");
+                return "redirect:/user/timeoff";
             }
 
-            // Handle single day request
-            if (isSingleDayRequest) {
-                endDate = startDate;
-            } else if (endDate == null) {
-                redirectAttributes.addFlashAttribute("errorMessage", "End date is required");
-                return "redirect:/user/timeoff?error=date_required";
+            // Validate time off type
+            if (!isValidTimeOffType(timeOffType)) {
+                redirectAttributes.addFlashAttribute("error", "Invalid time off type");
+                return "redirect:/user/timeoff";
             }
 
-            // Get available days for validation from cache
-            TimeOffSummaryDTO summary = timeOffCacheService.getTimeOffSummary(currentUser.getUsername(), currentUser.getUserId(), startDate.getYear());
-            int availableDays = summary.getRemainingPaidDays();
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Submitting time off request for %s: %d days (%s)", username, dates.size(), timeOffType));
 
-            // Validate the time-off request
-            TimeOffRequestValidator.ValidationResult validationResult = timeOffValidator.validateRequest(startDate, endDate, timeOffType, availableDays);
+            // Process request via cache service (write-through to all layers)
+            boolean success = timeOffCacheService.addTimeOffRequest(username, userId, dates, timeOffType);
 
-            if (!validationResult.isValid()) {
-                redirectAttributes.addFlashAttribute("errorMessage", validationResult.getErrorMessage());
-                return "redirect:/user/timeoff?error=validation_failed";
+            if (success) {
+                String message = String.format("Successfully submitted time off request for %d day(s) (%s)", dates.size(), getTimeOffTypeDisplayName(timeOffType));
+
+                redirectAttributes.addFlashAttribute("successMessage", message);
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Time off request processed successfully for %s: %d days", username, dates.size()));
+            } else {
+                redirectAttributes.addFlashAttribute("error",
+                        "Failed to submit time off request. Please check your available balance and try again.");
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Time off request failed for %s: %d days", username, dates.size()));
             }
-
-            List<LocalDate> validDates = calculateValidWorkDays(startDate, endDate);
-
-            // Process the validated request using cache service
-            boolean success = timeOffCacheService.addTimeOffRequest(currentUser.getUsername(), currentUser.getUserId(), validDates, timeOffType);
-
-            if (!success) {
-                redirectAttributes.addFlashAttribute("errorMessage", "Failed to process time off request");
-                return "redirect:/user/timeoff?error=submit_failed";
-            }
-
-            // Create success message and redirect
-            String successMessage = createSuccessMessage(timeOffType, startDate, endDate, validationResult.getEligibleDays());
-            redirectAttributes.addFlashAttribute("successMessage", successMessage);
-
-            LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully for user %s (%s to %s)", currentUser.getUsername(), startDate, endDate));
 
             return "redirect:/user/timeoff";
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error processing time off request: " + e.getMessage(), e);
-            redirectAttributes.addFlashAttribute("errorMessage", "Failed to process time off request: " + e.getMessage());
-            return "redirect:/user/timeoff?error=submit_failed";
+            redirectAttributes.addFlashAttribute("error",
+                    "An error occurred while processing your request. Please try again.");
+            return "redirect:/user/timeoff";
         }
     }
 
-    @GetMapping("/upcoming")
-    public ResponseEntity<List<WorkTimeTable>> getUpcomingTimeOff(@AuthenticationPrincipal UserDetails userDetails) {
-        try {
-            LoggerUtil.info(this.getClass(), "Fetching upcoming time off at " + getStandardCurrentDateTime());
+    // ========================================================================
+    // PRIVATE HELPER METHODS
+    // ========================================================================
 
-            User currentUser = getUser(userDetails);
-            if (currentUser == null) {
-                LoggerUtil.error(this.getClass(), "Unauthorized access to upcoming time off data");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    /**
+     * Parse date range from form input
+     */
+    private List<LocalDate> parseDateRange(String startDate, String endDate, boolean isSingleDay) {
+        try {
+            LocalDate start = LocalDate.parse(startDate, DateTimeFormatter.ISO_LOCAL_DATE);
+            LocalDate end = isSingleDay ? start : LocalDate.parse(endDate, DateTimeFormatter.ISO_LOCAL_DATE);
+
+            if (start.isAfter(end)) {
+                LoggerUtil.warn(this.getClass(), "Start date is after end date: " + startDate + " > " + endDate);
+                return new ArrayList<>();
             }
 
-            // Get from cache (instant!)
-            List<WorkTimeTable> upcomingTimeOff = timeOffCacheService.getUpcomingTimeOff(currentUser.getUsername(), currentUser.getUserId(), getStandardCurrentDate().getYear());
+            List<LocalDate> dates = new ArrayList<>();
+            LocalDate current = start;
 
-            return ResponseEntity.ok(upcomingTimeOff);
+            while (!current.isAfter(end)) {
+                // Skip weekends (optional - depends on business rules)
+                if (!isWeekend(current)) {
+                    dates.add(current);
+                }
+                current = current.plusDays(1);
+            }
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Parsed date range: %s to %s = %d business days", startDate, endDate, dates.size()));
+
+            return dates;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error getting upcoming time off: " + e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    @PostMapping("/cache/clear")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> clearCache(@RequestParam String username, @RequestParam int year) {
-        try {
-            timeOffCacheService.clearYear(username, year);
-            return ResponseEntity.ok("Cache cleared for " + username + " - " + year);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error clearing cache: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), "Error parsing date range: " + e.getMessage());
+            return new ArrayList<>();
         }
     }
 
     /**
-     * Prepare the model for the time off page using cache service
+     * Check if date is weekend
      */
-    private void prepareTimeOffPageModel(Model model, User user, int currentYear) {
-        LocalDate currentDate = getStandardCurrentDate();
-        LocalDate twoMonthsAgo = currentDate.minusMonths(2).withDayOfMonth(1);
-        LocalDate maxDate = currentDate.plusMonths(6);
-
-        // Get data from cache (all instant reads!)
-        TimeOffSummaryDTO summary = timeOffCacheService.getTimeOffSummary(user.getUsername(), user.getUserId(), currentYear);
-        List<WorkTimeTable> upcomingTimeOff = timeOffCacheService.getUpcomingTimeOff(user.getUsername(), user.getUserId(), currentYear);
-
-        // Add to model
-        model.addAttribute("user", user);
-        model.addAttribute("summary", summary);
-        model.addAttribute("maxDate", maxDate);
-        model.addAttribute("minDate", twoMonthsAgo.format(DateTimeFormatter.ISO_DATE));
-        model.addAttribute("today", currentDate.format(DateTimeFormatter.ISO_DATE));
-        model.addAttribute("upcomingTimeOff", upcomingTimeOff);
-
-        LoggerUtil.debug(this.getClass(), String.format("Model prepared from cache: %d upcoming days, %d CO days taken",
-                upcomingTimeOff.size(), summary.getCoDays()));
-    }
-
-    /**
-     * Calculate valid work days (same logic as before)
-     */
-    private List<LocalDate> calculateValidWorkDays(LocalDate startDate, LocalDate endDate) {
-        List<LocalDate> validDays = new ArrayList<>();
-        LocalDate current = startDate;
-
-        while (!current.isAfter(endDate)) {
-            // Skip weekends and holidays (reuse existing logic)
-            if (!isWeekend(current) && !isHoliday(current)) {
-                validDays.add(current);
-            }
-            current = current.plusDays(1);
-        }
-
-        return validDays;
-    }
-
     private boolean isWeekend(LocalDate date) {
-        return WorkTimeEntryUtil.isDateWeekend(date); // Use existing utility
-    }
-
-    private boolean isHoliday(LocalDate date) {
-        return !worktimeManagementService.isNotHoliday(date); // Use existing service
+        return date.getDayOfWeek().getValue() >= 6; // Saturday = 6, Sunday = 7
     }
 
     /**
-     * Create success message
+     * Validate time off type
      */
-    private String createSuccessMessage(String timeOffType, LocalDate startDate, LocalDate endDate, int daysCount) {
-        String dateInfo = startDate.equals(endDate) ? startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) :
-                String.format("%s to %s", startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+    private boolean isValidTimeOffType(String timeOffType) {
+        List<String> validTypes = Arrays.asList("CO", "CM");
+        return validTypes.contains(timeOffType);
+    }
 
-        String typeLabel = "CO".equals(timeOffType) ? "vacation" : "medical leave";
+    /**
+     * Get display name for time off type
+     */
+    private String getTimeOffTypeDisplayName(String timeOffType) {
+        return switch (timeOffType) {
+            case "CO" -> "Vacation";
+            case "CM" -> "Medical Leave";
+            case "SN" -> "National Holiday";
+            default -> timeOffType;
+        };
+    }
 
-        return String.format("Successfully requested %s for %s (%d working day%s)", typeLabel, dateInfo, daysCount, daysCount > 1 ? "s" : "");
+    /**
+     * Sanitize user data for display
+     */
+    private User sanitizeUserData(User user) {
+        User sanitized = new User();
+        sanitized.setUserId(user.getUserId());
+        sanitized.setName(user.getName());
+        sanitized.setUsername(user.getUsername());
+        sanitized.setEmployeeId(user.getEmployeeId());
+        sanitized.setSchedule(user.getSchedule());
+        sanitized.setPaidHolidayDays(user.getPaidHolidayDays());
+        return sanitized;
     }
 }
