@@ -9,9 +9,9 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
-import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.session.cache.SessionCacheService;
+import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
@@ -47,7 +47,7 @@ public class NotificationCheckerService {
     private final TimeValidationService timeValidationService;
     private final SchedulerHealthMonitor healthMonitor;
     private final SessionCacheService sessionCacheService;
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
     private final UserService userService;
     private final SessionDataService sessionDataService;
 
@@ -63,7 +63,7 @@ public class NotificationCheckerService {
             @Lazy SessionCommandFactory sessionCommandFactory,
             TimeValidationService timeValidationService,
             SchedulerHealthMonitor healthMonitor,
-            SessionCacheService sessionCacheService, UserContextService userContextService, UserService userService, SessionDataService sessionDataService) {
+            SessionCacheService sessionCacheService, MainDefaultUserContextService mainDefaultUserContextService, UserService userService, SessionDataService sessionDataService) {
 
         this.notificationService = notificationService;
         this.monitorService = monitorService;
@@ -74,7 +74,7 @@ public class NotificationCheckerService {
         this.timeValidationService = timeValidationService;
         this.healthMonitor = healthMonitor;
         this.sessionCacheService = sessionCacheService;
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.userService = userService;
         this.sessionDataService = sessionDataService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -427,13 +427,13 @@ public class NotificationCheckerService {
      */
     private User getCurrentActiveUser() {
         try {
-            // Get current user from UserContextService (cache-based)
-            User currentUser = userContextService.getCurrentUser();
+            // Get current user from MainDefaultUserContextService (cache-based)
+            User currentUser = mainDefaultUserContextService.getCurrentUser();
 
             // Check if we got a real user (not system user)
             if (currentUser != null && !"system".equals(currentUser.getUsername())) {
                 LoggerUtil.debug(this.getClass(), String.format(
-                        "Got current active user from UserContextService: %s (ID: %d)",
+                        "Got current active user from MainDefaultUserContextService: %s (ID: %d)",
                         currentUser.getUsername(), currentUser.getUserId()));
                 return currentUser;
             }

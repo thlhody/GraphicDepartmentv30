@@ -9,11 +9,11 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
-import com.ctgraphdep.security.UserContextService;
-import com.ctgraphdep.service.cache.StatusCacheService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
-import com.ctgraphdep.session.cache.SessionCacheService;
+import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.session.commands.AutoEndSessionCommand;
 import com.ctgraphdep.session.commands.EndDayCommand;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
@@ -62,14 +62,14 @@ public class SessionMonitorService {
     private final CalculationCommandService calculationService;
     private final NotificationService notificationService;
     private final MonitoringStateService monitoringStateService;
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
 
     @Autowired
     private SchedulerHealthMonitor healthMonitor;
     @Autowired
     private SessionCacheService sessionCacheService;
     @Autowired
-    private StatusCacheService statusCacheService; // NEW: Status cache integration
+    private AllUsersCacheService allUsersCacheService; // NEW: Status cache integration
 
     // Track last file write times to coordinate with session commands
     private final Map<String, Long> lastFileWrites = new ConcurrentHashMap<>();
@@ -96,7 +96,7 @@ public class SessionMonitorService {
     public SessionMonitorService(
             SessionCommandService commandService, SessionCommandFactory commandFactory, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
             TimeValidationService validationService, TimeValidationFactory validationFactory, CalculationCommandFactory calculationFactory, CalculationCommandService calculationService,
-            NotificationService notificationService, MonitoringStateService monitoringStateService, UserContextService userContextService) {
+            NotificationService notificationService, MonitoringStateService monitoringStateService, MainDefaultUserContextService mainDefaultUserContextService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
@@ -107,7 +107,7 @@ public class SessionMonitorService {
         this.calculationService = calculationService;
         this.notificationService = notificationService;
         this.monitoringStateService = monitoringStateService;
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -193,10 +193,10 @@ public class SessionMonitorService {
             syncActiveSessionToFile();
 
             // 2. SYNC STATUS FROM NETWORK: Update status cache from network flags
-            statusCacheService.syncFromNetworkFlags();
+            allUsersCacheService.syncFromNetworkFlags();
 
             // 3. PERSIST STATUS CACHE: Write status cache to local file
-            statusCacheService.writeToFile();
+            allUsersCacheService.writeToFile();
 
             LoggerUtil.info(this.getClass(), "Completed periodic sync operations successfully");
 
@@ -212,7 +212,7 @@ public class SessionMonitorService {
      */
     private void syncActiveSessionToFile() {
         try {
-            String username = userContextService.getCurrentUsername();
+            String username = mainDefaultUserContextService.getCurrentUsername();
             if (username == null) {
                 LoggerUtil.debug(this.getClass(), "No active user found for session sync");
                 return;
@@ -229,7 +229,7 @@ public class SessionMonitorService {
             // Remove from pending syncs if we're about to sync
             pendingFileSyncs.remove(username);
 
-            User user = userContextService.getCurrentUser();
+            User user = mainDefaultUserContextService.getCurrentUser();
             if (user == null) {
                 LoggerUtil.warn(this.getClass(), "User not found for session sync: " + username);
                 return;
@@ -362,12 +362,12 @@ public class SessionMonitorService {
 
         try {
             checkStartDayReminder();
-            String username = userContextService.getCurrentUsername();
+            String username = mainDefaultUserContextService.getCurrentUsername();
             if (username == null) {
                 return;
             }
 
-            User user = userContextService.getCurrentUser();
+            User user = mainDefaultUserContextService.getCurrentUser();
 
             // Get current session from cache
             WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());
@@ -421,7 +421,7 @@ public class SessionMonitorService {
             LocalDate today = getStandardTimeValues().getCurrentDate();
 
             // Get current user
-            String username = userContextService.getCurrentUsername();
+            String username = mainDefaultUserContextService.getCurrentUsername();
             if (username == null) {
                 return;
             }
@@ -431,7 +431,7 @@ public class SessionMonitorService {
                 return;
             }
 
-            User user = userContextService.getCurrentUser();
+            User user = mainDefaultUserContextService.getCurrentUser();
 
             // ENHANCED: Get session from cache first, then check for stale sessions
             WorkUsersSessionsStates session = sessionCacheService.readSession(username, user.getUserId());

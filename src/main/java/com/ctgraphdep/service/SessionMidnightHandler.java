@@ -7,11 +7,11 @@ import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.notification.service.NotificationBackupService;
-import com.ctgraphdep.security.UserContextService;
-import com.ctgraphdep.service.cache.StatusCacheService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
-import com.ctgraphdep.session.cache.SessionCacheService;
+import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.session.commands.SaveSessionCommand;
 import com.ctgraphdep.session.query.GetLocalUserQuery;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -39,9 +39,9 @@ public class SessionMidnightHandler {
     private final NotificationService notificationService;
     private final NotificationBackupService notificationBackupService;
     private final MonitoringStateService monitoringStateService;
-    private final StatusCacheService statusCacheService; // NEW: Status cache integration
+    private final AllUsersCacheService allUsersCacheService; // NEW: Status cache integration
     private final SessionCacheService sessionCacheService; // NEW: Session cache integration
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
 
     public SessionMidnightHandler(
             SessionCommandService commandService,
@@ -50,17 +50,17 @@ public class SessionMidnightHandler {
             NotificationService notificationService,
             NotificationBackupService notificationBackupService,
             MonitoringStateService monitoringStateService,
-            StatusCacheService statusCacheService, // NEW
-            SessionCacheService sessionCacheService, UserContextService userContextService) { // NEW
+            AllUsersCacheService allUsersCacheService, // NEW
+            SessionCacheService sessionCacheService, MainDefaultUserContextService mainDefaultUserContextService) { // NEW
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.healthMonitor = healthMonitor;
         this.notificationService = notificationService;
         this.notificationBackupService = notificationBackupService;
         this.monitoringStateService = monitoringStateService;
-        this.statusCacheService = statusCacheService; // NEW
+        this.allUsersCacheService = allUsersCacheService; // NEW
         this.sessionCacheService = sessionCacheService; // NEW
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -103,16 +103,16 @@ public class SessionMidnightHandler {
             LoggerUtil.info(this.getClass(), String.format("Cleared session cache for user %s", username));
 
             // STEP 4: NEW - Refresh status cache with updated user data from UserService
-            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+            allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
             LoggerUtil.info(this.getClass(), "Refreshed status cache with updated user data from UserService");
 
             // STEP 5: NEW - Write status cache to file for persistence
-            statusCacheService.writeToFile();
+            allUsersCacheService.writeToFile();
             LoggerUtil.info(this.getClass(), "Persisted status cache to file after user data refresh");
 
-            // STEP 6: NEW - Reset UserContextCache (access counter, failure state)
-            userContextService.performMidnightReset();
-            LoggerUtil.info(this.getClass(), "Reset UserContextCache access counter and failure state");
+            // STEP 6: NEW - Reset MainDefaultUserContextCache (access counter, failure state)
+            mainDefaultUserContextService.performMidnightReset();
+            LoggerUtil.info(this.getClass(), "Reset MainDefaultUserContextCache access counter and failure state");
 
             // STEP 7: Reset notification system
             resetNotificationSystem(username);
@@ -149,7 +149,7 @@ public class SessionMidnightHandler {
             commandService.executeCommand(saveCommand);
 
             // NEW: Update status cache to reflect offline status
-            statusCacheService.updateUserStatus(username, userId, WorkCode.WORK_OFFLINE, LocalDateTime.now());
+            allUsersCacheService.updateUserStatus(username, userId, WorkCode.WORK_OFFLINE, LocalDateTime.now());
 
             LoggerUtil.info(this.getClass(), String.format("Reset session file and caches for user %s", username));
 
@@ -230,7 +230,7 @@ public class SessionMidnightHandler {
                 sessionCacheService.clearUserCache(username);
 
                 // Update status to offline
-                statusCacheService.updateUserStatus(username, localUser.getUserId(),
+                allUsersCacheService.updateUserStatus(username, localUser.getUserId(),
                         WorkCode.WORK_OFFLINE, LocalDateTime.now());
 
                 LoggerUtil.info(this.getClass(), String.format("Manual reset completed for user: %s", username));
@@ -257,9 +257,9 @@ public class SessionMidnightHandler {
             LoggerUtil.info(this.getClass(), "Cleared all session cache");
 
             // Clear and rebuild status cache
-            statusCacheService.clearAllCache();
-            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
-            statusCacheService.writeToFile();
+            allUsersCacheService.clearAllCache();
+            allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+            allUsersCacheService.writeToFile();
             LoggerUtil.info(this.getClass(), "Cleared and rebuilt status cache");
 
             // Clear all monitoring state
@@ -300,7 +300,7 @@ public class SessionMidnightHandler {
                 status.append("Session Cache: ").append(sessionCacheStatus.split("\n")[1]).append("\n");
 
                 // Check status cache status
-                String statusCacheStatus = statusCacheService.getCacheStatus();
+                String statusCacheStatus = allUsersCacheService.getCacheStatus();
                 status.append("Status Cache: ").append(statusCacheStatus.split("\n")[1]).append("\n");
 
                 // Check monitoring state

@@ -5,7 +5,6 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.service.WorktimeManagementService;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -114,15 +113,6 @@ public class CalculateWorkHoursUtil {
                 .count();
     }
 
-    // New method that also considers national holidays
-    public static int calculateWorkDays(LocalDate startDate, LocalDate endDate, WorktimeManagementService worktimeManagementService) {
-        return (int) startDate.datesUntil(endDate.plusDays(1))
-                .filter(date -> date.getDayOfWeek() != DayOfWeek.SATURDAY &&
-                        date.getDayOfWeek() != DayOfWeek.SUNDAY)
-                .filter(worktimeManagementService::isNotHoliday)  // Changed to NOT
-                .count();
-    }
-
     public static int calculateMinutesBetween(LocalDateTime startTime, LocalDateTime endTime) {
         if (startTime == null || endTime == null) {
             return 0;
@@ -142,33 +132,25 @@ public class CalculateWorkHoursUtil {
      */
     public static LocalDateTime calculateRecommendedEndTime(WorkTimeTable entry, int userSchedule) {
         if (entry == null || entry.getDayStartTime() == null) {
-            return LocalDateTime.now(); // Fallback
+            return LocalDateTime.now();
         }
 
-        // Get total work time needed in minutes
+        // Calculate total time needed
         int scheduledMinutes = userSchedule * WorkCode.HOUR_DURATION;
 
-        // Calculate work already done
-        int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
-
-        // Calculate remaining work needed
-        int remainingMinutes = Math.max(0, scheduledMinutes - workedMinutes);
-
-        // Get current time (use a standardized method in production)
-        LocalDateTime currentTime = LocalDateTime.now();
-
-        // Calculate end time based on current time and remaining work
-        LocalDateTime recommendedEndTime = currentTime.plusMinutes(remainingMinutes);
-
-        // If lunch is not already deducted and should be, add it
-        boolean shouldDeductLunch = userSchedule == WorkCode.INTERVAL_HOURS_C &&
-                workedMinutes + remainingMinutes >= 4 * WorkCode.HOUR_DURATION;
-
-        if (shouldDeductLunch) {
-            recommendedEndTime = recommendedEndTime.plusMinutes(WorkCode.HALF_HOUR_DURATION);
+        // Add lunch for 8-hour users
+        if (userSchedule == WorkCode.INTERVAL_HOURS_C) {
+            scheduledMinutes += WorkCode.HALF_HOUR_DURATION; // 30 minutes
         }
 
-        return recommendedEndTime;
+        // Add temporary stops
+        int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ?
+                entry.getTotalTemporaryStopMinutes() : 0;
+
+        // Calculate recommended end time
+        return entry.getDayStartTime()
+                .plusMinutes(scheduledMinutes)
+                .plusMinutes(tempStopMinutes);
     }
 
     /**

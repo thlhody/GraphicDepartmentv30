@@ -2,8 +2,8 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.security.UserContextService;
-import com.ctgraphdep.service.cache.StatusCacheService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,10 +14,10 @@ import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * REFACTORED UserServiceImpl using StatusCacheService + UserDataService.
+ * REFACTORED UserServiceImpl using AllUsersCacheService + UserDataService.
  * User operations: Local writes with network sync + cache updates.
  * Key Changes:
- * - All reads from StatusCacheService (cache-based, no file I/O)
+ * - All reads from AllUsersCacheService (cache-based, no file I/O)
  * - User writes via UserDataService. User*() methods (local → network sync)
  * - Cache updates after successful writes (write-through pattern)
  * - No more sanitization (cache provides clean User objects)
@@ -26,16 +26,16 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 @Service
 public class UserServiceImpl implements UserService {
     private final UserDataService userDataService;           // NEW - User file operations
-    private final StatusCacheService statusCacheService;     // NEW - Cache operations
-    private final UserContextService userContextService;     // NEW - Current user context
+    private final AllUsersCacheService allUsersCacheService;     // NEW - Cache operations
+    private final MainDefaultUserContextService mainDefaultUserContextService;     // NEW - Current user context
     private final PasswordEncoder passwordEncoder;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     @Autowired
-    public UserServiceImpl(UserDataService userDataService, StatusCacheService statusCacheService, UserContextService userContextService, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(UserDataService userDataService, AllUsersCacheService allUsersCacheService, MainDefaultUserContextService mainDefaultUserContextService, PasswordEncoder passwordEncoder) {
         this.userDataService = userDataService;
-        this.statusCacheService = statusCacheService;
-        this.userContextService = userContextService;
+        this.allUsersCacheService = allUsersCacheService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.passwordEncoder = passwordEncoder;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -45,7 +45,7 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public Optional<User> getUserByUsername(String username) {
-        Optional<User> user = statusCacheService.getUserAsUserObject(username);
+        Optional<User> user = allUsersCacheService.getUserAsUserObject(username);
 
         if (user.isPresent()) {
             LoggerUtil.debug(this.getClass(), String.format("Retrieved user from cache: %s (ID: %d)", username, user.get().getUserId()));
@@ -60,7 +60,7 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public Optional<User> getUserById(Integer userId) {
-        Optional<User> user = statusCacheService.getUserByIdAsUserObject(userId);
+        Optional<User> user = allUsersCacheService.getUserByIdAsUserObject(userId);
 
         if (user.isPresent()) {
             LoggerUtil.debug(this.getClass(), String.format("Retrieved user by ID from cache: %d", userId));
@@ -75,7 +75,7 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public List<User> getAllUsers() {
-        List<User> users = statusCacheService.getAllUsersAsUserObjects();
+        List<User> users = allUsersCacheService.getAllUsersAsUserObjects();
 
         LoggerUtil.debug(this.getClass(), String.format("Retrieved %d users from cache", users.size()));
 
@@ -88,7 +88,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<User> getNonAdminUsers(List<User> allUsers) {
         // Use cache method instead of filtering provided list
-        return statusCacheService.getNonAdminUsersAsUserObjects();
+        return allUsersCacheService.getNonAdminUsersAsUserObjects();
     }
 
     /**
@@ -102,7 +102,7 @@ public class UserServiceImpl implements UserService {
             Integer userId = user.getUserId();
 
             // Get current user context to determine if this its own data
-            String currentUsername = userContextService.getCurrentUsername();
+            String currentUsername = mainDefaultUserContextService.getCurrentUsername();
 
             // Validate user can update this data
             if (!currentUsername.equals(username)) {
@@ -129,7 +129,7 @@ public class UserServiceImpl implements UserService {
             userDataService.userWriteLocalWithSyncAndBackup(user);
 
             // Update cache (write-through)
-            statusCacheService.updateUserInCache(user);
+            allUsersCacheService.updateUserInCache(user);
 
             LoggerUtil.info(this.getClass(), String.format("User successfully updated: %s (ID: %d)", username, userId));
             return true;
@@ -165,7 +165,7 @@ public class UserServiceImpl implements UserService {
 
             if (deleted) {
                 // Remove from cache
-                statusCacheService.removeUserFromCache(username);
+                allUsersCacheService.removeUserFromCache(username);
 
                 LoggerUtil.info(this.getClass(), String.format("Successfully deleted user: %s (ID: %d)", username, userId));
             } else {
@@ -185,11 +185,11 @@ public class UserServiceImpl implements UserService {
         lock.writeLock().lock();
         try {
             // Get current user context
-            String currentUsername = userContextService.getCurrentUsername();
-            Integer currentUserId = userContextService.getCurrentUserId();
+            String currentUsername = mainDefaultUserContextService.getCurrentUsername();
+            Integer currentUserId = mainDefaultUserContextService.getCurrentUserId();
 
             // Users can only change their own password (unless admin)
-            if (!userContextService.isCurrentUserAdmin() && !userId.equals(currentUserId)) {
+            if (!mainDefaultUserContextService.isCurrentUserAdmin() && !userId.equals(currentUserId)) {
                 LoggerUtil.warn(this.getClass(), String.format("User %s attempted to change password for user ID %d - access denied", currentUsername, userId));
                 return false;
             }
@@ -226,7 +226,7 @@ public class UserServiceImpl implements UserService {
             userDataService.userWriteLocalWithSyncAndBackup(userWithPassword);
 
             // Update cache (password won't be stored in cache, but other data might have changed)
-            statusCacheService.updateUserInCache(userWithPassword);
+            allUsersCacheService.updateUserInCache(userWithPassword);
 
             LoggerUtil.info(this.getClass(), String.format("Successfully changed password for user ID %d", userId));
             return true;

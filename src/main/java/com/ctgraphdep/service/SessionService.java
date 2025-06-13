@@ -15,10 +15,10 @@ import com.ctgraphdep.model.dto.session.EndTimeCalculationDTO;
 import com.ctgraphdep.model.dto.session.ResolutionCalculationDTO;
 import com.ctgraphdep.model.dto.session.WorkSessionDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
-import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
-import com.ctgraphdep.session.cache.SessionCacheService;
+import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
 import com.ctgraphdep.session.query.UnresolvedWorkTimeQuery;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
@@ -26,6 +26,7 @@ import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.IsActiveSessionCommand;
+import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -50,8 +51,8 @@ public class SessionService {
     private final CalculationCommandFactory calculationFactory;
     private final TimeValidationService timeValidationService;
     private final SessionMonitorService sessionMonitorService;
-    private final WorktimeManagementService worktimeManagementService;
-    private final UserContextService userContextService;
+    private final WorktimeOperationContext worktimeOperationContext;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
 
     @Autowired
     private SessionCacheService sessionCacheService;
@@ -63,15 +64,15 @@ public class SessionService {
     @Autowired
     public SessionService(SessionCommandService sessionCommandService, SessionCommandFactory sessionCommandFactory, CalculationCommandService calculationService,
                           CalculationCommandFactory calculationFactory, TimeValidationService timeValidationService, SessionMonitorService sessionMonitorService,
-                          WorktimeManagementService worktimeManagementService, UserContextService userContextService) {
+                          WorktimeOperationContext worktimeOperationContext, MainDefaultUserContextService mainDefaultUserContextService) {
         this.sessionCommandService = sessionCommandService;
         this.sessionCommandFactory = sessionCommandFactory;
         this.calculationService = calculationService;
         this.calculationFactory = calculationFactory;
         this.timeValidationService = timeValidationService;
         this.sessionMonitorService = sessionMonitorService;
-        this.worktimeManagementService = worktimeManagementService;
-        this.userContextService = userContextService;
+        this.worktimeOperationContext = worktimeOperationContext;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -329,7 +330,7 @@ public class SessionService {
      */
     private WorkTimeTable findEntryForDate(String username, LocalDate date) {
         try {
-            List<WorkTimeTable> entries = worktimeManagementService.loadUserEntries(username, date.getYear(), date.getMonthValue(), username);
+            List<WorkTimeTable> entries = worktimeOperationContext.loadUserWorktime(username, date.getYear(), date.getMonthValue());
 
             return entries.stream()
                     .filter(e -> e.getWorkDate() != null && e.getWorkDate().equals(date))
@@ -345,7 +346,7 @@ public class SessionService {
      * Gets the user's schedule (hours)
      */
     private int getUserSchedule() {
-        User currentUser = userContextService.getCurrentUser();
+        User currentUser = mainDefaultUserContextService.getCurrentUser();
         if (currentUser != null && currentUser.getSchedule() != null) {
             return currentUser.getSchedule();
         }

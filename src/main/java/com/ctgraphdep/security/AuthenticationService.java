@@ -8,7 +8,9 @@ import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.service.CheckRegisterService;
 import com.ctgraphdep.service.RegisterMergeService;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.WorktimeLoginMergeService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
+import com.ctgraphdep.worktime.service.WorktimeLoginMergeService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -34,7 +36,8 @@ public class AuthenticationService {
     private final RegisterMergeService registerMergeService;
     private final CheckRegisterService checkRegisterService;
     private final WorktimeLoginMergeService worktimeLoginMergeService;
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
+    private final AllUsersCacheService allUsersCacheService;
 
     public AuthenticationService(
             DataAccessService dataAccessService,
@@ -45,7 +48,7 @@ public class AuthenticationService {
             RegisterMergeService registerMergeService,
             CheckRegisterService checkRegisterService,
             WorktimeLoginMergeService worktimeLoginMergeService,
-            UserContextService userContextService) {
+            MainDefaultUserContextService mainDefaultUserContextService, AllUsersCacheService allUsersCacheService) {
         this.dataAccessService = dataAccessService;
         this.userDataService = userDataService;      // NEW
         this.userService = userService;
@@ -54,7 +57,8 @@ public class AuthenticationService {
         this.registerMergeService = registerMergeService;
         this.checkRegisterService = checkRegisterService;
         this.worktimeLoginMergeService = worktimeLoginMergeService;
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
+        this.allUsersCacheService = allUsersCacheService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -127,7 +131,7 @@ public class AuthenticationService {
 
             LoggerUtil.info(this.getClass(), String.format(
                     "Successfully completed login processing for user: %s (admin: %s, elevated: %s)",
-                    username, user.isAdmin(), userContextService.isElevated()));
+                    username, user.isAdmin(), mainDefaultUserContextService.isElevated()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
@@ -149,22 +153,36 @@ public class AuthenticationService {
                     "Processing admin login: %s", adminUser.getUsername()));
 
             // Step 1: Ensure we have a healthy original user context for background processes
-            if (!userContextService.isCacheInitialized()) {
+            if (!mainDefaultUserContextService.isCacheInitialized()) {
                 LoggerUtil.warn(this.getClass(),
                         "No original user context found - background processes may use system user");
             }
 
             // Step 2: Elevate to admin role (preserves original user context)
-            userContextService.elevateToAdminRole(adminUser);
+            mainDefaultUserContextService.elevateToAdminRole(adminUser);
 
-            // Step 3: Handle local storage if requested (for admin user)
+            // Step 3: NEW - Refresh all users cache for accurate admin data
+            LoggerUtil.info(this.getClass(), "Refreshing all users cache for admin login");
+            try {
+                allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Successfully refreshed cache with %d users for admin %s",
+                        allUsersCacheService.getCachedUserCount(), adminUser.getUsername()));
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Failed to refresh users cache for admin %s: %s - continuing with login",
+                        adminUser.getUsername(), e.getMessage()));
+                // Don't fail login if cache refresh fails
+            }
+
+            // Step 4: Handle local storage if requested (for admin user)
             if (rememberMe) {
                 handleLocalStorageOperations(adminUser);
             }
 
-            // Step 4: Skip data merges for admin users (they don't need user data merges)
+            // Step 5: Skip data merges for admin users (they don't need user data merges)
             LoggerUtil.info(this.getClass(), String.format(
-                    "Admin login completed: %s (elevation active, original user preserved)",
+                    "Admin login completed: %s (elevation active, original user preserved, cache refreshed)",
                     adminUser.getUsername()));
 
         } catch (Exception e) {
@@ -173,7 +191,6 @@ public class AuthenticationService {
             throw new RuntimeException("Failed to handle admin login", e);
         }
     }
-
     /**
      * Handle regular user login (existing logic)
      */
@@ -183,13 +200,13 @@ public class AuthenticationService {
                     "Processing regular user login: %s", user.getUsername()));
 
             // Step 1: Clear any existing admin elevation
-            if (userContextService.isElevated()) {
-                userContextService.clearAdminElevation();
+            if (mainDefaultUserContextService.isElevated()) {
+                mainDefaultUserContextService.clearAdminElevation();
                 LoggerUtil.info(this.getClass(), "Cleared existing admin elevation for regular user login");
             }
 
             // Step 2: Update user context normally
-            userContextService.handleSuccessfulLogin(user.getUsername());
+            mainDefaultUserContextService.handleSuccessfulLogin(user.getUsername());
 
             // Step 3: Handle local storage operations if needed
             if (rememberMe) {

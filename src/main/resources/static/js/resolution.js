@@ -1,6 +1,6 @@
 /**
  * Work Time Resolution Script
- * Handles the interactive functionality for resolving unfinished work sessions
+ * Handles the interactive functionality for resolving unfinished work sessions with toast notifications
  */
 document.addEventListener('DOMContentLoaded', function() {
     // Set up close button for resolution container
@@ -15,6 +15,53 @@ document.addEventListener('DOMContentLoaded', function() {
     // Ensure all calculation results are visible
     ensureCalculationResultsVisible();
 });
+
+/**
+ * Safe wrapper for showing toasts with fallback
+ * @param {string} title - Toast title
+ * @param {string} message - Toast message
+ * @param {string} type - Toast type (success, error, warning, info)
+ */
+function showToastSafe(title, message, type) {
+    if (typeof window.showToast === 'function') {
+        window.showToast(title, message, type);
+    } else {
+        // Fallback to console logging if toast system is not available
+        console.log(`${type.toUpperCase()}: ${title} - ${message}`);
+
+        // Create a simple alert div as fallback
+        createFallbackAlert(title, message, type);
+    }
+}
+
+/**
+ * Creates a simple fallback alert when toast system is not available
+ * @param {string} title - Alert title
+ * @param {string} message - Alert message
+ * @param {string} type - Alert type
+ */
+function createFallbackAlert(title, message, type) {
+    const alertType = type === 'error' ? 'danger' : type;
+    const alertContainer = document.createElement('div');
+    alertContainer.className = `alert alert-${alertType} alert-dismissible fade show`;
+    alertContainer.innerHTML = `
+        <strong>${title}:</strong> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+
+    // Insert at the top of the container
+    const container = document.querySelector('.container.py-4');
+    if (container) {
+        container.insertBefore(alertContainer, container.firstChild);
+    }
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alertContainer.parentNode) {
+            alertContainer.remove();
+        }
+    }, 5000);
+}
 
 /**
  * Makes sure all calculation results are visible
@@ -97,12 +144,12 @@ function initFormSubmission() {
 
             if (!hourSelect.value || !minuteSelect.value) {
                 e.preventDefault();
-                showTemporaryAlert('warning', 'Please select both hour and minute', 3000);
+                showToastSafe('Validation Error', 'Please select both hour and minute', 'warning');
                 return;
             }
 
             // Show processing message
-            showTemporaryAlert('info', 'Processing your resolution request...', 3000);
+            showToastSafe('Processing', 'Processing your resolution request...', 'info');
 
             // Store that this form was submitted
             localStorage.setItem('formSubmitted', 'true');

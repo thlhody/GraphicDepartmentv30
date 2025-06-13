@@ -314,8 +314,8 @@ public final class FileTypeConstants {
     public static int getMaxBackups(CriticalityLevel level) {
         return switch (level) {
             case LEVEL1_LOW -> 1;
-            case LEVEL2_MEDIUM -> 5;
-            case LEVEL3_HIGH -> 10;
+            case LEVEL2_MEDIUM ->3;
+            case LEVEL3_HIGH -> 5;
         };
     }
 

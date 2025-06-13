@@ -87,11 +87,6 @@ public class SessionCommandFactory {
         return new UpdateSessionCalculationsCommand(session, explicitEndTime, true); // Cache-only mode
     }
 
-    // Creates a command to create a worktime entry
-    public CreateWorktimeEntryCommand createWorktimeEntryCommand(String username, WorkUsersSessionsStates session, String operatingUsername) {
-        return new CreateWorktimeEntryCommand(username, session, operatingUsername);
-    }
-
     // Creates a command to update session activity timestamp
     public UpdateSessionActivityCommand createUpdateSessionActivityCommand(String username, Integer userId) {
         return new UpdateSessionActivityCommand(username, userId);

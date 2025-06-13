@@ -4,9 +4,10 @@ import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.notification.api.NotificationService;
-import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.SessionService;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,9 +21,8 @@ public class SessionCommandConfig {
 
     @Bean
     public SessionContext sessionContext(
-            WorktimeManagementService worktimeManagementService,
             UserService userService,
-            UserContextService userContextService,
+            MainDefaultUserContextService mainDefaultUserContextService,
             SessionStatusService sessionStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
             FolderStatus folderStatus,
@@ -30,10 +30,12 @@ public class SessionCommandConfig {
             TimeValidationService validationService,
             NotificationService notificationService,
             @Lazy SessionService sessionService,
-            SessionDataService sessionDataService, DataAccessService dataAccessService) {
+            SessionDataService sessionDataService,
+            DataAccessService dataAccessService,
+            WorktimeOperationContext worktimeOperationContext) {
 
-        return new SessionContext(worktimeManagementService, userService, userContextService, sessionStatusService,
-                sessionMonitorService, folderStatus, commandFactory, validationService, notificationService,
-                sessionService,sessionDataService, dataAccessService);
+        return new SessionContext(userService, mainDefaultUserContextService, sessionStatusService, sessionMonitorService,
+                folderStatus, commandFactory,validationService,notificationService,sessionService,
+                sessionDataService,dataAccessService,worktimeOperationContext);
     }
 }

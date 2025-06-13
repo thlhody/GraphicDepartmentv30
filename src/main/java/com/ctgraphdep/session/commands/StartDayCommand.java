@@ -9,14 +9,13 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.commands.ValidateSessionForStartCommand;
 
 /**
- * Enhanced StartDayCommand with deduplication protection.
- * Prevents issues from rapid clicking of "Start Session" button.
+ * REFACTORED StartDayCommand using new SessionContext adapter methods
+ * and existing SessionEntityBuilder.createWorktimeEntryFromSession()
  */
 public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
     private final String username;
     private final Integer userId;
 
-    // Custom cooldown for start command (longer because it's a major operation)
     private static final long START_COMMAND_COOLDOWN_MS = 3000; // 3 seconds
 
     public StartDayCommand(String username, Integer userId) {
@@ -28,13 +27,9 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
 
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
-        // Use deduplication with custom cooldown
         return executeWithDeduplication(context, username, this::executeStartDayLogic, null, START_COMMAND_COOLDOWN_MS);
     }
 
-    /**
-     * The actual start day logic (separated for clarity).
-     */
     private WorkUsersSessionsStates executeStartDayLogic(SessionContext context) {
         info(String.format("Executing StartDayCommand for user %s", username));
 
@@ -64,12 +59,11 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
         SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(newSession);
         context.executeCommand(saveCommand);
 
-        // Create worktime entry
-        CreateWorktimeEntryCommand createEntryCommand = context.getCommandFactory().createWorktimeEntryCommand(username, newSession, username);
-        WorkTimeTable entry = context.executeCommand(createEntryCommand);
+        // REFACTORED: Create worktime entry using existing SessionEntityBuilder
+        WorkTimeTable entry = context.createWorktimeEntryFromSession(newSession);
 
-        // Save worktime entry using standardized date values
-        context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, timeValues.getCurrentDate().getYear(), timeValues.getCurrentDate().getMonthValue(), username);
+        // REFACTORED: Save worktime entry using new SessionContext adapter method
+        context.saveSessionWorktime(username, entry, timeValues.getCurrentDate().getYear(), timeValues.getCurrentDate().getMonthValue());
 
         // Start session monitoring
         context.getSessionMonitorService().startEnhancedMonitoring(username);
@@ -78,9 +72,6 @@ public class StartDayCommand extends BaseSessionCommand<WorkUsersSessionsStates>
         return newSession;
     }
 
-    /**
-     * Reset session before starting new one.
-     */
     private void resetSessionBeforeStart(SessionContext context) {
         context.getSessionMonitorService().clearMonitoring(username);
 

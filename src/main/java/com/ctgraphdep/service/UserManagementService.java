@@ -2,10 +2,10 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.fileOperations.data.UserDataService;
-import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.cache.StatusCacheService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.worktime.service.WorktimeOperationService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,10 +16,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
- * REFACTORED UserManagementService using StatusCacheService + UserDataService.
+ * REFACTORED UserManagementService using AllUsersCacheService + UserDataService.
  * Admin operations: Direct network writes with cache sync.
  * Key Changes:
- * - All reads from StatusCacheService (cache-based)
+ * - All reads from AllUsersCacheService (cache-based)
  * - All writes via UserDataService. Admin*() methods (direct network)
  * - Cache updates after successful writes (write-through pattern)
  * - No more batch user operations or sanitization
@@ -28,19 +28,19 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasRole('ADMIN')")
 public class UserManagementService {
     private final UserDataService userDataService;           // NEW - Direct admin file operations
-    private final StatusCacheService statusCacheService;     // NEW - Cache operations
-    private final HolidayManagementService holidayManagementService;
+    private final AllUsersCacheService allUsersCacheService;     // NEW - Cache operations
+    private final WorktimeOperationService worktimeOperationService;
     private final PasswordEncoder passwordEncoder;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     public UserManagementService(
             UserDataService userDataService,                 // NEW dependency
-            StatusCacheService statusCacheService,           // NEW dependency
-            HolidayManagementService holidayManagementService,
+            AllUsersCacheService allUsersCacheService,           // NEW dependency
+            WorktimeOperationService worktimeOperationService,
             PasswordEncoder passwordEncoder) {
         this.userDataService = userDataService;
-        this.statusCacheService = statusCacheService;
-        this.holidayManagementService = holidayManagementService;
+        this.allUsersCacheService = allUsersCacheService;
+        this.worktimeOperationService = worktimeOperationService;
         this.passwordEncoder = passwordEncoder;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -52,7 +52,7 @@ public class UserManagementService {
         lock.readLock().lock();
         try {
             // Get from cache - no file I/O
-            List<User> users = statusCacheService.getAllUsersAsUserObjects();
+            List<User> users = allUsersCacheService.getAllUsersAsUserObjects();
             LoggerUtil.debug(this.getClass(), String.format("Admin retrieved %d users from cache", users.size()));
 
             return users;
@@ -72,14 +72,14 @@ public class UserManagementService {
      * REFACTORED: Get user by ID from cache
      */
     public Optional<User> getUserById(Integer userId) {
-        return statusCacheService.getUserByIdAsUserObject(userId);
+        return allUsersCacheService.getUserByIdAsUserObject(userId);
     }
 
     /**
      * REFACTORED: Get user by username from cache
      */
     public Optional<User> getUserByUsername(String username) {
-        return statusCacheService.getUserAsUserObject(username);
+        return allUsersCacheService.getUserAsUserObject(username);
     }
 
     /**
@@ -104,7 +104,7 @@ public class UserManagementService {
             userDataService.adminWriteUserNetworkOnly(user);
 
             // Update cache with new user (write-through)
-            statusCacheService.updateUserInCache(user);
+            allUsersCacheService.updateUserInCache(user);
 
             // Initialize paid holiday entry for the new user
             ensureHolidayEntry(user, paidHolidayDays);
@@ -152,7 +152,7 @@ public class UserManagementService {
             userDataService.adminWriteUserNetworkOnly(userWithPassword);
 
             // Update cache (password won't be stored in cache, but other data might have changed)
-            statusCacheService.updateUserInCache(userWithPassword);
+            allUsersCacheService.updateUserInCache(userWithPassword);
 
             LoggerUtil.info(this.getClass(), String.format("Admin successfully changed password for user ID %d", userId));
             return true;
@@ -196,7 +196,7 @@ public class UserManagementService {
             userDataService.adminWriteUserNetworkOnly(user);
 
             // Update cache (write-through)
-            statusCacheService.updateUserInCache(user);
+            allUsersCacheService.updateUserInCache(user);
 
             // Ensure holiday entry exists and update if needed
             if (paidHolidayDays != null) {
@@ -235,7 +235,7 @@ public class UserManagementService {
 
             if (deleted) {
                 // Remove from cache
-                statusCacheService.removeUserFromCache(username);
+                allUsersCacheService.removeUserFromCache(username);
 
                 LoggerUtil.info(this.getClass(), String.format("Admin deleted user: %s (ID: %d)", username, userId));
             } else {
@@ -303,25 +303,35 @@ public class UserManagementService {
     // HELPER METHODS (UNCHANGED)
     // ========================================================================
 
+    // REFACTORED: Use command pattern for holiday balance management
     private void ensureHolidayEntry(User user, Integer paidHolidayDays) {
-        List<PaidHolidayEntryDTO> holidayEntries = holidayManagementService.loadHolidayList();
+        try {
+            // Get current holiday balance using the new command approach
+            Integer currentBalance = worktimeOperationService.getHolidayBalance(user.getUsername());
 
-        // Check if user already has an entry
-        boolean hasEntry = holidayEntries.stream().anyMatch(entry -> entry.getUserId().equals(user.getUserId()));
+            if (currentBalance == null || !currentBalance.equals(paidHolidayDays)) {
+                // Update holiday balance using the new command approach
+                var result = worktimeOperationService.updateHolidayBalance(user.getUserId(), paidHolidayDays);
 
-        if (!hasEntry) {
-            // Create new entry if user doesn't have one
-            PaidHolidayEntryDTO newEntry = PaidHolidayEntryDTO.fromUser(user);
-            newEntry.setPaidHolidayDays(paidHolidayDays);
-            holidayEntries.add(newEntry);
-            holidayManagementService.saveHolidayList(holidayEntries);
+                if (result.isSuccess()) {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Updated holiday balance for user %s: %d → %d days",
+                            user.getUsername(), currentBalance, paidHolidayDays));
+                } else {
+                    LoggerUtil.error(this.getClass(), String.format(
+                            "Failed to update holiday balance for user %s: %s",
+                            user.getUsername(), result.getMessage()));
+                }
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Holiday balance already correct for user %s: %d days",
+                        user.getUsername(), paidHolidayDays));
+            }
 
-            LoggerUtil.info(this.getClass(), String.format("Created new holiday entry for user %s with %d days", user.getUsername(), paidHolidayDays));
-        } else {
-            // Update existing entry
-            holidayManagementService.updateUserHolidayDays(user.getUserId(), paidHolidayDays);
-
-            LoggerUtil.info(this.getClass(), String.format("Updated holiday days for user %s to %d days", user.getUsername(), paidHolidayDays));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error managing holiday balance for user %s: %s",
+                    user.getUsername(), e.getMessage()), e);
         }
     }
 }

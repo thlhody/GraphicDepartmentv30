@@ -8,9 +8,9 @@ import com.ctgraphdep.model.FlagInfo;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.dto.UserStatusDTO;
-import com.ctgraphdep.security.UserContextService;
-import com.ctgraphdep.service.cache.StatusCacheService;
-import com.ctgraphdep.session.cache.SessionCacheService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
+import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -28,21 +28,21 @@ import java.nio.file.Path;
 /**
  * REFACTORED service for managing user status information via network flag files.
  * Now uses SessionDataService for all status and flag operations instead of DataAccessService.
- * Delegates cache operations to StatusCacheService and session reads to SessionCacheService.
+ * Delegates cache operations to AllUsersCacheService and session reads to SessionCacheService.
  * Responsibilities:
  * 1. Managing network flag creation for local user
- * 2. Delegating cache operations to StatusCacheService
+ * 2. Delegating cache operations to AllUsersCacheService
  * 3. Coordinating with SessionCacheService for session data
  */
 @Service
 public class ReadFileNameStatusService {
 
     private final TimeValidationService timeValidationService;
-    private final StatusCacheService statusCacheService;
+    private final AllUsersCacheService allUsersCacheService;
     private final SessionCacheService sessionCacheService;
     private final SessionDataService sessionDataService;
     private final DataAccessService dataAccessService;
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
 
     // Simplified pending updates for edge cases
     private final List<PendingStatusUpdate> pendingStatusUpdates = new ArrayList<>();
@@ -65,19 +65,19 @@ public class ReadFileNameStatusService {
     }
 
     @Autowired
-    public ReadFileNameStatusService(TimeValidationService timeValidationService, StatusCacheService statusCacheService, SessionCacheService sessionCacheService,
-                                     SessionDataService sessionDataService, DataAccessService dataAccessService, UserContextService userContextService) {
+    public ReadFileNameStatusService(TimeValidationService timeValidationService, AllUsersCacheService allUsersCacheService, SessionCacheService sessionCacheService,
+                                     SessionDataService sessionDataService, DataAccessService dataAccessService, MainDefaultUserContextService mainDefaultUserContextService) {
         this.timeValidationService = timeValidationService;
-        this.statusCacheService = statusCacheService;
+        this.allUsersCacheService = allUsersCacheService;
         this.sessionCacheService = sessionCacheService;
         this.sessionDataService = sessionDataService;      // NEW
         this.dataAccessService = dataAccessService;        // Keep for isNetworkAvailable()
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**
-     * Simplified initialization - StatusCacheService handles most of the work
+     * Simplified initialization - AllUsersCacheService handles most of the work
      */
     @Scheduled(initialDelay = 5000, fixedDelay = Long.MAX_VALUE)
     public void initialize() {
@@ -94,10 +94,10 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * Gets the current user - always available from UserContextService
+     * Gets the current user - always available from MainDefaultUserContextService
      */
     private User getCurrentUser() {
-        return userContextService.getCurrentUser();
+        return mainDefaultUserContextService.getCurrentUser();
     }
 
     /**
@@ -152,12 +152,12 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * SIMPLIFIED: Delegates to StatusCacheService
+     * SIMPLIFIED: Delegates to AllUsersCacheService
      */
     public List<UserStatusDTO> getAllUserStatuses() {
         try {
             // Simple read from cache - no file operations or cache validation
-            return statusCacheService.getAllUserStatuses();
+            return allUsersCacheService.getAllUserStatuses();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error getting user statuses: " + e.getMessage(), e);
             return new ArrayList<>();
@@ -171,7 +171,7 @@ public class ReadFileNameStatusService {
     public void updateUserStatus(String username, Integer userId, String status, LocalDateTime timestamp) {
         try {
             // 1. Update cache in memory
-            statusCacheService.updateUserStatus(username, userId, status, timestamp);
+            allUsersCacheService.updateUserStatus(username, userId, status, timestamp);
 
             // 2. ALWAYS create network flag (this is THE local user)
             createNetworkStatusFlagInternal(username, status, timestamp);
@@ -201,26 +201,26 @@ public class ReadFileNameStatusService {
     }
 
     /**
-     * SIMPLIFIED: Delegates to StatusCacheService
+     * SIMPLIFIED: Delegates to AllUsersCacheService
      */
     public int getStatusCount(String status) {
-        return (int) statusCacheService.getAllUserStatuses().stream()
+        return (int) allUsersCacheService.getAllUserStatuses().stream()
                 .filter(dto -> status.equals(dto.getStatus()))
                 .count();
     }
 
     /**
-     * SIMPLIFIED: Delegates to StatusCacheService
+     * SIMPLIFIED: Delegates to AllUsersCacheService
      */
     public int getOnlineUserCount() {
         return getStatusCount(WorkCode.WORK_ONLINE);
     }
 
     /**
-     * SIMPLIFIED: Delegates to StatusCacheService
+     * SIMPLIFIED: Delegates to AllUsersCacheService
      */
     public int getActiveUserCount() {
-        return (int) statusCacheService.getAllUserStatuses().stream()
+        return (int) allUsersCacheService.getAllUserStatuses().stream()
                 .filter(dto -> WorkCode.WORK_ONLINE.equals(dto.getStatus()) ||
                         WorkCode.WORK_TEMPORARY_STOP.equals(dto.getStatus()))
                 .count();
@@ -231,7 +231,7 @@ public class ReadFileNameStatusService {
      */
     public void invalidateCache() {
         try {
-            statusCacheService.syncFromNetworkFlags();
+            allUsersCacheService.syncFromNetworkFlags();
             LoggerUtil.debug(this.getClass(), "Triggered status cache refresh from network flags");
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error invalidating status cache: " + e.getMessage(), e);

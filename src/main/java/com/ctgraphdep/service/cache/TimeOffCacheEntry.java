@@ -85,14 +85,14 @@ public class TimeOffCacheEntry {
 
     /**
      * Update tracker data (thread-safe)
+     *
      * @param tracker The updated tracker
-     * @return true if tracker was updated successfully
      */
-    public boolean updateTracker(TimeOffTracker tracker) {
+    public void updateTracker(TimeOffTracker tracker) {
         lock.writeLock().lock();
         try {
             if (!initialized || tracker == null) {
-                return false;
+                return;
             }
 
             this.tracker = tracker;
@@ -100,8 +100,6 @@ public class TimeOffCacheEntry {
             // Mark as dirty and update timestamp
             this.dirty = true;
             this.lastUpdated = System.currentTimeMillis();
-
-            return true;
 
         } finally {
             lock.writeLock().unlock();

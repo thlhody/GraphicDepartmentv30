@@ -14,7 +14,6 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * Command to resume a previously completed session
@@ -135,7 +134,8 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
         debug("Session state updated to WORK_ONLINE");
     }
     /**
-     * Updates the worktime entry based on the session information
+     * REFACTORED: Updates the worktime entry based on the session information
+     * Now uses SessionContext adapter methods instead of deprecated WorktimeManagementService
      */
     private void updateWorktimeEntryFromSession(WorkUsersSessionsStates session, SessionContext context) {
         try {
@@ -147,29 +147,30 @@ public class ResumePreviousSessionCommand extends BaseSessionCommand<WorkUsersSe
             LocalDate workDate = session.getDayStartTime().toLocalDate();
             debug(String.format("Updating worktime entry for date: %s", workDate));
 
-            // Find existing worktime entries for the month
-            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(username, workDate.getYear(), workDate.getMonthValue(), username);
-
-            // Find the entry for this specific day
-            WorkTimeTable entry = entries.stream().filter(e -> e.getWorkDate().equals(workDate))
-                    .findFirst().orElse(null);
+            // REFACTORED: Find existing entry using new SessionContext adapter method
+            WorkTimeTable entry = context.findSessionEntry(username, userId, workDate);
 
             if (entry != null) {
-                // Update existing entry with session values
-                debug("Updating existing worktime entry");
+                // REFACTORED: Update existing entry using new adapter method
+                entry = context.updateEntryFromSession(entry, session);
+
+                // Resume previous session specific customizations
+                debug("Updating existing worktime entry for resumed previous session");
                 entry.setDayEndTime(null); // Reset end time since we're resuming
                 entry.setTemporaryStopCount(session.getTemporaryStopCount());
                 entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
                 entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
                 entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS); // Mark as in-process
 
-                // Save the updated entry
-                context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
+                // REFACTORED: Save using new SessionContext adapter method
+                context.saveSessionWorktime(username, entry, workDate.getYear(), workDate.getMonthValue());
 
                 info("Updated worktime entry for resumed session");
+
             } else {
                 warn(String.format("No worktime entry found for user %s on %s, cannot update", username, workDate));
             }
+
         } catch (Exception e) {
             error(String.format("Failed to update worktime entry: %s", e.getMessage()), e);
         }

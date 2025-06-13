@@ -16,7 +16,7 @@ public class GetLocalUserQuery implements SessionQuery<User> {
     @Override
     public User execute(SessionContext context) {
         try {
-            User user = context.getUserContextService().getCurrentUser();
+            User user = context.getMainDefaultUserContextService().getCurrentUser();
 
             if (user != null && !"system".equals(user.getUsername())) {
                 LoggerUtil.debug(this.getClass(), String.format("Found local user from context: %s (ID: %d, Role: %s)", user.getUsername(), user.getUserId(), user.getRole()));

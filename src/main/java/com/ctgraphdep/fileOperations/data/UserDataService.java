@@ -80,7 +80,7 @@ public class UserDataService {
     }
 
     /**
-     * Scans for any local user files (for UserContextCache single-user pattern).
+     * Scans for any local user files (for MainDefaultUserContextCache single-user pattern).
      * Pattern: Local scan for any local_user_*.json
      * Files: local_user_[username]_[userId].json
      *

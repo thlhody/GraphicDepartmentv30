@@ -87,9 +87,24 @@ public class UserSessionController extends BaseController {
 
                 model.addAttribute("hasUnresolvedEntries", !unresolvedEntries.isEmpty());
                 model.addAttribute("unresolvedEntries", unresolvedEntries);
+                // After getting unresolvedEntries
+                if (!unresolvedEntries.isEmpty()) {
+                    LoggerUtil.info(this.getClass(), "=== DEBUGGING UNRESOLVED ENTRIES ===");
+                    for (ResolutionCalculationDTO entry : unresolvedEntries) {
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "Entry: workDate=%s, startTime=%s, recommendedEndTime=%s, formattedRecommendedEndTime=%s",
+                                entry.getWorkDate(),
+                                entry.getFormattedStartTime(),
+                                entry.getRecommendedEndTime(),
+                                entry.getFormattedRecommendedEndTime()
+                        ));
+                    }
+                    LoggerUtil.info(this.getClass(), "=== END DEBUGGING ===");
+                }
             } else {
                 model.addAttribute("hasUnresolvedEntries", false);
             }
+
 
             // Prepare view model through dedicated command
             PrepareSessionViewModelCommand viewModelCommand = commandFactory.createPrepareSessionViewModelCommand(model, currentUser);

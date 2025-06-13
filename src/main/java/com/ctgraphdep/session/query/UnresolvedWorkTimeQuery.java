@@ -13,6 +13,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * REFACTORED UnresolvedWorkTimeQuery using new SessionContext adapter methods
+ * instead of deprecated WorktimeManagementService
+ */
 public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>> {
     private final String username;
 
@@ -32,15 +36,15 @@ public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>
 
             List<WorkTimeTable> unresolvedEntries = new ArrayList<>();
 
-            // Load current month entries
-            List<WorkTimeTable> currentMonthEntries = context.getWorktimeManagementService().loadUserEntries(username, currentDate.getYear(), currentDate.getMonthValue(), username);
+            // REFACTORED: Load current month entries using new SessionContext adapter method
+            List<WorkTimeTable> currentMonthEntries = context.loadSessionWorktime(username, currentDate.getYear(), currentDate.getMonthValue());
 
             if (currentMonthEntries != null) {
                 unresolvedEntries.addAll(currentMonthEntries);
             }
 
-            // Also check previous month
-            List<WorkTimeTable> previousMonthEntries = context.getWorktimeManagementService().loadUserEntries(username, previousMonth.getYear(), previousMonth.getMonthValue(), username);
+            // REFACTORED: Also check previous month using new SessionContext adapter method
+            List<WorkTimeTable> previousMonthEntries = context.loadSessionWorktime(username, previousMonth.getYear(), previousMonth.getMonthValue());
 
             if (previousMonthEntries != null) {
                 unresolvedEntries.addAll(previousMonthEntries);
@@ -58,6 +62,7 @@ public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>
             LoggerUtil.info(this.getClass(), String.format("Found %d unresolved work entries for user %s", result.size(), username));
 
             return result;
+
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error finding unresolved work time entries: " + e.getMessage(), e);
             return new ArrayList<>();

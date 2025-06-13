@@ -6,7 +6,7 @@ import com.ctgraphdep.fileOperations.events.FileEventPublisher;
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.monitoring.BackupEventMonitor;  // CHANGED: Import from monitoring package
-import com.ctgraphdep.security.UserContextCache;
+import com.ctgraphdep.service.cache.MainDefaultUserContextCache;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.monitoring.NetworkStatusMonitor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -132,9 +132,9 @@ public class FileOperationsConfig {
             PathConfig pathConfig,
             FileObfuscationService fileObfuscationService,
             FileEventPublisher fileEventPublisher,
-            @Lazy UserContextCache userContextCache) {
+            @Lazy MainDefaultUserContextCache mainDefaultUserContextCache) {
         return new FileWriterService(objectMapper, filePathResolver, syncFilesService,
-                pathConfig, fileObfuscationService, fileEventPublisher, userContextCache);
+                pathConfig, fileObfuscationService, fileEventPublisher, mainDefaultUserContextCache);
     }
 
     // ===== DOMAIN-SPECIFIC DATA SERVICES =====

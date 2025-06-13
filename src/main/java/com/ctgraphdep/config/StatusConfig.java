@@ -1,7 +1,7 @@
 package com.ctgraphdep.config;
 
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.cache.StatusCacheService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -17,19 +17,19 @@ import java.time.LocalDateTime;
 
 /**
  * REFACTORED: Configuration for the user status system.
- * Now works with StatusCacheService instead of direct ReadFileNameStatusService calls.
- * This provides secondary initialization and verification after the main StatusCacheService
+ * Now works with AllUsersCacheService instead of direct ReadFileNameStatusService calls.
+ * This provides secondary initialization and verification after the main AllUsersCacheService
  */
 @Configuration
 public class StatusConfig {
 
-    private final StatusCacheService statusCacheService; // CHANGED: Use StatusCacheService directly
+    private final AllUsersCacheService allUsersCacheService; // CHANGED: Use AllUsersCacheService directly
     private final UserService userService;
     private final TimeValidationService timeValidationService;
 
     @Autowired
-    public StatusConfig(StatusCacheService statusCacheService, UserService userService, TimeValidationService timeValidationService) {
-        this.statusCacheService = statusCacheService; // CHANGED
+    public StatusConfig(AllUsersCacheService allUsersCacheService, UserService userService, TimeValidationService timeValidationService) {
+        this.allUsersCacheService = allUsersCacheService; // CHANGED
         this.userService = userService;
         this.timeValidationService = timeValidationService;
         LoggerUtil.initialize(this.getClass(), null);
@@ -37,7 +37,7 @@ public class StatusConfig {
 
     /**
      * ENHANCED: Initialize and verify the user status system after application is fully ready.
-     * This runs after StatusCacheService @PostConstruct initialization to ensure all users
+     * This runs after AllUsersCacheService @PostConstruct initialization to ensure all users
      * are properly represented in the cache AND the local user's status is broadcast.
      */
     @EventListener(ApplicationReadyEvent.class)
@@ -46,7 +46,7 @@ public class StatusConfig {
             LoggerUtil.info(this.getClass(), "Initializing user status system after application ready...");
 
             // Get current cache status for logging
-            String cacheStatusBefore = statusCacheService.getCacheStatus();
+            String cacheStatusBefore = allUsersCacheService.getCacheStatus();
             LoggerUtil.debug(this.getClass(), "Cache status before initialization:\n" + cacheStatusBefore);
 
             // STEP 1: Get all users from UserService
@@ -66,7 +66,7 @@ public class StatusConfig {
                 try {
                     // Initialize all users with offline status and current timestamp
                     // This ensures every user has a cache entry and recent activity time
-                    statusCacheService.updateUserStatus(user.getUsername(), user.getUserId(),
+                    allUsersCacheService.updateUserStatus(user.getUsername(), user.getUserId(),
                             WorkCode.WORK_OFFLINE, currentTime);
 
                     usersProcessed++;
@@ -78,22 +78,22 @@ public class StatusConfig {
             }
 
             // STEP 3: Refresh all user data from UserService (names, roles, etc.)
-            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+            allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
             LoggerUtil.info(this.getClass(), "Refreshed user data from UserService");
 
             // STEP 4: Sync from network flags to get any existing status updates
-            statusCacheService.syncFromNetworkFlags();
+            allUsersCacheService.syncFromNetworkFlags();
             LoggerUtil.info(this.getClass(), "Synced existing status from network flags");
 
             // STEP 5: Persist the initialized and updated cache
-            statusCacheService.writeToFile();
+            allUsersCacheService.writeToFile();
             LoggerUtil.info(this.getClass(), "Persisted status cache to file");
 
             // STEP 6: NEW - Ensure the local user's offline status is broadcast via network flag
             ensureLocalUserStatusBroadcast();
 
             // Get final cache status for comparison
-            String cacheStatusAfter = statusCacheService.getCacheStatus();
+            String cacheStatusAfter = allUsersCacheService.getCacheStatus();
             LoggerUtil.debug(this.getClass(), "Cache status after initialization:\n" + cacheStatusAfter);
 
             LoggerUtil.info(this.getClass(), String.format(
@@ -125,7 +125,7 @@ public class StatusConfig {
                         LoggerUtil.info(this.getClass(), String.format("Found local user: %s - broadcasting offline status", user.getUsername()));
 
                         // Update status which will create network flag for local user
-                        statusCacheService.updateUserStatus(user.getUsername(), user.getUserId(),
+                        allUsersCacheService.updateUserStatus(user.getUsername(), user.getUserId(),
                                 WorkCode.WORK_OFFLINE, getStandardCurrentTime());
 
                         LoggerUtil.info(this.getClass(), String.format("Broadcast offline status for local user: %s", user.getUsername()));
@@ -175,7 +175,7 @@ public class StatusConfig {
                     .count();
 
             // Get current cache count
-            long cacheCount = statusCacheService.getAllUserStatuses().size();
+            long cacheCount = allUsersCacheService.getAllUserStatuses().size();
 
             LoggerUtil.info(this.getClass(), String.format(
                     "Cache validation - UserService: %d users, Cache: %d users",
@@ -187,10 +187,10 @@ public class StatusConfig {
                         userServiceCount, cacheCount));
 
                 // Refresh cache to fix mismatch
-                statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
-                statusCacheService.writeToFile();
+                allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+                allUsersCacheService.writeToFile();
 
-                long newCacheCount = statusCacheService.getAllUserStatuses().size();
+                long newCacheCount = allUsersCacheService.getAllUserStatuses().size();
                 LoggerUtil.info(this.getClass(), String.format(
                         "Cache refresh completed - New cache count: %d", newCacheCount));
             } else {
@@ -218,7 +218,7 @@ public class StatusConfig {
                     .count();
 
             // Cache count
-            long cacheCount = statusCacheService.getAllUserStatuses().size();
+            long cacheCount = allUsersCacheService.getAllUserStatuses().size();
 
             health.append(String.format("UserService Users: %d\n", userServiceCount));
             health.append(String.format("Cached Users: %d\n", cacheCount));
@@ -226,7 +226,7 @@ public class StatusConfig {
 
             // Cache details
             health.append("\nCache Details:\n");
-            health.append(statusCacheService.getCacheStatus());
+            health.append(allUsersCacheService.getCacheStatus());
 
             return health.toString();
 
@@ -244,16 +244,16 @@ public class StatusConfig {
             LoggerUtil.warn(this.getClass(), "Performing emergency cache rebuild...");
 
             // Clear all cache
-            statusCacheService.clearAllCache();
+            allUsersCacheService.clearAllCache();
 
             // Rebuild from UserService
-            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+            allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
 
             // Sync from network flags
-            statusCacheService.syncFromNetworkFlags();
+            allUsersCacheService.syncFromNetworkFlags();
 
             // Persist rebuilt cache
-            statusCacheService.writeToFile();
+            allUsersCacheService.writeToFile();
 
             LoggerUtil.info(this.getClass(), "Emergency cache rebuild completed successfully");
 

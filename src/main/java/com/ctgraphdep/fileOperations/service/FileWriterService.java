@@ -4,7 +4,7 @@ import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
 import com.ctgraphdep.fileOperations.events.FileEventPublisher;
-import com.ctgraphdep.security.UserContextCache;
+import com.ctgraphdep.service.cache.MainDefaultUserContextCache;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +39,7 @@ public class FileWriterService {
     private final PathConfig pathConfig;
     private final FileObfuscationService obfuscationService;
     private final FileEventPublisher fileEventPublisher;
-    private final UserContextCache userContextCache;
+    private final MainDefaultUserContextCache mainDefaultUserContextCache;
 
     // === FILE LOCKING SYSTEM ===
     // Per-file locks to prevent concurrent access to same file
@@ -68,14 +68,14 @@ public class FileWriterService {
             PathConfig pathConfig,
             FileObfuscationService obfuscationService,
             FileEventPublisher fileEventPublisher,
-            UserContextCache userContextCache) {
+            MainDefaultUserContextCache mainDefaultUserContextCache) {
         this.objectMapper = objectMapper;
         this.pathResolver = pathResolver;
         this.syncService = syncService;
         this.pathConfig = pathConfig;
         this.obfuscationService = obfuscationService;
         this.fileEventPublisher = fileEventPublisher;
-        this.userContextCache = userContextCache;
+        this.mainDefaultUserContextCache = mainDefaultUserContextCache;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -500,12 +500,12 @@ public class FileWriterService {
     // ========================================================================
 
     /**
-     * Get current authenticated username using the UserContextCache directly.
+     * Get current authenticated username using the MainDefaultUserContextCache directly.
      * This works for both web requests and background tasks and avoids circular dependencies.
      */
     private String getCurrentUsername() {
         try {
-            String username = userContextCache.getCurrentUsername();
+            String username = mainDefaultUserContextCache.getCurrentUsername();
             LoggerUtil.debug(this.getClass(), "Current username resolved to: " + username);
             return username;
         } catch (Exception e) {

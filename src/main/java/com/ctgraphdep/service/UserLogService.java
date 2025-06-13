@@ -4,7 +4,7 @@ import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.VersionModelAttribute;
-import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,13 +19,13 @@ import java.util.Optional;
 /**
  * REFACTORED service for logging user activity to individual log files
  * with periodic network synchronization and graceful network failure handling.
- * Now uses SessionDataService for all log operations and UserContextService for user info.
+ * Now uses SessionDataService for all log operations and MainDefaultUserContextService for user info.
  */
 @Service
 public class UserLogService {
     private final DataAccessService dataAccessService;
     private final SessionDataService sessionDataService;       // NEW - Log operations
-    private final UserContextService userContextService;       // NEW - Current user info
+    private final MainDefaultUserContextService mainDefaultUserContextService;       // NEW - Current user info
     private final UserService userService;                     // NEW - User data from cache
 
     // Configurable retry parameters
@@ -33,10 +33,10 @@ public class UserLogService {
     private static final long RETRY_DELAY_MS = 120000; // 2 minutes
 
     @Autowired
-    public UserLogService(DataAccessService dataAccessService, SessionDataService sessionDataService, UserContextService userContextService, UserService userService) {
+    public UserLogService(DataAccessService dataAccessService, SessionDataService sessionDataService, MainDefaultUserContextService mainDefaultUserContextService, UserService userService) {
         this.dataAccessService = dataAccessService;
         this.sessionDataService = sessionDataService;
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.userService = userService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -88,7 +88,7 @@ public class UserLogService {
      * @return SyncResult with status and message
      */
     public SyncResult manualSync() {
-        // Get username from UserContextService (cache-based)
+        // Get username from MainDefaultUserContextService (cache-based)
         String username = getLocalUsername();
         LoggerUtil.info(this.getClass(), "Attempting to sync logs for user: " + username);
 
@@ -161,12 +161,12 @@ public class UserLogService {
     }
 
     /**
-     * REFACTORED: Get username using UserContextService (cache-based)
+     * REFACTORED: Get username using MainDefaultUserContextService (cache-based)
      */
     private String getLocalUsername() {
         try {
-            // First try to get current user from UserContextService (cache-based)
-            String currentUsername = userContextService.getCurrentUsername();
+            // First try to get current user from MainDefaultUserContextService (cache-based)
+            String currentUsername = mainDefaultUserContextService.getCurrentUsername();
 
             // If we got a real user (not "system"), use it
             if (currentUsername != null && !"system".equals(currentUsername)) {

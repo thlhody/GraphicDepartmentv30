@@ -1,7 +1,3 @@
-// ========================================================================
-// 2. REFACTORED AdminRegisterService.java
-// ========================================================================
-
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.enums.SyncStatusMerge;
@@ -14,60 +10,441 @@ import com.ctgraphdep.service.result.ValidationServiceResult;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
-import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.worktime.service.WorktimeOperationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * REFACTORED AdminRegisterService with ServiceResult pattern.
+ * REFACTORED AdminRegisterService with consolidated request handling.
  * Key Changes:
- * - All methods now return ServiceResult<T> instead of throwing exceptions
- * - Uses ValidationServiceResult for complex validation scenarios
- * - Proper error categorization and graceful error handling
- * - Still delegates merge operations to RegisterMergeService
- * - Preserved all existing business logic with better error management
+ * - All data conversion logic moved from controller to service
+ * - New unified request handling methods (saveEntriesFromRequest, etc.)
+ * - Centralized user operations
+ * - Controller becomes thin HTTP layer, service handles all business logic
+ * - Eliminated code duplication between controller and service
  */
 @Service
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminRegisterService {
 
     private final BonusCalculatorUtil bonusCalculator;
-    private final WorktimeManagementService worktimeManagementService;
+    private final WorktimeOperationService worktimeOperationService;
     private final UserService userService;
-    private final TimeValidationService timeValidationService;
     private final RegisterDataService registerDataService;
     private final RegisterMergeService registerMergeService;
 
     @Autowired
-    public AdminRegisterService(BonusCalculatorUtil bonusCalculator, WorktimeManagementService worktimeManagementService, UserService userService,
-                                TimeValidationService timeValidationService, RegisterDataService registerDataService, RegisterMergeService registerMergeService) {
+    public AdminRegisterService(BonusCalculatorUtil bonusCalculator, WorktimeOperationService worktimeOperationService, UserService userService,
+                                RegisterDataService registerDataService, RegisterMergeService registerMergeService) {
         this.bonusCalculator = bonusCalculator;
-        this.worktimeManagementService = worktimeManagementService;
+        this.worktimeOperationService = worktimeOperationService;
         this.userService = userService;
-        this.timeValidationService = timeValidationService;
         this.registerDataService = registerDataService;
         this.registerMergeService = registerMergeService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     // ========================================================================
-    // REFACTORED METHODS - Now using ServiceResult with RegisterMergeService
+    // NEW: UNIFIED REQUEST HANDLING METHODS
     // ========================================================================
 
     /**
-     * REFACTORED: Load user register entries using the new merge service.
+     * NEW: Save entries from HTTP request (consolidates controller logic)
+     * @param request Raw HTTP request data
+     * @return ServiceResult indicating success or failure
+     */
+    public ServiceResult<Void> saveEntriesFromRequest(Map<String, Object> request) {
+        try {
+            LoggerUtil.info(this.getClass(), "Processing admin register save request");
+
+            // Parse and validate request
+            ServiceResult<SaveRequestData> requestParseResult = parseAndValidateSaveRequest(request);
+            if (requestParseResult.isFailure()) {
+                return ServiceResult.validationError("Invalid request: " + requestParseResult.getErrorMessage(),
+                        requestParseResult.getErrorCode());
+            }
+
+            SaveRequestData requestData = requestParseResult.getData();
+
+            // Convert entries data to RegisterEntry objects
+            ServiceResult<List<RegisterEntry>> entriesConversionResult = convertRequestEntriesToRegisterEntries(requestData.entriesData());
+            if (entriesConversionResult.isFailure()) {
+                return ServiceResult.validationError("Invalid entries data: " + entriesConversionResult.getErrorMessage(),
+                        entriesConversionResult.getErrorCode());
+            }
+
+            List<RegisterEntry> entries = entriesConversionResult.getData();
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Saving %d entries for user %s (year: %d, month: %d)",
+                    entries.size(), requestData.username(), requestData.year(), requestData.month()));
+
+            // Save entries through existing method
+            ServiceResult<Void> saveResult = saveAdminRegisterEntries(
+                    requestData.username(), requestData.userId(), requestData.year(), requestData.month(), entries);
+
+            if (saveResult.isSuccess()) {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Successfully saved %d entries for user %s", entries.size(), requestData.username()));
+            }
+
+            return saveResult;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Unexpected error processing save request: " + e.getMessage(), e);
+            return ServiceResult.systemError("Unexpected error occurred while saving entries", "save_request_system_error");
+        }
+    }
+
+    /**
+     * ENHANCED: Calculate bonus from HTTP request with automatic saving
+     * @param request Raw HTTP request data
+     * @return ServiceResult with bonus calculation result
+     */
+    public ServiceResult<BonusCalculationResultDTO> calculateBonusFromRequest(Map<String, Object> request) {
+        try {
+            LoggerUtil.info(this.getClass(), "Processing bonus calculation request");
+
+            // Validate request structure
+            if (request == null) {
+                return ServiceResult.validationError("Request cannot be null", "null_request");
+            }
+
+            // Validate required fields
+            ValidationServiceResult validation = ValidationServiceResult.create()
+                    .requireNotNull(request.get("entries"), "Entries", "missing_entries")
+                    .requireNotNull(request.get("userId"), "User ID", "missing_user_id")
+                    .requireNotNull(request.get("year"), "Year", "missing_year")
+                    .requireNotNull(request.get("month"), "Month", "missing_month")
+                    .requireNotNull(request.get("bonusConfig"), "Bonus configuration", "missing_bonus_config");
+
+            if (validation.hasErrors()) {
+                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
+            }
+
+            // Convert and validate entries
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> entriesData = (List<Map<String, Object>>) request.get("entries");
+
+            ServiceResult<List<RegisterEntry>> entriesResult = convertRequestEntriesToRegisterEntries(entriesData);
+            if (entriesResult.isFailure()) {
+                return ServiceResult.validationError("Invalid entries data: " + entriesResult.getErrorMessage(), "invalid_entries");
+            }
+
+            List<RegisterEntry> entries = entriesResult.getData();
+            Integer userId = (Integer) request.get("userId");
+            Integer year = (Integer) request.get("year");
+            Integer month = (Integer) request.get("month");
+
+            // Convert and validate bonus configuration
+            @SuppressWarnings("unchecked")
+            Map<String, Object> configValues = (Map<String, Object>) request.get("bonusConfig");
+
+            ServiceResult<BonusConfiguration> configResult = convertRequestToBonusConfiguration(configValues);
+            if (configResult.isFailure()) {
+                return ServiceResult.validationError("Invalid bonus configuration: " + configResult.getErrorMessage(), "invalid_bonus_config");
+            }
+
+            BonusConfiguration config = configResult.getData();
+
+            if (config.notValid()) {
+                return ServiceResult.validationError("Bonus configuration is not valid", "invalid_bonus_config");
+            }
+
+            // Calculate bonus
+            ServiceResult<BonusCalculationResultDTO> calculationResult = calculateBonus(entries, userId, year, month, config);
+            if (calculationResult.isFailure()) {
+                return calculationResult;
+            }
+
+            BonusCalculationResultDTO result = calculationResult.getData();
+
+            // Get username for saving
+            ServiceResult<User> userResult = getUserById(userId);
+            if (userResult.isFailure()) {
+                LoggerUtil.warn(this.getClass(), "Bonus calculated but cannot save - user not found: " + userResult.getErrorMessage());
+                // Return calculation result even if save will fail
+                return ServiceResult.successWithWarnings(result, List.of("Bonus calculated but could not be saved: user not found"));
+            }
+
+            String username = userResult.getData().getUsername();
+
+            // Save bonus result
+            ServiceResult<Void> saveResult = saveBonusResult(userId, year, month, result, username);
+            if (saveResult.isFailure()) {
+                LoggerUtil.warn(this.getClass(), "Bonus calculated successfully but failed to save: " + saveResult.getErrorMessage());
+                // Return calculation result with warning
+                return ServiceResult.successWithWarnings(result, List.of("Bonus calculated but could not be saved: " + saveResult.getErrorMessage()));
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully calculated and saved bonus for user %s: amount=%.2f", username, result.getBonusAmount()));
+
+            return ServiceResult.success(result);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Unexpected error in bonus calculation request: " + e.getMessage(), e);
+            return ServiceResult.systemError("Unexpected error in bonus calculation", "bonus_calculation_system_error");
+        }
+    }
+
+    /**
+     * NEW: Get user by ID with proper error handling (centralized from controller)
+     * @param userId User ID
+     * @return ServiceResult with user data
+     */
+    public ServiceResult<User> getUserById(Integer userId) {
+        try {
+            if (userId == null) {
+                return ServiceResult.validationError("User ID cannot be null", "null_user_id");
+            }
+
+            Optional<User> userOpt = userService.getUserById(userId);
+            return userOpt.map(ServiceResult::success).orElseGet(() -> ServiceResult.notFound("User not found with ID: " + userId, "user_not_found"));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error getting user by ID %d: %s", userId, e.getMessage()), e);
+            return ServiceResult.systemError("Failed to retrieve user information", "user_retrieval_failed");
+        }
+    }
+
+    /**
+     * NEW: Get register summary from HTTP request
      * @param username Username
      * @param userId User ID
      * @param year Year
      * @param month Month
-     * @return ServiceResult with merged register entries or error details
+     * @return ServiceResult with register summary
+     */
+    public ServiceResult<RegisterSummaryDTO> getRegisterSummaryForUser(String username, Integer userId, Integer year, Integer month) {
+        try {
+            if (username == null || username.trim().isEmpty()) {
+                return ServiceResult.validationError("Username is required", "missing_username");
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Getting register summary for %s - %d/%d", username, year, month));
+
+            // Load entries
+            ServiceResult<List<RegisterEntry>> entriesResult = readMergedAdminEntries(username, userId, year, month);
+            if (entriesResult.isFailure()) {
+                LoggerUtil.error(this.getClass(), String.format("Failed to load entries for summary for %s: %s", username, entriesResult.getErrorMessage()));
+                return ServiceResult.systemError("Failed to load entries for summary", "load_entries_for_summary_failed");
+            }
+
+            List<RegisterEntry> entries = entriesResult.getData();
+
+            // Calculate summary
+            ServiceResult<RegisterSummaryDTO> summaryResult = calculateRegisterSummary(entries);
+            if (summaryResult.isSuccess()) {
+                LoggerUtil.info(this.getClass(), String.format("Successfully calculated summary for %s", username));
+            }
+
+            return summaryResult;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Unexpected error getting summary for %s: %s", username, e.getMessage()), e);
+            return ServiceResult.systemError("Unexpected error calculating summary", "summary_calculation_system_error");
+        }
+    }
+
+    // ========================================================================
+    // DATA CONVERSION METHODS (MOVED FROM CONTROLLER)
+    // ========================================================================
+
+    /**
+     * MOVED FROM CONTROLLER: Parse and validate save request data
+     */
+    private ServiceResult<SaveRequestData> parseAndValidateSaveRequest(Map<String, Object> request) {
+        try {
+            if (request == null) {
+                return ServiceResult.validationError("Request cannot be null", "null_request");
+            }
+
+            // Validate required fields
+            ValidationServiceResult validation = ValidationServiceResult.create()
+                    .requireNotNull(request.get("username"), "Username", "missing_username")
+                    .requireNotNull(request.get("userId"), "User ID", "missing_user_id")
+                    .requireNotNull(request.get("year"), "Year", "missing_year")
+                    .requireNotNull(request.get("month"), "Month", "missing_month")
+                    .requireNotNull(request.get("entries"), "Entries", "missing_entries");
+
+            if (validation.hasErrors()) {
+                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
+            }
+
+            String username = request.get("username").toString().trim();
+            if (username.isEmpty()) {
+                return ServiceResult.validationError("Username cannot be empty", "empty_username");
+            }
+
+            Integer userId = convertToInteger(request.get("userId"));
+            Integer year = convertToInteger(request.get("year"));
+            Integer month = convertToInteger(request.get("month"));
+
+            // Additional validation
+            if (userId <= 0) {
+                return ServiceResult.validationError("User ID must be positive", "invalid_user_id");
+            }
+            if (year < 2000 || year > 2100) {
+                return ServiceResult.validationError("Year must be between 2000 and 2100", "invalid_year");
+            }
+            if (month < 1 || month > 12) {
+                return ServiceResult.validationError("Month must be between 1 and 12", "invalid_month");
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> entriesData = (List<Map<String, Object>>) request.get("entries");
+
+            SaveRequestData data = new SaveRequestData(username, userId, year, month, entriesData);
+            return ServiceResult.success(data);
+
+        } catch (NumberFormatException e) {
+            return ServiceResult.validationError("Invalid number format in request", "invalid_number_format");
+        } catch (ClassCastException e) {
+            return ServiceResult.validationError("Invalid data format in request", "invalid_data_format");
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error parsing save request: " + e.getMessage(), e);
+            return ServiceResult.systemError("Failed to parse request data", "request_parse_failed");
+        }
+    }
+
+    /**
+     * MOVED FROM CONTROLLER: Convert request entries data to RegisterEntry objects
+     */
+    private ServiceResult<List<RegisterEntry>> convertRequestEntriesToRegisterEntries(List<Map<String, Object>> entriesData) {
+        try {
+            if (entriesData == null) {
+                return ServiceResult.success(new ArrayList<>());
+            }
+
+            DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE;
+            List<RegisterEntry> entries = new ArrayList<>();
+            List<String> warnings = new ArrayList<>();
+
+            for (int i = 0; i < entriesData.size(); i++) {
+                try {
+                    Map<String, Object> data = entriesData.get(i);
+
+                    LoggerUtil.debug(this.getClass(), "Processing entry ID: " + data.get("entryId") +
+                            ", printPrepTypes: " + data.get("printPrepTypes") +
+                            ", adminSync: " + data.get("adminSync"));
+
+                    // Handle printPrepTypes conversion with comprehensive logic
+                    List<String> printPrepTypes = convertPrintPrepTypes(data.get("printPrepTypes"));
+
+                    // IMPORTANT: Preserve the original adminSync status from the client
+                    String adminSync = data.get("adminSync") != null ?
+                            data.get("adminSync").toString() : SyncStatusMerge.USER_DONE.name();
+
+                    RegisterEntry entry = RegisterEntry.builder()
+                            .entryId(convertToInteger(data.get("entryId")))
+                            .userId(convertToInteger(data.get("userId")))
+                            .date(LocalDate.parse(data.get("date").toString(), formatter))
+                            .orderId(data.get("orderId").toString())
+                            .productionId(data.get("productionId").toString())
+                            .omsId(data.get("omsId").toString())
+                            .clientName(data.get("clientName").toString())
+                            .actionType(data.get("actionType").toString())
+                            .printPrepTypes(printPrepTypes)
+                            .colorsProfile(data.get("colorsProfile").toString())
+                            .articleNumbers(convertToInteger(data.get("articleNumbers")))
+                            .graphicComplexity(convertToDouble(data.get("graphicComplexity")))
+                            .observations(data.get("observations") != null ? data.get("observations").toString() : "")
+                            .adminSync(adminSync) // Use the status from the client
+                            .build();
+
+                    entries.add(entry);
+
+                } catch (Exception e) {
+                    warnings.add("Failed to convert entry at index " + i + ": " + e.getMessage());
+                    LoggerUtil.warn(this.getClass(), String.format("Error converting entry at index %d: %s", i, e.getMessage()));
+                }
+            }
+
+            if (entries.isEmpty() && !entriesData.isEmpty()) {
+                return ServiceResult.validationError("No valid entries could be converted", "no_valid_entries");
+            }
+
+            if (!warnings.isEmpty()) {
+                return ServiceResult.successWithWarnings(entries, warnings);
+            }
+
+            return ServiceResult.success(entries);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error converting entries data: " + e.getMessage(), e);
+            return ServiceResult.systemError("Failed to convert entries data", "entries_conversion_failed");
+        }
+    }
+
+    /**
+     * ENHANCED: Convert print prep types with comprehensive logic
+     */
+    private List<String> convertPrintPrepTypes(Object printPrepTypesObj) {
+        List<String> printPrepTypes = new ArrayList<>();
+
+        if (printPrepTypesObj instanceof List<?> typesList) {
+            // Handle list case
+            typesList.forEach(type -> {
+                if (type != null && !type.toString().equalsIgnoreCase("null") && !type.toString().trim().isEmpty()) {
+                    printPrepTypes.add(type.toString().trim());
+                }
+            });
+        } else if (printPrepTypesObj instanceof String typesStr && !typesStr.trim().isEmpty()) {
+            // Handle string case
+            Arrays.stream(typesStr.split("\\s*,\\s*"))
+                    .filter(type -> !type.equalsIgnoreCase("null") && !type.trim().isEmpty())
+                    .forEach(type -> printPrepTypes.add(type.trim()));
+        }
+
+        // If no valid types were found, add default
+        if (printPrepTypes.isEmpty()) {
+            printPrepTypes.add("DIGITAL");
+        }
+
+        return printPrepTypes;
+    }
+
+    /**
+     * ENHANCED: Convert bonus configuration from request
+     */
+    private ServiceResult<BonusConfiguration> convertRequestToBonusConfiguration(Map<String, Object> configValues) {
+        try {
+            if (configValues == null) {
+                return ServiceResult.validationError("Bonus configuration cannot be null", "null_bonus_config");
+            }
+
+            BonusConfiguration config = BonusConfiguration.builder()
+                    .entriesPercentage(convertToDouble(configValues.get("entriesPercentage")))
+                    .articlesPercentage(convertToDouble(configValues.get("articlesPercentage")))
+                    .complexityPercentage(convertToDouble(configValues.get("complexityPercentage")))
+                    .miscPercentage(convertToDouble(configValues.get("miscPercentage")))
+                    .normValue(convertToDouble(configValues.get("normValue")))
+                    .sumValue(convertToDouble(configValues.get("sumValue")))
+                    .miscValue(convertToDouble(configValues.get("miscValue")))
+                    .build();
+
+            return ServiceResult.success(config);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error converting bonus configuration: " + e.getMessage(), e);
+            return ServiceResult.systemError("Failed to convert bonus configuration", "convert_bonus_config_failed");
+        }
+    }
+
+    // ========================================================================
+    // EXISTING METHODS (UNCHANGED)
+    // ========================================================================
+
+    /**
+     * Load user register entries using the new merge service.
      */
     public ServiceResult<List<RegisterEntry>> loadUserRegisterEntries(String username, Integer userId, Integer year, Integer month) {
         LoggerUtil.info(this.getClass(), String.format("Loading register entries for %s - %d/%d using RegisterMergeService", username, year, month));
@@ -87,7 +464,7 @@ public class AdminRegisterService {
                 return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
             }
 
-            // Delegate to the merge service - handles everything:
+            // Delegate to the merge service
             ServiceResult<List<RegisterEntry>> mergeResult = registerMergeService.performAdminLoadMerge(username, userId, year, month);
 
             if (mergeResult.isFailure()) {
@@ -114,11 +491,6 @@ public class AdminRegisterService {
 
     /**
      * Reads already-merged admin register entries without triggering new merge operations.
-     * @param username Username
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @return ServiceResult with already-merged register entries
      */
     public ServiceResult<List<RegisterEntry>> readMergedAdminEntries(String username, Integer userId, Integer year, Integer month) {
         try {
@@ -150,13 +522,7 @@ public class AdminRegisterService {
     }
 
     /**
-     * REFACTORED: Save admin register entries using the new merge service.
-     * @param username Username
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @param entries Entries to save
-     * @return ServiceResult indicating success or failure
+     * Save admin register entries using the new merge service.
      */
     public ServiceResult<Void> saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month, List<RegisterEntry> entries) {
         try {
@@ -206,11 +572,6 @@ public class AdminRegisterService {
 
     /**
      * Resolve all ADMIN_CHECK conflicts by changing them to ADMIN_EDITED
-     * @param username Username
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @return ServiceResult with count of resolved conflicts
      */
     public ServiceResult<Integer> confirmAllAdminChanges(String username, Integer userId, Integer year, Integer month) {
         try {
@@ -307,15 +668,11 @@ public class AdminRegisterService {
     }
 
     // ========================================================================
-    // REFACTORED BONUS METHODS - Now using ServiceResult
+    // BONUS METHODS (UNCHANGED)
     // ========================================================================
 
     /**
      * Load bonus entry with error handling
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @return ServiceResult with bonus entry or empty if not found
      */
     public ServiceResult<Optional<BonusEntry>> loadBonusEntry(Integer userId, Integer year, Integer month) {
         try {
@@ -344,75 +701,7 @@ public class AdminRegisterService {
     }
 
     /**
-     * Calculate bonus from request with validation
-     * @param request Request map containing bonus calculation parameters
-     * @return ServiceResult with bonus calculation result
-     */
-    public ServiceResult<BonusCalculationResultDTO> calculateBonusFromRequest(Map<String, Object> request) {
-        try {
-            // Validate request structure
-            if (request == null) {
-                return ServiceResult.validationError("Request cannot be null", "null_request");
-            }
-
-            // Validate required fields
-            ValidationServiceResult validation = ValidationServiceResult.create()
-                    .requireNotNull(request.get("entries"), "Entries", "missing_entries")
-                    .requireNotNull(request.get("userId"), "User ID", "missing_user_id")
-                    .requireNotNull(request.get("year"), "Year", "missing_year")
-                    .requireNotNull(request.get("month"), "Month", "missing_month")
-                    .requireNotNull(request.get("bonusConfig"), "Bonus configuration", "missing_bonus_config");
-
-            if (validation.hasErrors()) {
-                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
-            }
-
-            // Convert and validate entries
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> entriesData = (List<Map<String, Object>>) request.get("entries");
-
-            ServiceResult<List<RegisterEntry>> entriesResult = convertToRegisterEntries(entriesData);
-            if (entriesResult.isFailure()) {
-                return ServiceResult.validationError("Invalid entries data: " + entriesResult.getErrorMessage(), "invalid_entries");
-            }
-
-            List<RegisterEntry> entries = entriesResult.getData();
-            Integer userId = (Integer) request.get("userId");
-            Integer year = (Integer) request.get("year");
-            Integer month = (Integer) request.get("month");
-
-            // Convert and validate bonus configuration
-            @SuppressWarnings("unchecked")
-            Map<String, Object> configValues = (Map<String, Object>) request.get("bonusConfig");
-
-            ServiceResult<BonusConfiguration> configResult = convertToBonusConfiguration(configValues);
-            if (configResult.isFailure()) {
-                return ServiceResult.validationError("Invalid bonus configuration: " + configResult.getErrorMessage(), "invalid_bonus_config");
-            }
-
-            BonusConfiguration config = configResult.getData();
-
-            if (config.notValid()) {
-                return ServiceResult.validationError("Bonus configuration is not valid", "invalid_bonus_config");
-            }
-
-            // Call the original calculateBonus method
-            return calculateBonus(entries, userId, year, month, config);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Unexpected error in bonus calculation: " + e.getMessage(), e);
-            return ServiceResult.systemError("Unexpected error in bonus calculation", "bonus_calculation_system_error");
-        }
-    }
-
-    /**
      * Calculate bonus with validation and error handling
-     * @param entries Register entries
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @param config Bonus configuration
-     * @return ServiceResult with bonus calculation result
      */
     public ServiceResult<BonusCalculationResultDTO> calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config) {
         try {
@@ -432,7 +721,7 @@ public class AdminRegisterService {
             List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
 
             // Get worked days from worktime service
-            int workedDays = worktimeManagementService.getWorkedDays(userId, year, month);
+            int workedDays = worktimeOperationService.getWorkedDays(userId, year, month);
 
             // Calculate sums
             int numberOfEntries = validEntries.size();
@@ -470,12 +759,6 @@ public class AdminRegisterService {
 
     /**
      * Save bonus result with validation
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @param result Bonus calculation result
-     * @param username Username
-     * @return ServiceResult indicating success or failure
      */
     public ServiceResult<Void> saveBonusResult(Integer userId, Integer year, Integer month, BonusCalculationResultDTO result, String username) {
         try {
@@ -540,10 +823,6 @@ public class AdminRegisterService {
 
     /**
      * Load saved bonus result with error handling
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @return ServiceResult with bonus calculation result or null if not found
      */
     public ServiceResult<BonusCalculationResultDTO> loadSavedBonusResult(Integer userId, Integer year, Integer month) {
         try {
@@ -600,8 +879,6 @@ public class AdminRegisterService {
 
     /**
      * Calculate register summary with error handling
-     * @param entries Register entries
-     * @return ServiceResult with register summary
      */
     public ServiceResult<RegisterSummaryDTO> calculateRegisterSummary(List<RegisterEntry> entries) {
         try {
@@ -633,7 +910,7 @@ public class AdminRegisterService {
     }
 
     // ========================================================================
-    // PRIVATE HELPER METHODS - ENHANCED WITH ERROR HANDLING
+    // PRIVATE HELPER METHODS
     // ========================================================================
 
     private List<RegisterEntry> filterValidEntriesForBonus(List<RegisterEntry> entries) {
@@ -641,89 +918,6 @@ public class AdminRegisterService {
 
         List<String> bonusEligibleTypes = ActionType.getBonusEligibleValues();
         return entries.stream().filter(entry -> bonusEligibleTypes.contains(entry.getActionType())).collect(Collectors.toList());
-    }
-
-    private ServiceResult<List<RegisterEntry>> convertToRegisterEntries(List<Map<String, Object>> entriesData) {
-        try {
-            if (entriesData == null) {
-                return ServiceResult.success(new ArrayList<>());
-            }
-
-            List<RegisterEntry> entries = new ArrayList<>();
-            List<String> warnings = new ArrayList<>();
-
-            for (int i = 0; i < entriesData.size(); i++) {
-                try {
-                    RegisterEntry entry = convertToRegisterEntry(entriesData.get(i));
-                    entries.add(entry);
-                } catch (Exception e) {
-                    warnings.add("Failed to convert entry at index " + i + ": " + e.getMessage());
-                    LoggerUtil.warn(this.getClass(), String.format("Error converting entry at index %d: %s", i, e.getMessage()));
-                }
-            }
-
-            if (!warnings.isEmpty()) {
-                return ServiceResult.successWithWarnings(entries, warnings);
-            }
-
-            return ServiceResult.success(entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error converting entries data: " + e.getMessage(), e);
-            return ServiceResult.systemError("Failed to convert entries data", "convert_entries_failed");
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private RegisterEntry convertToRegisterEntry(Map<String, Object> data) {
-        // Get printPrepTypes as a list from the data
-        List<String> printPrepTypes = new ArrayList<>();
-        if (data.get("printPrepTypes") instanceof List) {
-            printPrepTypes = new ArrayList<>(new LinkedHashSet<>((List<String>) data.get("printPrepTypes")));
-        } else if (data.get("printPrepTypes") instanceof String) {
-            printPrepTypes = new ArrayList<>(new LinkedHashSet<>(Arrays.asList(((String) data.get("printPrepTypes")).split("\\s*,\\s*"))));
-        }
-
-        return RegisterEntry.builder()
-                .entryId(convertToInteger(data.get("entryId")))
-                .userId(convertToInteger(data.get("userId")))
-                .date(parseLocalDate(data.get("date")))
-                .orderId(String.valueOf(data.get("orderId")))
-                .productionId(String.valueOf(data.get("productionId")))
-                .omsId(String.valueOf(data.get("omsId")))
-                .clientName(String.valueOf(data.get("clientName")))
-                .actionType(String.valueOf(data.get("actionType")))
-                .printPrepTypes(printPrepTypes)
-                .colorsProfile(String.valueOf(data.get("colorsProfile")))
-                .articleNumbers(convertToInteger(data.get("articleNumbers")))
-                .graphicComplexity(convertToDouble(data.get("graphicComplexity")))
-                .observations(String.valueOf(data.get("observations")))
-                .adminSync(String.valueOf(data.get("adminSync")))
-                .build();
-    }
-
-    private ServiceResult<BonusConfiguration> convertToBonusConfiguration(Map<String, Object> configValues) {
-        try {
-            if (configValues == null) {
-                return ServiceResult.validationError("Bonus configuration cannot be null", "null_bonus_config");
-            }
-
-            BonusConfiguration config = BonusConfiguration.builder()
-                    .entriesPercentage(convertToDouble(configValues.get("entriesPercentage")))
-                    .articlesPercentage(convertToDouble(configValues.get("articlesPercentage")))
-                    .complexityPercentage(convertToDouble(configValues.get("complexityPercentage")))
-                    .miscPercentage(convertToDouble(configValues.get("miscPercentage")))
-                    .normValue(convertToDouble(configValues.get("normValue")))
-                    .sumValue(convertToDouble(configValues.get("sumValue")))
-                    .miscValue(convertToDouble(configValues.get("miscValue")))
-                    .build();
-
-            return ServiceResult.success(config);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error converting bonus configuration: " + e.getMessage(), e);
-            return ServiceResult.systemError("Failed to convert bonus configuration", "convert_bonus_config_failed");
-        }
     }
 
     private PreviousMonthsBonuses loadPreviousMonthsBonuses(Integer userId, Integer year, Integer month) {
@@ -799,16 +993,6 @@ public class AdminRegisterService {
         }
     }
 
-    private LocalDate parseLocalDate(Object value) {
-        if (value == null) return getStandardCurrentDate();
-        if (value instanceof LocalDate) return (LocalDate) value;
-        try {
-            return LocalDate.parse(String.valueOf(value));
-        } catch (Exception e) {
-            return getStandardCurrentDate();
-        }
-    }
-
     private List<RegisterEntry> sortEntriesForDisplay(List<RegisterEntry> entries) {
         if (entries == null || entries.isEmpty()) {
             return entries;
@@ -832,15 +1016,9 @@ public class AdminRegisterService {
                 .collect(Collectors.toList());
     }
 
-    // Gets the standard current date from the time validation service
-    private LocalDate getStandardCurrentDate() {
-        try {
-            GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
-            return timeValues.getCurrentDate();
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), "Error getting standard time, using system time: " + e.getMessage());
-            return LocalDate.now();
-        }
+    /**
+     * Data record for save request parsing
+     */
+    private record SaveRequestData(String username, Integer userId, Integer year, Integer month, List<Map<String, Object>> entriesData) {
     }
 }

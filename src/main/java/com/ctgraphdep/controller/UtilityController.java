@@ -8,8 +8,8 @@ import com.ctgraphdep.fileOperations.service.BackupUtilityService;
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.SessionMidnightHandler;
-import com.ctgraphdep.service.cache.StatusCacheService;
-import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.AllUsersCacheService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.model.FolderStatus;
@@ -45,12 +45,12 @@ public class UtilityController extends BaseController {
     // EXPANDED DEPENDENCIES - All services needed for complete user utilities
     private final BackupUtilityService backupUtilityService;
     private final BackupService backupService;
-    private final StatusCacheService statusCacheService;
+    private final AllUsersCacheService allUsersCacheService;
     private final SessionMidnightHandler sessionMidnightHandler;
     private final SchedulerHealthMonitor schedulerHealthMonitor;
     private final MonitoringStateService monitoringStateService;
     private final BackupEventListener backupEventListener;
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
     private final PathConfig pathConfig;
 
     public UtilityController(
@@ -59,23 +59,23 @@ public class UtilityController extends BaseController {
             TimeValidationService timeValidationService,
             BackupUtilityService backupUtilityService,
             BackupService backupService,
-            StatusCacheService statusCacheService,
+            AllUsersCacheService allUsersCacheService,
             SessionMidnightHandler sessionMidnightHandler,
             SchedulerHealthMonitor schedulerHealthMonitor,
             MonitoringStateService monitoringStateService,
             BackupEventListener backupEventListener,
-            UserContextService userContextService,
+            MainDefaultUserContextService mainDefaultUserContextService,
             PathConfig pathConfig) {
 
         super(userService, folderStatus, timeValidationService);
         this.backupUtilityService = backupUtilityService;
         this.backupService = backupService;
-        this.statusCacheService = statusCacheService;
+        this.allUsersCacheService = allUsersCacheService;
         this.sessionMidnightHandler = sessionMidnightHandler;
         this.schedulerHealthMonitor = schedulerHealthMonitor;
         this.monitoringStateService = monitoringStateService;
         this.backupEventListener = backupEventListener;
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.pathConfig = pathConfig;
     }
 
@@ -489,7 +489,7 @@ public class UtilityController extends BaseController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            String cacheStatus = statusCacheService.getCacheStatus();
+            String cacheStatus = allUsersCacheService.getCacheStatus();
 
             response.put("success", true);
             response.put("cacheStatus", cacheStatus);
@@ -515,9 +515,9 @@ public class UtilityController extends BaseController {
 
         try {
             // Get current cache status for validation
-            String cacheStatus = statusCacheService.getCacheStatus();
-            boolean hasUserData = statusCacheService.hasUserData();
-            int cachedUserCount = statusCacheService.getCachedUserCount();
+            String cacheStatus = allUsersCacheService.getCacheStatus();
+            boolean hasUserData = allUsersCacheService.hasUserData();
+            int cachedUserCount = allUsersCacheService.getCachedUserCount();
 
             response.put("success", true);
             response.put("message", "Cache validation completed");
@@ -547,8 +547,8 @@ public class UtilityController extends BaseController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            boolean hasUserData = statusCacheService.hasUserData();
-            int cachedUserCount = statusCacheService.getCachedUserCount();
+            boolean hasUserData = allUsersCacheService.hasUserData();
+            int cachedUserCount = allUsersCacheService.getCachedUserCount();
 
             response.put("success", true);
             response.put("hasUserData", hasUserData);
@@ -575,7 +575,7 @@ public class UtilityController extends BaseController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            int cachedUserCount = statusCacheService.getCachedUserCount();
+            int cachedUserCount = allUsersCacheService.getCachedUserCount();
 
             response.put("success", true);
             response.put("cachedUserCount", cachedUserCount);
@@ -601,13 +601,13 @@ public class UtilityController extends BaseController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            int beforeCount = statusCacheService.getCachedUserCount();
+            int beforeCount = allUsersCacheService.getCachedUserCount();
 
             // Refresh all users from UserDataService
-            statusCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
-            statusCacheService.writeToFile();
+            allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+            allUsersCacheService.writeToFile();
 
-            int afterCount = statusCacheService.getCachedUserCount();
+            int afterCount = allUsersCacheService.getCachedUserCount();
 
             response.put("success", true);
             response.put("message", "Cache refreshed successfully");
@@ -738,11 +738,11 @@ public class UtilityController extends BaseController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            User currentUser = userContextService.getCurrentUser();
-            String currentUsername = userContextService.getCurrentUsername();
-            boolean isHealthy = userContextService.isCacheHealthy();
-            boolean hasRealUser = userContextService.hasRealUser();
-            boolean isInitialized = userContextService.isCacheInitialized();
+            User currentUser = mainDefaultUserContextService.getCurrentUser();
+            String currentUsername = mainDefaultUserContextService.getCurrentUsername();
+            boolean isHealthy = mainDefaultUserContextService.isCacheHealthy();
+            boolean hasRealUser = mainDefaultUserContextService.hasRealUser();
+            boolean isInitialized = mainDefaultUserContextService.isCacheInitialized();
 
             response.put("success", true);
             response.put("currentUsername", currentUsername);
@@ -956,9 +956,9 @@ public class UtilityController extends BaseController {
             summary.put("userRole", currentUser.getRole());
 
             // Cache Information
-            summary.put("cacheHealthy", userContextService.isCacheHealthy());
-            summary.put("cachedUserCount", statusCacheService.getCachedUserCount());
-            summary.put("hasUserData", statusCacheService.hasUserData());
+            summary.put("cacheHealthy", mainDefaultUserContextService.isCacheHealthy());
+            summary.put("cachedUserCount", allUsersCacheService.getCachedUserCount());
+            summary.put("hasUserData", allUsersCacheService.hasUserData());
 
             // System Health
             Map<String, Boolean> healthStatus = schedulerHealthMonitor.getHealthStatus();

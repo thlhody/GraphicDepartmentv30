@@ -109,8 +109,7 @@ public class BackupService {
             return createComprehensiveBackup(originalPath, level);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Failed to create %s backup for %s: %s",
-                    level, path, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Failed to create %s backup for %s: %s", level, path, e.getMessage()), e);
             return FileOperationResult.failure(path, "Failed to create backup: " + e.getMessage(), e);
         }
     }

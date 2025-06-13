@@ -15,6 +15,10 @@ import com.ctgraphdep.service.*;
 import com.ctgraphdep.utils.*;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.ValidatePeriodCommand;
+import com.ctgraphdep.worktime.commands.status.*;
+import com.ctgraphdep.worktime.context.WorktimeOperationContext;
+import com.ctgraphdep.worktime.display.WorktimeDisplayService;
+import com.ctgraphdep.worktime.model.OperationResult;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -37,6 +41,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * REFACTORED StatusController - No longer uses StatusService.
+ * Now uses commands directly through WorktimeOperationContext.
+ * Implements local → network → empty fallback strategy for all data access.
+ * Complete replacement of StatusService functionality.
+ */
 @Controller
 @RequestMapping("/status")
 @PreAuthorize("isAuthenticated()")
@@ -44,24 +54,31 @@ public class StatusController extends BaseController {
 
     private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
-    private final StatusService statusService;
-    private final ReadFileNameStatusService readFileNameStatusService; // Use new service
+    // REMOVED: StatusService dependency
+    // ADDED: WorktimeOperationContext for commands
+    private final WorktimeOperationContext worktimeContext;
+    private final ReadFileNameStatusService readFileNameStatusService;
     private final ThymeleafService thymeleafService;
+    private final WorktimeDisplayService worktimeDisplayService;
     private final UserRegisterExcelExporter excelExporter;
     private final UserWorktimeExcelExporter userWorktimeExcelExporter;
     private final CheckRegisterStatusExcelExporter checkRegisterExcelExporter;
 
     public StatusController(UserService userService,
                             FolderStatus folderStatus,
-                            StatusService statusService,
+                            WorktimeOperationContext worktimeContext,
                             ReadFileNameStatusService readFileNameStatusService,
                             ThymeleafService thymeleafService,
                             TimeValidationService timeValidationService,
-                            UserRegisterExcelExporter excelExporter, UserWorktimeExcelExporter userWorktimeExcelExporter, CheckRegisterStatusExcelExporter checkRegisterExcelExporter) {
+                            WorktimeDisplayService worktimeDisplayService,
+                            UserRegisterExcelExporter excelExporter,
+                            UserWorktimeExcelExporter userWorktimeExcelExporter,
+                            CheckRegisterStatusExcelExporter checkRegisterExcelExporter) {
         super(userService, folderStatus, timeValidationService);
-        this.statusService = statusService;
+        this.worktimeContext = worktimeContext;
         this.readFileNameStatusService = readFileNameStatusService;
         this.thymeleafService = thymeleafService;
+        this.worktimeDisplayService = worktimeDisplayService;
         this.excelExporter = excelExporter;
         this.userWorktimeExcelExporter = userWorktimeExcelExporter;
         this.checkRegisterExcelExporter = checkRegisterExcelExporter;
@@ -77,11 +94,8 @@ public class StatusController extends BaseController {
             return "redirect:/login";
         }
 
-        // Get statuses - now roles are already included from the cache
+        // Get statuses - roles are already included from the cache
         List<UserStatusDTO> userStatuses = readFileNameStatusService.getAllUserStatuses();
-
-        // No need to enhance with role information anymore - it's already in the cache!
-
         long onlineCount = readFileNameStatusService.getOnlineUserCount();
 
         // Add model attributes
@@ -100,7 +114,7 @@ public class StatusController extends BaseController {
     @GetMapping("/refresh")
     public String refreshStatus() {
         // Invalidate the cache to ensure fresh data
-        readFileNameStatusService.invalidateCache(); // Use new service
+        readFileNameStatusService.invalidateCache();
         LoggerUtil.info(this.getClass(), "Status cache invalidated via manual refresh at " + getStandardCurrentDateTime());
         return "redirect:/status";
     }
@@ -117,7 +131,7 @@ public class StatusController extends BaseController {
 
             User currentUser = getUser(userDetails);
 
-            // Get fresh status list after invalidating cache - roles already included!
+            // Get fresh status list after invalidating cache
             var userStatuses = readFileNameStatusService.getAllUserStatuses();
             long onlineCount = readFileNameStatusService.getOnlineUserCount();
 
@@ -139,7 +153,6 @@ public class StatusController extends BaseController {
                 tableHtml = thymeleafService.processTemplate("status/fragments/status-table-body", tableModel);
             } catch (Exception e) {
                 LoggerUtil.error(this.getClass(), "Error rendering status table fragment: " + e.getMessage(), e);
-                // If rendering fails, we'll return an empty string for tableHtml
             }
 
             // Prepare response data
@@ -157,6 +170,9 @@ public class StatusController extends BaseController {
         }
     }
 
+    /**
+     * REFACTORED: Register search now uses LoadUserRegisterStatusCommand
+     */
     @GetMapping("/register-search")
     public String registerSearch(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -169,7 +185,7 @@ public class StatusController extends BaseController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) String username,
-            Model model,RedirectAttributes redirectAttributes) {
+            Model model, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing register search at " + getStandardCurrentDateTime());
@@ -189,20 +205,17 @@ public class StatusController extends BaseController {
             int displayYear = determineYear(year);
             int displayMonth = determineMonth(month);
 
-            // Validate period directly here before making service call
+            // Validate period
             try {
-                // Create and execute validation command directly
-                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(displayYear, displayMonth, 24);
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory()
+                        .createValidatePeriodCommand(displayYear, displayMonth, 24);
                 getTimeValidationService().execute(validateCommand);
             } catch (IllegalArgumentException e) {
-                // Handle validation failure gracefully
-                String userMessage = "The selected period is not valid. " + "You can only view periods up to 24 months in the future.";
+                String userMessage = "The selected period is not valid. You can only view periods up to 24 months in the future.";
                 redirectAttributes.addFlashAttribute("periodError", userMessage);
-                // Reset to current period (or adjust as needed)
                 LocalDate currentDate = getStandardCurrentDate();
                 return "redirect:/status/register-search?username=" + (username != null ? username : "") +
-                        "&year=" + currentDate.getYear() +
-                        "&month=" + currentDate.getMonthValue();
+                        "&year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
             }
 
             // Set current period for the UI
@@ -210,36 +223,30 @@ public class StatusController extends BaseController {
             model.addAttribute("currentMonth", displayMonth);
             model.addAttribute("currentDate", getStandardCurrentDate());
 
-            // Load appropriate entries based on search parameters
-            List<RegisterEntry> entries;
-            boolean isSearching = hasSearchCriteria(searchTerm, startDate, endDate, actionType, printPrepTypes, clientName);
+            // REFACTORED: Use LoadUserRegisterStatusCommand instead of StatusService
+            LoadUserRegisterStatusCommand command = new LoadUserRegisterStatusCommand(
+                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(),
+                    year, month, startDate, endDate, searchTerm, actionType, printPrepTypes, clientName);
 
-            if (isSearching) {
-                // Load entries based on search criteria using StatusService
-                entries = statusService.loadRegisterEntriesForSearch(
-                        targetUser, searchTerm, startDate, endDate,
-                        actionType, printPrepTypes, clientName,
-                        year, month, displayYear, displayMonth);
+            OperationResult result = command.execute();
 
-                LoggerUtil.info(this.getClass(),
-                        String.format("Register search completed for user %s: found %d entries",
-                                targetUser.getUsername(), entries.size()));
+            List<RegisterEntry> entries = new ArrayList<>();
+            Set<String> clients = new HashSet<>();
+
+            if (result.isSuccess() && result.getData() instanceof LoadUserRegisterStatusCommand.RegisterStatusData statusData) {
+                entries = statusData.getEntries();
+                clients = statusData.getUniqueClients();
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Register search completed for user %s: found %d entries",
+                        targetUser.getUsername(), entries.size()));
             } else {
-                // No search criteria - just load the current display period
-                entries = statusService.loadRegisterEntriesForPeriod(targetUser, displayYear, displayMonth);
-
-                LoggerUtil.info(this.getClass(),
-                        String.format("Displaying register entries for user %s (%d/%d): %d entries",
-                                targetUser.getUsername(), displayYear, displayMonth, entries.size()));
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Register search failed for user %s: %s", targetUser.getUsername(), result.getMessage()));
             }
 
             // Add entries to model
             model.addAttribute("entries", entries);
-
-            // Extract unique clients for dropdown (from current period if not searching)
-            List<RegisterEntry> clientSourceEntries = isSearching ? entries :
-                    statusService.loadRegisterEntriesForPeriod(targetUser, displayYear, displayMonth);
-            Set<String> clients = statusService.extractUniqueClients(clientSourceEntries);
             model.addAttribute("clients", clients);
 
             // Add system time
@@ -256,6 +263,9 @@ public class StatusController extends BaseController {
         }
     }
 
+    /**
+     * REFACTORED: Register export now uses LoadUserRegisterStatusCommand
+     */
     @GetMapping("/register-search/export")
     public ResponseEntity<byte[]> exportSearchResults(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -273,37 +283,30 @@ public class StatusController extends BaseController {
             LoggerUtil.info(this.getClass(), "Exporting register search results at " + getStandardCurrentDateTime());
 
             User currentUser = getUser(userDetails);
-
-            // Determine which user's register to export using the helper method
-            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+            User targetUser = determineTargetUser(currentUser, username);
 
             // Use determineYear and determineMonth methods from BaseController
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Load all relevant entries
-            List<RegisterEntry> allEntries = statusService.loadAllRelevantEntries(
-                    targetUser,
-                    selectedYear,
-                    selectedMonth,
-                    startDate,
-                    endDate);
+            // REFACTORED: Use LoadUserRegisterStatusCommand instead of StatusService
+            LoadUserRegisterStatusCommand command = new LoadUserRegisterStatusCommand(
+                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(),
+                    selectedYear, selectedMonth, startDate, endDate, searchTerm, actionType, printPrepTypes, clientName);
 
-            // Apply filters using StatusService
-            List<RegisterEntry> filteredEntries = statusService.filterRegisterEntries(
-                    allEntries, searchTerm, startDate, endDate, actionType, printPrepTypes, clientName);
+            OperationResult result = command.execute();
+
+            List<RegisterEntry> filteredEntries = new ArrayList<>();
+            if (result.isSuccess() && result.getData() instanceof LoadUserRegisterStatusCommand.RegisterStatusData statusData) {
+                filteredEntries = statusData.getEntries();
+            }
 
             // Generate Excel file
-            byte[] excelData = excelExporter.exportToExcel(
-                    targetUser,
-                    filteredEntries,
-                    selectedYear,
-                    selectedMonth);
+            byte[] excelData = excelExporter.exportToExcel(targetUser, filteredEntries, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"register_search_results_%s.xlsx\"",
-                                    targetUser.getUsername()))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"register_search_results_%s.xlsx\"",
+                            targetUser.getUsername()))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 
@@ -313,9 +316,14 @@ public class StatusController extends BaseController {
         }
     }
 
+    /**
+     * REFACTORED: Time off history now uses LoadUserTimeOffStatusCommand
+     */
     @GetMapping("/timeoff-history")
-    public String getTimeOffHistory(@RequestParam(required = false) Integer userId, @RequestParam(required = false) String username,
-                                    @RequestParam(required = false) Integer year, Model model, RedirectAttributes redirectAttributes) {
+    public String getTimeOffHistory(@RequestParam(required = false) Integer userId,
+                                    @RequestParam(required = false) String username,
+                                    @RequestParam(required = false) Integer year,
+                                    Model model, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing time off history at " + getStandardCurrentDateTime());
@@ -347,19 +355,33 @@ public class StatusController extends BaseController {
 
             User user = userOpt.get();
 
-            // Get APPROVED time off entries from tracker converted to WorkTimeTable format
-            List<WorkTimeTable> timeOffs = statusService.getApprovedTimeOffFromTracker(user.getUsername(), user.getUserId(), selectedYear);
+            // REFACTORED: Use LoadUserTimeOffStatusCommand instead of StatusService
+            LoadUserTimeOffStatusCommand command = new LoadUserTimeOffStatusCommand(
+                    worktimeContext, user.getUsername(), user.getUserId(), selectedYear);
 
-            // Also get the raw tracker using the StatusService method
-            TimeOffTracker tracker = statusService.getTimeOffTrackerReadOnly(user.getUsername(), user.getUserId(), selectedYear);
+            OperationResult result = command.execute();
 
-            // Calculate time off summary directly from tracker
-            TimeOffSummaryDTO summary = statusService.getTimeOffSummaryFromTracker(user.getUsername(), user.getUserId(), selectedYear);
+            TimeOffTracker tracker = null;
+            TimeOffSummaryDTO summary = null;
+            List<WorkTimeTable> timeOffs = new ArrayList<>();
+
+            if (result.isSuccess() && result.getData() instanceof LoadUserTimeOffStatusCommand.TimeOffStatusData statusData) {
+                tracker = statusData.getTracker();
+                summary = statusData.getSummary();
+                timeOffs = statusData.getApprovedEntries();
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Time off history loaded for user %s: %d approved entries",
+                        user.getUsername(), timeOffs.size()));
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Time off history failed for user %s: %s", user.getUsername(), result.getMessage()));
+            }
 
             // Add data to model
             model.addAttribute("user", user);
             model.addAttribute("timeOffs", timeOffs);
-            model.addAttribute("tracker", tracker); // Optional, for debugging
+            model.addAttribute("tracker", tracker);
             model.addAttribute("summary", summary);
             model.addAttribute("year", selectedYear);
             model.addAttribute("currentSystemTime", formatCurrentDateTime());
@@ -373,9 +395,15 @@ public class StatusController extends BaseController {
         }
     }
 
+    /**
+     * REFACTORED: Worktime status now uses LoadUserWorktimeStatusCommand
+     */
     @GetMapping("/worktime-status")
-    public String getWorktimeStatus(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) String username, @RequestParam(required = false) Integer year,
-                                    @RequestParam(required = false) Integer month, Model model, RedirectAttributes redirectAttributes) {
+    public String getWorktimeStatus(@AuthenticationPrincipal UserDetails userDetails,
+                                    @RequestParam(required = false) String username,
+                                    @RequestParam(required = false) Integer year,
+                                    @RequestParam(required = false) Integer month,
+                                    Model model, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing worktime status at " + getStandardCurrentDateTime());
@@ -384,39 +412,54 @@ public class StatusController extends BaseController {
             User currentUser = getUser(userDetails);
 
             // Determine target user (user being viewed)
-            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+            User targetUser = determineTargetUser(currentUser, username);
 
             // Use determineYear and determineMonth from BaseController
             int currentYear = determineYear(year);
             int currentMonth = determineMonth(month);
 
-            // Validate period directly here before making service call
+            // Validate period
             try {
-                // Create and execute validation command directly
-                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(currentYear, currentMonth, 24);
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory()
+                        .createValidatePeriodCommand(currentYear, currentMonth, 24);
                 getTimeValidationService().execute(validateCommand);
             } catch (IllegalArgumentException e) {
-                // Handle validation failure gracefully
-                String userMessage = "The selected period is not valid. " + "You can only view periods up to 24 months in the future.";
+                String userMessage = "The selected period is not valid. You can only view periods up to 24 months in the future.";
                 redirectAttributes.addFlashAttribute("periodError", userMessage);
-                // Reset to current period (or adjust as needed)
                 LocalDate currentDate = getStandardCurrentDate();
-                return "redirect:/status/worktime-status?username=" + (username != null ? username : "") + "&year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
+                return "redirect:/status/worktime-status?username=" + (username != null ? username : "") +
+                        "&year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
             }
 
-            // For other users' data, only admins and team leaders can view
-            boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) && !currentUser.hasRole(SecurityConstants.ROLE_ADMIN) && !currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER);
+            // Check permissions
+            boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) &&
+                    !currentUser.hasRole(SecurityConstants.ROLE_ADMIN) &&
+                    !currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER);
 
             if (canViewOtherUser) {
                 redirectAttributes.addFlashAttribute("errorMessage", "You don't have permission to view other users' worktime data");
                 return "redirect:/status";
             }
 
-            // Load work time data using StatusService (read-only operation)
-            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(targetUser.getUsername(), targetUser.getUserId(), currentYear, currentMonth);
+            // REFACTORED: Use LoadUserWorktimeStatusCommand instead of StatusService
+            LoadUserWorktimeStatusCommand command = new LoadUserWorktimeStatusCommand(
+                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(), currentYear, currentMonth);
 
-            // Prepare display data using StatusService (now returns DTOs)
-            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(targetUser, worktimeData, currentYear, currentMonth);
+            OperationResult result = command.execute();
+
+            List<WorkTimeTable> worktimeData = new ArrayList<>();
+            if (result.isSuccess() && result.getEntriesData() != null) {
+                worktimeData = result.getEntriesData();
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Worktime status loaded for user %s: %d entries", targetUser.getUsername(), worktimeData.size()));
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Worktime status failed for user %s: %s", targetUser.getUsername(), result.getMessage()));
+            }
+
+            // Prepare display data using WorktimeDisplayService (keep this as it's separate concern)
+            Map<String, Object> displayData = worktimeDisplayService.prepareWorktimeDisplayData(
+                    targetUser, worktimeData, currentYear, currentMonth);
 
             // Add all data to model
             model.addAllAttributes(displayData);
@@ -434,6 +477,9 @@ public class StatusController extends BaseController {
         }
     }
 
+    /**
+     * REFACTORED: Worktime export now uses LoadUserWorktimeStatusCommand
+     */
     @GetMapping("/worktime-status/export")
     public ResponseEntity<byte[]> exportWorktimeData(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -446,18 +492,27 @@ public class StatusController extends BaseController {
             // Get current authenticated user
             User currentUser = getUser(userDetails);
 
-            // Determine target user using simplified logic
-            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+            // Determine target user
+            User targetUser = determineTargetUser(currentUser, username);
 
             // Use determineYear and determineMonth from BaseController
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Load worktime data using StatusService
-            List<WorkTimeTable> worktimeData = statusService.loadViewOnlyWorktime(targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
+            // REFACTORED: Use LoadUserWorktimeStatusCommand instead of StatusService
+            LoadUserWorktimeStatusCommand command = new LoadUserWorktimeStatusCommand(
+                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
+
+            OperationResult result = command.execute();
+
+            List<WorkTimeTable> worktimeData = new ArrayList<>();
+            if (result.isSuccess() && result.getEntriesData() != null) {
+                worktimeData = result.getEntriesData();
+            }
 
             // Get display data which includes the summary
-            Map<String, Object> displayData = statusService.prepareWorktimeDisplayData(targetUser, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = worktimeDisplayService.prepareWorktimeDisplayData(
+                    targetUser, worktimeData, selectedYear, selectedMonth);
 
             // Extract the DTOs from display data
             @SuppressWarnings("unchecked")
@@ -468,9 +523,8 @@ public class StatusController extends BaseController {
             byte[] excelData = userWorktimeExcelExporter.exportToExcel(targetUser, entryDTOs, summaryDTO, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
-                                    targetUser.getUsername(), selectedYear, selectedMonth))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
+                            targetUser.getUsername(), selectedYear, selectedMonth))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 
@@ -480,31 +534,9 @@ public class StatusController extends BaseController {
         }
     }
 
-    // Formats the current datetime using the standard pattern
-    private String formatCurrentDateTime() {
-        return getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN));
-    }
-
-    // Helper method to determine target user based on permissions
-    private User determineTargetUser(User currentUser, String requestedUsername) {
-        if (requestedUsername == null || requestedUsername.isEmpty()) {
-            return currentUser;
-        }
-
-        // Anyone can view register search for any user
-        return getUserService().getUserByUsername(requestedUsername).orElseThrow(() -> new RuntimeException("User not found"));
-    }
-
-    // Helper to check if any search criteria are present
-    private boolean hasSearchCriteria(String searchTerm, LocalDate startDate, LocalDate endDate,
-                                      String actionType, String printPrepTypes, String clientName) {
-        return (searchTerm != null && !searchTerm.trim().isEmpty()) ||
-                startDate != null || endDate != null ||
-                (actionType != null && !actionType.trim().isEmpty()) ||
-                (printPrepTypes != null && !printPrepTypes.trim().isEmpty()) ||
-                (clientName != null && !clientName.trim().isEmpty());
-    }
-
+    /**
+     * FIXED: Check register now uses LoadUserCheckRegisterStatusCommand
+     */
     @GetMapping("/check-register-status")
     public String getCheckRegister(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -517,8 +549,7 @@ public class StatusController extends BaseController {
             @RequestParam(required = false) String checkType,
             @RequestParam(required = false) String designerName,
             @RequestParam(required = false) String approvalStatus,
-            Model model,
-            RedirectAttributes redirectAttributes) {
+            Model model, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing check register search at " + getStandardCurrentDateTime());
@@ -530,8 +561,8 @@ public class StatusController extends BaseController {
                 return "redirect:/login";
             }
 
-            // Determine target user (whose check register to view)
-            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username).orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+            // Determine target user
+            User targetUser = determineTargetUser(currentUser, username);
 
             // Add user info to model
             model.addAttribute("user", targetUser);
@@ -540,20 +571,17 @@ public class StatusController extends BaseController {
             int displayYear = determineYear(year);
             int displayMonth = determineMonth(month);
 
-            // Validate period directly here before making service call
+            // Validate period
             try {
-                // Create and execute validation command directly
-                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(displayYear, displayMonth, 12); // 4 months ahead max
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory()
+                        .createValidatePeriodCommand(displayYear, displayMonth, 12);
                 getTimeValidationService().execute(validateCommand);
             } catch (IllegalArgumentException e) {
-                // Handle validation failure gracefully
-                String userMessage = "The selected period is not valid. " + "You can only view periods up to 4 months in the future.";
+                String userMessage = "The selected period is not valid. You can only view periods up to 4 months in the future.";
                 redirectAttributes.addFlashAttribute("periodError", userMessage);
-                // Reset to current period (or adjust as needed)
                 LocalDate currentDate = getStandardCurrentDate();
                 return "redirect:/status/check-register-status?username=" + (username != null ? username : "") +
-                        "&year=" + currentDate.getYear() +
-                        "&month=" + currentDate.getMonthValue();
+                        "&year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
             }
 
             // Set current period for the UI
@@ -565,31 +593,34 @@ public class StatusController extends BaseController {
             model.addAttribute("checkTypes", CheckType.getValues());
             model.addAttribute("approvalStatusTypes", ApprovalStatusType.getValues());
 
-            // Check if we're searching or just viewing default period
-            boolean isSearching = hasCheckRegisterSearchCriteria(searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+            // FIXED: Use LoadUserCheckRegisterStatusCommand
+            LoadUserCheckRegisterStatusCommand command = new LoadUserCheckRegisterStatusCommand(
+                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(), displayYear, displayMonth,
+                    searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
 
-            // Load appropriate entries
-            List<RegisterCheckEntry> entries;
+            OperationResult result = command.execute();
 
-            // Load the basic entries first
-            entries = statusService.loadViewOnlyCheckRegister(targetUser.getUsername(), targetUser.getUserId(), displayYear, displayMonth);
+            // Initialize with defaults
+            List<RegisterCheckEntry> entries = new ArrayList<>();
+            LoadUserCheckRegisterStatusCommand.CheckRegisterSummary summaryObj =
+                    new LoadUserCheckRegisterStatusCommand.CheckRegisterSummary(); // Empty summary
+            Set<String> designers = new HashSet<>();
 
-            // Apply filters if searching
-            if (isSearching) {
-                entries = statusService.filterCheckRegisterEntries(entries, searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+            if (result.isSuccess() && result.getData() instanceof LoadUserCheckRegisterStatusCommand.CheckRegisterStatusData statusData) {
+                entries = statusData.getEntries();
+                summaryObj = statusData.getSummary();
+                designers = new HashSet<>(statusData.getUniqueDesigners());
 
-                LoggerUtil.info(this.getClass(), String.format("Check register search completed for user %s: found %d entries", targetUser.getUsername(), entries.size()));
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Check register loaded for user %s: %d entries", targetUser.getUsername(), entries.size()));
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Check register failed for user %s: %s", targetUser.getUsername(), result.getMessage()));
             }
 
-            // Add entries to model
+            // FIXED: Set model attributes only once, correctly
             model.addAttribute("entries", entries);
-
-            // Add summary statistics
-            Map<String, Object> summary = statusService.calculateCheckRegisterSummary(entries);
-            model.addAttribute("summary", summary);
-
-            // Extract unique designers for filter dropdown
-            Set<String> designers = statusService.extractUniqueDesigners(entries);
+            model.addAttribute("summary", summaryObj);  // ✅ Use the CheckRegisterSummary object
             model.addAttribute("designers", designers);
 
             // Add system time
@@ -607,7 +638,7 @@ public class StatusController extends BaseController {
     }
 
     /**
-     * Export check register entries to Excel
+     * REFACTORED: Check register export now uses LoadUserCheckRegisterStatusCommand
      */
     @GetMapping("/check-register-status/export")
     public ResponseEntity<byte[]> exportCheckRegister(
@@ -632,31 +663,30 @@ public class StatusController extends BaseController {
             }
 
             // Determine target user
-            User targetUser = username != null && !username.isEmpty() ? getUserService().getUserByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found")) : currentUser;
+            User targetUser = determineTargetUser(currentUser, username);
 
             // Use determineYear and determineMonth from BaseController
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Load entries
-            List<RegisterCheckEntry> entries = statusService.loadViewOnlyCheckRegister(targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
+            // REFACTORED: Use LoadUserCheckRegisterStatusCommand instead of StatusService
+            LoadUserCheckRegisterStatusCommand command = new LoadUserCheckRegisterStatusCommand(
+                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth,
+                    searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
 
-            // Apply filters if provided
-            boolean isSearching = hasCheckRegisterSearchCriteria(searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+            OperationResult result = command.execute();
 
-            if (isSearching) {
-                entries = statusService.filterCheckRegisterEntries(entries, searchTerm, startDate, endDate, checkType, designerName, approvalStatus);
+            List<RegisterCheckEntry> entries = new ArrayList<>();
+            if (result.isSuccess() && result.getData() instanceof LoadUserCheckRegisterStatusCommand.CheckRegisterStatusData statusData) {
+                entries = statusData.getEntries();
             }
 
-            // Use our new exporter
-            byte[] excelData = checkRegisterExcelExporter.exportToExcel(
-                    targetUser, entries, selectedYear, selectedMonth);
+            // Use our exporter
+            byte[] excelData = checkRegisterExcelExporter.exportToExcel(targetUser, entries, selectedYear, selectedMonth);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            String.format("attachment; filename=\"check_register_%s_%d_%02d.xlsx\"",
-                                    targetUser.getUsername(), selectedYear, selectedMonth))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%s_%d_%02d.xlsx\"",
+                            targetUser.getUsername(), selectedYear, selectedMonth))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 
@@ -666,16 +696,27 @@ public class StatusController extends BaseController {
         }
     }
 
-    /**
-     * Helper method to check if any search criteria are present
-     */
-    private boolean hasCheckRegisterSearchCriteria(String searchTerm, LocalDate startDate, LocalDate endDate,
-                                                   String checkType, String designerName, String approvalStatus) {
+    // ========================================================================
+    // HELPER METHODS (UNCHANGED)
+    // ========================================================================
 
-        return (searchTerm != null && !searchTerm.trim().isEmpty()) ||
-                startDate != null || endDate != null ||
-                (checkType != null && !checkType.trim().isEmpty()) ||
-                (designerName != null && !designerName.trim().isEmpty()) ||
-                (approvalStatus != null && !approvalStatus.trim().isEmpty());
+    /**
+     * Formats the current datetime using the standard pattern
+     */
+    private String formatCurrentDateTime() {
+        return getStandardCurrentDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_PATTERN));
+    }
+
+    /**
+     * Helper method to determine target user based on permissions
+     */
+    private User determineTargetUser(User currentUser, String requestedUsername) {
+        if (requestedUsername == null || requestedUsername.isEmpty()) {
+            return currentUser;
+        }
+
+        // Anyone can view status data for any user (read-only)
+        return getUserService().getUserByUsername(requestedUsername)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 }

@@ -15,7 +15,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Command to end a work day session
+ * REFACTORED EndDayCommand using new SessionContext adapter methods
+ * and existing SessionEntityBuilder approach
  */
 public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
     private final String username;
@@ -24,14 +25,6 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
     private final LocalDateTime explicitEndTime;
     private static final long END_COMMAND_COOLDOWN_MS = 2000; // 2 seconds
 
-    /**
-     * Creates a new command to end a work day with explicit end time
-     *
-     * @param username The username
-     * @param userId The user ID
-     * @param finalMinutes The final minutes to record for the day
-     * @param endTime The explicit end time to use
-     */
     public EndDayCommand(String username, Integer userId, Integer finalMinutes, LocalDateTime endTime) {
         validateUsername(username);
         validateUserId(userId);
@@ -48,7 +41,6 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
 
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
-        // Use deduplication with custom cooldown
         return executeWithDeduplication(context, username, this::executeEndDayLogic, null, END_COMMAND_COOLDOWN_MS);
     }
 
@@ -63,7 +55,6 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             // Get and validate session
             WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
 
-            // Basic validation - session must exist
             if (session == null) {
                 warn("Session is null, cannot end");
                 return null;
@@ -76,34 +67,29 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             // Handle temporary stop case if needed
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
                 info(String.format("Handling temporary stop before ending session for user %s", username));
-                // Use the calculation command for updating last temporary stop
                 try {
                     UpdateLastTemporaryStopCommand tempStopCommand = ctx.getCalculationFactory().createUpdateLastTemporaryStopCommand(session, endTime);
                     session = ctx.getCalculationService().executeCommand(tempStopCommand);
 
-                    // Save the updated session
                     SaveSessionCommand saveCommand = ctx.getCommandFactory().createSaveSessionCommand(session);
                     ctx.executeCommand(saveCommand);
 
                     info(String.format("Successfully updated temporary stop info for user %s", username));
                 } catch (Exception e) {
                     warn(String.format("Error updating temporary stop: %s. Continuing with session end.", e.getMessage()));
-                    // Continue with ending session even if temp stop update fails
                 }
             }
 
-            // Handle the case where finalMinutes is null we're in an active session
+            // Calculate effective final minutes if needed
             Integer effectiveFinalMinutes = finalMinutes;
             if (effectiveFinalMinutes == null && (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())
                     || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()))) {
-                // Calculate raw work minutes
                 try {
                     CalculateRawWorkMinutesQuery workMinutesQuery = ctx.getCalculationFactory().createCalculateRawWorkMinutesQuery(session, endTime);
                     effectiveFinalMinutes = ctx.getCalculationService().executeQuery(workMinutesQuery);
                     info(String.format("Calculated final minutes for user %s: %d", username, effectiveFinalMinutes));
                 } catch (Exception e) {
                     warn(String.format("Error calculating raw work minutes: %s. Using session value.", e.getMessage()));
-                    // Fall back to session value if calculation fails
                     effectiveFinalMinutes = session.getTotalWorkedMinutes();
                 }
             }
@@ -118,16 +104,15 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
             // Update session status
             ctx.getSessionStatusService().updateSessionStatus(username, userId, WorkCode.WORK_OFFLINE, endTime);
 
-            // Then update worktime entry
+            // REFACTORED: Update worktime entry using new approach
             updateWorktimeEntry(session, ctx, endTime);
 
-            // Clean up monitoring - use both methods to ensure complete cleanup
+            // Clean up monitoring
             ctx.getSessionMonitorService().stopMonitoring(username);
             ctx.getSessionMonitorService().deactivateHourlyMonitoring(username);
             try {
                 ctx.getSessionMonitorService().clearMonitoring(username);
             } catch (Exception e) {
-                // Just log and continue if clearMonitoring fails
                 warn(String.format("Error clearing monitoring: %s", e.getMessage()));
             }
 
@@ -137,59 +122,67 @@ public class EndDayCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
         });
     }
 
-    /**
-     * Updates the session with end state values using calculation command
-     */
     private WorkUsersSessionsStates processEndSession(WorkUsersSessionsStates session, LocalDateTime endTime, SessionContext context, Integer effectiveFinalMinutes) {
-        final int currentWorkedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
-        final int currentOvertimeMinutes = session.getTotalOvertimeMinutes() != null ? session.getTotalOvertimeMinutes() : 0;
-
-        // Use the context method which delegates to the calculation command
-        WorkUsersSessionsStates updatedSession = context.calculateEndDayValues(session, endTime, effectiveFinalMinutes);
-
-        debug(String.format("Processing session end - Current Total: %d, Final: %d, Overtime: %d", currentWorkedMinutes, effectiveFinalMinutes != null ? effectiveFinalMinutes : 0, currentOvertimeMinutes));
-
-        return updatedSession;
+        return context.calculateEndDayValues(session, endTime, effectiveFinalMinutes);
     }
 
     /**
-     * Creates and saves a worktime entry based on session data
+     * REFACTORED: Updates worktime entry using new SessionContext adapter methods
+     * and existing SessionEntityBuilder approach
      */
     private void updateWorktimeEntry(WorkUsersSessionsStates session, SessionContext context, LocalDateTime endTime) {
         try {
-            // Get date from session entry
-            LocalDate workDate = session.getDayStartTime().toLocalDate();
-
-            // Get user schedule from context
-            Integer userSchedule = context.getUserService().getUserById(session.getUserId()).map(User::getSchedule).orElse(WorkCode.INTERVAL_HOURS_C); // Default to 8 hours if not found
-
-            // Get schedule info using the query
-            WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
-            WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
-
-            // Create worktime entry using the command
-            CreateWorktimeEntryCommand createCommand = context.getCommandFactory().createWorktimeEntryCommand(username, session, username);
-
-            // Execute the command to get a properly created worktime entry
-            WorkTimeTable entry = context.executeCommand(createCommand);
-
-            // Set the end time on the entry
-            entry.setDayEndTime(endTime);
-            entry.setAdminSync(SyncStatusMerge.USER_INPUT);
-
-            // Calculate overtime using schedule info if needed
-            if (scheduleInfo != null && session.getTotalWorkedMinutes() != null) {
-                int overtimeMinutes = scheduleInfo.calculateOvertimeMinutes(session.getTotalWorkedMinutes());
-                if (overtimeMinutes > 0 && (entry.getTotalOvertimeMinutes() == null || entry.getTotalOvertimeMinutes() == 0)) {
-                    entry.setTotalOvertimeMinutes(overtimeMinutes);
-                    info(String.format("Updated overtime minutes for user %s: %d minutes", username, overtimeMinutes));
-                }
+            if (session.getDayStartTime() == null) {
+                warn("Cannot update worktime entry: session has no start time");
+                return;
             }
 
-            // Save the worktime entry
-            context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
+            LocalDate workDate = session.getDayStartTime().toLocalDate();
+            debug(String.format("Updating worktime entry for date: %s", workDate));
 
-            info(String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d", username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
+            // REFACTORED: Find existing entry using new adapter method
+            WorkTimeTable entry = context.findSessionEntry(username, userId, workDate);
+
+            if (entry == null) {
+                // REFACTORED: Create new entry using existing SessionEntityBuilder
+                entry = context.createWorktimeEntryFromSession(session);
+                info("Created new worktime entry from session");
+            } else {
+                // REFACTORED: Update existing entry using new adapter method
+                entry = context.updateEntryFromSession(entry, session);
+                info("Updated existing worktime entry from session");
+            }
+
+            // Set final end time and status
+            entry.setDayEndTime(endTime);
+            entry.setAdminSync(SyncStatusMerge.USER_INPUT); // Final state, not in-process
+
+            // Calculate overtime using schedule info if needed
+            try {
+                Integer userSchedule = context.getUserService().getUserById(session.getUserId())
+                        .map(User::getSchedule)
+                        .orElse(WorkCode.INTERVAL_HOURS_C);
+
+                WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
+                WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
+
+                if (scheduleInfo != null && session.getTotalWorkedMinutes() != null) {
+                    int overtimeMinutes = scheduleInfo.calculateOvertimeMinutes(session.getTotalWorkedMinutes());
+                    if (overtimeMinutes > 0 && (entry.getTotalOvertimeMinutes() == null || entry.getTotalOvertimeMinutes() == 0)) {
+                        entry.setTotalOvertimeMinutes(overtimeMinutes);
+                        info(String.format("Updated overtime minutes for user %s: %d minutes", username, overtimeMinutes));
+                    }
+                }
+            } catch (Exception e) {
+                warn(String.format("Error calculating overtime: %s", e.getMessage()));
+            }
+
+            // REFACTORED: Save worktime entry using new adapter method
+            context.saveSessionWorktime(username, entry, workDate.getYear(), workDate.getMonthValue());
+
+            info(String.format("Updated worktime entry for user %s - Total minutes: %d, Overtime: %d",
+                    username, entry.getTotalWorkedMinutes(), entry.getTotalOvertimeMinutes()));
+
         } catch (Exception e) {
             error(String.format("Failed to update worktime entry for user %s: %s", username, e.getMessage()), e);
         }

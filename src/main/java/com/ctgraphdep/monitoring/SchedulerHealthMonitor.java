@@ -1,6 +1,6 @@
 package com.ctgraphdep.monitoring;
 
-import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 @Component
 public class SchedulerHealthMonitor {
 
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
 
     @Value("${app.session.monitoring.interval:30}")
     private int expectedMonitoringInterval;
@@ -30,8 +30,8 @@ public class SchedulerHealthMonitor {
     private final Map<String, TaskStatus> monitoredTasks = new ConcurrentHashMap<>();
     private final Map<String, Consumer<TaskStatus>> recoveryActions = new ConcurrentHashMap<>();
 
-    public SchedulerHealthMonitor(UserContextService userContextService) {
-        this.userContextService = userContextService;
+    public SchedulerHealthMonitor(MainDefaultUserContextService mainDefaultUserContextService) {
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
     }
 
     /**
@@ -174,12 +174,12 @@ public class SchedulerHealthMonitor {
     }
     @Scheduled(fixedRate = 300000) // 5 minutes
     public void checkUserContextHealth() {
-        boolean healthy = userContextService.isCacheHealthy();
+        boolean healthy = mainDefaultUserContextService.isCacheHealthy();
         if (!healthy) {
-            LoggerUtil.error(this.getClass(), "UserContextCache is unhealthy - attempting emergency refresh");
+            LoggerUtil.error(this.getClass(), "MainDefaultUserContextCache is unhealthy - attempting emergency refresh");
 
             // Try emergency refresh
-            boolean refreshed = userContextService.forceRefresh();
+            boolean refreshed = mainDefaultUserContextService.forceRefresh();
             if (refreshed) {
                 LoggerUtil.info(this.getClass(), "Emergency refresh successful");
             } else {

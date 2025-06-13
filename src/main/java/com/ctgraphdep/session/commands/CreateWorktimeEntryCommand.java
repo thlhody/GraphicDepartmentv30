@@ -3,28 +3,21 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.session.util.SessionEntityBuilder;
-
-import java.time.LocalDate;
 
 /**
- * Command to create a worktime entry from a session
+ * REFACTORED CreateWorktimeEntryCommand - Now much simpler!
+ * Just delegates to existing SessionEntityBuilder.createWorktimeEntryFromSession()
  */
+@Deprecated
 public class CreateWorktimeEntryCommand extends BaseSessionCommand<WorkTimeTable> {
     private final String username;
     private final WorkUsersSessionsStates session;
 
-    /**
-     * Creates a command to create a worktime entry from a session
-     *
-     * @param username The username for the worktime entry
-     * @param session The session to create the entry from
-     * @param operatingUsername The username of the user performing the operation
-     */
-    public CreateWorktimeEntryCommand(String username, WorkUsersSessionsStates session, String operatingUsername) {
+    public CreateWorktimeEntryCommand(String username, WorkUsersSessionsStates session) {
         validateUsername(username);
         validateCondition(session != null, "Session cannot be null");
-        validateUsername(operatingUsername);
+        assert session != null;
+        validateCondition(session.getDayStartTime() != null, "Session must have start time");
 
         this.username = username;
         this.session = session;
@@ -32,25 +25,22 @@ public class CreateWorktimeEntryCommand extends BaseSessionCommand<WorkTimeTable
 
     @Override
     public WorkTimeTable execute(SessionContext context) {
-        return executeWithErrorHandling(context, ctx -> {
-            // Validate that session has start time
-            if (session.getDayStartTime() == null) {
-                logAndThrow("Cannot create worktime entry: session has no start time");
-            }
+        return executeWithDefault(context, ctx -> {
+            info(String.format("Creating worktime entry from session for user %s", username));
 
-            // Use session date
-            LocalDate sessionDate = session.getDayStartTime().toLocalDate();
-            debug(String.format("Creating worktime entry for date: %s", sessionDate));
+            // REFACTORED: Simply delegate to existing SessionEntityBuilder method
+            // All the logic for creating worktime entry from session is already there!
+            WorkTimeTable entry = ctx.createWorktimeEntryFromSession(session);
 
-            // Use createWorktimeEntryFromSession
-            WorkTimeTable entry = SessionEntityBuilder.createWorktimeEntryFromSession(session);
+            debug(String.format("Created worktime entry: date=%s, start=%s, totalMinutes=%d, tempStops=%d",
+                    entry.getWorkDate(),
+                    entry.getDayStartTime() != null ? entry.getDayStartTime().toLocalTime() : "null",
+                    entry.getTotalWorkedMinutes(),
+                    entry.getTemporaryStopCount()));
 
-            // Save the entry using session date
-//            ctx.getWorktimeManagementService().saveWorkTimeEntry(username, entry, sessionDate.getYear(), sessionDate.getMonthValue(), operatingUsername);
-
-            info(String.format("Created worktime entry for user %s for date %s", username, sessionDate));
-
+            info(String.format("Successfully created worktime entry for user %s", username));
             return entry;
-        });
+
+        }, null);
     }
 }

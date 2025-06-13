@@ -11,7 +11,6 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * Command to resume work after a temporary stop
@@ -150,7 +149,8 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
     }
 
     /**
-     * Updates the worktime entry based on the session information
+     * REFACTORED: Updates the worktime entry based on the session information
+     * Now uses SessionContext adapter methods instead of deprecated WorktimeManagementService
      */
     private void updateWorktimeEntryFromSession(WorkUsersSessionsStates session, SessionContext context) {
         try {
@@ -162,29 +162,29 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
             LocalDate workDate = session.getDayStartTime().toLocalDate();
             debug(String.format("Updating worktime entry for date: %s", workDate));
 
-            // Find existing worktime entries for the month
-            List<WorkTimeTable> entries = context.getWorktimeManagementService().loadUserEntries(username, workDate.getYear(), workDate.getMonthValue(), username);
-
-            // Find the entry for today's date
-            WorkTimeTable entry = entries.stream().filter(e -> e.getWorkDate().equals(workDate)).findFirst().orElse(null);
+            // REFACTORED: Find existing entry using new SessionContext adapter method
+            WorkTimeTable entry = context.findSessionEntry(username, userId, workDate);
 
             if (entry == null) {
                 warn(String.format("No worktime entry found for user %s on %s, cannot update", username, workDate));
                 return;
             }
 
-            // Update the entry with values from the session
-            debug("Updating worktime entry with session values");
+            // REFACTORED: Update entry using new adapter method, then customize for resume-specific fields
+            entry = context.updateEntryFromSession(entry, session);
+
+            // Resume-specific customizations (these are important for resuming temporary stops)
+            debug("Updating worktime entry with resumed temporary stop information");
             entry.setTemporaryStopCount(session.getTemporaryStopCount());
             entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
-            // Important for resuming: update the total temporary stop minutes from the session
-            entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+            entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes()); // Critical for resume
             entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS);
 
-            // Save the updated entry
-            context.getWorktimeManagementService().saveWorkTimeEntry(username, entry, workDate.getYear(), workDate.getMonthValue(), username);
+            // REFACTORED: Save using new SessionContext adapter method
+            context.saveSessionWorktime(username, entry, workDate.getYear(), workDate.getMonthValue());
 
             info(String.format("Updated worktime entry for user %s with resumed temporary stop information", username));
+
         } catch (Exception e) {
             error(String.format("Failed to update worktime entry after resuming for user %s: %s", username, e.getMessage()), e);
         }

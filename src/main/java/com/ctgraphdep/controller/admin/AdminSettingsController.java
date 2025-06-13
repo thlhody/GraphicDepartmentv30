@@ -5,11 +5,11 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
 import com.ctgraphdep.service.UserManagementService;
-import com.ctgraphdep.service.HolidayManagementService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.worktime.service.WorktimeOperationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,14 +28,14 @@ import java.util.List;
 public class AdminSettingsController extends BaseController {
 
     private final UserManagementService userManagementService;
-    private final HolidayManagementService holidayManagementService;
+    private final WorktimeOperationService worktimeOperationService;
 
     @Autowired
     public AdminSettingsController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService,
-            UserManagementService userManagementService, HolidayManagementService holidayManagementService) {
+            UserManagementService userManagementService, WorktimeOperationService worktimeOperationService) {
         super(userService, folderStatus, timeValidationService);
         this.userManagementService = userManagementService;
-        this.holidayManagementService = holidayManagementService;
+        this.worktimeOperationService = worktimeOperationService;
     }
 
     @GetMapping
@@ -50,7 +50,7 @@ public class AdminSettingsController extends BaseController {
         LoggerUtil.info(this.getClass(), "Accessing admin settings at " + getStandardCurrentDateTime());
 
         List<User> users = userManagementService.getNonAdminUsers();
-        List<PaidHolidayEntryDTO> holidayEntries = holidayManagementService.loadHolidayList();
+        List<PaidHolidayEntryDTO> holidayEntries = createHolidayEntriesFromUsers(users);
 
         model.addAttribute("users", users);
         model.addAttribute("holidayEntries", holidayEntries);
@@ -168,5 +168,28 @@ public class AdminSettingsController extends BaseController {
         }
 
         return "redirect:/admin/settings";
+    }
+
+    private List<PaidHolidayEntryDTO> createHolidayEntriesFromUsers(List<User> users) {
+        return users.stream()
+                .map(user -> {
+                    try {
+                        // Get holiday balance using the new command approach
+                        Integer holidayBalance = worktimeOperationService.getHolidayBalance(user.getUsername());
+
+                        PaidHolidayEntryDTO entry = PaidHolidayEntryDTO.fromUser(user);
+                        entry.setPaidHolidayDays(holidayBalance != null ? holidayBalance : 0);
+                        return entry;
+                    } catch (Exception e) {
+                        LoggerUtil.warn(this.getClass(), String.format(
+                                "Error getting holiday balance for user %s: %s", user.getUsername(), e.getMessage()));
+
+                        // Return entry with 0 balance on error
+                        PaidHolidayEntryDTO entry = PaidHolidayEntryDTO.fromUser(user);
+                        entry.setPaidHolidayDays(0);
+                        return entry;
+                    }
+                })
+                .collect(java.util.stream.Collectors.toList());
     }
 }

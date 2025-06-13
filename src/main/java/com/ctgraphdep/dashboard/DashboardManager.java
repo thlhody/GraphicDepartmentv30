@@ -49,8 +49,7 @@ public class DashboardManager {
                         createStatusCard(SecurityConstants.ROLE_ADMIN),  // Using admin view for status
                         createSessionCard(),
                         createRegisterCard(),
-                        createWorktimeCard(),
-                        createTimeOffCard(),
+                        createWorkTimeManagementCard(),
                         createTeamStatisticsCard(),
                         createOMSSystemCard(),
                         createSettingsCard(SecurityConstants.ROLE_USER)
@@ -73,8 +72,7 @@ public class DashboardManager {
                         createRegisterCard(),
                         createUserCheckRegisterCard(),
                         createTeamCheckRegisterCard(),
-                        createWorktimeCard(),
-                        createTimeOffCard(),
+                        createWorkTimeManagementCard(),
                         createCheckValuesCard(),
                         createTeamStatisticsCard(),
                         createOMSSystemCard(),
@@ -96,8 +94,7 @@ public class DashboardManager {
                         createStatusCard(SecurityConstants.ROLE_USER),
                         createSessionCard(),
                         createRegisterCard(),
-                        createWorktimeCard(),
-                        createTimeOffCard(),
+                        createWorkTimeManagementCard(),
                         createUserCheckRegisterCard(),
                         createSettingsCard(SecurityConstants.ROLE_USER),
                         createOMSSystemCard()
@@ -118,8 +115,7 @@ public class DashboardManager {
                         createStatusCard(SecurityConstants.ROLE_USER),
                         createSessionCard(),
                         createUserCheckRegisterCard(),
-                        createWorktimeCard(),
-                        createTimeOffCard(),
+                        createWorkTimeManagementCard(),
                         createSettingsCard(SecurityConstants.ROLE_USER),
                         createOMSSystemCard()
                 ))
@@ -139,8 +135,7 @@ public class DashboardManager {
                         createStatusCard(SecurityConstants.ROLE_USER),
                         createSessionCard(),
                         createRegisterCard(),
-                        createWorktimeCard(),
-                        createTimeOffCard(),
+                        createWorkTimeManagementCard(),
                         createOMSSystemCard(),
                         createSettingsCard(SecurityConstants.ROLE_USER)
                 ))
@@ -235,27 +230,13 @@ public class DashboardManager {
                 .permission(PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER)
                 .build();
     }
-    private DashboardCardDTO createWorktimeCard() {
-        return DashboardCardDTO.builder()
-                .title("Work Hours")
-                .subtitle("View your hours")
-                .color("warning")
-                .icon("clock-fill")
-                .badge("View")
-                .badgeColor("warning")
-                .actionText("View Hours")
-                .actionUrl("/user/worktime")
-                .external(false)
-                .permission(PermissionFilterService.PERMISSION_VIEW_WORKTIME_USER)
-                .build();
-    }
-    private DashboardCardDTO createTimeOffCard() {
+    private DashboardCardDTO createWorkTimeManagementCard() {
         return DashboardCardDTO.builder()
                 .title("Work Time Management")
                 .subtitle("Manage Time")
                 .color("info")
                 .icon("calendar-fill")
-                .badge("Request")
+                .badge("Request/View")
                 .badgeColor("info")
                 .actionText("Edit Work Time")
                 .actionUrl("/user/time-management")

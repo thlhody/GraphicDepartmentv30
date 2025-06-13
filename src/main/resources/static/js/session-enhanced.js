@@ -1,6 +1,6 @@
 /**
  * Enhanced Session Management UI
- * Provides interactive features for the work session page
+ * Provides interactive features for the work session page with toast notifications
  */
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize tooltips
@@ -17,7 +17,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize end time checker
     initEndTimeChecker();
-    console.log("End time checker initialized");
+
+    // Handle URL parameters and flash messages with toast notifications
+    initToastNotifications();
+
+    console.log("Session page initialized with toast notifications");
 });
 
 /**
@@ -71,6 +75,55 @@ function checkFormSubmission() {
                 container.style.display = 'none';
             }
         }
+    }
+}
+
+/**
+ * Initialize toast notifications based on URL parameters and flash messages
+ */
+function initToastNotifications() {
+    // Get session page data from the script tag
+    const sessionDataElement = document.getElementById('sessionPageData');
+    if (!sessionDataElement) return;
+
+    try {
+        const sessionData = JSON.parse(sessionDataElement.textContent);
+
+        // Handle URL action parameters
+        if (sessionData.urlParams && sessionData.urlParams.action) {
+            const action = sessionData.urlParams.action;
+
+            switch (action) {
+                case 'start':
+                    window.showToast('Session Started', 'Work session started successfully', 'success');
+                    break;
+                case 'end':
+                    window.showToast('Session Ended', 'Work session ended and recorded', 'info');
+                    break;
+                case 'pause':
+                    window.showToast('Session Paused', 'Session paused - break time is being tracked', 'warning');
+                    break;
+                case 'resume':
+                    window.showToast('Session Resumed', 'Session resumed - back to work!', 'success');
+                    break;
+            }
+        }
+
+        // Handle flash messages
+        if (sessionData.flashMessages) {
+            if (sessionData.flashMessages.success) {
+                window.showToast('Success', sessionData.flashMessages.success, 'success');
+            }
+            if (sessionData.flashMessages.error) {
+                window.showToast('Error', sessionData.flashMessages.error, 'error');
+            }
+            if (sessionData.flashMessages.warning) {
+                window.showToast('Warning', sessionData.flashMessages.warning, 'warning');
+            }
+        }
+
+    } catch (error) {
+        console.error('Error parsing session page data:', error);
     }
 }
 
@@ -161,14 +214,14 @@ function initEndTimeScheduler() {
                         messageText += ' (Schedule end: ' + data.expectedEndTime + ')';
                     }
 
-                    showTemporaryAlert('info', messageText, 3000);
+                    window.showToast('Recommended Time', messageText, 'info');
                 } else {
-                    showTemporaryAlert('warning', data.message || 'Could not get recommended time', 3000);
+                    window.showToast('Warning', data.message || 'Could not get recommended time', 'warning');
                 }
             })
                 .catch(error => {
                 console.error('Error fetching recommended end time:', error);
-                showTemporaryAlert('danger', 'Error fetching recommended end time', 3000);
+                window.showToast('Error', 'Error fetching recommended end time', 'error');
             });
         });
     }
@@ -331,59 +384,6 @@ function initEndTimeChecker() {
         }, 3000);
     }, timeUntilEnd + 500); // Add 500ms to ensure we're past the time
 }
-
-/**
- * Creates and displays a temporary alert message
- * @param {string} type - The alert type (success, danger, warning, info)
- * @param {string} message - The message to display
- * @param {number} duration - How long to show the alert in milliseconds
- * @returns {HTMLElement} - The created alert element
- */
-window.showTemporaryAlert = function(type, message, duration = 5000) {
-    const alertContainer = document.createElement('div');
-    alertContainer.className = `alert alert-${type} alert-dismissible fade show d-flex align-items-center`;
-    alertContainer.role = 'alert';
-
-    const icon = type === 'success' ? 'bi-check-circle-fill' :
-    type === 'danger' ? 'bi-exclamation-circle-fill' :
-    type === 'warning' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill';
-
-    alertContainer.innerHTML = `
-        <div class="d-flex w-100">
-            <div class="alert-icon me-3">
-                <i class="bi ${icon}"></i>
-            </div>
-            <div class="alert-content flex-grow-1">
-                <div class="alert-text">${message}</div>
-            </div>
-            <button type="button" class="btn-close ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    `;
-
-    // Insert at the top of the container
-    const container = document.querySelector('.container.py-4');
-    if (container) {
-        container.insertBefore(alertContainer, container.firstChild);
-    } else {
-        // Fallback if container not found
-        document.body.appendChild(alertContainer);
-    }
-
-    // Auto-remove after duration
-    if (duration > 0) {
-        setTimeout(() => {
-            if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
-                const alert = bootstrap.Alert.getOrCreateInstance(alertContainer);
-                alert.close();
-            } else {
-                // Fallback if bootstrap not available
-                alertContainer.remove();
-            }
-        }, duration);
-    }
-
-    return alertContainer;
-};
 
 /**
  * Helper function to format minutes as HH:MM

@@ -10,72 +10,17 @@
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
-        <!-- Status Messages -->
-        <div th:if="${param.action}" class="alert alert-dismissible fade show mb-4"
-             th:classappend="${
-                param.action[0] == 'start' ? 'alert-success' :
-                param.action[0] == 'end' ? 'alert-info' :
-                param.action[0] == 'pause' ? 'alert-warning' :
-                param.action[0] == 'resume' ? 'alert-success' : ''}"
-             role="alert">
-            <div class="d-flex w-100 align-items-center">
-                <div class="alert-icon me-3">
-                    <i class="bi" th:classappend="${
-                       param.action[0] == 'start' ? 'bi-play-circle-fill' :
-                       param.action[0] == 'end' ? 'bi-stop-circle-fill' :
-                       param.action[0] == 'pause' ? 'bi-pause-circle-fill' :
-                       param.action[0] == 'resume' ? 'bi-arrow-clockwise' : ''}"></i>
-                </div>
-                <div class="alert-content flex-grow-1">
-                    <span th:text="${
-                        param.action[0] == 'start' ? 'Work session started successfully' :
-                        param.action[0] == 'end' ? 'Work session ended and recorded' :
-                        param.action[0] == 'pause' ? 'Session paused - break time is being tracked' :
-                        param.action[0] == 'resume' ? 'Session resumed - back to work!' : ''}">
-                    </span>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        </div>
-
-        <!-- Success/Error messages -->
-        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show mb-4" role="alert">
-            <div class="d-flex w-100">
-                <div class="alert-icon me-3">
-                    <i class="bi bi-check-circle-fill"></i>
-                </div>
-                <div class="alert-content flex-grow-1">
-                    <div class="alert-heading h6 mb-0">Success</div>
-                    <div class="alert-text" th:text="${successMessage}"></div>
-                </div>
-                <button type="button" class="btn-close ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        </div>
-
-        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-            <div class="d-flex w-100">
-                <div class="alert-icon me-3">
-                    <i class="bi bi-exclamation-circle-fill"></i>
-                </div>
-                <div class="alert-content flex-grow-1">
-                    <div class="alert-heading h6 mb-0">Error</div>
-                    <div class="alert-text" th:text="${errorMessage}"></div>
-                </div>
-                <button type="button" class="btn-close ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        </div>
-
-        <!-- Unresolved Entries Alert -->
+        <!-- Unresolved Entries Persistent Notification - Styled as prominent banner -->
         <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}"
-             class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+             class="alert alert-warning alert-dismissible fade show mb-4 border-warning border-2" role="alert">
             <div class="d-flex">
                 <div class="alert-icon me-3">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <i class="bi bi-exclamation-triangle-fill fs-4"></i>
                 </div>
                 <div class="flex-grow-1">
-                    <div class="alert-heading h6 mb-0">Action Required</div>
+                    <div class="alert-heading h5 mb-1 text-warning-emphasis">Action Required</div>
                     <div class="alert-text">You have unresolved work sessions that need your attention.
-                        <a href="#workTimeResolutionContainer" class="alert-link js-scroll-to-resolution">Resolve them
+                        <a href="#workTimeResolutionContainer" class="alert-link fw-bold js-scroll-to-resolution">Resolve them
                             now</a> to ensure your hours are tracked correctly.
                     </div>
                 </div>
@@ -291,7 +236,7 @@
 
         <!-- Worktime Resolution Container - Enhanced with better UX -->
         <div class="resolution-container mb-4" th:if="${hasUnresolvedEntries}" id="workTimeResolutionContainer">
-            <div class="card border-warning">
+            <div class="card border-warning border-2 shadow">
                 <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -333,8 +278,6 @@
                                         <span th:text="${entry.formattedBreakTime}">00:30</span>
                                     </div>
 
-
-                                    <!-- Change this line in the template (around line 340) -->
                                     <div class="info-item recommendation">
                                         <strong><i class="bi bi-lightbulb-fill text-info me-1"></i>Recommended end:</strong>
                                         <span th:text="${entry.formattedRecommendedEndTime}">17:00</span>
@@ -435,16 +378,31 @@
         </div>
     </div>
 
+    <!-- Hidden data for JavaScript to access server-side variables -->
+    <script type="application/json" id="sessionPageData">
+        {
+            "urlParams": {
+                "action": "[[${param.action != null && param.action.length > 0 ? param.action[0] : ''}]]",
+                "showResumeConfirmation": "[[${param.showResumeConfirmation != null ? param.showResumeConfirmation[0] : 'false'}]]"
+            },
+            "flashMessages": {
+                "success": "[[${successMessage ?: ''}]]",
+                "error": "[[${errorMessage ?: ''}]]",
+                "warning": "[[${warningMessage ?: ''}]]"
+            }
+        }
+    </script>
+
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
         <!-- Resume confirmation script -->
-        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18782}"></script>
+        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18783}"></script>
 
         <!-- Main script for resolution handling and clock -->
-        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=18782}"></script>
+        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=187911}" defer></script>
 
         <!-- Always load the session enhancement script -->
-        <script th:src="@{/js/session-enhanced.js?v=187909}"></script>
+        <script th:src="@{/js/session-enhanced.js?v=187911}" defer></script>
     </th:block>
 </div>
 </body>

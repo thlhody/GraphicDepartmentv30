@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Command to resolve an unfinished work time entry
+ * REFACTORED ResolveWorkTimeEntryCommand using new SessionContext adapter methods
  */
 public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
     private final String username;
@@ -20,14 +20,6 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
     private final LocalDate entryDate;
     private final LocalDateTime explicitEndTime;
 
-    /**
-     * Creates a command to resolve a work time entry
-     *
-     * @param username The username
-     * @param userId The user ID
-     * @param entryDate The date of the entry to resolve
-     * @param endTime The explicit end time to use (optional)
-     */
     public ResolveWorkTimeEntryCommand(String username, Integer userId, LocalDate entryDate, LocalDateTime endTime) {
         validateUsername(username);
         validateUserId(userId);
@@ -52,11 +44,10 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
             debug(String.format("Using end time: %s", endTime));
 
-            // Load entries for the month of the entry date
+            // REFACTORED: Load entries using new SessionContext adapter method
             int year = entryDate.getYear();
             int month = entryDate.getMonthValue();
-
-            List<WorkTimeTable> entries = ctx.getWorktimeManagementService().loadUserEntries(username, year, month, username);
+            List<WorkTimeTable> entries = ctx.loadSessionWorktime(username, year, month);
 
             // Find the unresolved entry for this date
             WorkTimeTable entry = entries.stream()
@@ -93,10 +84,11 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
             // Update entry with all calculated values
             updateWorkTimeEntry(entry, endTime, rawMinutes, result);
 
-            // Use existing WorkTimeService method to save the entry and handle network sync
-            ctx.getWorktimeManagementService().saveWorkTimeEntry(username, entry, year, month, username);
+            // REFACTORED: Save entry using new SessionContext adapter method
+            ctx.saveSessionWorktime(username, entry, year, month);
 
-            info(String.format("Successfully resolved work entry for %s on %s. Raw minutes: %d, Overtime: %d", username, entryDate, rawMinutes, result.getOvertimeMinutes()));
+            info(String.format("Successfully resolved work entry for %s on %s. Raw minutes: %d, Overtime: %d",
+                    username, entryDate, rawMinutes, result.getOvertimeMinutes()));
 
             return true;
         }, false);
@@ -110,7 +102,7 @@ public class ResolveWorkTimeEntryCommand extends BaseSessionCommand<Boolean> {
         entry.setTotalWorkedMinutes(rawMinutes);
         entry.setTotalOvertimeMinutes(result.getOvertimeMinutes());
         entry.setLunchBreakDeducted(result.isLunchDeducted());
-        entry.setAdminSync(SyncStatusMerge.USER_INPUT);
+        entry.setAdminSync(SyncStatusMerge.USER_INPUT); // RESOLVED - no longer in process
     }
 
     /**

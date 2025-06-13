@@ -3,12 +3,20 @@ package com.ctgraphdep.controller.user;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.TimeManagementService;
+import com.ctgraphdep.model.WorkTimeTable;
+import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
+import com.ctgraphdep.model.dto.worktime.WorkTimeSummaryDTO;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.cache.TimeOffCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.utils.UserWorktimeExcelExporter;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.worktime.service.WorktimeOperationService;
+import com.ctgraphdep.worktime.model.OperationResult;
+import com.ctgraphdep.worktime.display.WorktimeDisplayService;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,31 +28,39 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * ENHANCED Unified Time Management Controller - Integrated with comprehensive TimeManagementService
- * Handles both page display and AJAX field updates with full transformation support
+ * REFACTORED Unified Time Management Controller using the new Command System.
+ * Key Changes:
+ * - Replaced TimeManagementService with WorktimeOperationService
+ * - Simplified field update logic using commands
+ * - Uses OperationResult for standardized error handling
+ * - Removed complex transformation logic (handled by commands)
+ * - Better separation of concerns
  */
 @Controller
 @RequestMapping("/user/time-management")
 @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
 public class UserTimeManagementController extends BaseController {
 
-    private final TimeManagementService timeManagementService;
-    private final TimeOffCacheService timeOffCacheService;
+    private final WorktimeOperationService worktimeOperationService;
+    private final WorktimeDisplayService worktimeDisplayService;
+    private final UserWorktimeExcelExporter userWorktimeExcelExporter;
 
     public UserTimeManagementController(
             UserService userService,
             FolderStatus folderStatus,
             TimeValidationService validationService,
-            TimeManagementService timeManagementService,
-            TimeOffCacheService timeOffCacheService) {
+            WorktimeOperationService worktimeOperationService,
+            WorktimeDisplayService worktimeDisplayService, UserWorktimeExcelExporter userWorktimeExcelExporter) {
         super(userService, folderStatus, validationService);
-        this.timeManagementService = timeManagementService;
-        this.timeOffCacheService = timeOffCacheService;
+        this.worktimeOperationService = worktimeOperationService;
+        this.worktimeDisplayService = worktimeDisplayService;
+        this.userWorktimeExcelExporter = userWorktimeExcelExporter;
     }
 
     // ========================================================================
@@ -52,7 +68,7 @@ public class UserTimeManagementController extends BaseController {
     // ========================================================================
 
     /**
-     * Display unified time management page
+     * REFACTORED: Display unified time management page using command system
      */
     @GetMapping
     public String getTimeManagementPage(
@@ -88,17 +104,15 @@ public class UserTimeManagementController extends BaseController {
                 return "redirect:/user/time-management?year=" + currentDate.getYear() + "&month=" + currentDate.getMonthValue();
             }
 
-            // Load combined page data using enhanced service
-            TimeManagementService.TimeManagementPageData pageData = timeManagementService.loadPageData(
-                    currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+            // REFACTORED: Load combined page data using new command system
+            Map<String, Object> combinedData = worktimeDisplayService.prepareCombinedDisplayData(
+                    currentUser, selectedYear, selectedMonth);
 
             // Add all data to model
+            model.addAllAttributes(combinedData);
             model.addAttribute("user", sanitizeUserData(currentUser));
             model.addAttribute("currentYear", selectedYear);
             model.addAttribute("currentMonth", selectedMonth);
-            model.addAttribute("worktimeData", pageData.getWorktimeData());
-            model.addAttribute("summary", pageData.getWorkTimeSummary());
-            model.addAttribute("timeOffSummary", pageData.getTimeOffSummary());
 
             // Add date constraints for time off requests
             LocalDate today = getStandardCurrentDate();
@@ -111,8 +125,8 @@ public class UserTimeManagementController extends BaseController {
                     java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully loaded time management page for %s - %d/%d with %d worktime entries",
-                    currentUser.getUsername(), selectedYear, selectedMonth, pageData.getWorktimeData().size()));
+                    "Successfully loaded time management page for %s - %d/%d",
+                    currentUser.getUsername(), selectedYear, selectedMonth));
 
             return "user/time-management";
 
@@ -124,11 +138,11 @@ public class UserTimeManagementController extends BaseController {
     }
 
     // ========================================================================
-    // ENHANCED AJAX FIELD UPDATE ENDPOINTS
+    // REFACTORED AJAX FIELD UPDATE ENDPOINTS
     // ========================================================================
 
     /**
-     * ENHANCED: Update individual field with comprehensive transformation logic
+     * REFACTORED: Simplified field update using command system
      */
     @PostMapping("/update-field")
     @ResponseBody
@@ -142,7 +156,7 @@ public class UserTimeManagementController extends BaseController {
 
         try {
             LoggerUtil.info(this.getClass(), String.format(
-                    "Enhanced field update request: date=%s, field=%s, value=%s", date, field, value));
+                    "Field update request: date=%s, field=%s, value=%s", date, field, value));
 
             // Get current user
             User currentUser = getUser(userDetails);
@@ -164,9 +178,8 @@ public class UserTimeManagementController extends BaseController {
                 return createErrorResponse(validationError, HttpStatus.BAD_REQUEST);
             }
 
-            // Use enhanced service for comprehensive field update
-            TimeManagementService.FieldUpdateResult result = timeManagementService.updateField(
-                    currentUser.getUsername(), currentUser.getUserId(), workDate, field, value);
+            // REFACTORED: Use command system for field updates
+            OperationResult result = executeFieldUpdate(currentUser, workDate, field, value);
 
             if (result.isSuccess()) {
                 // Successful update
@@ -176,8 +189,12 @@ public class UserTimeManagementController extends BaseController {
                 response.put("date", date);
                 response.put("value", value);
 
-                // Add transformation details for frontend handling
-                response.put("transformation", determineTransformationType(field, value));
+                // Add side effects information for frontend
+                if (result.hasSideEffects()) {
+                    Map<String, Object> sideEffects = getStringObjectMap(result);
+
+                    response.put("sideEffects", sideEffects);
+                }
 
                 LoggerUtil.info(this.getClass(), String.format(
                         "Successfully updated %s for %s on %s: %s",
@@ -185,7 +202,7 @@ public class UserTimeManagementController extends BaseController {
 
                 return ResponseEntity.ok(response);
             } else {
-                // Failed update with detailed error from service
+                // Failed update with detailed error from command system
                 return createErrorResponse(result.getMessage(), HttpStatus.BAD_REQUEST);
             }
 
@@ -196,8 +213,23 @@ public class UserTimeManagementController extends BaseController {
         }
     }
 
+    private static @NotNull Map<String, Object> getStringObjectMap(OperationResult result) {
+        Map<String, Object> sideEffects = new HashMap<>();
+
+        if (result.getSideEffects().isHolidayBalanceChanged()) {
+            sideEffects.put("holidayBalanceChanged", true);
+            sideEffects.put("oldBalance", result.getSideEffects().getOldHolidayBalance());
+            sideEffects.put("newBalance", result.getSideEffects().getNewHolidayBalance());
+        }
+
+        if (result.getSideEffects().isCacheInvalidated()) {
+            sideEffects.put("cacheInvalidated", true);
+        }
+        return sideEffects;
+    }
+
     /**
-     * ENHANCED: Check if field can be edited with improved validation
+     * REFACTORED: Check edit permissions using command system
      */
     @GetMapping("/can-edit")
     @ResponseBody
@@ -223,13 +255,11 @@ public class UserTimeManagementController extends BaseController {
                 return createErrorResponse("Invalid date format: " + date, HttpStatus.BAD_REQUEST);
             }
 
-            // Check edit permissions using enhanced service
-            TimeManagementService.FieldEditValidationResult validation = timeManagementService.canEditField(
+            // REFACTORED: Use command system for edit validation
+            boolean canEdit = worktimeOperationService.canUserEditField(
                     currentUser.getUsername(), currentUser.getUserId(), workDate, field);
 
-            response.put("canEdit", validation.isCanEdit());
-            response.put("reason", validation.getReason());
-            response.put("currentStatus", validation.getCurrentStatus());
+            response.put("canEdit", canEdit);
             response.put("field", field);
             response.put("date", date);
 
@@ -237,6 +267,10 @@ public class UserTimeManagementController extends BaseController {
             response.put("isWeekend", workDate.getDayOfWeek().getValue() >= 6);
             response.put("isToday", workDate.equals(LocalDate.now()));
             response.put("isFuture", workDate.isAfter(LocalDate.now()));
+
+            if (!canEdit) {
+                response.put("reason", "Field cannot be edited for this date");
+            }
 
             return ResponseEntity.ok(response);
 
@@ -248,11 +282,11 @@ public class UserTimeManagementController extends BaseController {
     }
 
     // ========================================================================
-    // TIME OFF REQUEST ENDPOINT (Enhanced with better validation)
+    // REFACTORED TIME OFF REQUEST ENDPOINT
     // ========================================================================
 
     /**
-     * ENHANCED: Process time off request with comprehensive validation
+     * REFACTORED: Process time off request using command system
      */
     @PostMapping("/timeoff-request")
     public String submitTimeOffRequest(
@@ -288,37 +322,33 @@ public class UserTimeManagementController extends BaseController {
                 return getRedirectUrl(startDate);
             }
 
-            // Pre-validate holiday balance for CO requests
-            if ("CO".equals(timeOffType)) {
-                int year = dates.get(0).getYear();
-                boolean hasBalance = validateHolidayBalanceForRequest(currentUser.getUsername(),
-                        currentUser.getUserId(), dates.size(), year);
-                if (!hasBalance) {
-                    redirectAttributes.addFlashAttribute("error",
-                            String.format("Insufficient vacation balance for %d day(s). Check your available days.",
-                                    dates.size()));
-                    return getRedirectUrl(startDate);
-                }
-            }
+            // REFACTORED: Use command system for time off requests
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Submitting time off request for %s: %d days (%s)",
+                    currentUser.getUsername(), dates.size(), timeOffType));
 
-            // Process request via cache service (uses comprehensive transformation)
-            boolean success = timeOffCacheService.addTimeOffRequest(
+            OperationResult result = worktimeOperationService.addUserTimeOff(
                     currentUser.getUsername(), currentUser.getUserId(), dates, timeOffType);
 
-            if (success) {
+            if (result.isSuccess()) {
                 String message = String.format("Successfully submitted time off request for %d day(s) (%s)",
                         dates.size(), getTimeOffTypeDisplayName(timeOffType));
+
+                // Add side effects information if holiday balance changed
+                if (result.hasSideEffects() && result.getSideEffects().isHolidayBalanceChanged()) {
+                    message += String.format(". Holiday balance: %d → %d",
+                            result.getSideEffects().getOldHolidayBalance(),
+                            result.getSideEffects().getNewHolidayBalance());
+                }
+
                 redirectAttributes.addFlashAttribute("successMessage", message);
 
                 LoggerUtil.info(this.getClass(), String.format(
-                        "Time off request processed successfully for %s: %d days",
-                        currentUser.getUsername(), dates.size()));
+                        "Time off request processed successfully: %s", result.getMessage()));
             } else {
-                redirectAttributes.addFlashAttribute("error",
-                        "Failed to submit time off request. Please check your available balance and try again.");
+                redirectAttributes.addFlashAttribute("error", result.getMessage());
                 LoggerUtil.warn(this.getClass(), String.format(
-                        "Time off request failed for %s: %d days",
-                        currentUser.getUsername(), dates.size()));
+                        "Time off request failed: %s", result.getMessage()));
             }
 
             return getRedirectUrl(startDate);
@@ -331,12 +361,89 @@ public class UserTimeManagementController extends BaseController {
         }
     }
 
+    //needs fixing
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportToExcel(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month) {
+        try {
+            LoggerUtil.info(this.getClass(), "Exporting worktime data at " + getStandardCurrentDateTime());
+
+            // Get the user - don't need to add model attributes for API endpoints
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                LoggerUtil.error(this.getClass(), "Unauthorized access attempt to export worktime data");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            // Use determineYear and determineMonth from BaseController
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
+
+            // Get worktime data using WorktimeManagementService for consistency
+            List<WorkTimeTable> worktimeData = worktimeOperationService.loadUserWorktime(
+                    currentUser.getUsername(), selectedYear, selectedMonth);
+
+            // Log the data details
+            LoggerUtil.info(this.getClass(), String.format("Exporting worktime data for %s (%d/%d). Total entries: %d",
+                    currentUser.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
+
+            // Get display data which includes the summary with DTOs
+            Map<String, Object> displayData = worktimeDisplayService.prepareWorktimeDisplayData(
+                    currentUser, worktimeData, selectedYear, selectedMonth);
+
+            // Extract DTO's for export in Excel
+            @SuppressWarnings("unchecked")
+            List<WorkTimeEntryDTO> entryDTOs = (List<WorkTimeEntryDTO>) displayData.get("worktimeData");
+            WorkTimeSummaryDTO summaryDTO = (WorkTimeSummaryDTO) displayData.get("summary");
+
+            // Pass DTOs to the updated Excel exporter
+            byte[] excelData = userWorktimeExcelExporter.exportToExcel(currentUser, entryDTOs, summaryDTO, selectedYear, selectedMonth);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
+                            currentUser.getUsername(), selectedYear, selectedMonth))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(excelData);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error exporting to Excel: " + e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+
     // ========================================================================
-    // ENHANCED VALIDATION AND HELPER METHODS
+    // REFACTORED HELPER METHODS
     // ========================================================================
 
     /**
-     * ENHANCED: Basic validation for field updates
+     * REFACTORED: Execute field update using appropriate command
+     */
+    private OperationResult executeFieldUpdate(User currentUser, LocalDate workDate, String field, String value) {
+        String username = currentUser.getUsername();
+        Integer userId = currentUser.getUserId();
+
+        return switch (field.toLowerCase()) {
+            case "starttime" -> worktimeOperationService.updateUserStartTime(username, userId, workDate, value);
+            case "endtime" -> worktimeOperationService.updateUserEndTime(username, userId, workDate, value);
+            case "timeoff" -> {
+                if (value == null || value.trim().isEmpty()) {
+                    // Remove time off
+                    yield worktimeOperationService.removeUserTimeOff(username, userId, workDate);
+                } else {
+                    // Transform to time off or add time off
+                    yield worktimeOperationService.transformWorkToTimeOff(username, userId, workDate, value.trim().toUpperCase());
+                }
+            }
+            default -> OperationResult.failure("Unknown field type: " + field, "FIELD_UPDATE");
+        };
+    }
+
+    /**
+     * Enhanced validation for field updates
      */
     private String performBasicValidation(LocalDate date, String field, String value) {
         // Enhanced date validation
@@ -385,41 +492,6 @@ public class UserTimeManagementController extends BaseController {
     }
 
     /**
-     * ENHANCED: Validate holiday balance before time off request
-     */
-    private boolean validateHolidayBalanceForRequest(String username, Integer userId, int daysRequested, int year) {
-        try {
-            var summary = timeOffCacheService.getTimeOffSummary(username, userId, year);
-            int availableBalance = summary.getAvailablePaidDays();
-
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Balance check for %s: %d requested, %d available", username, daysRequested, availableBalance));
-
-            return availableBalance >= daysRequested;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error checking holiday balance for %s: %s", username, e.getMessage()));
-            return false; // Fail safe - don't allow request if can't verify balance
-        }
-    }
-
-    /**
-     * Determine transformation type for frontend handling
-     */
-    private String determineTransformationType(String field, String value) {
-        if ("timeOff".equals(field)) {
-            if (value == null || value.trim().isEmpty()) {
-                return "TIME_OFF_CLEARED";
-            } else {
-                return "TIME_OFF_SET";
-            }
-        } else if ("startTime".equals(field) || "endTime".equals(field)) {
-            return "TIME_FIELD_UPDATE";
-        }
-        return "OTHER";
-    }
-
-    /**
      * Get redirect URL with month preservation
      */
     private String getRedirectUrl(String startDate) {
@@ -452,10 +524,10 @@ public class UserTimeManagementController extends BaseController {
 
             if (start.isAfter(end)) {
                 LoggerUtil.warn(this.getClass(), "Start date is after end date: " + startDate + " > " + endDate);
-                return new java.util.ArrayList<>();
+                return new ArrayList<>();
             }
 
-            List<LocalDate> dates = new java.util.ArrayList<>();
+            List<LocalDate> dates = new ArrayList<>();
             LocalDate current = start;
 
             while (!current.isAfter(end)) {
@@ -473,7 +545,7 @@ public class UserTimeManagementController extends BaseController {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error parsing date range: " + e.getMessage());
-            return new java.util.ArrayList<>();
+            return new ArrayList<>();
         }
     }
 

@@ -3,6 +3,7 @@ package com.ctgraphdep.session;
 import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.calculations.CalculationCommandService;
+import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.FolderStatus;
@@ -10,22 +11,25 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.notification.api.NotificationService;
-import com.ctgraphdep.security.UserContextService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.*;
-import com.ctgraphdep.session.cache.SessionCacheService;
+import com.ctgraphdep.service.cache.SessionCacheService;
+import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 public class SessionContext {
     // Core dependencies
-    private final WorktimeManagementService worktimeManagementService;
     private final UserService userService;
-    private final UserContextService userContextService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
     private final SessionStatusService sessionStatusService;
     private final SessionMonitorService sessionMonitorService;
     private final FolderStatus folderStatus;
@@ -38,7 +42,7 @@ public class SessionContext {
 
     @Autowired
     private SessionCacheService sessionCacheService;
-
+    private final WorktimeOperationContext worktimeOperationContext;
     // Calculation dependencies
     private final CalculationCommandFactory calculationFactory;
     private final CalculationContext calculationContext;
@@ -46,8 +50,7 @@ public class SessionContext {
 
     // Constructor with dependency injection
     public SessionContext(
-            WorktimeManagementService worktimeManagementService,
-            UserService userService, UserContextService userContextService,
+            UserService userService, MainDefaultUserContextService mainDefaultUserContextService,
             SessionStatusService sessionStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
             FolderStatus folderStatus,
@@ -55,11 +58,10 @@ public class SessionContext {
             TimeValidationService validationService,
             NotificationService notificationService,
             SessionService sessionService,
-            SessionDataService sessionDataService, DataAccessService dataAccessService) {
+            SessionDataService sessionDataService, DataAccessService dataAccessService, WorktimeOperationContext worktimeOperationContext) {
 
-        this.worktimeManagementService = worktimeManagementService;
         this.userService = userService;
-        this.userContextService = userContextService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.sessionStatusService = sessionStatusService;
         this.sessionMonitorService = sessionMonitorService;
         this.folderStatus = folderStatus;
@@ -69,6 +71,7 @@ public class SessionContext {
         this.sessionService = sessionService;
         this.sessionDataService = sessionDataService;
         this.dataAccessService = dataAccessService;
+        this.worktimeOperationContext = worktimeOperationContext;
 
         // Initialize calculation components
         this.calculationFactory = new CalculationCommandFactory();
@@ -102,7 +105,42 @@ public class SessionContext {
         }
     }
 
-    // Save session
+    // Session worktime adapter methods
+    public List<WorkTimeTable> loadSessionWorktime(String username, int year, int month) {
+        return worktimeOperationContext.loadUserWorktime(username, year, month);
+    }
+
+    public void saveSessionWorktime(String username, WorkTimeTable entry, int year, int month) {
+        List<WorkTimeTable> entries = loadSessionWorktime(username, year, month);
+        worktimeOperationContext.addOrReplaceEntry(entries, entry);
+        worktimeOperationContext.saveUserWorktime(username, entries, year, month);
+    }
+
+    public WorkTimeTable findSessionEntry(String username, Integer userId, LocalDate date) {
+        int year = date.getYear();
+        int month = date.getMonthValue();
+        List<WorkTimeTable> entries = loadSessionWorktime(username, year, month);
+        return worktimeOperationContext.findEntryByDate(entries, userId, date).orElse(null);
+    }
+
+    // Use existing SessionEntityBuilder method
+    public WorkTimeTable createWorktimeEntryFromSession(WorkUsersSessionsStates session) {
+        return SessionEntityBuilder.createWorktimeEntryFromSession(session);
+    }
+
+    // Helper for updating existing entries with session data
+    public WorkTimeTable updateEntryFromSession(WorkTimeTable entry, WorkUsersSessionsStates session) {
+        // Update key fields that change during session
+        entry.setDayEndTime(session.getDayEndTime());
+        entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
+        entry.setTotalOvertimeMinutes(session.getTotalOvertimeMinutes() != null ? session.getTotalOvertimeMinutes() : 0);
+        entry.setTemporaryStopCount(session.getTemporaryStopCount());
+        entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+        entry.setLunchBreakDeducted(session.getLunchBreakDeducted() != null ? session.getLunchBreakDeducted() : false);
+        entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS);
+        return entry;
+    }
+
 
     // Calculate work time using CalculationService
     public WorkTimeCalculationResultDTO calculateWorkTime(int minutes, int schedule) {
