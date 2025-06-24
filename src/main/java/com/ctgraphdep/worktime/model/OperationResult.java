@@ -118,20 +118,31 @@ public class OperationResult {
     // ========================================================================
 
     public static class OperationType {
+        // Time field updates
         public static final String UPDATE_START_TIME = "UPDATE_START_TIME";
         public static final String UPDATE_END_TIME = "UPDATE_END_TIME";
+
+        // Time off operations
         public static final String ADD_TIME_OFF = "ADD_TIME_OFF";
         public static final String REMOVE_TIME_OFF = "REMOVE_TIME_OFF";
+        public static final String TRANSFORM_TO_TIME_OFF = "TRANSFORM_TO_TIME_OFF";
+        public static final String TRANSFORM_TO_WORK = "TRANSFORM_TO_WORK";
         public static final String TRANSFORM_WORK_TO_TIME_OFF = "TRANSFORM_WORK_TO_TIME_OFF";
         public static final String TRANSFORM_TIME_OFF_TO_WORK = "TRANSFORM_TIME_OFF_TO_WORK";
+
+        // Admin operations
         public static final String ADMIN_UPDATE = "ADMIN_UPDATE";
+        public static final String ADMIN_UPDATE_SN_WORK = "ADMIN_UPDATE_SN_WORK";  // NEW: SN work time update
+        public static final String ADMIN_CONSOLIDATE = "ADMIN_CONSOLIDATE";
         public static final String ADD_NATIONAL_HOLIDAY = "ADD_NATIONAL_HOLIDAY";
+
         public static final String UPDATE_HOLIDAY_BALANCE = "UPDATE_HOLIDAY_BALANCE";
         public static final String CONSOLIDATE_WORKTIME = "CONSOLIDATE_WORKTIME";
         public static final String LOAD_USER_WORKTIME = "LOAD_USER_WORKTIME";
         public static final String INITIALIZE_TEAM_MEMBERS = "INITIALIZE_TEAM_MEMBERS";
         public static final String UPDATE_TEAM_STATISTICS = "UPDATE_TEAM_STATISTICS";
         public static final String LOAD_TEAM_MEMBERS = "LOAD_TEAM_MEMBERS";
+                
     }
 
     // ========================================================================

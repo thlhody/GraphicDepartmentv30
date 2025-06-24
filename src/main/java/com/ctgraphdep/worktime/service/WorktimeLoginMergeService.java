@@ -344,23 +344,26 @@ public class WorktimeLoginMergeService {
     // ========================================================================
 
     /**
-     * ENHANCED: Get relevant months for merge - Calendar year + transition handling.
+     * FIXED: Get focused months for merge - Current month ± range instead of ALL 12 months
+     * Current month = June → merge May, June, July, August (current + previous + next 2)
      */
     private List<YearMonth> getRelevantMonthsForMerge(int currentYear, LocalDate now) {
         List<YearMonth> months = new ArrayList<>();
+        YearMonth currentMonth = YearMonth.of(currentYear, now.getMonthValue());
 
-        // Current year: January to December
-        for (int month = 1; month <= 12; month++) {
-            months.add(YearMonth.of(currentYear, month));
-        }
+        // FOCUSED APPROACH: Current month + previous month + next 2 months
+        months.add(currentMonth.minusMonths(1)); // Previous month (May if current is June)
+        months.add(currentMonth);                // Current month (June)
+        months.add(currentMonth.plusMonths(1));  // Next month (July)
+        months.add(currentMonth.plusMonths(2));  // Next month (August)
 
-        // Year transition: add December of previous year (only once, only in January)
-        if (now.getMonthValue() == 1) { // Only when we're in January
-            months.add(YearMonth.of(currentYear - 1, 12)); // Add previous December
+        // Special handling for year transitions
+        if (now.getMonthValue() == 1) { // January - also include December of previous year
+            months.add(YearMonth.of(currentYear - 1, 12));
             LoggerUtil.info(this.getClass(), String.format("Year transition detected: added December %d to merge scope", currentYear - 1));
         }
 
-        LoggerUtil.debug(this.getClass(), String.format("Calendar year merge scope: %d months for year %d", months.size(), currentYear));
+        LoggerUtil.info(this.getClass(), String.format("Focused merge scope: %d months around %s", months.size(), currentMonth));
 
         return months;
     }

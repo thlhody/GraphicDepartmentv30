@@ -94,22 +94,51 @@ public class WorktimeOperationContext {
     // ========================================================================
 
     /**
-     * Get current authenticated username
+     * ENHANCED: Context-aware user access
+     * - Web operations: Use SecurityContext (require active login)
+     * - Background operations: Use original user (ignore admin elevation)
      */
     public String getCurrentUsername() {
-        try {
-            return SecurityContextHolder.getContext().getAuthentication().getName();
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), "Could not get current username from SecurityContext");
-            return null;
+        String threadName = Thread.currentThread().getName();
+
+        // Background threads should ALWAYS use original user (ignore elevation)
+        if (isBackgroundThread(threadName)) {
+            User originalUser = mainDefaultUserContextCache.getOriginalUser();
+            return originalUser != null ? originalUser.getUsername() : null;
         }
+
+        // Web request threads should use SecurityContext (enforce active session)
+        try {
+            String securityUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+            if (securityUsername != null) {
+                return securityUsername;
+            }
+        } catch (Exception e) {
+            LoggerUtil.debug(this.getClass(), "SecurityContext not available for web operation");
+        }
+
+        // Fallback for web threads when SecurityContext fails
+        LoggerUtil.warn(this.getClass(), "Web operation attempted without active SecurityContext");
+        return null; // Should fail gracefully for security
     }
 
-    /**
-     * Get current user
-     */
     public User getCurrentUser() {
+        String threadName = Thread.currentThread().getName();
+
+        // Background threads should ALWAYS use original user (ignore elevation)
+        if (isBackgroundThread(threadName)) {
+            return mainDefaultUserContextCache.getOriginalUser();
+        }
+
+        // Web operations can use elevated admin or original user
         return mainDefaultUserContextCache.getCurrentUser();
+    }
+
+    private boolean isBackgroundThread(String threadName) {
+        return threadName.startsWith("GeneralTask-") ||
+                threadName.startsWith("SessionMonitor-") ||
+                threadName.startsWith("backup-event-") ||
+                threadName.startsWith("stalled-notification-");
     }
 
     /**
@@ -419,23 +448,6 @@ public class WorktimeOperationContext {
         }
     }
 
-    /**
-     * Validate period (year/month) using TimeValidationService
-     */
-    public void validatePeriod(int year, int month, int maxMonthsAhead) {
-        try {
-            var validateCommand = timeValidationService.getValidationFactory()
-                    .createValidatePeriodCommand(year, month, maxMonthsAhead);
-            timeValidationService.execute(validateCommand);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(e.getMessage());
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error validating period %d/%d: %s", year, month, e.getMessage()));
-            throw new IllegalArgumentException("Period validation failed: " + e.getMessage());
-        }
-    }
-
     // ========================================================================
     // WORKTIME FILE OPERATIONS (EXISTING - UNCHANGED)
     // ========================================================================
@@ -608,7 +620,6 @@ public class WorktimeOperationContext {
      */
     public List<RegisterCheckEntry> loadCheckRegisterFromLocal(String username, Integer userId, int year, int month) {
         try {
-            String currentUsername = getCurrentUsername();
             List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
             return entries != null ? entries : new ArrayList<>();
         } catch (Exception e) {

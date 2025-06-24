@@ -238,8 +238,9 @@ public class AllUsersCacheService {
     }
 
     /**
-     * Initialize user context from local user file (runs once at startup)
+     * FIXED: Initialize user context from local user file (runs once at startup)
      * This establishes the single PC user before any session operations
+     * NOW ALSO adds the user to AllUsersCacheService cache
      */
     private void initializeUserContext() {
         try {
@@ -251,14 +252,26 @@ public class AllUsersCacheService {
             if (localUser.isPresent()) {
                 User user = localUser.get();
 
-                // Initialize MainDefaultUserContextService with this default user
+                // Step 1: Initialize MainDefaultUserContextService with this default user
                 mainDefaultUserContextService.initializeFromUser(user);
 
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Initialized user context from local file: %s (ID: %d, Role: %s)",
-                        user.getUsername(), user.getUserId(), user.getRole()));
+                // Step 2: NEW - ALSO add this user to AllUsersCacheService
+                try {
+                    AllUsersCacheEntry newEntry = new AllUsersCacheEntry();
+                    newEntry.initializeFromCompleteUser(user, WorkCode.WORK_OFFLINE);
+                    statusCache.put(user.getUsername(), newEntry);
 
-                // Now cache operations can use mainDefaultUserContextService.getCurrentUser()
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Added local user to AllUsersCacheService: %s", user.getUsername()));
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), String.format(
+                            "Failed to add local user to AllUsersCacheService: %s - %s",
+                            user.getUsername(), e.getMessage()));
+                }
+
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Initialized user context from local file: %s (ID: %d, Role: %s) - Added to both caches",
+                        user.getUsername(), user.getUserId(), user.getRole()));
 
             } else {
                 LoggerUtil.warn(this.getClass(), "No local user file found - MainDefaultUserContextService will use system user until login");

@@ -116,7 +116,7 @@ public class UserWorktimeExcelExporter {
             createCell(row, 4, record.getTimeOffType() != null ? record.getTimeOffType() : "-", numberStyle);
 
             // Hours - use formatted raw time from DTO
-            createCell(row, 5, record.getFormattedRawTime() != null ? record.getFormattedRawTime() : "-", numberStyle);
+            createCell(row, 5, record.getFormattedWorkTime() != null ? record.getFormattedWorkTime() : "-", numberStyle);
 
             // Overtime - use formatted overtime time from DTO
             createCell(row, 6, record.getFormattedOvertimeTime() != null ? record.getFormattedOvertimeTime() : "-", numberStyle);

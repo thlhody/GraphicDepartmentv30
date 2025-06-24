@@ -488,8 +488,7 @@ public class UserDataService {
             if (pathConfig.isNetworkAvailable()) {
                 Optional<User> networkUser = findUserByUsernameFromNetwork(username);
                 if (networkUser.isPresent()) {
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Found user for authentication from network: %s", username));
+                    LoggerUtil.debug(this.getClass(), String.format("Found user for authentication from network: %s", username));
                     return networkUser;
                 }
             }
@@ -497,18 +496,15 @@ public class UserDataService {
             // Strategy 2: Fallback to local files
             Optional<User> localUser = findUserByUsernameFromLocal(username);
             if (localUser.isPresent()) {
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Found user for authentication from local fallback: %s", username));
+                LoggerUtil.info(this.getClass(), String.format("Found user for authentication from local fallback: %s", username));
                 return localUser;
             }
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "User not found for authentication: %s", username));
+            LoggerUtil.debug(this.getClass(), String.format("User not found for authentication: %s", username));
             return Optional.empty();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error finding user for authentication %s: %s", username, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error finding user for authentication %s: %s", username, e.getMessage()), e);
             return Optional.empty();
         }
     }
@@ -534,8 +530,7 @@ public class UserDataService {
             try (Stream<Path> files = Files.list(localUsersDir)) {
                 files.filter(path -> {
                             String fileName = path.getFileName().toString();
-                            return fileName.startsWith("local_user_") &&
-                                    fileName.endsWith(FileTypeConstants.JSON_EXTENSION);
+                            return fileName.startsWith("local_user_") && fileName.endsWith(FileTypeConstants.JSON_EXTENSION);
                         })
                         .forEach(path -> {
                             try {

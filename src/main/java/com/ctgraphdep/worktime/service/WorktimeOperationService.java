@@ -79,46 +79,6 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Check if user can edit time fields for a specific date
-     * @param username Username
-     * @param userId User ID
-     * @param date Work date
-     * @param fieldType Field type ("startTime" or "endTime")
-     * @return true if user can edit the field
-     */
-    public boolean canUserEditTimeField(String username, Integer userId, LocalDate date, String fieldType) {
-        try {
-            // Basic validation
-            context.validateUserPermissions(username, "check edit permissions");
-            context.validateDateEditable(date, null);
-
-            // Check existing entry status
-            List<WorkTimeTable> entries = context.loadUserWorktime(username, date.getYear(), date.getMonthValue());
-            Optional<WorkTimeTable> existingEntry = context.findEntryByDate(entries, userId, date);
-
-            if (existingEntry.isPresent()) {
-                SyncStatusMerge status = existingEntry.get().getAdminSync();
-
-                // Cannot edit USER_IN_PROCESS or entries locked by admin
-                if (status == SyncStatusMerge.USER_IN_PROCESS || status == SyncStatusMerge.USER_DONE) {
-                    return false;
-                }
-
-                // Cannot edit time fields when time off is set
-                return existingEntry.get().getTimeOffType() == null ||
-                        existingEntry.get().getTimeOffType().trim().isEmpty();
-            }
-
-            return true;
-
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Cannot edit time field %s for %s on %s: %s", fieldType, username, date, e.getMessage()));
-            return false;
-        }
-    }
-
     // ========================================================================
     // USER OPERATIONS - Time Off Management
     // ========================================================================
@@ -228,6 +188,62 @@ public class WorktimeOperationService {
             adminLock.unlock();
         }
     }
+
+    /**
+     * Update admin SN entry with work time
+     * Allows admin to set work hours for national holidays
+     * Business Rules:
+     * - Only admin can set SN work time
+     * - Work hours become overtime (no regular work on holidays)
+     * - Only full hours counted (partial hours discarded)
+     * - No lunch break for holiday work
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    public OperationResult updateAdminSNWithWorkTime(Integer userId, LocalDate date, double workHours) {
+        adminLock.lock();
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Admin updating SN work time: userId=%d, date=%s, hours=%.2f",
+                    userId, date, workHours));
+
+            return new UpdateAdminSNWorkCommand(context, userId, date, workHours).execute();
+        } finally {
+            adminLock.unlock();
+        }
+    }
+
+    /**
+     * Parse and update SN work time from SN:hours format
+     * Helper method for controller to handle "SN:7.5" format strings
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    public OperationResult updateAdminSNFromString(Integer userId, LocalDate date, String snWorkValue) {
+        adminLock.lock();
+        try {
+            // Parse SN:7.5 format
+            String[] parts = snWorkValue.split(":");
+            if (parts.length != 2 || !parts[0].equals("SN")) {
+                return OperationResult.failure(
+                        "Invalid SN format. Use SN:hours (e.g., SN:7.5)",
+                        "ADMIN_UPDATE_SN_WORK"
+                );
+            }
+
+            try {
+                double workHours = Double.parseDouble(parts[1]);
+                return updateAdminSNWithWorkTime(userId, date, workHours);
+            } catch (NumberFormatException e) {
+                return OperationResult.failure(
+                        "Invalid hours format. Use decimal numbers (e.g., SN:7.5)",
+                        "ADMIN_UPDATE_SN_WORK"
+                );
+            }
+
+        } finally {
+            adminLock.unlock();
+        }
+    }
+
     // ========================================================================
     // BULK OPERATIONS
     // ========================================================================
@@ -290,42 +306,6 @@ public class WorktimeOperationService {
     // ========================================================================
     // QUERY OPERATIONS
     // ========================================================================
-
-    /**
-     * Check if user can edit a specific field on a date
-     */
-    public boolean canUserEditField(String username, Integer userId, LocalDate date, String fieldType) {
-        try {
-            // Basic validation
-            context.validateUserPermissions(username, "check edit permissions");
-            context.validateDateEditable(date, null);
-
-            // Additional field-specific validation
-            if ("timeOff".equals(fieldType)) {
-                // Check weekend for time off
-                if (date.getDayOfWeek().getValue() >= 6) {
-                    return false;
-                }
-            }
-
-            // Check existing entry status
-            List<WorkTimeTable> entries = context.loadUserWorktime(username, date.getYear(), date.getMonthValue());
-            Optional<WorkTimeTable> existingEntry = context.findEntryByDate(entries, userId, date);
-
-            if (existingEntry.isPresent()) {
-                SyncStatusMerge status = existingEntry.get().getAdminSync();
-                // Cannot edit USER_IN_PROCESS or entries locked by admin
-                return status != SyncStatusMerge.USER_IN_PROCESS && status != SyncStatusMerge.USER_DONE;
-            }
-
-            return true;
-
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Cannot edit field %s for %s on %s: %s", fieldType, username, date, e.getMessage()));
-            return false;
-        }
-    }
 
     /**
      * Get holiday balance for user
@@ -428,7 +408,4 @@ public class WorktimeOperationService {
             return new ArrayList<>();
         }
     }
-
-
-
 }

@@ -8,7 +8,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
@@ -21,7 +24,6 @@ import java.util.stream.Collectors;
 @EnableWebSecurity
 public class SecurityConfig {
 
-
     private static final int REMEMBER_ME_VALIDITY_SECONDS = 2592000; // 30 days
 
     @Bean
@@ -29,8 +31,20 @@ public class SecurityConfig {
         return new CustomAuthenticationProvider(authService);
     }
 
+    /**
+     * NEW: SessionRegistry bean for tracking and managing browser sessions.
+     * This enables midnight session invalidation for daily login optimization.
+     */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider, AuthenticationService authService, CustomLogoutSuccessHandler logoutSuccessHandler) {
+    public SessionRegistry sessionRegistry() {
+        LoggerUtil.info(this.getClass(), "Creating SessionRegistry for browser session management");
+        return new SessionRegistryImpl();
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider,
+                                                   AuthenticationService authService, CustomLogoutSuccessHandler logoutSuccessHandler,
+                                                   SessionRegistry sessionRegistry) {
         try {
             http
                     .authorizeHttpRequests(authorize -> authorize
@@ -120,14 +134,29 @@ public class SecurityConfig {
                             .useSecureCookie(true)
                             .alwaysRemember(false)
                     )
+
+                    // NEW: Session management configuration for daily session invalidation
+                    .sessionManagement(session -> session
+                            .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                            .invalidSessionUrl("/login?invalid") // Redirect here for invalid sessions
+                            .sessionFixation().migrateSession() // Security: migrate session on login
+                            .maximumSessions(3) // Allow up to 3 concurrent sessions per user (browser tabs)
+                            .maxSessionsPreventsLogin(false) // Don't prevent new logins, expire old ones instead
+                            .sessionRegistry(sessionRegistry) // Enable session tracking for midnight invalidation
+                            .expiredUrl("/login?expired") // Redirect here when session is expired
+                    )
+
                     .logout(logout -> logout
                             .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
                             .logoutSuccessHandler(logoutSuccessHandler)  // Replace logoutSuccessUrl with this
                             .deleteCookies("remember-me")
+                            .invalidateHttpSession(true) // Invalidate session on logout
+                            .clearAuthentication(true)   // Clear authentication on logout
                             .permitAll()
                     )
                     .csrf(AbstractHttpConfigurer::disable);
 
+            LoggerUtil.info(this.getClass(), "Security configuration completed with session management enabled");
             return http.build();
         } catch (Exception e) {
             LoggerUtil.logAndThrow(this.getClass(), "Failed to configure security", e);
@@ -137,11 +166,12 @@ public class SecurityConfig {
 
     @Bean
     public HttpSessionSecurityContextRepository httpSessionSecurityContextRepository() {
-
         HttpSessionSecurityContextRepository repository = new HttpSessionSecurityContextRepository();
         // Ensure web session handling doesn't affect work sessions
         repository.setAllowSessionCreation(true);
         repository.setDisableUrlRewriting(true);
+
+        LoggerUtil.info(this.getClass(), "HttpSessionSecurityContextRepository configured for session management");
         return repository;
     }
 }

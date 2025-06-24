@@ -53,9 +53,6 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
 
         LoggerUtil.info(this.getClass(), String.format("Validating add time off: %s, %d dates, type %s", username, dates.size(), timeOffType));
 
-        // Validate time off type
-        WorktimeEntityBuilder.ValidationRules.validateTimeOffType(timeOffType);
-
         // Validate user permissions
         context.validateUserPermissions(username, "add time off");
 
@@ -175,8 +172,8 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                 if (actualVacationDaysUsed > 0) {
                     balanceUpdated = context.updateHolidayBalance(-actualVacationDaysUsed);
                     if (balanceUpdated) {
-                        LoggerUtil.info(this.getClass(), String.format("Deducted %d vacation days for %s (%d total dates, %d were already SN)", actualVacationDaysUsed,
-                                                                                                        username, dates.size(), dates.size() - actualVacationDaysUsed));
+                        LoggerUtil.info(this.getClass(), String.format("Deducted %d vacation days for %s (%d total dates, %d were already SN)",
+                                actualVacationDaysUsed, username, dates.size(), dates.size() - actualVacationDaysUsed));
                     }
                 }
             }
@@ -197,7 +194,8 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
             }
 
             // Create side effects
-            OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder().cacheInvalidated(context.createCacheKey(username, dates.get(0).getYear()));
+            OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder()
+                    .cacheInvalidated(context.createCacheKey(username, dates.get(0).getYear()));
 
             if (balanceUpdated && oldHolidayBalance != null) {
                 sideEffectsBuilder.holidayBalanceChanged(oldHolidayBalance, context.getCurrentHolidayBalance());

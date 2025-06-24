@@ -28,6 +28,8 @@
     <script th:src="@{/js/default.js?v=187811}" defer></script>
     <!-- Toast Alerts JS -->
     <script th:src="@{/js/toast-alerts.js?v=187813}" defer></script>
+    <!-- Background Merge Status JS - for login optimization -->
+    <script th:src="@{/js/background-merge-status.js?v=18787}" defer></script>
 </head>
 <body>
 <!-- Navigation -->
@@ -88,6 +90,7 @@
 
 <!-- Toast Alert System -->
 <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
+
 
 <!-- Main Content -->
 <main role="main" class="fade-in">

@@ -9,10 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -45,9 +42,6 @@ public class WorktimeCacheService {
 
     // Global cache lock for cleanup operations
     private final ReentrantReadWriteLock globalLock = new ReentrantReadWriteLock();
-
-    // Cache timeout: 1 hour
-    private static final long CACHE_TIMEOUT_MS = 3600000L; // 1 hour
 
     @Autowired
     public WorktimeCacheService(WorktimeDataService worktimeDataService, MainDefaultUserContextCache mainDefaultUserContextCache) {
@@ -121,8 +115,7 @@ public class WorktimeCacheService {
      */
     public boolean switchUserToMonth(String username, Integer userId, int newYear, int newMonth) {
         try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Switching user %s to month %d/%d", username, newYear, newMonth));
+            LoggerUtil.info(this.getClass(), String.format("Switching user %s to month %d/%d", username, newYear, newMonth));
 
             // Invalidate all other months for this user to save memory
             invalidateUserOtherMonths(username, newYear, newMonth);
@@ -216,8 +209,7 @@ public class WorktimeCacheService {
     /**
      * Update start time through cache with write-through persistence
      */
-    public boolean updateStartTime(String username, Integer userId, int year, int month,
-                                   LocalDate date, LocalDateTime startTime) {
+    public boolean updateStartTime(String username, Integer userId, int year, int month, LocalDate date, LocalDateTime startTime) {
         try {
             // Validate this is for current user's own data
             if (!isCurrentUserData(username)) {
@@ -264,8 +256,7 @@ public class WorktimeCacheService {
     /**
      * Update end time through cache with write-through persistence
      */
-    public boolean updateEndTime(String username, Integer userId, int year, int month,
-                                 LocalDate date, LocalDateTime endTime) {
+    public boolean updateEndTime(String username, Integer userId, int year, int month, LocalDate date, LocalDateTime endTime) {
         try {
             // Validate this is for current user's own data
             if (!isCurrentUserData(username)) {
@@ -312,8 +303,7 @@ public class WorktimeCacheService {
     /**
      * Add time off entry through cache with write-through persistence
      */
-    public boolean addTimeOffEntry(String username, Integer userId, int year, int month,
-                                   LocalDate date, String timeOffType) {
+    public boolean addTimeOffEntry(String username, Integer userId, int year, int month, LocalDate date, String timeOffType) {
         try {
             // Validate this is for current user's own data
             if (!isCurrentUserData(username)) {
@@ -495,7 +485,7 @@ public class WorktimeCacheService {
     }
 
     /**
-     * Validate cache entry and auto-load if needed
+     * Validate cache entry and autoload if needed
      */
     private boolean validateCacheEntry(WorktimeCacheEntry cacheEntry, String username, Integer userId, int year, int month) {
         if (cacheEntry == null || !cacheEntry.isValid()) {
@@ -628,4 +618,6 @@ public class WorktimeCacheService {
             return false;
         }
     }
+
+
 }

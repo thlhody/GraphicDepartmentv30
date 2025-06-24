@@ -7,6 +7,7 @@ import lombok.Getter;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -34,6 +35,27 @@ public class TimeValidationFactory {
      */
     public GetStandardTimeValuesCommand createGetStandardTimeValuesCommand() {
         return new GetStandardTimeValuesCommand();
+    }
+
+    /**
+     * Creates a command to validate user edit date with field context
+     * @param date The date to validate
+     * @param field The field being edited
+     * @param existingTimeOffType Existing time off type (for SN handling)
+     * @param isAdminUser Whether the user is admin
+     * @return A validation command
+     */
+    public ValidateUserEditDateCommand createValidateUserEditDateCommand(LocalDate date, String field, String existingTimeOffType, boolean isAdminUser) {
+        return new ValidateUserEditDateCommand(date, field, existingTimeOffType, isAdminUser, timeProvider);
+    }
+
+    /**
+     * Creates a command to validate user edit date permissions
+     * @param date The date to validate
+     * @return A validation command
+     */
+    public ValidateUserEditDateCommand createValidateUserEditDateCommand(LocalDate date) {
+        return new ValidateUserEditDateCommand(date, timeProvider);
     }
 
     /**
@@ -98,5 +120,47 @@ public class TimeValidationFactory {
      */
     public IsNationalHolidayCommand createIsNationalHolidayCommand(LocalDate date, List<WorkTimeTable> entries) {
         return new IsNationalHolidayCommand(date, entries, timeProvider);
+    }
+
+    /**
+     * Creates a command to validate time off type
+     */
+    public ValidateTimeOffTypeCommand createValidateTimeOffTypeCommand(String timeOffType) {
+        return new ValidateTimeOffTypeCommand(timeOffType, timeProvider);
+    }
+
+    /**
+     * Creates a command to validate work times
+     */
+    public ValidateWorkTimesCommand createValidateWorkTimesCommand(LocalDateTime startTime, LocalDateTime endTime) {
+        return new ValidateWorkTimesCommand(startTime, endTime, timeProvider);
+    }
+
+    /**
+     * Creates a command to validate work hours
+     */
+    public ValidateWorkHoursCommand createValidateWorkHoursCommand(int hours) {
+        return new ValidateWorkHoursCommand(hours, timeProvider);
+    }
+
+    /**
+     * Creates a command to validate time off conflicts
+     */
+    public ValidateTimeOffConflictCommand createValidateTimeOffConflictCommand(WorkTimeTable entry, String message) {
+        return new ValidateTimeOffConflictCommand(entry, message, timeProvider);
+    }
+
+    /**
+     * Creates a command to validate basic parameters
+     */
+    public ValidateBasicParametersCommand createValidateBasicParametersCommand(Integer userId, LocalDate date) {
+        return new ValidateBasicParametersCommand(userId, date, timeProvider);
+    }
+
+    /**
+     * Creates a command to validate entry for update
+     */
+    public ValidateEntryForUpdateCommand createValidateEntryForUpdateCommand(WorkTimeTable entry) {
+        return new ValidateEntryForUpdateCommand(entry, timeProvider);
     }
 }

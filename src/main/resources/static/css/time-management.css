@@ -1,10 +1,10 @@
 /**
- * Refactored Unified Time Management Styles
- * Compact layout with enhanced functionality
+ * ENHANCED Time Management CSS with SN Overtime Support
+ * Complete CSS file for time-management.css
  */
 
 /* ========================================================================
-   COMPACT SUMMARY CARD STYLES (30% size reduction)
+   COMPACT SUMMARY CARD STYLES
    ======================================================================== */
 
 .summary-card {
@@ -97,7 +97,7 @@
 }
 
 /* ========================================================================
-   ENHANCED TABLE STYLES WITH TEMPORARY STOP
+   ENHANCED TABLE STYLES WITH SN OVERTIME SUPPORT
    ======================================================================== */
 
 /* Compact table */
@@ -139,7 +139,107 @@
 }
 
 /* ========================================================================
-   ENHANCED WORKTIME ENTRY STYLING (Whole Month View)
+   ENHANCED SN OVERTIME DISPLAY STYLES
+   ======================================================================== */
+
+/* SN work display (holiday with overtime) - Red background like admin page */
+.sn-work-display {
+    background-color: #dc3545 !important;
+    color: white !important;
+    border: 1px solid #b02a37;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.sn-work-display:hover {
+    background-color: #bb2d3b !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+/* SN overtime badge styling */
+.sn-overtime {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+    border: 1px solid #ffca2c;
+    font-weight: 600;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.sn-overtime:hover {
+    background-color: #ffcd39 !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+/* Enhanced time off type styling */
+.holiday {
+    background-color: #198754 !important;
+    color: white !important;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    border: 1px solid #146c43;
+}
+
+.vacation {
+    background-color: #0d6efd !important;
+    color: white !important;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    border: 1px solid #0b5ed7;
+}
+
+.medical {
+    background-color: #fd7e14 !important;
+    color: white !important;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    border: 1px solid #fd7e14;
+}
+
+/* Enhanced overtime display */
+.overtime-display {
+    font-weight: 600;
+    font-size: 0.75rem;
+    min-width: 45px;
+    cursor: help;
+}
+
+/* Special styling for rows with SN overtime work */
+.worktime-entry.sn-work-entry {
+    background-color: rgba(220, 53, 69, 0.05);
+    border-left: 3px solid #dc3545;
+}
+
+.worktime-entry.sn-work-entry:hover {
+    background-color: rgba(220, 53, 69, 0.08);
+}
+
+/* ========================================================================
+   ENHANCED WORKTIME ENTRY STYLING
    ======================================================================== */
 
 /* Base worktime entry */
@@ -203,245 +303,85 @@
 
 .future-day .editable-cell {
     cursor: not-allowed !important;
-    opacity: 0.5;
-}
-
-.future-day .editable-cell:hover {
-    background-color: rgba(108, 117, 125, 0.1) !important;
-}
-
-/* ========================================================================
-   ENHANCED INLINE EDITING STYLES (Time Off vs Time Logic)
-   ======================================================================== */
-
-/* Editable cell styles */
-.editable-cell {
-    position: relative;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    padding: 0.5rem 0.25rem !important;
-    border-radius: 0.25rem;
-}
-
-.editable-cell:hover {
-    background-color: rgba(13, 110, 253, 0.1);
-}
-
-.editable-cell.editing {
-    background-color: rgba(255, 193, 7, 0.2);
-    border: 2px solid #ffc107;
-    border-radius: 0.25rem;
-}
-
-/* Disabled/Non-editable states with improved logic */
-.editable-cell.disabled,
-.editable-cell.non-editable {
-    cursor: not-allowed;
-    opacity: 0.7;
-    background-color: rgba(108, 117, 125, 0.05);
-}
-
-.editable-cell.disabled:hover,
-.editable-cell.non-editable:hover {
-    background-color: rgba(108, 117, 125, 0.1);
-}
-
-/* Special styling for time fields disabled due to time off */
-.editable-cell.non-editable[data-field="startTime"],
-.editable-cell.non-editable[data-field="endTime"] {
-    background-color: rgba(255, 193, 7, 0.05);
-    border-left: 3px solid #ffc107;
-}
-
-.editable-cell.non-editable[data-field="startTime"]:hover,
-.editable-cell.non-editable[data-field="endTime"]:hover {
-    background-color: rgba(255, 193, 7, 0.1);
-}
-
-/* Empty day styling for whole month view */
-.worktime-entry.empty-day {
-    background-color: rgba(248, 249, 250, 0.5);
-}
-
-.worktime-entry.empty-day:hover {
-    background-color: rgba(13, 110, 253, 0.05);
-}
-
-/* Weekend day styling */
-.worktime-entry.weekend-day {
-    background-color: rgba(108, 117, 125, 0.05);
-    color: #6c757d;
-}
-
-.worktime-entry.weekend-day .editable-cell {
-    cursor: not-allowed;
     opacity: 0.6;
 }
 
-/* Time off conflict indicators */
-.time-field-blocked {
+.future-day .editable-cell:hover {
+    background-color: rgba(108, 117, 125, 0.08) !important;
+}
+
+/* ========================================================================
+   INLINE EDITING ENHANCEMENTS
+   ======================================================================== */
+
+/* Editable cell styling */
+.editable-cell {
     position: relative;
+    cursor: pointer;
+    transition: all 0.15s ease;
 }
 
-.time-field-blocked::after {
-    content: "⚠️";
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    font-size: 0.7rem;
-    opacity: 0.7;
+.editable-cell:hover {
+    background-color: rgba(13, 110, 253, 0.08);
 }
 
-/* Force hide edit icons for non-editable cells */
-.non-editable .edit-icon,
-.d-none-force {
-    display: none !important;
+.editable-cell .cell-value {
+    min-height: 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Edit icon */
 .edit-icon {
     position: absolute;
-    top: 50%;
+    top: 2px;
     right: 4px;
-    transform: translateY(-50%);
     font-size: 0.7rem;
     color: #6c757d;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.15s ease;
 }
 
 .editable-cell:hover .edit-icon {
     opacity: 1;
 }
 
-.editable-cell.disabled .edit-icon {
+/* Active editing state */
+.editable-cell.editing {
+    background-color: rgba(13, 110, 253, 0.1);
+    border: 1px solid #0d6efd;
+}
+
+.editable-cell.editing .edit-icon {
     display: none;
 }
 
-/* Inline editor with 24-hour format enforcement */
-.inline-editor {
-    width: 100%;
-    border: none;
-    background: transparent;
-    font-size: inherit;
-    padding: 0;
-    outline: none;
-    font-family: inherit;
-    text-align: center;
-}
-
-.inline-editor:focus {
-    background-color: white;
-    border: 1px solid #007bff;
-    border-radius: 0.25rem;
-    padding: 0.25rem;
-}
-
-/* Specific styling for time inputs to enforce 24-hour format */
-.inline-editor[type="time"] {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: textfield;
-}
-
-.inline-editor[type="time"]::-webkit-calendar-picker-indicator {
-    opacity: 0.6;
-}
-
-/* Time off cell special styling */
-.editable-cell[data-field="timeOff"] .cell-value {
-    min-height: 1.5rem;
-    display: inline-block;
-}
-
-/* Validation feedback */
-.cell-error {
-    border: 2px solid #dc3545 !important;
-    background-color: rgba(220, 53, 69, 0.1) !important;
-}
-
-.cell-success {
-    border: 2px solid #198754 !important;
-    background-color: rgba(25, 135, 84, 0.1) !important;
-}
-
-/* Field status indicators */
-.field-status {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: #28a745;
-}
-
-.field-status.saving {
-    background-color: #ffc107;
-    animation: pulse 1s infinite;
-}
-
-.field-status.error {
-    background-color: #dc3545;
-}
-
-/* ========================================================================
-   CURRENT/FUTURE DAY STYLING
-   ======================================================================== */
-
-/* Current day styling */
-.current-day {
-    background-color: rgba(255, 193, 7, 0.05);
-}
-
-.current-day .editable-cell {
-    cursor: not-allowed !important;
-    opacity: 0.7;
-}
-
-.current-day .editable-cell:hover {
+/* SN day editing special styling */
+.editable-cell.sn-day-edit {
+    border-color: #ffc107 !important;
     background-color: rgba(255, 193, 7, 0.1) !important;
 }
 
-/* Future day styling */
-.future-day {
-    background-color: rgba(108, 117, 125, 0.05);
-}
-
-.future-day .editable-cell {
-    cursor: not-allowed !important;
-    opacity: 0.5;
-}
-
-.future-day .editable-cell:hover {
-    background-color: rgba(108, 117, 125, 0.1) !important;
-}
-
-/* ========================================================================
-   BADGE AND STATUS STYLING
-   ======================================================================== */
-
-/* Lunch break indicator */
-.lunch-break {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.4rem;
-}
-
-/* Overtime display */
-.overtime-display {
-    min-width: 40px;
+/* Inline input styling */
+.inline-edit-input {
+    width: 100%;
+    border: none;
+    background: transparent;
     text-align: center;
-    font-size: 0.75rem;
+    font-size: inherit;
+    padding: 0.25rem;
+    outline: none;
 }
 
-/* Small badges for compact layout */
-.badge.small {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.4rem;
+.inline-edit-input:focus {
+    background-color: white;
+    border: 1px solid #0d6efd;
+    border-radius: 0.25rem;
 }
 
 /* ========================================================================
-   LOADING AND FEEDBACK STYLES
+   LOADING AND ANIMATION STYLES
    ======================================================================== */
 
 /* Loading overlay */
@@ -449,49 +389,61 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    right: 0;
+    bottom: 0;
     background-color: rgba(0, 0, 0, 0.5);
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     z-index: 9999;
 }
 
-.loading-overlay .spinner-border {
-    width: 3rem;
-    height: 3rem;
+/* Field status indicators */
+.field-status {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0.25rem;
+    pointer-events: none;
 }
 
-/* Remove old alert system styling - replaced with toast */
-.alert-dismissible {
-    display: none !important;
+.field-status.success {
+    background-color: rgba(25, 135, 84, 0.1);
+    border: 1px solid #198754;
 }
 
-/* Pulse animation */
-@keyframes pulse {
-    0% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-    100% {
-        opacity: 1;
-    }
+.field-status.error {
+    background-color: rgba(220, 53, 69, 0.1);
+    border: 1px solid #dc3545;
+}
+
+/* Animation for newly updated entries */
+@keyframes snOvertimeHighlight {
+    0% { background-color: rgba(220, 53, 69, 0.3); }
+    100% { background-color: rgba(220, 53, 69, 0.05); }
+}
+
+.worktime-entry.sn-work-entry.updated {
+    animation: snOvertimeHighlight 2s ease-out;
+}
+
+@keyframes fieldUpdate {
+    0% { background-color: rgba(25, 135, 84, 0.3); }
+    100% { background-color: transparent; }
+}
+
+.editable-cell.field-updated {
+    animation: fieldUpdate 1.5s ease-out;
 }
 
 /* ========================================================================
-   RESPONSIVE DESIGN FOR COMPACT LAYOUT
+   RESPONSIVE DESIGN ENHANCEMENTS
    ======================================================================== */
 
-@media (max-width: 992px) {
-/* Stack panels on medium screens */
-    .col-lg-3, .col-lg-9 {
-        margin-bottom: 1rem;
-    }
-
-    /* Adjust compact summary for medium screens */
+@media (max-width: 1200px) {
+/* Compact summary for medium screens */
     .compact-summary {
         padding: 1rem !important;
     }
@@ -531,8 +483,8 @@
 
     /* Hide some columns on mobile to save space */
     .temp-stop-cell,
-    .table-sm th:nth-child(3),
-    .table-sm td:nth-child(3) {
+    .table-sm th:nth-child(4),
+    .table-sm td:nth-child(4) {
         display: none;
     }
 
@@ -546,6 +498,26 @@
     .timeoff-card .col-md-1 {
         width: 100%;
         margin-bottom: 0.5rem;
+    }
+
+    /* Mobile SN display adjustments */
+    .sn-work-display,
+    .holiday,
+    .vacation,
+    .medical {
+        padding: 0.125rem 0.375rem;
+        font-size: 0.7rem;
+        min-width: 30px;
+    }
+
+    .overtime-display {
+        font-size: 0.7rem;
+        min-width: 40px;
+    }
+
+    .sn-overtime {
+        padding: 0.125rem 0.375rem;
+        font-size: 0.7rem;
     }
 }
 
@@ -590,97 +562,74 @@
     .timeoff-card {
         display: none !important;
     }
+
+    /* Print styles for SN overtime */
+    .sn-work-display,
+    .sn-overtime {
+        background-color: #f8f9fa !important;
+        color: #212529 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+
+    .holiday,
+    .vacation,
+    .medical {
+        background-color: #f8f9fa !important;
+        color: #212529 !important;
+        border: 1px solid #dee2e6 !important;
+    }
 }
 
 /* ========================================================================
-   TOOLTIP STYLES
+   TOAST ALERT INTEGRATION
    ======================================================================== */
 
-.tooltip-inner {
-    background-color: rgba(33, 37, 41, 0.95);
-    border-radius: 0.25rem;
-    max-width: 200px;
-    padding: 0.4rem;
-    text-align: center;
-    font-size: 0.8rem;
+.toast-alert-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
 }
 
-/* Help text for editing */
-.editing-help {
+/* Enhanced tooltips for SN entries */
+.sn-work-display[title]:hover::after,
+.sn-overtime[title]:hover::after {
+    content: attr(title);
     position: absolute;
-    bottom: -25px;
-    left: 0;
-    font-size: 0.7rem;
-    color: #6c757d;
-    background-color: white;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #212529;
+    color: white;
     padding: 0.25rem 0.5rem;
     border-radius: 0.25rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    font-size: 0.75rem;
     white-space: nowrap;
     z-index: 1000;
+    margin-bottom: 0.25rem;
 }
 
-/* ========================================================================
-   HEADER AND LAYOUT IMPROVEMENTS
-   ======================================================================== */
-
-.page-header {
-    margin-bottom: 1.5rem;
-}
-
-.header-title {
-    color: #495057;
-    margin-bottom: 0;
-}
-
-/* Card header improvements */
-.card-header {
-    background-color: rgba(13, 110, 253, 0.05);
-    border-bottom: 1px solid rgba(13, 110, 253, 0.1);
-}
-
-.card-footer {
-    background-color: rgba(248, 249, 250, 0.8);
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-/* ========================================================================
-   ACCESSIBILITY IMPROVEMENTS
-   ======================================================================== */
-
-/* Focus states for keyboard navigation */
-.editable-cell:focus {
-    outline: 2px solid #007bff;
+/* Accessibility improvements */
+.sn-work-display:focus,
+.sn-overtime:focus,
+.holiday:focus,
+.vacation:focus,
+.medical:focus {
+    outline: 2px solid #0d6efd;
     outline-offset: 2px;
-}
-
-.form-check-input:focus {
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
-    .editable-cell:hover {
-        background-color: rgba(13, 110, 253, 0.2);
-        border: 1px solid #007bff;
+    .sn-work-display {
+        border: 2px solid #000 !important;
     }
 
-    .non-editable {
-        background-color: rgba(108, 117, 125, 0.1);
-        border: 1px solid #6c757d;
-    }
-}
-
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-    .summary-item-compact,
-    .timeoff-card,
-    .editable-cell,
-    .edit-icon {
-        transition: none;
+    .sn-overtime {
+        border: 2px solid #000 !important;
     }
 
-    .pulse {
-        animation: none;
+    .worktime-entry.sn-work-entry {
+        border-left: 4px solid #000;
     }
 }

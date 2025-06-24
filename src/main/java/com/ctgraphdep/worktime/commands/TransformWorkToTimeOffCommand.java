@@ -1,5 +1,6 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.model.OperationResult;
@@ -42,24 +43,18 @@ public class TransformWorkToTimeOffCommand extends WorktimeOperationCommand<Work
             throw new IllegalArgumentException("Time off type cannot be null or empty");
         }
 
-        // Validate time off type
-        WorktimeEntityBuilder.ValidationRules.validateTimeOffType(timeOffType);
-
         // Validate user permissions
         context.validateUserPermissions(username, "transform work to time off");
 
         // Validate date is editable
         context.validateDateEditable(date, null);
 
-        // Validate time off date constraints
-        WorktimeEntityBuilder.ValidationRules.validateTimeOffDate(date, timeOffType);
-
-        if ("CO".equalsIgnoreCase(timeOffType)) {
+        if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType)) {
             context.validateSufficientHolidayBalance(1, "transform work to vacation");
         }
 
         // Validate admin permissions for SN
-        if ("SN".equalsIgnoreCase(timeOffType) && !context.isCurrentUserAdmin()) {
+        if (WorkCode.NATIONAL_HOLIDAY_CODE.equalsIgnoreCase(timeOffType) && !context.isCurrentUserAdmin()) {
             throw new IllegalArgumentException("Only admin can create national holidays");
         }
     }
@@ -79,9 +74,7 @@ public class TransformWorkToTimeOffCommand extends WorktimeOperationCommand<Work
 
         // Check if entry already has time off
         if (entry.getTimeOffType() != null && !entry.getTimeOffType().trim().isEmpty()) {
-            return OperationResult.failure(String.format(
-                            "Entry already has time off type: %s. Remove it first.", entry.getTimeOffType()),
-                    getOperationType());
+            return OperationResult.failure(String.format("Entry already has time off type: %s. Remove it first.", entry.getTimeOffType()), getOperationType());
         }
 
         // Check if entry has work time worth transforming
@@ -100,7 +93,7 @@ public class TransformWorkToTimeOffCommand extends WorktimeOperationCommand<Work
         // Handle holiday balance update for CO
         boolean balanceUpdated = false;
         Integer oldBalance = context.getCurrentHolidayBalance();
-        if ("CO".equalsIgnoreCase(timeOffType)) {
+        if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType)) {
 
             // FIXED: Use context method to check for national holiday
             if (context.shouldProcessVacationDay(date, "convert work to vacation")) {
@@ -111,10 +104,9 @@ public class TransformWorkToTimeOffCommand extends WorktimeOperationCommand<Work
         // Update success message
         String message = String.format("Transformed work entry to %s time off", timeOffType.toUpperCase());
 
-        if ("CO".equalsIgnoreCase(timeOffType)) {
+        if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType)) {
             if (balanceUpdated) {
-                message += String.format(". Holiday balance: %d → %d (vacation day used)",
-                        oldBalance, context.getCurrentHolidayBalance());
+                message += String.format(". Holiday balance: %d → %d (vacation day used)", oldBalance, context.getCurrentHolidayBalance());
             } else if (context.isExistingNationalHoliday(date)) {
                 message += " (no vacation day deducted - national holiday)";
             }
@@ -123,21 +115,14 @@ public class TransformWorkToTimeOffCommand extends WorktimeOperationCommand<Work
         context.invalidateTimeOffCache(username, year);
 
         // Create side effects
-        OperationResult.OperationSideEffects.Builder sideEffectsBuilder =
-                OperationResult.OperationSideEffects.builder()
-                        .fileUpdated(context.createFilePathId(username, year, month))
-                        .cacheInvalidated(context.createCacheKey(username, year));
+        OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder()
+                        .fileUpdated(context.createFilePathId(username, year, month)).cacheInvalidated(context.createCacheKey(username, year));
 
         if (balanceUpdated) {
             sideEffectsBuilder.holidayBalanceChanged(oldBalance, context.getCurrentHolidayBalance());
         }
 
-        return OperationResult.successWithSideEffects(
-                message, // <- Use the detailed message instead!
-                getOperationType(),
-                transformedEntry,
-                sideEffectsBuilder.build()
-        );
+        return OperationResult.successWithSideEffects(message, getOperationType(), transformedEntry, sideEffectsBuilder.build());
     }
 
     @Override

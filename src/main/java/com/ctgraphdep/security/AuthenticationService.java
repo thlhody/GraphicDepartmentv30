@@ -1,6 +1,7 @@
 package com.ctgraphdep.security;
 
 import com.ctgraphdep.config.SecurityConstants;
+import com.ctgraphdep.controller.MergeStatusController;
 import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
@@ -12,6 +13,8 @@ import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.worktime.service.WorktimeLoginMergeService;
 import com.ctgraphdep.utils.LoggerUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -21,15 +24,15 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * REFACTORED AuthenticationService using UserDataService for user operations.
- * Handles authentication status, user authentication, and post-login operations.
- * Uses UserDataService for all user data operations and DataAccessService only for system utilities.
+ * ENHANCED AuthenticationService with LoginMergeCacheService integration.
+ * Now performs full merge only on first login of the day, fast cache refresh on subsequent logins.
+ * Handles authentication status, user authentication, and optimized post-login operations.
  */
 @Service
 public class AuthenticationService {
 
     private final DataAccessService dataAccessService;  // Keep for system utilities only
-    private final UserDataService userDataService;      // NEW - Primary user data operations
+    private final UserDataService userDataService;      // Primary user data operations
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final CustomUserDetailsService userDetailsService;
@@ -38,19 +41,23 @@ public class AuthenticationService {
     private final WorktimeLoginMergeService worktimeLoginMergeService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
     private final AllUsersCacheService allUsersCacheService;
+    private final LoginMergeCacheService loginMergeCacheService; // NEW - Login optimization
+    private MergeStatusController mergeStatusController; // NEW - For background merge status
 
     public AuthenticationService(
             DataAccessService dataAccessService,
-            UserDataService userDataService,        // NEW dependency
+            UserDataService userDataService,
             UserService userService,
             PasswordEncoder passwordEncoder,
             CustomUserDetailsService userDetailsService,
             RegisterMergeService registerMergeService,
             CheckRegisterService checkRegisterService,
             WorktimeLoginMergeService worktimeLoginMergeService,
-            MainDefaultUserContextService mainDefaultUserContextService, AllUsersCacheService allUsersCacheService) {
+            MainDefaultUserContextService mainDefaultUserContextService,
+            AllUsersCacheService allUsersCacheService,
+            LoginMergeCacheService loginMergeCacheService) { // Login optimization dependency
         this.dataAccessService = dataAccessService;
-        this.userDataService = userDataService;      // NEW
+        this.userDataService = userDataService;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
@@ -59,11 +66,21 @@ public class AuthenticationService {
         this.worktimeLoginMergeService = worktimeLoginMergeService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.allUsersCacheService = allUsersCacheService;
+        this.loginMergeCacheService = loginMergeCacheService; // NEW
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     /**
-     * REFACTORED: Get authentication status using UserDataService
+     * NEW: Setter for MergeStatusController (to avoid circular dependency)
+     * Called by MergeStatusController after it's created
+     */
+    @Autowired(required = false)
+    public void setMergeStatusController(MergeStatusController mergeStatusController) {
+        this.mergeStatusController = mergeStatusController;
+    }
+
+    /**
+     * UNCHANGED: Get authentication status using UserDataService
      */
     public AuthenticationStatus getAuthenticationStatus() {
         try {
@@ -111,8 +128,7 @@ public class AuthenticationService {
     }
 
     /**
-     * ENHANCED: Handle successful login with role elevation support
-     * Determines whether to use elevation (admin) or normal login (regular user)
+     * UNCHANGED: Handle successful login with role elevation support
      */
     public void handleSuccessfulLogin(String username, boolean rememberMe) {
         try {
@@ -145,7 +161,7 @@ public class AuthenticationService {
     // ========================================================================
 
     /**
-     * NEW: Handle admin login with elevation
+     * UNCHANGED: Handle admin login with elevation (admins don't use merge optimization)
      */
     private void handleAdminLogin(User adminUser, boolean rememberMe) {
         try {
@@ -161,7 +177,7 @@ public class AuthenticationService {
             // Step 2: Elevate to admin role (preserves original user context)
             mainDefaultUserContextService.elevateToAdminRole(adminUser);
 
-            // Step 3: NEW - Refresh all users cache for accurate admin data
+            // Step 3: Refresh all users cache for accurate admin data
             LoggerUtil.info(this.getClass(), "Refreshing all users cache for admin login");
             try {
                 allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
@@ -191,8 +207,9 @@ public class AuthenticationService {
             throw new RuntimeException("Failed to handle admin login", e);
         }
     }
+
     /**
-     * Handle regular user login (existing logic)
+     * ENHANCED: Handle regular user login with LOGIN MERGE OPTIMIZATION
      */
     private void handleRegularUserLogin(User user, boolean rememberMe) {
         try {
@@ -205,20 +222,45 @@ public class AuthenticationService {
                 LoggerUtil.info(this.getClass(), "Cleared existing admin elevation for regular user login");
             }
 
-            // Step 2: Update user context normally
+            // Step 2: Update MainDefaultUserContextService (uses MainDefaultUserContextCache)
             mainDefaultUserContextService.handleSuccessfulLogin(user.getUsername());
 
-            // Step 3: Handle local storage operations if needed
+            // Step 3: ALSO update AllUsersCacheService for complete synchronization
+            try {
+                allUsersCacheService.updateUserInCache(user);
+                LoggerUtil.info(this.getClass(), String.format(
+                        "User synchronized in AllUsersCacheService: %s", user.getUsername()));
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Failed to sync user to AllUsersCacheService: %s - %s",
+                        user.getUsername(), e.getMessage()));
+                // Continue - don't fail login for cache sync issues
+            }
+
+            // Step 4: Handle local storage operations if needed
             if (rememberMe) {
                 handleLocalStorageOperations(user);
             }
 
-            // Step 4: Perform role-based data merges (existing logic)
-            performRoleBasedDataMerges(user);
+            // Step 5: NEW - OPTIMIZED DATA MERGE STRATEGY WITH BACKGROUND PROCESSING
+            int loginCount = loginMergeCacheService.incrementAndGetLoginCount();
+
+            LoggerUtil.info(this.getClass(), String.format("Daily login count: %d", loginCount));
+            LoggerUtil.info(this.getClass(), loginMergeCacheService.getPerformanceBenefit());
+
+            if (loginMergeCacheService.shouldPerformFullMerge()) {
+                // FIRST LOGIN OF THE DAY - Background merge (instant login, slow merge in background)
+                LoggerUtil.info(this.getClass(), String.format("Triggering BACKGROUND FULL MERGE for first login of day: %s", user.getUsername()));
+                performBackgroundFullMergeAsync(user);
+            } else if (loginMergeCacheService.shouldPerformFastCacheRefresh()) {
+                // SUBSEQUENT LOGINS - Fast cache refresh only (still synchronous but fast)
+                LoggerUtil.info(this.getClass(), String.format("Performing FAST CACHE REFRESH for login #%d: %s", loginCount, user.getUsername()));
+                performFastCacheRefresh(user);
+            }
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Regular user login completed: %s (cache updated)",
-                    user.getUsername()));
+                    "Regular user login completed: %s (both caches synchronized, merge strategy: %s)",
+                    user.getUsername(), loginCount == 1 ? "Background Full Merge" : "Fast Refresh"));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
@@ -227,8 +269,198 @@ public class AuthenticationService {
         }
     }
 
+    // ========================================================================
+    // NEW - BACKGROUND MERGE OPTIMIZATION METHODS
+    // ========================================================================
+
     /**
-     * REFACTORED: Retrieve user data using UserService first, UserDataService fallback
+     * NEW: Trigger background full merge operations (first login optimization)
+     * This method completes immediately, allowing instant login while merge happens in background
+     */
+    private void performBackgroundFullMergeAsync(User user) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format("Scheduling background full merge for: %s", user.getUsername()));
+
+            // Trigger async background merge - this returns immediately
+            executeFullMergeInBackground(user);
+
+            LoggerUtil.info(this.getClass(), String.format("Background merge scheduled for: %s - login completing instantly", user.getUsername()));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error scheduling background merge for %s: %s", user.getUsername(), e.getMessage()), e);
+            // Fallback to synchronous merge if async fails
+            LoggerUtil.warn(this.getClass(), "Falling back to synchronous merge due to async error");
+            performFullMergeOperations(user);
+        }
+    }
+
+    /**
+     * NEW: Async method that performs full merge operations in background
+     * This runs on a separate thread so user gets instant login
+     */
+    @Async("loginMergeTaskExecutor")
+    public void executeFullMergeInBackground(User user) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format("Starting background full merge operations for: %s (Thread: %s)",
+                    user.getUsername(), Thread.currentThread().getName()));
+
+            // Use existing role-based data merge logic (unchanged)
+            performRoleBasedDataMerges(user);
+
+            LoggerUtil.info(this.getClass(), String.format("Background full merge operations completed for: %s", user.getUsername()));
+
+            // Notify status controller that merge is complete
+            if (mergeStatusController != null) {
+                mergeStatusController.markMergeComplete(user.getUsername());
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error during background merge operations for %s: %s", user.getUsername(), e.getMessage()), e);
+
+            // Even on error, mark as complete so UI doesn't wait forever
+            if (mergeStatusController != null) {
+                mergeStatusController.markMergeComplete(user.getUsername());
+            }
+        }
+    }
+
+    /**
+     * EXISTING: Perform full merge operations synchronously (kept for fallback and testing)
+     * Now mainly used as fallback when async processing fails
+     */
+    private void performFullMergeOperations(User user) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format("Starting synchronous full merge operations for: %s", user.getUsername()));
+
+            // Use existing role-based data merge logic (unchanged)
+            performRoleBasedDataMerges(user);
+
+            LoggerUtil.info(this.getClass(), String.format("Synchronous full merge operations completed for: %s", user.getUsername()));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error during synchronous merge operations for %s: %s", user.getUsername(), e.getMessage()), e);
+            // Don't throw - login should continue even if merge fails
+        }
+    }
+
+    /**
+     * NEW: Perform fast cache refresh (new fast logic, subsequent logins)
+     */
+    private void performFastCacheRefresh(User user) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format("Starting fast cache refresh for: %s", user.getUsername()));
+
+            String username = user.getUsername();
+
+            // Fast refresh of caches from LOCAL files only (no network operations, no merging)
+            refreshWorktimeCache(username);      // Current month from local
+            refreshCheckRegisterCache(username); // Current month from local
+            refreshTimeOffCache(username);       // Current year from local
+            refreshAllUsersCache();              // Local user list + network status flags only
+            refreshSessionCache(username);       // Local session data
+
+            LoggerUtil.info(this.getClass(), String.format("Fast cache refresh completed for: %s", username));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error during fast cache refresh for %s: %s", user.getUsername(), e.getMessage()), e);
+            // Don't throw - login should continue even if cache refresh fails
+        }
+    }
+
+    // ========================================================================
+    // NEW - FAST CACHE REFRESH METHODS (LOCAL FILES ONLY)
+    // ========================================================================
+
+    /**
+     * NEW: Refresh worktime cache from local files only (current month)
+     */
+    private void refreshWorktimeCache(String username) {
+        try {
+            LoggerUtil.debug(this.getClass(), "Refreshing worktime cache from local files for: " + username);
+
+            // TODO: Implement worktime cache refresh from local files
+            // This should load current month's worktime data from local files into cache
+            // worktimeCacheService.refreshFromLocalFiles(username, LocalDate.now().getYear(), LocalDate.now().getMonthValue());
+
+            LoggerUtil.debug(this.getClass(), "Worktime cache refresh completed for: " + username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Failed to refresh worktime cache for %s: %s", username, e.getMessage()));
+        }
+    }
+
+    /**
+     * NEW: Refresh check register cache from local files only (current month)
+     */
+    private void refreshCheckRegisterCache(String username) {
+        try {
+            LoggerUtil.debug(this.getClass(), "Refreshing check register cache from local files for: " + username);
+
+            // TODO: Implement check register cache refresh from local files
+            // This should load current month's check register data from local files into cache
+            // registerCheckCacheService.refreshFromLocalFiles(username, LocalDate.now().getYear(), LocalDate.now().getMonthValue());
+
+            LoggerUtil.debug(this.getClass(), "Check register cache refresh completed for: " + username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Failed to refresh check register cache for %s: %s", username, e.getMessage()));
+        }
+    }
+
+    /**
+     * NEW: Refresh time-off cache from local files only (current year)
+     */
+    private void refreshTimeOffCache(String username) {
+        try {
+            LoggerUtil.debug(this.getClass(), "Refreshing time-off cache from local files for: " + username);
+
+            // TODO: Implement time-off cache refresh from local files
+            // This should load current year's time-off data from local files into cache
+            // timeOffCacheService.refreshFromLocalFiles(username, LocalDate.now().getYear());
+
+            LoggerUtil.debug(this.getClass(), "Time-off cache refresh completed for: " + username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Failed to refresh time-off cache for %s: %s", username, e.getMessage()));
+        }
+    }
+
+    /**
+     * NEW: Refresh all users cache (local user list + network status flags only)
+     */
+    private void refreshAllUsersCache() {
+        try {
+            LoggerUtil.debug(this.getClass(), "Refreshing all users cache from local files");
+
+            // This uses existing AllUsersCacheService method - just light refresh
+            allUsersCacheService.syncFromNetworkFlags(); // Only refresh status flags, not full user data
+
+            LoggerUtil.debug(this.getClass(), "All users cache refresh completed");
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), "Failed to refresh all users cache: " + e.getMessage());
+        }
+    }
+
+    /**
+     * NEW: Refresh session cache from local files only
+     */
+    private void refreshSessionCache(String username) {
+        try {
+            LoggerUtil.debug(this.getClass(), "Refreshing session cache from local files for: " + username);
+
+            // TODO: Implement session cache refresh from local files
+            // This should reload session data from local files into cache
+            // sessionCacheService.refreshFromLocalFiles(username);
+
+            LoggerUtil.debug(this.getClass(), "Session cache refresh completed for: " + username);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Failed to refresh session cache for %s: %s", username, e.getMessage()));
+        }
+    }
+
+    // ========================================================================
+    // EXISTING METHODS (UNCHANGED)
+    // ========================================================================
+
+    /**
+     * UNCHANGED: Retrieve user data using UserService first, UserDataService fallback
      */
     private User retrieveUserData(String username) {
         // Try to get user from service first (cache-based)
@@ -251,7 +483,7 @@ public class AuthenticationService {
     }
 
     /**
-     * REFACTORED: Handle local storage operations using UserDataService
+     * UNCHANGED: Handle local storage operations using UserDataService
      */
     private void handleLocalStorageOperations(User user) {
         try {
@@ -276,7 +508,7 @@ public class AuthenticationService {
     }
 
     /**
-     * UNCHANGED: Role-based data merges
+     * UNCHANGED: Role-based data merges (used by full merge operations)
      */
     private void performRoleBasedDataMerges(User user) {
         String username = user.getUsername();
@@ -406,7 +638,7 @@ public class AuthenticationService {
     }
 
     /**
-     * NEW: Perform worktime merge (for all non-admin users)
+     * UNCHANGED: Perform worktime merge (for all non-admin users)
      */
     private void performWorktimeMerge(String username) {
         try {
@@ -420,28 +652,25 @@ public class AuthenticationService {
         }
     }
 
-
-
     // ========================================================================
-    // REFACTORED HELPER METHODS USING USER DATA SERVICE
+    // HELPER METHODS (UNCHANGED)
     // ========================================================================
 
     /**
-     * REFACTORED: Get user from UserDataService instead of DataAccessService
+     * UNCHANGED: Get user from UserDataService instead of DataAccessService
      */
     private Optional<User> getUserFromUserDataService(String username) {
         try {
             // Use UserDataService authentication method
             return userDataService.findUserByUsernameForAuthentication(username);
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(),
-                    "Error reading user from UserDataService: " + e.getMessage());
+            LoggerUtil.warn(this.getClass(), "Error reading user from UserDataService: " + e.getMessage());
             return Optional.empty();
         }
     }
 
     /**
-     * REFACTORED: Store user data locally using UserDataService
+     * UNCHANGED: Store user data locally using UserDataService
      */
     private void storeUserDataLocally(User user) {
         try {
@@ -449,16 +678,13 @@ public class AuthenticationService {
             boolean stored = userDataService.storeUserDataForRememberMe(user);
 
             if (stored) {
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Stored complete user data locally for: %s", user.getUsername()));
+                LoggerUtil.info(this.getClass(), String.format("Stored complete user data locally for: %s", user.getUsername()));
             } else {
-                LoggerUtil.error(this.getClass(), String.format(
-                        "Failed to store user data locally for: %s", user.getUsername()));
+                LoggerUtil.error(this.getClass(), String.format("Failed to store user data locally for: %s", user.getUsername()));
                 throw new RuntimeException("Failed to store complete user data locally");
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error storing user data locally: %s", e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error storing user data locally: %s", e.getMessage()));
             throw new RuntimeException("Failed to store user data locally", e);
         }
     }

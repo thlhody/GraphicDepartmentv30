@@ -17,11 +17,11 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-
 @Component
 public class WorkTimeExcelExporter {
 
     private static final DateTimeFormatter MONTH_YEAR_FORMATTER = DateTimeFormatter.ofPattern("MMMM yyyy");
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     public byte[] exportToExcel(List<User> users,
                                 Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap,
@@ -135,6 +135,10 @@ public class WorkTimeExcelExporter {
     private void populateSheetData(Sheet sheet, YearMonth yearMonth, List<User> users,
                                    Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap,
                                    Map<String, CellStyle> styles, int columnCount) {
+
+        // Create drawing patriarch for cell comments
+        Drawing<?> drawing = sheet.createDrawingPatriarch();
+
         int rowNum = 3;
         for (User user : users) {
             Row row = sheet.createRow(rowNum++);
@@ -143,17 +147,21 @@ public class WorkTimeExcelExporter {
             // User info
             createUserInfoCells(row, user, styles.get("name"));
 
-            // Process daily entries
-            WorkTimeResultDTO summary = processDailyEntries(row, yearMonth, userEntries, user, styles);
+            // Process daily entries with comments
+            WorkTimeResultDTO summary = processDailyEntriesWithComments(row, yearMonth, userEntries, user, styles, drawing);
 
             // Create summary cells
             createSummaryCells(row, summary, columnCount, styles.get("number"));
         }
     }
 
-    private WorkTimeResultDTO processDailyEntries(Row row, YearMonth yearMonth,
-                                                  Map<LocalDate, WorkTimeTable> userEntries,
-                                                  User user, Map<String, CellStyle> styles) {
+    /**
+     * ENHANCED: Process daily entries and add detailed work interval comments
+     */
+    private WorkTimeResultDTO processDailyEntriesWithComments(Row row, YearMonth yearMonth,
+                                                              Map<LocalDate, WorkTimeTable> userEntries,
+                                                              User user, Map<String, CellStyle> styles,
+                                                              Drawing<?> drawing) {
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
 
@@ -166,22 +174,30 @@ public class WorkTimeExcelExporter {
             cell.setCellStyle(cellStyle);
 
             if (shouldProcessEntry(entry)) {
-                processEntry(cell, entry);
+                // ENHANCED: Process entry with new SN/4h format
+                processEntryWithEnhancedFormat(cell, entry);
 
-                if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
+                // ENHANCED: Add detailed work interval comment
+                addWorkIntervalComment(cell, entry, drawing);
+
+                // Calculate totals (including SN overtime)
+                if (entry.getTimeOffType() == null && entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
+                    // Regular work entries
                     var result = CalculateWorkHoursUtil.calculateWorkTime(
                             entry.getTotalWorkedMinutes(),
                             user.getSchedule()
                     );
                     totalRegularMinutes += result.getProcessedMinutes();
                     totalOvertimeMinutes += result.getOvertimeMinutes();
+                } else if ("SN".equals(entry.getTimeOffType()) && entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
+                    // ENHANCED: Include SN overtime in totals
+                    totalOvertimeMinutes += entry.getTotalOvertimeMinutes();
                 }
             }
         }
 
         return new WorkTimeResultDTO(totalRegularMinutes, totalOvertimeMinutes);
     }
-
 
     private boolean shouldProcessEntry(WorkTimeTable entry) {
         return entry != null &&
@@ -198,13 +214,128 @@ public class WorkTimeExcelExporter {
         return styles.get("number");
     }
 
-    private void processEntry(Cell cell, WorkTimeTable entry) {
+    /**
+     * ENHANCED: Process entry with new SN/4h format support
+     */
+    private void processEntryWithEnhancedFormat(Cell cell, WorkTimeTable entry) {
         if (entry.getTimeOffType() != null && !"BLANK".equals(entry.getTimeOffType())) {
-            cell.setCellValue(entry.getTimeOffType());
+            // ENHANCED: Handle SN entries with work hours as "SN/4h"
+            if ("SN".equals(entry.getTimeOffType()) && entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
+                String hours = CalculateWorkHoursUtil.minutesToHH(entry.getTotalOvertimeMinutes());
+                cell.setCellValue("SN/" + hours);
+            } else {
+                // Regular time off (SN without work, CO, CM)
+                cell.setCellValue(entry.getTimeOffType());
+            }
         } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
+            // Regular work hours
             cell.setCellValue(Double.parseDouble(
                     CalculateWorkHoursUtil.minutesToHH(entry.getTotalWorkedMinutes())
             ));
+        }
+    }
+
+    /**
+     * NEW: Add detailed work interval comment to cell
+     */
+    private void addWorkIntervalComment(Cell cell, WorkTimeTable entry, Drawing<?> drawing) {
+        if (entry == null) return;
+
+        StringBuilder commentText = new StringBuilder();
+        boolean hasWorkData = false;
+
+        // Add start time
+        if (entry.getDayStartTime() != null) {
+            commentText.append("Start: ").append(entry.getDayStartTime().format(TIME_FORMATTER));
+            hasWorkData = true;
+        }
+
+        // Add temporary stops
+        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > 0) {
+            if (hasWorkData) commentText.append("\n");
+            commentText.append("Temp stops: ").append(entry.getTotalTemporaryStopMinutes()).append(" minutes");
+            hasWorkData = true;
+        }
+
+        // Add end time
+        if (entry.getDayEndTime() != null) {
+            if (hasWorkData) commentText.append("\n");
+            commentText.append("End: ").append(entry.getDayEndTime().format(TIME_FORMATTER));
+            hasWorkData = true;
+        }
+
+        // Add lunch break info
+        if (entry.isLunchBreakDeducted()) {
+            if (hasWorkData) commentText.append("\n");
+            commentText.append("Lunch break: Deducted");
+            hasWorkData = true;
+        }
+
+        // Add time off type details
+        if (entry.getTimeOffType() != null && !"BLANK".equals(entry.getTimeOffType())) {
+            if (hasWorkData) commentText.append("\n");
+            commentText.append("Type: ");
+            switch (entry.getTimeOffType()) {
+                case "SN" -> {
+                    if (entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
+                        commentText.append("National Holiday + ")
+                                .append(CalculateWorkHoursUtil.minutesToHH(entry.getTotalOvertimeMinutes()))
+                                .append(" work");
+                    } else {
+                        commentText.append("National Holiday");
+                    }
+                }
+                case "CO" -> commentText.append("Vacation");
+                case "CM" -> commentText.append("Medical Leave");
+                default -> commentText.append(entry.getTimeOffType());
+            }
+            hasWorkData = true;
+        }
+
+        // Add work minutes summary
+        if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
+            if (hasWorkData) commentText.append("\n");
+            commentText.append("Total work: ").append(CalculateWorkHoursUtil.minutesToHH(entry.getTotalWorkedMinutes()));
+            hasWorkData = true;
+        }
+
+        // Add overtime for SN entries
+        if ("SN".equals(entry.getTimeOffType()) && entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
+            commentText.append("\n");
+            commentText.append("Holiday overtime: ").append(CalculateWorkHoursUtil.minutesToHH(entry.getTotalOvertimeMinutes()));
+        }
+
+        // Add sync status
+        if (entry.getAdminSync() != null) {
+            if (hasWorkData) commentText.append("\n");
+            commentText.append("Status: ");
+            switch (entry.getAdminSync().toString()) {
+                case "USER_DONE" -> commentText.append("User Completed");
+                case "ADMIN_EDITED" -> commentText.append("Admin Modified");
+                case "USER_IN_PROCESS" -> commentText.append("In Progress");
+                default -> commentText.append(entry.getAdminSync());
+            }
+            hasWorkData = true;
+        }
+
+        // Only add comment if there's actual data to show
+        if (hasWorkData && !commentText.isEmpty()) {
+            // Create comment anchor (position)
+            ClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0,
+                    cell.getColumnIndex(), cell.getRowIndex(),
+                    cell.getColumnIndex() + 3, cell.getRowIndex() + 5);
+
+            // Create comment
+            Comment comment = drawing.createCellComment(anchor);
+
+            // FIXED: Create RichTextString instead of using plain String
+            Workbook workbook = cell.getSheet().getWorkbook();
+            RichTextString richTextString = workbook.getCreationHelper().createRichTextString(commentText.toString());
+            comment.setString(richTextString);
+            comment.setAuthor("System");
+
+            // Attach comment to cell
+            cell.setCellComment(comment);
         }
     }
 

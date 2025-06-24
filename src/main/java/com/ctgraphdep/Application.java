@@ -6,6 +6,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import javax.swing.*;
@@ -14,6 +15,7 @@ import java.util.Properties;
 
 @SpringBootApplication
 @EnableScheduling
+@EnableAsync
 public class Application {
     private final CTTTSystemTray systemTray;
 
@@ -41,9 +43,6 @@ public class Application {
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        LoggerUtil.info(this.getClass(), "Application ready event received");
-        LoggerUtil.info(this.getClass(), "Headless mode: " + GraphicsEnvironment.isHeadless());
-        LoggerUtil.info(this.getClass(), "java.awt.headless property: " + System.getProperty("java.awt.headless"));
 
         if (SystemTray.isSupported()) {
             SwingUtilities.invokeLater(() -> {

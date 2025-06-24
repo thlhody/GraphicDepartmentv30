@@ -4,37 +4,27 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.validation.TimeValidationService;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * ENHANCED Builder class for creating and updating WorkTimeTable entities with validation.
- * Centralizes all worktime entry manipulation logic to eliminate duplication.
- * NEW ENHANCEMENTS:
- * - Integration with TimeValidationService for standardized validation
- * - Hybrid validation approach: EntityBuilder rules + TimeValidationService
- * - Improved error messages and logging
- * - Backward compatibility maintained
+ * CLEANED WorktimeEntityBuilder - Pure entity manipulation, NO VALIDATION
+ * All validation is handled at controller level using TimeValidationService
+ * This class assumes all input data is already validated
  */
 public class WorktimeEntityBuilder {
 
-    static {
-        LoggerUtil.initialize(WorktimeEntityBuilder.class, null);
-    }
-
     // ========================================================================
-    // FACTORY METHODS - Entry Creation (EXISTING - UNCHANGED)
+    // FACTORY METHODS - Entry Creation (CLEAN - NO VALIDATION)
     // ========================================================================
 
     /**
      * Create a new blank worktime entry with default values
+     * ASSUMES: userId and date are already validated
      */
     public static WorkTimeTable createNewEntry(Integer userId, LocalDate date) {
-        validateBasicParameters(userId, date);
-
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(userId);
         entry.setWorkDate(date);
@@ -51,30 +41,27 @@ public class WorktimeEntityBuilder {
 
     /**
      * Create a time off entry (CO/CM/SN)
+     * ASSUMES: userId, date, and timeOffType are already validated
      */
     public static WorkTimeTable createTimeOffEntry(Integer userId, LocalDate date, String timeOffType) {
-        validateBasicParameters(userId, date);
-        ValidationRules.validateTimeOffType(timeOffType);
-
         WorkTimeTable entry = createNewEntry(userId, date);
         entry.setTimeOffType(timeOffType.toUpperCase());
 
         // Time off entries have no work time
         resetWorkFields(entry);
 
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Created %s time off entry for user %d on %s", timeOffType, userId, date));
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
+                "Created %s time off entry for user %d on %s", timeOffType, userId, date));
 
         return entry;
     }
 
     /**
      * Create a work entry with start and end times
+     * ASSUMES: All parameters are already validated
      */
     public static WorkTimeTable createWorkEntry(Integer userId, LocalDate date,
                                                 LocalDateTime startTime, LocalDateTime endTime) {
-        validateBasicParameters(userId, date);
-        ValidationRules.validateWorkTimes(startTime, endTime);
-
         WorkTimeTable entry = createNewEntry(userId, date);
         entry.setDayStartTime(startTime);
         entry.setDayEndTime(endTime);
@@ -92,10 +79,9 @@ public class WorktimeEntityBuilder {
 
     /**
      * Create admin blank entry (for removal)
+     * ASSUMES: userId and date are already validated
      */
     public static WorkTimeTable createAdminBlankEntry(Integer userId, LocalDate date) {
-        validateBasicParameters(userId, date);
-
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(userId);
         entry.setWorkDate(date);
@@ -112,15 +98,13 @@ public class WorktimeEntityBuilder {
 
     /**
      * Create admin work hours entry (admin sets specific hours)
+     * ASSUMES: All parameters are already validated
      */
     public static WorkTimeTable createAdminWorkHoursEntry(Integer userId, LocalDate date, int hours) {
-        validateBasicParameters(userId, date);
-        ValidationRules.validateWorkHours(hours);
-
         WorkTimeTable entry = createNewEntry(userId, date);
         entry.setAdminSync(SyncStatusMerge.ADMIN_EDITED);
 
-        // Calculate times based on hours (admin pattern from existing code)
+        // Calculate times based on hours
         LocalDateTime startTime = date.atTime(WorkCode.START_HOUR, 0);
         int totalMinutes = (hours * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION;
         LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
@@ -141,20 +125,14 @@ public class WorktimeEntityBuilder {
     }
 
     // ========================================================================
-    // UPDATE METHODS - Entry Modification (EXISTING - UNCHANGED)
+    // UPDATE METHODS - Entry Modification (CLEAN - NO VALIDATION)
     // ========================================================================
 
     /**
-     * Update start time with validation and recalculation
+     * Update start time with recalculation
+     * ASSUMES: Entry and startTime are already validated
      */
     public static WorkTimeTable updateStartTime(WorkTimeTable entry, LocalDateTime startTime) {
-        validateEntryForUpdate(entry);
-        ValidationRules.validateTimeOffConflict(entry, "Cannot update start time when time off is set");
-
-        if (startTime != null && entry.getDayEndTime() != null && !startTime.isBefore(entry.getDayEndTime())) {
-            throw new IllegalArgumentException("Start time must be before end time");
-        }
-
         entry.setDayStartTime(startTime);
         entry.setAdminSync(SyncStatusMerge.USER_INPUT);
 
@@ -170,16 +148,10 @@ public class WorktimeEntityBuilder {
     }
 
     /**
-     * Update end time with validation and recalculation
+     * Update end time with recalculation
+     * ASSUMES: Entry and endTime are already validated
      */
     public static WorkTimeTable updateEndTime(WorkTimeTable entry, LocalDateTime endTime) {
-        validateEntryForUpdate(entry);
-        ValidationRules.validateTimeOffConflict(entry, "Cannot update end time when time off is set");
-
-        if (endTime != null && entry.getDayStartTime() != null && !endTime.isAfter(entry.getDayStartTime())) {
-            throw new IllegalArgumentException("End time must be after start time");
-        }
-
         entry.setDayEndTime(endTime);
         entry.setAdminSync(SyncStatusMerge.USER_INPUT);
 
@@ -196,11 +168,9 @@ public class WorktimeEntityBuilder {
 
     /**
      * Add time off to entry (clears work time)
+     * ASSUMES: Entry and timeOffType are already validated
      */
     public static WorkTimeTable addTimeOff(WorkTimeTable entry, String timeOffType) {
-        validateEntryForUpdate(entry);
-        ValidationRules.validateTimeOffType(timeOffType);
-
         entry.setTimeOffType(timeOffType.toUpperCase());
         entry.setAdminSync(SyncStatusMerge.USER_INPUT);
 
@@ -216,10 +186,9 @@ public class WorktimeEntityBuilder {
 
     /**
      * Remove time off from entry (preserves work time if exists)
+     * ASSUMES: Entry is already validated
      */
     public static WorkTimeTable removeTimeOff(WorkTimeTable entry) {
-        validateEntryForUpdate(entry);
-
         String oldTimeOffType = entry.getTimeOffType();
         entry.setTimeOffType(null);
         entry.setAdminSync(SyncStatusMerge.USER_INPUT);
@@ -233,10 +202,9 @@ public class WorktimeEntityBuilder {
 
     /**
      * Clear entry completely (for admin blank operations)
+     * ASSUMES: Entry is already validated
      */
     public static WorkTimeTable clearEntry(WorkTimeTable entry) {
-        validateEntryForUpdate(entry);
-
         entry.setTimeOffType(null);
         entry.setAdminSync(SyncStatusMerge.ADMIN_BLANK);
         resetWorkFields(entry);
@@ -249,11 +217,9 @@ public class WorktimeEntityBuilder {
 
     /**
      * Transform work entry to time off (atomic operation)
+     * ASSUMES: All parameters are already validated
      */
     public static WorkTimeTable transformWorkToTimeOff(WorkTimeTable entry, String timeOffType) {
-        validateEntryForUpdate(entry);
-        ValidationRules.validateTimeOffType(timeOffType);
-
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
                 "Transforming work entry to %s for user %d on %s",
                 timeOffType, entry.getUserId(), entry.getWorkDate()));
@@ -263,12 +229,10 @@ public class WorktimeEntityBuilder {
 
     /**
      * Transform time off entry to work entry
+     * ASSUMES: All parameters are already validated
      */
     public static WorkTimeTable transformTimeOffToWork(WorkTimeTable entry,
                                                        LocalDateTime startTime, LocalDateTime endTime) {
-        validateEntryForUpdate(entry);
-        ValidationRules.validateWorkTimes(startTime, endTime);
-
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
                 "Transforming %s time off to work entry for user %d on %s",
                 entry.getTimeOffType(), entry.getUserId(), entry.getWorkDate()));
@@ -284,228 +248,152 @@ public class WorktimeEntityBuilder {
     }
 
     // ========================================================================
-    // PRIVATE HELPER METHODS (EXISTING - UNCHANGED)
+    // SN SPECIFIC METHODS (CLEAN - NO VALIDATION)
     // ========================================================================
 
     /**
-     * Reset all work-related fields to default values
+     * Create SN entry with work time (for admin use)
+     * ASSUMES: All parameters are already validated
+     */
+    public static WorkTimeTable createSNWithWorkTime(Integer userId, LocalDate date, double workHours) {
+        WorkTimeTable entry = createNewEntry(userId, date);
+        entry.setTimeOffType("SN");
+        entry.setAdminSync(SyncStatusMerge.ADMIN_EDITED);
+
+        // Calculate start and end times based on work hours
+        LocalDateTime startTime = date.atTime(8, 0);
+        int totalMinutes = (int) Math.round(workHours * 60);
+        LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
+
+        entry.setDayStartTime(startTime);
+        entry.setDayEndTime(endTime);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+
+        // Let recalculateWorkTime handle the SN-specific calculations
+        recalculateWorkTime(entry);
+
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
+                "Created SN work entry for user %d on %s: input=%.2f hours, processed=%d full hours",
+                userId, date, workHours, entry.getTotalOvertimeMinutes() / 60));
+
+        return entry;
+    }
+
+    /**
+     * Update SN entry with work time (preserves SN status, updates work hours)
+     * ASSUMES: All parameters are already validated
+     */
+    public static WorkTimeTable updateSNWithWorkTime(WorkTimeTable entry, double workHours) {
+        // Calculate new work times
+        LocalDateTime startTime = entry.getWorkDate().atTime(8, 0);
+        int totalMinutes = (int) Math.round(workHours * 60);
+        LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
+
+        entry.setDayStartTime(startTime);
+        entry.setDayEndTime(endTime);
+        entry.setAdminSync(SyncStatusMerge.ADMIN_EDITED);
+
+        // Clear any existing temporary stops (fresh calculation)
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+
+        // Recalculate using SN-specific logic
+        recalculateWorkTime(entry);
+
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
+                "Updated SN work entry for user %d on %s: input=%.2f hours, processed=%d full hours",
+                entry.getUserId(), entry.getWorkDate(), workHours, entry.getTotalOvertimeMinutes() / 60));
+
+        return entry;
+    }
+
+    // ========================================================================
+    // PRIVATE HELPER METHODS (UNCHANGED)
+    // ========================================================================
+
+    /**
+     * Reset work fields to default values
      */
     private static void resetWorkFields(WorkTimeTable entry) {
         entry.setDayStartTime(null);
         entry.setDayEndTime(null);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setTotalTemporaryStopMinutes(0);
         entry.setTemporaryStopCount(0);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
         entry.setLunchBreakDeducted(false);
     }
 
     /**
-     * Recalculate work time based on start and end times, accounting for temporary stops
+     * Recalculate work time based on start/end times and entry type
      */
     private static void recalculateWorkTime(WorkTimeTable entry) {
         if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
-            entry.setTotalWorkedMinutes(0);
-            entry.setLunchBreakDeducted(false);
+            resetWorkFields(entry);
             return;
         }
 
         // Calculate total elapsed time
-        int totalElapsedMinutes = (int) Duration.between(entry.getDayStartTime(), entry.getDayEndTime()).toMinutes();
-        if (totalElapsedMinutes < 0) {
-            totalElapsedMinutes = 0;
-        }
+        Duration elapsed = Duration.between(entry.getDayStartTime(), entry.getDayEndTime());
+        int totalElapsedMinutes = (int) elapsed.toMinutes();
 
-        // ✅ CORRECT: Only subtract temporary stops to get net work time
+        // Handle SN entries (holiday work) specially
+        if ("SN".equals(entry.getTimeOffType())) {
+            recalculateSNWorkTime(entry, totalElapsedMinutes);
+        } else {
+            recalculateRegularWorkTime(entry, totalElapsedMinutes);
+        }
+    }
+
+    /**
+     * Calculate work time for SN (holiday) entries
+     */
+    private static void recalculateSNWorkTime(WorkTimeTable entry, int totalElapsedMinutes) {
+        // Account for temporary stops
         int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ?
                 entry.getTotalTemporaryStopMinutes() : 0;
         int netWorkMinutes = Math.max(0, totalElapsedMinutes - tempStopMinutes);
 
-        // Store net work time (lunch break is already accounted for in elapsed time)
-        entry.setTotalWorkedMinutes(netWorkMinutes);
+        // SN business rules:
+        entry.setTotalWorkedMinutes(0);  // No regular work on holidays
+        entry.setLunchBreakDeducted(false);  // No lunch break on holidays
 
-        // Flag that lunch break should be considered in overtime calculations
-        boolean lunchBreak = netWorkMinutes >= (4 * 60); // 4 hours threshold
-        entry.setLunchBreakDeducted(lunchBreak);
+        // Convert to full hours only (discard partial hours)
+        int fullHours = netWorkMinutes / 60;  // Floor division discards partial hours
+        int overtimeMinutes = fullHours * 60;
+        entry.setTotalOvertimeMinutes(overtimeMinutes);
 
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Recalculated work time: elapsed=%d, tempStops=%d, netWork=%d minutes",
-                totalElapsedMinutes, tempStopMinutes, netWorkMinutes));
+                "Holiday work calculation: elapsed=%d, tempStops=%d, netWork=%d → %d full hours (%d overtime minutes)",
+                totalElapsedMinutes, tempStopMinutes, netWorkMinutes, fullHours, overtimeMinutes));
     }
 
     /**
-     * Validate basic parameters for entry creation
+     * Calculate work time for regular entries
      */
-    private static void validateBasicParameters(Integer userId, LocalDate date) {
-        if (userId == null) {
-            throw new IllegalArgumentException("User ID cannot be null");
-        }
-        if (date == null) {
-            throw new IllegalArgumentException("Date cannot be null");
-        }
-    }
+    private static void recalculateRegularWorkTime(WorkTimeTable entry, int totalElapsedMinutes) {
+        // Account for temporary stops
+        int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ? entry.getTotalTemporaryStopMinutes() : 0;
+        int netWorkMinutes = Math.max(0, totalElapsedMinutes - tempStopMinutes);
 
-    /**
-     * Validate entry for update operations
-     */
-    private static void validateEntryForUpdate(WorkTimeTable entry) {
-        if (entry == null) {
-            throw new IllegalArgumentException("Entry cannot be null");
-        }
-        if (entry.getUserId() == null) {
-            throw new IllegalArgumentException("Entry must have user ID");
-        }
-        if (entry.getWorkDate() == null) {
-            throw new IllegalArgumentException("Entry must have work date");
-        }
-    }
-
-    // ========================================================================
-    // ENHANCED VALIDATION RULES - With TimeValidationService Integration
-    // ========================================================================
-
-    public static class ValidationRules {
-
-        // Optional TimeValidationService for enhanced validation
-        private static TimeValidationService timeValidationService;
-
-        /**
-         * Set TimeValidationService for enhanced validation capabilities
-         * This allows EntityBuilder to use standardized validation when available
-         */
-        public static void setTimeValidationService(TimeValidationService service) {
-            timeValidationService = service;
-            LoggerUtil.debug(WorktimeEntityBuilder.class,
-                    "TimeValidationService integration " + (service != null ? "enabled" : "disabled"));
+        // Lunch break logic
+        boolean lunchBreakDeducted = netWorkMinutes > (WorkCode.INTERVAL_HOURS_A * 60);
+        if (lunchBreakDeducted) {
+            netWorkMinutes -= WorkCode.HALF_HOUR_DURATION; // Deduct 30 minutes
         }
 
-        /**
-         * Validate time off type
-         */
-        public static void validateTimeOffType(String timeOffType) {
-            if (timeOffType == null || timeOffType.trim().isEmpty()) {
-                throw new IllegalArgumentException("Time off type cannot be null or empty");
-            }
+        // Regular vs overtime calculation
+        int regularMinutes = Math.min(netWorkMinutes, WorkCode.INTERVAL_HOURS_C);
+        int overtimeMinutes = Math.max(0, netWorkMinutes - WorkCode.INTERVAL_HOURS_C);
 
-            String type = timeOffType.trim().toUpperCase();
-            if (!type.matches("^(CO|CM|SN)$")) {
-                throw new IllegalArgumentException("Invalid time off type: " + timeOffType +
-                        ". Valid types: CO (vacation), CM (medical), SN (national holiday)");
-            }
-        }
+        entry.setTotalWorkedMinutes(regularMinutes);
+        entry.setTotalOvertimeMinutes(overtimeMinutes);
+        entry.setLunchBreakDeducted(lunchBreakDeducted);
 
-        /**
-         * Validate work times
-         */
-        public static void validateWorkTimes(LocalDateTime startTime, LocalDateTime endTime) {
-            if (startTime != null && endTime != null) {
-                if (!endTime.isAfter(startTime)) {
-                    throw new IllegalArgumentException("End time must be after start time");
-                }
-
-                // Check for reasonable work duration (max 24 hours)
-                Duration duration = Duration.between(startTime, endTime);
-                if (duration.toHours() > 24) {
-                    throw new IllegalArgumentException("Work duration cannot exceed 24 hours");
-                }
-            }
-        }
-
-        /**
-         * Validate work hours for admin entries
-         */
-        public static void validateWorkHours(int hours) {
-            if (hours < 1 || hours > 24) {
-                throw new IllegalArgumentException("Work hours must be between 1 and 24");
-            }
-        }
-
-        /**
-         * Validate time off conflict
-         */
-        public static void validateTimeOffConflict(WorkTimeTable entry, String message) {
-            if (entry.getTimeOffType() != null && !entry.getTimeOffType().trim().isEmpty()) {
-                throw new IllegalArgumentException(message + ". Remove time off first.");
-            }
-        }
-
-        /**
-         * ENHANCED: Validate user can edit date with optional TimeValidationService integration
-         */
-        public static void validateUserCanEditDate(LocalDate date, String reason) {
-            // Basic validation (always performed)
-            LocalDate today = LocalDate.now();
-
-            if (date.equals(today)) {
-                throw new IllegalArgumentException("Cannot edit current day");
-            }
-
-            if (date.isAfter(today)) {
-                throw new IllegalArgumentException("Cannot edit future dates");
-            }
-
-            // Additional custom validation
-            if (reason != null && !reason.trim().isEmpty()) {
-                throw new IllegalArgumentException(reason);
-            }
-
-            // Enhanced validation using TimeValidationService if available
-            if (timeValidationService != null) {
-                try {
-                    // Use TimeValidationService for additional date validation
-                    var validateCommand = timeValidationService.getValidationFactory()
-                            .createValidatePeriodCommand(date.getYear(), date.getMonthValue(), 24);
-                    timeValidationService.execute(validateCommand);
-
-                    LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                            "TimeValidationService validated date %s successfully", date));
-                } catch (Exception e) {
-                    LoggerUtil.warn(WorktimeEntityBuilder.class, String.format(
-                            "TimeValidationService validation failed for date %s: %s", date, e.getMessage()));
-                    throw new IllegalArgumentException("Date validation failed: " + e.getMessage());
-                }
-            }
-        }
-
-        /**
-         * ENHANCED: Validate time off can be added to date with TimeValidationService integration
-         */
-        public static void validateTimeOffDate(LocalDate date, String timeOffType) {
-            // Basic validation first
-            validateUserCanEditDate(date, null);
-
-            // Check for weekend (except admin SN)
-            if (date.getDayOfWeek().getValue() >= 6) {
-                if (!"SN".equals(timeOffType)) {
-                    throw new IllegalArgumentException("Cannot add time off on weekends (except national holidays)");
-                }
-            }
-
-            // Enhanced validation using TimeValidationService if available and for holidays
-            if (timeValidationService != null && "SN".equals(timeOffType)) {
-                try {
-                    // Use TimeValidationService for holiday-specific validation
-                    var holidayCommand = timeValidationService.getValidationFactory()
-                            .createValidateHolidayDateCommand(date);
-                    timeValidationService.execute(holidayCommand);
-
-                    LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                            "TimeValidationService validated holiday date %s successfully", date));
-                } catch (Exception e) {
-                    LoggerUtil.warn(WorktimeEntityBuilder.class, String.format(
-                            "TimeValidationService holiday validation failed for date %s: %s", date, e.getMessage()));
-                    throw new IllegalArgumentException("Holiday date validation failed: " + e.getMessage());
-                }
-            }
-        }
-
-        /**
-         * Validate admin permissions for operation
-         */
-        public static void validateAdminOperation(String timeOffType, String operation) {
-            if ("SN".equals(timeOffType) && !"admin".equals(operation)) {
-                throw new IllegalArgumentException("Only admin can edit national holidays");
-            }
-        }
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
+                "Regular work calculation: elapsed=%d, tempStops=%d, netWork=%d, regular=%d, overtime=%d, lunch=%s",
+                totalElapsedMinutes, tempStopMinutes, netWorkMinutes,
+                regularMinutes, overtimeMinutes, lunchBreakDeducted));
     }
 }

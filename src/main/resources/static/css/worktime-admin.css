@@ -1,96 +1,361 @@
-.weekend { background-color: #f8f9fa !important; }
-.admin-edit { background-color: #fff3cd !important; }
-.user-input { background-color: #d1e7dd !important; }
-.user-synced { background-color: #e2e3e5 !important; }
-.holiday { color: #dc3545 !important; }
-.vacation { color: #0dcaf0 !important; }
-.medical { color: #ffc107 !important; }
+/* ============================================================================ */
+/*                         WORKTIME ADMIN - ORGANIZED CSS                      */
+/*                              Easy to Read & Maintain                         */
+/* ============================================================================ */
 
+/* ============================================================================ */
+/* 1. TABLE LAYOUT & STRUCTURE */
+/* ============================================================================ */
 
-.quick-actions button {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-}
-
-.summary-col {
-    background-color: #f8f9fa;
-    font-weight: 500;
-}
-/* New/modified styles */
 .worktime-table {
-    font-size: 0.875rem; /* Slightly smaller font */
-    table-layout: fixed; /* Fixed table layout for better control */
+    font-size: 0.875rem;
+    table-layout: fixed;
     width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 .worktime-table th,
 .worktime-table td {
-    padding: 0.4rem !important; /* Reduced padding */
-    white-space: nowrap; /* Prevent text wrapping */
+    padding: 0.4rem !important;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    border: 1px solid #dee2e6;
+    vertical-align: middle;
 }
 
-/* Column widths */
+/* ============================================================================ */
+/* 2. COLUMN WIDTHS & STICKY POSITIONING */
+/* ============================================================================ */
+
+/* Name Column - First Column */
 .worktime-table th:first-child,
 .worktime-table td:first-child {
-    width: 140px; /* Fixed width for names */
+    width: 140px;
     position: sticky;
     left: 0;
     background: white;
     z-index: 2;
+    font-weight: 500;
 }
 
+/* Employee ID Column - Second Column */
 .worktime-table th:nth-child(2),
 .worktime-table td:nth-child(2) {
-    width: 90px; /* Fixed width for employee ID */
+    width: 70px; /* FIXED: Reduced from 90px for 8-digit IDs */
     position: sticky;
     left: 140px;
     background: white;
     z-index: 1;
-}
-
-/* Day columns */
-.day-column {
-    width: 35px; /* Compact width for day columns */
     text-align: center;
+    font-family: 'Courier New', monospace; /* Better for numbers */
 }
 
-/* Summary columns */
+/* Day Columns */
+.day-column {
+    width: 35px;
+    text-align: center;
+    min-width: 35px;
+}
+
+/* Summary Columns */
 .summary-col {
     width: 70px;
     background-color: #f8f9fa;
     font-weight: 500;
-}
-/* Update the worktime-cell and editor styles */
-.worktime-cell {
-    position: relative !important;
-    cursor: pointer;
-    min-height: 30px;  /* Ensure minimum height for cell */
+    text-align: center;
+    border-left: 2px solid #dee2e6;
 }
 
-.worktime-editor {
-    position: fixed; /* Fixed position relative to viewport */
-    z-index: 10000; /* Very high z-index to ensure it's on top */
-    background-color: #ffffff; /* Explicit white background */
-    border: 2px solid #007bff; /* Bold blue border to make it obvious */
+/* ============================================================================ */
+/* 3. DAY HEADER STYLING */
+/* ============================================================================ */
+
+.day-header {
+    text-align: center;
+    line-height: 1.1;
+    padding: 0.3rem 0.2rem;
+}
+
+.day-header .day-initial {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.day-header .day-number {
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: block;
+}
+
+/* ============================================================================ */
+/* 4. CELL BACKGROUND COLORS & STATES */
+/* ============================================================================ */
+
+/* Weekend Days */
+.weekend {
+    background-color: #f8f9fa !important;
+    color: #6c757d;
+}
+
+/* Admin Edited Entries */
+.admin-edit {
+    background-color: #fff3cd !important;
+    border-left: 3px solid #ffc107;
+}
+
+/* User Input Entries */
+.user-input {
+    background-color: #d1e7dd !important;
+    border-left: 3px solid #198754;
+}
+
+/* User Synced Entries */
+.user-synced {
+    background-color: #e2e3e5 !important;
+    border-left: 3px solid #6c757d;
+}
+
+/* ============================================================================ */
+/* 5. TIME OFF BADGES - IMPROVED READABILITY & LOGICAL COLORS */
+/* ============================================================================ */
+
+/* Base Badge Styling - IMPROVED READABILITY */
+.holiday,
+.vacation,
+.medical,
+.holiday-with-work {
+    display: inline-block;
+    color: white;
+    padding: 3px 8px; /* FIXED: Increased from 2px 6px */
     border-radius: 4px;
-    padding: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); /* Strong shadow */
-    width: 240px;
-    display: none; /* Hidden by default */
+    font-weight: bold;
+    font-size: 0.9em; /* FIXED: Increased from 0.85em */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.2;
+    min-width: 28px;
+    text-align: center;
+}
+
+/* Specific Badge Colors - LOGICAL COLOR SCHEME */
+.holiday {
+    background-color: #28a745; /* Green for SN (Free Holiday Day) */
+    color: white;
+}
+
+.vacation {
+    background-color: #007bff; /* Blue for CO (Free Sky/Vacation) */
+    color: white;
+}
+
+.medical {
+    background-color: #ffc107; /* Yellow for CM (Medical) */
+    color: #000; /* Black text for better contrast on yellow */
+}
+
+/* NEW: Red for SN with work hours (Holiday + Work) */
+.holiday-with-work {
+    background-color: #dc3545; /* Red for SN:4 (Working on Holiday) */
+    color: white;
+}
+
+/* ============================================================================ */
+/* 6. SN + WORK TIME DISPLAY (SN4 FORMAT) - SIMPLIFIED */
+/* ============================================================================ */
+
+/* Simplified SN + Work Hours Display - No more divider, just "SN4" */
+.sn-work-display {
+    display: inline-block;
+    background-color: #dc3545; /* Red for working on holiday */
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9em;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.2;
+    min-width: 32px;
+    text-align: center;
+}
+
+/* Remove old complex styling - keeping for backward compatibility but simplified */
+.holiday-badge {
+    background-color: #dc3545; /* Red for SN with work */
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9em;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Remove divider - not needed for SN4 format */
+.divider {
+    display: none;
+}
+
+/* Remove separate hours badge - integrated into main badge */
+.holiday-hours {
+    display: none;
+}
+
+/* ============================================================================ */
+/* 7. WORKTIME CELL INTERACTIONS - FIXED TREMBLING */
+/* ============================================================================ */
+
+.worktime-cell {
+    position: relative;
+    cursor: pointer;
+    min-height: 30px;
+    transition: background-color 0.2s ease;
+}
+
+.worktime-cell:hover {
+    background-color: #f8f9fa;
+    /* REMOVED: transform scale that caused trembling */
+}
+
+.worktime-cell:active {
+    background-color: #e9ecef;
+}
+
+/* Active cell with open editor */
+.worktime-cell:has(.worktime-editor.show) {
+    background-color: #e3f2fd;
+    border: 2px solid #007bff;
+    border-radius: 4px;
+}
+
+/* ============================================================================ */
+/* 8. WORKTIME EDITOR POPUP */
+/* ============================================================================ */
+
+.worktime-editor {
+    position: fixed;
+    background: white;
+    border: 2px solid #007bff;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    min-width: 300px;
+    max-width: 350px;
+    display: none;
+    animation: fadeInScale 0.2s ease;
 }
 
 .worktime-editor.show {
-    display: block !important; /* Force display when show class is applied */
+    display: block;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
-/* Add to your existing styles */
+/* Editor Header */
+.worktime-editor h6 {
+    margin-bottom: 8px;
+    color: #495057;
+    font-weight: 600;
+}
+
+/* Quick Action Buttons */
+.quick-actions {
+    margin-bottom: 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.quick-actions .btn {
+    font-size: 0.85em;
+    padding: 6px 12px;
+    min-width: 45px;
+    font-weight: 500;
+}
+
+/* Custom Input Section */
+.worktime-editor .input-group {
+    margin-bottom: 12px;
+}
+
+.worktime-editor .form-control-sm {
+    font-size: 0.9em;
+    padding: 6px 8px;
+}
+
+.worktime-editor .btn-primary {
+    font-size: 0.85em;
+    padding: 6px 12px;
+}
+
+/* ENHANCED: Entry Information Section */
+.entry-info {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e9ecef;
+}
+
+.current-entry-info {
+    background-color: #f8f9fa;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.entry-details {
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.entry-details small {
+    line-height: 1.4;
+    margin-bottom: 2px;
+    display: block;
+}
+
+.entry-examples {
+    background-color: #e3f2fd;
+    padding: 6px 8px;
+    border-radius: 4px;
+}
+
+.entry-examples small {
+    line-height: 1.3;
+    margin-bottom: 2px;
+}
+
+/* Entry data icons */
+.entry-icon {
+    color: #007bff;
+    margin-right: 4px;
+}
+
+/* Loading state */
+.entry-loading {
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* No entry state */
+.no-entry {
+    color: #6c757d;
+    text-align: center;
+    padding: 4px;
+    font-style: italic;
+}
+
+/* Remove Button Styling */
 .worktime-editor .btn-outline-secondary:hover {
     background-color: #dc3545;
     border-color: #dc3545;
@@ -101,22 +366,225 @@
     font-size: 0.875rem;
 }
 
-.quick-actions button {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
+/* ============================================================================ */
+/* 9. LOADING STATES & FEEDBACK */
+/* ============================================================================ */
+
+/* Loading Indicator */
+.loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    padding: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Header day styling */
-.day-header {
-    text-align: center;
-    line-height: 1;
+.loading-indicator .spinner-border {
+    width: 1rem;
+    height: 1rem;
 }
 
-.day-header .day-initial {
-    font-size: 0.75rem;
-    opacity: 0.7;
+/* Success/Error States */
+.cell-success {
+    background-color: #d1e7dd !important;
+    animation: successFlash 0.6s ease;
 }
 
-.day-header .day-number {
-    font-weight: 500;
+.cell-error {
+    background-color: #f8d7da !important;
+    animation: errorFlash 0.6s ease;
 }
+
+@keyframes successFlash {
+    0% { background-color: #198754; }
+    100% { background-color: #d1e7dd; }
+}
+
+@keyframes errorFlash {
+    0% { background-color: #dc3545; }
+    100% { background-color: #f8d7da; }
+}
+
+/* ============================================================================ */
+/* 10. HOVER EFFECTS & TRANSITIONS - FIXED TREMBLING */
+/* ============================================================================ */
+
+/* Badge Hover Effects - Removed transform to prevent trembling */
+.holiday:hover,
+.vacation:hover,
+.medical:hover,
+.holiday-with-work:hover,
+.holiday-badge:hover,
+.sn-work-display:hover {
+    opacity: 0.9;
+    /* REMOVED: transform translateY that caused trembling */
+    transition: opacity 0.2s ease;
+}
+
+/* Table Row Hover */
+.worktime-table tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.03);
+}
+
+/* Summary Column Hover */
+.summary-col:hover {
+    background-color: #e9ecef;
+    transition: background-color 0.2s ease;
+}
+
+/* ============================================================================ */
+/* 11. RESPONSIVE DESIGN */
+/* ============================================================================ */
+
+@media (max-width: 1200px) {
+    .worktime-table {
+        font-size: 0.8rem;
+    }
+
+    .day-column {
+        width: 30px;
+    }
+
+    .summary-col {
+        width: 60px;
+    }
+}
+
+@media (max-width: 992px) {
+    .worktime-table th:first-child,
+    .worktime-table td:first-child {
+        width: 120px;
+    }
+
+    .worktime-table th:nth-child(2),
+    .worktime-table td:nth-child(2) {
+        width: 60px;
+    }
+
+    .day-column {
+        width: 28px;
+    }
+}
+
+@media (max-width: 768px) {
+    .sn-work-display {
+        font-size: 0.8em;
+        padding: 2px 6px;
+    }
+
+    .holiday,
+    .vacation,
+    .medical,
+    .holiday-with-work {
+        padding: 2px 6px;
+        font-size: 0.8em;
+    }
+
+    .worktime-editor {
+        min-width: 280px;
+        padding: 10px;
+    }
+
+    .quick-actions .btn {
+        font-size: 0.8em;
+        padding: 4px 8px;
+        min-width: 40px;
+    }
+}
+
+/* ============================================================================ */
+/* 12. ACCESSIBILITY & HIGH CONTRAST */
+/* ============================================================================ */
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+    .holiday,
+    .vacation,
+    .medical,
+    .holiday-with-work,
+    .sn-work-display {
+        border: 2px solid black;
+    }
+
+    .worktime-cell:hover {
+        border: 2px solid #000;
+    }
+}
+
+/* Focus States for Accessibility */
+.worktime-cell:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+.worktime-editor:focus-within {
+    border-color: #0056b3;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+/* ============================================================================ */
+/* 13. PRINT STYLES */
+/* ============================================================================ */
+
+@media print {
+    .worktime-editor {
+        display: none !important;
+    }
+
+    .worktime-table {
+        font-size: 0.75rem;
+    }
+
+    .worktime-cell:hover {
+        background-color: transparent !important;
+    }
+
+    .holiday,
+    .vacation,
+    .medical,
+    .holiday-with-work,
+    .sn-work-display {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+        border: 1px solid #000;
+    }
+}
+
+/* ============================================================================ */
+/* 14. UTILITIES & HELPERS */
+/* ============================================================================ */
+
+/* Text Utilities */
+.text-monospace {
+    font-family: 'Courier New', Monaco, monospace;
+}
+
+/* Animation Utilities */
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Hide/Show Utilities */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+/* ============================================================================ */
+/* END OF WORKTIME ADMIN CSS */
+/* ============================================================================ */

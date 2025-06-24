@@ -43,20 +43,6 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
         this.defaultScheduleHours = null; // Will use 8h default if times not provided
     }
 
-    /**
-     * Alternative constructor for default schedule transformation (admin use)
-     */
-    public TransformTimeOffToWorkCommand(WorktimeOperationContext context, String username,
-                                         Integer userId, LocalDate date, Integer scheduleHours) {
-        super(context);
-        this.username = username;
-        this.userId = userId;
-        this.date = date;
-        this.startTime = null;
-        this.endTime = null;
-        this.defaultScheduleHours = scheduleHours;
-    }
-
     @Override
     protected void validate() {
         if (username == null || username.trim().isEmpty()) {
@@ -69,26 +55,13 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             throw new IllegalArgumentException("Date cannot be null");
         }
 
-        LoggerUtil.info(this.getClass(), String.format(
-                "Validating transform time off to work: %s on %s", username, date));
+        LoggerUtil.info(this.getClass(), String.format("Validating transform time off to work: %s on %s", username, date));
 
         // Validate user permissions
         context.validateUserPermissions(username, "transform time off to work");
 
         boolean isCurrentUserAdmin = context.isCurrentUserAdmin();
         String currentUsername = context.getCurrentUsername();
-
-        // Validate work times if provided
-        if (startTime != null && endTime != null) {
-            WorktimeEntityBuilder.ValidationRules.validateWorkTimes(startTime, endTime);
-        } else if (startTime != null || endTime != null) {
-            throw new IllegalArgumentException("Both start time and end time must be provided, or neither");
-        }
-
-        // Validate default schedule hours if provided
-        if (defaultScheduleHours != null) {
-            WorktimeEntityBuilder.ValidationRules.validateWorkHours(defaultScheduleHours);
-        }
 
         // ADMIN vs USER specific validation
         if (isCurrentUserAdmin && !currentUsername.equals(username)) {
@@ -113,8 +86,7 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
         try {
             context.validateHolidayDate(date);
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Admin date validation warning for %s: %s", date, e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Admin date validation warning for %s: %s", date, e.getMessage()));
             // Don't throw exception for admin operations
         }
     }
@@ -129,46 +101,36 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
 
         // CORRECTED: Users can only transform time off to work for PAST dates (logging completed work)
         if (!date.isBefore(today)) {
-            throw new IllegalArgumentException(String.format(
-                    "Users can only convert time off to work for past dates (logging completed work). " +
-                            "Date %s is not allowed.", date));
+            throw new IllegalArgumentException(String.format("Users can only convert time off to work for past dates (logging completed work). Date %s is not allowed.", date));
         }
 
         // CORRECTED: 1 month limit for work time editing
         LocalDate oneMonthAgo = today.minusMonths(1);
         if (date.isBefore(oneMonthAgo)) {
-            throw new IllegalArgumentException(String.format(
-                    "Users can only edit work time for the past month. Date %s is too old. " +
-                            "Limit: %s", date, oneMonthAgo));
+            throw new IllegalArgumentException(String.format("Users can only edit work time for the past month. Date %s is too old. " + "Limit: %s", date, oneMonthAgo));
         }
 
         // CORRECTED: Manual start/end time is required for user operations (logging actual work done)
         if (startTime == null || endTime == null) {
-            throw new IllegalArgumentException(
-                    "Users must provide both start time and end time when converting time off to work " +
-                            "(to log the actual work hours completed)");
+            throw new IllegalArgumentException("Users must provide both start time and end time when converting time off to work (to log the actual work hours completed)");
         }
 
         // Additional date validation
         context.validateDateEditable(date, null);
 
-        LoggerUtil.debug(this.getClass(), String.format(
-                "User converting past time off to work log for %s with times %s-%s",
-                date, startTime.toLocalTime(), endTime.toLocalTime()));
+        LoggerUtil.debug(this.getClass(), String.format("User converting past time off to work log for %s with times %s-%s", date, startTime.toLocalTime(), endTime.toLocalTime()));
     }
 
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Executing transform time off to work command for %s on %s", username, date));
+        LoggerUtil.info(this.getClass(), String.format("Executing transform time off to work command for %s on %s", username, date));
 
         try {
             int year = date.getYear();
             int month = date.getMonthValue();
 
             // Determine operation context (admin vs user)
-            boolean isAdminOperation = context.isCurrentUserAdmin() &&
-                    !context.getCurrentUsername().equals(username);
+            boolean isAdminOperation = context.isCurrentUserAdmin() && !context.getCurrentUsername().equals(username);
 
             // Load appropriate entries
             List<WorkTimeTable> entries;
@@ -198,13 +160,11 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             String oldTimeOffType = entry.getTimeOffType();
 
             // Additional validation for user operations
-            if (!isAdminOperation && "SN".equals(oldTimeOffType)) {
-                return OperationResult.permissionFailure(getOperationType(),
-                        "Users cannot transform national holidays (SN). Only admin can modify SN entries.");
+            if (!isAdminOperation && WorkCode.NATIONAL_HOLIDAY_CODE.equals(oldTimeOffType)) {
+                return OperationResult.permissionFailure(getOperationType(), "Users cannot transform national holidays (SN). Only admin can modify SN entries.");
             }
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Transforming %s time off to work entry for %s on %s", oldTimeOffType, username, date));
+            LoggerUtil.info(this.getClass(), String.format("Transforming %s time off to work entry for %s on %s", oldTimeOffType, username, date));
 
             // Determine work times
             LocalDateTime workStartTime;
@@ -214,8 +174,7 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
                 // Use provided times (user logging actual work done)
                 workStartTime = startTime;
                 workEndTime = endTime;
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Using provided work times: %s to %s", workStartTime.toLocalTime(), workEndTime.toLocalTime()));
+                LoggerUtil.debug(this.getClass(), String.format("Using provided work times: %s to %s", workStartTime.toLocalTime(), workEndTime.toLocalTime()));
             } else {
                 // Use default schedule (admin operation)
                 int scheduleHours = defaultScheduleHours != null ? defaultScheduleHours : 8;
@@ -223,22 +182,19 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
                 int totalMinutes = (scheduleHours * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION;
                 workEndTime = workStartTime.plusMinutes(totalMinutes);
 
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Using default %dh schedule: %s to %s", scheduleHours,
-                        workStartTime.toLocalTime(), workEndTime.toLocalTime()));
+                LoggerUtil.debug(this.getClass(), String.format("Using default %dh schedule: %s to %s", scheduleHours, workStartTime.toLocalTime(), workEndTime.toLocalTime()));
             }
 
             // Track holiday balance for restoration
             Integer oldBalance = null;
             boolean balanceUpdated = false;
 
-            if ("CO".equals(oldTimeOffType)) {
+            if (WorkCode.TIME_OFF_CODE.equals(oldTimeOffType)) {
                 oldBalance = context.getCurrentHolidayBalance();
             }
 
             // Transform using entity builder
-            WorkTimeTable transformedEntry = WorktimeEntityBuilder.transformTimeOffToWork(
-                    entry, workStartTime, workEndTime);
+            WorkTimeTable transformedEntry = WorktimeEntityBuilder.transformTimeOffToWork(entry, workStartTime, workEndTime);
 
             // Update sync status based on operation type
             if (isAdminOperation) {
@@ -260,7 +216,7 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             }
 
 // CORRECTED: Handle holiday balance restoration for CO (restoring vacation days when converting to work)
-            if ("CO".equals(oldTimeOffType)) {
+            if (WorkCode.TIME_OFF_CODE.equals(oldTimeOffType)) {
                 // Only restore balance for user operations or admin operations on current user
                 if (!isAdminOperation || context.getCurrentUsername().equals(username)) {
 
@@ -281,24 +237,18 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             context.refreshTimeOffTracker(username, userId, year);
 
             // Create success message
-            String timeRange = String.format("%s to %s",
-                    workStartTime.toLocalTime(), workEndTime.toLocalTime());
-            String message = String.format("Successfully transformed %s time off to work entry (%s) for %s on %s",
-                    oldTimeOffType, timeRange, username, date);
+            String timeRange = String.format("%s to %s", workStartTime.toLocalTime(), workEndTime.toLocalTime());
+            String message = String.format("Successfully transformed %s time off to work entry (%s) for %s on %s", oldTimeOffType, timeRange, username, date);
 
             if (balanceUpdated) {
-                message += String.format(". Holiday balance restored: %d → %d (worked instead of vacation)",
-                        oldBalance, context.getCurrentHolidayBalance());
-            } else if ("CO".equals(oldTimeOffType) && context.isExistingNationalHoliday(date)) {
+                message += String.format(". Holiday balance restored: %d → %d (worked instead of vacation)", oldBalance, context.getCurrentHolidayBalance());
+            } else if (WorkCode.TIME_OFF_CODE.equals(oldTimeOffType) && context.isExistingNationalHoliday(date)) {
                 message += " (no vacation day restored - national holiday)";
             }
 
             // Create side effects tracking
-            OperationResult.OperationSideEffects.Builder sideEffectsBuilder =
-                    OperationResult.OperationSideEffects.builder()
-                            .fileUpdated(isAdminOperation ?
-                                    String.format("admin/%d/%d", year, month) :
-                                    context.createFilePathId(username, year, month))
+            OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder()
+                            .fileUpdated(isAdminOperation ? String.format("admin/%d/%d", year, month) : context.createFilePathId(username, year, month))
                             .cacheInvalidated(context.createCacheKey(username, year));
 
             if (balanceUpdated && oldBalance != null) {
@@ -307,16 +257,10 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
 
             LoggerUtil.info(this.getClass(), message);
 
-            return OperationResult.successWithSideEffects(
-                    message,
-                    getOperationType(),
-                    transformedEntry,
-                    sideEffectsBuilder.build()
-            );
+            return OperationResult.successWithSideEffects(message, getOperationType(), transformedEntry, sideEffectsBuilder.build());
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error transforming time off to work for %s on %s: %s", username, date, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error transforming time off to work for %s on %s: %s", username, date, e.getMessage()), e);
             return OperationResult.failure("Failed to transform time off to work: " + e.getMessage(), getOperationType());
         }
     }
@@ -342,18 +286,15 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
         entry.setTotalTemporaryStopMinutes(0);
         entry.setTotalOvertimeMinutes(0);
 
-        LoggerUtil.debug(this.getClass(), String.format(
-                "Calculated work time properties: %d minutes, lunch break: %s", totalMinutes, lunchBreak));
+        LoggerUtil.debug(this.getClass(), String.format("Calculated work time properties: %d minutes, lunch break: %s", totalMinutes, lunchBreak));
     }
 
     @Override
     protected String getCommandName() {
         if (startTime != null && endTime != null) {
-            return String.format("TransformTimeOffToWork[%s, %s, %s-%s]", username, date,
-                    startTime.toLocalTime(), endTime.toLocalTime());
+            return String.format("TransformTimeOffToWork[%s, %s, %s-%s]", username, date, startTime.toLocalTime(), endTime.toLocalTime());
         } else {
-            return String.format("TransformTimeOffToWork[%s, %s, %dh schedule]", username, date,
-                    defaultScheduleHours != null ? defaultScheduleHours : 8);
+            return String.format("TransformTimeOffToWork[%s, %s, %dh schedule]", username, date, defaultScheduleHours != null ? defaultScheduleHours : 8);
         }
     }
 

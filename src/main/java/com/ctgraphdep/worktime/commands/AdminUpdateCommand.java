@@ -48,7 +48,9 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
         context.requireAdminPrivileges("admin update");
 
         // Validate the value format if not blank/remove
-        if (value != null && !value.trim().isEmpty() && !"BLANK".equalsIgnoreCase(value.trim())) {
+        if (value != null && !value.trim().isEmpty() &&
+                !"BLANK".equalsIgnoreCase(value.trim()) &&
+                !"REMOVE".equalsIgnoreCase(value.trim())) {
             validateValueFormat(value.trim());
         }
 
@@ -196,7 +198,9 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
      * Create or update admin entry based on the value
      */
     private WorkTimeTable createOrUpdateAdminEntry(Integer userId, LocalDate date, String value) {
-        if (value == null || value.trim().isEmpty() || "BLANK".equalsIgnoreCase(value.trim())) {
+        if (value == null || value.trim().isEmpty() ||
+                "BLANK".equalsIgnoreCase(value.trim()) ||
+                "REMOVE".equalsIgnoreCase(value.trim())) {
             // Admin wants to remove/blank the entry - return null to indicate removal
             return null;
         }
@@ -217,8 +221,7 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
                 throw new IllegalArgumentException("Work hours must be between 1 and 24");
             }
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid admin value: " + value +
-                    ". Expected: work hours (1-24), time off type (CO/CM/SN), or BLANK");
+            throw new IllegalArgumentException("Invalid admin value: " + value + ". Expected: work hours (1-24), time off type (CO/CM/SN), or BLANK");
         }
     }
 

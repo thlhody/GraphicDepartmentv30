@@ -10,7 +10,7 @@ import java.util.Optional;
 /**
  * ENHANCED MainDefaultUserContextService with Role Elevation Support.
  * NEW FEATURE: Admin role elevation without losing original user context.
- *
+
  * Key Features:
  * - Maintains original user for background processes
  * - Supports temporary admin elevation for web interface

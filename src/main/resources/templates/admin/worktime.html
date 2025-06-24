@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=18790}">
     <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
@@ -19,8 +19,10 @@
                 <i class="bi bi-grid"></i> Dashboard
             </a>
         </div>
+
         <!-- Alert System -->
         <div class="mb-4" th:replace="~{alerts/alerts :: alerts}"></div>
+
         <!-- Management Card -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-light">
@@ -33,10 +35,10 @@
                         <h6 class="d-flex align-items-center mb-3">
                             <i class="bi bi-calendar3 me-2"></i>View Period
                         </h6>
-                        <form th:action="@{/admin/worktime}" method="get" class="d-flex gap-3">
+                        <form th:action="@{/admin/worktime/view-period}" method="post" class="d-flex gap-3">
                             <div class="form-group">
                                 <label for="yearSelect" class="visually-hidden">Year</label>
-                                <select id="yearSelect" name="year" class="form-select" style="width: 120px">
+                                <select id="yearSelect" name="year" class="form-select" style="width: 120px" required>
                                     <option th:each="yr : ${#numbers.sequence(2020, 2030)}"
                                             th:value="${yr}"
                                             th:text="${yr}"
@@ -46,7 +48,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="monthSelect" class="visually-hidden">Month</label>
-                                <select id="monthSelect" name="month" class="form-select" style="width: 140px">
+                                <select id="monthSelect" name="month" class="form-select" style="width: 140px" required>
                                     <option th:each="monthEntry : ${T(java.time.Month).values()}"
                                             th:value="${monthEntry.getValue()}"
                                             th:text="${monthEntry.name()}"
@@ -58,8 +60,8 @@
                         </form>
                     </div>
 
-                    <!-- Holiday Management -->
-                    <div class="col-md-6">
+                    <!-- Holiday Management - Show only when period is loaded -->
+                    <div class="col-md-6" th:unless="${showBlankTable}">
                         <h6 class="d-flex align-items-center mb-3">
                             <i class="bi bi-calendar-event me-2"></i>Add National Holiday
                         </h6>
@@ -82,8 +84,24 @@
                 </div>
             </div>
         </div>
-        <!-- Work Time Records Card -->
-        <div class="card shadow-sm">
+
+        <!-- BLANK STATE: Show when no period selected -->
+        <div th:if="${showBlankTable}" class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">Employee Records</h5>
+            </div>
+            <div class="card-body text-center py-5">
+                <div class="mb-4">
+                    <i class="bi bi-calendar3 text-muted" style="font-size: 3rem;"></i>
+                </div>
+                <h5 class="text-muted mb-3">No Period Selected</h5>
+                <p class="text-muted mb-0">Select a year and month above, then click <strong>"View Period"</strong> to
+                    load and consolidate worktime data.</p>
+            </div>
+        </div>
+
+        <!-- WORKTIME TABLE: Show only when period is loaded -->
+        <div th:unless="${showBlankTable}" class="card shadow-sm">
             <div class="card-header bg-light">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-3">
@@ -125,54 +143,83 @@
                     <tbody>
                     <tr th:each="user : ${users}">
                         <td th:text="${user.name}">John Doe</td>
-                        <td th:text="${user.employeeId}">EMP001</td>
+                        <td th:text="${user.employeeId}" class="text-monospace">EMP001</td>
+
                         <!-- Day Cells -->
                         <td th:each="day : ${#numbers.sequence(1, daysInMonth)}"
                             class="text-center align-middle worktime-cell"
                             th:with="date=${T(java.time.LocalDate).of(currentYear, currentMonth, day)},
-                                     entry=${userEntriesMap.get(user.userId)?.get(date)}"
+                             entry=${userEntriesMap.get(user.userId)?.get(date)}"
                             th:classappend="${dayHeaders[day-1].isWeekend == 'true'} ? 'weekend'"
                             th:attr="data-user-id=${user.userId},data-date=${currentYear + '-' + currentMonth + '-' + day}"
                             onclick="showEditor(this)">
 
-                            <!-- Current value display -->
-                            <span th:if="${entry?.timeOffType != null}"
-                                  th:text="${entry.timeOffType}"
-                                  th:classappend="${
-                                      entry.timeOffType == 'SN' ? 'holiday' :
-                                      entry.timeOffType == 'CO' ? 'vacation' :
-                                      entry.timeOffType == 'CM' ? 'medical' : ''
-                                  }">
-                            </span>
-                            <!-- Day Cells: Update the span that displays non-time-off values -->
-                            <span th:unless="${entry?.timeOffType != null}"
-                                  th:text="${entry?.totalWorkedMinutes != null && entry?.adminSync != 'ADMIN_BLANK' ?
-                                           T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalWorkedMinutes) : '-'}">
-                            </span>
-                            <!-- Editor popup -->
+                            <!-- NEW SIMPLIFIED DISPLAY LOGIC -->
+
+                            <!-- SN with work hours: Red SN4 format -->
+                            <span th:if="${entry?.timeOffType == 'SN' && entry?.totalOvertimeMinutes != null && entry.totalOvertimeMinutes > 0}"
+                                  class="sn-work-display"
+                                  th:text="'SN' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalOvertimeMinutes).replace('h', '')}">SN4</span>
+
+                            <!-- Regular SN (no work): Green SN -->
+                            <span th:if="${entry?.timeOffType == 'SN' && (entry?.totalOvertimeMinutes == null || entry.totalOvertimeMinutes == 0)}"
+                                  class="holiday"
+                                  th:text="${entry.timeOffType}">SN</span>
+
+                            <!-- CO (Vacation): Blue -->
+                            <span th:if="${entry?.timeOffType == 'CO'}"
+                                  class="vacation"
+                                  th:text="${entry.timeOffType}">CO</span>
+
+                            <!-- CM (Medical): Yellow -->
+                            <span th:if="${entry?.timeOffType == 'CM'}"
+                                  class="medical"
+                                  th:text="${entry.timeOffType}">CM</span>
+
+                            <!-- Regular work time (no time off) -->
+                            <span th:if="${entry?.timeOffType == null && entry?.totalWorkedMinutes != null && entry?.adminSync != 'ADMIN_BLANK'}"
+                                  th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalWorkedMinutes)}">8h</span>
+
+                            <!-- Empty cell (no entry) -->
+                            <span th:if="${entry == null || (entry?.timeOffType == null && (entry?.totalWorkedMinutes == null || entry?.adminSync == 'ADMIN_BLANK'))}">-</span>
+
+                            <!-- Editor popup for each cell -->
                             <div class="worktime-editor">
-                                <div class="quick-actions d-flex gap-2 mb-2">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="setWorktime(this, '8')">8h
+                                <h6 class="mb-2">Edit Time Entry</h6>
+                                <div class="quick-actions d-flex gap-2 mb-3">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="setWorktime(this, '8')" title="8 hours work">8h</button>
+                                    <button class="btn btn-sm btn-outline-success" onclick="setWorktime(this, 'SN')" title="Holiday (no work)">SN</button>
+                                    <button class="btn btn-sm btn-outline-info" onclick="setWorktime(this, 'CO')" title="Vacation">CO</button>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="setWorktime(this, 'CM')" title="Medical">CM</button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="setWorktime(this, 'REMOVE')" title="Remove entry">
+                                        <i class="bi bi-trash"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="setWorktime(this, 'SN')">SN
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-info" onclick="setWorktime(this, 'CO')">CO
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-warning" onclick="setWorktime(this, 'CM')">
-                                        CM
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            onclick="setWorktime(this, 'REMOVE')">X<i class="bi bi-trash"></i></button>
                                 </div>
-                                <div class="input-group">
-                                    <input type="text" class="form-control form-control-sm"
-                                           placeholder="Custom hours (1-24)">
+                                <div class="input-group mb-2">
+                                    <label>
+                                        <input type="text" class="form-control form-control-sm"
+                                               placeholder="Custom entry">
+                                    </label>
                                     <button class="btn btn-sm btn-primary" onclick="saveWorktime(this)">Save</button>
+                                </div>
+
+                                <!-- ENHANCED: Dynamic Entry Information -->
+                                <div class="entry-info">
+                                    <div class="current-entry-info">
+                                        <small class="text-primary fw-bold d-block mb-1">Current Entry:</small>
+                                        <div class="entry-details">
+                                            <!-- This will be populated dynamically by JavaScript -->
+                                            <small class="text-muted d-block entry-loading">
+                                                <i class="bi bi-hourglass-split entry-icon"></i>Loading entry details...
+                                            </small>
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
                         </td>
 
-                        <!-- Summary cells -->
+                        <!-- Summary Columns -->
                         <td class="summary-col text-center" th:with="summary=${userSummaries.get(user.userId)}">
                             <span th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(summary?.totalRegularMinutes ?: 0)}">00:00</span>
                         </td>
@@ -189,11 +236,32 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Table Footer with Legend -->
+            <div class="card-footer bg-light py-2">
+                <div class="row">
+                    <div class="col-md-8">
+                        <small class="text-muted">
+                            <strong>Legend:</strong>
+                            <span class="holiday me-2">SN</span> Holiday (Free Day) •
+                            <span class="sn-work-display me-2">SN4</span> Holiday + Work •
+                            <span class="vacation me-2">CO</span> Vacation •
+                            <span class="medical me-2">CM</span> Medical
+                        </small>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <small class="text-muted">
+                            <strong>Tip:</strong> Click any cell to edit worktime
+                        </small>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <script th:src="@{/js/worktime-admin.js?v=18781}"></script>
+        <script th:src="@{/js/worktime-admin.js?v=18792}"></script>
     </th:block>
 </div>
 </body>
