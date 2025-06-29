@@ -13,6 +13,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * REFACTORED: Event listener that handles file operation events and creates backups accordingly.
  * This component decouples backup creation from file writing operations.
@@ -96,15 +98,27 @@ public class BackupEventListener {
                 // For high criticality files, also sync backups to network
                 if (criticalityLevel == CriticalityLevel.LEVEL3_HIGH && event.getUsername() != null) {
                     try {
-                        backupService.syncBackupsToNetwork(event.getUsername(), criticalityLevel);
-                        LoggerUtil.info(this.getClass(), String.format(
-                                "Synced high criticality backups to network for user %s (Event ID: %s)",
-                                event.getUsername(), event.getEventId()));
+
+                        // Add a small delay to ensure backup files are completely written
+                        CompletableFuture.runAsync(() -> {
+                            try {
+                                Thread.sleep(1000); // 1-second delay
+
+                                // Pass the file type to sync only the relevant subdirectory
+                                backupService.syncBackupsToNetworkByType(event.getUsername(), criticalityLevel, fileType);
+                                LoggerUtil.info(this.getClass(), String.format(
+                                        "Synced %s backups to network for user %s (Event ID: %s)",
+                                        fileType, event.getUsername(), event.getEventId()));
+                            } catch (Exception syncException) {
+                                LoggerUtil.warn(this.getClass(), String.format(
+                                        "Failed to sync %s backups to network: %s (Event ID: %s)",
+                                        fileType, syncException.getMessage(), event.getEventId()));
+                            }
+                        });
                     } catch (Exception syncException) {
                         LoggerUtil.warn(this.getClass(), String.format(
-                                "Failed to sync high criticality backups to network: %s (Event ID: %s)",
+                                "Failed to schedule backup sync: %s (Event ID: %s)",
                                 syncException.getMessage(), event.getEventId()));
-                        // Don't fail the backup operation if sync fails
                     }
                 }
             } else {

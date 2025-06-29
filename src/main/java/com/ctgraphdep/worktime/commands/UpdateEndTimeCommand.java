@@ -22,14 +22,16 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
     private final Integer userId;
     private final LocalDate date;
     private final String newEndTime; // HH:mm format
+    private final int userScheduleHours;
 
     public UpdateEndTimeCommand(WorktimeOperationContext context, String username,
-                                Integer userId, LocalDate date, String newEndTime) {
+                                Integer userId, LocalDate date, String newEndTime, int userScheduleHours) {
         super(context);
         this.username = username;
         this.userId = userId;
         this.date = date;
         this.newEndTime = newEndTime;
+        this.userScheduleHours = userScheduleHours; // ← ADD THIS
     }
 
     @Override
@@ -91,7 +93,7 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
                     entry.getTotalWorkedMinutes()));
 
             // Update end time using entity builder (handles validation and recalculation)
-            WorkTimeTable updatedEntry = WorktimeEntityBuilder.updateEndTime(entry, endTime);
+            WorkTimeTable updatedEntry = WorktimeEntityBuilder.updateEndTime(entry, endTime, userScheduleHours);
 
             LoggerUtil.info(this.getClass(), String.format(
                     "Updated entry: start=%s, end=%s, totalMinutes=%d, lunchBreak=%s",
@@ -154,7 +156,7 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
 
     @Override
     protected String getCommandName() {
-        return String.format("UpdateEndTime[%s, %s, %s]", username, date, newEndTime);
+        return String.format("UpdateEndTime[%s, %s, %s, %dh]", username, date, newEndTime, userScheduleHours); // ← UPDATED
     }
 
     @Override

@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=18789}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=18791}">
     <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=18785}">
 </head>
 <body>
@@ -243,12 +243,22 @@
                                         <i class="bi bi-pencil edit-icon"></i>
                                     </td>
 
-                                    <!-- Temporary Stops Column - READ ONLY -->
-                                    <td class="temp-stop-cell text-center small">
-                                        <span th:if="${record.totalTemporaryStopMinutes != null && record.totalTemporaryStopMinutes > 0}"
-                                              class="text-info fw-medium"
-                                              th:text="${record.totalTemporaryStopMinutes + 'm'}">0</span>
-                                        <span th:unless="${record.totalTemporaryStopMinutes != null && record.totalTemporaryStopMinutes > 0}">-</span>
+                                    <!-- Temporary Stops Column - EDITABLE  -->
+                                    <td class="temp-stop-cell text-center editable-cell"
+                                        data-field="tempStop"
+                                        th:attr="data-original=${record.totalTemporaryStopMinutes != null ? record.totalTemporaryStopMinutes : 0}"
+                                        ondblclick="handleCellDoubleClick(this)">
+                                        <div class="cell-value">
+                                            <!-- Display current temp stop value -->
+                                            <span th:if="${record.totalTemporaryStopMinutes != null && record.totalTemporaryStopMinutes > 0}"
+                                                  class="text-info fw-medium temp-stop-display"
+                                                  th:text="${record.totalTemporaryStopMinutes + 'm'}"
+                                                  title="Double-click to edit temporary stop time">120m</span>
+                                            <span th:unless="${record.totalTemporaryStopMinutes != null && record.totalTemporaryStopMinutes > 0}"
+                                                  class="text-muted temp-stop-display"
+                                                  title="Double-click to add temporary stop time">-</span>
+                                        </div>
+                                        <i class="bi bi-pencil edit-icon d-none"></i>
                                     </td>
 
                                     <!-- End Time Column - EDITABLE -->
@@ -370,7 +380,8 @@
                             </div>
                             <div class="col-md-4 text-end">
                                 <small class="text-muted">
-                                    <strong>Editing:</strong> Double-click Start/End Time cells to edit (24-hour format).
+                                    <strong>Editing:</strong> Double-click Start/End Time and Temp Stops to edit.
+                                    Times use 24-hour format (HH:mm). Temp stops use minutes (0-720).
                                     SN/CO/CM entries are read-only.
                                 </small>
                             </div>
@@ -392,7 +403,7 @@
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
     <script th:src="@{/js/toast-alerts.js?v=18785}"></script>
-    <script th:src="@{/js/time-management.js?v=18791}"></script>
+    <script th:src="@{/js/time-management.js?v=18797}"></script>
 </th:block>
 </body>
 </html>

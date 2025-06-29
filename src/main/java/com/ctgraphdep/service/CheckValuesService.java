@@ -137,52 +137,6 @@ public class CheckValuesService {
     }
 
     /**
-     * Gets the value for a specific check type
-     * @param username The username
-     * @param userId The user ID
-     * @param checkType The check type
-     * @return The value for the check type
-     */
-    public double getCheckTypeValue(String username, Integer userId, String checkType) {
-        UsersCheckValueEntry userEntry = getUserCheckValues(username, userId);
-        CheckValuesEntry entry = userEntry.getCheckValuesEntry();
-
-        if (entry == null) {
-            return getDefaultCheckTypeValue(checkType);
-        }
-
-        return switch (checkType) {
-            case "LAYOUT" -> entry.getLayoutValue();
-            case "KIPSTA LAYOUT" -> entry.getKipstaLayoutValue();
-            case "LAYOUT CHANGES" -> entry.getLayoutChangesValue();
-            case "GPT" -> entry.getGptArticlesValue(); // For articles
-            case "PRODUCTION" -> entry.getProductionValue();
-            case "REORDER" -> entry.getReorderValue();
-            case "SAMPLE" -> entry.getSampleValue();
-            case "OMS PRODUCTION" -> entry.getOmsProductionValue();
-            case "KIPSTA PRODUCTION" -> entry.getKipstaProductionValue();
-            default -> getDefaultCheckTypeValue(checkType);
-        };
-    }
-
-    /**
-     * Gets the user's target work units per hour
-     * @param username The username
-     * @param userId The user ID
-     * @return The target work units per hour
-     */
-    public double getTargetWorkUnitsPerHour(String username, Integer userId) {
-        UsersCheckValueEntry userEntry = getUserCheckValues(username, userId);
-        CheckValuesEntry entry = userEntry.getCheckValuesEntry();
-
-        if (entry == null) {
-            return 4.5; // Default value
-        }
-
-        return entry.getWorkUnitsPerHour();
-    }
-
-    /**
      * Gets check values for a specific user
      * @param username The username
      * @param userId The user ID
@@ -217,6 +171,8 @@ public class CheckValuesService {
             return createDefaultCheckValuesEntry(username, userId != null ? userId : -1);
         }
     }
+
+
 
     /**
      * Gets all users with check-related roles
@@ -258,23 +214,23 @@ public class CheckValuesService {
         }
     }
 
-    /**
-     * Gets the default value for a specific check type
-     * @param checkType The check type
-     * @return The default value for the check type
-     */
-    private double getDefaultCheckTypeValue(String checkType) {
-        return switch (checkType) {
-            case "LAYOUT" -> 1.0;
-            case "KIPSTA LAYOUT" -> 0.25;
-            case "LAYOUT CHANGES" -> 0.25;
-            case "GPT" -> 0.1;
-            case "PRODUCTION" -> 0.1;
-            case "REORDER" -> 0.1;
-            case "SAMPLE" -> 0.3;
-            case "OMS PRODUCTION" -> 0.1;
-            case "KIPSTA PRODUCTION" -> 0.1;
-            default -> 0.1;
-        };
-    }
+//    /**
+//     * Gets the default value for a specific check type
+//     * @param checkType The check type
+//     * @return The default value for the check type
+//     */
+//    private double getDefaultCheckTypeValue(String checkType) {
+//        return switch (checkType) {
+//            case "LAYOUT" -> 1.0;
+//            case "KIPSTA LAYOUT" -> 0.25;
+//            case "LAYOUT CHANGES" -> 0.25;
+//            case "GPT" -> 0.1;
+//            case "PRODUCTION" -> 0.1;
+//            case "REORDER" -> 0.1;
+//            case "SAMPLE" -> 0.3;
+//            case "OMS PRODUCTION" -> 0.1;
+//            case "KIPSTA PRODUCTION" -> 0.1;
+//            default -> 0.1;
+//        };
+//    }
 }

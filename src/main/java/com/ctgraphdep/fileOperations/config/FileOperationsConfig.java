@@ -28,14 +28,6 @@ public class FileOperationsConfig {
     // ===== CORE FILE SERVICES =====
 
     /**
-     * Creates a file transaction manager bean.
-     */
-    @Bean
-    public FileTransactionManager fileTransactionManager() {
-        return new FileTransactionManager();
-    }
-
-    /**
      * Creates a file backup service bean.
      */
     @Bean

@@ -121,6 +121,8 @@ public class OperationResult {
         // Time field updates
         public static final String UPDATE_START_TIME = "UPDATE_START_TIME";
         public static final String UPDATE_END_TIME = "UPDATE_END_TIME";
+        public static final String UPDATE_TEMPORARY_STOP = "UPDATE_TEMPORARY_STOP";
+        public static final String REMOVE_TEMPORARY_STOP = "REMOVE_TEMPORARY_STOP";
 
         // Time off operations
         public static final String ADD_TIME_OFF = "ADD_TIME_OFF";

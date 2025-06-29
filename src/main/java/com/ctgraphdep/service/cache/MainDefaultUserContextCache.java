@@ -183,6 +183,37 @@ public class MainDefaultUserContextCache {
     }
 
     /**
+     * Set current user directly (for use when User object already available)
+     * Avoids duplicate network calls during login process by using already-fetched User object
+     *
+     * @param user User object that was already fetched from network during authentication
+     */
+    public void setCurrentUser(User user) {
+        if (user == null) {
+            LoggerUtil.warn(this.getClass(), "Attempted to set null user in cache");
+            return;
+        }
+
+        long version = accessCounter.incrementAndGet();
+        CacheEntry newEntry = new CacheEntry(user, "login-direct-set", version);
+
+        cacheLock.writeLock().lock();
+        try {
+            cacheEntry.set(newEntry);
+            consecutiveFailures = 0;
+            emergencyMode = false;
+            lastSuccessfulRefresh = LocalDateTime.now();
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Cache updated with provided user: %s (source: login-direct-set, version: %d)",
+                    user.getUsername(), version));
+
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
+    }
+
+    /**
      * Gets the current username - ENHANCED to consider elevation
      * @return Current username (never null)
      */

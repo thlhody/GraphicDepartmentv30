@@ -1,6 +1,8 @@
 package com.ctgraphdep.security;
 
 import com.ctgraphdep.service.cache.CheckValuesCacheManager;
+import com.ctgraphdep.service.cache.MainDefaultUserContextCache;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.cache.RegisterCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.core.Authentication;
@@ -16,10 +18,12 @@ public class CustomLogoutSuccessHandler implements LogoutSuccessHandler {
 
     private final CheckValuesCacheManager checkValuesCacheManager;
     private final RegisterCacheService registerCacheService;
+    private final MainDefaultUserContextService mainDefaultUserContextService;
 
-    public CustomLogoutSuccessHandler(CheckValuesCacheManager checkValuesCacheManager, RegisterCacheService registerCacheService) {
+    public CustomLogoutSuccessHandler(CheckValuesCacheManager checkValuesCacheManager, RegisterCacheService registerCacheService, MainDefaultUserContextService mainDefaultUserContextService) {
         this.checkValuesCacheManager = checkValuesCacheManager;
         this.registerCacheService = registerCacheService;
+        this.mainDefaultUserContextService = mainDefaultUserContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -29,6 +33,7 @@ public class CustomLogoutSuccessHandler implements LogoutSuccessHandler {
             // Clear all cached check values when any user logs out
             checkValuesCacheManager.clearAllCachedCheckValues();
             registerCacheService.clearAllCache();
+            mainDefaultUserContextService.handleLogout();
             // Log the logout
             if (authentication != null) {
                 LoggerUtil.info(this.getClass(), "User logged out and cleared check values cache: " + authentication.getName());

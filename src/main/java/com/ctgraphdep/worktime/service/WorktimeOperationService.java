@@ -55,12 +55,25 @@ public class WorktimeOperationService {
 
     /**
      * Update start time for a user's worktime entry
+     * MODIFIED: Now passes user schedule to command
      */
     @PreAuthorize("#username == authentication.name")
     public OperationResult updateUserStartTime(String username, Integer userId, LocalDate date, String startTime) {
         userLock.writeLock().lock();
         try {
-            return new UpdateStartTimeCommand(context, username, userId, date, startTime).execute();
+            // GET USER SCHEDULE HERE
+            Optional<User> userOpt = context.getUser(username);
+            if (userOpt.isEmpty()) {
+                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.UPDATE_START_TIME);
+            }
+
+            User user = userOpt.get();
+            int userScheduleHours = user.getSchedule(); // e.g., 8 hours
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "User %s schedule: %d hours", username, userScheduleHours));
+
+            return new UpdateStartTimeCommand(context, username, userId, date, startTime, userScheduleHours).execute();
         } finally {
             userLock.writeLock().unlock();
         }
@@ -68,12 +81,25 @@ public class WorktimeOperationService {
 
     /**
      * Update end time for a user's worktime entry
+     * MODIFIED: Now passes user schedule to command
      */
     @PreAuthorize("#username == authentication.name")
     public OperationResult updateUserEndTime(String username, Integer userId, LocalDate date, String endTime) {
         userLock.writeLock().lock();
         try {
-            return new UpdateEndTimeCommand(context, username, userId, date, endTime).execute();
+            // GET USER SCHEDULE HERE
+            Optional<User> userOpt = context.getUser(username);
+            if (userOpt.isEmpty()) {
+                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.UPDATE_END_TIME);
+            }
+
+            User user = userOpt.get();
+            int userScheduleHours = user.getSchedule(); // e.g., 8 hours
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "User %s schedule: %d hours", username, userScheduleHours));
+
+            return new UpdateEndTimeCommand(context, username, userId, date, endTime, userScheduleHours).execute();
         } finally {
             userLock.writeLock().unlock();
         }
@@ -300,6 +326,62 @@ public class WorktimeOperationService {
 
         } finally {
             userLock.readLock().unlock();
+        }
+    }
+
+    // ========================================================================
+    // USER OPERATIONS - Temporary Stop Updates
+    // ========================================================================
+
+    /**
+     * Update temporary stop minutes for a user's worktime entry
+     * MODIFIED: Now passes user schedule to command
+     */
+    @PreAuthorize("#username == authentication.name")
+    public OperationResult updateUserTemporaryStop(String username, Integer userId, LocalDate date, Integer tempStopMinutes) {
+        userLock.writeLock().lock();
+        try {
+            // GET USER SCHEDULE HERE
+            Optional<User> userOpt = context.getUser(username);
+            if (userOpt.isEmpty()) {
+                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.UPDATE_TEMPORARY_STOP);
+            }
+
+            User user = userOpt.get();
+            int userScheduleHours = user.getSchedule(); // e.g., 8 hours
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "User %s schedule: %d hours", username, userScheduleHours));
+
+            return new AddTemporaryStopCommand(context, username, userId, date, tempStopMinutes, userScheduleHours).execute();
+        } finally {
+            userLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Remove temporary stop from a user's worktime entry
+     * MODIFIED: Now passes user schedule to command
+     */
+    @PreAuthorize("#username == authentication.name")
+    public OperationResult removeUserTemporaryStop(String username, Integer userId, LocalDate date) {
+        userLock.writeLock().lock();
+        try {
+            // GET USER SCHEDULE HERE
+            Optional<User> userOpt = context.getUser(username);
+            if (userOpt.isEmpty()) {
+                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.REMOVE_TEMPORARY_STOP);
+            }
+
+            User user = userOpt.get();
+            int userScheduleHours = user.getSchedule(); // e.g., 8 hours
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "User %s schedule: %d hours", username, userScheduleHours));
+
+            return new RemoveTemporaryStopCommand(context, username, userId, date, userScheduleHours).execute();
+        } finally {
+            userLock.writeLock().unlock();
         }
     }
 

@@ -22,14 +22,16 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
     private final Integer userId;
     private final LocalDate date;
     private final String newStartTime; // HH:mm format
+    private final int userScheduleHours;
 
     public UpdateStartTimeCommand(WorktimeOperationContext context, String username,
-                                  Integer userId, LocalDate date, String newStartTime) {
+                                  Integer userId, LocalDate date, String newStartTime, int userScheduleHours) {
         super(context);
         this.username = username;
         this.userId = userId;
         this.date = date;
         this.newStartTime = newStartTime;
+        this.userScheduleHours = userScheduleHours; // ← ADD THIS
     }
 
     @Override
@@ -78,8 +80,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
             List<WorkTimeTable> entries = context.loadUserWorktime(username, year, month);
 
             // Find existing entry or create new one
-            WorkTimeTable entry = context.findEntryByDate(entries, userId, date)
-                    .orElseGet(() -> WorktimeEntityBuilder.createNewEntry(userId, date));
+            WorkTimeTable entry = context.findEntryByDate(entries, userId, date).orElseGet(() -> WorktimeEntityBuilder.createNewEntry(userId, date));
 
             // Parse new start time
             LocalDateTime startTime = parseStartTime(newStartTime);
@@ -91,7 +92,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
                     entry.getTotalWorkedMinutes()));
 
             // Update start time using entity builder (handles validation and recalculation)
-            WorkTimeTable updatedEntry = WorktimeEntityBuilder.updateStartTime(entry, startTime);
+            WorkTimeTable updatedEntry = WorktimeEntityBuilder.updateStartTime(entry, startTime, userScheduleHours);
 
             LoggerUtil.info(this.getClass(), String.format(
                     "Updated entry: start=%s, end=%s, totalMinutes=%d, lunchBreak=%s",
@@ -154,7 +155,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
 
     @Override
     protected String getCommandName() {
-        return String.format("UpdateStartTime[%s, %s, %s]", username, date, newStartTime);
+        return String.format("UpdateStartTime[%s, %s, %s, %dh]", username, date, newStartTime, userScheduleHours); // ← UPDATED
     }
 
     @Override

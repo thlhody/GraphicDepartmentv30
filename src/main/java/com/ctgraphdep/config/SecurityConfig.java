@@ -48,7 +48,7 @@ public class SecurityConfig {
         try {
             http
                     .authorizeHttpRequests(authorize -> authorize
-                            .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/logs/**","/api/system/status", "/update/**", "/utility/**").permitAll()
+                            .requestMatchers("/", "/about", "/css/**", "/js/**", "/images/**", "/icons/**","/logs/**","/api/system/status", "/api/auth/**", "/update/**", "/utility/**").permitAll()
                             .requestMatchers("/admin/**").hasRole(SecurityConstants.ROLE_ADMIN)
                             .requestMatchers("/team-lead/**").hasRole(SecurityConstants.ROLE_TEAM_LEADER)
                             .requestMatchers("/team-checking/**").hasRole(SecurityConstants.ROLE_TL_CHECKING)

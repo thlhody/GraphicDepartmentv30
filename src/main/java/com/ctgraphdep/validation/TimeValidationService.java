@@ -84,9 +84,9 @@ public class TimeValidationService {
             return switch (field.toLowerCase()) {
                 case "starttime", "endtime" -> validateTimeFieldFormat(value);
                 case "timeoff" -> validateTimeOffField(value, date);
+                case "tempstop" -> validateTempStopField(value);  // ← ADD THIS LINE
                 default -> ValidationResult.invalid("Unknown field type: " + field);
             };
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "User field validation error: " + e.getMessage(), e);
             return ValidationResult.invalid("Validation failed: " + e.getMessage());
@@ -192,6 +192,26 @@ public class TimeValidationService {
             LoggerUtil.error(this.getClass(), "Time off request validation error: " + e.getMessage(), e);
             return ValidationResult.invalid("Validation failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * Validate temporary stop field (minutes 0-720)
+     */
+    public ValidationResult validateTempStopField(String value) {
+        if (value != null && !value.trim().isEmpty()) {
+            try {
+                int minutes = Integer.parseInt(value.trim());
+                if (minutes < 0) {
+                    return ValidationResult.invalid("Temporary stop minutes cannot be negative");
+                }
+                if (minutes > 720) {
+                    return ValidationResult.invalid("Temporary stop cannot exceed 12 hours (720 minutes)");
+                }
+            } catch (NumberFormatException e) {
+                return ValidationResult.invalid("Invalid temporary stop format. Use whole numbers (e.g., 60)");
+            }
+        }
+        return ValidationResult.valid();
     }
 
     // ========================================================================

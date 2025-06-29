@@ -371,15 +371,10 @@ public class FileWriterService {
 
                 FilePath networkPath = pathResolver.toNetworkPath(localPath);
 
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Starting network sync: %s -> %s (user: %s)",
-                        localPath.getPath().getFileName(), networkPath.getPath().getFileName(), username));
-
                 // Perform the sync
                 syncService.syncToNetwork(localPath, networkPath);
 
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Network sync completed for: %s", localPath.getPath().getFileName()));
+
 
             } catch (Exception e) {
                 LoggerUtil.warn(this.getClass(), String.format(

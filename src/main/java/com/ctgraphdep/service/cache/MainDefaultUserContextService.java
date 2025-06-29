@@ -91,6 +91,15 @@ public class MainDefaultUserContextService {
     }
 
     /**
+     * Set current user directly (for use when User object already available)
+     * Avoids duplicate network calls during login process
+     */
+    public void setCurrentUser(User user) {
+        // Set the user in cache without re-fetching
+        mainDefaultUserContextCache.setCurrentUser(user);
+    }
+
+    /**
      * Check if current user is admin - ENHANCED for elevation
      *
      * @return true if current user has admin role (considers elevation)
@@ -203,6 +212,7 @@ public class MainDefaultUserContextService {
         if (wasElevated) {
             // Admin logout - just clear elevation, keep original user
             mainDefaultUserContextCache.clearAdminElevation();
+            getOriginalUser();
             LoggerUtil.info(this.getClass(), "Admin elevation cleared on logout - original user context preserved");
         } else {
             // Regular user logout - full cache invalidation
@@ -270,11 +280,9 @@ public class MainDefaultUserContextService {
     /**
      * NEW: Get original user (ignoring elevation)
      * This is for background processes that should always use the original user
-     *
-     * @return Original user (never null, falls back to system user)
      */
-    public User getOriginalUser() {
-        return mainDefaultUserContextCache.getOriginalUser();
+    public void getOriginalUser() {
+        mainDefaultUserContextCache.getOriginalUser();
     }
 
     // ========================================================================

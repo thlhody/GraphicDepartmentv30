@@ -5,6 +5,8 @@ import com.ctgraphdep.config.FileTypeConstants.CriticalityLevel;
 import com.ctgraphdep.fileOperations.config.PathConfig;
 import com.ctgraphdep.fileOperations.core.FileOperationResult;
 import com.ctgraphdep.fileOperations.core.FilePath;
+import com.ctgraphdep.fileOperations.model.dto.BackupSyncContext;
+import com.ctgraphdep.fileOperations.model.dto.BackupSyncResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
 import org.jetbrains.annotations.NotNull;
@@ -14,15 +16,16 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -496,7 +499,116 @@ public class BackupService {
     }
 
     /**
-     * Syncs local backup to network.
+     * Syncs specific file type backups to network.
+     * Only syncs the subdirectory for the specified file type.
+     */
+    public void syncBackupsToNetworkByType(String username, CriticalityLevel level, String fileType) {
+        if (!pathConfig.isNetworkAvailable()) {
+            LoggerUtil.warn(this.getClass(), "Network not available, cannot sync backups");
+            return;
+        }
+
+        if (fileType == null) {
+            LoggerUtil.warn(this.getClass(), "File type is null, falling back to full sync");
+            syncBackupsToNetwork(username, level); // Fallback to original method
+            return;
+        }
+
+        BackupSyncContext context = initializeSyncContextByType(username, level, fileType);
+        if (context == null) {
+            return; // Initialization failed, already logged
+        }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Starting %s backup sync for user %s, level %s", fileType, username, level));
+
+        try {
+            BackupSyncResult result = performBackupSync(context);
+            logSyncCompletionByType(context, result, fileType);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error syncing %s backups to network for user %s, level %s: %s",
+                    fileType, username, level, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Initializes sync context for specific file type.
+     */
+    private BackupSyncContext initializeSyncContextByType(String username, CriticalityLevel level, String fileType) {
+        try {
+            String levelDir = resolveLevelDirectory(level);
+
+            // Map file type to subdirectory
+            String fileTypeDir = mapFileTypeToDirectory(fileType);
+            if (fileTypeDir == null) {
+                LoggerUtil.warn(this.getClass(), "Unknown file type: " + fileType);
+                return null;
+            }
+
+            // Source: level3_high/check_register/ (for example)
+            Path localBackupDir = pathConfig.getLocalPath()
+                    .resolve(pathConfig.getBackupPath())
+                    .resolve(levelDir)
+                    .resolve(fileTypeDir);
+
+            if (!Files.exists(localBackupDir)) {
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Local %s backup directory doesn't exist for user %s, level %s: %s",
+                                fileType, username, level, localBackupDir));
+                return null;
+            }
+
+            // Target: backup/oana/level3_high/check_register/ (for example)
+            Path networkBackupDir = pathConfig.getNetworkPath()
+                    .resolve(pathConfig.getBackupPath())
+                    .resolve(username)
+                    .resolve(levelDir)
+                    .resolve(fileTypeDir);
+
+            Files.createDirectories(networkBackupDir);
+
+            return new BackupSyncContext(username, level, localBackupDir, networkBackupDir);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Failed to initialize %s sync context for user %s, level %s: %s",
+                    fileType, username, level, e.getMessage()), e);
+            return null;
+        }
+    }
+
+    /**
+     * Maps file type to backup subdirectory name.
+     */
+    private String mapFileTypeToDirectory(String fileType) {
+        return switch (fileType) {
+            case FileTypeConstants.CHECK_REGISTER_TARGET -> FileTypeConstants.CHECK_REGISTER_TARGET ;
+            case FileTypeConstants.REGISTER_TARGET  -> FileTypeConstants.REGISTER_TARGET;
+            case FileTypeConstants.WORKTIME_TARGET -> FileTypeConstants.WORKTIME_TARGET;
+            case FileTypeConstants.TIMEOFF_TRACKER_TARGET -> FileTypeConstants.WORKTIME_TARGET; // Group with worktime
+            default -> null;
+        };
+    }
+
+    /**
+     * Logs completion with file type information.
+     */
+    private void logSyncCompletionByType(BackupSyncContext context, BackupSyncResult result, String fileType) {
+        if (result.hasFiles()) {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "%s backup sync completed for user %s, level %s: %d synced, %d skipped, %d failed",
+                    fileType, context.getUsername(), context.getLevel(),
+                    result.getSyncedCount(), result.getSkippedCount(), result.getFailedCount()));
+        } else {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "No %s backup files found for user %s, level %s",
+                    fileType, context.getUsername(), context.getLevel()));
+        }
+    }
+
+    /**
+     * Syncs local backups to network with enhanced file access detection and modular design.
      * Now uses FileTypeConstants.CriticalityLevel.
      *
      * @param username The username for the backup
@@ -508,13 +620,31 @@ public class BackupService {
             return;
         }
 
+        BackupSyncContext context = initializeSyncContext(username, level);
+        if (context == null) {
+            return; // Initialization failed, already logged
+        }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Starting backup sync for user %s, level %s", username, level));
+
+        try {
+            BackupSyncResult result = performBackupSync(context);
+            logSyncCompletion(context, result);
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error syncing backups to network for user %s, level %s: %s",
+                    username, level, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Initializes the sync context with paths and validation.
+     */
+    private BackupSyncContext initializeSyncContext(String username, CriticalityLevel level) {
         try {
             // Get the appropriate level directory based on criticality
-            final String levelDir = switch (level) {
-                case LEVEL1_LOW -> pathConfig.getLevelLow();
-                case LEVEL2_MEDIUM -> pathConfig.getLevelMedium();
-                case LEVEL3_HIGH -> pathConfig.getLevelHigh();
-            };
+            String levelDir = resolveLevelDirectory(level);
 
             // Source local backup directory
             Path localBackupDir = pathConfig.getLocalPath()
@@ -522,42 +652,214 @@ public class BackupService {
                     .resolve(levelDir);
 
             if (!Files.exists(localBackupDir)) {
-                LoggerUtil.warn(this.getClass(), "Local backup directory doesn't exist: " + localBackupDir);
-                return;
+                LoggerUtil.debug(this.getClass(),
+                        String.format("Local backup directory doesn't exist for user %s, level %s: %s",
+                                username, level, localBackupDir));
+                return null;
             }
 
             // Target network backup directory
             Path networkBackupDir = pathConfig.getNetworkPath()
                     .resolve(pathConfig.getBackupPath())
-                    .resolve(username) // Add username subdirectory for organization
+                    .resolve(username)
                     .resolve(levelDir);
 
+            // Ensure network directory exists
             Files.createDirectories(networkBackupDir);
 
-            // Use a visitor to copy files recursively
-            Files.walkFileTree(localBackupDir, new SimpleFileVisitor<>() {
-                @Override
-                public @NotNull FileVisitResult visitFile(@NotNull Path file, @NotNull BasicFileAttributes attrs) throws IOException {
-                    Path relativePath = localBackupDir.relativize(file);
-                    Path targetPath = networkBackupDir.resolve(relativePath);
-                    Files.createDirectories(targetPath.getParent());
-                    Files.copy(file, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                    return FileVisitResult.CONTINUE;
-                }
+            return new BackupSyncContext(username, level, localBackupDir, networkBackupDir);
 
-                @Override
-                public @NotNull FileVisitResult preVisitDirectory(@NotNull Path dir, @NotNull BasicFileAttributes attrs) throws IOException {
-                    Path relativePath = localBackupDir.relativize(dir);
-                    Path targetPath = networkBackupDir.resolve(relativePath);
-                    Files.createDirectories(targetPath);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully synced %s backups to network for user %s", level, username));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error syncing backups to network: " + e.getMessage());
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Failed to initialize sync context for user %s, level %s: %s",
+                    username, level, e.getMessage()), e);
+            return null;
+        }
+    }
+
+    /**
+     * Resolves the level directory name based on criticality level.
+     */
+    private String resolveLevelDirectory(CriticalityLevel level) {
+        return switch (level) {
+            case LEVEL1_LOW -> pathConfig.getLevelLow();
+            case LEVEL2_MEDIUM -> pathConfig.getLevelMedium();
+            case LEVEL3_HIGH -> pathConfig.getLevelHigh();
+        };
+    }
+
+    /**
+     * Performs the actual backup sync operation.
+     */
+    private BackupSyncResult performBackupSync(BackupSyncContext context) throws IOException {
+        BackupSyncResult result = new BackupSyncResult();
+
+        Files.walkFileTree(context.getLocalBackupDir(), new SimpleFileVisitor<>() {
+            @Override
+            public @NotNull FileVisitResult visitFile(@NotNull Path file, @NotNull BasicFileAttributes attrs) {
+                // Enhanced file accessibility check
+                if (!isFileAccessibleForSync(file)) {
+                    result.incrementSkipped();
+                    return FileVisitResult.CONTINUE;
+                }
+
+                // Attempt to sync the file
+                if (syncSingleFile(file, context.getLocalBackupDir(), context.getNetworkBackupDir())) {
+                    result.incrementSynced();
+                } else {
+                    result.incrementFailed();
+                }
+
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public @NotNull FileVisitResult preVisitDirectory(@NotNull Path dir, @NotNull BasicFileAttributes attrs) throws IOException {
+                // Create corresponding directory structure in network backup
+                Path relativePath = context.getLocalBackupDir().relativize(dir);
+                Path targetPath = context.getNetworkBackupDir().resolve(relativePath);
+                Files.createDirectories(targetPath);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public @NotNull FileVisitResult visitFileFailed(@NotNull Path file, @NotNull IOException exc) {
+                LoggerUtil.debug(BackupService.this.getClass(), String.format(
+                        "Failed to visit backup file %s: %s", file.getFileName(), exc.getMessage()));
+                result.incrementFailed();
+                return FileVisitResult.CONTINUE;
+            }
+        });
+
+        return result;
+    }
+
+    /**
+     * Logs the completion of sync operation with statistics.
+     */
+    private void logSyncCompletion(BackupSyncContext context, BackupSyncResult result) {
+        if (result.hasFiles()) {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Backup sync completed for user %s, level %s: %d synced, %d skipped, %d failed",
+                    context.getUsername(), context.getLevel(),
+                    result.getSyncedCount(), result.getSkippedCount(), result.getFailedCount()));
+        } else {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "No backup files found for user %s, level %s",
+                    context.getUsername(), context.getLevel()));
+        }
+    }
+
+    /**
+     * Enhanced method to check if a file is accessible for syncing.
+     * Uses multiple approaches to detect file access conflicts.
+     */
+    private boolean isFileAccessibleForSync(Path file) {
+        // Method 1: Basic file checks
+        if (!Files.exists(file) || !Files.isReadable(file)) {
+            LoggerUtil.debug(this.getClass(), "File doesn't exist or isn't readable: " + file.getFileName());
+            return false;
+        }
+
+        // Method 2: Check file size (skip empty files)
+        try {
+            if (Files.size(file) == 0) {
+                LoggerUtil.debug(this.getClass(), "Skipping empty backup file: " + file.getFileName());
+                return false;
+            }
+        } catch (IOException e) {
+            LoggerUtil.debug(this.getClass(), "Cannot check file size: " + file.getFileName());
+            return false;
+        }
+
+        // Method 3: Check if file was recently modified (might still be writing)
+        if (!isFileStable(file)) {
+            return false;
+        }
+
+        // Method 4: Try file channel with lock
+        if (!canAcquireFileLock(file)) {
+            return false;
+        }
+
+        // Method 5: Try to read a small portion to verify access
+        return canReadFromFile(file);// File passed all accessibility checks
+    }
+
+    /**
+     * Checks if file is stable (not recently modified).
+     */
+    private boolean isFileStable(Path file) {
+        try {
+            long lastModified = Files.getLastModifiedTime(file).toMillis();
+            long timeSinceModified = System.currentTimeMillis() - lastModified;
+
+            if (timeSinceModified < 1000) { // Less than 1 second ago
+                LoggerUtil.debug(this.getClass(), "File recently modified, might still be writing: " + file.getFileName());
+                return false;
+            }
+            return true;
+        } catch (IOException e) {
+            LoggerUtil.debug(this.getClass(), "Cannot check file modification time: " + file.getFileName());
+            return false;
+        }
+    }
+
+    /**
+     * Attempts to acquire a file lock to check if file is in use.
+     */
+    private boolean canAcquireFileLock(Path file) {
+        try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
+            try (FileLock lock = channel.tryLock(0, Long.MAX_VALUE, true)) {
+                if (lock == null) {
+                    LoggerUtil.debug(this.getClass(), "File locked by another process: " + file.getFileName());
+                    return false;
+                }
+                return true;
+            }
+        } catch (IOException | OverlappingFileLockException e) {
+            LoggerUtil.debug(this.getClass(), "Cannot access file for locking: " + file.getFileName() + " - " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Tests if file can be read to verify access.
+     */
+    private boolean canReadFromFile(Path file) {
+        try {
+            byte[] buffer = new byte[Math.min(1024, (int) Files.size(file))]; // Read up to 1KB or file size
+            try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
+                channel.read(ByteBuffer.wrap(buffer));
+                return true;
+            }
+        } catch (IOException e) {
+            LoggerUtil.debug(this.getClass(), "Cannot read from file: " + file.getFileName() + " - " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Attempts to sync a single file with error handling.
+     */
+    private boolean syncSingleFile(Path sourceFile, Path localBackupDir, Path networkBackupDir) {
+        try {
+            Path relativePath = localBackupDir.relativize(sourceFile);
+            Path targetPath = networkBackupDir.resolve(relativePath);
+
+            // Ensure target directory exists
+            Files.createDirectories(targetPath.getParent());
+
+            // Perform the copy with replace existing
+            Files.copy(sourceFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+            LoggerUtil.debug(this.getClass(), "Successfully synced backup file: " + sourceFile.getFileName());
+            return true;
+
+        } catch (IOException e) {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Failed to sync backup file %s: %s", sourceFile.getFileName(), e.getMessage()));
+            return false;
         }
     }
 

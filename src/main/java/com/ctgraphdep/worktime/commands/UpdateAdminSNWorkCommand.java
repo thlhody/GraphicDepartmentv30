@@ -1,5 +1,6 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.model.OperationResult;
@@ -70,22 +71,22 @@ public class UpdateAdminSNWorkCommand extends WorktimeOperationCommand<WorkTimeT
             WorkTimeTable entry = context.findEntryByDate(adminEntries, userId, date)
                     .map(existingEntry -> {
                         // If entry exists, check if it's SN or convert it to SN
-                        if ("SN".equals(existingEntry.getTimeOffType())) {
+                        if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(existingEntry.getTimeOffType())) {
                             // Update existing SN entry with new work hours
-                            return WorktimeEntityBuilder.updateSNWithWorkTime(existingEntry, workHours);
+                            return WorktimeEntityBuilder.updateSNWithWorkTime(existingEntry, workHours, WorkCode.INTERVAL_HOURS_C);
                         } else {
                             // Convert existing entry to SN with work hours
                             LoggerUtil.info(this.getClass(), String.format(
                                     "Converting existing entry (type: %s) to SN with work time for user %d on %s",
                                     existingEntry.getTimeOffType(), userId, date));
-                            return WorktimeEntityBuilder.createSNWithWorkTime(userId, date, workHours);
+                            return WorktimeEntityBuilder.createSNWithWorkTime(userId, date, workHours, WorkCode.INTERVAL_HOURS_C);
                         }
                     })
                     .orElseGet(() -> {
                         // Create new SN entry with work hours
                         LoggerUtil.info(this.getClass(), String.format(
                                 "Creating new SN work entry for user %d on %s", userId, date));
-                        return WorktimeEntityBuilder.createSNWithWorkTime(userId, date, workHours);
+                        return WorktimeEntityBuilder.createSNWithWorkTime(userId, date, workHours, WorkCode.INTERVAL_HOURS_C);
                     });
 
             // Calculate the processed hours for logging

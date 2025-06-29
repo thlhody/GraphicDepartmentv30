@@ -1,6 +1,7 @@
 package com.ctgraphdep.worktime.commands;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.model.OperationResult;
@@ -132,6 +133,17 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             // Determine operation context (admin vs user)
             boolean isAdminOperation = context.isCurrentUserAdmin() && !context.getCurrentUsername().equals(username);
 
+            // ADD: GET USER SCHEDULE FROM DATABASE
+            Optional<User> userOpt = context.getUser(username);
+            if (userOpt.isEmpty()) {
+                return OperationResult.failure("User not found: " + username, getOperationType());
+            }
+
+            User targetUser = userOpt.get();
+            int userScheduleHours = targetUser.getSchedule(); // e.g., 8 hours
+
+            LoggerUtil.debug(this.getClass(), String.format("Target user %s schedule: %d hours", username, userScheduleHours));
+
             // Load appropriate entries
             List<WorkTimeTable> entries;
             if (isAdminOperation) {
@@ -176,13 +188,13 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
                 workEndTime = endTime;
                 LoggerUtil.debug(this.getClass(), String.format("Using provided work times: %s to %s", workStartTime.toLocalTime(), workEndTime.toLocalTime()));
             } else {
-                // Use default schedule (admin operation)
-                int scheduleHours = defaultScheduleHours != null ? defaultScheduleHours : 8;
+                // Use user's actual schedule (not hardcoded 8)
+                int scheduleHours = defaultScheduleHours != null ? defaultScheduleHours : userScheduleHours;
                 workStartTime = date.atTime(WorkCode.START_HOUR, 0); // Default start time
                 int totalMinutes = (scheduleHours * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION;
                 workEndTime = workStartTime.plusMinutes(totalMinutes);
 
-                LoggerUtil.debug(this.getClass(), String.format("Using default %dh schedule: %s to %s", scheduleHours, workStartTime.toLocalTime(), workEndTime.toLocalTime()));
+                LoggerUtil.debug(this.getClass(), String.format("Using user's %dh schedule: %s to %s", scheduleHours, workStartTime.toLocalTime(), workEndTime.toLocalTime()));
             }
 
             // Track holiday balance for restoration
@@ -194,7 +206,7 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             }
 
             // Transform using entity builder
-            WorkTimeTable transformedEntry = WorktimeEntityBuilder.transformTimeOffToWork(entry, workStartTime, workEndTime);
+            WorkTimeTable transformedEntry = WorktimeEntityBuilder.transformTimeOffToWork(entry, workStartTime, workEndTime, userScheduleHours);
 
             // Update sync status based on operation type
             if (isAdminOperation) {
@@ -202,9 +214,6 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             } else {
                 transformedEntry.setAdminSync(com.ctgraphdep.enums.SyncStatusMerge.USER_INPUT);
             }
-
-            // Calculate additional work time properties
-            calculateWorkTimeProperties(transformedEntry);
 
             context.addOrReplaceEntry(entries, transformedEntry);
 
@@ -215,7 +224,7 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
                 context.saveUserWorktime(username, entries, year, month);
             }
 
-// CORRECTED: Handle holiday balance restoration for CO (restoring vacation days when converting to work)
+            // CORRECTED: Handle holiday balance restoration for CO (restoring vacation days when converting to work)
             if (WorkCode.TIME_OFF_CODE.equals(oldTimeOffType)) {
                 // Only restore balance for user operations or admin operations on current user
                 if (!isAdminOperation || context.getCurrentUsername().equals(username)) {
@@ -227,11 +236,8 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
                 }
             }
 
-// Update success message
-
-
-// REMOVE the local isExistingNationalHoliday method
-
+            // Update success message
+            // REMOVE the local isExistingNationalHoliday method
             // Invalidate cache
             context.invalidateTimeOffCache(username, year);
             context.refreshTimeOffTracker(username, userId, year);
@@ -263,30 +269,6 @@ public class TransformTimeOffToWorkCommand extends WorktimeOperationCommand<Work
             LoggerUtil.error(this.getClass(), String.format("Error transforming time off to work for %s on %s: %s", username, date, e.getMessage()), e);
             return OperationResult.failure("Failed to transform time off to work: " + e.getMessage(), getOperationType());
         }
-    }
-
-    /**
-     * Calculate additional work time properties based on start and end times
-     */
-    private void calculateWorkTimeProperties(WorkTimeTable entry) {
-        if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
-            return;
-        }
-
-        // Calculate total worked minutes
-        int totalMinutes = (int) Duration.between(entry.getDayStartTime(), entry.getDayEndTime()).toMinutes();
-        entry.setTotalWorkedMinutes(Math.max(0, totalMinutes));
-
-        // Determine lunch break (more than 6 hours)
-        boolean lunchBreak = totalMinutes > (6 * 60);
-        entry.setLunchBreakDeducted(lunchBreak);
-
-        // Initialize other work-related fields
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-
-        LoggerUtil.debug(this.getClass(), String.format("Calculated work time properties: %d minutes, lunch break: %s", totalMinutes, lunchBreak));
     }
 
     @Override

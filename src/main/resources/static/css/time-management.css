@@ -581,6 +581,58 @@
 }
 
 /* ========================================================================
+TEMPORARY STOP EDITING STYLES - Add to /css/time-management.css
+======================================================================== */
+
+/* Temporary stop cell - editable like start/end time */
+.temp-stop-cell {
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.temp-stop-cell:hover {
+    background-color: #f8f9fa;
+}
+
+.temp-stop-cell:hover .edit-icon {
+    opacity: 0.6;
+}
+
+.temp-stop-cell.editing {
+    background-color: #fff3cd;
+    border: 2px solid #ffc107;
+}
+
+.temp-stop-display {
+    display: inline-block;
+    min-width: 30px;
+}
+
+/* Consistent styling with start/end time cells */
+.temp-stop-cell .edit-icon {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.7em;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    color: #6c757d;
+}
+
+.temp-stop-cell input[type="number"] {
+    text-align: center;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    width: 80px;
+}
+
+.temp-stop-cell input[type="number"]:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========================================================================
    TOAST ALERT INTEGRATION
    ======================================================================== */
 

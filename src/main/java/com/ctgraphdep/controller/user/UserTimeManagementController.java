@@ -348,6 +348,13 @@ public class UserTimeManagementController extends BaseController {
         String username = currentUser.getUsername();
         Integer userId = currentUser.getUserId();
 
+        LoggerUtil.info(this.getClass(),
+                " DEBUG executeFieldUpdate:)" +
+                         "  - Original field: '" + field + "'" +
+                         "  - Field length: " + field.length() +
+                         "  - Lowercase field: '" + field.toLowerCase() + "'" +
+                         "  - Equals 'tempstop': " + "tempstop".equalsIgnoreCase(field));
+
         return switch (field.toLowerCase()) {
             case "starttime" -> worktimeOperationService.updateUserStartTime(username, userId, workDate, value);
             case "endtime" -> worktimeOperationService.updateUserEndTime(username, userId, workDate, value);
@@ -358,6 +365,20 @@ public class UserTimeManagementController extends BaseController {
                 } else {
                     // Transform to time off or add time off
                     yield worktimeOperationService.transformWorkToTimeOff(username, userId, workDate, value.trim().toUpperCase());
+                }
+            }
+            case "tempstop" -> {
+                if (value == null || value.trim().isEmpty() || "0".equals(value.trim())) {
+                    // Remove temporary stop
+                    yield worktimeOperationService.removeUserTemporaryStop(username, userId, workDate);
+                } else {
+                    // Add/update temporary stop
+                    try {
+                        Integer tempStopMinutes = Integer.parseInt(value.trim());
+                        yield worktimeOperationService.updateUserTemporaryStop(username, userId, workDate, tempStopMinutes);
+                    } catch (NumberFormatException e) {
+                        yield OperationResult.failure("Invalid temporary stop value: " + value, "FIELD_UPDATE");
+                    }
                 }
             }
             default -> OperationResult.failure("Unknown field type: " + field, "FIELD_UPDATE");

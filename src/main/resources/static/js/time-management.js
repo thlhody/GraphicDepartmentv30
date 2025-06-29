@@ -142,6 +142,26 @@ async function checkCellEditability(cell) {
     const timeOffCell = row?.querySelector('.editable-cell[data-field="timeOff"]');
     const timeOffValue = timeOffCell?.getAttribute('data-original');
 
+    // ADD THIS SECTION for tempStop field:
+    if (field === 'tempStop') {
+        // Temp stop follows same rules as start/end time
+        try {
+            console.log(`🔍 Checking temp stop editability for ${date}`);
+            const response = await fetch(`/user/time-management/can-edit?date=${date}&field=startTime`);
+            const result = await response.json();
+
+            if (!result.canEdit) {
+                console.log(`❌ Temp stop disabled: ${result.reason}`);
+                cell.classList.add('disabled');
+                cell.setAttribute('title', result.reason || 'Cannot edit temporary stop');
+            }
+        } catch (error) {
+            console.error('Error checking temp stop editability:', error);
+            cell.classList.add('disabled');
+        }
+        return;
+    }
+
     // CORRECTED: SN special case handling
     if (timeOffValue === 'SN') {
         if (field === 'timeOff') {
@@ -236,7 +256,17 @@ function startEditing(cell) {
     cell.classList.add('editing');
 
     const currentValue = cell.getAttribute('data-original') || '';
-    const cellValue = cell.querySelector('.cell-value');
+
+    // FIX: Handle both cell-value and cell-content structures
+    let cellValue = cell.querySelector('.cell-value');
+    if (!cellValue) {
+        cellValue = cell.querySelector('.cell-content');
+    }
+
+    if (!cellValue) {
+        console.error('Could not find cell-value or cell-content in cell:', cell);
+        return;
+    }
 
     // Create appropriate editor based on field type
     let editor;
@@ -245,6 +275,8 @@ function startEditing(cell) {
         editor = createTimeOffEditor(currentValue);
     } else if (field === 'startTime' || field === 'endTime') {
         editor = createEnhancedTimeEditor(currentValue);
+    } else if (field === 'tempStop') {
+        editor = createTempStopEditor(currentValue);
     } else {
         console.error('Unknown field type:', field);
         return;
@@ -262,6 +294,24 @@ function startEditing(cell) {
 
     // Add help text
     showEditingHelp(cell, field);
+}
+
+/**
+ * NEW: Create temporary stop editor (add this new function)
+ */
+function createTempStopEditor(currentValue) {
+    const editor = document.createElement('input');
+    editor.className = 'inline-editor';
+    editor.type = 'number';
+    editor.min = '0';
+    editor.max = '720';  // 12 hours = 720 minutes
+    editor.step = '1';
+    editor.value = currentValue || '0';
+    editor.placeholder = 'Minutes';
+    editor.style.width = '80px';
+    editor.style.textAlign = 'center';
+
+    return editor;
 }
 
 function createEnhancedTimeEditor(currentValue) {
@@ -367,11 +417,14 @@ function showEditingHelp(cell, field) {
     const helpTexts = {
         'startTime': 'Enter time in 24-hour format (e.g., 09:00, 17:30)',
         'endTime': 'Enter time in 24-hour format (e.g., 09:00, 17:30)',
-        'timeOff': 'Select CO for vacation, CM for medical leave'
+        'timeOff': 'Select CO for vacation, CM for medical leave',
+        'tempStop': 'Enter temporary stop minutes (0-720, max 12 hours)'
     };
 
-    helpText.textContent = helpTexts[field] || 'Press Enter to save, Escape to cancel';
-    cell.appendChild(helpText);
+    const helpMessage = helpTexts[field] || 'Enter new value';
+    helpText.textContent = helpMessage;
+    helpText.innerHTML += '<br><small>Press Enter to save, Escape to cancel</small>';
+
 
     // Remove help text after 4 seconds
     setTimeout(() => {
@@ -459,11 +512,23 @@ async function saveEdit(cell, value) {
         formData.append('field', field);
         formData.append('value', value || '');
 
+
+
         console.log(`📤 Sending data to server:`, {
             date: date,
             field: field,
             value: value || '',
             formDataString: formData.toString()
+        });
+
+        console.log('🔍 DEBUG: Extracted data:', {
+            date: date,
+            dateType: typeof date,
+            field: field,           // ← ADD THIS LINE
+            fieldLength: field.length,  // ← ADD THIS LINE
+            fieldCharCodes: [...field].map(c => c.charCodeAt(0)), // ← ADD THIS LINE
+            value: value,
+            originalValue: originalValue
         });
 
         const response = await fetch('/user/time-management/update-field', {
@@ -594,7 +659,12 @@ function finishEditing(cell) {
         helpText.remove();
     }
 
-    const cellValue = cell.querySelector('.cell-value');
+    // FIX: Handle both cell-value and cell-content structures
+    let cellValue = cell.querySelector('.cell-value');
+    if (!cellValue) {
+        cellValue = cell.querySelector('.cell-content');
+    }
+
     if (cellValue) {
         cellValue.style.display = '';
     }
@@ -608,7 +678,6 @@ function finishEditing(cell) {
 
     currentlyEditing = null;
 }
-
 
 function addFieldStatus(cell, status) {
     // Remove existing status
@@ -635,80 +704,192 @@ function addFieldStatus(cell, status) {
 // SN OVERTIME DISPLAY ENHANCEMENTS
 // ========================================================================
 
+// ========================================================================
+// MODULAR CELL DISPLAY UPDATE FUNCTIONS
+// ========================================================================
+
 /**
- * ENHANCED: Update cell display to handle SN overtime properly
+ * Main function to update cell display - now modular and easy to understand
  */
 function updateCellDisplay(cell, field, value, rawData = null) {
-    const cellValue = cell.querySelector('.cell-value') || cell;
+    // Handle both cell-value and cell-content structures
+    let cellValue = cell.querySelector('.cell-value');
+    if (!cellValue) {
+        cellValue = cell.querySelector('.cell-content');
+    }
+    if (!cellValue) {
+        cellValue = cell; // Fallback to the cell itself
+    }
 
-    if (field === 'timeOff') {
-        if (value && value !== '-') {
-            // Check if this is an SN day with overtime work
-            const isSnWithOvertime = value === 'SN' &&
-            rawData &&
-            rawData.totalOvertimeMinutes &&
-            parseInt(rawData.totalOvertimeMinutes) > 0;
-
-            if (isSnWithOvertime) {
-                // Display SN with overtime hours (like "SN4")
-                const overtimeHours = Math.floor(parseInt(rawData.totalOvertimeMinutes) / 60);
-                const snDisplay = `SN${overtimeHours}`;
-
-                cellValue.innerHTML = `<span class="sn-work-display" title="National Holiday with ${formatMinutesToHours(rawData.totalOvertimeMinutes)} overtime work">${snDisplay}</span>`;
-
-                // Mark the row as SN work entry
-                const row = cell.closest('tr');
-                if (row) {
-                    row.classList.add('sn-work-entry');
-                }
-            } else {
-                // Regular time off display
-                const timeOffClass = getTimeOffClass(value);
-                const timeOffLabel = getTimeOffLabel(value);
-                cellValue.innerHTML = `<span class="${timeOffClass}" title="${timeOffLabel}">${value}</span>`;
-            }
-        } else {
-            cellValue.textContent = '-';
-        }
-    } else if (field === 'workTime') {
-        // Handle work time display for SN days
-        if (rawData && rawData.timeOffType === 'SN') {
-            // SN days show 0 work time (all time is overtime)
-            cellValue.innerHTML = '<span class="text-muted small" title="No regular work time on holidays - all time is overtime">0:00</span>';
-        } else if (value && value !== '-') {
-            cellValue.innerHTML = `<span class="text-primary fw-medium">${value}</span>`;
-        } else {
-            cellValue.textContent = '-';
-        }
-    } else if (field === 'overtime') {
-        // Handle overtime display with special styling for SN days
-        if (value && value !== '-') {
-            const isSnOvertime = rawData && rawData.timeOffType === 'SN';
-            const badgeClass = isSnOvertime ? 'badge bg-warning text-dark rounded-pill overtime-display small sn-overtime' : 'badge bg-success rounded-pill overtime-display small';
-            const title = isSnOvertime ? `Holiday overtime work: ${value}` : `Overtime work: ${value}`;
-
-            cellValue.innerHTML = `<span class="${badgeClass}" title="${title}">${value}</span>`;
-        } else {
-            cellValue.textContent = '-';
-        }
-    } else if (field === 'startTime' || field === 'endTime') {
-        // Check if this is an SN day and show warning
-        if (rawData && rawData.timeOffType === 'SN') {
-            const displayTime = value ? convertTo24Hour(value) : '-';
-            cellValue.innerHTML = `<span class="text-warning" title="Working on national holiday - all time counts as overtime">${displayTime}</span>`;
-        } else {
-            const displayTime = value ? convertTo24Hour(value) : '-';
-            cellValue.textContent = displayTime;
-        }
-    } else {
-        // Default display
-        cellValue.textContent = value || '-';
+    // Route to appropriate handler based on field type
+    switch (field) {
+        case 'tempStop':
+            updateTempStopDisplay(cellValue, value);
+            break;
+        case 'timeOff':
+            updateTimeOffDisplay(cellValue, value, rawData);
+            break;
+        case 'workTime':
+            updateWorkTimeDisplay(cellValue, value, rawData);
+            break;
+        case 'overtime':
+            updateOvertimeDisplay(cellValue, value, rawData);
+            break;
+        case 'startTime':
+        case 'endTime':
+            updateTimeDisplay(cellValue, value, rawData);
+            break;
+        default:
+            updateDefaultDisplay(cellValue, value);
+            break;
     }
 
     // Update data attribute
     cell.setAttribute('data-original', value || '');
 }
 
+/**
+ * Handle temporary stop display
+ */
+function updateTempStopDisplay(cellValue, value) {
+    const minutes = parseInt(value) || 0;
+
+    if (minutes > 0) {
+        cellValue.innerHTML = `<span class="text-info fw-medium temp-stop-display" title="Double-click to edit temporary stop time">${minutes}m</span>`;
+    } else {
+        cellValue.innerHTML = `<span class="text-muted temp-stop-display" title="Double-click to add temporary stop time">-</span>`;
+    }
+}
+
+/**
+ * Handle time off display with SN overtime logic
+ */
+function updateTimeOffDisplay(cellValue, value, rawData) {
+    if (value && value !== '-') {
+        // Check if this is an SN day with overtime work
+        const isSnWithOvertime = value === 'SN' &&
+        rawData &&
+        rawData.totalOvertimeMinutes &&
+        parseInt(rawData.totalOvertimeMinutes) > 0;
+
+        if (isSnWithOvertime) {
+            // Display SN with overtime hours (like "SN4")
+            const overtimeHours = Math.floor(parseInt(rawData.totalOvertimeMinutes) / 60);
+            const snDisplay = `SN${overtimeHours}`;
+
+            cellValue.innerHTML = `<span class="sn-work-display" title="National Holiday with ${formatMinutesToHours(rawData.totalOvertimeMinutes)} overtime work">${snDisplay}</span>`;
+
+            // Mark the row as SN work entry
+            const row = cellValue.closest('tr');
+            if (row) {
+                row.classList.add('sn-work-entry');
+            }
+        } else {
+            // Regular time off display
+            const timeOffClass = getTimeOffClass(value);
+            const timeOffLabel = getTimeOffLabel(value);
+            cellValue.innerHTML = `<span class="${timeOffClass}" title="${timeOffLabel}">${value}</span>`;
+        }
+    } else {
+        cellValue.textContent = '-';
+    }
+}
+
+/**
+ * Handle work time display for regular vs SN days
+ */
+function updateWorkTimeDisplay(cellValue, value, rawData) {
+    if (rawData && rawData.timeOffType === 'SN') {
+        // SN days show 0 work time (all time is overtime)
+        cellValue.innerHTML = '<span class="text-muted small" title="No regular work time on holidays - all time is overtime">0:00</span>';
+    } else if (value && value !== '-') {
+        cellValue.innerHTML = `<span class="text-primary fw-medium">${value}</span>`;
+    } else {
+        cellValue.textContent = '-';
+    }
+}
+
+/**
+ * Handle overtime display with special SN styling
+ */
+function updateOvertimeDisplay(cellValue, value, rawData) {
+    if (value && value !== '-') {
+        const isSnOvertime = rawData && rawData.timeOffType === 'SN';
+        const badgeClass = isSnOvertime ?
+        'badge bg-warning text-dark rounded-pill overtime-display small sn-overtime' :
+        'badge bg-success rounded-pill overtime-display small';
+        const title = isSnOvertime ?
+        `Holiday overtime work: ${value}` :
+        `Overtime work: ${value}`;
+
+        cellValue.innerHTML = `<span class="${badgeClass}" title="${title}">${value}</span>`;
+    } else {
+        cellValue.textContent = '-';
+    }
+}
+
+/**
+ * Handle start time and end time display with SN warnings
+ */
+function updateTimeDisplay(cellValue, value, rawData) {
+    if (rawData && rawData.timeOffType === 'SN') {
+        const displayTime = value ? convertTo24Hour(value) : '-';
+        cellValue.innerHTML = `<span class="text-warning" title="Working on national holiday - all time counts as overtime">${displayTime}</span>`;
+    } else {
+        const displayTime = value ? convertTo24Hour(value) : '-';
+        cellValue.textContent = displayTime;
+    }
+}
+
+/**
+ * Default display for unhandled field types
+ */
+function updateDefaultDisplay(cellValue, value) {
+    cellValue.textContent = value || '-';
+}
+
+// ========================================================================
+// HELPER FUNCTIONS (Keep existing ones)
+// ========================================================================
+
+/**
+ * Get appropriate CSS class for time off types
+ */
+function getTimeOffClass(timeOffType) {
+    switch (timeOffType) {
+        case 'SN': return 'holiday';
+        case 'CO': return 'vacation';
+        case 'CM': return 'medical';
+        default: return 'time-off-display';
+    }
+}
+
+/**
+ * Get descriptive label for time off types
+ */
+function getTimeOffLabel(timeOffType) {
+    switch (timeOffType) {
+        case 'SN': return 'National Holiday';
+        case 'CO': return 'Vacation Day';
+        case 'CM': return 'Medical Leave';
+        default: return timeOffType;
+    }
+}
+
+/**
+ * Format minutes to hours display
+ */
+function formatMinutesToHours(minutes) {
+    if (!minutes || minutes === 0) return '0h';
+
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+
+    if (mins === 0) {
+        return `${hours}h`;
+    }
+    return `${hours}h ${mins}m`;
+}
 /**
  * ENHANCED: Check if a row represents an SN day with work
  */
@@ -1019,12 +1200,24 @@ function validateFieldValue(field, value) {
             }
             break;
 
+        // ADD THIS CASE:
+        case 'tempStop':
+            const minutes = parseInt(value);
+            if (isNaN(minutes) || minutes < 0) {
+                return 'Temporary stop must be a positive number';
+            }
+            if (minutes > 720) {
+                return 'Temporary stop cannot exceed 12 hours (720 minutes)';
+            }
+            break;
+
         default:
-            return 'Unknown field type';
+            return null; // CHANGE: Don't throw error for unknown fields, just return null
     }
 
     return null;
 }
+
 
 // ========================================================================
 // SERVER MESSAGE HANDLING WITH TOAST SYSTEM
