@@ -6,12 +6,14 @@ import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.utils.LoggerUtil;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Command to load team members for a specific period.
+ * REFACTORED: Command to load team members for a specific period.
  * Replaces TeamStatisticsService.getTeamMembers() method.
  * Returns team members for the specified team lead and period.
+ * Team operations use context methods directly (no accessor needed).
  */
 public class LoadTeamMembersCommand extends WorktimeOperationCommand<Object> {
     private final String teamLeadUsername;
@@ -61,7 +63,7 @@ public class LoadTeamMembersCommand extends WorktimeOperationCommand<Object> {
                 teamLeadUsername, year, month));
 
         try {
-            // Load team members from file
+            // Load team members using context (no accessor needed for team operations)
             List<TeamMemberDTO> teamMembers = context.readTeamMembers(teamLeadUsername, year, month);
 
             // If no members found, return empty list instead of null
@@ -73,32 +75,32 @@ public class LoadTeamMembersCommand extends WorktimeOperationCommand<Object> {
                 return OperationResult.success(
                         String.format("No team members found for %s - %d/%d", teamLeadUsername, year, month),
                         getOperationType(),
-                        teamMembers != null ? teamMembers : List.of());
+                        teamMembers != null ? teamMembers : new ArrayList<>());
             }
 
-            String message = String.format(
+            LoggerUtil.info(this.getClass(), String.format(
                     "Successfully loaded %d team members for %s - %d/%d",
-                    teamMembers.size(), teamLeadUsername, year, month);
+                    teamMembers.size(), teamLeadUsername, year, month));
 
-            LoggerUtil.info(this.getClass(), message);
-
-            return OperationResult.success(message, getOperationType(), teamMembers);
+            return OperationResult.success(
+                    String.format("Loaded %d team members for %s - %d/%d",
+                            teamMembers.size(), teamLeadUsername, year, month),
+                    getOperationType(),
+                    teamMembers);
 
         } catch (Exception e) {
-            String errorMessage = String.format(
+            LoggerUtil.error(this.getClass(), String.format(
                     "Error loading team members for %s - %d/%d: %s",
-                    teamLeadUsername, year, month, e.getMessage());
-
-            LoggerUtil.error(this.getClass(), errorMessage, e);
-
-            return OperationResult.failure(errorMessage, getOperationType());
+                    teamLeadUsername, year, month, e.getMessage()), e);
+            return OperationResult.failure(
+                    "Failed to load team members: " + e.getMessage(),
+                    getOperationType());
         }
     }
 
     @Override
     protected String getCommandName() {
-        return String.format("LoadTeamMembers[lead=%s, period=%d/%d]",
-                teamLeadUsername, year, month);
+        return String.format("LoadTeamMembers[lead=%s, period=%d/%d]", teamLeadUsername, year, month);
     }
 
     @Override

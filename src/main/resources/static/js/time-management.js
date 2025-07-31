@@ -9,16 +9,35 @@
 
 
 document.addEventListener('DOMContentLoaded', function () {
-    console.log('Time Management page loaded - compact layout');
+    console.log('Time Management page loaded - enhanced with period selection');
 
-    // Initialize all components
+    // FIXED: Prevent multiple initializations
+    if (window.timeManagementInitialized) {
+        console.warn('Time Management already initialized, skipping...');
+        return;
+    }
+
+    // ADD THIS LINE HERE (after the initialization check):
+    initializeTimeInputFeatures();
+
+    // Initialize all components (existing code)
     initializeTimeOffForm();
     initializeInlineEditing();
     initializeTooltips();
-    initializeSNOvertimeDisplay(); // NEW: Initialize SN display
+    initializeSNOvertimeDisplay();
+
+    // NEW: Initialize period selection and export
+    initializePeriodSelection();
+    initializeExportButton();
 
     // Handle success messages with toast system
     handleServerMessages();
+
+    // Show keyboard shortcut help
+    console.log('📅 Keyboard shortcuts: Ctrl+← (previous month), Ctrl+→ (next month)');
+
+    // Mark as initialized
+    window.timeManagementInitialized = true;
 });
 
 // ========================================================================
@@ -32,18 +51,29 @@ function initializeTimeOffForm() {
     const singleDayCheckbox = document.getElementById('singleDayRequest');
     const endDateContainer = document.getElementById('endDateContainer');
 
-    if (!form) return;
+    if (!form) {
+        console.error('❌ Time off form not found!');
+        return;
+    }
+
+    console.log('✅ Time off form found:', form);
+    console.log('✅ Form action:', form.action);
+    console.log('✅ Form method:', form.method);
+
 
     console.log('Initializing compact time off form');
 
-    // Single day request handling
     if (singleDayCheckbox) {
         singleDayCheckbox.addEventListener('change', function () {
+            const singleDayValue = document.getElementById('singleDayValue');
+
             if (this.checked) {
                 endDateContainer.style.display = 'none';
                 endDateInput.value = startDateInput.value;
+                if (singleDayValue) singleDayValue.value = 'true';
             } else {
                 endDateContainer.style.display = 'block';
+                if (singleDayValue) singleDayValue.value = 'false';
             }
         });
     }
@@ -59,7 +89,30 @@ function initializeTimeOffForm() {
 
     // Form submission with toast feedback
     form.addEventListener('submit', function(e) {
-        console.log('Submitting time off request...');
+        console.log('🚀 Form submit event triggered!');
+        console.log('📝 Form data:', {
+            startDate: startDateInput.value,
+            endDate: endDateInput.value,
+            timeOffType: form.querySelector('[name="timeOffType"]').value,
+            singleDay: singleDayCheckbox.checked
+        });
+
+        // Validate form data
+        if (!startDateInput.value) {
+            console.error('❌ Start date is empty!');
+            e.preventDefault();
+            showToast('Validation Error', 'Start date is required', 'error');
+            return;
+        }
+
+        if (!singleDayCheckbox.checked && !endDateInput.value) {
+            console.error('❌ End date is empty!');
+            e.preventDefault();
+            showToast('Validation Error', 'End date is required for multi-day requests', 'error');
+            return;
+        }
+
+        console.log('✅ Form validation passed, submitting...');
         showLoadingOverlay();
 
         // Show immediate feedback
@@ -70,25 +123,50 @@ function initializeTimeOffForm() {
 }
 
 // ========================================================================
-// ENHANCED INLINE EDITING WITH NON-EDITABLE FIELDS
+// ENHANCED EDITABILITY WITH STATUS INTEGRATION
 // ========================================================================
 
 let currentlyEditing = null;
 let editingTimeout = null;
 // Global flag to prevent multiple simultaneous saves
 let isSaving = false;
+let isInitialized = false;
 
+/**
+ * UPDATED: Create time editors using TimeInputModule
+ */
+function createEnhancedTimeEditor(currentValue) {
+    // Use the TimeInputModule instead of creating editor manually
+    return TimeInputModule.create24HourEditor(currentValue, {
+        // Optional custom configuration for this specific use case
+        helpText: 'Enter time in 24-hour format (e.g., 08:30, 13:45). You can type 0830 or 1345',
+        width: '100px' // Slightly wider for better visibility
+    });
+}
+
+/**
+ * Initialize inline editing with status-based restrictions
+ */
 function initializeInlineEditing() {
-    const table = document.getElementById('worktimeTable');
+    // Prevent multiple initializations
+    if (isInitialized) {
+        console.warn('Inline editing already initialized, skipping...');
+        return;
+    }
+
+    const table = document.querySelector('.table');
     if (!table) return;
 
-    console.log('Initializing enhanced inline editing with restrictions');
+    console.log('Initializing enhanced inline editing with status-based restrictions');
 
     // Add click handlers to editable cells
     const editableCells = table.querySelectorAll('.editable-cell');
     editableCells.forEach(cell => {
-        // Check if cell should be disabled or non-editable
-        checkCellEditability(cell);
+        // Check status-based editability
+        checkStatusBasedEditability(cell);
+
+        // FIXED: Remove any existing event listeners to prevent duplicates
+        cell.removeEventListener('dblclick', handleCellDoubleClick);
 
         // Add double-click handler
         cell.addEventListener('dblclick', function(e) {
@@ -99,7 +177,7 @@ function initializeInlineEditing() {
 
         // Add hover effects for editable cells only
         cell.addEventListener('mouseenter', function() {
-            if (!cell.classList.contains('disabled') && !cell.classList.contains('non-editable')) {
+            if (!cell.classList.contains('status-locked')) {
                 const editIcon = cell.querySelector('.edit-icon');
                 if (editIcon && !editIcon.classList.contains('d-none-force')) {
                     editIcon.classList.remove('d-none');
@@ -115,19 +193,109 @@ function initializeInlineEditing() {
         });
     });
 
-    // Handle clicks outside to cancel editing
+    // Initialize status tooltips
+    initializeStatusTooltips();
+
+    // FIXED: Handle clicks outside to cancel editing with better detection
     document.addEventListener('click', function(e) {
-        if (currentlyEditing && !currentlyEditing.contains(e.target)) {
-            cancelEditing();
+        if (currentlyEditing) {
+            // Check if click is inside the editing cell or its editor
+            const isInsideEditor = currentlyEditing.contains(e.target) ||
+            e.target.closest('.inline-editor') ||
+            e.target.classList.contains('inline-editor');
+
+            if (!isInsideEditor) {
+                console.log('👆 Click outside detected, canceling edit');
+                // Add small delay to prevent conflicts
+                setTimeout(() => {
+                    if (currentlyEditing && !isSaving) {
+                        cancelEditing();
+                    }
+                }, 50);
+            }
         }
     });
 
     // Handle escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && currentlyEditing) {
+            e.preventDefault();
             cancelEditing();
         }
     });
+
+    // Mark as initialized
+    isInitialized = true;
+}
+
+/**
+ * Check status-based editability using backend status info
+ */
+function checkStatusBasedEditability(cell) {
+    const row = cell.closest('tr');
+    if (!row) return;
+
+    // Get status information from the row's data or status cell
+    const statusInfo = getRowStatusInfo(row);
+
+    if (!statusInfo) {
+        console.warn('No status info found for row, allowing edit');
+        return;
+    }
+
+    console.log(`Checking editability for row: isModifiable=${statusInfo.isModifiable}, status=${statusInfo.rawStatus}`);
+
+    if (!statusInfo.isModifiable) {
+        // Mark cell as locked
+        cell.classList.add('status-locked');
+        cell.setAttribute('title', statusInfo.tooltipText || 'Cannot edit this field');
+
+        // Add row-level styling
+        if (statusInfo.isFinal) {
+            row.classList.add('status-final');
+        } else if (statusInfo.isUserInProcess) {
+            row.classList.add('status-in-process');
+        }
+
+        console.log(`Cell locked: ${statusInfo.fullDescription}`);
+    } else {
+        // Remove any previous locks
+        cell.classList.remove('status-locked');
+        console.log(`Cell editable: ${statusInfo.fullDescription}`);
+    }
+}
+
+/**
+ * Extract status information from row
+ */
+function getRowStatusInfo(row) {
+    // Try to get status from hidden data attributes (if added by backend)
+    const statusData = row.dataset.statusInfo;
+    if (statusData) {
+        try {
+            return JSON.parse(statusData);
+        } catch (e) {
+            console.warn('Failed to parse status data:', statusData);
+        }
+    }
+
+    // Fallback: Extract from status cell
+    const statusCell = row.querySelector('.status-cell .status-indicator');
+    if (!statusCell) return null;
+
+    // Extract basic info from DOM
+    const isModifiable = statusCell.querySelector('.modifiable-indicator') !== null;
+    const isLocked = statusCell.querySelector('.locked-indicator') !== null;
+    const badgeText = statusCell.querySelector('.status-badge')?.textContent?.trim();
+    const tooltipText = statusCell.getAttribute('title');
+
+    return {
+        isModifiable: isModifiable && !isLocked,
+        isFinal: badgeText?.includes('F'),
+        isUserInProcess: badgeText?.includes('Active'),
+        fullDescription: tooltipText || 'Unknown status',
+        tooltipText: tooltipText
+    };
 }
 
 async function checkCellEditability(cell) {
@@ -219,6 +387,22 @@ async function checkCellEditability(cell) {
 }
 
 function handleCellDoubleClick(cell) {
+    // Prevent event bubbling that causes immediate closure
+    event.preventDefault();
+    event.stopPropagation();
+
+    // FIXED: Prevent multiple simultaneous editing attempts
+    if (isSaving) {
+        console.log('⏳ Save in progress, ignoring double-click...');
+        return;
+    }
+
+    // FIXED: If already editing this exact cell, ignore
+    if (currentlyEditing === cell) {
+        console.log('🔄 Already editing this cell, ignoring duplicate double-click...');
+        return;
+    }
+
     // Check if cell is disabled or non-editable
     if (cell.classList.contains('disabled')) {
         showToast('Cannot Edit', cell.getAttribute('title') || 'This field cannot be edited', 'warning');
@@ -241,16 +425,46 @@ function handleCellDoubleClick(cell) {
         return;
     }
 
-    if (currentlyEditing) {
+    // Check if cell is locked by status
+    if (cell.classList.contains('status-locked')) {
+        const row = cell.closest('tr');
+        const statusInfo = getRowStatusInfo(row);
+
+        showToast('Cannot Edit',
+            statusInfo?.fullDescription || 'This field cannot be edited due to its current status',
+            'warning',
+            { duration: 4000 });
+        return;
+    }
+
+    // FIXED: Cancel any existing editing before starting new one
+    if (currentlyEditing && currentlyEditing !== cell) {
+        console.log('🔄 Canceling previous edit to start new one...');
         cancelEditing();
     }
 
-    startEditing(cell);
+    // FIXED: Add small delay to ensure clean start
+    setTimeout(() => {
+        startEditing(cell);
+    }, 50);
 }
 
 function startEditing(cell) {
     const field = cell.getAttribute('data-field');
     console.log('Starting edit for cell:', field);
+
+    // FIXED: Force cleanup of any existing editors in this cell
+    const existingEditors = cell.querySelectorAll('.inline-editor');
+    existingEditors.forEach(editor => {
+        console.log('🧹 Removing existing editor before creating new one');
+        editor.remove();
+    });
+
+    // FIXED: Remove any existing help text
+    const existingHelp = cell.querySelectorAll('.editing-help');
+    existingHelp.forEach(help => {
+        help.remove();
+    });
 
     currentlyEditing = cell;
     cell.classList.add('editing');
@@ -282,14 +496,25 @@ function startEditing(cell) {
         return;
     }
 
+    // FIXED: Ensure unique editor identification
+    editor.setAttribute('data-field-editor', field);
+    editor.setAttribute('data-editor-id', Date.now()); // Unique ID
+
     // Replace cell content with editor
     cellValue.style.display = 'none';
     cell.appendChild(editor);
 
-    // Focus the editor
-    editor.focus();
+    // FIXED: Focus with delay to prevent immediate blur
+    setTimeout(() => {
+        if (editor.parentNode) { // Ensure editor still exists
+            editor.focus();
+            if (editor.select) {
+                editor.select();
+            }
+        }
+    }, 100);
 
-    // Set up editor event handlers
+    // Set up editor event handlers with fixes
     setupEditorHandlers(editor, cell);
 
     // Add help text
@@ -315,26 +540,11 @@ function createTempStopEditor(currentValue) {
 }
 
 function createEnhancedTimeEditor(currentValue) {
-    const editor = document.createElement('input');
-    editor.className = 'inline-editor';
-    editor.type = 'time';
-
-    // Ensure 24-hour format
-    if (currentValue) {
-        // Convert to 24-hour format if needed
-        const time24 = convertTo24Hour(currentValue);
-        editor.value = time24;
-    } else {
-        editor.value = '';
-    }
-
-    editor.step = '60'; // 1 minute intervals
-
-    // Force 24-hour display by setting attributes
-    editor.setAttribute('pattern', '[0-9]{2}:[0-9]{2}');
-    editor.setAttribute('placeholder', 'HH:MM');
-
-    return editor;
+    // REPLACE THE ENTIRE EXISTING FUNCTION WITH THIS:
+    return TimeInputModule.create24HourEditor(currentValue, {
+        helpText: 'Enter time in 24-hour format (e.g., 08:30, 13:45). You can type 0830 or 1345',
+        width: '100px'
+    });
 }
 
 function createTimeOffEditor(currentValue) {
@@ -367,23 +577,42 @@ function createTimeOffEditor(currentValue) {
 function setupEditorHandlers(editor, cell) {
     const field = cell.getAttribute('data-field');
 
+    // FIXED: Prevent immediate event firing
+    let isInitializing = true;
+    setTimeout(() => {
+        isInitializing = false;
+    }, 200);
+
     // Handle Enter key
     editor.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
+            e.stopPropagation();
             console.log('📝 Manual save triggered by Enter key');
             saveEdit(cell, editor.value);
         } else if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             console.log('🚫 Edit cancelled by Escape key');
             cancelEditing();
         }
     });
 
-    // Handle blur (when user clicks away)
-    editor.addEventListener('blur', function() {
-        console.log('📝 Manual save triggered by blur event');
-        saveEdit(cell, editor.value);
+    // FIXED: Handle blur with initialization check
+    editor.addEventListener('blur', function(e) {
+        // Don't save immediately if we're still initializing
+        if (isInitializing) {
+            console.log('⏭️ Skipping blur save during initialization');
+            return;
+        }
+
+        // FIXED: Add delay to prevent conflicts with other events
+        setTimeout(() => {
+            if (currentlyEditing === cell && !isSaving) {
+                console.log('📝 Manual save triggered by blur event');
+                saveEdit(cell, editor.value);
+            }
+        }, 100);
     });
 
     // Auto-save after pause in typing (for time inputs only)
@@ -391,12 +620,15 @@ function setupEditorHandlers(editor, cell) {
         let autoSaveTimeout;
 
         editor.addEventListener('input', function() {
+            // Don't auto-save during initialization
+            if (isInitializing) return;
+
             // Clear previous timeout
             clearTimeout(autoSaveTimeout);
 
             // Set new timeout
             autoSaveTimeout = setTimeout(() => {
-                if (currentlyEditing === cell && !isSaving) {
+                if (currentlyEditing === cell && !isSaving && !isInitializing) {
                     console.log('⏱️ Auto-save triggered after 2 seconds of inactivity');
                     saveEdit(cell, editor.value);
                 }
@@ -408,28 +640,110 @@ function setupEditorHandlers(editor, cell) {
             clearTimeout(autoSaveTimeout);
         });
     }
+
+    // FIXED: Prevent click events on editor from bubbling up
+    editor.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+
+    editor.addEventListener('mousedown', function(e) {
+        e.stopPropagation();
+    });
+
+    editor.addEventListener('mouseup', function(e) {
+        e.stopPropagation();
+    });
 }
 
+/**
+ * UPDATED: Enhanced help text using TimeInputModule
+ */
 function showEditingHelp(cell, field) {
+    // REPLACE THE ENTIRE EXISTING FUNCTION WITH THIS:
+
+    // Remove any existing help text
+    const existingHelp = cell.querySelectorAll('.editing-help');
+    existingHelp.forEach(help => help.remove());
+
+    let helpElement;
+
+    if (field === 'startTime' || field === 'endTime') {
+        // Use TimeInputModule for time fields
+        helpElement = TimeInputModule.createHelpText(field);
+    } else {
+        // Create standard help for other fields
+        helpElement = document.createElement('div');
+        helpElement.className = 'editing-help';
+
+        const helpTexts = {
+            'timeOff': 'Select CO for vacation, CM for medical leave',
+            'tempStop': 'Enter temporary stop minutes (0-720, max 12 hours)'
+        };
+
+        const helpMessage = helpTexts[field] || 'Enter new value';
+        helpElement.innerHTML = `${helpMessage}<br><small>Press Enter to save, Escape to cancel</small>`;
+
+        // Standard help text styling
+        Object.assign(helpElement.style, {
+            position: 'absolute',
+            bottom: '-45px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#212529',
+            color: 'white',
+            padding: '0.5rem',
+            borderRadius: '0.375rem',
+            fontSize: '0.75rem',
+            whiteSpace: 'nowrap',
+            zIndex: '1000',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+        });
+    }
+
+    // Position relative to cell
+    cell.style.position = 'relative';
+    cell.appendChild(helpElement);
+
+    // Remove help text after 5 seconds
+    setTimeout(() => {
+        if (helpElement.parentNode) {
+            helpElement.remove();
+        }
+    }, 5000);
+}
+
+/**
+ * Create standard help text for non-time fields
+ */
+function createStandardHelpText(field) {
     const helpText = document.createElement('div');
     helpText.className = 'editing-help';
 
     const helpTexts = {
-        'startTime': 'Enter time in 24-hour format (e.g., 09:00, 17:30)',
-        'endTime': 'Enter time in 24-hour format (e.g., 09:00, 17:30)',
         'timeOff': 'Select CO for vacation, CM for medical leave',
         'tempStop': 'Enter temporary stop minutes (0-720, max 12 hours)'
     };
 
     const helpMessage = helpTexts[field] || 'Enter new value';
-    helpText.textContent = helpMessage;
-    helpText.innerHTML += '<br><small>Press Enter to save, Escape to cancel</small>';
+    helpText.innerHTML = `${helpMessage}<br><small>Press Enter to save, Escape to cancel</small>`;
 
+    // Standard help text styling
+    Object.assign(helpText.style, {
+        position: 'absolute',
+        bottom: '-45px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: '#212529',
+        color: 'white',
+        padding: '0.5rem',
+        borderRadius: '0.375rem',
+        fontSize: '0.75rem',
+        whiteSpace: 'nowrap',
+        zIndex: '1000',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+    });
 
-    // Remove help text after 4 seconds
-    setTimeout(() => {
-        helpText.remove();
-    }, 4000);
+    return helpText;
 }
 
 /**
@@ -648,16 +962,22 @@ function cancelEditing() {
  * ENHANCED: Finish editing with better cleanup
  */
 function finishEditing(cell) {
-    // Remove editor and show original content
-    const editor = cell.querySelector('.inline-editor');
-    const helpText = cell.querySelector('.editing-help');
+    if (!cell) return;
 
-    if (editor) {
+    console.log('🏁 Finishing edit for cell');
+
+    // FIXED: Remove ALL editors and help text (in case of duplicates)
+    const editors = cell.querySelectorAll('.inline-editor');
+    const helpTexts = cell.querySelectorAll('.editing-help');
+
+    editors.forEach(editor => {
+        console.log('🗑️ Removing editor:', editor.getAttribute('data-editor-id'));
         editor.remove();
-    }
-    if (helpText) {
-        helpText.remove();
-    }
+    });
+
+    helpTexts.forEach(help => {
+        help.remove();
+    });
 
     // FIX: Handle both cell-value and cell-content structures
     let cellValue = cell.querySelector('.cell-value');
@@ -676,7 +996,10 @@ function finishEditing(cell) {
         clearTimeout(editingTimeout);
     }
 
-    currentlyEditing = null;
+    // FIXED: Clear currentlyEditing reference
+    if (currentlyEditing === cell) {
+        currentlyEditing = null;
+    }
 }
 
 function addFieldStatus(cell, status) {
@@ -695,6 +1018,161 @@ function addFieldStatus(cell, status) {
     }, 3000);
 }
 
+// ========================================================================
+// PERIOD SELECTION FUNCTIONALITY
+// ========================================================================
+
+function initializePeriodSelection() {
+    console.log('Initializing period selection controls');
+
+    const periodForm = document.querySelector('.card-header form[action*="/user/time-management"]');
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+
+    if (!periodForm || !yearSelect || !monthSelect) {
+        console.warn('Period selection elements not found');
+        return;
+    }
+
+    // Set current values from URL parameters or page data
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentYear = urlParams.get('year');
+    const currentMonth = urlParams.get('month');
+
+    if (currentYear) {
+        yearSelect.value = currentYear;
+    }
+    if (currentMonth) {
+        monthSelect.value = currentMonth;
+    }
+
+    // Handle form submission with loading indication
+    periodForm.addEventListener('submit', function(e) {
+        console.log('Loading new period:', {
+            year: yearSelect.value,
+            month: monthSelect.value
+        });
+
+        // Show loading indication
+        showLoadingOverlay();
+
+        // Show toast notification
+        const monthName = monthSelect.options[monthSelect.selectedIndex].text;
+        showToast('Loading Period',
+            `Loading ${monthName} ${yearSelect.value}...`,
+            'info',
+            { duration: 2000 });
+    });
+
+    // Quick period navigation
+    addQuickPeriodNavigation();
+}
+
+function addQuickPeriodNavigation() {
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+
+    if (!yearSelect || !monthSelect) return;
+
+    // Add keyboard shortcuts for period navigation
+    document.addEventListener('keydown', function(e) {
+        // Only if not editing a cell
+        if (currentlyEditing) return;
+
+        // Ctrl + Left Arrow: Previous month
+        if (e.ctrlKey && e.key === 'ArrowLeft') {
+            e.preventDefault();
+            navigateToPreviousMonth();
+        }
+
+        // Ctrl + Right Arrow: Next month
+        if (e.ctrlKey && e.key === 'ArrowRight') {
+            e.preventDefault();
+            navigateToNextMonth();
+        }
+    });
+}
+
+function navigateToPreviousMonth() {
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+
+    let year = parseInt(yearSelect.value);
+    let month = parseInt(monthSelect.value);
+
+    month--;
+    if (month < 1) {
+        month = 12;
+        year--;
+    }
+
+    navigateToPeriod(year, month);
+}
+
+function navigateToNextMonth() {
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+
+    let year = parseInt(yearSelect.value);
+    let month = parseInt(monthSelect.value);
+
+    month++;
+    if (month > 12) {
+        month = 1;
+        year++;
+    }
+
+    navigateToPeriod(year, month);
+}
+
+function navigateToPeriod(year, month) {
+    const currentUrl = new URL(window.location);
+    currentUrl.searchParams.set('year', year);
+    currentUrl.searchParams.set('month', month);
+
+    showToast('Navigating',
+        `Loading ${getMonthName(month)} ${year}...`,
+        'info',
+        { duration: 1500 });
+
+    showLoadingOverlay();
+    window.location.href = currentUrl.toString();
+}
+
+function getMonthName(monthNumber) {
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[monthNumber - 1] || 'Unknown';
+}
+
+// ========================================================================
+// EXPORT FUNCTIONALITY
+// ========================================================================
+
+function initializeExportButton() {
+    const exportButton = document.querySelector('.btn-outline-success[href*="/export"]');
+
+    if (!exportButton) {
+        console.warn('Export button not found');
+        return;
+    }
+
+    exportButton.addEventListener('click', function(e) {
+        console.log('Initiating Excel export...');
+
+        // Show toast notification
+        showToast('Exporting Data',
+            'Generating Excel file for download...',
+            'info',
+            { duration: 3000 });
+
+        // Don't prevent default - let the download proceed
+        // The link will handle the actual export
+    });
+}
+
 /**
  * ENHANCED: SN Overtime handling for time-management.js
  * Add these functions and modifications to handle SN days with overtime
@@ -702,9 +1180,6 @@ function addFieldStatus(cell, status) {
 
 // ========================================================================
 // SN OVERTIME DISPLAY ENHANCEMENTS
-// ========================================================================
-
-// ========================================================================
 // MODULAR CELL DISPLAY UPDATE FUNCTIONS
 // ========================================================================
 
@@ -832,12 +1307,67 @@ function updateOvertimeDisplay(cellValue, value, rawData) {
  * Handle start time and end time display with SN warnings
  */
 function updateTimeDisplay(cellValue, value, rawData) {
+    // Format the time properly for display
+    let displayTime = '-';
+
+    if (value) {
+        // Ensure consistent 24-hour format for display
+        displayTime = TimeInputModule.formatTime(value, '24hour');
+    }
+
     if (rawData && rawData.timeOffType === 'SN') {
-        const displayTime = value ? convertTo24Hour(value) : '-';
         cellValue.innerHTML = `<span class="text-warning" title="Working on national holiday - all time counts as overtime">${displayTime}</span>`;
     } else {
-        const displayTime = value ? convertTo24Hour(value) : '-';
         cellValue.textContent = displayTime;
+    }
+}
+
+/**
+ * ENHANCED: Add validation indicator for time inputs
+ */
+function addTimeInputValidation() {
+    // Add real-time validation styling for all time inputs
+    document.addEventListener('input', function(e) {
+        if (e.target.hasAttribute('data-time-input')) {
+            const value = e.target.value;
+            const isValid = TimeInputModule.validateTime(value);
+
+            // Update validation classes
+            if (value.length === 5) {
+                e.target.classList.toggle('is-valid', isValid);
+                e.target.classList.toggle('is-invalid', !isValid);
+            } else {
+                e.target.classList.remove('is-valid', 'is-invalid');
+            }
+        }
+    });
+}
+
+/**
+ * ENHANCED: Initialize time input module features
+ */
+function initializeTimeInputFeatures() {
+    // Add time input validation listeners
+    document.addEventListener('input', function(e) {
+        if (e.target.hasAttribute('data-time-input')) {
+            const value = e.target.value;
+            const isValid = TimeInputModule.validateTime(value);
+
+            // Update validation classes
+            if (value.length === 5) {
+                e.target.classList.toggle('is-valid', isValid);
+                e.target.classList.toggle('is-invalid', !isValid);
+            } else {
+                e.target.classList.remove('is-valid', 'is-invalid');
+            }
+        }
+    });
+
+    // Log module availability
+    if (window.TimeInputModule) {
+        console.log('✅ TimeInputModule loaded successfully');
+    } else {
+        console.warn('⚠️ TimeInputModule not found - time inputs may not work properly');
     }
 }
 
@@ -853,51 +1383,14 @@ function updateDefaultDisplay(cellValue, value) {
 // ========================================================================
 
 /**
- * Get appropriate CSS class for time off types
+ * ENHANCED: Check if a row represents an SpecialDay day with work
  */
-function getTimeOffClass(timeOffType) {
-    switch (timeOffType) {
-        case 'SN': return 'holiday';
-        case 'CO': return 'vacation';
-        case 'CM': return 'medical';
-        default: return 'time-off-display';
-    }
-}
 
-/**
- * Get descriptive label for time off types
- */
-function getTimeOffLabel(timeOffType) {
-    switch (timeOffType) {
-        case 'SN': return 'National Holiday';
-        case 'CO': return 'Vacation Day';
-        case 'CM': return 'Medical Leave';
-        default: return timeOffType;
-    }
-}
-
-/**
- * Format minutes to hours display
- */
-function formatMinutesToHours(minutes) {
-    if (!minutes || minutes === 0) return '0h';
-
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-
-    if (mins === 0) {
-        return `${hours}h`;
-    }
-    return `${hours}h ${mins}m`;
-}
-/**
- * ENHANCED: Check if a row represents an SN day with work
- */
-function isSNWorkDay(rowData) {
+function isSpecialDayWithWork(rowData) {
     return rowData &&
-    rowData.timeOffType === 'SN' &&
-    rowData.totalOvertimeMinutes &&
-    parseInt(rowData.totalOvertimeMinutes) > 0;
+    rowData.isSpecialDay &&
+    rowData.hasWork &&
+    rowData.totalOvertimeMinutes > 0;
 }
 
 /**
@@ -944,7 +1437,7 @@ function formatMinutesToHours(minutes) {
  */
 function refreshRowAfterUpdate(row, updatedData) {
     // Check if this became or stopped being an SN work day
-    if (isSNWorkDay(updatedData)) {
+    if (isSpecialDayWithWork(updatedData)) {
         row.classList.add('sn-work-entry', 'updated');
 
         // Add special indicator for SN work
@@ -1085,11 +1578,27 @@ function saveInlineEdit(cell, input, field) {
 function getRowData(row) {
     if (!row) return null;
 
+    const timeOffCell = row.querySelector('.timeoff-cell');
+
+    // Detect time off type from cell classes or content
+    let timeOffType = null;
+    if (timeOffCell) {
+        if (timeOffCell.querySelector('.sn-work-display, .holiday')) timeOffType = 'SN';
+        else if (timeOffCell.querySelector('.co-work-display, .vacation')) timeOffType = 'CO';
+        else if (timeOffCell.querySelector('.cm-work-display, .medical')) timeOffType = 'CM';
+        else if (timeOffCell.querySelector('.w-work-display, .weekend')) timeOffType = 'W';
+    }
+
+    // Get overtime information
+    const overtimeMinutes = row.getAttribute('data-overtime-minutes') ||
+    (row.querySelector('.overtime-cell') ? extractOvertimeMinutes(row.querySelector('.overtime-cell').textContent) : 0);
+
     return {
         date: row.getAttribute('data-date'),
-        timeOffType: row.querySelector('.timeoff-cell [class*="holiday"], .timeoff-cell [class*="vacation"], .timeoff-cell [class*="medical"]')?.textContent?.trim(),
-        totalOvertimeMinutes: row.getAttribute('data-overtime-minutes'),
-        // Add other fields as needed
+        timeOffType: timeOffType,
+        totalOvertimeMinutes: parseInt(overtimeMinutes) || 0,
+        hasWork: overtimeMinutes > 0,
+        isSpecialDay: ['SN', 'CO', 'CM', 'W'].includes(timeOffType)
     };
 }
 
@@ -1097,15 +1606,219 @@ function getRowData(row) {
  * Initialize SN overtime display on page load
  */
 function initializeSNOvertimeDisplay() {
-    // Find all rows with SN + overtime and apply special styling
+    console.log('Initializing enhanced special day work display...');
+
+    // Find all rows with special day work and apply appropriate styling
     document.querySelectorAll('.worktime-entry').forEach(row => {
         const rowData = getRowData(row);
-        if (isSNWorkDay(rowData)) {
-            row.classList.add('sn-work-entry');
+        if (isSpecialDayWithWork(rowData)) {
+            applySpecialDayWorkStyling(row, rowData);
         }
     });
 
-    console.log('SN overtime display initialized');
+    // Initialize tooltips for special day work
+    initializeSpecialDayTooltips();
+
+    console.log('Enhanced special day work display initialized');
+}
+
+/**
+ * Apply special day work styling based on type
+ */
+function applySpecialDayWorkStyling(row, rowData) {
+    // Add appropriate work entry class
+    const classMap = {
+        'SN': 'sn-work-entry',
+        'CO': 'co-work-entry',
+        'CM': 'cm-work-entry',
+        'W': 'w-work-entry'
+    };
+
+    const cssClass = classMap[rowData.timeOffType];
+    if (cssClass) {
+        row.classList.add(cssClass);
+    }
+
+    // Add enhanced data attributes for easier styling
+    row.setAttribute('data-special-day-type', rowData.timeOffType);
+    row.setAttribute('data-has-special-work', 'true');
+}
+
+/**
+ * Initialize tooltips for all special day work types
+ */
+function initializeSpecialDayTooltips() {
+    // Initialize tooltips for special day work displays
+    const specialDaySelectors = [
+        '.sn-work-display',
+        '.co-work-display',
+        '.cm-work-display',
+        '.w-work-display'
+    ];
+
+    specialDaySelectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(element => {
+            // Set tooltip based on type and hours
+            const type = getSpecialDayTypeFromClass(element.className);
+            const hours = extractHoursFromDisplay(element.textContent);
+            const tooltip = generateSpecialDayTooltip(type, hours);
+
+            element.setAttribute('title', tooltip);
+            element.setAttribute('data-bs-toggle', 'tooltip');
+            element.setAttribute('data-bs-placement', 'top');
+        });
+    });
+}
+
+/**
+ * Get special day type from CSS class
+ */
+function getSpecialDayTypeFromClass(className) {
+    if (className.includes('sn-work-display')) return 'SN';
+    if (className.includes('co-work-display')) return 'CO';
+    if (className.includes('cm-work-display')) return 'CM';
+    if (className.includes('w-work-display')) return 'W';
+    return 'Special Day';
+}
+
+/**
+ * Extract hours from display text (e.g., "SN4" → 4)
+ */
+function extractHoursFromDisplay(displayText) {
+    const match = displayText.match(/(\d+)$/);
+    return match ? parseInt(match[1]) : 0;
+}
+
+/**
+ * Generate tooltip text for special day work
+ */
+function generateSpecialDayTooltip(type, hours) {
+    const typeNames = {
+        'SN': 'National Holiday',
+        'CO': 'Time Off Day',
+        'CM': 'Medical Leave',
+        'W': 'Weekend'
+    };
+
+    const typeName = typeNames[type] || 'Special Day';
+    return hours > 0 ?
+    `${typeName} with ${hours} hour${hours !== 1 ? 's' : ''} overtime work` :
+    `${typeName}`;
+}
+
+/**
+ * Extract overtime minutes from text content
+ */
+function extractOvertimeMinutes(text) {
+    if (!text) return 0;
+
+    // Match patterns like "2:30", "02:30", etc.
+    const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+        const hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        return (hours * 60) + minutes;
+    }
+
+    return 0;
+}
+
+// ========================================================================
+// STATUS DISPLAY FUNCTIONALITY
+// ========================================================================
+
+/**
+ * Initialize status tooltips
+ */
+function initializeStatusTooltips() {
+    // Initialize Bootstrap tooltips for status indicators
+    const statusIndicators = document.querySelectorAll('.status-indicator[data-bs-toggle="tooltip"]');
+    statusIndicators.forEach(indicator => {
+        new bootstrap.Tooltip(indicator, {
+            html: true,
+            placement: 'top',
+            trigger: 'hover'
+        });
+    });
+}
+
+/**
+ * Show detailed status information in modal
+ */
+function showStatusDetails(statusElement, event) {
+    event.stopPropagation();
+
+    const modal = new bootstrap.Modal(document.getElementById('statusDetailsModal'));
+    const contentDiv = document.getElementById('statusDetailsContent');
+
+    // Extract status information
+    const row = statusElement.closest('tr');
+    const statusInfo = getRowStatusInfo(row);
+    const date = row.querySelector('.date-cell')?.textContent?.trim();
+
+    if (!statusInfo) {
+        contentDiv.innerHTML = '<p class="text-muted">No status information available</p>';
+        modal.show();
+        return;
+    }
+
+    // Build detailed status content
+    let content = `
+        <div class="status-details-section">
+            <div class="status-details-label">
+                <i class="${statusInfo.iconClass || 'bi-info-circle'} status-icon-large"></i>
+                Entry Status
+            </div>
+            <div class="status-details-value">
+                ${statusInfo.fullDescription || 'Unknown status'}
+            </div>
+        </div>
+    `;
+
+    if (date) {
+        content += `
+            <div class="status-details-section">
+                <div class="status-details-label">Date</div>
+                <div class="status-details-value">${date}</div>
+            </div>
+        `;
+    }
+
+    content += `
+        <div class="status-details-section">
+            <div class="status-details-label">Editability</div>
+            <div class="status-details-value">
+                ${statusInfo.isModifiable ?
+                    '<i class="bi bi-check-circle text-success me-1"></i>Can be modified' :
+                    '<i class="bi bi-lock-fill text-danger me-1"></i>Cannot be modified'}
+            </div>
+        </div>
+    `;
+
+    if (statusInfo.editedTimeAgo) {
+        content += `
+            <div class="status-details-section">
+                <div class="status-details-label">Last Modified</div>
+                <div class="status-details-value">${statusInfo.editedTimeAgo}</div>
+            </div>
+        `;
+    }
+
+    if (statusInfo.isOwnedByCurrentUser !== undefined) {
+        content += `
+            <div class="status-details-section">
+                <div class="status-details-label">Ownership</div>
+                <div class="status-details-value">
+                    ${statusInfo.isOwnedByCurrentUser ?
+                        '<i class="bi bi-person-check text-success me-1"></i>Your entry' :
+                        '<i class="bi bi-person-x text-warning me-1"></i>Admin/Team entry'}
+                </div>
+            </div>
+        `;
+    }
+
+    contentDiv.innerHTML = content;
+    modal.show();
 }
 
 // ========================================================================
@@ -1133,32 +1846,11 @@ function refreshRowEditability(row) {
 // TIME FORMAT UTILITIES
 // ========================================================================
 
+/**
+ * UPDATED: Time conversion using TimeInputModule
+ */
 function convertTo24Hour(timeString) {
-    if (!timeString) return '';
-
-    // If already in 24-hour format (HH:MM), return as is
-    if (/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeString)) {
-        return timeString;
-    }
-
-    // If in 12-hour format, convert to 24-hour
-    const time12Match = timeString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (time12Match) {
-        let hours = parseInt(time12Match[1]);
-        const minutes = time12Match[2];
-        const period = time12Match[3].toUpperCase();
-
-        if (period === 'AM' && hours === 12) {
-            hours = 0;
-        } else if (period === 'PM' && hours !== 12) {
-            hours += 12;
-        }
-
-        return `${hours.toString().padStart(2, '0')}:${minutes}`;
-    }
-
-    // Return original if no conversion needed
-    return timeString;
+    return TimeInputModule.convertTo24Hour(timeString);
 }
 
 function convertTo12Hour(timeString) {
@@ -1188,11 +1880,8 @@ function validateFieldValue(field, value) {
     switch (field) {
         case 'startTime':
         case 'endTime':
-            // Validate 24-hour time format (HH:MM)
-            if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
-                return 'Invalid time format. Use 24-hour format (e.g., 09:00, 17:30)';
-            }
-            break;
+            // Use TimeInputModule validation
+            return TimeInputModule.getValidationError(value);
 
         case 'timeOff':
             if (value !== 'CO' && value !== 'CM') {
@@ -1200,7 +1889,6 @@ function validateFieldValue(field, value) {
             }
             break;
 
-        // ADD THIS CASE:
         case 'tempStop':
             const minutes = parseInt(value);
             if (isNaN(minutes) || minutes < 0) {
@@ -1212,7 +1900,7 @@ function validateFieldValue(field, value) {
             break;
 
         default:
-            return null; // CHANGE: Don't throw error for unknown fields, just return null
+            return null;
     }
 
     return null;

@@ -1,7 +1,7 @@
 package com.ctgraphdep.service.cache;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.fileOperations.data.TimeOffDataService;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.TimeOffRequest;
 import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.User;
@@ -471,7 +471,7 @@ public class TimeOffCacheService {
         entry.setUserId(userId);
         entry.setWorkDate(request.getDate());
         entry.setTimeOffType(request.getTimeOffType());
-        entry.setAdminSync(SyncStatusMerge.USER_INPUT);
+        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
         // Clear work-related fields for time off
         entry.setDayStartTime(null);
         entry.setDayEndTime(null);

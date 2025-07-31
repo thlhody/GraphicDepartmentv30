@@ -15,6 +15,19 @@ import java.util.stream.IntStream;
 
 public class CalculateWorkHoursUtil {
 
+    /**
+     * Calculate discarded minutes - time that was worked but not counted due to rounding rules
+     * @param inputMinutes Raw worked minutes
+     * @param schedule User schedule in hours
+     * @return Minutes that were discarded due to rounding
+     */
+    public static int calculateDiscardedMinutes(int inputMinutes, int schedule) {
+        WorkTimeCalculationResultDTO result = calculateWorkTime(inputMinutes, schedule);
+        int adjustedMinutes = calculateAdjustedMinutes(inputMinutes, schedule);
+        int totalProcessed = result.getProcessedMinutes() + result.getOvertimeMinutes();
+        return Math.max(0, adjustedMinutes - totalProcessed);
+    }
+
     private static boolean shouldDeductLunch(int inputMinutes, int schedule) {
         if (schedule < WorkCode.INTERVAL_HOURS_C) {
             return true; // Lunch break is true for schedules less than 8 hours, but we don't deduct time

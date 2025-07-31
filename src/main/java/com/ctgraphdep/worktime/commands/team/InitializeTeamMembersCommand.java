@@ -1,3 +1,4 @@
+
 package com.ctgraphdep.worktime.commands.team;
 
 import com.ctgraphdep.model.User;
@@ -14,9 +15,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Command to initialize team member entries for selected users.
+ * REFACTORED: Command to initialize team member entries for selected users.
  * Replaces TeamStatisticsService.initializeTeamMembers() method.
  * Creates initial team member DTOs and saves them to team data files.
+ * Team operations use context methods directly (no accessor needed).
  */
 public class InitializeTeamMembersCommand extends WorktimeOperationCommand<Object> {
     private final List<Integer> selectedUserIds;
@@ -89,36 +91,37 @@ public class InitializeTeamMembersCommand extends WorktimeOperationCommand<Objec
                     teamMemberDTOs.add(member);
 
                     LoggerUtil.debug(this.getClass(), String.format(
-                            "Created initial team member: %s (%d)", user.getName(), userId));
+                            "Created team member DTO for user %s (ID: %d)", user.getUsername(), userId));
 
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), String.format(
-                            "Error creating team member for user %d: %s", userId, e.getMessage()), e);
-                    // Continue with other users
+                            "Error creating team member DTO for user %d: %s", userId, e.getMessage()), e);
+                    // Continue with other users rather than failing completely
                 }
             }
 
             if (teamMemberDTOs.isEmpty()) {
                 return OperationResult.failure(
-                        "No valid team members could be created from selected users",
+                        "No valid team members could be created",
                         getOperationType());
             }
 
-            // Save team members using context
+            // Save team members using context (no accessor needed for team operations)
             context.writeTeamMembers(teamMemberDTOs, teamLeadUsername, year, month);
 
-            String message = String.format("Successfully initialized %d team members for %s - %d/%d",
-                    teamMemberDTOs.size(), teamLeadUsername, year, month);
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully initialized %d team members for %s - %d/%d",
+                    teamMemberDTOs.size(), teamLeadUsername, year, month));
 
-            LoggerUtil.info(this.getClass(), message);
-
-            return OperationResult.successWithSideEffects(message, getOperationType(), teamMemberDTOs, null);
+            return OperationResult.success(
+                    String.format("Initialized %d team members successfully", teamMemberDTOs.size()),
+                    getOperationType(),
+                    teamMemberDTOs);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
                     "Error initializing team members for %s - %d/%d: %s",
                     teamLeadUsername, year, month, e.getMessage()), e);
-
             return OperationResult.failure(
                     "Failed to initialize team members: " + e.getMessage(),
                     getOperationType());

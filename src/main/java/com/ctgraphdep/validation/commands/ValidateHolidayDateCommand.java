@@ -27,7 +27,6 @@ public class ValidateHolidayDateCommand extends BaseTimeValidationCommand<Void> 
         this.date = date;
     }
 
-    // In ValidateHolidayDateCommand.java
     @Override
     public Void execute() {
         LocalDate currentDate = timeProvider.getCurrentDate();

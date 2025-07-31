@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
@@ -11,46 +11,37 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+// ============================================================================
+// 1. REFACTORED StartTemporaryStopCommand
+// ============================================================================
+
 /**
- * Command to start a temporary stop (break) during a work session
+ * REFACTORED StartTemporaryStopCommand using BaseWorktimeUpdateSessionCommand
+ * Eliminates duplication while preserving all temp stop specific logic
  */
-public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
-    private final String username;
-    private final Integer userId;
+public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
+
     private static final long TEMP_STOP_COOLDOWN_MS = 1500; // 1.5 seconds
 
-    /**
-     * Creates a command to start a temporary stop
-     *
-     * @param username The username
-     * @param userId The user ID
-     */
     public StartTemporaryStopCommand(String username, Integer userId) {
-        validateUsername(username);
-        validateUserId(userId);
-
-        this.username = username;
-        this.userId = userId;
+        super(username, userId);
     }
-
 
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
         return executeWithDeduplication(context, username, this::executeTempStopLogic, null, TEMP_STOP_COOLDOWN_MS);
     }
 
-
     public WorkUsersSessionsStates executeTempStopLogic(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Starting temporary stop for user: %s", username));
 
-            // NEW: Check if already in temporary stop monitoring mode
+            // Check if already in temporary stop monitoring mode
             IsInTempStopMonitoringQuery isInTempStopQuery = ctx.getCommandFactory().createIsInTempStopMonitoringQuery(username);
             boolean alreadyInTempStop = ctx.executeQuery(isInTempStopQuery);
 
             if (alreadyInTempStop) {
                 debug(String.format("User %s is already in temporary stop monitoring mode", username));
-                // We can still proceed with the command
             }
 
             // Get the current session
@@ -59,7 +50,7 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             // Validate session is in the correct state
             if (!SessionValidator.isInOnlineState(session, this.getClass())) {
                 warn("Session is not in online state, cannot start temporary stop");
-                return session; // Return early if validation fails
+                return session;
             }
 
             // Get standardized time values
@@ -76,58 +67,72 @@ public class StartTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessi
             SaveSessionCommand saveCommand = ctx.getCommandFactory().createSaveSessionCommand(session);
             ctx.executeCommand(saveCommand);
 
-            // Then update the worktime entry using the updated session info
-            updateWorktimeEntryFromSession(session, ctx);
+            // ENHANCED: Update worktime entry with special day detection using abstract base class
+            updateWorktimeEntryWithSpecialDayLogic(session, ctx);
 
-            // IMPROVEMENT: Explicitly pause schedule monitoring when entering temp stop
+            // Explicitly pause schedule monitoring when entering temp stop
             ctx.getSessionMonitorService().pauseScheduleMonitoring(username);
 
             info(String.format("Temporary stop started for user %s", username));
-
             return session;
         });
     }
 
-    /**
-     * REFACTORED: Updates the worktime entry based on the session information
-     * Now uses SessionContext adapter methods instead of deprecated WorktimeManagementService
-     */
-    private void updateWorktimeEntryFromSession(WorkUsersSessionsStates session, SessionContext context) {
-        try {
-            if (session.getDayStartTime() == null) {
-                warn("Cannot update worktime entry: session has no start time");
-                return;
-            }
+    // ========================================================================
+    // ABSTRACT METHOD IMPLEMENTATIONS - StartTemporaryStopCommand specific logic
+    // ========================================================================
 
-            LocalDate workDate = session.getDayStartTime().toLocalDate();
-            debug(String.format("Updating worktime entry for date: %s", workDate));
+    @Override
+    protected WorkTimeTable findOrCreateEntry(LocalDate workDate, WorkUsersSessionsStates session, SessionContext context) {
+        // Temp stop commands should only update existing entries
+        return findExistingEntry(workDate, context);
+    }
 
-            // REFACTORED: Find existing entry using new SessionContext adapter method
-            WorkTimeTable entry = context.findSessionEntry(username, userId, workDate);
+    @Override
+    protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+        logCustomization("start temporary stop");
 
-            if (entry == null) {
-                warn(String.format("No worktime entry found for user %s on %s, cannot update", username, workDate));
-                return;
-            }
+        // Apply temp stop specific fields
+        entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
+        entry.setTemporaryStopCount(session.getTemporaryStopCount());
+        entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+        entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS); // Still in process
+    }
 
-            // REFACTORED: Update entry using new adapter method
-            entry = context.updateEntryFromSession(entry, session);
+    @Override
+    protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+        logCustomization("post-special-day start temporary stop");
 
-            // Temporary stop specific updates
-            debug("Updating worktime entry with temporary stop information");
-            entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
-            entry.setTemporaryStopCount(session.getTemporaryStopCount());
-            entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
-            entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS);
+        // Re-apply temp stop customizations that might have been modified by special day logic
+        entry.setTemporaryStopCount(session.getTemporaryStopCount());
+        entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+        entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
+    }
 
-            // REFACTORED: Save using new SessionContext adapter method
-            context.saveSessionWorktime(username, entry, workDate.getYear(), workDate.getMonthValue());
-
-            info(String.format("Updated worktime entry for user %s - Total worked minutes: %d, Temp stop count: %d",
-                    username, session.getTotalWorkedMinutes(), session.getTemporaryStopCount()));
-
-        } catch (Exception e) {
-            error(String.format("Failed to update worktime entry with temporary stop for user %s: %s", username, e.getMessage()), e);
-        }
+    @Override
+    protected String getCommandDescription() {
+        return "start temporary stop";
     }
 }
+
+
+
+/**
+ * REFACTORING BENEFITS FOR TEMP STOP COMMANDS:
+ * ✅ ELIMINATED DUPLICATION: No more repeated worktime update logic
+ * ✅ PRESERVED FUNCTIONALITY: All original temp stop logic maintained
+ * ✅ ENHANCED CAPABILITIES: Automatic special day detection and processing
+ * ✅ CLEAN SEPARATION: Temp stop logic vs common worktime logic
+ * ✅ CONSISTENT PATTERN: Same structure as other commands
+ * WHAT'S PRESERVED:
+ * - Temp stop validation and state checking
+ * - Critical temp stop field updates
+ * - Resume monitoring management
+ * - Schedule completion checking
+ * - All original error handling
+ * WHAT'S ENHANCED:
+ * - Special day detection for temp stops
+ * - Proper SN/CO/CM/W handling during temp stops
+ * - Consistent logging and field management
+ * - Automatic re-application of temp stop fields after special day logic
+ */

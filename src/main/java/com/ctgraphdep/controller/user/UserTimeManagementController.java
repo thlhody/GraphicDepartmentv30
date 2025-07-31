@@ -32,15 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 🚀 REFACTORED UserTimeManagementController - Dramatically Simplified!
- * <p>
- * ✅ 90% LESS validation code (200+ lines → 20 lines)
- * ✅ Single validation call per operation
- * ✅ Consistent error handling pattern
- * ✅ Focus on business flow only
- * ✅ All validation logic moved to TimeValidationService
- */
 @Controller
 @RequestMapping("/user/time-management")
 @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
@@ -50,13 +41,8 @@ public class UserTimeManagementController extends BaseController {
     private final WorktimeDisplayService worktimeDisplayService;
     private final UserWorktimeExcelExporter userWorktimeExcelExporter;
 
-    public UserTimeManagementController(
-            UserService userService,
-            FolderStatus folderStatus,
-            TimeValidationService validationService,
-            WorktimeOperationService worktimeOperationService,
-            WorktimeDisplayService worktimeDisplayService,
-            UserWorktimeExcelExporter userWorktimeExcelExporter) {
+    public UserTimeManagementController(UserService userService, FolderStatus folderStatus, TimeValidationService validationService, WorktimeOperationService worktimeOperationService,
+                                        WorktimeDisplayService worktimeDisplayService, UserWorktimeExcelExporter userWorktimeExcelExporter) {
         super(userService, folderStatus, validationService);
         this.worktimeOperationService = worktimeOperationService;
         this.worktimeDisplayService = worktimeDisplayService;
@@ -71,9 +57,7 @@ public class UserTimeManagementController extends BaseController {
      * Display unified time management page using command system
      */
     @GetMapping
-    public String getTimeManagementPage(@AuthenticationPrincipal UserDetails userDetails,
-                                        @RequestParam(required = false) Integer year,
-                                        @RequestParam(required = false) Integer month,
+    public String getTimeManagementPage(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
                                         Model model, RedirectAttributes redirectAttributes) {
 
         try {
@@ -89,7 +73,6 @@ public class UserTimeManagementController extends BaseController {
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // ✅ SIMPLE VALIDATION - Single line using TimeValidationService
             try {
                 var validateCommand = getTimeValidationService().getValidationFactory()
                         .createValidatePeriodCommand(selectedYear, selectedMonth, 24);
@@ -136,21 +119,13 @@ public class UserTimeManagementController extends BaseController {
     }
 
     // ========================================================================
-    // 🚀 DRAMATICALLY SIMPLIFIED AJAX ENDPOINTS
+    //  AJAX ENDPOINTS
     // ========================================================================
 
-    /**
-     * ✅ BEFORE: 45 lines (30 validation + 15 logic)
-     * ✅ AFTER:  15 lines (2 validation + 13 logic)
-     * ✅ 90% LESS CODE!
-     */
     @PostMapping("/update-field")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> updateField(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam String date,
-            @RequestParam String field,
-            @RequestParam(required = false) String value) {
+    public ResponseEntity<Map<String, Object>> updateField(@AuthenticationPrincipal UserDetails userDetails, @RequestParam String date,
+                                                           @RequestParam String field, @RequestParam(required = false) String value) {
 
         try {
             // 1. AUTHENTICATION VALIDATION
@@ -167,7 +142,7 @@ public class UserTimeManagementController extends BaseController {
                 return createErrorResponse("Invalid date format: " + date, HttpStatus.BAD_REQUEST);
             }
 
-            // 3. ✅ SINGLE VALIDATION CALL - All 30+ lines replaced with 1 line!
+            // 3. VALIDATION CALL
             ValidationResult validationResult = getTimeValidationService().validateUserFieldUpdate(workDate, field, value, currentUser);
             if (validationResult.isInvalid()) {
                 return createErrorResponse(validationResult.getErrorMessage(), HttpStatus.BAD_REQUEST);
@@ -180,22 +155,14 @@ public class UserTimeManagementController extends BaseController {
             return processUpdateResult(result, field, date, value);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error updating field %s on %s: %s", field, date, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error updating field %s on %s: %s", field, date, e.getMessage()), e);
             return createErrorResponse("Internal error: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    /**
-     * ✅ BEFORE: 25 lines of validation
-     * ✅ AFTER:  8 lines (1 validation + 7 logic)
-     * ✅ 70% LESS CODE!
-     */
     @GetMapping("/can-edit")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> canEditField(@AuthenticationPrincipal UserDetails userDetails,
-                                                            @RequestParam String date,
-                                                            @RequestParam String field) {
+    public ResponseEntity<Map<String, Object>> canEditField(@AuthenticationPrincipal UserDetails userDetails, @RequestParam String date, @RequestParam String field) {
 
         Map<String, Object> response = new HashMap<>();
 
@@ -209,7 +176,7 @@ public class UserTimeManagementController extends BaseController {
             // Parse date
             LocalDate workDate = LocalDate.parse(date);
 
-            // ✅ SINGLE VALIDATION CALL - All permission checking replaced with 1 line!
+            // SINGLE VALIDATION CALL - All permission checking replaced with 1 line!
             ValidationResult validationResult = getTimeValidationService().validateUserFieldUpdate(workDate, field, null, currentUser);
 
             response.put("canEdit", validationResult.isValid());
@@ -227,33 +194,43 @@ public class UserTimeManagementController extends BaseController {
         }
     }
 
-    /**
-     * ✅ BEFORE: 60 lines (40 validation + 20 logic)
-     * ✅ AFTER:  25 lines (3 validation + 22 logic)
-     * ✅ 60% LESS CODE!
-     */
     @PostMapping("/time-off/add")
     public String addTimeOffRequest(@AuthenticationPrincipal UserDetails userDetails,
                                     @RequestParam String startDate,
                                     @RequestParam(required = false) String endDate,
                                     @RequestParam String timeOffType,
-                                    @RequestParam(defaultValue = "false") boolean singleDay,
+                                    @RequestParam(required = false, defaultValue = "false") Boolean singleDay,
                                     RedirectAttributes redirectAttributes) {
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "=== TIME OFF REQUEST START === User: %s, StartDate: %s, EndDate: %s, Type: %s, SingleDay: %s",
+                userDetails.getUsername(), startDate, endDate, timeOffType, singleDay));
 
         try {
             // Get current user
             User currentUser = getUser(userDetails);
             if (currentUser == null) {
+                LoggerUtil.error(this.getClass(), "User not found during time off request");
                 redirectAttributes.addFlashAttribute("error", "Authentication required");
                 return "redirect:/login";
             }
 
-            // ✅ SINGLE VALIDATION CALL - All date range parsing and validation replaced with 1 line!
-            ValidationResult validationResult = getTimeValidationService().validateTimeOffRequest(startDate, endDate, timeOffType, singleDay);
+            LoggerUtil.info(this.getClass(), String.format("User found: %s (ID: %d)", currentUser.getUsername(), currentUser.getUserId()));
+
+            // PART 1: Light validation (weekends, basic rules only)
+            LoggerUtil.info(this.getClass(), "=== PART 1: Light validation (weekends, date ranges) ===");
+            ValidationResult validationResult = getTimeValidationService().validateTimeOffRequestLight(startDate, endDate, timeOffType, singleDay);
+
+            LoggerUtil.info(this.getClass(), String.format("Light validation result: valid=%s, error=%s",
+                    validationResult.isValid(), validationResult.getErrorMessage()));
+
             if (validationResult.isInvalid()) {
+                LoggerUtil.warn(this.getClass(), "Light validation failed: " + validationResult.getErrorMessage());
                 redirectAttributes.addFlashAttribute("error", validationResult.getErrorMessage());
                 return getRedirectUrl(startDate);
             }
+
+            LoggerUtil.info(this.getClass(), "Light validation passed, parsing dates for command...");
 
             // Parse validated dates (we know they're valid now)
             LocalDate start = LocalDate.parse(startDate);
@@ -263,17 +240,18 @@ public class UserTimeManagementController extends BaseController {
                     .filter(date -> date.getDayOfWeek().getValue() < 6) // Skip weekends
                     .toList();
 
-            // Execute time off request
-            OperationResult result = worktimeOperationService.addUserTimeOff(
-                    currentUser.getUsername(), currentUser.getUserId(), dates, timeOffType.toUpperCase());
+            LoggerUtil.info(this.getClass(), String.format("Parsed %d weekday dates for command processing", dates.size()));
+
+            // PART 2: Execute command (which will do file-based conflict resolution)
+            LoggerUtil.info(this.getClass(), "=== PART 2: Command execution with file-based conflict resolution ===");
+            OperationResult result = worktimeOperationService.addUserTimeOff(currentUser.getUsername(), currentUser.getUserId(), dates, timeOffType.toUpperCase());
+            LoggerUtil.info(this.getClass(), String.format("Command result: success=%s, message=%s", result.isSuccess(), result.getMessage()));
 
             // Process result
             if (result.isSuccess()) {
                 String message = result.getMessage();
                 if (result.getSideEffects() != null && result.getSideEffects().getOldHolidayBalance() != null) {
-                    message += String.format(" Holiday balance: %d → %d",
-                            result.getSideEffects().getOldHolidayBalance(),
-                            result.getSideEffects().getNewHolidayBalance());
+                    message += String.format(" Holiday balance: %d → %d", result.getSideEffects().getOldHolidayBalance(), result.getSideEffects().getNewHolidayBalance());
                 }
                 redirectAttributes.addFlashAttribute("successMessage", message);
                 LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully: %s", result.getMessage()));
@@ -285,8 +263,8 @@ public class UserTimeManagementController extends BaseController {
             return getRedirectUrl(startDate);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error processing time off request: " + e.getMessage(), e);
-            redirectAttributes.addFlashAttribute("error", "Failed to process time off request");
+            LoggerUtil.error(this.getClass(), "Exception in addTimeOffRequest: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("error", "Failed to process time off request: " + e.getMessage());
             return getRedirectUrl(startDate);
         }
     }
@@ -296,8 +274,7 @@ public class UserTimeManagementController extends BaseController {
     // ========================================================================
 
     @GetMapping("/export")
-    public ResponseEntity<byte[]> exportToExcel(@AuthenticationPrincipal UserDetails userDetails,
-                                                @RequestParam(required = false) Integer year,
+    public ResponseEntity<byte[]> exportToExcel(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) Integer year,
                                                 @RequestParam(required = false) Integer month) {
 
         try {
@@ -312,12 +289,9 @@ public class UserTimeManagementController extends BaseController {
             List<WorkTimeTable> worktimeData = worktimeOperationService.loadUserWorktime(
                     currentUser.getUsername(), selectedYear, selectedMonth);
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Exporting worktime data for %s (%d/%d). Total entries: %d",
-                    currentUser.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
+            LoggerUtil.info(this.getClass(), String.format("Exporting worktime data for %s (%d/%d). Total entries: %d", currentUser.getUsername(), selectedMonth, selectedYear, worktimeData.size()));
 
-            Map<String, Object> displayData = worktimeDisplayService.prepareWorktimeDisplayData(
-                    currentUser, worktimeData, selectedYear, selectedMonth);
+            Map<String, Object> displayData = worktimeDisplayService.prepareWorktimeDisplayData(currentUser, worktimeData, selectedYear, selectedMonth);
 
             @SuppressWarnings("unchecked")
             List<WorkTimeEntryDTO> entryDTOs = (List<WorkTimeEntryDTO>) displayData.get("worktimeData");
@@ -325,8 +299,7 @@ public class UserTimeManagementController extends BaseController {
 
             byte[] excelData = userWorktimeExcelExporter.exportToExcel(currentUser, entryDTOs, summaryDTO, selectedYear, selectedMonth);
 
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
+            return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"worktime_%s_%d_%02d.xlsx\"",
                             currentUser.getUsername(), selectedYear, selectedMonth))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
@@ -338,7 +311,7 @@ public class UserTimeManagementController extends BaseController {
     }
 
     // ========================================================================
-    // 🧹 CLEAN HELPER METHODS
+    //  CLEAN HELPER METHODS
     // ========================================================================
 
     /**

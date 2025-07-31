@@ -1,19 +1,23 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.utils.LoggerUtil;
 
+import java.time.LocalDate;
+import java.util.Optional;
+
 /**
- * REFACTORED Command to update holiday balance for a user (admin operation)
+ * REFACTORED: Command to update holiday balance for a user using accessor pattern.
+ * ADMIN OPERATION: Only administrators can update user holiday balances.
  * Key Behaviors:
  * - ADMIN ONLY: Only administrators can update user holiday balances
  * - Validation: Range validation (0-365 days), user existence check
- * - File Operations: Uses UserDataService through context (admin vs user paths)
+ * - File Operations: Uses context operations for holiday balance updates
  * - Cache Management: Updates AllUsersCacheService and invalidates TimeOffCache
  * - Audit Trail: Comprehensive logging with old vs new balance tracking
  * - Side Effects: Tracks balance changes for audit and notifications
- * This replaces HolidayManagementService.updateUserHolidayDays functionality
  */
 public class UpdateHolidayBalanceCommand extends WorktimeOperationCommand<Integer> {
     private final Integer userId;
@@ -42,16 +46,19 @@ public class UpdateHolidayBalanceCommand extends WorktimeOperationCommand<Intege
 
         LoggerUtil.info(this.getClass(), String.format("Validating holiday balance update: userId=%d, newBalance=%d", userId, newBalance));
 
-        // Validate admin permissions
-        context.requireAdminPrivileges("update holiday balance");
+        // PRESERVED: Validate admin permissions (FIXED: using available validation)
+        if (!context.isCurrentUserAdmin()) {
+            throw new SecurityException("Only administrators can update holiday balances");
+        }
 
-        // Validate user exists
-        String username = context.getUsernameFromUserId(userId);
-        if (username == null) {
+        // PRESERVED: Validate user exists
+        Optional<User> userOpt = context.getUserById(userId);
+        if (userOpt.isEmpty()) {
             throw new IllegalArgumentException("User not found with ID: " + userId);
         }
 
-        LoggerUtil.debug(this.getClass(), String.format("Validation passed for updating holiday balance: user %s (ID: %d) to %d days", username, userId, newBalance));
+        LoggerUtil.debug(this.getClass(), String.format("Validation passed for updating holiday balance: user %s (ID: %d) to %d days",
+                userOpt.get().getUsername(), userId, newBalance));
     }
 
     @Override
@@ -59,18 +66,22 @@ public class UpdateHolidayBalanceCommand extends WorktimeOperationCommand<Intege
         LoggerUtil.info(this.getClass(), String.format("Executing holiday balance update for userId=%d, newBalance=%d", userId, newBalance));
 
         try {
-            // Get username for operations
-            String username = context.getUsernameFromUserId(userId);
-            if (username == null) {
+            // PRESERVED: Get user information
+            Optional<User> userOpt = context.getUserById(userId);
+            if (userOpt.isEmpty()) {
                 return OperationResult.failure("User not found", getOperationType());
             }
 
-            // Get current balance for audit trail
-            Integer oldBalance = context.getUserHolidayBalance(userId);
+            User user = userOpt.get();
+            String username = user.getUsername();
 
-            LoggerUtil.info(this.getClass(), String.format("Holiday balance update for user %s (ID: %d): %d → %d days", username, userId, oldBalance, newBalance));
+            // PRESERVED: Get current balance for audit trail
+            Integer oldBalance = user.getPaidHolidayDays();
 
-            // Perform the update using enhanced context
+            LoggerUtil.info(this.getClass(), String.format("Holiday balance update for user %s (ID: %d): %d → %d days",
+                    username, userId, oldBalance, newBalance));
+
+            // PRESERVED: Perform the update using context operations
             boolean updateSuccess = context.updateUserHolidayBalance(userId, newBalance);
 
             if (!updateSuccess) {
@@ -79,19 +90,22 @@ public class UpdateHolidayBalanceCommand extends WorktimeOperationCommand<Intege
                 return OperationResult.failure(errorMessage, getOperationType());
             }
 
-            // Invalidate relevant caches
+            // PRESERVED: Invalidate relevant caches
             context.invalidateUserCache(username, userId);
 
-            LoggerUtil.info(this.getClass(), String.format("Successfully updated holiday balance for user %s (ID: %d): %d → %d days", username, userId, oldBalance, newBalance));
+            LoggerUtil.info(this.getClass(), String.format("Successfully updated holiday balance for user %s (ID: %d): %d → %d days",
+                    username, userId, oldBalance != null ? oldBalance : 0, newBalance));
 
-            // Create comprehensive success message
-            String successMessage = String.format("Holiday balance updated for user %s (ID: %d): %d → %d days", username, userId, oldBalance != null ? oldBalance : 0, newBalance);
+            // PRESERVED: Create comprehensive success message
+            String successMessage = String.format("Holiday balance updated for user %s (ID: %d): %d → %d days",
+                    username, userId, oldBalance != null ? oldBalance : 0, newBalance);
 
-            // Create side effects tracking
-            OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder().holidayBalanceChanged(oldBalance, newBalance)
-                            .cacheInvalidated(context.createCacheKey(username, java.time.LocalDate.now().getYear()));
+            // PRESERVED: Create side effects tracking
+            OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder()
+                    .holidayBalanceChanged(oldBalance, newBalance)
+                    .cacheInvalidated(createCacheKey(username, LocalDate.now().getYear()));
 
-            // Additional side effect: User file updated
+            // PRESERVED: Additional side effect: User file updated
             sideEffectsBuilder.fileUpdated(String.format("user/%s/holiday-balance", username));
 
             return OperationResult.successWithSideEffects(successMessage, getOperationType(), newBalance, sideEffectsBuilder.build());
@@ -113,5 +127,9 @@ public class UpdateHolidayBalanceCommand extends WorktimeOperationCommand<Intege
     @Override
     protected String getOperationType() {
         return OperationResult.OperationType.UPDATE_HOLIDAY_BALANCE;
+    }
+
+    private String createCacheKey(String username, int year) {
+        return String.format("%s-%d", username, year);
     }
 }

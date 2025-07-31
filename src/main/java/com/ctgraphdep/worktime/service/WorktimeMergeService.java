@@ -1,10 +1,12 @@
 package com.ctgraphdep.worktime.service;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
-import com.ctgraphdep.enums.WorktimeMergeRule;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
+import com.ctgraphdep.merge.engine.UniversalMergeEngine;
+import com.ctgraphdep.merge.enums.EntityType;
+import com.ctgraphdep.merge.wrapper.GenericEntityWrapper;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.WorkTimeEntryUtil;
+import com.ctgraphdep.worktime.util.WorktimeWrapperFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -12,8 +14,13 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Service responsible for merging worktime entries from different sources.
- * Centralizes merging logic that was previously duplicated across multiple services.
+ * REFACTORED WorktimeMergeService - Now uses GenericEntityWrapper for universal merge support.
+ * Key Changes:
+ * - Removed complex WorkTimeUniversalWrapper completely
+ * - Uses GenericEntityWrapper from merge package
+ * - Simplified merge logic with factory pattern
+ * - Maintains same public API for backward compatibility
+ * - All merge decisions now use Universal Merge Engine with consistent behavior
  */
 @Service
 public class WorktimeMergeService {
@@ -22,38 +29,69 @@ public class WorktimeMergeService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
+    // ========================================================================
+    // CORE MERGE METHODS - Using GenericEntityWrapper
+    // ========================================================================
+
     /**
-     * Merges entries from user and admin sources, applying worktime merge rules.
+     * REFACTORED: Main merge method using GenericEntityWrapper
+     */
+    private WorkTimeTable mergeWorkTimeEntries(WorkTimeTable entry1, WorkTimeTable entry2) {
+        LoggerUtil.debug(this.getClass(), String.format("Universal merge: entry1=%s, entry2=%s",
+                getEntryStatusString(entry1), getEntryStatusString(entry2)));
+
+        if (entry1 == null && entry2 == null) {
+            return null;
+        }
+
+        // Use GenericEntityWrapper instead of WorkTimeUniversalWrapper
+        GenericEntityWrapper<WorkTimeTable> wrapper1 = WorktimeWrapperFactory.createWrapperSafe(entry1);
+        GenericEntityWrapper<WorkTimeTable> wrapper2 = WorktimeWrapperFactory.createWrapperSafe(entry2);
+
+        GenericEntityWrapper<WorkTimeTable> result = UniversalMergeEngine.merge(wrapper1, wrapper2, EntityType.WORKTIME);
+
+        WorkTimeTable mergedEntry = result != null ? result.getEntity() : null;
+
+        LoggerUtil.info(this.getClass(), String.format("Universal merge result: %s", getEntryStatusString(mergedEntry)));
+
+        return mergedEntry;
+    }
+
+    /**
+     * Merges entries from user and admin sources, applying Universal Merge rules.
+     * PUBLIC API - unchanged for backward compatibility
      *
-     * @param userEntries User entries from their worktime file
+     * @param userEntries  User entries from their worktime file
      * @param adminEntries Admin entries from the admin worktime file
-     * @param userId ID of the user whose entries are being merged
+     * @param userId       ID of the user whose entries are being merged
      * @return List of merged entries
      */
-    public List<WorkTimeTable> mergeEntries(
-            List<WorkTimeTable> userEntries,
-            List<WorkTimeTable> adminEntries,
-            Integer userId) {
+    public List<WorkTimeTable> mergeEntries(List<WorkTimeTable> userEntries, List<WorkTimeTable> adminEntries, Integer userId) {
+
+        LoggerUtil.info(this.getClass(), String.format("Starting Universal Merge: %d user entries, %d admin entries for user %d",
+                userEntries != null ? userEntries.size() : 0, adminEntries != null ? adminEntries.size() : 0, userId));
 
         // Create maps for efficient lookup
         Map<LocalDate, WorkTimeTable> adminEntriesMap = createEntriesMap(adminEntries);
         Map<LocalDate, WorkTimeTable> userEntriesMap = createEntriesMap(userEntries);
 
-        return mergeEntriesMaps(userEntriesMap, adminEntriesMap, userId);
+        List<WorkTimeTable> result = mergeEntriesMaps(userEntriesMap, adminEntriesMap, userId);
+
+        LoggerUtil.info(this.getClass(), String.format("Universal Merge completed: %d entries result", result.size()));
+
+        return result;
     }
 
     /**
-     * Merges entries using date-mapped collections
+     * Merges entries using date-mapped collections with Universal Merge Engine.
+     * PUBLIC API - unchanged for backward compatibility
      *
-     * @param userEntriesMap Map of user entries by date
+     * @param userEntriesMap  Map of user entries by date
      * @param adminEntriesMap Map of admin entries by date
-     * @param userId ID of the user whose entries are being merged
+     * @param userId          ID of the user whose entries are being merged
      * @return List of merged entries
      */
-    public List<WorkTimeTable> mergeEntriesMaps(
-            Map<LocalDate, WorkTimeTable> userEntriesMap,
-            Map<LocalDate, WorkTimeTable> adminEntriesMap,
-            Integer userId) {
+    public List<WorkTimeTable> mergeEntriesMaps(Map<LocalDate, WorkTimeTable> userEntriesMap, Map<LocalDate, WorkTimeTable> adminEntriesMap, Integer userId) {
 
         List<WorkTimeTable> mergedEntries = new ArrayList<>();
         Set<LocalDate> allDates = new HashSet<>();
@@ -66,28 +104,15 @@ public class WorktimeMergeService {
             allDates.addAll(adminEntriesMap.keySet());
         }
 
+        LoggerUtil.debug(this.getClass(), String.format("Processing %d unique dates for merge", allDates.size()));
+
         for (LocalDate date : allDates) {
             WorkTimeTable userEntry = userEntriesMap != null ? userEntriesMap.get(date) : null;
             WorkTimeTable adminEntry = adminEntriesMap != null ? adminEntriesMap.get(date) : null;
 
-            // Add specific handling for USER_INPUT vs USER_IN_PROCESS conflict
-            if (userEntry != null && adminEntry != null &&
-                    SyncStatusMerge.USER_INPUT.equals(userEntry.getAdminSync()) &&
-                    SyncStatusMerge.USER_IN_PROCESS.equals(adminEntry.getAdminSync())) {
-
-                LoggerUtil.warn(this.getClass(), String.format("Conflict detected: User has resolved entry (USER_INPUT) for %s, " +
-                                "but admin has unresolved entry (USER_IN_PROCESS). Keeping user's resolved entry.", date));
-
-                // Always keep the user's resolved entry in this case
-                mergedEntries.add(userEntry);
-                continue;  // Skip the normal merge process for this entry
-            }
-
-            boolean isUserInProcess = userEntry != null && SyncStatusMerge.USER_IN_PROCESS.equals(userEntry.getAdminSync());
-            boolean isAdminBlank = adminEntry != null && SyncStatusMerge.ADMIN_BLANK.equals(adminEntry.getAdminSync());
-
             try {
-                WorkTimeTable mergedEntry = WorktimeMergeRule.apply(userEntry, adminEntry);
+                // Use Universal Merge Engine with GenericEntityWrapper
+                WorkTimeTable mergedEntry = mergeWorkTimeEntries(userEntry, adminEntry);
 
                 if (mergedEntry != null) {
                     // Ensure userId is set
@@ -96,16 +121,14 @@ public class WorktimeMergeService {
                     }
                     mergedEntries.add(mergedEntry);
 
-                    if (isUserInProcess) {
-                        LoggerUtil.debug(this.getClass(), String.format("Preserved USER_IN_PROCESS entry for date %s", date));
-                    } else {
-                        LoggerUtil.debug(this.getClass(), String.format("Processed entry for date %s, final status: %s", date, mergedEntry.getAdminSync()));
-                    }
-                } else if (isAdminBlank) {
-                    LoggerUtil.info(this.getClass(), String.format("Entry for date %s removed due to ADMIN_BLANK", date));
+                    LoggerUtil.debug(this.getClass(), String.format("Merged entry for date %s: %s",
+                            date, getEntryStatusString(mergedEntry)));
+                } else {
+                    LoggerUtil.debug(this.getClass(), String.format("Entry for date %s was deleted by merge", date));
                 }
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), String.format("Error merging entries for date %s: %s", date, e.getMessage()));
+                LoggerUtil.error(this.getClass(), String.format("Error merging entries for date %s: %s", date, e.getMessage()), e);
+                // Continue with other dates
             }
         }
 
@@ -113,62 +136,70 @@ public class WorktimeMergeService {
         return mergedEntries;
     }
 
-    /**
-     * Merge admin entries for consolidation.
-     * This method handles merging slightly differently for the consolidation process.
-     *
-     * @param user The entry from the user's worktime file
-     * @param admin The entry from the admin worktime file
-     * @param userEntriesMap Map of processed entries to check for duplicates
-     * @return The merged entry
-     */
-    public WorkTimeTable mergeForConsolidation(
-            WorkTimeTable user,
-            WorkTimeTable admin,
-            Map<String, WorkTimeTable> userEntriesMap) {
 
-        if (user == null) {
-            return admin;
-        }
 
-        String entryKey = WorkTimeEntryUtil.createEntryKey(user.getUserId(), user.getWorkDate());
-
-        // Skip if we already processed this entry
-        if (userEntriesMap.containsKey(entryKey)) {
-            return null;
-        }
-
-        // Special case: Resolved user entries take precedence over unresolved admin entries
-        if (SyncStatusMerge.USER_INPUT.equals(user.getAdminSync()) &&
-                admin != null && SyncStatusMerge.USER_IN_PROCESS.equals(admin.getAdminSync())) {
-
-            LoggerUtil.info(this.getClass(), String.format("Admin consolidation: Updating admin USER_IN_PROCESS entry with user's resolved entry for %s", user.getWorkDate()));
-            return user;
-        }
-
-        // Skip USER_IN_PROCESS entries - they should remain in user file only
-        if (SyncStatusMerge.USER_IN_PROCESS.equals(user.getAdminSync())) {
-            LoggerUtil.debug(this.getClass(), String.format("Admin consolidation: Skipping USER_IN_PROCESS entry for date %s", user.getWorkDate()));
-            return null;
-        }
-
-        // For all other user entries, apply merge rules
-        return WorktimeMergeRule.apply(user, admin);
-    }
+    // ========================================================================
+    // HELPER METHODS - Simplified without complex wrapper logic
+    // ========================================================================
 
     /**
-     * Creates a map of entries by date for efficient lookup
+     * PUBLIC API - unchanged for backward compatibility
      */
     public Map<LocalDate, WorkTimeTable> createEntriesMap(List<WorkTimeTable> entries) {
         if (entries == null) {
             return new HashMap<>();
         }
 
-        return entries.stream()
-                .collect(Collectors.toMap(
-                        WorkTimeTable::getWorkDate,
-                        entry -> entry,
-                        (e1, e2) -> e2  // Keep the latest entry in case of duplicates
-                ));
+        return entries.stream().collect(Collectors.toMap(
+                WorkTimeTable::getWorkDate,
+                entry -> entry,
+                (e1, e2) -> e2  // Keep the latest entry in case of duplicates
+        ));
     }
+
+    /**
+     * SIMPLIFIED: Helper method for readable status logging
+     */
+    private String getEntryStatusString(WorkTimeTable entry) {
+        if (entry == null) {
+            return "null";
+        }
+
+        String status = entry.getAdminSync();
+        if (status == null) {
+            status = "null";
+        }
+
+        // Add timestamp info for timestamped statuses
+        if (MergingStatusConstants.isTimestampedEditStatus(status)) {
+            long timestamp = MergingStatusConstants.extractTimestamp(status);
+            String editorType = MergingStatusConstants.getEditorType(status);
+            return String.format("%s[%s:%d]", status, editorType, timestamp);
+        }
+
+        return String.format("%s[%s]", status, entry.getWorkDate());
+    }
+
+    /**
+     * Log merge statistics for monitoring
+     */
+    public void logMergeStatistics(List<WorkTimeTable> userEntries, List<WorkTimeTable> adminEntries, List<WorkTimeTable> mergedEntries) {
+
+        LoggerUtil.info(this.getClass(), String.format("Universal Merge Statistics - Input: %d user + %d admin = %d merged",
+                userEntries != null ? userEntries.size() : 0,
+                adminEntries != null ? adminEntries.size() : 0,
+                mergedEntries != null ? mergedEntries.size() : 0));
+
+        // Enhanced logging for timestamped statuses
+        if (mergedEntries != null && !mergedEntries.isEmpty()) {
+            long timestampedCount = mergedEntries.stream()
+                    .filter(entry -> MergingStatusConstants.isTimestampedEditStatus(entry.getAdminSync()))
+                    .count();
+
+            if (timestampedCount > 0) {
+                LoggerUtil.info(this.getClass(), String.format("Universal Merge Statistics - %d entries have timestamped edit statuses", timestampedCount));
+            }
+        }
+    }
+
 }

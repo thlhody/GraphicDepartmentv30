@@ -9,6 +9,7 @@ package com.ctgraphdep.enums;
  * Conflicts → ADMIN_CHECK (requires admin review)
  * ADMIN_BLANK → Remove entry
  */
+@Deprecated
 public enum SyncStatusMerge {
     /**
      * Admin has modified this entry - takes precedence in merges

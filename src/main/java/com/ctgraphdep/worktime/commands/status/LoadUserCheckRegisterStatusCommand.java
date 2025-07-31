@@ -3,6 +3,8 @@ package com.ctgraphdep.worktime.commands.status;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.worktime.commands.WorktimeOperationCommand;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
+import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
+import com.ctgraphdep.worktime.accessor.NetworkOnlyAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -16,11 +18,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * COMPLETED: Command to load check register data for status display (read-only).
- * Implements local → network → empty fallback strategy.
- * Handles both own data (local files) and other user data (network files).
- * Used by StatusController for cross-user check register viewing.
- * Supports filtering by date range, check type, designer, and approval status.
+ * REFACTORED: Command to load check register data for status display using accessor pattern.
+ * Always uses NetworkOnlyAccessor for consistent cross-user viewing.
+ * Used by StatusController for check register status viewing with filtering.
+ * FIXED: Uses correct field names from RegisterCheckEntry model.
  */
 public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand<LoadUserCheckRegisterStatusCommand.CheckRegisterStatusData> {
     private final String targetUsername;
@@ -73,15 +74,22 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
     @Override
     protected OperationResult executeCommand() {
         LoggerUtil.info(this.getClass(), String.format(
-                "Loading check register status for %s - %d/%d with filters", targetUsername, year, month));
+                "Loading check register status for %s - %d/%d using NetworkOnlyAccessor", targetUsername, year, month));
 
         try {
-            // Determine current user context (respects admin elevation)
-            String currentUsername = context.getCurrentUsername();
-            boolean isViewingOwnData = targetUsername.equals(currentUsername);
+            // FIXED: Always use NetworkOnlyAccessor for status viewing (consistent cross-user viewing)
+            WorktimeDataAccessor accessor = new NetworkOnlyAccessor(
+                    context.getWorktimeDataService(),
+                    context.getRegisterDataService(),
+                    context.getCheckRegisterDataService(),
+                    context.getTimeOffDataService()
+            );
 
-            // Load entries with fallback strategy
-            List<RegisterCheckEntry> entries = loadCheckRegisterEntries(isViewingOwnData);
+            // Load check register entries using accessor
+            List<RegisterCheckEntry> entries = accessor.readCheckRegister(targetUsername, targetUserId, year, month);
+            if (entries == null) {
+                entries = new ArrayList<>();
+            }
 
             // Apply filters
             List<RegisterCheckEntry> filteredEntries = applyFilters(entries);
@@ -95,9 +103,8 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
             CheckRegisterStatusData statusData = new CheckRegisterStatusData(
                     filteredEntries, summary, uniqueDesigners);
 
-            String message = String.format("Loaded %d check register entries for %s (filtered from %d, source: %s)",
-                    filteredEntries.size(), targetUsername, entries.size(),
-                    isViewingOwnData ? "local/network" : "network");
+            String message = String.format("Loaded %d check register entries for %s (filtered from %d)",
+                    filteredEntries.size(), targetUsername, entries.size());
 
             LoggerUtil.info(this.getClass(), message);
 
@@ -115,72 +122,6 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
                     String.format("No check register data available for %s - %d/%d", targetUsername, year, month),
                     getOperationType(), emptyData, null);
         }
-    }
-
-    /**
-     * IMPLEMENTED: Load check register entries with fallback strategy: local → network → empty
-     */
-    private List<RegisterCheckEntry> loadCheckRegisterEntries(boolean isViewingOwnData) {
-        if (isViewingOwnData) {
-            // Own data: try local first, then network fallback
-            try {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Attempting to load local check register for %s - %d/%d", targetUsername, year, month));
-
-                List<RegisterCheckEntry> localEntries = context.loadCheckRegisterFromLocal(targetUsername, targetUserId, year, month);
-                if (localEntries != null && !localEntries.isEmpty()) {
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Successfully loaded %d local check register entries for %s - %d/%d",
-                            localEntries.size(), targetUsername, year, month));
-                    return localEntries;
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Local check register failed for %s - %d/%d: %s, trying network...",
-                        targetUsername, year, month, e.getMessage()));
-            }
-
-            // Local failed, try network fallback
-            try {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Attempting network fallback for check register: %s - %d/%d", targetUsername, year, month));
-
-                List<RegisterCheckEntry> networkEntries = context.loadCheckRegisterFromNetwork(targetUsername, targetUserId, year, month);
-                if (networkEntries != null && !networkEntries.isEmpty()) {
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Successfully loaded %d network check register entries for %s - %d/%d",
-                            networkEntries.size(), targetUsername, year, month));
-                    return networkEntries;
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Network check register failed for %s - %d/%d: %s, returning empty",
-                        targetUsername, year, month, e.getMessage()));
-            }
-        } else {
-            // Other user data: network only
-            try {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Loading network check register for other user %s - %d/%d", targetUsername, year, month));
-
-                List<RegisterCheckEntry> networkEntries = context.loadCheckRegisterFromNetwork(targetUsername, targetUserId, year, month);
-                if (networkEntries != null && !networkEntries.isEmpty()) {
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Successfully loaded %d network check register entries for %s - %d/%d",
-                            networkEntries.size(), targetUsername, year, month));
-                    return networkEntries;
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Network check register failed for %s - %d/%d: %s, returning empty",
-                        targetUsername, year, month, e.getMessage()));
-            }
-        }
-
-        // Return empty list
-        LoggerUtil.debug(this.getClass(), String.format(
-                "No check register entries available for %s - %d/%d", targetUsername, year, month));
-        return new ArrayList<>();
     }
 
     /**
@@ -273,7 +214,7 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
                         Collectors.counting()
                 ));
 
-        // ADDED: Count by approval status for template compatibility
+        // Count by approval status for template compatibility
         Map<String, Long> approvalStatusCounts = entries.stream()
                 .collect(Collectors.groupingBy(
                         entry -> entry.getApprovalStatus() != null ? entry.getApprovalStatus() : "UNKNOWN",
@@ -282,7 +223,7 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
 
         return new CheckRegisterSummary(totalEntries, totalArticles, totalFiles, totalOrderValue,
                 avgArticles, avgFiles, approvedCount, pendingCount, rejectedCount, checkTypeCounts,
-                approvalStatusCounts); // ← ADDED PARAMETER
+                approvalStatusCounts);
     }
 
     /**
@@ -339,18 +280,18 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
         private final long pendingCount;
         private final long rejectedCount;
         private final Map<String, Long> checkTypeCounts;
-        private final Map<String, Long> approvalStatusCounts; // ← ADDED: For template compatibility
+        private final Map<String, Long> approvalStatusCounts;
 
         // Empty constructor
         public CheckRegisterSummary() {
             this(0, 0, 0, 0.0, 0.0, 0.0, 0, 0, 0, new HashMap<>(), new HashMap<>());
         }
 
-        // Full constructor - UPDATED with approvalStatusCounts
+        // Full constructor
         public CheckRegisterSummary(int totalEntries, int totalArticles, int totalFiles, double totalOrderValue,
                                     double avgArticles, double avgFiles, long approvedCount, long pendingCount,
                                     long rejectedCount, Map<String, Long> checkTypeCounts,
-                                    Map<String, Long> approvalStatusCounts) { // ← ADDED PARAMETER
+                                    Map<String, Long> approvalStatusCounts) {
             this.totalEntries = totalEntries;
             this.totalArticles = totalArticles;
             this.totalFiles = totalFiles;
@@ -361,7 +302,7 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
             this.pendingCount = pendingCount;
             this.rejectedCount = rejectedCount;
             this.checkTypeCounts = checkTypeCounts != null ? checkTypeCounts : new HashMap<>();
-            this.approvalStatusCounts = approvalStatusCounts != null ? approvalStatusCounts : new HashMap<>(); // ← ADDED
+            this.approvalStatusCounts = approvalStatusCounts != null ? approvalStatusCounts : new HashMap<>();
         }
     }
 }

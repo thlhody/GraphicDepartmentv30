@@ -1,26 +1,28 @@
 package com.ctgraphdep.worktime.commands;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
+import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
+import lombok.Getter;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * CORRECTED Add Time Off Command - Proper business logic implementation
- * CORRECTED Key Behaviors:
- * - ADMIN: Can add 1 entry at a time (CO/CM/SN) for any date
- * - USER: Can add 1 day or multiple days (CO/CM only, no SN) for FUTURE dates only
- * - Users request future time off (not past) - this is time off planning
- * - Holiday balance deduction for CO requests (future time off planning)
- * - Proper validation based on user role and date direction
+ * REFACTORED: Add Time Off Command using accessor pattern.
+ * Uses appropriate accessor based on user context (admin or user).
+ * Keeps original business logic intact.
  */
 public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTable>> {
     private final String username;
@@ -28,7 +30,8 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
     private final List<LocalDate> dates;
     private final String timeOffType;
 
-    public AddTimeOffCommand(WorktimeOperationContext context, String username, Integer userId, List<LocalDate> dates, String timeOffType) {
+    public AddTimeOffCommand(WorktimeOperationContext context, String username, Integer userId,
+                             List<LocalDate> dates, String timeOffType) {
         super(context);
         this.username = username;
         this.userId = userId;
@@ -45,243 +48,315 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
             throw new IllegalArgumentException("User ID cannot be null");
         }
         if (dates == null || dates.isEmpty()) {
-            throw new IllegalArgumentException("Dates cannot be null or empty");
+            throw new IllegalArgumentException("Dates list cannot be null or empty");
         }
         if (timeOffType == null || timeOffType.trim().isEmpty()) {
             throw new IllegalArgumentException("Time off type cannot be null or empty");
         }
 
-        LoggerUtil.info(this.getClass(), String.format("Validating add time off: %s, %d dates, type %s", username, dates.size(), timeOffType));
-
-        // Validate user permissions
+        // Validate permissions
         context.validateUserPermissions(username, "add time off");
 
-        boolean isCurrentUserAdmin = context.isCurrentUserAdmin();
-        String currentUsername = context.getCurrentUsername();
-
-        // ADMIN vs USER specific validation
-        if (isCurrentUserAdmin && !currentUsername.equals(username)) {
-            // Admin adding time off for another user
-            validateAdminAddTimeOff();
-        } else {
-            // User adding time off for themselves
-            validateUserAddTimeOff();
+        // Validate time off type permissions for SN
+        if (WorkCode.NATIONAL_HOLIDAY_CODE.equalsIgnoreCase(timeOffType) && !context.isCurrentUserAdmin()) {
+            throw new IllegalArgumentException("Only admin can create national holidays");
         }
 
-        LoggerUtil.debug(this.getClass(), "Add time off validation completed successfully");
-    }
-
-    /**
-     * Validate admin adding time off (can add CO/CM/SN, one entry at a time, any date)
-     */
-    private void validateAdminAddTimeOff() {
-        LoggerUtil.debug(this.getClass(), "Validating admin add time off operation");
-
-        // Admin can add any type including SN
-        if (!timeOffType.matches("^(CO|CM|SN)$")) {
-            throw new IllegalArgumentException("Admin can add CO, CM, or SN time off types");
-        }
-
-        // Admin should add one entry at a time for individual users
-        if (dates.size() > 1) {
-            LoggerUtil.warn(this.getClass(), String.format("Admin attempting to add %d time off entries at once - restricting to single entry", dates.size()));
-            throw new IllegalArgumentException("Admin should add time off one entry at a time for individual users");
-        }
-
-        // Validate each date using TimeValidationService (admin can use any date)
-        for (LocalDate date : dates) {
-            try {
-                context.validateHolidayDate(date);
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), String.format("Admin date validation warning for %s: %s", date, e.getMessage()));
-                // Be lenient for admin operations
-            }
-        }
-    }
-
-    /**
-     * Validate user adding time off (CO/CM only, multiple dates allowed, FUTURE dates only)
-     */
-    private void validateUserAddTimeOff() {
-        LoggerUtil.debug(this.getClass(), "Validating user add time off operation");
-
-        // Users cannot add SN (national holidays)
-        if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType)) {
-            throw new IllegalArgumentException("Users cannot add national holidays (SN). Only admin can add SN.");
-        }
-
-        // Users can only add CO or CM
-        if (!timeOffType.matches("^(CO|CM)$")) {
-            throw new IllegalArgumentException("Users can only add CO (vacation) or CM (medical) time off");
-        }
-
-        // CORRECTED: Users can only add time off for FUTURE dates (requesting time off in advance)
-        LocalDate today = LocalDate.now();
-        for (LocalDate date : dates) {
-            // Users can only request time off for future dates (not today or past)
-            if (!date.isAfter(today)) {
-                throw new IllegalArgumentException(String.format("Users can only request time off for future dates. Date %s is not allowed. Use future dates to plan time off in advance.", date));
-            }
-
-            // Validate time off date (weekend check, etc.)
-            context.validateTimeOffDate(date);
-        }
-
+        // Validate holiday balance for CO (vacation)
         if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType)) {
-            // Use the corrected method with clear exception message
-            context.validateSufficientHolidayBalance(dates.size(), "future time off request");
+            int actualDaysNeeded = context.calculateActualVacationDaysNeeded(dates);
+            if (actualDaysNeeded > 0) {
+                context.validateSufficientHolidayBalance(actualDaysNeeded, "add vacation time off");
+            }
         }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Validating time off addition: user=%s, dates=%d, type=%s", username, dates.size(), timeOffType));
     }
 
+    /**
+     * ENHANCED: AddTimeOffCommand with Part 2 file-based validation and cleanup
+     * This command now loads worktime files and filters out conflicting dates
+     */
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format("Executing add time off command for %s: %d dates, type %s", username, dates.size(), timeOffType));
-
         try {
-            // Track for side effects
-            Integer oldHolidayBalance = null;
-            boolean balanceUpdated = false;
+            LoggerUtil.info(this.getClass(), String.format("=== STARTING AddTimeOffCommand for %s: %d dates, type=%s ===",
+                    username, dates.size(), timeOffType));
 
-            // Get initial balance if CO type (for future time off planning)
-            if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType)) {
-                oldHolidayBalance = context.getCurrentHolidayBalance();
+            boolean isAdminOperation = context.isCurrentUserAdmin() && !context.getCurrentUsername().equals(username);
+
+            // PART 2 VALIDATION: Load files and filter conflicting dates
+            LoggerUtil.info(this.getClass(), "=== PART 2: File-based conflict detection and cleanup ===");
+
+            DateFilterResult filterResult = filterDatesAgainstExistingEntries(dates, username, userId);
+
+            List<LocalDate> validDates = filterResult.getValidDates();
+            List<LocalDate> skippedConflicts = filterResult.getSkippedConflicts();
+
+            if (validDates.isEmpty()) {
+                String message = String.format("No valid dates remaining after conflict resolution. " +
+                                "Total requested: %d, Skipped conflicts: %d (%s)",
+                        dates.size(), skippedConflicts.size(), skippedConflicts);
+                LoggerUtil.warn(this.getClass(), message);
+                return OperationResult.failure(message, getOperationType());
             }
 
-            // Process each month separately for efficient file handling
+            LoggerUtil.info(this.getClass(), String.format("File-based filtering complete: %d valid dates, %d conflicts skipped",
+                    validDates.size(), skippedConflicts.size()));
+
+            // Group valid dates by month for efficient processing
+            var datesByMonth = validDates.stream()
+                    .collect(Collectors.groupingBy(date -> YearMonth.of(date.getYear(), date.getMonthValue())));
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Grouped valid dates into %d months: %s", datesByMonth.size(), datesByMonth.keySet()));
+
+            List<WorkTimeTable> allCreatedEntries = new ArrayList<>();
             int totalEntriesCreated = 0;
 
-            // Group dates by month for efficient processing
-            var datesByMonth = dates.stream().collect(Collectors.groupingBy(YearMonth::from));
-
-            // Process each month
+            // Process each month with valid dates
             for (var monthEntry : datesByMonth.entrySet()) {
-                var yearMonth = monthEntry.getKey();
-                var monthDates = monthEntry.getValue();
+                YearMonth yearMonth = monthEntry.getKey();
+                List<LocalDate> monthDates = monthEntry.getValue();
 
-                int monthEntriesCreated = processMonthTimeOff(yearMonth, monthDates);
-                totalEntriesCreated += monthEntriesCreated;
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Processing month %s with %d valid dates: %s", yearMonth, monthDates.size(), monthDates));
 
-                LoggerUtil.debug(this.getClass(), String.format("Processed %d time off entries for %s - %d/%d", monthEntriesCreated, username, yearMonth.getYear(), yearMonth.getMonthValue()));
-            }
+                // Use appropriate accessor based on context
+                WorktimeDataAccessor accessor = context.getDataAccessor(username);
+                LoggerUtil.info(this.getClass(), String.format("Using accessor type: %s", accessor.getClass().getSimpleName()));
 
-            // Calculate actual vacation days needed (excluding existing SN days)
-            if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType) && totalEntriesCreated > 0) {
-                // Use context method instead of local helper
-                int actualVacationDaysUsed = context.calculateActualVacationDaysNeeded(dates);
+                // Load entries for the month
+                List<WorkTimeTable> entries = accessor.readWorktime(username, yearMonth.getYear(), yearMonth.getMonthValue());
+                LoggerUtil.info(this.getClass(), String.format("Loaded %d existing entries for %s - %d/%d",
+                        entries != null ? entries.size() : 0, username, yearMonth.getYear(), yearMonth.getMonthValue()));
 
-                if (actualVacationDaysUsed > 0) {
-                    balanceUpdated = context.updateHolidayBalance(-actualVacationDaysUsed);
-                    if (balanceUpdated) {
-                        LoggerUtil.info(this.getClass(), String.format("Deducted %d vacation days for %s (%d total dates, %d were already SN)",
-                                actualVacationDaysUsed, username, dates.size(), dates.size() - actualVacationDaysUsed));
+                if (entries == null) {
+                    entries = new ArrayList<>();
+                }
+
+                // Create time off entries for valid dates only
+                for (LocalDate date : monthDates) {
+                    LoggerUtil.info(this.getClass(), String.format("Creating %s entry for %s on %s (conflict-free)",
+                            timeOffType, username, date));
+
+                    // Double-check: should not exist at this point due to filtering
+                    if (findEntryByDate(entries, userId, date).isEmpty()) {
+                        WorkTimeTable timeOffEntry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, timeOffType);
+
+                        // Set appropriate sync status based on operation type
+                        if (isAdminOperation) {
+                            timeOffEntry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
+                            LoggerUtil.debug(this.getClass(), String.format(
+                                    "Admin created %s time off entry with ADMIN_INPUT status for %s on %s",
+                                    timeOffType, username, date));
+                        } else {
+                            timeOffEntry.setAdminSync(MergingStatusConstants.USER_INPUT);
+                            LoggerUtil.debug(this.getClass(), String.format(
+                                    "User created %s time off entry with USER_INPUT status for %s on %s",
+                                    timeOffType, username, date));
+                        }
+
+                        addOrReplaceEntry(entries, timeOffEntry);
+                        allCreatedEntries.add(timeOffEntry);
+                        totalEntriesCreated++;
+
+                        LoggerUtil.debug(this.getClass(), String.format(
+                                "Created %s time off entry for %s on %s", timeOffType, username, date));
+                    } else {
+                        LoggerUtil.warn(this.getClass(), String.format(
+                                "Unexpected: Entry already exists for %s on %s even after filtering", username, date));
                     }
+                }
+
+                // Save updated entries
+                try {
+                    accessor.writeWorktimeWithStatus(username, entries, yearMonth.getYear(), yearMonth.getMonthValue(), context.getCurrentUser().getRole());
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Successfully saved entries for %s - %d/%d", username, yearMonth.getYear(), yearMonth.getMonthValue()));
+                } catch (Exception writeError) {
+                    LoggerUtil.error(this.getClass(), String.format(
+                            "FAILED to save entries for %s - %d/%d: %s",
+                            username, yearMonth.getYear(), yearMonth.getMonthValue(), writeError.getMessage()), writeError);
+                    throw writeError;
                 }
             }
 
-            // Invalidate cache for affected year
+            // Handle holiday balance for CO (vacation)
+            boolean balanceUpdated = false;
+            if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType) && totalEntriesCreated > 0) {
+                int actualDaysNeeded = context.calculateActualVacationDaysNeeded(validDates);
+                if (actualDaysNeeded > 0) {
+                    balanceUpdated = context.updateHolidayBalance(-actualDaysNeeded);
+                }
+            }
+
+            // Create comprehensive success message
+            String finalMessage = getString(totalEntriesCreated, skippedConflicts, balanceUpdated);
+            LoggerUtil.info(this.getClass(), finalMessage);
+
+            // Add time off to tracker
             if (totalEntriesCreated > 0) {
-                int year = dates.get(0).getYear();
-                context.invalidateTimeOffCache(username, year);
-                context.refreshTimeOffTracker(username, userId, year);
+                context.addTimeOffRequestsToTracker(username, userId, validDates, timeOffType, validDates.get(0).getYear());
             }
 
-            // Create success result
-            String message = String.format("Successfully added %d %s time off entries for %s", totalEntriesCreated, timeOffType, username);
+            LoggerUtil.info(this.getClass(), String.format(
+                    "=== COMPLETED AddTimeOffCommand: Created %d entries, Skipped %d conflicts ===",
+                    totalEntriesCreated, skippedConflicts.size()));
 
-            if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType) && balanceUpdated) {
-                Integer newBalance = context.getCurrentHolidayBalance();
-                message += String.format(". Holiday balance: %d → %d (reserved for future time off)", oldHolidayBalance, newBalance != null ? newBalance : 0);
-            }
-
-            // Create side effects
-            OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder()
-                    .cacheInvalidated(context.createCacheKey(username, dates.get(0).getYear()));
-
-            if (balanceUpdated && oldHolidayBalance != null) {
-                sideEffectsBuilder.holidayBalanceChanged(oldHolidayBalance, context.getCurrentHolidayBalance());
-            }
-
-            LoggerUtil.info(this.getClass(), message);
-            // No specific entry data for bulk operation
-            return OperationResult.successWithSideEffects(message, getOperationType(), null, sideEffectsBuilder.build());
+            return OperationResult.success(finalMessage, getOperationType(), allCreatedEntries);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error adding time off for %s: %s", username, e.getMessage()), e);
-            return OperationResult.failure("Failed to add time off: " + e.getMessage(), getOperationType());
+            String errorMessage = String.format("Failed to add %s time off for %s: %s", timeOffType, username, e.getMessage());
+            LoggerUtil.error(this.getClass(), String.format(
+                    "=== FAILED AddTimeOffCommand for %s: %s ===", username, e.getMessage()), e);
+            return OperationResult.failure(errorMessage, getOperationType());
         }
     }
 
+    private @NotNull String getString(int totalEntriesCreated, List<LocalDate> skippedConflicts, boolean balanceUpdated) {
+        StringBuilder messageBuilder = new StringBuilder();
+        messageBuilder.append(String.format("Successfully added %d %s time off entries for %s",
+                totalEntriesCreated, timeOffType.toUpperCase(), username));
+
+        if (!skippedConflicts.isEmpty()) {
+            messageBuilder.append(String.format(". Skipped %d conflicting dates: %s",
+                    skippedConflicts.size(), skippedConflicts));
+        }
+
+        if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType) && balanceUpdated) {
+            Integer newBalance = context.getCurrentHolidayBalance();
+            messageBuilder.append(String.format(". Holiday balance updated to %d days",
+                    newBalance != null ? newBalance : 0));
+        }
+
+        return messageBuilder.toString();
+    }
+
     /**
-     * Process time off entries for a specific month
+     * NEW: Filter dates against existing worktime entries (Part 2 validation)
+     * Loads actual worktime files and removes conflicting dates
      */
-    private int processMonthTimeOff(YearMonth yearMonth, List<LocalDate> monthDates) {
-        int year = yearMonth.getYear();
-        int month = yearMonth.getMonthValue();
+    private DateFilterResult filterDatesAgainstExistingEntries(List<LocalDate> requestedDates, String username, Integer userId) {
+        LoggerUtil.info(this.getClass(), String.format("Filtering %d requested dates against existing worktime files", requestedDates.size()));
 
-        // Load month entries - use admin or user context based on current user
-        List<WorkTimeTable> entries;
-        boolean isAdminOperation = context.isCurrentUserAdmin() && !context.getCurrentUsername().equals(username);
+        List<LocalDate> validDates = new ArrayList<>();
+        List<LocalDate> skippedConflicts = new ArrayList<>();
 
-        if (isAdminOperation) {
-            // Admin operation - load admin entries
-            entries = context.loadAdminWorktime(year, month);
-        } else {
-            // User operation - load user entries
-            entries = context.loadUserWorktime(username, year, month);
-        }
+        // Group dates by month to minimize file reads
+        Map<YearMonth, List<LocalDate>> datesByMonth = requestedDates.stream()
+                .collect(Collectors.groupingBy(date -> YearMonth.of(date.getYear(), date.getMonthValue())));
 
-        int entriesCreated = 0;
+        LoggerUtil.debug(this.getClass(), String.format("Checking %d months for conflicts: %s",
+                datesByMonth.size(), datesByMonth.keySet()));
 
-        // Create time off entries for each date
-        for (LocalDate date : monthDates) {
-            // Check if entry already exists
-            if (context.findEntryByDate(entries, userId, date).isEmpty()) {
-                WorkTimeTable timeOffEntry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, timeOffType);
+        for (Map.Entry<YearMonth, List<LocalDate>> monthGroup : datesByMonth.entrySet()) {
+            YearMonth yearMonth = monthGroup.getKey();
+            List<LocalDate> monthDates = monthGroup.getValue();
 
-                // Set appropriate sync status based on operation type
-                if (isAdminOperation) {
-                    timeOffEntry.setAdminSync(SyncStatusMerge.ADMIN_EDITED);
+            LoggerUtil.debug(this.getClass(), String.format("Loading worktime file for %s - %d/%d to check %d dates",
+                    username, yearMonth.getYear(), yearMonth.getMonthValue(), monthDates.size()));
+
+            // Load existing entries for this month
+            WorktimeDataAccessor accessor = context.getDataAccessor(username);
+            List<WorkTimeTable> existingEntries = accessor.readWorktime(username, yearMonth.getYear(), yearMonth.getMonthValue());
+
+            if (existingEntries == null) {
+                existingEntries = new ArrayList<>();
+            }
+
+            LoggerUtil.debug(this.getClass(), String.format("Loaded %d existing entries for conflict checking", existingEntries.size()));
+
+            // Check each date in this month
+            for (LocalDate date : monthDates) {
+                boolean hasConflict = existingEntries.stream()
+                        .anyMatch(entry -> entry.getUserId().equals(userId) &&
+                                entry.getWorkDate().equals(date) &&
+                                entry.getTimeOffType() != null &&
+                                !entry.getTimeOffType().trim().isEmpty());
+
+                if (hasConflict) {
+                    // Find the conflicting entry for logging
+                    Optional<WorkTimeTable> conflictingEntry = existingEntries.stream()
+                            .filter(entry -> entry.getUserId().equals(userId) && entry.getWorkDate().equals(date))
+                            .findFirst();
+
+                    String conflictType = conflictingEntry.map(WorkTimeTable::getTimeOffType).orElse("unknown");
+                    skippedConflicts.add(date);
+                    LoggerUtil.info(this.getClass(), String.format("CONFLICT: Skipping %s - already has %s (%s)",
+                            date, getTimeOffDescription(conflictType), conflictType));
                 } else {
-                    timeOffEntry.setAdminSync(SyncStatusMerge.USER_INPUT);
-                }
-
-                context.addOrReplaceEntry(entries, timeOffEntry);
-                entriesCreated++;
-
-                LoggerUtil.debug(this.getClass(), String.format("Created %s time off entry for %s on %s", timeOffType, username, date));
-            } else {
-                LoggerUtil.warn(this.getClass(), String.format("Time off entry already exists for %s on %s, skipping", username, date));
-            }
-        }
-
-        // Save entries back
-        if (entriesCreated > 0) {
-            if (isAdminOperation) {
-                context.saveAdminWorktime(entries, year, month);
-                // Admin operations DON'T update tracker (admin bypasses user tracker)
-            } else {
-                context.saveUserWorktime(username, entries, year, month);
-                // 🎯 HERE: Only for USER operations, update tracker
-                try {
-                    context.addTimeOffRequestsToTracker(username, userId, monthDates, timeOffType, year);
-                    LoggerUtil.debug(this.getClass(), String.format("Updated time off tracker for user %s - %d/%d", username, year, month));
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), String.format("Failed to update tracker for %s - %d/%d: %s", username, year, month, e.getMessage()));
-                    // Don't fail entire operation for tracker sync issue
+                    validDates.add(date);
+                    LoggerUtil.debug(this.getClass(), String.format("CLEAR: Date %s has no conflicts", date));
                 }
             }
         }
 
-        return entriesCreated;
+        LoggerUtil.info(this.getClass(), String.format("File filtering complete: %d valid, %d conflicts. Valid dates: %s",
+                validDates.size(), skippedConflicts.size(), validDates));
+
+        return new DateFilterResult(validDates, skippedConflicts);
+    }
+
+    /**
+     * Helper class to return filtering results
+     */
+    @Getter
+    private static class DateFilterResult {
+        private final List<LocalDate> validDates;
+        private final List<LocalDate> skippedConflicts;
+
+        public DateFilterResult(List<LocalDate> validDates, List<LocalDate> skippedConflicts) {
+            this.validDates = validDates;
+            this.skippedConflicts = skippedConflicts;
+        }
+
+    }
+
+    /**
+     * Get user-friendly description for time-off types
+     */
+    private String getTimeOffDescription(String timeOffType) {
+        if (timeOffType == null) return "unknown";
+
+        return switch (timeOffType.toUpperCase()) {
+            case WorkCode.NATIONAL_HOLIDAY_CODE -> "National Holiday";
+            case WorkCode.TIME_OFF_CODE -> "Vacation";
+            case WorkCode.MEDICAL_LEAVE_CODE -> "Medical Leave";
+            case WorkCode.WEEKEND_CODE -> "Weekend Work";
+            default -> timeOffType;
+        };
+    }
+
+    /**
+     * Find entry by date and user ID - UTILITY METHOD
+     */
+    private Optional<WorkTimeTable> findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
+        return entries.stream()
+                .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
+                .findFirst();
+    }
+
+    /**
+     * Add or replace entry in list - UTILITY METHOD
+     */
+    private void addOrReplaceEntry(List<WorkTimeTable> entries, WorkTimeTable newEntry) {
+        entries.removeIf(entry ->
+                newEntry.getUserId().equals(entry.getUserId()) &&
+                        newEntry.getWorkDate().equals(entry.getWorkDate())
+        );
+        entries.add(newEntry);
+        entries.sort(java.util.Comparator.comparing(WorkTimeTable::getWorkDate)
+                .thenComparingInt(WorkTimeTable::getUserId));
     }
 
     @Override
     protected String getCommandName() {
-        return String.format("AddTimeOff[%s, %d dates, %s]", username, dates.size(), timeOffType);
+        return String.format("AddTimeOff[user=%s, dates=%d, type=%s]", username, dates.size(), timeOffType);
     }
 
     @Override
     protected String getOperationType() {
-        return OperationResult.OperationType.ADD_TIME_OFF;
+        return "ADD_TIME_OFF";
     }
 }

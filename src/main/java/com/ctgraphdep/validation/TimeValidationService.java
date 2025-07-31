@@ -1,5 +1,6 @@
 package com.ctgraphdep.validation;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.commands.ValidateHolidayDateCommand;
@@ -50,6 +51,144 @@ public class TimeValidationService {
     // ========================================================================
     // USER FIELD VALIDATION (from UserTimeManagementController)
     // ========================================================================
+
+    /**
+     * REFACTORED: Light validation - only basic business rules, no file checking
+     * Part 1 of 2-part filter: removes weekends, validates date ranges
+     * Part 2 happens in AddTimeOffCommand with actual file checking
+     */
+    public ValidationResult validateTimeOffRequestLight(String startDate, String endDate, String timeOffType, boolean isSingleDay) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "=== LIGHT VALIDATION START === StartDate: %s, EndDate: %s, Type: %s, SingleDay: %s",
+                    startDate, endDate, timeOffType, isSingleDay));
+
+            // 1. VALIDATE TIME OFF TYPE
+            LoggerUtil.debug(this.getClass(), "Step 1: Validating time off type...");
+            ValidationResult typeResult = validateTimeOffRequestType(timeOffType);
+            if (typeResult.isInvalid()) {
+                LoggerUtil.warn(this.getClass(), "Type validation failed: " + typeResult.getErrorMessage());
+                return typeResult;
+            }
+            LoggerUtil.debug(this.getClass(), "Step 1: Time off type validation passed");
+
+            // 2. PARSE DATES
+            LoggerUtil.debug(this.getClass(), "Step 2: Parsing dates...");
+            LocalDate start;
+            LocalDate end;
+            try {
+                start = LocalDate.parse(startDate);
+                end = isSingleDay ? start : LocalDate.parse(endDate);
+                LoggerUtil.debug(this.getClass(), String.format("Step 2: Dates parsed - start: %s, end: %s", start, end));
+            } catch (DateTimeParseException e) {
+                LoggerUtil.error(this.getClass(), "Date parsing failed: " + e.getMessage());
+                return ValidationResult.invalid("Invalid date format: " + e.getMessage());
+            }
+
+            // 3. BUSINESS RULE VALIDATION
+            LoggerUtil.debug(this.getClass(), "Step 3: Business rule validation...");
+            if (start.isAfter(end)) {
+                LoggerUtil.warn(this.getClass(), "Start date is after end date");
+                return ValidationResult.invalid("Start date cannot be after end date");
+            }
+
+            if (start.until(end).getDays() > 30) {
+                LoggerUtil.warn(this.getClass(), "Date range too large: " + start.until(end).getDays() + " days");
+                return ValidationResult.invalid("Date range too large (maximum 30 days allowed)");
+            }
+            LoggerUtil.debug(this.getClass(), "Step 3: Business rules passed");
+
+            // 4. LIGHT DATE VALIDATION - No file checking, just basic rules
+            LoggerUtil.debug(this.getClass(), "Step 4: Light date validation (weekends, past/future only)...");
+            List<LocalDate> potentialDates = new ArrayList<>();
+            List<LocalDate> rejectedWeekends = new ArrayList<>();
+            LocalDate current = start;
+
+            while (!current.isAfter(end)) {
+                LoggerUtil.debug(this.getClass(), String.format("Step 4: Checking date %s (weekday: %d)",
+                        current, current.getDayOfWeek().getValue()));
+
+                // Check basic date validity (past/future limits)
+                ValidationResult basicDateResult = validateBasicDateRules(current);
+                if (basicDateResult.isInvalid()) {
+                    LoggerUtil.warn(this.getClass(), String.format("Basic date validation failed for %s: %s",
+                            current, basicDateResult.getErrorMessage()));
+                    return ValidationResult.invalid(String.format("Date %s: %s", current, basicDateResult.getErrorMessage()));
+                }
+
+                // Handle weekends
+                if (current.getDayOfWeek().getValue() >= 6) {
+                    rejectedWeekends.add(current);
+                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Rejecting weekend %s", current));
+
+                    // For single day requests, weekend is an error
+                    if (isSingleDay) {
+                        LoggerUtil.warn(this.getClass(), String.format("Single day request on weekend %s", current));
+                        return ValidationResult.invalid(String.format("Cannot request time off on weekends. Date: %s (%s)",
+                                current, current.getDayOfWeek().toString()));
+                    }
+                    // For multi-day requests, just skip weekends
+                } else {
+                    // Weekday - add to potential dates for further processing
+                    potentialDates.add(current);
+                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Weekend/basic validation passed for %s", current));
+                }
+                current = current.plusDays(1);
+            }
+
+            if (potentialDates.isEmpty()) {
+                String message = "No valid weekdays found in the selected date range";
+                if (!rejectedWeekends.isEmpty()) {
+                    message += String.format(" (rejected %d weekends)", rejectedWeekends.size());
+                }
+                LoggerUtil.warn(this.getClass(), message);
+                return ValidationResult.invalid(message);
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("=== LIGHT VALIDATION SUCCESS === %d potential dates passed basic validation: %s",
+                    potentialDates.size(), potentialDates));
+
+            if (!rejectedWeekends.isEmpty()) {
+                LoggerUtil.info(this.getClass(), String.format("Rejected weekends: %s", rejectedWeekends));
+            }
+
+            return ValidationResult.valid();
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Light time off request validation error: " + e.getMessage(), e);
+            return ValidationResult.invalid("Validation failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * NEW: Basic date rules validation - past/future limits only
+     */
+    private ValidationResult validateBasicDateRules(LocalDate date) {
+        try {
+            // Get current date using standard time
+            var getTimeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            var timeValues = execute(getTimeCommand);
+            LocalDate today = timeValues.getCurrentDate();
+
+            // 1. Check if date is too far in the past (allow up to 7 days back)
+            LocalDate earliestAllowed = today.minusDays(7);
+            if (date.isBefore(earliestAllowed)) {
+                return ValidationResult.invalid(String.format("Cannot request time off for dates more than 7 days in the past. Date: %s", date));
+            }
+
+            // 2. Check if date is too far in the future (6 months limit)
+            LocalDate latestAllowed = today.plusMonths(6);
+            if (date.isAfter(latestAllowed)) {
+                return ValidationResult.invalid(String.format("Cannot request time off more than 6 months in advance. Date: %s (max: %s)", date, latestAllowed));
+            }
+
+            return ValidationResult.valid();
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error in basic date validation for %s: %s", date, e.getMessage()));
+            return ValidationResult.invalid("Date validation failed: " + e.getMessage());
+        }
+    }
 
     /**
      * COMPREHENSIVE validation for user field updates.
@@ -115,7 +254,7 @@ public class TimeValidationService {
             String timeOffType = value.trim().toUpperCase();
 
             // 1. VALIDATE TIME OFF TYPE
-            if (!"CO".equals(timeOffType) && !"CM".equals(timeOffType)) {
+            if (!WorkCode.TIME_OFF_CODE.equals(timeOffType) && !WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType)) {
                 return ValidationResult.invalid("Users can only add CO (vacation) or CM (medical) time off");
             }
 
@@ -140,52 +279,78 @@ public class TimeValidationService {
      */
     public ValidationResult validateTimeOffRequest(String startDate, String endDate, String timeOffType, boolean isSingleDay) {
         try {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "=== VALIDATION START === StartDate: %s, EndDate: %s, Type: %s, SingleDay: %s",
+                    startDate, endDate, timeOffType, isSingleDay));
+
             // 1. VALIDATE TIME OFF TYPE
+            LoggerUtil.debug(this.getClass(), "Step 1: Validating time off type...");
             ValidationResult typeResult = validateTimeOffRequestType(timeOffType);
             if (typeResult.isInvalid()) {
+                LoggerUtil.warn(this.getClass(), "Type validation failed: " + typeResult.getErrorMessage());
                 return typeResult;
             }
+            LoggerUtil.debug(this.getClass(), "Step 1: Time off type validation passed");
 
             // 2. PARSE DATES
+            LoggerUtil.debug(this.getClass(), "Step 2: Parsing dates...");
             LocalDate start;
             LocalDate end;
             try {
                 start = LocalDate.parse(startDate);
                 end = isSingleDay ? start : LocalDate.parse(endDate);
+                LoggerUtil.debug(this.getClass(), String.format("Step 2: Dates parsed - start: %s, end: %s", start, end));
             } catch (DateTimeParseException e) {
+                LoggerUtil.error(this.getClass(), "Date parsing failed: " + e.getMessage());
                 return ValidationResult.invalid("Invalid date format: " + e.getMessage());
             }
 
             // 3. BUSINESS RULE VALIDATION
+            LoggerUtil.debug(this.getClass(), "Step 3: Business rule validation...");
             if (start.isAfter(end)) {
+                LoggerUtil.warn(this.getClass(), "Start date is after end date");
                 return ValidationResult.invalid("Start date cannot be after end date");
             }
 
             if (start.until(end).getDays() > 30) {
+                LoggerUtil.warn(this.getClass(), "Date range too large: " + start.until(end).getDays() + " days");
                 return ValidationResult.invalid("Date range too large (maximum 30 days allowed)");
             }
+            LoggerUtil.debug(this.getClass(), "Step 3: Business rules passed");
 
             // 4. VALIDATE INDIVIDUAL DATES
+            LoggerUtil.debug(this.getClass(), "Step 4: Validating individual dates...");
             List<LocalDate> validDates = new ArrayList<>();
             LocalDate current = start;
 
             while (!current.isAfter(end)) {
+                LoggerUtil.debug(this.getClass(), String.format("Step 4: Checking date %s (weekday: %d)",
+                        current, current.getDayOfWeek().getValue()));
+
                 // Skip weekends
                 if (current.getDayOfWeek().getValue() < 6) {
+                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Validating weekday %s", current));
                     ValidationResult dateResult = validateTimeOffRequestDate(current);
                     if (dateResult.isInvalid()) {
+                        LoggerUtil.warn(this.getClass(), String.format("Date validation failed for %s: %s",
+                                current, dateResult.getErrorMessage()));
                         return ValidationResult.invalid(String.format("Date %s: %s", current, dateResult.getErrorMessage()));
                     }
                     validDates.add(current);
+                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Date %s validated successfully", current));
+                } else {
+                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Skipping weekend %s", current));
                 }
                 current = current.plusDays(1);
             }
 
             if (validDates.isEmpty()) {
+                LoggerUtil.warn(this.getClass(), "No valid weekdays found in date range");
                 return ValidationResult.invalid("No valid weekdays found in the selected date range");
             }
 
-            LoggerUtil.debug(this.getClass(), String.format("Time off request validated: %d dates", validDates.size()));
+            LoggerUtil.info(this.getClass(), String.format("=== VALIDATION SUCCESS === %d valid dates found: %s",
+                    validDates.size(), validDates));
             return ValidationResult.valid();
 
         } catch (Exception e) {
@@ -219,8 +384,8 @@ public class TimeValidationService {
     // ========================================================================
 
     /**
-     * Admin-specific worktime update validation (more permissive than user validation)
-     * Moved from AdminWorkTimeController.validateAdminWorktimeUpdate()
+     * FIXED: Admin-specific worktime update validation with support for all special day work formats
+     * Now supports: SN:5, CO:6, CM:4, W:8 (previously only SN:5 worked)
      */
     public ValidationResult validateAdminWorktimeUpdate(LocalDate date, String value) {
         try {
@@ -243,15 +408,16 @@ public class TimeValidationService {
 
             String trimmedValue = value.trim().toUpperCase();
 
-            // 3. VALUE TYPE VALIDATION
-            if (trimmedValue.startsWith("SN:")) {
-                return validateSNWorkTimeFormat(trimmedValue);
+            // 3. ENHANCED VALUE TYPE VALIDATION - Now supports all special day work formats
+            if (isSpecialDayWorkFormat(trimmedValue)) {
+                // FIXED: Handle all special day work formats (SN:5, CO:6, CM:4, W:8)
+                return validateSpecialDayWorkFormat(trimmedValue);
             } else if (trimmedValue.matches("^\\d+$")) {
                 return validateWorkHoursRange(trimmedValue);
-            } else if (trimmedValue.matches("^(CO|CM|SN|REMOVE)$")) {
+            } else if (trimmedValue.matches("^(CO|CM|SN|REMOVE|BLANK)$")) {
                 return validateTimeOffOrRemove(trimmedValue);
             } else {
-                return ValidationResult.invalid("Invalid value format. Use: hours (8), time off (CO/CM/SN), SN work (SN:7.5), or REMOVE");
+                return ValidationResult.invalid("Invalid value format. Use: hours (8), time off (CO/CM/SN), special day work (SN:7.5, CO:6, CM:4, W:8), BLANK, or REMOVE");
             }
 
         } catch (Exception e) {
@@ -261,25 +427,43 @@ public class TimeValidationService {
     }
 
     /**
-     * Validate SN work time format (admin only)
-     * Moved from AdminWorkTimeController.validateSNWorkTime()
+     * NEW: Check if value matches special day work format for any type
+     * Supports: SN:5, CO:6, CM:4, W:8
      */
-    public ValidationResult validateSNWorkTimeFormat(String value) {
+    private boolean isSpecialDayWorkFormat(String value) {
+        return value.matches("^(SN|CO|CM|W):\\d+(\\.\\d+)?$");
+    }
+
+    /**
+     * NEW: Unified validation for all special day work formats
+     * Replaces validateSNWorkTimeFormat() with comprehensive validation for all types
+     */
+    private ValidationResult validateSpecialDayWorkFormat(String value) {
+        LoggerUtil.debug(this.getClass(), String.format("Validating special day work format: %s", value));
+
         String[] parts = value.split(":");
-        if (parts.length != 2 || !parts[0].equals("SN")) {
-            return ValidationResult.invalid("Invalid SN format. Use SN:hours (e.g., SN:7.5)");
+        if (parts.length != 2) {
+            return ValidationResult.invalid("Invalid special day work format. Use TYPE:hours (e.g., SN:7.5, CO:6, CM:4, W:8)");
+        }
+
+        String type = parts[0];
+        if (!type.matches("^(SN|CO|CM|W)$")) {
+            return ValidationResult.invalid("Invalid special day type. Use SN (National Holiday), CO (Time Off), CM (Medical Leave), or W (Weekend)");
         }
 
         try {
             double hours = Double.parseDouble(parts[1]);
             if (hours < 0.5 || hours > 24) {
-                return ValidationResult.invalid("SN work hours must be between 0.5 and 24");
+                return ValidationResult.invalid(String.format("%s work hours must be between 0.5 and 24 (input: %.1f)", type, hours));
             }
-        } catch (NumberFormatException e) {
-            return ValidationResult.invalid("Invalid hours format. Use decimal numbers (e.g., SN:7.5)");
-        }
 
-        return ValidationResult.valid();
+            // Log successful validation
+            LoggerUtil.debug(this.getClass(), String.format("Special day work format validated: %s = %.1f hours", type, hours));
+            return ValidationResult.valid();
+
+        } catch (NumberFormatException e) {
+            return ValidationResult.invalid(String.format("Invalid hours format for %s. Use decimal numbers (e.g., %s:7.5)", type, type));
+        }
     }
 
     /**
@@ -334,11 +518,11 @@ public class TimeValidationService {
     // ========================================================================
 
     /**
-     * Validate time off or remove operation (admin)
+     * UPDATED: Validate time off or remove operation (admin) - Added BLANK support
      */
     private ValidationResult validateTimeOffOrRemove(String value) {
-        if (!"CO".equals(value) && !"CM".equals(value) && !"SN".equals(value) && !"REMOVE".equals(value)) {
-            return ValidationResult.invalid("Invalid operation. Use CO, CM, SN, or REMOVE");
+        if (!WorkCode.TIME_OFF_CODE.equals(value) && !WorkCode.MEDICAL_LEAVE_CODE.equals(value) && !WorkCode.NATIONAL_HOLIDAY_CODE.equals(value) && !"REMOVE".equals(value) && !"BLANK".equals(value)) {
+            return ValidationResult.invalid("Invalid operation. Use CO, CM, SN, BLANK, or REMOVE");
         }
         return ValidationResult.valid();
     }
@@ -352,7 +536,7 @@ public class TimeValidationService {
             return ValidationResult.invalid("Time off type is required");
         }
 
-        if (!"CO".equals(timeOffType) && !"CM".equals(timeOffType)) {
+        if (!WorkCode.TIME_OFF_CODE.equals(timeOffType) && !WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType)) {
             return ValidationResult.invalid("Invalid time off type. Users can only request CO (vacation) or CM (medical)");
         }
 
@@ -365,29 +549,49 @@ public class TimeValidationService {
      */
     private ValidationResult validateTimeOffRequestDate(LocalDate date) {
         try {
+            LoggerUtil.debug(this.getClass(), String.format("Validating individual date: %s", date));
+
             // Use existing date validation command
+            LoggerUtil.debug(this.getClass(), String.format("Creating ValidateUserEditDateCommand for %s", date));
             ValidateUserEditDateCommand command = validationFactory.createValidateUserEditDateCommand(date, "timeOff", null, false);
+
+            LoggerUtil.debug(this.getClass(), "Executing ValidateUserEditDateCommand...");
             ValidateUserEditDateCommand.ValidationResult result = execute(command);
 
+            LoggerUtil.debug(this.getClass(), String.format("ValidateUserEditDateCommand result: valid=%s, reason=%s",
+                    result.isValid(), result.getReason()));
+
             if (result.isInvalid()) {
+                LoggerUtil.warn(this.getClass(), String.format("Date command validation failed for %s: %s",
+                        date, result.getReason()));
                 return ValidationResult.invalid(result.getReason());
             }
 
             // Weekend validation using existing command
+            LoggerUtil.debug(this.getClass(), String.format("Checking weekend for %s (weekday: %d)",
+                    date, date.getDayOfWeek().getValue()));
+
             if (date.getDayOfWeek().getValue() >= 6) {
+                LoggerUtil.debug(this.getClass(), String.format("Date %s is weekend, checking holiday validation", date));
                 ValidateHolidayDateCommand holidayCommand = validationFactory.createValidateHolidayDateCommand(date);
                 try {
                     execute(holidayCommand);
+                    LoggerUtil.debug(this.getClass(), String.format("Holiday command passed for weekend %s", date));
                 } catch (IllegalArgumentException e) {
                     if (e.getMessage().contains("weekends")) {
+                        LoggerUtil.warn(this.getClass(), String.format("Weekend validation failed for %s", date));
                         return ValidationResult.invalid("Cannot request time off on weekends");
                     }
+                    LoggerUtil.warn(this.getClass(), String.format("Holiday validation failed for %s: %s", date, e.getMessage()));
+                    throw e; // Re-throw if not weekend-related
                 }
             }
 
+            LoggerUtil.debug(this.getClass(), String.format("Individual date validation passed for %s", date));
             return ValidationResult.valid();
 
         } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error validating date %s: %s", date, e.getMessage()), e);
             return ValidationResult.invalid("Date validation failed: " + e.getMessage());
         }
     }

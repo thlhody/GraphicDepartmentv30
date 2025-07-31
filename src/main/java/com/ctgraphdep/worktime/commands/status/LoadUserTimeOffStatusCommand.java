@@ -1,5 +1,7 @@
+
 package com.ctgraphdep.worktime.commands.status;
 
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.TimeOffRequest;
 import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.User;
@@ -7,6 +9,8 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.TimeOffSummaryDTO;
 import com.ctgraphdep.worktime.commands.WorktimeOperationCommand;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
+import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
+import com.ctgraphdep.worktime.accessor.NetworkOnlyAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -19,11 +23,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * COMPLETED: Command to load time off data for status display (read-only).
- * Implements local → network → empty fallback strategy.
- * Handles both own data (local files) and other user data (network files).
- * Used by StatusController for cross-user time off viewing.
- * Returns both summary and detailed time off entries.
+ * REFACTORED: Command to load time off data for status display using accessor pattern.
+ * Always uses NetworkOnlyAccessor for consistent cross-user viewing.
+ * Used by StatusController for time off status viewing.
  */
 public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadUserTimeOffStatusCommand.TimeOffStatusData> {
     private final String targetUsername;
@@ -57,22 +59,27 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
     @Override
     protected OperationResult executeCommand() {
         LoggerUtil.info(this.getClass(), String.format(
-                "Loading time off status for %s - %d", targetUsername, year));
+                "Loading time off status for %s - %d using NetworkOnlyAccessor", targetUsername, year));
 
         try {
-            // Determine current user context (respects admin elevation)
-            String currentUsername = context.getCurrentUsername();
-            boolean isViewingOwnData = targetUsername.equals(currentUsername);
+            // FIXED: Always use NetworkOnlyAccessor for status viewing
+            WorktimeDataAccessor accessor = new NetworkOnlyAccessor(
+                    context.getWorktimeDataService(),
+                    context.getRegisterDataService(),
+                    context.getCheckRegisterDataService(),
+                    context.getTimeOffDataService()
+            );
 
-            TimeOffTracker tracker = loadTimeOffTracker(isViewingOwnData);
+            // Load time off tracker using accessor
+            TimeOffTracker tracker = accessor.readTimeOffTracker(targetUsername, targetUserId, year);
 
             // Handle null tracker
             if (tracker == null) {
                 tracker = createEmptyTracker(targetUsername, targetUserId, year);
             }
 
-            // Convert tracker to display data
-            TimeOffStatusData statusData = convertTrackerToStatusData(tracker, targetUserId);
+            // Convert tracker to status data
+            TimeOffStatusData statusData = convertTrackerToStatusData(tracker);
 
             String message = String.format("Loaded time off data for %s - %d: %d requests",
                     targetUsername, year,
@@ -88,77 +95,12 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
 
             // Return empty data on error
             TimeOffTracker emptyTracker = createEmptyTracker(targetUsername, targetUserId, year);
-            TimeOffStatusData emptyData = convertTrackerToStatusData(emptyTracker, targetUserId);
+            TimeOffStatusData emptyData = convertTrackerToStatusData(emptyTracker);
 
             return OperationResult.successWithSideEffects(
                     String.format("No time off data available for %s - %d", targetUsername, year),
                     getOperationType(), emptyData, null);
         }
-    }
-
-    /**
-     * IMPLEMENTED: Load time off tracker with fallback strategy: local → network → empty
-     */
-    private TimeOffTracker loadTimeOffTracker(boolean isViewingOwnData) {
-        if (isViewingOwnData) {
-            // Own data: try local first, then network fallback
-            try {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Attempting to load local time off tracker for %s - %d", targetUsername, year));
-
-                TimeOffTracker localTracker = context.loadTimeOffTrackerFromLocal(targetUsername, targetUserId, year);
-                if (localTracker != null && localTracker.getRequests() != null) {
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Successfully loaded local time off tracker for %s with %d requests",
-                            targetUsername, localTracker.getRequests().size()));
-                    return localTracker;
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Local time off tracker failed for %s - %d: %s, trying network...",
-                        targetUsername, year, e.getMessage()));
-            }
-
-            // Local failed, try network fallback
-            try {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Attempting network fallback for time off tracker: %s - %d", targetUsername, year));
-
-                TimeOffTracker networkTracker = context.loadTimeOffTrackerFromNetwork(targetUsername, targetUserId, year);
-                if (networkTracker != null && networkTracker.getRequests() != null) {
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Successfully loaded network time off tracker for %s with %d requests",
-                            targetUsername, networkTracker.getRequests().size()));
-                    return networkTracker;
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Network time off tracker failed for %s - %d: %s, will return empty",
-                        targetUsername, year, e.getMessage()));
-            }
-        } else {
-            // Other user data: network only
-            try {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Loading network time off tracker for other user %s - %d", targetUsername, year));
-
-                TimeOffTracker networkTracker = context.loadTimeOffTrackerFromNetwork(targetUsername, targetUserId, year);
-                if (networkTracker != null && networkTracker.getRequests() != null) {
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Successfully loaded network time off tracker for %s with %d requests",
-                            targetUsername, networkTracker.getRequests().size()));
-                    return networkTracker;
-                }
-            } catch (Exception e) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Network time off tracker failed for %s - %d: %s, will return empty",
-                        targetUsername, year, e.getMessage()));
-            }
-        }
-
-        LoggerUtil.debug(this.getClass(), String.format(
-                "No time off tracker available for %s - %d, returning null", targetUsername, year));
-        return null;
     }
 
     /**
@@ -176,15 +118,15 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
     /**
      * Convert TimeOffTracker to status display data
      */
-    private TimeOffStatusData convertTrackerToStatusData(TimeOffTracker tracker, Integer userId) {
+    private TimeOffStatusData convertTrackerToStatusData(TimeOffTracker tracker) {
         // Calculate summary
         TimeOffSummaryDTO summary = calculateSummaryFromTracker(tracker);
 
         // Get approved time off entries as WorkTimeTable for display compatibility
-        List<WorkTimeTable> approvedEntries = getApprovedEntriesFromTracker(tracker, userId);
+        List<WorkTimeTable> approvedEntries = getApprovedEntriesFromTracker(tracker, targetUserId);
 
         // Get upcoming time off
-        List<WorkTimeTable> upcomingEntries = getUpcomingEntriesFromTracker(tracker, userId);
+        List<WorkTimeTable> upcomingEntries = getUpcomingEntriesFromTracker(tracker, targetUserId);
 
         return new TimeOffStatusData(tracker, summary, approvedEntries, upcomingEntries);
     }
@@ -209,10 +151,10 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
             }
         }
 
-        // ✅ FIXED: Get holiday balance from user cache, NOT from tracker
+        // FIXED: Get holiday balance from user cache, NOT from tracker
         int availablePaidDays = getHolidayBalanceFromUserCache(targetUsername);
         int paidDaysTaken = coDays; // CO days are paid vacation days
-        int remainingPaidDays = Math.max(0, availablePaidDays);
+        int remainingPaidDays = Math.max(0, availablePaidDays - paidDaysTaken);
 
         LoggerUtil.debug(this.getClass(), String.format(
                 "Summary calculation for %s: availablePaidDays=%d (from user cache), paidDaysTaken=%d, remainingPaidDays=%d",
@@ -223,8 +165,8 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
                 .cmDays(cmDays)
                 .snDays(snDays)
                 .paidDaysTaken(paidDaysTaken)
-                .remainingPaidDays(remainingPaidDays)  // ✅ FIXED: From user cache
-                .availablePaidDays(availablePaidDays)  // ✅ FIXED: From user cache
+                .remainingPaidDays(remainingPaidDays)
+                .availablePaidDays(availablePaidDays)
                 .build();
     }
 
@@ -305,7 +247,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
         entry.setUserId(userId);
         entry.setWorkDate(request.getDate());
         entry.setTimeOffType(request.getTimeOffType());
-        entry.setAdminSync(com.ctgraphdep.enums.SyncStatusMerge.USER_INPUT);
+        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
 
         // Clear work-related fields for time off
         entry.setDayStartTime(null);

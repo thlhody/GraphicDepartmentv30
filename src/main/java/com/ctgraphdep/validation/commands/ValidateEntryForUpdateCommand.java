@@ -2,7 +2,6 @@ package com.ctgraphdep.validation.commands;
 
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.validation.TimeProvider;
-import com.ctgraphdep.validation.TimeValidationCommand;
 
 /**
  * Validates that a WorkTimeTable entry is valid for update operations

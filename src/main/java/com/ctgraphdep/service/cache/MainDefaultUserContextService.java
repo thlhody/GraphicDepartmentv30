@@ -281,8 +281,8 @@ public class MainDefaultUserContextService {
      * NEW: Get original user (ignoring elevation)
      * This is for background processes that should always use the original user
      */
-    public void getOriginalUser() {
-        mainDefaultUserContextCache.getOriginalUser();
+    public User getOriginalUser() {
+        return mainDefaultUserContextCache.getOriginalUser();
     }
 
     // ========================================================================

@@ -12,8 +12,10 @@ import com.ctgraphdep.model.LocalStatusCache;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusInfo;
 import com.ctgraphdep.model.dto.UserStatusDTO;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -43,6 +45,9 @@ public class AllUsersCacheService {
     private final UserDataService userDataService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
     private volatile boolean isInitialStartup = true;
+    @Getter
+    private volatile boolean isRefreshing = false;
+
 
     // Thread-safe cache - username as key
     private final ConcurrentHashMap<String, AllUsersCacheEntry> statusCache = new ConcurrentHashMap<>();
@@ -424,6 +429,17 @@ public class AllUsersCacheService {
      * @return List of UserStatusDTO for display
      */
     public List<UserStatusDTO> getAllUserStatuses() {
+
+        if (isRefreshing) {
+            try {
+                LoggerUtil.info(this.getClass(), "Cache refreshing - loading from local_status.json for immediate display");
+                return loadUserStatusesFromLocalFile();
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), "Failed to load from local file, returning empty list: " + e.getMessage());
+                return new ArrayList<>();
+            }
+        }
+
         globalLock.readLock().lock();
         try {
             List<UserStatusDTO> result = new ArrayList<>();
@@ -454,6 +470,43 @@ public class AllUsersCacheService {
         }
     }
 
+    private List<UserStatusDTO> loadUserStatusesFromLocalFile() {
+        try {
+            LocalStatusCache savedCache = sessionDataService.readLocalStatusCache();
+
+            if (savedCache != null && savedCache.getUserStatuses() != null) {
+                List<UserStatusDTO> result = new ArrayList<>();
+
+                for (UserStatusInfo statusInfo : savedCache.getUserStatuses().values()) {
+                    if (statusInfo != null && !isAdminUserByRole(statusInfo.getRole())) {
+                        UserStatusDTO dto = convertStatusInfoToDTO(statusInfo);
+                        if (dto != null) {
+                            result.add(dto);
+                        }
+                    }
+                }
+
+                // Apply same sorting as normal cache
+                result.sort(Comparator.comparing((UserStatusDTO dto) -> {
+                            if (WorkCode.WORK_ONLINE.equals(dto.getStatus())) return 1;
+                            if (WorkCode.WORK_TEMPORARY_STOP.equals(dto.getStatus())) return 2;
+                            return 3;
+                        })
+                        .thenComparing(UserStatusDTO::getName, String.CASE_INSENSITIVE_ORDER));
+
+                LoggerUtil.info(this.getClass(), "Loaded " + result.size() + " user statuses from local file");
+                return result;
+            }
+
+            LoggerUtil.info(this.getClass(), "No local status data available, returning empty list");
+            return new ArrayList<>();
+
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), "Error loading user statuses from local file: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
     // ========================================================================
     // CACHE REFRESH METHODS (CHANGED TO USE UserDataService)
     // ========================================================================
@@ -463,52 +516,59 @@ public class AllUsersCacheService {
      * Refreshes user information like names, roles, and additional user data
      */
     public void refreshAllUsersFromUserDataServiceWithCompleteData() {
-        globalLock.writeLock().lock();
         try {
-            LoggerUtil.info(this.getClass(), "Refreshing all users from UserDataService with complete data");
+            isRefreshing = true;
+            LoggerUtil.info(this.getClass(), "Started network refresh - dashboards will use local data");
 
-            // CHANGED: Get all non-admin users with complete data from UserDataService
-            List<User> allUsers = userDataService.readAllUsersForCachePopulation();
-            // Get set of valid usernames for cleanup
-            Set<String> validUsernames = allUsers.stream()
-                    .map(User::getUsername)
-                    .collect(Collectors.toSet());
+            // Your existing refresh logic here...
+            globalLock.writeLock().lock();
+            try {
+                LoggerUtil.info(this.getClass(), "Refreshing all users from UserDataService with complete data");
 
-            // Only remove users that no longer exist (keep admin users)
-            Set<String> usernamesToRemove = new HashSet<>();
-            for (String username : statusCache.keySet()) {
-                if (!validUsernames.contains(username)) {
-                    usernamesToRemove.add(username);
+                List<User> allUsers = userDataService.readAllUsersForCachePopulation();
+                Set<String> validUsernames = allUsers.stream()
+                        .map(User::getUsername)
+                        .collect(Collectors.toSet());
+
+                Set<String> usernamesToRemove = new HashSet<>();
+                for (String username : statusCache.keySet()) {
+                    if (!validUsernames.contains(username)) {
+                        usernamesToRemove.add(username);
+                    }
                 }
-            }
 
-            // Remove only non-existent users
-            for (String username : usernamesToRemove) {
-                statusCache.remove(username);
-                LoggerUtil.info(this.getClass(), "Removed non-existent user from status cache: " + username);
-            }
-
-            // Update/create cache entries for valid users with complete data
-            for (User user : allUsers) {
-                AllUsersCacheEntry cacheEntry = statusCache.computeIfAbsent(user.getUsername(), k -> new AllUsersCacheEntry());
-
-                if (!cacheEntry.isValid()) {
-                    // Initialize new entry with complete user data
-                    cacheEntry.initializeFromCompleteUser(user, WorkCode.WORK_OFFLINE);
-                } else {
-                    // Update existing entry with new user data
-                    cacheEntry.updateFromUser(user);
+                for (String username : usernamesToRemove) {
+                    statusCache.remove(username);
+                    LoggerUtil.info(this.getClass(), "Removed non-existent user from status cache: " + username);
                 }
+
+                for (User user : allUsers) {
+                    AllUsersCacheEntry cacheEntry = statusCache.computeIfAbsent(user.getUsername(), k -> new AllUsersCacheEntry());
+
+                    if (!cacheEntry.isValid()) {
+                        cacheEntry.initializeFromCompleteUser(user, WorkCode.WORK_OFFLINE);
+                    } else {
+                        cacheEntry.updateFromUser(user);
+                    }
+                }
+
+                LoggerUtil.info(this.getClass(), "Refreshed complete information for " + allUsers.size() +
+                        " users and removed " + usernamesToRemove.size() + " invalid users");
+
+            } finally {
+                globalLock.writeLock().unlock();
             }
 
-            LoggerUtil.info(this.getClass(), "Refreshed complete information for " + allUsers.size() +
-                    " users and removed " + usernamesToRemove.size() + " invalid users");
+            LoggerUtil.info(this.getClass(), "Network refresh completed - dashboards can now show fresh data");
 
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during cache refresh: " + e.getMessage(), e);
+            throw e;
         } finally {
-            globalLock.writeLock().unlock();
+            isRefreshing = false;
+            LoggerUtil.info(this.getClass(), "Cache refresh completed - isRefreshing = false");
         }
     }
-
     /**
      * CHANGED: Create empty cache from UserDataService data with complete user information
      */
@@ -706,6 +766,34 @@ public class AllUsersCacheService {
     }
 
     // === HELPER METHODS ===
+
+    // ADD helper method to convert UserStatusInfo to UserStatusDTO
+    private UserStatusDTO convertStatusInfoToDTO(UserStatusInfo statusInfo) {
+        return UserStatusDTO.builder()
+                .username(statusInfo.getUsername())
+                .userId(statusInfo.getUserId())
+                .name(statusInfo.getName())
+                .status(statusInfo.getStatus())
+                .lastActive(CalculateWorkHoursUtil.formatDateTime(statusInfo.getLastActive()))
+                .role(statusInfo.getRole())
+                .build();
+    }
+
+    // ADD helper to check admin by role string
+    private boolean isAdminUserByRole(String role) {
+        return role != null &&
+                (role.equals(SecurityConstants.SPRING_ROLE_ADMIN));
+    }
+
+    public String getRefreshStatus() {
+        if (isRefreshing) {
+            return "REFRESHING";
+        } else if (hasUserData()) {
+            return "READY";
+        } else {
+            return "EMPTY";
+        }
+    }
 
     /**
      * Populate cache from local_status.json file data

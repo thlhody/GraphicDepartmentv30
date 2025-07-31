@@ -1,7 +1,6 @@
 package com.ctgraphdep.validation.commands;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.validation.TimeProvider;
 
@@ -37,10 +36,12 @@ public class IsNationalHolidayCommand extends BaseTimeValidationCommand<Boolean>
                 return false;
             }
 
+//            boolean isHoliday = entries.stream().anyMatch(entry ->
+//                    entry.getWorkDate().equals(date) && WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType()) &&
+//                            WorktimeUniversalStatus.ADMIN_INPUT.equals(entry.getAdminSync()));
+
             boolean isHoliday = entries.stream().anyMatch(entry ->
-                    entry.getWorkDate().equals(date) &&
-                            WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType()) &&
-                            SyncStatusMerge.ADMIN_EDITED.equals(entry.getAdminSync()));
+                    entry.getWorkDate().equals(date) && WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType()));
 
             debug("Checked national holiday for " + date + ": " + isHoliday);
             return isHoliday;

@@ -18,9 +18,7 @@ public class IsActiveSessionCommand extends BaseTimeValidationCommand<Boolean> {
     @Override
     public Boolean execute() {
         return executeValidationWithDefault(() -> {
-            boolean isActive = session != null &&
-                    (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
-                            WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
+            boolean isActive = session != null && (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
 
             debug("Checked if session is active: " + isActive);
             return isActive;

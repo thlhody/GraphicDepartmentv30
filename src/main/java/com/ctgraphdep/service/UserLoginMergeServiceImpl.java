@@ -1,7 +1,6 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.SecurityConstants;
-import com.ctgraphdep.model.User;
 import com.ctgraphdep.monitoring.NetworkStatusMonitor;
 import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
 import com.ctgraphdep.worktime.service.WorktimeLoginMergeService;
@@ -71,11 +70,9 @@ public class UserLoginMergeServiceImpl implements UserLoginMergeService, Applica
                 return CompletableFuture.completedFuture(null);
             }
             // NEW: Load check values for checking roles
-            if (role.equals(SecurityConstants.ROLE_TL_CHECKING) ||
-                    role.equals(SecurityConstants.ROLE_CHECKING) ||
-                    role.equals(SecurityConstants.ROLE_USER_CHECKING)) {
+            if (role.equals(SecurityConstants.ROLE_TL_CHECKING) || role.equals(SecurityConstants.ROLE_CHECKING) || role.equals(SecurityConstants.ROLE_USER_CHECKING)) {
 
-               // performCheckValuesLoading(username);
+               performCheckValuesLoading(username);
             }
 
             // Execute role-based merges
@@ -228,6 +225,12 @@ public class UserLoginMergeServiceImpl implements UserLoginMergeService, Applica
                     "Worktime merge failed for %s: %s - continuing", username, e.getMessage()));
             // Don't throw - worktime merge failure shouldn't block other operations
         }
+    }
+
+    private void performCheckValuesLoading(String username){
+        //TODO need to add or check where this is happening
+        LoggerUtil.info(this.getClass(),"Username: "+ username);
+
     }
 
     // ========================================================================

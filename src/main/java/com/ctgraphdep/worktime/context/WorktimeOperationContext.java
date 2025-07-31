@@ -1,148 +1,194 @@
 package com.ctgraphdep.worktime.context;
 
-import com.ctgraphdep.fileOperations.data.CheckRegisterDataService;
-import com.ctgraphdep.fileOperations.data.RegisterDataService;
-import com.ctgraphdep.fileOperations.data.SessionDataService;
-import com.ctgraphdep.fileOperations.data.TimeOffDataService;
-import com.ctgraphdep.fileOperations.data.UserDataService;
-import com.ctgraphdep.fileOperations.data.WorktimeDataService;
-import com.ctgraphdep.model.RegisterCheckEntry;
-import com.ctgraphdep.model.RegisterEntry;
-import com.ctgraphdep.model.TimeOffTracker;
-import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.config.SecurityConstants;
+import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.fileOperations.data.*;
+import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.TeamMemberDTO;
-import com.ctgraphdep.service.cache.MainDefaultUserContextCache;
+import com.ctgraphdep.service.cache.*;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.UserRegisterService;
-import com.ctgraphdep.service.cache.AllUsersCacheService;
-import com.ctgraphdep.service.cache.TimeOffCacheService;
 import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.worktime.accessor.*;
 import lombok.Getter;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 /**
- * ENHANCED Context providing unified access to all services needed for worktime operations.
- * NEW ADDITIONS for Team Operations:
- * - UserRegisterService for register operations
- * - SessionDataService for session operations
- * - Team-specific helper methods
+ * Refactored WorktimeOperationContext - Clean architecture with accessor pattern.
+ * Key Responsibilities:
+ * 1. Data Accessor Factory - Primary interface for data access
+ * 2. User Context Management - Authentication and authorization
+ * 3. Cache Management - Unified cache operations
+ * 4. Validation Services - Security and business rule validation
  */
 @Component
 public class WorktimeOperationContext {
 
-    private final WorktimeDataService worktimeDataService;
-    private final MainDefaultUserContextCache mainDefaultUserContextCache;
-    private final TimeOffDataService timeOffDataService;
-    private final TimeOffCacheService timeOffCacheService;
-    private final UserService userService;
+    // ========================================================================
+    // CORE SERVICES - Essential dependencies
+    // ========================================================================
     @Getter
     private final TimeValidationService timeValidationService;
-
-    // NEW: Additional services for holiday management
-    private final UserDataService userDataService;
+    private final MainDefaultUserContextCache mainDefaultUserContextCache;
+    private final UserService userService;
     private final AllUsersCacheService allUsersCacheService;
 
-    // NEW: Additional services for status commands
+    /**
+     * -- GETTER --
+     *  Get WorktimeDataService for accessor creation
+     */
+    // Data Services
+    @Getter
+    private final WorktimeDataService worktimeDataService;
+    /**
+     * -- GETTER --
+     *  Get TimeOffDataService for accessor creation
+     */
+    @Getter
+    private final TimeOffDataService timeOffDataService;
+    /**
+     * -- GETTER --
+     *  Get RegisterDataService for accessor creation
+     */
+    @Getter
     private final RegisterDataService registerDataService;
+    /**
+     * -- GETTER --
+     *  Get CheckRegisterDataService for accessor creation
+     */
+    @Getter
     private final CheckRegisterDataService checkRegisterDataService;
-
-    // NEW: Additional services for team operations
-    private final UserRegisterService userRegisterService;
+    private final UserDataService userDataService;
     private final SessionDataService sessionDataService;
+    private final UserRegisterService userRegisterService;
 
+    // Cache Services
+    private final WorktimeCacheService worktimeCacheService;
+    private final TimeOffCacheService timeOffCacheService;
+    private final RegisterCacheService registerCacheService;
+    private final RegisterCheckCacheService registerCheckCacheService;
+
+    // ========================================================================
+    // CONSTRUCTOR
+    // ========================================================================
     public WorktimeOperationContext(
-            WorktimeDataService worktimeDataService,
-            MainDefaultUserContextCache mainDefaultUserContextCache,
-            TimeOffDataService timeOffDataService,
-            TimeOffCacheService timeOffCacheService,
-            UserService userService,
+            // Core services
             TimeValidationService timeValidationService,
-            UserDataService userDataService,
+            MainDefaultUserContextCache mainDefaultUserContextCache,
+            UserService userService,
             AllUsersCacheService allUsersCacheService,
+
+            // Data services
+            WorktimeDataService worktimeDataService,
+            TimeOffDataService timeOffDataService,
             RegisterDataService registerDataService,
             CheckRegisterDataService checkRegisterDataService,
+            UserDataService userDataService,
+            SessionDataService sessionDataService,
             UserRegisterService userRegisterService,
-            SessionDataService sessionDataService) {
-        this.worktimeDataService = worktimeDataService;
-        this.mainDefaultUserContextCache = mainDefaultUserContextCache;
-        this.timeOffDataService = timeOffDataService;
-        this.timeOffCacheService = timeOffCacheService;
-        this.userService = userService;
+
+            // Cache services
+            WorktimeCacheService worktimeCacheService,
+            TimeOffCacheService timeOffCacheService,
+            RegisterCacheService registerCacheService,
+            RegisterCheckCacheService registerCheckCacheService) {
+
         this.timeValidationService = timeValidationService;
-        this.userDataService = userDataService;
+        this.mainDefaultUserContextCache = mainDefaultUserContextCache;
+        this.userService = userService;
         this.allUsersCacheService = allUsersCacheService;
+
+        this.worktimeDataService = worktimeDataService;
+        this.timeOffDataService = timeOffDataService;
         this.registerDataService = registerDataService;
         this.checkRegisterDataService = checkRegisterDataService;
-        this.userRegisterService = userRegisterService;
+        this.userDataService = userDataService;
         this.sessionDataService = sessionDataService;
+        this.userRegisterService = userRegisterService;
+
+        this.worktimeCacheService = worktimeCacheService;
+        this.timeOffCacheService = timeOffCacheService;
+        this.registerCacheService = registerCacheService;
+        this.registerCheckCacheService = registerCheckCacheService;
+
         LoggerUtil.initialize(this.getClass(), null);
     }
 
     // ========================================================================
-    // EXISTING USER CONTEXT OPERATIONS (UNCHANGED)
+    // PRIMARY INTERFACE - DATA ACCESSOR FACTORY
     // ========================================================================
 
     /**
-     * ENHANCED: Context-aware user access
-     * - Web operations: Use SecurityContext (require active login)
-     * - Background operations: Use original user (ignore admin elevation)
+     * Get appropriate data accessor based on target user.
+     * This is the primary interface for all data access operations.
+     */
+    public WorktimeDataAccessor getDataAccessor(String targetUsername) {
+        String currentUsername = getCurrentUsername();
+        boolean isAdmin = isCurrentUserAdmin();
+
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Creating data accessor: current=%s, target=%s, isAdmin=%s",
+                currentUsername, targetUsername, isAdmin));
+
+        // Admin accessing admin consolidated files
+        if (isAdmin && "admin".equals(targetUsername)) {
+            return new AdminOwnDataAccessor(worktimeDataService);
+        }
+
+        // User accessing own data (cache with backup)
+        if (currentUsername.equals(targetUsername)) {
+            return new UserOwnDataAccessor(
+                    worktimeCacheService, timeOffCacheService,
+                    registerCacheService, registerCheckCacheService, this
+            );
+        }
+
+        // Viewing other user data (network read-only)
+        return new NetworkOnlyAccessor(
+                worktimeDataService, registerDataService,
+                checkRegisterDataService, timeOffDataService
+        );
+    }
+
+    // ========================================================================
+    // USER CONTEXT MANAGEMENT
+    // ========================================================================
+    /**
+     * Get current authenticated username with context awareness
      */
     public String getCurrentUsername() {
-        String threadName = Thread.currentThread().getName();
-
-        // Background threads should ALWAYS use original user (ignore elevation)
-        if (isBackgroundThread(threadName)) {
+        // Background threads use original user
+        if (isBackgroundThread()) {
             User originalUser = mainDefaultUserContextCache.getOriginalUser();
             return originalUser != null ? originalUser.getUsername() : null;
         }
 
-        // Web request threads should use SecurityContext (enforce active session)
+        // Web threads use SecurityContext
         try {
-            String securityUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-            if (securityUsername != null) {
-                return securityUsername;
-            }
+            return SecurityContextHolder.getContext().getAuthentication().getName();
         } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), "SecurityContext not available for web operation");
+            LoggerUtil.warn(this.getClass(), "Web operation without active SecurityContext");
+            return null;
         }
-
-        // Fallback for web threads when SecurityContext fails
-        LoggerUtil.warn(this.getClass(), "Web operation attempted without active SecurityContext");
-        return null; // Should fail gracefully for security
-    }
-
-    public User getCurrentUser() {
-        String threadName = Thread.currentThread().getName();
-
-        // Background threads should ALWAYS use original user (ignore elevation)
-        if (isBackgroundThread(threadName)) {
-            return mainDefaultUserContextCache.getOriginalUser();
-        }
-
-        // Web operations can use elevated admin or original user
-        return mainDefaultUserContextCache.getCurrentUser();
-    }
-
-    private boolean isBackgroundThread(String threadName) {
-        return threadName.startsWith("GeneralTask-") ||
-                threadName.startsWith("SessionMonitor-") ||
-                threadName.startsWith("backup-event-") ||
-                threadName.startsWith("stalled-notification-");
     }
 
     /**
-     * Check if current user is admin
+     * Get current user object with context awareness
+     */
+    public User getCurrentUser() {
+        return isBackgroundThread()
+                ? mainDefaultUserContextCache.getOriginalUser()
+                : mainDefaultUserContextCache.getCurrentUser();
+    }
+
+    /**
+     * Check if current user has admin privileges
      */
     public boolean isCurrentUserAdmin() {
         User user = getCurrentUser();
@@ -157,16 +203,29 @@ public class WorktimeOperationContext {
     }
 
     /**
-     * Get user ID for username
+     * Get user ID for username (used by accessors)
      */
     public Integer getUserId(String username) {
-        return getUser(username)
-                .map(User::getUserId)
-                .orElse(null);
+        return getUser(username).map(User::getUserId).orElse(null);
     }
 
     /**
-     * Validate user permissions for operation
+     * Check if current thread is a background thread
+     */
+    private boolean isBackgroundThread() {
+        String threadName = Thread.currentThread().getName();
+        return threadName.startsWith("GeneralTask-") ||
+                threadName.startsWith("SessionMonitor-") ||
+                threadName.startsWith("backup-event-") ||
+                threadName.startsWith("stalled-notification-");
+    }
+
+    // ========================================================================
+    // SECURITY & VALIDATION
+    // ========================================================================
+
+    /**
+     * Validate user has permission for operation on target user
      */
     public void validateUserPermissions(String targetUsername, String operation) {
         String currentUsername = getCurrentUsername();
@@ -175,12 +234,12 @@ public class WorktimeOperationContext {
             throw new SecurityException("No authenticated user");
         }
 
-        // Admin can edit anyone
+        // Admin can do anything
         if (isCurrentUserAdmin()) {
             return;
         }
 
-        // Users can only edit their own data
+        // Users can only modify their own data
         if (!currentUsername.equals(targetUsername)) {
             throw new SecurityException(String.format(
                     "User %s cannot perform %s on %s's data",
@@ -188,74 +247,308 @@ public class WorktimeOperationContext {
         }
     }
 
-    // ========================================================================
-    // USER MANAGEMENT OPERATIONS (EXISTING)
-    // ========================================================================
-
     /**
-     * Get all users from UserService
+     * Validate data access operation
      */
-    public List<User> getAllUsers() {
-        try {
-            return userService.getAllUsers();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting all users: %s", e.getMessage()));
-            return new ArrayList<>();
+    public void validateDataAccess(String targetUsername, String operation) {
+        if (!isValidOperationTarget(targetUsername, operation)) {
+            throw new SecurityException(String.format(
+                    "User %s is not authorized to %s data for %s",
+                    getCurrentUsername(), operation, targetUsername));
         }
     }
 
     /**
-     * Get all non-admin users from UserService
+     * Check if operation target is valid
      */
-    public List<User> getNonAdminUsers() {
-        try {
-            List<User> allUsers = getAllUsers();
-            return userService.getNonAdminUsers(allUsers);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting non-admin users: %s", e.getMessage()));
-            return new ArrayList<>();
+    public boolean isValidOperationTarget(String targetUsername, String operationType) {
+        String currentUsername = getCurrentUsername();
+
+        // Admin can do anything
+        if (isCurrentUserAdmin()) {
+            return true;
         }
+
+        // Users can only write their own data
+        return !"write".equals(operationType) || currentUsername.equals(targetUsername);
     }
 
     /**
-     * Get user by ID
+     * Validate holiday date
      */
-    public Optional<User> getUserById(Integer userId) {
+    public void validateHolidayDate(LocalDate date) {
         try {
-            return userService.getUserById(userId);
+            var validateCommand = timeValidationService.getValidationFactory()
+                    .createValidateHolidayDateCommand(date);
+            timeValidationService.execute(validateCommand);
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting user by ID %d: %s", userId, e.getMessage()));
-            return Optional.empty();
+            throw new IllegalArgumentException("Holiday date validation failed: " + e.getMessage());
         }
     }
 
     // ========================================================================
-    // NEW: TEAM OPERATIONS SUPPORT
+    // CACHE MANAGEMENT
     // ========================================================================
 
     /**
-     * Load view-only worktime (replacement for WorktimeManagementService.loadViewOnlyWorktime)
+     * Invalidate time off cache for user and year
      */
-    public List<WorkTimeTable> loadViewOnlyWorktime(String username, int year, int month) {
+    public void invalidateTimeOffCache(String username, int year) {
         try {
-            // Use existing worktime data service for read-only access
+            timeOffCacheService.invalidateUserSession(username, year);
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Invalidated time off cache for %s - %d", username, year));
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Error invalidating time off cache for %s - %d: %s", username, year, e.getMessage()));
+        }
+    }
+
+    /**
+     * Refresh time off tracker from files
+     */
+    public void refreshTimeOffTracker(String username, Integer userId, int year) {
+        try {
+            timeOffCacheService.invalidateUserSession(username, year);
+            boolean loaded = timeOffCacheService.loadUserSession(username, userId, year);
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Refreshed time off tracker for %s - %d: %s",
+                    username, year, loaded ? "success" : "failed"));
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Error refreshing time off tracker for %s - %d: %s", username, year, e.getMessage()));
+        }
+    }
+
+    /**
+     * Invalidate user cache after updates
+     */
+    public void invalidateUserCache(String username, Integer userId) {
+        try {
+            invalidateTimeOffCache(username, LocalDate.now().getYear());
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Invalidated caches for user %s (ID: %d)", username, userId));
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Error invalidating cache for user %s: %s", username, e.getMessage()));
+        }
+    }
+
+    // ========================================================================
+    // HOLIDAY BALANCE MANAGEMENT
+    // ========================================================================
+
+    /**
+     * Get current user's holiday balance
+     */
+    public Integer getCurrentHolidayBalance() {
+        return mainDefaultUserContextCache.getCurrentPaidHolidayDays();
+    }
+
+    /**
+     * Update holiday balance for user (admin operation)
+     */
+    public boolean updateUserHolidayBalance(Integer userId, Integer newBalance) {
+        try {
+            Optional<User> userOptional = allUsersCacheService.getUserByIdAsUserObject(userId);
+            if (userOptional.isEmpty()) {
+                LoggerUtil.error(this.getClass(), String.format("User not found with ID: %d", userId));
+                return false;
+            }
+
+            User user = userOptional.get();
+            String username = user.getUsername();
             String currentUsername = getCurrentUsername();
-            List<WorkTimeTable> entries = worktimeDataService.readUserLocalReadOnly(username, year, month, currentUsername);
-            return entries != null ? entries : new ArrayList<>();
+            boolean isAdminContext = !currentUsername.equals(username);
+
+            // Update file
+            if (isAdminContext) {
+                userDataService.updateUserHolidayDaysAdmin(username, userId, newBalance);
+            } else {
+                userDataService.updateUserHolidayDaysUser(username, userId, newBalance);
+            }
+
+            // Update cache
+            user.setPaidHolidayDays(newBalance);
+            allUsersCacheService.updateUserInCache(user);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Updated holiday balance for %s: %d days", username, newBalance));
+            return true;
+
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading view-only worktime for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
+                    "Error updating holiday balance for user %d: %s", userId, e.getMessage()), e);
+            return false;
         }
     }
+
+    /**
+     * Update current user's holiday balance with validation
+     */
+    public boolean updateHolidayBalance(int dayChange) {
+        try {
+            Integer currentBalance = getCurrentHolidayBalance();
+            if (currentBalance == null) currentBalance = 0;
+
+            if (dayChange > 0) {
+                return mainDefaultUserContextCache.updatePaidHolidayDays(currentBalance + dayChange);
+            } else {
+                return mainDefaultUserContextCache.reducePaidHolidayDays(Math.abs(dayChange));
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error updating holiday balance by %d: %s", dayChange, e.getMessage()));
+            return false;
+        }
+    }
+
+    /**
+     * Check if user has sufficient holiday balance
+     */
+    public boolean hasSufficientHolidayBalance(int daysRequired) {
+        Integer currentBalance = getCurrentHolidayBalance();
+        return currentBalance != null && currentBalance >= daysRequired;
+    }
+
+    /**
+     * Validate sufficient holiday balance or throw exception
+     */
+    public void validateSufficientHolidayBalance(int daysRequired, String operation) {
+        if (!hasSufficientHolidayBalance(daysRequired)) {
+            Integer currentBalance = getCurrentHolidayBalance();
+            throw new IllegalArgumentException(String.format(
+                    "Insufficient vacation balance for %s. Required: %d days, Available: %d days",
+                    operation, daysRequired, currentBalance != null ? currentBalance : 0));
+        }
+    }
+
+    // ========================================================================
+    // NATIONAL HOLIDAY OPERATIONS
+    // ========================================================================
+
+    /**
+     * Check if date is marked as national holiday in admin entries
+     */
+    public boolean isExistingNationalHoliday(LocalDate date) {
+        if (date == null) return false;
+
+        try {
+            List<WorkTimeTable> adminEntries = loadAdminWorktime(date.getYear(), date.getMonthValue());
+            return adminEntries.stream().anyMatch(entry ->
+                    date.equals(entry.getWorkDate()) &&
+                            WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType())
+            );
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Error checking existing holiday for date %s: %s", date, e.getMessage()));
+            return false;
+        }
+    }
+
+    /**
+     * Calculate actual vacation days needed, excluding existing national holidays
+     */
+    public int calculateActualVacationDaysNeeded(List<LocalDate> dates) {
+        if (dates == null || dates.isEmpty()) return 0;
+
+        return (int) dates.stream()
+                .filter(date -> !isExistingNationalHoliday(date))
+                .count();
+    }
+
+    /**
+     * Check if vacation day should be processed (not a national holiday)
+     */
+    public boolean shouldProcessVacationDay(LocalDate date, String operation) {
+        boolean shouldProcess = !isExistingNationalHoliday(date);
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Vacation day processing for %s (%s): %s",
+                date, operation, shouldProcess ? "PROCESS" : "SKIP - national holiday"));
+        return shouldProcess;
+    }
+
+    // ========================================================================
+    // TIME OFF OPERATIONS
+    // ========================================================================
+
+    /**
+     * Add time off requests to tracker (balance-neutral)
+     */
+    public void addTimeOffRequestsToTracker(String username, Integer userId,
+                                            List<LocalDate> dates, String timeOffType, int year) {
+        timeOffCacheService.addTimeOffToCacheWithoutBalanceUpdate(
+                username, userId, year, dates, timeOffType);
+    }
+
+    /**
+     * Remove time off request from tracker (balance-neutral)
+     */
+    public void removeTimeOffFromTracker(String username, Integer userId, LocalDate date, int year) {
+        timeOffCacheService.removeTimeOffFromCacheWithoutBalanceUpdate(
+                username, userId, year, date);
+    }
+
+    // ========================================================================
+    // ADMIN WORKTIME OPERATIONS
+    // ========================================================================
+
+    /**
+     * Load admin worktime entries
+     */
+    public List<WorkTimeTable> loadAdminWorktime(int year, int month) {
+        try {
+            String currentRole = getCurrentUser().getRole();
+            List<WorkTimeTable> entries;
+
+            if (SecurityConstants.ROLE_ADMIN.equals(currentRole)) {
+                entries = worktimeDataService.readAdminLocalReadOnly(year, month);
+            } else {
+                entries = worktimeDataService.readAdminByUserNetworkReadOnly(year, month);
+            }
+            return entries != null ? entries : new ArrayList<>();
+
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Error loading admin worktime, using network-only for %d/%d: %s",
+                    year, month, e.getMessage()));
+            try {
+                return worktimeDataService.readAdminByUserNetworkReadOnly(year, month);
+            } catch (Exception e2) {
+                LoggerUtil.error(this.getClass(), String.format(
+                        "Error loading admin worktime for %d/%d: %s", year, month, e2.getMessage()));
+                return new ArrayList<>();
+            }
+        }
+    }
+
+    /**
+     * Save admin worktime entries
+     */
+    public void saveAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
+        try {
+            worktimeDataService.writeAdminLocalWithSyncAndBackup(entries, year, month);
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Saved %d admin worktime entries for %d/%d", entries.size(), year, month));
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error saving admin worktime for %d/%d: %s", year, month, e.getMessage()));
+            throw new RuntimeException("Failed to save admin worktime entries", e);
+        }
+    }
+
+    // ========================================================================
+    // TEAM OPERATIONS
+    // ========================================================================
 
     /**
      * Load user register entries using UserRegisterService
      */
-    public ServiceResult<List<RegisterEntry>> loadUserRegisterEntries(String username, Integer userId, int year, int month) {
+    public ServiceResult<List<RegisterEntry>> loadUserRegisterEntries(
+            String username, Integer userId, int year, int month) {
         try {
             return userRegisterService.loadMonthEntries(username, userId, year, month);
         } catch (Exception e) {
@@ -281,7 +574,8 @@ public class WorktimeOperationContext {
     /**
      * Write team members to file
      */
-    public void writeTeamMembers(List<TeamMemberDTO> teamMembers, String teamLeadUsername, int year, int month) {
+    public void writeTeamMembers(List<TeamMemberDTO> teamMembers,
+                                 String teamLeadUsername, int year, int month) {
         try {
             registerDataService.writeTeamMembers(teamMembers, teamLeadUsername, year, month);
             LoggerUtil.debug(this.getClass(), String.format(
@@ -298,7 +592,8 @@ public class WorktimeOperationContext {
      */
     public List<TeamMemberDTO> readTeamMembers(String teamLeadUsername, int year, int month) {
         try {
-            List<TeamMemberDTO> teamMembers = registerDataService.readTeamMembers(teamLeadUsername, year, month);
+            List<TeamMemberDTO> teamMembers = registerDataService.readTeamMembers(
+                    teamLeadUsername, year, month);
             return teamMembers != null ? teamMembers : new ArrayList<>();
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
@@ -308,638 +603,56 @@ public class WorktimeOperationContext {
     }
 
     // ========================================================================
-    // NEW: HOLIDAY BALANCE MANAGEMENT OPERATIONS
+    // USER MANAGEMENT OPERATIONS
     // ========================================================================
 
     /**
-     * Get username from user ID (used by holiday management commands)
+     * Get all users from UserService
      */
-    public String getUsernameFromUserId(Integer userId) {
+    public List<User> getAllUsers() {
         try {
-            return getUserById(userId)
-                    .map(User::getUsername)
-                    .orElse(null);
+            return userService.getAllUsers();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error getting all users: %s", e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Get all non-admin users
+     */
+    public List<User> getNonAdminUsers() {
+        try {
+            return userService.getNonAdminUsers(getAllUsers());
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error getting non-admin users: %s", e.getMessage()));
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Get user by ID
+     */
+    public Optional<User> getUserById(Integer userId) {
+        try {
+            return userService.getUserById(userId);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting username for user ID %d: %s", userId, e.getMessage()));
-            return null;
-        }
-    }
-
-    /**
-     * Update user holiday balance (admin operation)
-     * This replaces the HolidayManagementService.updateUserHolidayDays method
-     */
-    public boolean updateUserHolidayBalance(Integer userId, Integer newBalance) {
-        try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "=== UPDATING HOLIDAY BALANCE: userId=%d, newBalance=%d ===", userId, newBalance));
-
-            // Step 1: Get user from cache
-            Optional<User> userOptional = allUsersCacheService.getUserByIdAsUserObject(userId);
-            if (userOptional.isEmpty()) {
-                LoggerUtil.error(this.getClass(), String.format("User not found with ID: %d", userId));
-                return false;
-            }
-
-            User user = userOptional.get();
-            String username = user.getUsername();
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Step 1: Found user %s, current holidayDays: %s", username, user.getPaidHolidayDays()));
-
-            // Step 2: Determine context (admin vs user operation)
-            String currentUsername = getCurrentUsername();
-            boolean isAdminContext = !currentUsername.equals(username);
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Step 2: Current user: %s, target user: %s, isAdmin context: %s",
-                    currentUsername, username, isAdminContext));
-
-            // Step 3: Update user file using appropriate method
-            if (isAdminContext) {
-                LoggerUtil.info(this.getClass(), "Step 3: Using admin update method");
-                userDataService.updateUserHolidayDaysAdmin(username, userId, newBalance);
-            } else {
-                LoggerUtil.info(this.getClass(), "Step 3: Using user update method");
-                userDataService.updateUserHolidayDaysUser(username, userId, newBalance);
-            }
-
-            // Step 4: Update cache
-            user.setPaidHolidayDays(newBalance);
-            allUsersCacheService.updateUserInCache(user);
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Step 4: Updated cache for user %s with %d days", username, newBalance));
-
-            // Step 5: Verify cache update
-            Optional<User> verifyUser = allUsersCacheService.getUserByIdAsUserObject(userId);
-            verifyUser.ifPresent(value -> LoggerUtil.info(this.getClass(), String.format(
-                    "Step 5: Cache verification - user %s now has %s days",
-                    username, value.getPaidHolidayDays())));
-
-            return true;
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error updating holiday balance for user %d: %s", userId, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * Get user holiday balance by user ID (for validation and side effects tracking)
-     */
-    public Integer getUserHolidayBalance(Integer userId) {
-        try {
-            Optional<User> userOptional = allUsersCacheService.getUserByIdAsUserObject(userId);
-            if (userOptional.isPresent()) {
-                Integer holidayDays = userOptional.get().getPaidHolidayDays();
-                return holidayDays != null ? holidayDays : 0;
-            }
-
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "User not found in cache for holiday balance lookup by ID: %d", userId));
-            return 0;
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting holiday balance for user %d: %s", userId, e.getMessage()));
-            return 0;
-        }
-    }
-
-    /**
-     * Invalidate user cache after holiday balance update
-     */
-    public void invalidateUserCache(String username, Integer userId) {
-        try {
-            // Invalidate time off cache for current year
-            int currentYear = LocalDate.now().getYear();
-            invalidateTimeOffCache(username, currentYear);
-
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Invalidated caches for user %s (ID: %d)", username, userId));
-
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Error invalidating cache for user %s: %s", username, e.getMessage()));
+                    "Error getting user by ID %d: %s", userId, e.getMessage()));
+            return Optional.empty();
         }
     }
 
     // ========================================================================
-    // VALIDATION OPERATIONS (EXISTING)
+    // DEPRECATED METHODS - For backward compatibility
     // ========================================================================
 
     /**
-     * Validate holiday date using TimeValidationService
-     */
-    public void validateHolidayDate(LocalDate date) {
-        try {
-            var validateCommand = timeValidationService.getValidationFactory()
-                    .createValidateHolidayDateCommand(date);
-            timeValidationService.execute(validateCommand);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(e.getMessage());
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error validating holiday date %s: %s", date, e.getMessage()));
-            throw new IllegalArgumentException("Holiday date validation failed: " + e.getMessage());
-        }
-    }
-
-    // ========================================================================
-    // WORKTIME FILE OPERATIONS (EXISTING - UNCHANGED)
-    // ========================================================================
-
-    /**
-     * Load user worktime entries for month
+     * Use getDataAccessor(username).readWorktime() instead
      */
     public List<WorkTimeTable> loadUserWorktime(String username, int year, int month) {
-        try {
-            String currentUsername = getCurrentUsername();
-            List<WorkTimeTable> entries = worktimeDataService.readUserLocalReadOnly(username, year, month, currentUsername);
-            return entries != null ? entries : new ArrayList<>();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading worktime for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
+        LoggerUtil.warn(this.getClass(), "loadUserWorktime() is deprecated - use getDataAccessor().readWorktime()");
+        return getDataAccessor(username).readWorktime(username, year, month);
     }
 
-    /**
-     * Save user worktime entries for month
-     */
-    public void saveUserWorktime(String username, List<WorkTimeTable> entries, int year, int month) {
-        try {
-            worktimeDataService.writeUserLocalWithSyncAndBackup(username, entries, year, month);
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Saved %d worktime entries for %s - %d/%d", entries.size(), username, year, month));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error saving worktime for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            throw new RuntimeException("Failed to save worktime entries", e);
-        }
-    }
-
-    /**
-     * Add time off requests to tracker (balance-neutral, for commands)
-     */
-    public void addTimeOffRequestsToTracker(String username, Integer userId, List<LocalDate> dates, String timeOffType, int year) {
-        timeOffCacheService.addTimeOffToCacheWithoutBalanceUpdate(username, userId, year, dates, timeOffType);
-    }
-
-    /**
-     * Remove time off request from tracker (balance-neutral, for commands)
-     */
-    public void removeTimeOffFromTracker(String username, Integer userId, LocalDate date, int year) {
-        timeOffCacheService.removeTimeOffFromCacheWithoutBalanceUpdate(username, userId, year, date);
-    }
-
-    /**
-     * Load admin worktime entries for month
-     */
-    public List<WorkTimeTable> loadAdminWorktime(int year, int month) {
-        try {
-            List<WorkTimeTable> entries = worktimeDataService.readAdminLocalReadOnly(year, month);
-            return entries != null ? entries : new ArrayList<>();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading admin worktime for %d/%d: %s", year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Save admin worktime entries for month
-     */
-    public void saveAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
-        try {
-            worktimeDataService.writeAdminLocalWithSyncAndBackup(entries, year, month);
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Saved %d admin worktime entries for %d/%d", entries.size(), year, month));
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error saving admin worktime for %d/%d: %s", year, month, e.getMessage()));
-            throw new RuntimeException("Failed to save admin worktime entries", e);
-        }
-    }
-
-    // ========================================================================
-    // NEW: NETWORK-ONLY DATA ACCESS FOR STATUS OPERATIONS
-    // ========================================================================
-
-    /**
-     * Load worktime data from network files (for status display of other users)
-     */
-    public List<WorkTimeTable> loadWorktimeFromNetwork(String username, int year, int month) {
-        try {
-            // Use network-only read method
-            List<WorkTimeTable> entries = worktimeDataService.readUserFromNetworkOnly(username, year, month);
-            return entries != null ? entries : new ArrayList<>();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading network worktime for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Load time off tracker from network files (for status display of other users)
-     */
-    public TimeOffTracker loadTimeOffTrackerFromNetwork(String username, Integer userId, int year) {
-        try {
-            // Use network-only read method
-            return timeOffDataService.readTrackerFromNetworkReadOnly(username, userId, year);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading network time off tracker for %s - %d: %s", username, year, e.getMessage()));
-            return null;
-        }
-    }
-
-    /**
-     * Load time off tracker from local files (for own data)
-     */
-    public TimeOffTracker loadTimeOffTrackerFromLocal(String username, Integer userId, int year) {
-        try {
-            String currentUsername = getCurrentUsername();
-            return timeOffDataService.readUserLocalTrackerReadOnly(username, userId, currentUsername, year);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading local time off tracker for %s - %d: %s", username, year, e.getMessage()));
-            return null;
-        }
-    }
-
-    /**
-     * Load register entries from network files (for status display of other users)
-     */
-    public List<RegisterEntry> loadRegisterFromNetwork(String username, Integer userId, int year, int month) {
-        try {
-            List<RegisterEntry> entries = registerDataService.readUserFromNetworkOnly(username, userId, year, month);
-            return entries != null ? entries : new ArrayList<>();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading network register for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Load register entries from local files (for own data)
-     */
-    public List<RegisterEntry> loadRegisterFromLocal(String username, Integer userId, int year, int month) {
-        try {
-            String currentUsername = getCurrentUsername();
-            List<RegisterEntry> entries = registerDataService.readUserLocalReadOnly(username, userId, currentUsername, year, month);
-            return entries != null ? entries : new ArrayList<>();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading local register for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Load check register entries from network files (for status display of other users)
-     */
-    public List<RegisterCheckEntry> loadCheckRegisterFromNetwork(String username, Integer userId, int year, int month) {
-        try {
-            List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterFromNetworkOnly(username, userId, year, month);
-            return entries != null ? entries : new ArrayList<>();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading network check register for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * Load check register entries from local files (for own data)
-     */
-    public List<RegisterCheckEntry> loadCheckRegisterFromLocal(String username, Integer userId, int year, int month) {
-        try {
-            List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterLocalReadOnly(username, userId, year, month);
-            return entries != null ? entries : new ArrayList<>();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading local check register for %s - %d/%d: %s", username, year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
-
-    // ========================================================================
-    // CURRENT USER HOLIDAY BALANCE OPERATIONS (EXISTING - UNCHANGED)
-    // ========================================================================
-
-    /**
-     * Get current holiday balance for authenticated user ---- correct
-     */
-    public Integer getCurrentHolidayBalance() {
-        return mainDefaultUserContextCache.getCurrentPaidHolidayDays();
-    }
-
-    /**
-     * Update holiday balance with validation
-     */
-    public boolean updateHolidayBalance(int dayChange) {
-        try {
-            if (dayChange > 0) {
-                // Adding days - just update
-                Integer currentBalance = getCurrentHolidayBalance();
-                if (currentBalance == null) currentBalance = 0;
-                return mainDefaultUserContextCache.updatePaidHolidayDays(currentBalance + dayChange);
-            } else {
-                // Reducing days - use the built-in validation
-                return mainDefaultUserContextCache.reducePaidHolidayDays(Math.abs(dayChange));
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error updating holiday balance by %d: %s", dayChange, e.getMessage()));
-            return false;
-        }
-    }
-
-    /**
-     * Check if sufficient holiday balance exists for the requested days
-     */
-    public boolean hasSufficientHolidayBalance(int daysRequired) {
-        Integer currentBalance = getCurrentHolidayBalance();
-        if (currentBalance == null) {
-            LoggerUtil.warn(this.getClass(), "Holiday balance is null, treating as insufficient");
-            return false;
-        }
-
-        boolean sufficient = currentBalance >= daysRequired;
-
-        LoggerUtil.debug(this.getClass(), String.format(
-                "Holiday balance check: required=%d, available=%d, sufficient=%s",
-                daysRequired, currentBalance, sufficient));
-
-        return sufficient;
-    }
-
-    /**
-     * Validate holiday balance and throw exception if insufficient
-     */
-    public void validateSufficientHolidayBalance(int daysRequired, String operation) {
-        if (!hasSufficientHolidayBalance(daysRequired)) {
-            Integer currentBalance = getCurrentHolidayBalance();
-            throw new IllegalArgumentException(String.format(
-                    "Insufficient vacation balance for %s. Required: %d days, Available: %d days",
-                    operation, daysRequired, currentBalance != null ? currentBalance : 0));
-        }
-    }
-
-    /**
-     * Get remaining holiday days with null safety
-     */
-    public int getRemainingHolidayDays() {
-        Integer balance = getCurrentHolidayBalance();
-        return balance != null ? balance : 0;
-    }
-
-    // ========================================================================
-    // CACHE OPERATIONS (FIXED)
-    // ========================================================================
-
-    /**
-     * FIXED: Invalidate time off cache for user and year
-     */
-    public void invalidateTimeOffCache(String username, int year) {
-        try {
-            // FIXED: Use the correct method name from TimeOffCacheService
-            timeOffCacheService.invalidateUserSession(username, year);
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Invalidated time off cache for %s - %d", username, year));
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Error invalidating time off cache for %s - %d: %s",
-                    username, year, e.getMessage()));
-        }
-    }
-
-    /**
-     * FIXED: Refresh time off tracker from worktime files
-     */
-    public void refreshTimeOffTracker(String username, Integer userId, int year) {
-        try {
-            // FIXED: Since refreshTrackerFromWorktime doesn't exist, we'll invalidate and reload
-            timeOffCacheService.invalidateUserSession(username, year);
-
-            // Force reload by accessing the session
-            boolean loaded = timeOffCacheService.loadUserSession(username, userId, year);
-
-            if (loaded) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Refreshed time off tracker for %s - %d", username, year));
-            } else {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "Failed to refresh time off tracker for %s - %d", username, year));
-            }
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Error refreshing time off tracker for %s - %d: %s",
-                    username, year, e.getMessage()));
-        }
-    }
-
-    // ========================================================================
-    // UTILITY METHODS (EXISTING - UNCHANGED)
-    // ========================================================================
-
-    /**
-     * Find entry in list by date and user ID
-     */
-    public Optional<WorkTimeTable> findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
-        return entries.stream()
-                .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
-                .findFirst();
-    }
-
-    /**
-     * Remove entry from list by date and user ID
-     */
-    public boolean removeEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
-        return entries.removeIf(entry ->
-                userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()));
-    }
-
-    /**
-     * Add or replace entry in list
-     */
-    public void addOrReplaceEntry(List<WorkTimeTable> entries, WorkTimeTable newEntry) {
-        removeEntryByDate(entries, newEntry.getUserId(), newEntry.getWorkDate());
-        entries.add(newEntry);
-
-        // Keep list sorted
-        entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparingInt(WorkTimeTable::getUserId));
-    }
-
-    /**
-     * Create file path identifier for logging
-     */
-    public String createFilePathId(String username, int year, int month) {
-        return String.format("%s/%d/%d", username, year, month);
-    }
-
-    /**
-     * Create cache key identifier
-     */
-    public String createCacheKey(String username, int year) {
-        return String.format("%s-%d", username, year);
-    }
-
-    // ========================================================================
-    // VALIDATION HELPERS (EXISTING - UNCHANGED)
-    // ========================================================================
-
-    /**
-     * Validate date is editable by user
-     */
-    public void validateDateEditable(LocalDate date, String reason) {
-        LocalDate today = LocalDate.now();
-
-        if (date.equals(today)) {
-            throw new IllegalArgumentException("Cannot edit current day");
-        }
-
-        if (reason != null && !reason.trim().isEmpty()) {
-            throw new IllegalArgumentException(reason);
-        }
-    }
-
-    /**
-     * Validate time off can be added to date
-     */
-    public void validateTimeOffDate(LocalDate date) {
-        validateDateEditable(date, null);
-
-        // Check for weekend
-        if (date.getDayOfWeek().getValue() >= 6) {
-            throw new IllegalArgumentException("Cannot add time off on weekends");
-        }
-    }
-
-    /**
-     * Check if operation requires admin privileges
-     */
-    public void requireAdminPrivileges(String operation) {
-        if (!isCurrentUserAdmin()) {
-            throw new SecurityException(String.format(
-                    "Operation %s requires admin privileges", operation));
-        }
-    }
-
-    // ========================================================================
-    // ADMIN OPERATIONS SUPPORT (EXISTING - UNCHANGED)
-    // ========================================================================
-
-    /**
-     * Remove entries by date for all users
-     */
-    public int removeEntriesByDate(List<WorkTimeTable> entries, LocalDate date) {
-        int removedCount = 0;
-        var iterator = entries.iterator();
-        while (iterator.hasNext()) {
-            WorkTimeTable entry = iterator.next();
-            if (entry.getWorkDate().equals(date)) {
-                iterator.remove();
-                removedCount++;
-            }
-        }
-        return removedCount;
-    }
-
-    /**
-     * Add multiple entries to list
-     */
-    public void addEntries(List<WorkTimeTable> targetList, List<WorkTimeTable> entriesToAdd) {
-        targetList.addAll(entriesToAdd);
-
-        // Keep list sorted
-        targetList.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparingInt(WorkTimeTable::getUserId));
-    }
-
-// ========================================================================
-// NATIONAL HOLIDAY CHECKING OPERATIONS
-// ========================================================================
-
-    /**
-     * Check if a date is already marked as a national holiday (SN) in admin entries
-     * @param date The date to check
-     * @return true if the date is marked as SN (national holiday) in admin entries
-     */
-    public boolean isExistingNationalHoliday(LocalDate date) {
-        if (date == null) {
-            return false;
-        }
-
-        try {
-            // Load admin entries for this date's month
-            List<WorkTimeTable> adminEntries = loadAdminWorktime(date.getYear(), date.getMonthValue());
-
-            // Check if any entry for this date is marked as SN
-            boolean isHoliday = adminEntries.stream()
-                    .anyMatch(entry -> date.equals(entry.getWorkDate()) &&
-                            "SN".equals(entry.getTimeOffType()));
-
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Holiday check for %s: %s", date, isHoliday ? "IS national holiday" : "not holiday"));
-
-            return isHoliday;
-
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Error checking existing holiday for date %s: %s", date, e.getMessage()));
-            return false; // If we can't check, assume it's not a holiday
-        }
-    }
-
-    /**
-     * Calculate actual vacation days needed from a list of dates, excluding existing SN days
-     * @param dates List of dates to check
-     * @return Number of dates that are NOT already national holidays
-     */
-    public int calculateActualVacationDaysNeeded(List<LocalDate> dates) {
-        if (dates == null || dates.isEmpty()) {
-            return 0;
-        }
-
-        int vacationDaysNeeded = 0;
-        int snDaysSkipped = 0;
-
-        for (LocalDate date : dates) {
-            if (!isExistingNationalHoliday(date)) {
-                vacationDaysNeeded++;
-            } else {
-                snDaysSkipped++;
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Date %s is already a national holiday (SN), not charging vacation day", date));
-            }
-        }
-
-        LoggerUtil.info(this.getClass(), String.format(
-                "Vacation days calculation: %d total dates, %d vacation days needed, %d SN days skipped",
-                dates.size(), vacationDaysNeeded, snDaysSkipped));
-
-        return vacationDaysNeeded;
-    }
-
-    /**
-     * Check if a vacation day should be charged/restored for a specific date
-     * @param date The date to check
-     * @param operation Description of the operation for logging
-     * @return true if vacation day should be processed, false if it's a national holiday
-     */
-    public boolean shouldProcessVacationDay(LocalDate date, String operation) {
-        boolean shouldProcess = !isExistingNationalHoliday(date);
-
-        LoggerUtil.debug(this.getClass(), String.format(
-                "Vacation day processing for %s (%s): %s",
-                date, operation, shouldProcess ? "PROCESS" : "SKIP - national holiday"));
-
-        return shouldProcess;
-    }
 }

@@ -1,40 +1,31 @@
 package com.ctgraphdep.session.commands;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
+import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Command to automatically end a session at a scheduled time
- * with proper monitoring shutdown before file operations
+ * REFACTORED AutoEndSessionCommand using BaseWorktimeUpdateSessionCommand
+ * Eliminates duplication while preserving all auto-end logic
  */
-public class AutoEndSessionCommand extends BaseSessionCommand<Boolean> {
-    private final String username;
-    private final Integer userId;
+public class AutoEndSessionCommand extends BaseWorktimeUpdateSessionCommand<Boolean> {
+
     private final LocalDateTime endTime;
 
     // Retry parameters
     private static final int MAX_RETRIES = 3;
     private static final long INITIAL_RETRY_DELAY_MS = 1000;
 
-    /**
-     * Creates a command to auto-end a session
-     *
-     * @param username The username
-     * @param userId The user ID
-     * @param endTime The scheduled end time
-     */
     public AutoEndSessionCommand(String username, Integer userId, LocalDateTime endTime) {
-        validateUsername(username);
-        validateUserId(userId);
+        super(username, userId);
         validateCondition(endTime != null, "End time cannot be null");
-
-        this.username = username;
-        this.userId = userId;
         this.endTime = endTime;
     }
 
@@ -43,17 +34,13 @@ public class AutoEndSessionCommand extends BaseSessionCommand<Boolean> {
         return executeWithDefault(context, ctx -> {
             info(String.format("Executing auto end session for user %s at %s", username, endTime));
 
-            // IMPORTANT: First stop all monitoring activity to avoid conflicts
+            // Stop all monitoring activity to avoid conflicts
             info(String.format("Stopping all monitoring for user %s before end session", username));
-
-            // Stop monitoring in MonitoringStateService first
             ctx.getSessionMonitorService().stopMonitoring(username);
 
-            // Additional call to clear monitoring state to ensure complete cleanup
             try {
                 ctx.getSessionMonitorService().clearMonitoring(username);
             } catch (Exception e) {
-                // Log but continue - this is a best-effort cleanup
                 warn(String.format("Non-critical error clearing monitoring: %s", e.getMessage()));
             }
 
@@ -64,9 +51,9 @@ public class AutoEndSessionCommand extends BaseSessionCommand<Boolean> {
                 Thread.currentThread().interrupt();
             }
 
-            // Now proceed with session operations with retries
+            // Execute with retry logic
             return executeWithRetry(() -> {
-                // 1. Get current session
+                // Get current session
                 GetCurrentSessionQuery sessionQuery = ctx.getCommandFactory().createGetCurrentSessionQuery(username, userId);
                 WorkUsersSessionsStates session = ctx.executeQuery(sessionQuery);
 
@@ -75,81 +62,97 @@ public class AutoEndSessionCommand extends BaseSessionCommand<Boolean> {
                     return false;
                 }
 
-                // 2. Update the session with calculations to the scheduled end time
+                // Update the session with calculations to the scheduled end time
                 UpdateSessionCalculationsCommand updateCommand = ctx.getCommandFactory().createUpdateSessionCalculationsCommand(session, endTime);
                 session = ctx.executeCommand(updateCommand);
 
-                // 3. Save the updated session to file before ending
+                // Save the updated session to file before ending
                 SaveSessionCommand saveCommand = ctx.getCommandFactory().createSaveSessionCommand(session);
                 ctx.executeCommand(saveCommand);
 
-                // 4. Now end the session
-                EndDayCommand endCommand = ctx.getCommandFactory().createEndDayCommand(username, userId, null, endTime);
-                ctx.executeCommand(endCommand);
+                // ENHANCED: Apply special day logic to worktime entry if needed
+                updateWorktimeEntryWithSpecialDayLogic(session, ctx);
 
-                info(String.format("Successfully ended scheduled session for user %s", username));
-                return true;
-                });  // Maximum of 3 retries
+                // Create end day command to properly close the session
+                EndDayCommand endDayCommand = ctx.getCommandFactory().createEndDayCommand(username, userId, null, endTime);
+                WorkUsersSessionsStates finalSession = ctx.executeCommand(endDayCommand);
+
+                boolean success = finalSession != null && WorkCode.WORK_OFFLINE.equals(finalSession.getSessionStatus());
+                info(String.format("Auto end session completed for user %s: %s", username, success ? "SUCCESS" : "FAILED"));
+
+                return success;
+            });
+
         }, false);
     }
 
-    /**
-     * Executes with retry logic for file access conflicts
-     */
-    private boolean executeWithRetry(RetryOperation operation ) {
+    // ========================================================================
+    // ABSTRACT METHOD IMPLEMENTATIONS - AutoEndSessionCommand specific logic
+    // ========================================================================
+
+    @Override
+    protected WorkTimeTable findOrCreateEntry(LocalDate workDate, WorkUsersSessionsStates session, SessionContext context) {
+        // Auto-end should find existing entry or create new one
+        return findOrCreateNewEntry(workDate, session, context);
+    }
+
+    @Override
+    protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+        logCustomization("auto end session");
+
+        // Set auto-end time
+        entry.setDayEndTime(endTime);
+        entry.setAdminSync(MergingStatusConstants.USER_INPUT); // Auto-ended by system
+    }
+
+    @Override
+    protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+        logCustomization("post-special-day auto end session");
+
+        // Re-apply auto-end sync status
+        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
+    }
+
+    @Override
+    protected String getCommandDescription() {
+        return "auto end session";
+    }
+
+    // ========================================================================
+    // PRESERVED ORIGINAL HELPER METHODS
+    // ========================================================================
+
+    private Boolean executeWithRetry(RetryOperation operation) throws Exception {
         Exception lastException = null;
 
-        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                if (attempt > 0) {
-                    info(String.format("Retry #%d for auto end session for user %s", attempt, username));
-                }
+                debug(String.format("Auto end session attempt %d/%d", attempt, MAX_RETRIES));
                 return operation.execute();
+
             } catch (Exception e) {
                 lastException = e;
+                warn(String.format("Auto end session attempt %d failed: %s", attempt, e.getMessage()));
 
-                // Check if this is a file access error
-                if (isFileAccessError(e)) {
-                    long delayMs = INITIAL_RETRY_DELAY_MS * (long)Math.pow(2, attempt);
-                    warn(String.format("File access conflict detected, will retry in %d ms (attempt %d/%d)", delayMs, attempt + 1, MAX_RETRIES));
-
+                if (attempt < MAX_RETRIES) {
                     try {
-                        TimeUnit.MILLISECONDS.sleep(delayMs);
+                        long delay = INITIAL_RETRY_DELAY_MS * attempt;
+                        debug(String.format("Retrying in %d ms", delay));
+                        TimeUnit.MILLISECONDS.sleep(delay);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        break;
+                        throw new RuntimeException("Interrupted during retry delay", ie);
                     }
-                } else {
-                    // Not a file access error, don't retry
-                    error(String.format("Error executing auto end session: %s", e.getMessage()), e);
-                    break;
                 }
             }
         }
 
-        error(String.format("Failed to execute auto end session after %d retries: %s", MAX_RETRIES, lastException.getMessage()), lastException);
-
-        return false;
+        error(String.format("All %d attempts failed for auto end session", MAX_RETRIES), lastException);
+        throw lastException;
     }
 
-    /**
-     * Determines if an exception is related to file access conflicts
-     */
-    private boolean isFileAccessError(Exception e) {
-        String message = e.getMessage();
-        if (message == null) return false;
-
-        // Check for common file access error messages
-        return message.contains("process cannot access the file") ||
-                message.contains("being used by another process") ||
-                message.contains("Failed to write file");
-    }
-
-    /**
-     * Functional interface for retry operations
-     */
     @FunctionalInterface
     private interface RetryOperation {
-        boolean execute() throws Exception;
+        Boolean execute() throws Exception;
     }
 }

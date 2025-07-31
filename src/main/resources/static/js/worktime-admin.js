@@ -142,18 +142,14 @@ function saveWorktime(btn) {
     submitWorktimeUpdate(cell, value);
 }
 
-/**
- * Enhanced validation for worktime values
- * Supports: numbers (1-24), SN:hours format, time off types (CO, CM, SN)
- */
 function validateWorktimeValue(value) {
-    // Handle SN + work time format (e.g., "SN:7.5")
-    if (value.includes('SN:')) {
-        return validateSNWorkTime(value);
+    // Handle special day work time format (SN:5, CO:6, CM:4, W:8)
+    if (value.includes(':')) {
+        return validateSpecialDayWorktime(value);
     }
 
     // Handle time off types
-    if (['CO', 'CM', 'SN'].includes(value.toUpperCase())) {
+    if (['CO', 'CM', 'SN', 'W'].includes(value.toUpperCase())) {
         return true; // Valid time off types
     }
 
@@ -167,27 +163,36 @@ function validateWorktimeValue(value) {
         return true;
     }
 
-    alert('Invalid format. Use:\n- Hours: 8 or 8h\n- SN work: SN:7.5\n- Time off: CO, CM, SN');
+    alert('Invalid format. Use:\n- Hours: 8 or 8h\n- Special work: SN:7.5, CO:6, CM:4, W:8\n- Time off: CO, CM, SN, W');
     return false;
 }
 
 /**
- * Validate SN + work time format
- * Enhanced with user-friendly feedback
+ * Validate special day work time format for all types
+ * Supports: SN:5, CO:6, CM:4, W:8
  */
-function validateSNWorkTime(value) {
+function validateSpecialDayWorktime(value) {
     const parts = value.split(':');
 
-    // Check format: must be exactly "SN:number"
-    if (parts.length !== 2 || parts[0].toUpperCase() !== 'SN') {
-        alert('Invalid SN format. Use SN:hours (e.g., SN:7.5)');
+    // Check format: must be exactly "TYPE:number"
+    if (parts.length !== 2) {
+        alert('Invalid format. Use TYPE:hours (e.g., SN:7.5, CO:6, CM:4, W:8)');
+        return false;
+    }
+
+    const type = parts[0].toUpperCase();
+    const hoursStr = parts[1];
+
+    // Validate type
+    if (!['SN', 'CO', 'CM', 'W'].includes(type)) {
+        alert('Invalid type. Use SN, CO, CM, or W (e.g., SN:7.5, CO:6)');
         return false;
     }
 
     // Parse and validate hours
-    const hours = parseFloat(parts[1]);
+    const hours = parseFloat(hoursStr);
     if (isNaN(hours) || hours < 1 || hours > 24) {
-        alert('SN work hours must be between 1 and 24 (e.g., SN:7.5)');
+        alert(`${type} work hours must be between 1 and 24 (e.g., ${type}:7.5)`);
         return false;
     }
 
@@ -196,12 +201,20 @@ function validateSNWorkTime(value) {
         const fullHours = Math.floor(hours);
         const discarded = hours - fullHours;
 
+        const typeLabels = {
+            'SN': 'National Holiday',
+            'CO': 'Time Off',
+            'CM': 'Medical Leave',
+            'W': 'Weekend'
+        };
+
         const confirmed = confirm(
-            `SN Work Time Processing:\n\n` +
+            `${typeLabels[type]} Work Time Processing:\n\n` +
             `Input: ${hours} hours\n` +
             `Processed: ${fullHours} full hours\n` +
             `Discarded: ${discarded.toFixed(1)} hours\n\n` +
-            `Only full hours count for holiday work. Continue?`
+            `Only full hours count for special day work.\n\n` +
+            `Continue with ${fullHours} hours?`
         );
 
         if (!confirmed) {
@@ -227,7 +240,7 @@ function getCurrentViewPeriod() {
 
 /**
  * Submit worktime update to server
- * Enhanced with better error handling and user feedback
+ * PROPERLY FIXED: Maintain current year/month view after update
  */
 function submitWorktimeUpdate(cell, value) {
     const userId = cell.dataset.userId;
@@ -239,13 +252,12 @@ function submitWorktimeUpdate(cell, value) {
         return;
     }
 
-    // Get the current view period for redirect
+    // Get current view period BEFORE making the request
     const currentViewPeriod = getCurrentViewPeriod();
 
     console.log('Submitting worktime update:', {
         userId, year, month, day, value,
-        redirectYear: currentViewPeriod.year,
-        redirectMonth: currentViewPeriod.month
+        currentView: currentViewPeriod
     });
 
     // Show loading indicator
@@ -272,8 +284,10 @@ function submitWorktimeUpdate(cell, value) {
             console.log('Update successful');
             showSuccessIndicator(cell);
 
-            // Redirect to maintain current view
+            // PROPERLY FIXED: Maintain current view and reload data
             setTimeout(() => {
+                console.log('Refreshing current view:', currentViewPeriod);
+                // Redirect to the CURRENT view (not the entry's month)
                 window.location.href = `/admin/worktime?year=${currentViewPeriod.year}&month=${currentViewPeriod.month}`;
             }, 1000);
         } else {
@@ -290,6 +304,25 @@ function submitWorktimeUpdate(cell, value) {
         console.error('Network error:', error);
         alert('Failed to update worktime: Network error');
     });
+}
+
+/**
+ * FIXED: Get current view period from form selectors
+ */
+function getCurrentViewPeriod() {
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+
+    // Get values from the actual form controls (not from URL or entry data)
+    const currentYear = yearSelect ? yearSelect.value : new Date().getFullYear();
+    const currentMonth = monthSelect ? monthSelect.value : new Date().getMonth() + 1;
+
+    console.log('Current view period determined:', { year: currentYear, month: currentMonth });
+
+    return {
+        year: currentYear,
+        month: currentMonth
+    };
 }
 
 /**
@@ -629,4 +662,194 @@ function formatMinutesToHours(minutes) {
         return `${hours}h`;
     }
     return `${hours}h ${mins}m`;
+}
+
+// ========================================================================
+// FINALIZATION FUNCTIONALITY
+// ========================================================================
+
+let currentFinalizationData = null;
+
+/**
+ * Show finalization confirmation dialog
+ * @param {number|null} userId - User ID to finalize, or null for all users
+ */
+function showFinalizeConfirmation(userId) {
+    const modal = new bootstrap.Modal(document.getElementById('finalizeConfirmationModal'));
+    const modalText = document.getElementById('finalizeModalText');
+    const detailsDiv = document.getElementById('finalizeDetails');
+
+    // Store finalization data
+    currentFinalizationData = {
+        userId: userId,
+        year: getCurrentYear(),
+        month: getCurrentMonth()
+    };
+
+    // Update modal content based on scope
+    if (userId === null) {
+        modalText.innerHTML = `
+            <strong>Finalize ALL users</strong> for ${getMonthName(currentFinalizationData.month)} ${currentFinalizationData.year}?
+            <br><br>
+            This will mark all worktime entries as <strong>ADMIN_FINAL</strong> and prevent any further modifications.
+        `;
+
+        detailsDiv.innerHTML = `
+            <strong>Scope:</strong> All users in this period<br>
+            <strong>Period:</strong> ${getMonthName(currentFinalizationData.month)} ${currentFinalizationData.year}<br>
+            <strong>Estimated entries:</strong> ~${estimateEntryCount()} entries<br>
+            <strong>Status change:</strong> → ADMIN_FINAL
+        `;
+    } else {
+        const userName = getUserName(userId);
+        modalText.innerHTML = `
+            <strong>Finalize user "${userName}"</strong> for ${getMonthName(currentFinalizationData.month)} ${currentFinalizationData.year}?
+            <br><br>
+            This will mark all worktime entries for this user as <strong>ADMIN_FINAL</strong> and prevent any further modifications.
+        `;
+
+        detailsDiv.innerHTML = `
+            <strong>Scope:</strong> ${userName} only<br>
+            <strong>Period:</strong> ${getMonthName(currentFinalizationData.month)} ${currentFinalizationData.year}<br>
+            <strong>Estimated entries:</strong> ~${getDaysInMonth(currentFinalizationData.year, currentFinalizationData.month)} entries<br>
+            <strong>Status change:</strong> → ADMIN_FINAL
+        `;
+    }
+
+    modal.show();
+}
+
+/**
+ * Finalize specific user (called from button)
+ */
+function finalizeSpecificUser() {
+    const userSelect = document.getElementById('finalizeUserSelect');
+    const userId = userSelect.value;
+
+    if (!userId) {
+        alert('Please select a user to finalize');
+        return;
+    }
+
+    showFinalizeConfirmation(parseInt(userId));
+}
+
+/**
+ * Execute the finalization after confirmation
+ */
+async function executeFinalization() {
+    if (!currentFinalizationData) {
+        console.error('No finalization data available');
+        return;
+    }
+
+    // Hide confirmation modal
+    const confirmModal = bootstrap.Modal.getInstance(document.getElementById('finalizeConfirmationModal'));
+    confirmModal.hide();
+
+    // Show progress modal
+    const progressModal = new bootstrap.Modal(document.getElementById('finalizationProgressModal'));
+    progressModal.show();
+
+    try {
+        console.log('Executing finalization:', currentFinalizationData);
+
+        // Build form data
+        const formData = new URLSearchParams();
+        formData.append('year', currentFinalizationData.year);
+        formData.append('month', currentFinalizationData.month);
+        if (currentFinalizationData.userId) {
+            formData.append('userId', currentFinalizationData.userId);
+        }
+
+        // Submit finalization request
+        const response = await fetch('/admin/worktime/finalize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+        });
+
+        // Hide progress modal
+        progressModal.hide();
+
+        if (response.ok) {
+            // Success - redirect to show results
+            console.log('Finalization successful, redirecting...');
+            window.location.reload(); // Reload to show updated status and success message
+        } else {
+            // Error handling
+            const errorText = await response.text();
+            console.error('Finalization failed:', response.status, errorText);
+
+            alert('Finalization failed: ' + (errorText || 'Unknown error'));
+        }
+
+    } catch (error) {
+        // Hide progress modal
+        progressModal.hide();
+
+        console.error('Finalization error:', error);
+        alert('Finalization failed: Network error');
+    } finally {
+        currentFinalizationData = null;
+    }
+}
+
+// ========================================================================
+// HELPER FUNCTIONS FOR FINALIZATION
+// ========================================================================
+
+/**
+ * Get current year from form
+ */
+function getCurrentYear() {
+    const yearSelect = document.getElementById('yearSelect');
+    return yearSelect ? parseInt(yearSelect.value) : new Date().getFullYear();
+}
+
+/**
+ * Get current month from form
+ */
+function getCurrentMonth() {
+    const monthSelect = document.getElementById('monthSelect');
+    return monthSelect ? parseInt(monthSelect.value) : new Date().getMonth() + 1;
+}
+
+/**
+ * Get month name from number
+ */
+function getMonthName(monthNumber) {
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[monthNumber - 1] || 'Unknown';
+}
+
+/**
+ * Get user name from userId
+ */
+function getUserName(userId) {
+    const userSelect = document.getElementById('finalizeUserSelect');
+    const option = userSelect.querySelector(`option[value="${userId}"]`);
+    return option ? option.textContent : `User ${userId}`;
+}
+
+/**
+ * Estimate total entry count for all users
+ */
+function estimateEntryCount() {
+    const userSelect = document.getElementById('finalizeUserSelect');
+    const userCount = userSelect.options.length - 1; // Exclude "Select user..." option
+    const daysInMonth = getDaysInMonth(getCurrentYear(), getCurrentMonth());
+    return userCount * daysInMonth;
+}
+
+/**
+ * Get days in month
+ */
+function getDaysInMonth(year, month) {
+    return new Date(year, month, 0).getDate();
 }

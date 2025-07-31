@@ -1,6 +1,5 @@
 package com.ctgraphdep.security;
 
-import com.ctgraphdep.controller.MergeStatusController;
 import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
@@ -10,7 +9,6 @@ import com.ctgraphdep.service.UserLoginMergeService;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -45,7 +43,8 @@ public class AuthenticationService {
     private final UserLoginMergeService userLoginMergeService;
     private final UserLoginCacheService userLoginCacheService;
 
-    private MergeStatusController mergeStatusController; // For background merge status
+    private final ThreadLocal<User> authenticatedUserCache = new ThreadLocal<>();
+
 
     public AuthenticationService(
             DataAccessService dataAccessService,
@@ -67,14 +66,6 @@ public class AuthenticationService {
         this.userLoginMergeService = userLoginMergeService;
         this.userLoginCacheService = userLoginCacheService;
         LoggerUtil.initialize(this.getClass(), null);
-    }
-
-    /**
-     * Setter for MergeStatusController (to avoid circular dependency)
-     */
-    @Autowired(required = false)
-    public void setMergeStatusController(MergeStatusController mergeStatusController) {
-        this.mergeStatusController = mergeStatusController;
     }
 
     // ========================================================================
@@ -117,8 +108,10 @@ public class AuthenticationService {
      * UNCHANGED: Authentication logic for Spring Security integration
      * Returns UserDetails as expected by Spring Security
      */
+
+// MODIFY your authenticateUser method - ADD these lines after password validation:
+
     public UserDetails authenticateUser(String username, String password, boolean offlineMode) {
-        // Get the full user object without sanitization
         UserDetails userDetails = offlineMode ?
                 userDetailsService.loadUserByUsernameOffline(username) :
                 userDetailsService.loadUserByUsername(username);
@@ -126,6 +119,17 @@ public class AuthenticationService {
         LoggerUtil.debug(this.getClass(), String.format("Authenticating user: %s", username));
 
         if (passwordEncoder.matches(password, userDetails.getPassword())) {
+            // ADD: Cache the user to avoid duplicate fetch in handleSuccessfulLogin
+            try {
+                if (userDetails instanceof CustomUserDetails) {
+                    User fullUser = ((CustomUserDetails) userDetails).getUser();
+                    authenticatedUserCache.set(fullUser);
+                    LoggerUtil.debug(this.getClass(), "Cached authenticated user to avoid duplicate fetch");
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), "Failed to cache user: " + e.getMessage());
+            }
+
             LoggerUtil.info(this.getClass(), String.format("Successfully authenticated user %s", username));
             return userDetails;
         }
@@ -134,18 +138,25 @@ public class AuthenticationService {
         throw new BadCredentialsException("Invalid credentials");
     }
 
-    /**
-     * REFACTORED: Handle successful login with role elevation support and new services
-     */
+// REPLACE the user retrieval part in your handleSuccessfulLogin method:
+
     public void handleSuccessfulLogin(String username, boolean rememberMe) {
         try {
             LoggerUtil.info(this.getClass(), String.format(
                     "Processing login for user: %s (rememberMe: %s)", username, rememberMe));
 
-            // Step 1: Retrieve and validate user data
-            User user = retrieveUserData(username);
+            // REPLACE this line: User user = retrieveUserData(username);
+            // WITH this optimized version:
+            User user = authenticatedUserCache.get();
+            if (user == null || !user.getUsername().equals(username)) {
+                LoggerUtil.warn(this.getClass(), "User cache miss, falling back to network fetch");
+                user = retrieveUserData(username);
+            } else {
+                authenticatedUserCache.remove(); // cleanup after use
+                LoggerUtil.info(this.getClass(), "Using cached user, avoided duplicate network call");
+            }
 
-            // Step 2: Determine login type and handle accordingly
+            // Step 2: Determine login type and handle accordingly (UNCHANGED)
             if (user.isAdmin()) {
                 handleAdminLogin(user, rememberMe);
             } else {
@@ -157,6 +168,7 @@ public class AuthenticationService {
                     username, user.isAdmin(), mainDefaultUserContextService.isElevated()));
 
         } catch (Exception e) {
+            authenticatedUserCache.remove(); // cleanup on error
             LoggerUtil.error(this.getClass(), String.format(
                     "Error handling login for user %s: %s", username, e.getMessage()), e);
             throw new RuntimeException("Failed to handle login", e);
@@ -170,6 +182,7 @@ public class AuthenticationService {
     /**
      * Handle admin login with elevation (admins don't use merge optimization)
      */
+// Modify your handleAdminLogin method to make cache refresh async
     private void handleAdminLogin(User adminUser, boolean rememberMe) {
         try {
             LoggerUtil.info(this.getClass(), String.format(
@@ -183,19 +196,25 @@ public class AuthenticationService {
 
             // Step 2: Elevate to admin role (preserves original user context)
             mainDefaultUserContextService.elevateToAdminRole(adminUser);
+            // ADD THIS LINE: Ensure admin user is in AllUsersCacheService for immediate frontend access
+            allUsersCacheService.updateUserInCache(adminUser);
 
-            // Step 3: Refresh all users cache for accurate admin data
-            LoggerUtil.info(this.getClass(), "Refreshing all users cache for admin login");
-            try {
-                allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Successfully refreshed cache with %d users for admin %s",
-                        allUsersCacheService.getCachedUserCount(), adminUser.getUsername()));
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "Failed to refresh users cache for admin %s: %s - continuing with login",
-                        adminUser.getUsername(), e.getMessage()));
-            }
+            LoggerUtil.info(this.getClass(), "Added admin user to cache for immediate frontend access");
+            // Step 3: OPTIMIZATION - Async cache refresh (non-blocking)
+            LoggerUtil.info(this.getClass(), "Starting ASYNC cache refresh for admin login");
+            CompletableFuture.runAsync(() -> {
+                try {
+                    LoggerUtil.info(this.getClass(), "Background: Refreshing all users cache for admin " + adminUser.getUsername());
+                    allUsersCacheService.refreshAllUsersFromUserDataServiceWithCompleteData();
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Background: Successfully refreshed cache with %d users for admin %s",
+                            allUsersCacheService.getCachedUserCount(), adminUser.getUsername()));
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), String.format(
+                            "Background: Cache refresh failed for admin %s: %s - admin can manually refresh if needed",
+                            adminUser.getUsername(), e.getMessage()));
+                }
+            });
 
             // Step 4: Handle local storage if requested (for admin user)
             if (rememberMe) {
@@ -204,7 +223,7 @@ public class AuthenticationService {
 
             // Step 5: Skip data merges for admin users (they don't need user data merges)
             LoggerUtil.info(this.getClass(), String.format(
-                    "Admin login completed: %s (elevation active, original user preserved, cache refreshed)",
+                    "Admin login completed IMMEDIATELY: %s (elevation active, original user preserved, cache refreshing in background)",
                     adminUser.getUsername()));
 
         } catch (Exception e) {
@@ -213,7 +232,6 @@ public class AuthenticationService {
             throw new RuntimeException("Failed to handle admin login", e);
         }
     }
-
     /**
      * Handle regular user login with LOGIN MERGE OPTIMIZATION using new services
      */
@@ -269,11 +287,6 @@ public class AuthenticationService {
         String role = user.getRole();
 
         LoggerUtil.info(this.getClass(), String.format("Performing FIRST LOGIN operations for: %s", username));
-
-        if (mergeStatusController != null) {
-            mergeStatusController.markMergeStarted(username);
-        }
-
         // Pass User object instead of username
         userLoginCacheService.performInitialCacheOperations(user);  // ← Pass User object
 
@@ -281,11 +294,6 @@ public class AuthenticationService {
 
         mergeOperations.thenRun(() -> {
             userLoginCacheService.performPostMergeCacheLoading(username);
-
-            if (mergeStatusController != null) {
-                mergeStatusController.markMergeComplete(username);
-            }
-
             LoggerUtil.info(this.getClass(), String.format("First login operations completed for: %s", username));
         }).exceptionally(throwable -> {
             // error handling...

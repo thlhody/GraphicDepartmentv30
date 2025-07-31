@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.BiFunction;
 
+@Deprecated
 public enum WorktimeMergeRule {
 
     USER_INPUT_PRIORITY((user, admin) ->
@@ -30,7 +31,7 @@ public enum WorktimeMergeRule {
                 if (SyncStatusMerge.USER_IN_PROCESS.equals(user.getAdminSync())) {
                     return user;
                 }
-                user.setAdminSync(SyncStatusMerge.USER_INPUT);
+                //user.setAdminSync(SyncStatusMerge.USER_INPUT);
                 return user;
             }),
 
@@ -40,7 +41,7 @@ public enum WorktimeMergeRule {
                     !SyncStatusMerge.USER_EDITED.equals(user.getAdminSync()))),
             (user, admin) -> {
                 WorkTimeTable result = copyWorkTimeEntry(admin);
-                result.setAdminSync(SyncStatusMerge.USER_DONE);
+               // result.setAdminSync(SyncStatusMerge.USER_DONE);
                 return result;
             }),
 
@@ -66,7 +67,7 @@ public enum WorktimeMergeRule {
                     admin != null &&
                     entriesAreEqual(user, admin),
             (user, admin) -> {
-                user.setAdminSync(SyncStatusMerge.USER_DONE);
+                //user.setAdminSync(SyncStatusMerge.USER_DONE);
                 return user;
             }),
 
@@ -76,7 +77,7 @@ public enum WorktimeMergeRule {
                     SyncStatusMerge.USER_INPUT.equals(user.getAdminSync()) &&
                     (admin == null || !SyncStatusMerge.ADMIN_EDITED.equals(admin.getAdminSync())),
             (user, admin) -> {
-                user.setAdminSync(SyncStatusMerge.USER_DONE);
+                //user.setAdminSync(SyncStatusMerge.USER_DONE);
                 return user;
             }),
 
@@ -120,7 +121,7 @@ public enum WorktimeMergeRule {
         // Handle new user entries
         if (admin == null) {
             // We know user is not null here, and not USER_IN_PROCESS
-            user.setAdminSync(SyncStatusMerge.USER_INPUT);
+           // user.setAdminSync(SyncStatusMerge.USER_INPUT);
             return user;
         }
 

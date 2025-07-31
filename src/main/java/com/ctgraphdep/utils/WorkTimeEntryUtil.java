@@ -1,6 +1,6 @@
 package com.ctgraphdep.utils;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 
 import java.time.DayOfWeek;
@@ -8,7 +8,6 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -82,9 +81,7 @@ public class WorkTimeEntryUtil {
      * Sorts worktime entries by date
      */
     public static List<WorkTimeTable> sortEntriesByDate(List<WorkTimeTable> entries) {
-        return entries.stream()
-                .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
-                .collect(Collectors.toList());
+        return entries.stream().sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
     }
 
     /**
@@ -94,12 +91,12 @@ public class WorkTimeEntryUtil {
         if (entry == null) return false;
 
         // Never display ADMIN_BLANK entries
-        if (SyncStatusMerge.ADMIN_BLANK.equals(entry.getAdminSync())) {
+        if (MergingStatusConstants.DELETE.equals(entry.getAdminSync())) {
             return false;
         }
 
         // Display USER_IN_PROCESS entries with partial info
-        if (SyncStatusMerge.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+        if (MergingStatusConstants.USER_IN_PROCESS.equals(entry.getAdminSync())) {
             return true;
         }
 
@@ -112,20 +109,5 @@ public class WorkTimeEntryUtil {
      */
     public static String createEntryKey(Integer userId, LocalDate date) {
         return userId + "_" + date.toString();
-    }
-
-    /**
-     * Groups entries by user ID and date
-     */
-    public static Map<Integer, Map<LocalDate, WorkTimeTable>> groupEntriesByUserAndDate(List<WorkTimeTable> entries) {
-        return entries.stream()
-                .collect(Collectors.groupingBy(
-                        WorkTimeTable::getUserId,
-                        Collectors.toMap(
-                                WorkTimeTable::getWorkDate,
-                                entry -> entry,
-                                (e1, e2) -> e2  // Keep the latest in case of duplicates
-                        )
-                ));
     }
 }

@@ -4,6 +4,7 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ActionType;
 import com.ctgraphdep.enums.PrintPrepTypes;
 import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
@@ -214,7 +215,7 @@ public class UserRegisterController extends BaseController {
                     .articleNumbers(articleNumbers)
                     .graphicComplexity(graphicComplexity)
                     .observations(observations != null ? observations.trim() : null)
-                    .adminSync(SyncStatusMerge.USER_INPUT.name())
+                    .adminSync(MergingStatusConstants.USER_INPUT)
                     .build();
 
             // Save entry through service using ServiceResult pattern

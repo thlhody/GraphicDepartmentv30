@@ -10,7 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Enhanced base class for session commands with built-in deduplication support.
  * Prevents rapid execution of the same command by the same user.
- *
  * @param <T> The command result type
  */
 public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
@@ -53,14 +52,19 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     }
 
     /**
-     * Standard error handling execution (existing method).
+     * Standard error handling execution - FIXED to wrap checked exceptions
      */
     protected T executeWithErrorHandling(SessionContext context, CommandExecution<T> commandLogic) {
         try {
             return commandLogic.execute(context);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error executing command: " + this.getClass().getSimpleName(), e);
+        } catch (RuntimeException e) {
+            // Re-throw runtime exceptions as-is
+            LoggerUtil.error(this.getClass(), "Runtime error executing command: " + this.getClass().getSimpleName(), e);
             throw e;
+        } catch (Exception e) {
+            // Wrap checked exceptions in RuntimeException
+            LoggerUtil.error(this.getClass(), "Error executing command: " + this.getClass().getSimpleName(), e);
+            throw new RuntimeException("Command execution failed: " + e.getMessage(), e);
         }
     }
 
@@ -70,7 +74,12 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     protected T executeWithDefault(SessionContext context, CommandExecution<T> commandLogic, T defaultValue) {
         try {
             return commandLogic.execute(context);
+        } catch (RuntimeException e) {
+            // Log runtime exceptions but return default value
+            LoggerUtil.error(this.getClass(), "Runtime error executing command: " + this.getClass().getSimpleName(), e);
+            return defaultValue;
         } catch (Exception e) {
+            // Log checked exceptions but return default value
             LoggerUtil.error(this.getClass(), "Error executing command: " + this.getClass().getSimpleName(), e);
             return defaultValue;
         }
@@ -171,6 +180,6 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
 
     @FunctionalInterface
     protected interface CommandExecution<R> {
-        R execute(SessionContext context);
+        R execute(SessionContext context) throws Exception;
     }
 }

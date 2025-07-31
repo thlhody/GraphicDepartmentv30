@@ -1,10 +1,10 @@
 /* ============================================================================ */
-/*                         WORKTIME ADMIN - ORGANIZED CSS                      */
-/*                              Easy to Read & Maintain                         */
+/*                         WORKTIME ADMIN - CONSERVATIVE FIX                   */
+/*                      Only Fix Badge Centering - Keep Table Intact           */
 /* ============================================================================ */
 
 /* ============================================================================ */
-/* 1. TABLE LAYOUT & STRUCTURE */
+/* 1. TABLE LAYOUT & STRUCTURE - KEEP ORIGINAL */
 /* ============================================================================ */
 
 .worktime-table {
@@ -20,13 +20,13 @@
     padding: 0.4rem !important;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+/*    text-overflow: ellipsis;*/
     border: 1px solid #dee2e6;
     vertical-align: middle;
 }
 
 /* ============================================================================ */
-/* 2. COLUMN WIDTHS & STICKY POSITIONING */
+/* 2. COLUMN WIDTHS & STICKY POSITIONING - KEEP ORIGINAL */
 /* ============================================================================ */
 
 /* Name Column - First Column */
@@ -52,11 +52,11 @@
     font-family: 'Courier New', monospace; /* Better for numbers */
 }
 
-/* Day Columns */
+/* Day Columns - ONLY EXPAND WIDTH FOR BADGES */
 .day-column {
-    width: 35px;
+    width: 45px; /* Increased from 35px to fit CO22, SN15, etc. */
     text-align: center;
-    min-width: 35px;
+    min-width: 45px;
 }
 
 /* Summary Columns */
@@ -69,7 +69,7 @@
 }
 
 /* ============================================================================ */
-/* 3. DAY HEADER STYLING */
+/* 3. DAY HEADER STYLING - KEEP ORIGINAL */
 /* ============================================================================ */
 
 .day-header {
@@ -92,7 +92,7 @@
 }
 
 /* ============================================================================ */
-/* 4. CELL BACKGROUND COLORS & STATES */
+/* 4. CELL BACKGROUND COLORS & STATES - KEEP ORIGINAL */
 /* ============================================================================ */
 
 /* Weekend Days */
@@ -120,7 +120,7 @@
 }
 
 /* ============================================================================ */
-/* 5. TIME OFF BADGES - IMPROVED READABILITY & LOGICAL COLORS */
+/* 5. TIME OFF BADGES - REGULAR (KEEP THESE PERFECT AS THEY ARE) */
 /* ============================================================================ */
 
 /* Base Badge Styling - IMPROVED READABILITY */
@@ -163,47 +163,120 @@
 }
 
 /* ============================================================================ */
-/* 6. SN + WORK TIME DISPLAY (SN4 FORMAT) - SIMPLIFIED */
+/* 6. WORK DISPLAY BADGES - FIXED CENTERING & SIZING */
 /* ============================================================================ */
 
-/* Simplified SN + Work Hours Display - No more divider, just "SN4" */
+/* SN Work Display - FIXED SIZING */
 .sn-work-display {
     display: inline-block;
     background-color: #dc3545; /* Red for working on holiday */
     color: white;
-    padding: 3px 8px;
+    padding: 2px 4px; /* Tighter padding to fit in cell */
     border-radius: 4px;
     font-weight: bold;
-    font-size: 0.9em;
+    font-size: 0.75em; /* Smaller font to fit more characters */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-    line-height: 1.2;
-    min-width: 32px;
+    line-height: 1.1;
+    min-width: 24px; /* Smaller min-width */
+    max-width: 40px; /* Maximum to fit in 45px column */
     text-align: center;
+    overflow: hidden;
+/*    text-overflow: ellipsis;*/
 }
 
-/* Remove old complex styling - keeping for backward compatibility but simplified */
-.holiday-badge {
-    background-color: #dc3545; /* Red for SN with work */
-    color: white;
-    padding: 3px 8px;
+/* CO Work Display - FIXED SIZING */
+.co-work-display {
+    display: inline-block;
+    background-color: #0dcaf0;
+    color: #000;
+    padding: 2px 4px; /* Consistent with SN */
     border-radius: 4px;
     font-weight: bold;
-    font-size: 0.9em;
+    font-size: 0.75em; /* Consistent sizing */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.1;
+    min-width: 24px;
+    max-width: 40px;
+    text-align: center;
+    overflow: hidden;
+/*    text-overflow: ellipsis;*/
+    border: 1px solid #3dd5f3;
+    cursor: help;
+    transition: all 0.15s ease;
 }
 
-/* Remove divider - not needed for SN4 format */
-.divider {
-    display: none;
+/* CM Work Display - FIXED SIZING */
+.cm-work-display {
+    display: inline-block;
+    background-color: #fd7e14;
+    color: #fff;
+    padding: 2px 4px; /* Consistent */
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.75em;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.1;
+    min-width: 24px;
+    max-width: 40px;
+    text-align: center;
+    overflow: hidden;
+/*    text-overflow: ellipsis;*/
+    border: 1px solid #fd8e3a;
+    cursor: help;
+    transition: all 0.15s ease;
 }
 
-/* Remove separate hours badge - integrated into main badge */
-.holiday-hours {
-    display: none;
+/* W Work Display - FIXED SIZING */
+.w-work-display {
+    display: inline-block;
+    background-color: #6c757d !important;
+    color: #000000 !important;
+    padding: 2px 4px; /* Consistent */
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.75em;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.1;
+    min-width: 24px;
+    max-width: 40px;
+    text-align: center;
+    overflow: hidden;
+/*    text-overflow: ellipsis;*/
+    border: 1px solid #7c838a;
+    cursor: help;
+    transition: all 0.15s ease;
 }
 
 /* ============================================================================ */
-/* 7. WORKTIME CELL INTERACTIONS - FIXED TREMBLING */
+/* 7. OVERTIME BADGE HOVER EFFECTS - KEEP SUBTLE */
+/* ============================================================================ */
+
+.co-work-display:hover {
+    background-color: #31d2f2 !important;
+    transform: scale(1.02); /* Tiny scale to avoid breaking layout */
+    box-shadow: 0 2px 4px rgba(13, 202, 240, 0.3);
+}
+
+.cm-work-display:hover {
+    background-color: #fd8e3a !important;
+    transform: scale(1.02);
+    box-shadow: 0 2px 4px rgba(253, 126, 20, 0.3);
+}
+
+.w-work-display:hover {
+    background-color: #7c838a !important;
+    transform: scale(1.02);
+    box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+.sn-work-display:hover {
+    background-color: #bb2d3b !important;
+    transform: scale(1.02);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+/* ============================================================================ */
+/* 8. WORKTIME CELL INTERACTIONS - KEEP ORIGINAL */
 /* ============================================================================ */
 
 .worktime-cell {
@@ -222,15 +295,15 @@
     background-color: #e9ecef;
 }
 
-/* Active cell with open editor */
-.worktime-cell:has(.worktime-editor.show) {
+/* Active cell with open editor - Using class instead of :has() for browser compatibility */
+.worktime-cell.editor-active {
     background-color: #e3f2fd;
     border: 2px solid #007bff;
     border-radius: 4px;
 }
 
 /* ============================================================================ */
-/* 8. WORKTIME EDITOR POPUP */
+/* 9. WORKTIME EDITOR POPUP - KEEP ORIGINAL */
 /* ============================================================================ */
 
 .worktime-editor {
@@ -367,7 +440,7 @@
 }
 
 /* ============================================================================ */
-/* 9. LOADING STATES & FEEDBACK */
+/* 10. LOADING STATES & FEEDBACK - KEEP ORIGINAL */
 /* ============================================================================ */
 
 /* Loading Indicator */
@@ -409,7 +482,7 @@
 }
 
 /* ============================================================================ */
-/* 10. HOVER EFFECTS & TRANSITIONS - FIXED TREMBLING */
+/* 11. HOVER EFFECTS & TRANSITIONS - KEEP ORIGINAL */
 /* ============================================================================ */
 
 /* Badge Hover Effects - Removed transform to prevent trembling */
@@ -417,8 +490,7 @@
 .vacation:hover,
 .medical:hover,
 .holiday-with-work:hover,
-.holiday-badge:hover,
-.sn-work-display:hover {
+.holiday-badge:hover {
     opacity: 0.9;
     /* REMOVED: transform translateY that caused trembling */
     transition: opacity 0.2s ease;
@@ -436,7 +508,7 @@
 }
 
 /* ============================================================================ */
-/* 11. RESPONSIVE DESIGN */
+/* 12. RESPONSIVE DESIGN - CONSERVATIVE ADJUSTMENTS */
 /* ============================================================================ */
 
 @media (max-width: 1200px) {
@@ -445,11 +517,21 @@
     }
 
     .day-column {
-        width: 30px;
+        width: 42px; /* Slightly smaller but still fits badges */
     }
 
     .summary-col {
         width: 60px;
+    }
+
+    /* Adjust work display badges for medium screens */
+    .sn-work-display,
+    .co-work-display,
+    .cm-work-display,
+    .w-work-display {
+        font-size: 0.6em;
+        padding: 2px 3px;
+        max-width: 38px;
     }
 }
 
@@ -465,16 +547,21 @@
     }
 
     .day-column {
-        width: 28px;
+        width: 38px;
+    }
+
+    /* Adjust work display badges for small screens */
+    .sn-work-display,
+    .co-work-display,
+    .cm-work-display,
+    .w-work-display {
+        font-size: 0.5em;
+        padding: 1px 3px;
+        max-width: 34px;
     }
 }
 
 @media (max-width: 768px) {
-    .sn-work-display {
-        font-size: 0.8em;
-        padding: 2px 6px;
-    }
-
     .holiday,
     .vacation,
     .medical,
@@ -493,10 +580,24 @@
         padding: 4px 8px;
         min-width: 40px;
     }
+
+    .day-column {
+        width: 34px;
+    }
+
+    /* Mobile work display badges */
+    .sn-work-display,
+    .co-work-display,
+    .cm-work-display,
+    .w-work-display {
+        font-size: 0.6em;
+        padding: 1px 2px;
+        max-width: 30px;
+    }
 }
 
 /* ============================================================================ */
-/* 12. ACCESSIBILITY & HIGH CONTRAST */
+/* 13. ACCESSIBILITY & HIGH CONTRAST - KEEP ORIGINAL */
 /* ============================================================================ */
 
 /* High Contrast Mode Support */
@@ -505,7 +606,10 @@
     .vacation,
     .medical,
     .holiday-with-work,
-    .sn-work-display {
+    .sn-work-display,
+    .co-work-display,
+    .cm-work-display,
+    .w-work-display {
         border: 2px solid black;
     }
 
@@ -526,7 +630,7 @@
 }
 
 /* ============================================================================ */
-/* 13. PRINT STYLES */
+/* 14. PRINT STYLES - KEEP ORIGINAL */
 /* ============================================================================ */
 
 @media print {
@@ -546,7 +650,10 @@
     .vacation,
     .medical,
     .holiday-with-work,
-    .sn-work-display {
+    .sn-work-display,
+    .co-work-display,
+    .cm-work-display,
+    .w-work-display {
         background-color: #f8f9fa !important;
         color: #000 !important;
         border: 1px solid #000;
@@ -554,7 +661,7 @@
 }
 
 /* ============================================================================ */
-/* 14. UTILITIES & HELPERS */
+/* 15. UTILITIES & HELPERS - KEEP ORIGINAL */
 /* ============================================================================ */
 
 /* Text Utilities */
@@ -586,5 +693,5 @@
 }
 
 /* ============================================================================ */
-/* END OF WORKTIME ADMIN CSS */
+/* END OF CONSERVATIVE WORKTIME ADMIN CSS FIX */
 /* ============================================================================ */

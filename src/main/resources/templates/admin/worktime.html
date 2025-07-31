@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=18790}">
+    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=18803}">
     <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
 </head>
 <body>
@@ -81,6 +81,91 @@
                             <button type="submit" class="btn btn-primary">Add Holiday</button>
                         </form>
                     </div>
+                    <!-- NEW: Finalize Management (show only when period loaded) -->
+                    <div class="col-md-4" th:unless="${showBlankTable}">
+                        <h6 class="d-flex align-items-center mb-3">
+                            <i class="bi bi-check-circle me-2 text-danger"></i>Finalize Period
+                        </h6>
+                        <div class="d-flex flex-column gap-2">
+                            <!-- Finalize All Button -->
+                            <button type="button"
+                                    class="btn btn-danger btn-sm"
+                                    onclick="showFinalizeConfirmation(null)"
+                                    title="Finalize all users for this period">
+                                <i class="bi bi-lock-fill me-1"></i>Finalize All Users
+                            </button>
+
+                            <!-- User-Specific Finalize -->
+                            <div class="input-group input-group-sm">
+                                <label for="finalizeUserSelect"></label><select id="finalizeUserSelect" class="form-select form-select-sm">
+                                    <option value="">Select specific user...</option>
+                                    <option th:each="user : ${users}"
+                                            th:value="${user.userId}"
+                                            th:text="${user.name}">
+                                        User Name
+                                    </option>
+                                </select>
+                                <button type="button"
+                                        class="btn btn-warning btn-sm"
+                                        onclick="finalizeSpecificUser()"
+                                        title="Finalize selected user only">
+                                    <i class="bi bi-person-lock me-1"></i>Finalize User
+                                </button>
+                            </div>
+
+                            <!-- Info Text -->
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Finalized entries cannot be modified
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: Finalization Confirmation Modal -->
+        <div class="modal fade" id="finalizeConfirmationModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle me-2"></i>Confirm Finalization
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <strong>WARNING:</strong> This action cannot be undone!
+                        </div>
+                        <p id="finalizeModalText">
+                            You are about to finalize worktime entries. Once finalized, entries cannot be modified.
+                        </p>
+                        <div id="finalizeDetails" class="bg-light p-3 rounded">
+                            <!-- Dynamic content will be inserted here -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="executeFinalization()">
+                            <i class="bi bi-lock-fill me-1"></i>Yes, Finalize
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: Finalization Progress Modal -->
+        <div class="modal fade" id="finalizationProgressModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Processing...</span>
+                        </div>
+                        <h6>Finalizing Worktime Entries</h6>
+                        <p class="text-muted mb-0">Please wait...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -145,44 +230,29 @@
                         <td th:text="${user.name}">John Doe</td>
                         <td th:text="${user.employeeId}" class="text-monospace">EMP001</td>
 
-                        <!-- Day Cells -->
+                        <!-- FIXED: Day Cells using Display DTOs with CLEAN CSS SEPARATION -->
                         <td th:each="day : ${#numbers.sequence(1, daysInMonth)}"
                             class="text-center align-middle worktime-cell"
                             th:with="date=${T(java.time.LocalDate).of(currentYear, currentMonth, day)},
-                             entry=${userEntriesMap.get(user.userId)?.get(date)}"
-                            th:classappend="${dayHeaders[day-1].isWeekend == 'true'} ? 'weekend'"
-                            th:attr="data-user-id=${user.userId},data-date=${currentYear + '-' + currentMonth + '-' + day}"
+                                     displayDTO=${userDisplayDTOs.get(user.userId)?.get(date)},
+                                     rawEntry=${userEntriesMap.get(user.userId)?.get(date)}"
+                            th:classappend="${displayDTO?.isWeekend ? 'weekend' : ''}"
+                            th:attr="data-user-id=${user.userId},
+                                     data-date=${displayDTO?.dateString},
+                                     title=${displayDTO?.tooltipText}"
                             onclick="showEditor(this)">
 
-                            <!-- NEW SIMPLIFIED DISPLAY LOGIC -->
+                            <!-- FIXED: Simple and clean - just apply DTO CSS class to span -->
+                            <span th:if="${displayDTO?.hasEntry && !#strings.isEmpty(displayDTO?.cssClass)}"
+                                  th:class="${displayDTO?.cssClass}"
+                                  th:text="${displayDTO?.displayText}">SN</span>
 
-                            <!-- SN with work hours: Red SN4 format -->
-                            <span th:if="${entry?.timeOffType == 'SN' && entry?.totalOvertimeMinutes != null && entry.totalOvertimeMinutes > 0}"
-                                  class="sn-work-display"
-                                  th:text="'SN' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalOvertimeMinutes).replace('h', '')}">SN4</span>
-
-                            <!-- Regular SN (no work): Green SN -->
-                            <span th:if="${entry?.timeOffType == 'SN' && (entry?.totalOvertimeMinutes == null || entry.totalOvertimeMinutes == 0)}"
-                                  class="holiday"
-                                  th:text="${entry.timeOffType}">SN</span>
-
-                            <!-- CO (Vacation): Blue -->
-                            <span th:if="${entry?.timeOffType == 'CO'}"
-                                  class="vacation"
-                                  th:text="${entry.timeOffType}">CO</span>
-
-                            <!-- CM (Medical): Yellow -->
-                            <span th:if="${entry?.timeOffType == 'CM'}"
-                                  class="medical"
-                                  th:text="${entry.timeOffType}">CM</span>
-
-                            <!-- Regular work time (no time off) -->
-                            <span th:if="${entry?.timeOffType == null && entry?.totalWorkedMinutes != null && entry?.adminSync != 'ADMIN_BLANK'}"
-                                  th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(entry.totalWorkedMinutes)}">8h</span>
+                            <!-- Regular work entries and entries without special CSS -->
+                            <span th:if="${displayDTO?.hasEntry && #strings.isEmpty(displayDTO?.cssClass)}"
+                                  th:text="${displayDTO?.displayText}">8</span>
 
                             <!-- Empty cell (no entry) -->
-                            <span th:if="${entry == null || (entry?.timeOffType == null && (entry?.totalWorkedMinutes == null || entry?.adminSync == 'ADMIN_BLANK'))}">-</span>
-
+                            <span th:unless="${displayDTO?.hasEntry}">-</span>
                             <!-- Editor popup for each cell -->
                             <div class="worktime-editor">
                                 <h6 class="mb-2">Edit Time Entry</h6>
@@ -203,21 +273,21 @@
                                     <button class="btn btn-sm btn-primary" onclick="saveWorktime(this)">Save</button>
                                 </div>
 
-                                <!-- ENHANCED: Dynamic Entry Information -->
+                                <!-- ENHANCED: Dynamic Entry Information (uses rawEntry for detailed info) -->
                                 <div class="entry-info">
                                     <div class="current-entry-info">
                                         <small class="text-primary fw-bold d-block mb-1">Current Entry:</small>
                                         <div class="entry-details">
-                                            <!-- This will be populated dynamically by JavaScript -->
+                                            <!-- This will be populated dynamically by JavaScript using rawEntry data -->
                                             <small class="text-muted d-block entry-loading">
                                                 <i class="bi bi-hourglass-split entry-icon"></i>Loading entry details...
                                             </small>
                                         </div>
                                     </div>
-
                                 </div>
                             </div>
                         </td>
+
 
                         <!-- Summary Columns -->
                         <td class="summary-col text-center" th:with="summary=${userSummaries.get(user.userId)}">
@@ -261,7 +331,7 @@
 
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <script th:src="@{/js/worktime-admin.js?v=18792}"></script>
+        <script th:src="@{/js/worktime-admin.js?v=18801}"></script>
     </th:block>
 </div>
 </body>

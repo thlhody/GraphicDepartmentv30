@@ -1,7 +1,9 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
+import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -12,8 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * CORRECTED Remove Time Off Command - Proper business logic implementation
- * CORRECTED Key Behaviors:
+ * REFACTORED: Remove Time Off Command using accessor pattern with PRESERVED business logic.
+ * PRESERVED Key Behaviors:
  * - ADMIN: Can remove any time off entry (CO/CM/SN) for any date
  * - USER: Can only remove CO/CM from FUTURE dates (canceling future time off requests)
  * - USER: Cannot remove past CO/CM (can't cancel already taken time off)
@@ -44,16 +46,15 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
             throw new IllegalArgumentException("Date cannot be null");
         }
 
-        LoggerUtil.info(this.getClass(), String.format(
-                "Validating remove time off: %s on %s", username, date));
+        LoggerUtil.info(this.getClass(), String.format("Validating remove time off: %s on %s", username, date));
 
-        // Validate user permissions
+        // PRESERVED: Original permission validation
         context.validateUserPermissions(username, "remove time off");
 
         boolean isCurrentUserAdmin = context.isCurrentUserAdmin();
         String currentUsername = context.getCurrentUsername();
 
-        // ADMIN vs USER specific validation
+        // PRESERVED: ADMIN vs USER specific validation (EXACT SAME LOGIC)
         if (isCurrentUserAdmin && !currentUsername.equals(username)) {
             // Admin removing time off for another user
             validateAdminRemoveTimeOff();
@@ -65,101 +66,111 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
         LoggerUtil.debug(this.getClass(), "Remove time off validation completed successfully");
     }
 
+    @Override
+    protected OperationResult executeCommand() {
+        LoggerUtil.info(this.getClass(), String.format("Executing remove time off command for %s on %s", username, date));
+
+        try {
+            // PRESERVED: Load and validate entry (SAME BUSINESS LOGIC)
+            EntryContext entryContext = loadAndValidateEntry();
+            if (entryContext.hasError()) {
+                return entryContext.getErrorResult();
+            }
+
+            // PRESERVED: Process the removal (SAME BUSINESS LOGIC)
+            WorkTimeTable updatedEntry = processTimeOffRemoval(entryContext);
+
+            // PRESERVED: Handle holiday balance restoration (SAME BUSINESS LOGIC)
+            HolidayBalanceResult balanceResult = handleHolidayBalanceRestoration(
+                    entryContext.getOldTimeOffType(), entryContext.isAdminOperation());
+
+            // NEW: Save using accessor instead of deprecated context methods
+            saveAndInvalidateCache(entryContext);
+
+            // PRESERVED: Create success result (SAME LOGIC)
+            return createSuccessResult(entryContext, updatedEntry, balanceResult);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error removing time off for %s on %s: %s",
+                    username, date, e.getMessage()), e);
+            return OperationResult.failure("Failed to remove time off: " + e.getMessage(), getOperationType());
+        }
+    }
+
+    // ========================================================================
+    // PRESERVED VALIDATION METHODS (EXACT SAME BUSINESS LOGIC)
+    // ========================================================================
+
     /**
-     * Validate admin removing time off (can remove any type, any date)
+     * PRESERVED: Validate admin removing time off (can remove any type, any date)
      */
     private void validateAdminRemoveTimeOff() {
         LoggerUtil.debug(this.getClass(), "Validating admin remove time off operation");
 
-        // Admin can remove any time off type from any date
-        // Use TimeValidationService for date validation
+        // PRESERVED: Admin can remove any time off type from any date
         try {
             context.validateHolidayDate(date);
         } catch (Exception e) {
-            // For admin operations, be more lenient with date validation
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Admin date validation warning for %s: %s", date, e.getMessage()));
+            // PRESERVED: For admin operations, be more lenient with date validation
+            LoggerUtil.warn(this.getClass(), String.format("Admin date validation warning for %s: %s", date, e.getMessage()));
             // Don't throw exception for admin operations
         }
     }
 
     /**
-     * CORRECTED: Validate user removing time off (FUTURE dates only, canceling future requests)
+     * PRESERVED: Validate user removing time off (FUTURE dates only, canceling future requests)
      */
     private void validateUserRemoveTimeOff() {
         LoggerUtil.debug(this.getClass(), "Validating user remove time off operation");
 
         LocalDate today = LocalDate.now();
 
-        // CORRECTED: Users can only remove time off from FUTURE dates (canceling future requests)
+        // PRESERVED: Users can only remove time off from FUTURE dates (canceling future requests)
         if (!date.isAfter(today)) {
-            throw new IllegalArgumentException(String.format(
-                    "Users can only cancel future time off requests. Date %s is not allowed. " +
-                            "Past time off cannot be canceled as it has already been taken.", date));
+            throw new IllegalArgumentException(String.format("Users can only cancel future time off requests. Date %s is not allowed. " +
+                    "Past time off cannot be canceled as it has already been taken.", date));
         }
 
-        // Users process one-by-one time off cancellations
-        LoggerUtil.debug(this.getClass(), String.format(
-                "User canceling future time off request for %s", date));
+        // PRESERVED: Users process one-by-one time off cancellations
+        LoggerUtil.debug(this.getClass(), String.format("User canceling future time off request for %s", date));
     }
 
-    @Override
-    protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Executing remove time off command for %s on %s", username, date));
-
-        try {
-            // Load and validate entry
-            EntryContext entryContext = loadAndValidateEntry();
-            if (entryContext.hasError()) {
-                return entryContext.getErrorResult();
-            }
-
-            // Process the removal
-            WorkTimeTable updatedEntry = processTimeOffRemoval(entryContext);
-
-            // Handle holiday balance restoration
-            HolidayBalanceResult balanceResult = handleHolidayBalanceRestoration(
-                    entryContext.getOldTimeOffType(), entryContext.isAdminOperation());
-
-            // Save and finalize
-            saveAndInvalidateCache(entryContext);
-
-            // Create success result
-            return createSuccessResult(entryContext, updatedEntry, balanceResult);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error removing time off for %s on %s: %s", username, date, e.getMessage()), e);
-            return OperationResult.failure("Failed to remove time off: " + e.getMessage(), getOperationType());
-        }
-    }
-
-// ========================================================================
-// HELPER METHODS
-// ========================================================================
+    // ========================================================================
+    // REFACTORED HELPER METHODS (NEW ACCESSOR LOGIC, PRESERVED BUSINESS LOGIC)
+    // ========================================================================
 
     /**
-     * Load entries and validate the removal operation
+     * REFACTORED: Load entries and validate the removal operation using accessor pattern
      */
     private EntryContext loadAndValidateEntry() {
         int year = date.getYear();
         int month = date.getMonthValue();
 
-        // Determine operation context (admin vs user)
-        boolean isAdminOperation = context.isCurrentUserAdmin() &&
-                !context.getCurrentUsername().equals(username);
+        // PRESERVED: Determine operation context (admin vs user)
+        boolean isAdminOperation = context.isCurrentUserAdmin() && !context.getCurrentUsername().equals(username);
 
-        // Load appropriate entries
-        List<WorkTimeTable> entries;
+        // NEW: Use appropriate accessor based on context
+        WorktimeDataAccessor accessor;
         if (isAdminOperation) {
-            entries = context.loadAdminWorktime(year, month);
+            accessor = context.getDataAccessor("admin");
         } else {
-            entries = context.loadUserWorktime(username, year, month);
+            accessor = context.getDataAccessor(username);
         }
 
-        // Find existing entry
-        Optional<WorkTimeTable> existingEntry = context.findEntryByDate(entries, userId, date);
+        // NEW: Load appropriate entries using accessor
+        List<WorkTimeTable> entries;
+        if (isAdminOperation) {
+            entries = accessor.readWorktime("admin", year, month);
+        } else {
+            entries = accessor.readWorktime(username, year, month);
+        }
+
+        if (entries == null) {
+            entries = new java.util.ArrayList<>();
+        }
+
+        // PRESERVED: Find existing entry (SAME LOGIC)
+        Optional<WorkTimeTable> existingEntry = findEntryByDate(entries, userId, date);
         if (existingEntry.isEmpty()) {
             String message = String.format("No time off entry found for %s on %s", username, date);
             LoggerUtil.warn(this.getClass(), message);
@@ -175,62 +186,53 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
             return EntryContext.withError(OperationResult.failure(message, getOperationType()));
         }
 
-        // Additional validation for user operations
-        if (!isAdminOperation && "SN".equals(oldTimeOffType)) {
+        // PRESERVED: Additional validation for user operations (SAME LOGIC)
+        if (!isAdminOperation && WorkCode.NATIONAL_HOLIDAY_CODE.equals(oldTimeOffType)) {
             return EntryContext.withError(OperationResult.permissionFailure(getOperationType(),
                     "Users cannot remove national holidays (SN). Only admin can modify SN entries."));
         }
 
-        return new EntryContext(entries, entry, oldTimeOffType, isAdminOperation, year, month);
+        return new EntryContext(entries, entry, oldTimeOffType, isAdminOperation, year, month, accessor);
     }
 
     /**
-     * Process the actual time off removal
+     * PRESERVED: Process the actual time off removal (SAME BUSINESS LOGIC)
      */
     private WorkTimeTable processTimeOffRemoval(EntryContext entryContext) {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Removing %s time off from %s on %s",
+        LoggerUtil.info(this.getClass(), String.format("Removing %s time off from %s on %s",
                 entryContext.getOldTimeOffType(), username, date));
 
-        // Remove time off using builder
+        // PRESERVED: Remove time off using builder (SAME BUSINESS LOGIC)
         WorkTimeTable updatedEntry = WorktimeEntityBuilder.removeTimeOff(entryContext.getEntry());
 
-        // Update sync status based on operation type
-        if (entryContext.isAdminOperation()) {
-            updatedEntry.setAdminSync(com.ctgraphdep.enums.SyncStatusMerge.ADMIN_EDITED);
-        } else {
-            updatedEntry.setAdminSync(com.ctgraphdep.enums.SyncStatusMerge.USER_INPUT);
-        }
-
-        context.addOrReplaceEntry(entryContext.getEntries(), updatedEntry);
+        replaceEntry(entryContext.getEntries(), updatedEntry);
 
         return updatedEntry;
     }
 
     /**
-     * Handle holiday balance restoration for CO entries
+     * PRESERVED: Handle holiday balance restoration for CO entries (SAME BUSINESS LOGIC)
      */
     private HolidayBalanceResult handleHolidayBalanceRestoration(String oldTimeOffType, boolean isAdminOperation) {
-        if (!"CO".equals(oldTimeOffType)) {
+        if (!WorkCode.TIME_OFF_CODE.equals(oldTimeOffType)) {
             return new HolidayBalanceResult(false, null, null);
         }
 
-        // Only restore balance for user operations or admin operations on current user
+        // PRESERVED: Only restore balance for user operations or admin operations on current user
         if (isAdminOperation && !context.getCurrentUsername().equals(username)) {
             return new HolidayBalanceResult(false, null, null);
         }
 
-        // FIXED: Get old balance BEFORE updating
+        // PRESERVED: Get old balance BEFORE updating
         Integer oldBalance = context.getCurrentHolidayBalance();
 
-        // Check if vacation day should be restored (not for national holidays)
+        // PRESERVED: Check if vacation day should be restored (not for national holidays)
         if (context.shouldProcessVacationDay(date, "remove vacation")) {
             boolean balanceUpdated = context.updateHolidayBalance(1); // Restore 1 day
 
             if (balanceUpdated) {
                 Integer newBalance = context.getCurrentHolidayBalance();
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Restored 1 vacation day for %s (canceled future request). Balance: %d → %d",
+                LoggerUtil.info(this.getClass(), String.format("Restored 1 vacation day for %s (canceled future request). Balance: %d → %d",
                         username, oldBalance, newBalance));
                 return new HolidayBalanceResult(true, oldBalance, newBalance);
             }
@@ -240,37 +242,44 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
     }
 
     /**
-     * Save entries and invalidate cache
+     * REFACTORED: Save entries and invalidate cache using accessor
      */
     private void saveAndInvalidateCache(EntryContext entryContext) {
-        // Save entries back
-        if (entryContext.isAdminOperation()) {
-            context.saveAdminWorktime(entryContext.getEntries(), entryContext.getYear(), entryContext.getMonth());
-            // Admin operations DON'T update tracker
-        } else {
-            context.saveUserWorktime(username, entryContext.getEntries(), entryContext.getYear(), entryContext.getMonth());
-            // 🎯 HERE: Only for USER operations, remove from tracker
-            try {
-                context.removeTimeOffFromTracker(username, userId, date, entryContext.getYear());
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Removed from time off tracker for user %s on %s", username, date));
-            } catch (Exception e) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "Failed to remove from tracker for %s on %s: %s", username, date, e.getMessage()));
-                // Don't fail entire operation for tracker sync issue
+        try {
+            // NEW: Save entries using accessor
+            if (entryContext.isAdminOperation()) {
+                entryContext.getAccessor().writeWorktimeWithStatus("admin", entryContext.getEntries(),
+                        entryContext.getYear(), entryContext.getMonth(), context.getCurrentUser().getRole());
+                // PRESERVED: Admin operations DON'T update tracker
+            } else {
+                entryContext.getAccessor().writeWorktimeWithStatus(username, entryContext.getEntries(),
+                        entryContext.getYear(), entryContext.getMonth(), context.getCurrentUser().getRole());
+                // PRESERVED: Only for USER operations, remove from tracker
+                try {
+                    context.removeTimeOffFromTracker(username, userId, date, entryContext.getYear());
+                    LoggerUtil.debug(this.getClass(), String.format("Removed from time off tracker for user %s on %s", username, date));
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), String.format("Failed to remove from tracker for %s on %s: %s",
+                            username, date, e.getMessage()));
+                    // PRESERVED: Don't fail entire operation for tracker sync issue
+                }
             }
-        }
 
-        // Invalidate cache (existing logic)
-        context.invalidateTimeOffCache(username, entryContext.getYear());
-        context.refreshTimeOffTracker(username, userId, entryContext.getYear());
+            // PRESERVED: Invalidate cache (same logic)
+            context.invalidateTimeOffCache(username, entryContext.getYear());
+            context.refreshTimeOffTracker(username, userId, entryContext.getYear());
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error saving entries for %s: %s", username, e.getMessage()), e);
+            throw e;
+        }
     }
 
     /**
-     * Create the success operation result
+     * PRESERVED: Create the success operation result (SAME LOGIC)
      */
     private OperationResult createSuccessResult(EntryContext entryContext, WorkTimeTable updatedEntry, HolidayBalanceResult balanceResult) {
-        // Create success message
+        // PRESERVED: Create success message (SAME LOGIC)
         String operationType = entryContext.isAdminOperation() ? "removed" : "canceled";
         String message = String.format("Successfully %s %s time off from %s on %s",
                 operationType, entryContext.getOldTimeOffType(), username, date);
@@ -282,35 +291,79 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
             message += " (no vacation day restored - national holiday)";
         }
 
-        // Create side effects tracking
-        OperationResult.OperationSideEffects.Builder sideEffectsBuilder =
-                OperationResult.OperationSideEffects.builder()
-                        .fileUpdated(entryContext.isAdminOperation() ?
-                                String.format("admin/%d/%d", entryContext.getYear(), entryContext.getMonth()) :
-                                context.createFilePathId(username, entryContext.getYear(), entryContext.getMonth()))
-                        .cacheInvalidated(context.createCacheKey(username, entryContext.getYear()));
+        // PRESERVED: Create side effects tracking (SAME LOGIC)
+        OperationResult.OperationSideEffects.Builder sideEffectsBuilder = OperationResult.OperationSideEffects.builder()
+                .fileUpdated(entryContext.isAdminOperation() ?
+                        String.format("admin/%d/%d", entryContext.getYear(), entryContext.getMonth()) :
+                        createFilePathId(username, entryContext.getYear(), entryContext.getMonth()))
+                .cacheInvalidated(createCacheKey(username, entryContext.getYear()));
 
-        // FIXED: Now properly checks if balance was updated
+        // PRESERVED: Balance change tracking
         if (balanceResult.isUpdated()) {
             sideEffectsBuilder.holidayBalanceChanged(balanceResult.getOldBalance(), balanceResult.getNewBalance());
         }
 
         LoggerUtil.info(this.getClass(), message);
 
-        return OperationResult.successWithSideEffects(
-                message,
-                getOperationType(),
-                updatedEntry,
-                sideEffectsBuilder.build()
-        );
+        return OperationResult.successWithSideEffects(message, getOperationType(), updatedEntry, sideEffectsBuilder.build());
     }
 
     // ========================================================================
-    // HELPER CLASSES
+    // UTILITY METHODS
     // ========================================================================
 
     /**
-     * Context holder for entry processing
+     * Find entry by date and user ID
+     */
+    private Optional<WorkTimeTable> findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
+        return entries.stream()
+                .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
+                .findFirst();
+    }
+
+    /**
+     * Replace entry in list
+     */
+    private void replaceEntry(List<WorkTimeTable> entries, WorkTimeTable updatedEntry) {
+        entries.removeIf(entry ->
+                updatedEntry.getUserId().equals(entry.getUserId()) &&
+                        updatedEntry.getWorkDate().equals(entry.getWorkDate())
+        );
+        entries.add(updatedEntry);
+        entries.sort(java.util.Comparator.comparing(WorkTimeTable::getWorkDate)
+                .thenComparingInt(WorkTimeTable::getUserId));
+    }
+
+    /**
+     * Create file path ID
+     */
+    private String createFilePathId(String username, int year, int month) {
+        return String.format("%s/%d/%d", username, year, month);
+    }
+
+    /**
+     * Create cache key
+     */
+    private String createCacheKey(String username, int year) {
+        return String.format("%s-%d", username, year);
+    }
+
+    @Override
+    protected String getCommandName() {
+        return String.format("RemoveTimeOff[%s, %s]", username, date);
+    }
+
+    @Override
+    protected String getOperationType() {
+        return OperationResult.OperationType.REMOVE_TIME_OFF;
+    }
+
+    // ========================================================================
+    // PRESERVED HELPER CLASSES (ENHANCED WITH ACCESSOR)
+    // ========================================================================
+
+    /**
+     * ENHANCED: Context holder for entry processing (now includes accessor)
      */
     @Getter
     private static class EntryContext {
@@ -320,16 +373,18 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
         private final boolean adminOperation;
         private final int year;
         private final int month;
+        private final WorktimeDataAccessor accessor;
         private final OperationResult errorResult;
 
         private EntryContext(List<WorkTimeTable> entries, WorkTimeTable entry, String oldTimeOffType,
-                             boolean adminOperation, int year, int month) {
+                             boolean adminOperation, int year, int month, WorktimeDataAccessor accessor) {
             this.entries = entries;
             this.entry = entry;
             this.oldTimeOffType = oldTimeOffType;
             this.adminOperation = adminOperation;
             this.year = year;
             this.month = month;
+            this.accessor = accessor;
             this.errorResult = null;
         }
 
@@ -340,6 +395,7 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
             this.adminOperation = false;
             this.year = 0;
             this.month = 0;
+            this.accessor = null;
             this.errorResult = errorResult;
         }
 
@@ -347,11 +403,13 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
             return new EntryContext(errorResult);
         }
 
-        public boolean hasError() { return errorResult != null; }
+        public boolean hasError() {
+            return errorResult != null;
+        }
     }
 
     /**
-     * Result holder for holiday balance operations
+     * PRESERVED: Result holder for holiday balance operations (SAME LOGIC)
      */
     @Getter
     private static class HolidayBalanceResult {
@@ -364,15 +422,5 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
             this.oldBalance = oldBalance;
             this.newBalance = newBalance;
         }
-
-    }
-    @Override
-    protected String getCommandName() {
-        return String.format("RemoveTimeOff[%s, %s]", username, date);
-    }
-
-    @Override
-    protected String getOperationType() {
-        return OperationResult.OperationType.REMOVE_TIME_OFF;
     }
 }

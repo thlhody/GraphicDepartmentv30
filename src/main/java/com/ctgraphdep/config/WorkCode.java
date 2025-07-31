@@ -10,9 +10,12 @@ public class WorkCode {
     public static final String NATIONAL_HOLIDAY_CODE = "SN";
     public static final String TIME_OFF_CODE = "CO";
     public static final String MEDICAL_LEAVE_CODE = "CM";
+    public static final String WEEKEND_CODE = "W";
+    public static final String REGULAR_WORK_DAY = "Regular Work Day";
     public static final String NATIONAL_HOLIDAY_CODE_LONG = "National Holiday(SN)";
     public static final String TIME_OFF_CODE_LONG = "Holiday(CO)";
     public static final String MEDICAL_LEAVE_CODE_LONG = "Medical Leave(CM)";
+    public static final String WEEKEND_CODE_LONG = "Weekend Work(W)";
     public static final String AVAILABLE_PAID_DAYS = "Available Paid Days";
 
     public static final String WORK_DAYS = "Work Days";
@@ -71,13 +74,19 @@ public class WorkCode {
 
     //work statuses
     public static final String WORK_ONLINE = "Online";
+    public static final String WORK_ONLINE_LONG = "WORK_ONLINE";
     public static final String WORK_ON = "ON";
     public static final String WORK_TEMPORARY_STOP = "Temporary Stop";
+    public static final String WORK_TEMPORARY_STOP_LONG = "WORK_TEMPORARY_STOP";
     public static final String WORK_TS = "TS";
     public static final String WORK_OFFLINE = "Offline";
+    public static final String WORK_OFFLINE_LONG = "WORK_OFFLINE";
 
     //status dialog codes
     public static final String STATUS_UNKNOWN = "Unknown";
+
+    //action types
+    public static final String AT_IMPOSTARE = "IMPOSTARE";
 
     //work messages
     public static final String END_SCHEDULE_TITLE = "END SCHEDULE NOTICE";

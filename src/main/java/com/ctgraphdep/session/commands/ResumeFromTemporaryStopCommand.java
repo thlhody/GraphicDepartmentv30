@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -11,34 +11,26 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+// ============================================================================
+// 2. REFACTORED ResumeFromTemporaryStopCommand
+// ============================================================================
 
 /**
- * Command to resume work after a temporary stop
+ * REFACTORED ResumeFromTemporaryStopCommand using BaseWorktimeUpdateSessionCommand
+ * Eliminates duplication while preserving all resume specific logic
  */
-public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
-    private final String username;
-    private final Integer userId;
+public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
+
     private static final long RESUME_COOLDOWN_MS = 1500; // 1.5 seconds
 
-    /**
-     * Creates a command to resume work after a temporary stop
-     *
-     * @param username The username
-     * @param userId The user ID
-     */
     public ResumeFromTemporaryStopCommand(String username, Integer userId) {
-        validateUsername(username);
-        validateUserId(userId);
-
-        this.username = username;
-        this.userId = userId;
+        super(username, userId);
     }
 
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
         return executeWithDeduplication(context, username, this::executeResumeLogic, null, RESUME_COOLDOWN_MS);
     }
-
 
     public WorkUsersSessionsStates executeResumeLogic(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
@@ -67,28 +59,62 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
             SaveSessionCommand saveCommand = ctx.getCommandFactory().createSaveSessionCommand(session);
             ctx.executeCommand(saveCommand);
 
-            // Update the worktime entry with the resumed temporary stop information
-            updateWorktimeEntryFromSession(session, ctx);
+            // ENHANCED: Update worktime entry with special day detection using abstract base class
+            updateWorktimeEntryWithSpecialDayLogic(session, ctx);
 
+            // Manage monitoring state based on schedule completion
             manageMonitoringState(session, resumeTime, ctx);
 
             info(String.format("Resumed work for user %s after temporary stop", username));
-
             return session;
         });
     }
 
-    /**
-     * Manages the monitoring state based on schedule completion.
-     * If schedule is complete, activates hourly monitoring.
-     * Otherwise, restarts regular monitoring.
-     */
+    // ========================================================================
+    // ABSTRACT METHOD IMPLEMENTATIONS - ResumeFromTemporaryStopCommand specific logic
+    // ========================================================================
+
+    @Override
+    protected WorkTimeTable findOrCreateEntry(LocalDate workDate, WorkUsersSessionsStates session, SessionContext context) {
+        // Resume commands should only update existing entries
+        return findExistingEntry(workDate, context);
+    }
+
+    @Override
+    protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+        logCustomization("resume from temporary stop");
+
+        // Apply resume-specific customizations (critical for resuming temporary stops)
+        entry.setTemporaryStopCount(session.getTemporaryStopCount());
+        entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
+        entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes()); // Critical for resume
+        entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS); // Still in process
+    }
+
+    @Override
+    protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+        logCustomization("post-special-day resume from temporary stop");
+
+        // Re-apply resume customizations that might have been modified by special day logic
+        entry.setTemporaryStopCount(session.getTemporaryStopCount());
+        entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes()); // Critical
+        entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
+    }
+
+    @Override
+    protected String getCommandDescription() {
+        return "resume from temporary stop";
+    }
+
+    // ========================================================================
+    // PRESERVED ORIGINAL HELPER METHODS
+    // ========================================================================
+
     private void manageMonitoringState(WorkUsersSessionsStates session, LocalDateTime resumeTime, SessionContext context) {
         try {
             if (isScheduleCompleted(session, context)) {
                 debug(String.format("Schedule is completed for user %s, activating hourly monitoring", username));
 
-                // Use the explicit hourly monitoring activation
                 boolean result = context.getSessionMonitorService().activateExplicitHourlyMonitoring(username, resumeTime);
 
                 if (result) {
@@ -98,95 +124,29 @@ public class ResumeFromTemporaryStopCommand extends BaseSessionCommand<WorkUsers
                 }
             } else {
                 debug(String.format("Schedule is not completed for user %s, resuming schedule monitoring", username));
-
-                // Resume schedule monitoring
                 context.getSessionMonitorService().resumeScheduleMonitoring(username);
-
                 info(String.format("Resumed schedule monitoring for user %s after temp stop", username));
             }
         } catch (Exception e) {
-            // Log error but don't fail the command
             error(String.format("Error managing monitoring state for user %s: %s", username, e.getMessage()), e);
         }
     }
-    /**
-     * Checks if the user's schedule is completed based on worked minutes.
-     */
+
     private boolean isScheduleCompleted(WorkUsersSessionsStates session, SessionContext context) {
         try {
-            if (session.getDayStartTime() == null) {
-                return false;
-            }
-
             LocalDate workDate = session.getDayStartTime().toLocalDate();
+            Integer userSchedule = context.getUserService().getUserById(session.getUserId())
+                    .map(User::getSchedule).orElse(8);
 
-            // Get user schedule
-            User user = context.getUserService().getUserById(userId).orElse(null);
-            if (user == null) {
-                warn(String.format("User not found for ID %d, cannot check schedule completion", userId));
-                return false;
-            }
-
-            int userSchedule = user.getSchedule();
-
-            // Get schedule info using the query
             WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
             WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
 
-            if (scheduleInfo == null) {
-                warn("Could not retrieve schedule info, cannot check schedule completion");
-                return false;
-            }
-
-            // Check if worked minutes exceed schedule
             int workedMinutes = session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0;
             return scheduleInfo.isScheduleCompleted(workedMinutes);
 
         } catch (Exception e) {
             error(String.format("Error checking schedule completion: %s", e.getMessage()), e);
-            return false; // Default to false for safety
-        }
-    }
-
-    /**
-     * REFACTORED: Updates the worktime entry based on the session information
-     * Now uses SessionContext adapter methods instead of deprecated WorktimeManagementService
-     */
-    private void updateWorktimeEntryFromSession(WorkUsersSessionsStates session, SessionContext context) {
-        try {
-            if (session.getDayStartTime() == null) {
-                warn("Cannot update worktime entry: session has no start time");
-                return;
-            }
-
-            LocalDate workDate = session.getDayStartTime().toLocalDate();
-            debug(String.format("Updating worktime entry for date: %s", workDate));
-
-            // REFACTORED: Find existing entry using new SessionContext adapter method
-            WorkTimeTable entry = context.findSessionEntry(username, userId, workDate);
-
-            if (entry == null) {
-                warn(String.format("No worktime entry found for user %s on %s, cannot update", username, workDate));
-                return;
-            }
-
-            // REFACTORED: Update entry using new adapter method, then customize for resume-specific fields
-            entry = context.updateEntryFromSession(entry, session);
-
-            // Resume-specific customizations (these are important for resuming temporary stops)
-            debug("Updating worktime entry with resumed temporary stop information");
-            entry.setTemporaryStopCount(session.getTemporaryStopCount());
-            entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
-            entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes()); // Critical for resume
-            entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS);
-
-            // REFACTORED: Save using new SessionContext adapter method
-            context.saveSessionWorktime(username, entry, workDate.getYear(), workDate.getMonthValue());
-
-            info(String.format("Updated worktime entry for user %s with resumed temporary stop information", username));
-
-        } catch (Exception e) {
-            error(String.format("Failed to update worktime entry after resuming for user %s: %s", username, e.getMessage()), e);
+            return false;
         }
     }
 }

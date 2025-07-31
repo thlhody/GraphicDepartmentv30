@@ -1,7 +1,7 @@
 package com.ctgraphdep.session.util;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -11,8 +11,9 @@ import java.util.ArrayList;
 import java.util.function.Consumer;
 
 /**
- * Builder class for creating and updating session and worktime entities
- * with sensible defaults.
+ * FIXED Builder class for creating and updating session and worktime entities
+ * CRITICAL FIX: Removed automatic timeOffType null assignment
+ * The timeOffType is now managed by session commands with special day detection
  */
 public class SessionEntityBuilder {
     // Create a new session with default values
@@ -37,11 +38,15 @@ public class SessionEntityBuilder {
         session.setTotalTemporaryStopMinutes(0);
         session.setTemporaryStops(new ArrayList<>());
         session.setLastTemporaryStopTime(null);
-        session.setLastActivity(LocalDateTime.now());
+        session.setLastActivity(session.getLastActivity());
         return session;
     }
 
-    // Create a worktime entry from a session
+    /**
+     * FIXED: Create a worktime entry from a session
+     * CRITICAL FIX: Removed automatic timeOffType null assignment
+     * The timeOffType should be managed by session commands based on day type detection
+     */
     public static WorkTimeTable createWorktimeEntryFromSession(WorkUsersSessionsStates session) {
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(session.getUserId());
@@ -53,8 +58,13 @@ public class SessionEntityBuilder {
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
         entry.setLunchBreakDeducted(session.getLunchBreakDeducted() != null ? session.getLunchBreakDeducted() : false);
-        entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS);
-        entry.setTimeOffType(null);
+        entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
+
+        // CRITICAL FIX: DO NOT automatically set timeOffType to null
+        // Let the session commands handle timeOffType based on day type detection
+        // OLD CODE: entry.setTimeOffType(null); // REMOVED - This was the root cause!
+        // NEW CODE: timeOffType is left as null by default, session commands will set it appropriately
+
         return entry;
     }
 
@@ -122,22 +132,25 @@ public class SessionEntityBuilder {
             return this;
         }
 
-        public SessionUpdateBuilder addTemporaryStop(TemporaryStop stop) {
-            if (session.getTemporaryStops() == null) {
-                session.setTemporaryStops(new ArrayList<>());
-            }
-            session.getTemporaryStops().add(stop);
-            return this;
-        }
-
         public SessionUpdateBuilder lastTemporaryStopTime(LocalDateTime time) {
             session.setLastTemporaryStopTime(time);
             return this;
         }
 
+        public SessionUpdateBuilder addTemporaryStop(TemporaryStop tempStop) {
+            if (session.getTemporaryStops() == null) {
+                session.setTemporaryStops(new ArrayList<>());
+            }
+            session.getTemporaryStops().add(tempStop);
+            return this;
+        }
+
+        public SessionUpdateBuilder lastActivity(LocalDateTime time) {
+            session.setLastActivity(time);
+            return this;
+        }
+
         public WorkUsersSessionsStates build() {
-            // Always update last activity on build
-            session.setLastActivity(LocalDateTime.now());
             return session;
         }
     }

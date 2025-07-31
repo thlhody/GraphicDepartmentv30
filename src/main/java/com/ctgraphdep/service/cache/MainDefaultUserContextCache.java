@@ -65,10 +65,10 @@ public class MainDefaultUserContextCache {
             this.version = version;
         }
 
-        boolean isExpired() {
-            if (timestamp == null) return true;
+        boolean isFresh() {
+            if (timestamp == null) return false;
             long ageMinutes = ChronoUnit.MINUTES.between(timestamp, LocalDateTime.now());
-            return ageMinutes >= CACHE_REFRESH_INTERVAL_MINUTES;
+            return ageMinutes < CACHE_REFRESH_INTERVAL_MINUTES;
         }
 
         boolean isValid() {
@@ -156,7 +156,7 @@ public class MainDefaultUserContextCache {
                     accessId, Thread.currentThread().getName(), entry));
 
             // Check if we have a valid, non-expired entry
-            if (entry != null && entry.isValid() && !entry.isExpired()) {
+            if (entry != null && entry.isValid() && entry.isFresh()) {
                 LoggerUtil.debug(this.getClass(), String.format("Cache hit for user: %s (access #%d)",
                         entry.user.getUsername(), accessId));
                 return entry.user;
@@ -319,7 +319,7 @@ public class MainDefaultUserContextCache {
         cacheLock.readLock().lock();
         try {
             CacheEntry entry = cacheEntry.get();
-            if (entry != null && entry.isValid() && !entry.isExpired()) {
+            if (entry != null && entry.isValid() && entry.isFresh()) {
                 return entry.user;
             }
         } finally {

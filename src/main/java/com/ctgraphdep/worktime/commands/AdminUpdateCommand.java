@@ -1,8 +1,10 @@
 package com.ctgraphdep.worktime.commands;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
+import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -10,15 +12,17 @@ import lombok.Getter;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * REFACTORED Command to process admin worktime updates with comprehensive holiday balance management.
- * Admin can set hours, time off types, or remove entries with automatic holiday balance adjustments.
+ * FIXED: Admin Update Command using accessor pattern with comprehensive holiday balance management.
+ * Handles admin worktime updates (hours, time off types, or remove entries) with automatic holiday balance adjustments.
  * Key Features:
+ * - Uses AdminOwnDataAccessor for admin worktime operations
  * - Holiday balance tracking for CO (vacation) changes
  * - Comprehensive validation and error handling
  * - Side effects tracking for audit trail
- * - Integration with WorktimeEntityBuilder for consistent entry creation
+ * - Integration with existing WorktimeEntityBuilder methods (FIXED)
  */
 public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> {
     private final Integer userId;
@@ -44,15 +48,12 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
         LoggerUtil.info(this.getClass(), String.format(
                 "Validating admin update: userId=%d, date=%s, value=%s", userId, date, value));
 
-        // Validate admin permissions
-        context.requireAdminPrivileges("admin update");
+        // Validate admin permissions - assumes context has this method
+        if (!context.isCurrentUserAdmin()) {
+            throw new SecurityException("Only administrators can perform admin updates");
+        }
 
         // Validate the value format if not blank/remove
-        if (value != null && !value.trim().isEmpty() &&
-                !"BLANK".equalsIgnoreCase(value.trim()) &&
-                !"REMOVE".equalsIgnoreCase(value.trim())) {
-            validateValueFormat(value.trim());
-        }
 
         LoggerUtil.debug(this.getClass(), "Admin update validation completed successfully");
     }
@@ -60,67 +61,47 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
     @Override
     protected OperationResult executeCommand() {
         LoggerUtil.info(this.getClass(), String.format(
-                "Executing admin update for user %d on %s with value: %s", userId, date, value));
+                "Executing admin update for userId=%d on %s with value=%s using AdminOwnDataAccessor",
+                userId, date, value));
+
+        int year = date.getYear();
+        int month = date.getMonthValue();
 
         try {
-            int year = date.getYear();
-            int month = date.getMonthValue();
-            List<WorkTimeTable> adminEntries = context.loadAdminWorktime(year, month);
+            // Use AdminOwnDataAccessor for admin worktime operations
+            WorktimeDataAccessor accessor = context.getDataAccessor("admin");
 
-            // Get existing entry to track holiday balance changes
+            // Load admin entries for the month
+            List<WorkTimeTable> adminEntries = accessor.readWorktime("admin", year, month);
+            if (adminEntries == null) {
+                adminEntries = new java.util.ArrayList<>();
+            }
+
+            // Find existing entry to track holiday balance changes
             WorkTimeTable existingEntry = findExistingEntry(adminEntries, userId, date);
 
             LoggerUtil.debug(this.getClass(), String.format(
                     "Existing entry for user %d on %s: %s", userId, date,
                     existingEntry != null ?
                             String.format("timeOff=%s, minutes=%d",
-                                    existingEntry.getTimeOffType(), existingEntry.getTotalWorkedMinutes()) :
+                                    existingEntry.getTimeOffType(),
+                                    existingEntry.getTotalWorkedMinutes() != null ? existingEntry.getTotalWorkedMinutes() : 0) :
                             "none"));
 
-            // Create or update admin entry based on value
-            WorkTimeTable newEntry = createOrUpdateAdminEntry(userId, date, value);
+            // Calculate holiday balance change BEFORE making changes
+            HolidayBalanceChange balanceChange = calculateHolidayBalanceChange(existingEntry, value);
 
-            // Track holiday balance changes BEFORE updating entries
-            HolidayBalanceChange balanceChange = calculateHolidayBalanceChange(existingEntry, newEntry);
+            // Process the admin update
+            AdminUpdateResult updateResult = processAdminUpdate(adminEntries, userId, date, value);
 
+            // Save updated entries using accessor
+            accessor.writeWorktimeWithStatus("admin", adminEntries, year, month, context.getCurrentUser().getRole());
+
+            // Apply holiday balance changes if needed
             OperationResult.OperationSideEffects.Builder sideEffectsBuilder =
                     OperationResult.OperationSideEffects.builder()
                             .fileUpdated(String.format("admin/%d/%d", year, month));
 
-            String resultMessage;
-            WorkTimeTable resultEntry = null;
-
-            if (newEntry != null) {
-                // Add or replace entry in admin file
-                context.addOrReplaceEntry(adminEntries, newEntry);
-                context.saveAdminWorktime(adminEntries, year, month);
-
-                String operation = determineOperation(value);
-                resultMessage = String.format("Admin %s for user %d on %s", operation, userId, date);
-                resultEntry = newEntry;
-
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Created/updated admin entry: userId=%d, date=%s, operation=%s",
-                        userId, date, operation));
-
-            } else {
-                // Entry was removed (BLANK operation)
-                boolean removed = context.removeEntryByDate(adminEntries, userId, date);
-                if (removed) {
-                    context.saveAdminWorktime(adminEntries, year, month);
-                    resultMessage = String.format("Admin removed entry for user %d on %s", userId, date);
-
-                    LoggerUtil.info(this.getClass(), String.format(
-                            "Removed admin entry: userId=%d, date=%s", userId, date));
-                } else {
-                    resultMessage = String.format("No admin entry found to remove for user %d on %s", userId, date);
-
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "No entry to remove: userId=%d, date=%s", userId, date));
-                }
-            }
-
-            // Apply holiday balance changes
             if (balanceChange.hasChange()) {
                 boolean balanceUpdated = applyHolidayBalanceChange(balanceChange);
                 if (balanceUpdated) {
@@ -128,7 +109,7 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
                             balanceChange.getOldBalance(),
                             balanceChange.getNewBalance());
 
-                    resultMessage += String.format(" (Holiday balance: %d → %d)",
+                    updateResult.message += String.format(" (Holiday balance: %d → %d)",
                             balanceChange.getOldBalance(), balanceChange.getNewBalance());
 
                     LoggerUtil.info(this.getClass(), String.format(
@@ -142,45 +123,84 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
             }
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Admin update completed successfully: %s", resultMessage));
+                    "Admin update completed successfully: %s", updateResult.message));
 
             return OperationResult.successWithSideEffects(
-                    resultMessage,
+                    updateResult.message,
                     getOperationType(),
-                    resultEntry,
+                    updateResult.resultEntry,
                     sideEffectsBuilder.build()
             );
 
         } catch (Exception e) {
             String errorMessage = String.format(
-                    "Admin update failed for user %d on %s: %s", userId, date, e.getMessage());
+                    "Admin update failed for userId=%d on %s: %s", userId, date, e.getMessage());
             LoggerUtil.error(this.getClass(), errorMessage, e);
             return OperationResult.failure(errorMessage, getOperationType());
         }
     }
 
     /**
-     * Validate admin value format
+     * Process admin update based on value - FIXED to use existing WorktimeEntityBuilder methods
      */
-    private void validateValueFormat(String value) {
-        String upperValue = value.toUpperCase();
+    private AdminUpdateResult processAdminUpdate(List<WorkTimeTable> adminEntries, Integer userId, LocalDate date, String value) {
+        if (value == null || value.trim().isEmpty() ||
+                "BLANK".equalsIgnoreCase(value.trim()) ||
+                "REMOVE".equalsIgnoreCase(value.trim())) {
+            // Remove entry
+            boolean removed = removeEntryByDate(adminEntries, userId, date);
+            String message;
+            if (removed) {
+                message = String.format("Admin removed entry for user %d on %s", userId, date);
+                LoggerUtil.debug(this.getClass(), String.format("Removed admin entry: userId=%d, date=%s", userId, date));
+            } else {
+                message = String.format("No admin entry found to remove for user %d on %s", userId, date);
+                LoggerUtil.debug(this.getClass(), String.format("No entry to remove: userId=%d, date=%s", userId, date));
+            }
+            return new AdminUpdateResult(message, null);
+        }
 
-        // Check for time off types
-        if (upperValue.matches("^(CO|CM|SN)$")) {
-            return;
+        String trimmedValue = value.trim().toUpperCase();
+
+        // Create new entry using EXISTING WorktimeEntityBuilder methods
+        WorkTimeTable newEntry = createAdminEntry(userId, date, trimmedValue);
+
+        // Add or replace entry in list
+        addOrReplaceEntry(adminEntries, newEntry);
+
+        String operation = determineOperation(trimmedValue);
+        String message = String.format("Admin %s for user %d on %s", operation, userId, date);
+
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Created/updated admin entry: userId=%d, date=%s, operation=%s", userId, date, operation));
+
+        return new AdminUpdateResult(message, newEntry);
+    }
+
+    /**
+     * Create admin entry using existing WorktimeEntityBuilder methods - FIXED
+     */
+    private WorkTimeTable createAdminEntry(Integer userId, LocalDate date, String value) {
+        // Check for time off types (CO/CM/SN)
+        if (value.matches("^(CO|CM|SN)$")) {
+            WorkTimeTable entry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, value);
+            entry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
+            return entry;
         }
 
         // Check for work hours (1-24)
         try {
-            int hours = Integer.parseInt(upperValue);
+            int hours = Integer.parseInt(value);
             if (hours >= 1 && hours <= 24) {
-                return;
+                WorkTimeTable entry = WorktimeEntityBuilder.createAdminWorkHoursEntry(userId, date, hours);
+                entry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
+                return entry;
             } else {
                 throw new IllegalArgumentException("Work hours must be between 1 and 24");
             }
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid admin value: " + value +
-                    ". Expected: work hours (1-24), time off type (CO/CM/SN), or BLANK");
+                    ". Expected: work hours (1-24) or time off type (CO/CM/SN)");
         }
     }
 
@@ -195,51 +215,41 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
     }
 
     /**
-     * Create or update admin entry based on the value
+     * Remove entry by date and user ID - UTILITY METHOD
      */
-    private WorkTimeTable createOrUpdateAdminEntry(Integer userId, LocalDate date, String value) {
-        if (value == null || value.trim().isEmpty() ||
-                "BLANK".equalsIgnoreCase(value.trim()) ||
-                "REMOVE".equalsIgnoreCase(value.trim())) {
-            // Admin wants to remove/blank the entry - return null to indicate removal
-            return null;
-        }
-
-        String trimmedValue = value.trim().toUpperCase();
-
-        // Check for time off types
-        if (trimmedValue.matches("^(CO|CM|SN)$")) {
-            return WorktimeEntityBuilder.createTimeOffEntry(userId, date, trimmedValue);
-        }
-
-        // Check for numeric hours (1-24)
-        try {
-            int hours = Integer.parseInt(trimmedValue);
-            if (hours >= 1 && hours <= 24) {
-                return WorktimeEntityBuilder.createAdminWorkHoursEntry(userId, date, hours);
-            } else {
-                throw new IllegalArgumentException("Work hours must be between 1 and 24");
-            }
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid admin value: " + value + ". Expected: work hours (1-24), time off type (CO/CM/SN), or BLANK");
-        }
+    private boolean removeEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
+        return entries.removeIf(entry ->
+                userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()));
     }
 
     /**
-     * Calculate holiday balance change needed based on entry changes
+     * Add or replace entry in list - UTILITY METHOD
      */
-    private HolidayBalanceChange calculateHolidayBalanceChange(WorkTimeTable oldEntry, WorkTimeTable newEntry) {
-        // Get current balance for tracking
-        Integer currentBalance = context.getUserHolidayBalance(userId);
+    private void addOrReplaceEntry(List<WorkTimeTable> entries, WorkTimeTable updatedEntry) {
+        entries.removeIf(entry ->
+                updatedEntry.getUserId().equals(entry.getUserId()) &&
+                        updatedEntry.getWorkDate().equals(entry.getWorkDate())
+        );
+        entries.add(updatedEntry);
+        entries.sort(java.util.Comparator.comparing(WorkTimeTable::getWorkDate)
+                .thenComparingInt(WorkTimeTable::getUserId));
+    }
 
-        boolean wasTimeOff = isTimeOffEntry(oldEntry, WorkCode.TIME_OFF_CODE);
-        boolean isTimeOff = isTimeOffEntry(newEntry, WorkCode.TIME_OFF_CODE);
+    /**
+     * Calculate holiday balance change needed based on the operation
+     */
+    private HolidayBalanceChange calculateHolidayBalanceChange(WorkTimeTable existingEntry, String newValue) {
+        // Get current balance for tracking - using context method
+        Integer currentBalance = getUserHolidayBalance(userId);
 
-        if (wasTimeOff && !isTimeOff) {
+        boolean wasVacation = isVacationEntry(existingEntry);
+        boolean willBeVacation = isVacationValue(newValue);
+
+        if (wasVacation && !willBeVacation) {
             // Was CO, now not CO -> restore 1 holiday day
             return new HolidayBalanceChange(currentBalance, currentBalance + 1,
                     "Restored holiday day (removed CO time off)");
-        } else if (!wasTimeOff && isTimeOff) {
+        } else if (!wasVacation && willBeVacation) {
             // Wasn't CO, now is CO -> deduct 1 holiday day
             if (currentBalance > 0) {
                 return new HolidayBalanceChange(currentBalance, currentBalance - 1,
@@ -251,6 +261,25 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
 
         // No balance change needed
         return new HolidayBalanceChange(currentBalance, currentBalance, "No balance change");
+    }
+
+    /**
+     * Get user holiday balance using context
+     */
+    private Integer getUserHolidayBalance(Integer userId) {
+        try {
+            Optional<com.ctgraphdep.model.User> userOpt = context.getUserById(userId);
+            if (userOpt.isPresent()) {
+                return userOpt.get().getPaidHolidayDays();
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("User not found with ID: %d", userId));
+                return 0;
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error getting holiday balance for user %d: %s", userId, e.getMessage()), e);
+            return 0;
+        }
     }
 
     /**
@@ -271,17 +300,26 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
     }
 
     /**
-     * Check if entry is a specific type of time off
+     * Check if entry is a vacation (CO) entry
      */
-    private boolean isTimeOffEntry(WorkTimeTable entry, String timeOffType) {
-        return entry != null && timeOffType.equals(entry.getTimeOffType());
+    private boolean isVacationEntry(WorkTimeTable entry) {
+        return entry != null && WorkCode.TIME_OFF_CODE.equals(entry.getTimeOffType());
+    }
+
+    /**
+     * Check if value will create a vacation (CO) entry
+     */
+    private boolean isVacationValue(String value) {
+        return value != null && WorkCode.TIME_OFF_CODE.equalsIgnoreCase(value.trim());
     }
 
     /**
      * Determine the operation type for logging
      */
     private String determineOperation(String value) {
-        if (value == null || value.trim().isEmpty() || "BLANK".equalsIgnoreCase(value.trim())) {
+        if (value == null || value.trim().isEmpty() ||
+                "BLANK".equalsIgnoreCase(value.trim()) ||
+                "REMOVE".equalsIgnoreCase(value.trim())) {
             return "entry removal";
         }
 
@@ -300,13 +338,17 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
 
     @Override
     protected String getCommandName() {
-        return String.format("AdminUpdate[user=%d, date=%s, value=%s]", userId, date, value);
+        return String.format("AdminUpdate[userId=%d, date=%s, value=%s]", userId, date, value);
     }
 
     @Override
     protected String getOperationType() {
-        return OperationResult.OperationType.ADMIN_UPDATE;
+        return "ADMIN_UPDATE";
     }
+
+    // ========================================================================
+    // HELPER CLASSES
+    // ========================================================================
 
     /**
      * Helper class to track holiday balance changes
@@ -326,6 +368,19 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
         public boolean hasChange() {
             return oldBalance != null && newBalance != null && !oldBalance.equals(newBalance);
         }
+    }
 
+    /**
+     * Helper class to hold admin update results
+     */
+    @Getter
+    private static class AdminUpdateResult {
+        private String message;
+        private final WorkTimeTable resultEntry;
+
+        public AdminUpdateResult(String message, WorkTimeTable resultEntry) {
+            this.message = message;
+            this.resultEntry = resultEntry;
+        }
     }
 }

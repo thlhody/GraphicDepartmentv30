@@ -1,7 +1,9 @@
 package com.ctgraphdep.model;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
+import com.ctgraphdep.merge.engine.UniversalMergeEngine;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -45,7 +47,66 @@ public class WorkTimeTable {
     private Integer totalOvertimeMinutes;
 
     @JsonProperty("adminSync")
-    private SyncStatusMerge adminSync;
+    private String adminSync;
 
 
+    /**
+     * FIXED JsonSetter that preserves new timestamped statuses while cleaning old enum values.
+     * Preserves: USER_INPUT, USER_IN_PROCESS, ADMIN_INPUT, ADMIN_FINAL, TEAM_FINAL, DELETE
+     * Preserves: USER_EDITED_[epoch], ADMIN_EDITED_[epoch], TEAM_EDITED_[epoch]
+     * Converts: All old SyncStatusMerge enum values → USER_INPUT
+     */
+    @JsonSetter("adminSync")
+    public void setAdminSyncFromJson(Object value) {
+        if (value instanceof String stringValue) {
+            // Preserve new format statuses
+            if (isNewFormatStatus(stringValue)) {
+                this.adminSync = stringValue;
+            } else {
+                // Convert old enum values to USER_INPUT for cleanup
+                this.adminSync = convertOldStatusForCleanup(stringValue);
+            }
+        } else {
+            // Any non-string value → USER_INPUT
+            this.adminSync = MergingStatusConstants.USER_INPUT;
+        }
+    }
+
+    /**
+     * Check if status is in new format (should be preserved)
+     */
+    private boolean isNewFormatStatus(String status) {
+        return MergingStatusConstants.USER_INPUT.equals(status) ||
+                MergingStatusConstants.USER_IN_PROCESS.equals(status) ||
+                MergingStatusConstants.ADMIN_INPUT.equals(status) ||
+                MergingStatusConstants.ADMIN_FINAL.equals(status) ||
+                MergingStatusConstants.TEAM_FINAL.equals(status) ||
+                MergingStatusConstants.DELETE.equals(status) ||
+                MergingStatusConstants.isTimestampedEditStatus(status);
+    }
+
+    /**
+     * Convert old SyncStatusMerge enum values for file cleanup
+     * All old enum values become USER_INPUT except special cases
+     */
+    private String convertOldStatusForCleanup(String oldStatus) {
+        return switch (oldStatus) {
+            // Special case: ADMIN_BLANK becomes DELETE
+            case "ADMIN_BLANK" -> MergingStatusConstants.DELETE;
+
+            // All other old enum values become USER_INPUT for cleanup
+            case "USER_DONE", "ADMIN_CHECK", "ADMIN_EDITED", "USER_EDITED" -> MergingStatusConstants.USER_INPUT;
+
+            // Unknown values also become USER_INPUT
+            default -> MergingStatusConstants.USER_INPUT;
+        };
+    }
+
+    // Standard getter - ensure never null
+    public String getAdminSync() {
+        if (adminSync == null || adminSync.trim().isEmpty()) {
+            return MergingStatusConstants.USER_INPUT;
+        }
+        return adminSync;
+    }
 }

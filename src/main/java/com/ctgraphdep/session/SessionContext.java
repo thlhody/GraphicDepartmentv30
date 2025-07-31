@@ -3,9 +3,9 @@ package com.ctgraphdep.session;
 import com.ctgraphdep.calculations.CalculationCommandFactory;
 import com.ctgraphdep.calculations.CalculationContext;
 import com.ctgraphdep.calculations.CalculationCommandService;
-import com.ctgraphdep.enums.SyncStatusMerge;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -15,7 +15,9 @@ import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
+import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
+import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,8 @@ import org.springframework.context.annotation.Lazy;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Getter
@@ -105,22 +109,89 @@ public class SessionContext {
         }
     }
 
-    // Session worktime adapter methods
+    // Fixed Session worktime adapter methods using accessor pattern
+
+    /**
+     * Load session worktime using data accessor pattern
+     */
     public List<WorkTimeTable> loadSessionWorktime(String username, int year, int month) {
-        return worktimeOperationContext.loadUserWorktime(username, year, month);
+        WorktimeDataAccessor accessor = worktimeOperationContext.getDataAccessor(username);
+        return accessor.readWorktime(username, year, month);
     }
 
+    /**
+     * Save session worktime using data accessor pattern
+     */
     public void saveSessionWorktime(String username, WorkTimeTable entry, int year, int month) {
-        List<WorkTimeTable> entries = loadSessionWorktime(username, year, month);
-        worktimeOperationContext.addOrReplaceEntry(entries, entry);
-        worktimeOperationContext.saveUserWorktime(username, entries, year, month);
+        WorktimeDataAccessor accessor = worktimeOperationContext.getDataAccessor(username);
+
+        // Load current entries
+        List<WorkTimeTable> entries = accessor.readWorktime(username, year, month);
+        if (entries == null) {
+            entries = new ArrayList<>();
+        }
+
+        // Add or replace the entry (implement logic directly)
+        addOrReplaceEntry(entries, entry);
+
+        // Save using accessor
+        try {
+            accessor.writeWorktimeWithStatus(username, entries, year, month, mainDefaultUserContextService.getCurrentUserRole());
+        } catch (UnsupportedOperationException e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Cannot save worktime for %s: accessor does not support write operations", username));
+            throw new RuntimeException("Write operation not supported for this user context", e);
+        }
     }
 
+    /**
+     * Find session entry using data accessor pattern
+     */
     public WorkTimeTable findSessionEntry(String username, Integer userId, LocalDate date) {
         int year = date.getYear();
         int month = date.getMonthValue();
-        List<WorkTimeTable> entries = loadSessionWorktime(username, year, month);
-        return worktimeOperationContext.findEntryByDate(entries, userId, date).orElse(null);
+
+        WorktimeDataAccessor accessor = worktimeOperationContext.getDataAccessor(username);
+        List<WorkTimeTable> entries = accessor.readWorktime(username, year, month);
+
+        if (entries == null || entries.isEmpty()) {
+            return null;
+        }
+
+        // Find entry by date and user ID (implement logic directly)
+        return findEntryByDate(entries, userId, date);
+    }
+
+    // ========================================================================
+    // UTILITY METHODS - Implement the missing logic directly
+    // ========================================================================
+
+    /**
+     * Add or replace entry in list by date and user ID
+     */
+    private void addOrReplaceEntry(List<WorkTimeTable> entries, WorkTimeTable newEntry) {
+        // Remove existing entry for same date and user
+        entries.removeIf(entry ->
+                newEntry.getUserId().equals(entry.getUserId()) &&
+                        newEntry.getWorkDate().equals(entry.getWorkDate())
+        );
+
+        // Add the new entry
+        entries.add(newEntry);
+
+        // Sort by date and user ID
+        entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate)
+                .thenComparing(WorkTimeTable::getUserId));
+    }
+
+    /**
+     * Find entry in list by date and user ID
+     */
+    private WorkTimeTable findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
+        return entries.stream()
+                .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
+                .findFirst()
+                .orElse(null);
     }
 
     // Use existing SessionEntityBuilder method
@@ -137,7 +208,7 @@ public class SessionContext {
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
         entry.setLunchBreakDeducted(session.getLunchBreakDeducted() != null ? session.getLunchBreakDeducted() : false);
-        entry.setAdminSync(SyncStatusMerge.USER_IN_PROCESS);
+        entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
         return entry;
     }
 

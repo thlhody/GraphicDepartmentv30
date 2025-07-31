@@ -36,15 +36,12 @@ public class TeamOperationService {
      */
     public OperationResult initializeTeamMembers(List<Integer> selectedUserIds, String teamLeadUsername, int year, int month) {
         try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Initializing team members: %d users for team lead %s - %d/%d",
-                    selectedUserIds.size(), teamLeadUsername, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Initializing team members: %d users for team lead %s - %d/%d", selectedUserIds.size(), teamLeadUsername, year, month));
 
             return new InitializeTeamMembersCommand(context, selectedUserIds, teamLeadUsername, year, month).execute();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error during team member initialization for %s: %s", teamLeadUsername, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error during team member initialization for %s: %s", teamLeadUsername, e.getMessage()), e);
             return OperationResult.failure("Failed to initialize team members: " + e.getMessage(), "INITIALIZE_TEAM_MEMBERS");
         }
     }
@@ -58,15 +55,12 @@ public class TeamOperationService {
      */
     public OperationResult updateTeamStatistics(String teamLeadUsername, int year, int month) {
         try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Updating team statistics for team lead %s - %d/%d",
-                    teamLeadUsername, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Updating team statistics for team lead %s - %d/%d", teamLeadUsername, year, month));
 
             return new UpdateTeamStatisticsCommand(context, teamLeadUsername, year, month).execute();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error during team statistics update for %s: %s", teamLeadUsername, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error during team statistics update for %s: %s", teamLeadUsername, e.getMessage()), e);
             return OperationResult.failure("Failed to update team statistics: " + e.getMessage(), "UPDATE_TEAM_STATISTICS");
         }
     }
@@ -80,15 +74,12 @@ public class TeamOperationService {
      */
     public OperationResult loadTeamMembers(String teamLeadUsername, int year, int month) {
         try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Loading team members for team lead %s - %d/%d",
-                    teamLeadUsername, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Loading team members for team lead %s - %d/%d", teamLeadUsername, year, month));
 
             return new LoadTeamMembersCommand(context, teamLeadUsername, year, month).execute();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error during team members load for %s: %s", teamLeadUsername, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error during team members load for %s: %s", teamLeadUsername, e.getMessage()), e);
             return OperationResult.failure("Failed to load team members: " + e.getMessage(), "LOAD_TEAM_MEMBERS");
         }
     }
@@ -110,9 +101,7 @@ public class TeamOperationService {
             return false;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error checking team members existence for %s - %d/%d: %s",
-                    teamLeadUsername, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error checking team members existence for %s - %d/%d: %s", teamLeadUsername, year, month, e.getMessage()));
             return false;
         }
     }
@@ -134,9 +123,7 @@ public class TeamOperationService {
             return 0;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting team member count for %s - %d/%d: %s",
-                    teamLeadUsername, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error getting team member count for %s - %d/%d: %s", teamLeadUsername, year, month, e.getMessage()));
             return 0;
         }
     }

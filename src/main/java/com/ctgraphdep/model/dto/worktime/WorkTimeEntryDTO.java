@@ -2,6 +2,7 @@ package com.ctgraphdep.model.dto.worktime;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
+import com.ctgraphdep.model.dto.status.GeneralDataStatusDTO;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import lombok.Builder;
 import lombok.Data;
@@ -45,55 +46,68 @@ public class WorkTimeEntryDTO {
     private Integer rawWorkedMinutes; // Actual time worked (before processing)
     private String formattedRawTime;
 
-    // Overtime fields - FIXED: Single field for all overtime
+    // ENHANCED: Overtime fields for all special day types
     private Integer totalOvertimeMinutes;
     private String formattedOvertimeTime;
     private String formattedScheduledTime;
 
     private Integer discardedMinutes;
 
-    // SN overtime specific fields
-    private boolean hasSNOvertime;
-    private String snOvertimeDisplay;
+    // ENHANCED: Special day work fields (not just SN)
+    private boolean hasSpecialDayWork;
+    private String specialDayWorkDisplay;
+    private String specialDayType;
+
+    // Add status information
+    private GeneralDataStatusDTO statusInfo;
+
 
     /**
-     * FIXED: Set SN overtime flag with proper calculation
-     */
-    public void setHasSNOvertime(boolean hasSNOvertime) {
-        this.hasSNOvertime = hasSNOvertime;
-
-        // Auto-generate SN overtime display when set
-        if (hasSNOvertime && totalOvertimeMinutes != null && totalOvertimeMinutes > 0) {
-            generateSNOvertimeDisplay();
-        }
-    }
-
-    /**
-     * FIXED: Set total overtime minutes with SN display update
+     * ENHANCED: Set total overtime minutes with special day display update
      */
     public void setTotalOvertimeMinutes(Integer totalOvertimeMinutes) {
         this.totalOvertimeMinutes = totalOvertimeMinutes;
 
-        // Update SN display if this is an SN day
-        if (hasSNOvertime) {
-            generateSNOvertimeDisplay();
+        // Update special day display if this is a special day
+        if (hasSpecialDayWork && specialDayType != null) {
+            generateSpecialDayWorkDisplay();
         }
     }
 
     /**
-     * Generate SN overtime display text (e.g., "SN4" for 4 hours)
+     * ENHANCED: Generate special day work display text (e.g., "SN4", "CO6", "CM2", "W8")
      */
-    private void generateSNOvertimeDisplay() {
-        if (totalOvertimeMinutes != null && totalOvertimeMinutes > 0) {
+    private void generateSpecialDayWorkDisplay() {
+        if (totalOvertimeMinutes != null && totalOvertimeMinutes > 0 && specialDayType != null) {
             int hours = totalOvertimeMinutes / 60;
-            this.snOvertimeDisplay = "SN" + hours;
-        } else {
-            this.snOvertimeDisplay = "SN";
+            this.specialDayWorkDisplay = specialDayType + hours;
+        } else if (specialDayType != null) {
+            this.specialDayWorkDisplay = specialDayType;
         }
     }
 
     /**
-     * Check if this entry represents work on a national holiday
+     * ENHANCED: Check if this entry represents work on any special day (SN/CO/CM/W)
+     */
+    public boolean isSpecialDayWithWork() {
+        return hasSpecialDayWork &&
+                totalOvertimeMinutes != null &&
+                totalOvertimeMinutes > 0 &&
+                isSpecialDayType();
+    }
+
+    /**
+     * Check if this entry has a special day time off type
+     */
+    public boolean isSpecialDayType() {
+        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(this.timeOffType) ||
+                WorkCode.TIME_OFF_CODE.equals(this.timeOffType) ||
+                WorkCode.MEDICAL_LEAVE_CODE.equals(this.timeOffType) ||
+                WorkCode.WEEKEND_CODE.equals(this.timeOffType);
+    }
+
+    /**
+     * LEGACY: Check if this entry represents work on a national holiday (for backward compatibility)
      */
     public boolean isSNWorkDay() {
         return WorkCode.NATIONAL_HOLIDAY_CODE.equals(this.timeOffType) &&
@@ -102,43 +116,66 @@ public class WorkTimeEntryDTO {
     }
 
     /**
-     * Get display class for time off type
+     * ENHANCED: Get display class for time off type including special day work
      */
     public String getTimeOffDisplayClass() {
-        if (isSNWorkDay()) {
-            return "sn-work-display";
-        } else if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(this.timeOffType)) {
-            return "holiday";
-        } else if (WorkCode.TIME_OFF_CODE.equals(this.timeOffType)) {
-            return "vacation";
-        } else if (WorkCode.MEDICAL_LEAVE_CODE.equals(this.timeOffType)) {
-            return "medical";
+        if (isSpecialDayWithWork()) {
+            return switch (this.timeOffType) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "sn-work-display";
+                case WorkCode.TIME_OFF_CODE -> "co-work-display";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "cm-work-display";
+                case WorkCode.WEEKEND_CODE -> "w-work-display";
+                default -> "special-work-display";
+            };
+        } else if (isSpecialDayType()) {
+            return switch (this.timeOffType) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "holiday";
+                case WorkCode.TIME_OFF_CODE -> "vacation";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "medical";
+                case WorkCode.WEEKEND_CODE -> "weekend";
+                default -> "time-off";
+            };
         }
         return "";
     }
 
     /**
-     * Get tooltip text for time off display
+     * ENHANCED: Get tooltip text for time off display including special day work
      */
     public String getTimeOffTooltip() {
-        if (isSNWorkDay()) {
-            return "National Holiday with " + formattedOvertimeTime + " overtime work";
-        } else if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(this.timeOffType)) {
-            return "National Holiday (Free Day)";
-        } else if (WorkCode.TIME_OFF_CODE.equals(this.timeOffType)) {
-            return "Vacation Day";
-        } else if (WorkCode.MEDICAL_LEAVE_CODE.equals(this.timeOffType)) {
-            return "Medical Leave";
+        if (isSpecialDayWithWork()) {
+            String dayName = switch (this.timeOffType) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "National Holiday";
+                case WorkCode.TIME_OFF_CODE -> "Time Off Day";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "Medical Leave";
+                case WorkCode.WEEKEND_CODE -> "Weekend";
+                default -> "Special Day";
+            };
+            return dayName + " with " + formattedOvertimeTime + " overtime work";
+        } else if (isSpecialDayType()) {
+            return switch (this.timeOffType) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "National Holiday (Free Day)";
+                case WorkCode.TIME_OFF_CODE -> "Vacation Day";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "Medical Leave";
+                case WorkCode.WEEKEND_CODE -> "Weekend Day";
+                default -> "Time Off Day";
+            };
         }
         return "";
     }
 
     /**
-     * Get overtime display class
+     * ENHANCED: Get overtime display class for all special day types
      */
     public String getOvertimeDisplayClass() {
-        if (isSNWorkDay()) {
-            return "badge bg-warning text-dark rounded-pill overtime-display small sn-overtime";
+        if (isSpecialDayWithWork()) {
+            return switch (this.timeOffType) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "badge bg-warning text-dark rounded-pill overtime-display small sn-overtime";
+                case WorkCode.TIME_OFF_CODE -> "badge bg-info text-white rounded-pill overtime-display small co-overtime";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "badge bg-orange text-white rounded-pill overtime-display small cm-overtime";
+                case WorkCode.WEEKEND_CODE -> "badge bg-secondary text-white rounded-pill overtime-display small w-overtime";
+                default -> "badge bg-primary text-white rounded-pill overtime-display small special-overtime";
+            };
         } else if (formattedOvertimeTime != null) {
             return "badge bg-success rounded-pill overtime-display small";
         }
@@ -146,11 +183,18 @@ public class WorkTimeEntryDTO {
     }
 
     /**
-     * Get overtime tooltip text
+     * ENHANCED: Get overtime tooltip text for all special day types
      */
     public String getOvertimeTooltip() {
-        if (isSNWorkDay()) {
-            return "Holiday overtime work: " + formattedOvertimeTime;
+        if (isSpecialDayWithWork()) {
+            String dayName = switch (this.timeOffType) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "Holiday";
+                case WorkCode.TIME_OFF_CODE -> "Time Off";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "Medical Leave";
+                case WorkCode.WEEKEND_CODE -> "Weekend";
+                default -> "Special Day";
+            };
+            return dayName + " overtime work: " + formattedOvertimeTime;
         } else if (formattedOvertimeTime != null) {
             return "Overtime work: " + formattedOvertimeTime;
         }
@@ -158,9 +202,9 @@ public class WorkTimeEntryDTO {
     }
 
     /**
-     * ENHANCED: Convert WorkTimeTable to DTO with proper SN overtime handling
+     * ENHANCED: Convert WorkTimeTable to DTO with proper special day overtime handling
      */
-    public static WorkTimeEntryDTO fromWorkTimeTable(WorkTimeTable entry, int userSchedule) {
+    public static WorkTimeEntryDTO fromWorkTimeTable(WorkTimeTable entry, int userSchedule, GeneralDataStatusDTO statusInfo) {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -173,7 +217,8 @@ public class WorkTimeEntryDTO {
                 .temporaryStopCount(entry.getTemporaryStopCount())
                 .totalTemporaryStopMinutes(entry.getTotalTemporaryStopMinutes())
                 .lunchBreakDeducted(entry.isLunchBreakDeducted())
-                .timeOffType(entry.getTimeOffType());
+                .timeOffType(entry.getTimeOffType())
+                .statusInfo(statusInfo);
 
         // Format start and end times
         if (entry.getDayStartTime() != null) {
@@ -189,9 +234,9 @@ public class WorkTimeEntryDTO {
             builder.formattedTemporaryStop(entry.getTemporaryStopCount() + " (" + entry.getTotalTemporaryStopMinutes() + "m)");
         }
 
-        // ENHANCED: Handle SN days with special logic
-        if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType())) {
-            handleSNDayConversion(entry, builder);
+        // ENHANCED: Handle all special day types with work time
+        if (entry.getTimeOffType() != null && isSpecialDayTypeStatic(entry.getTimeOffType())) {
+            handleSpecialDayConversion(entry, builder);
         } else if (entry.getTimeOffType() != null) {
             handleRegularTimeOffConversion(entry, builder);
         } else {
@@ -202,45 +247,61 @@ public class WorkTimeEntryDTO {
     }
 
     /**
-     * ENHANCED: Handle SN day conversion with overtime support
+     * ENHANCED: Handle all special day types (SN/CO/CM/W) with work time
      */
-    private static void handleSNDayConversion(WorkTimeTable entry, WorkTimeEntryDTOBuilder builder) {
-        // SN days: totalWorkedMinutes should be 0, all work is overtime
-        builder.totalWorkedMinutes(0);
-        builder.formattedWorkTime("0:00"); // Always show 0 work time on holidays
-        builder.timeOffClass("bg-success"); // Green for holidays
+    private static void handleSpecialDayConversion(WorkTimeTable entry, WorkTimeEntryDTOBuilder builder) {
+        // Set special day type for display
+        builder.specialDayType(entry.getTimeOffType());
 
-        // Handle SN overtime
-        Integer overtimeMinutes = entry.getTotalOvertimeMinutes();
-        if (overtimeMinutes != null && overtimeMinutes > 0) {
-            builder.totalOvertimeMinutes(overtimeMinutes);
-            builder.formattedOvertimeTime(CalculateWorkHoursUtil.minutesToHHmm(overtimeMinutes));
-            builder.hasSNOvertime(true);
+        // Check if this special day has work time
+        boolean hasWorkTime = entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0;
 
-            // Generate SN display (will be done in setter)
-            WorkTimeEntryDTO dto = builder.build();
-            dto.generateSNOvertimeDisplay();
+        if (hasWorkTime) {
+            // Special day WITH work time
+            builder.totalWorkedMinutes(0); // Always 0 for special days
+            builder.formattedWorkTime("0:00");
+            builder.totalOvertimeMinutes(entry.getTotalOvertimeMinutes());
+            builder.formattedOvertimeTime(CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalOvertimeMinutes()));
+            builder.hasSpecialDayWork(true);
+
+            // Set appropriate CSS class for special day with work
+            String cssClass = switch (entry.getTimeOffType()) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-warning text-dark"; // Yellow for SN
+                case WorkCode.TIME_OFF_CODE -> "bg-info text-white"; // Blue for CO
+                case WorkCode.MEDICAL_LEAVE_CODE -> "bg-orange text-white"; // Orange for CM
+                case WorkCode.WEEKEND_CODE -> "bg-secondary text-white"; // Gray for W
+                default -> "bg-primary text-white";
+            };
+            builder.timeOffClass(cssClass);
         } else {
+            // Special day WITHOUT work time (regular time off)
+            builder.totalWorkedMinutes(0);
+            builder.formattedWorkTime(null);
             builder.totalOvertimeMinutes(0);
             builder.formattedOvertimeTime(null);
-            builder.hasSNOvertime(false);
+            builder.hasSpecialDayWork(false);
+
+            // Set appropriate CSS class for regular time off
+            String cssClass = switch (entry.getTimeOffType()) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-success"; // Green for SN
+                case WorkCode.TIME_OFF_CODE -> "bg-info"; // Blue for CO
+                case WorkCode.MEDICAL_LEAVE_CODE -> "bg-warning"; // Orange for CM
+                case WorkCode.WEEKEND_CODE -> "bg-secondary"; // Gray for W
+                default -> "bg-secondary";
+            };
+            builder.timeOffClass(cssClass);
         }
 
-        // No discarded minutes for SN days
+        // No discarded minutes for special days
         builder.discardedMinutes(0);
     }
 
     /**
-     * Handle regular time off conversion (CO, CM)
+     * Handle regular time off conversion (non-special days)
      */
     private static void handleRegularTimeOffConversion(WorkTimeTable entry, WorkTimeEntryDTOBuilder builder) {
-        // Set time off CSS class
-        String cssClass = switch (entry.getTimeOffType()) {
-            case WorkCode.TIME_OFF_CODE -> "bg-info";  // CO
-            case WorkCode.MEDICAL_LEAVE_CODE -> "bg-warning";  // CM
-            default -> "bg-secondary";
-        };
-        builder.timeOffClass(cssClass);
+        // Set time off CSS class for non-special time off types
+        builder.timeOffClass("bg-secondary");
 
         // No work time for regular time off
         builder.totalWorkedMinutes(0);
@@ -248,61 +309,52 @@ public class WorkTimeEntryDTO {
         builder.totalOvertimeMinutes(0);
         builder.formattedOvertimeTime(null);
         builder.discardedMinutes(0);
-        builder.hasSNOvertime(false);
+        builder.hasSpecialDayWork(false);
     }
 
     /**
-     * ENHANCED: Handle regular work day conversion with proper calculations
+     * Handle regular work day conversion with proper calculations
      */
     private static void handleRegularWorkDayConversion(WorkTimeTable entry, WorkTimeEntryDTOBuilder builder, int userSchedule) {
         // Calculate work times if this is a work entry (not time off)
         if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
             int rawWorkedMinutes = entry.getTotalWorkedMinutes();
 
-            // Set raw worked time (actual time before processing)
-            builder.rawWorkedMinutes(rawWorkedMinutes);
-            builder.formattedRawTime(CalculateWorkHoursUtil.minutesToHHmm(rawWorkedMinutes));
+            // Use calculation utility for consistency
+            WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(rawWorkedMinutes, userSchedule);
 
-            // Use the utility to calculate processed work time breakdown
-            WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(
-                    rawWorkedMinutes, userSchedule);
+            builder.totalWorkedMinutes(result.getProcessedMinutes());
+            builder.formattedWorkTime(CalculateWorkHoursUtil.minutesToHHmm(result.getProcessedMinutes()));
+            builder.totalOvertimeMinutes(result.getOvertimeMinutes());
 
-            // Set lunch break applied flag
-            builder.lunchBreakApplied(result.isLunchDeducted());
-
-            // FIXED: Use processed minutes for work time display (up to schedule)
-            int regularMinutes = result.getProcessedMinutes();
-            builder.totalWorkedMinutes(regularMinutes);
-            builder.formattedWorkTime(CalculateWorkHoursUtil.minutesToHHmm(regularMinutes));
-
-            // Set overtime minutes - prefer stored value, fallback to calculated
-            if (entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
-                // Use the stored overtime value (more accurate)
-                builder.totalOvertimeMinutes(entry.getTotalOvertimeMinutes());
-                builder.formattedOvertimeTime(CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalOvertimeMinutes()));
-            } else if (result.getOvertimeMinutes() > 0) {
-                // Fallback to calculated overtime
-                builder.totalOvertimeMinutes(result.getOvertimeMinutes());
+            if (result.getOvertimeMinutes() > 0) {
                 builder.formattedOvertimeTime(CalculateWorkHoursUtil.minutesToHHmm(result.getOvertimeMinutes()));
-            } else {
-                builder.totalOvertimeMinutes(0);
-                builder.formattedOvertimeTime(null);
             }
 
-            // Calculate discarded minutes - get remainder of adjusted minutes
-            int adjustedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(rawWorkedMinutes, userSchedule);
-            builder.discardedMinutes(adjustedMinutes % 60);
+            builder.lunchBreakApplied(result.isLunchDeducted());
+            builder.hasSpecialDayWork(false);
+
+            int discardedMinutes = CalculateWorkHoursUtil.calculateDiscardedMinutes(rawWorkedMinutes, userSchedule);
+            builder.discardedMinutes(discardedMinutes);
+
         } else {
-            // No work done
-            builder.rawWorkedMinutes(0);
-            builder.formattedRawTime(null);
+            // No work time
             builder.totalWorkedMinutes(0);
             builder.formattedWorkTime(null);
             builder.totalOvertimeMinutes(0);
             builder.formattedOvertimeTime(null);
-            builder.discardedMinutes(0);
+            builder.hasSpecialDayWork(false);
         }
 
-        builder.hasSNOvertime(false);
+    }
+
+    /**
+     * ENHANCED: Check if a time off type is a special day type (static method)
+     */
+    private static boolean isSpecialDayTypeStatic(String timeOffType) {
+        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) ||
+                WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
+                WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) ||
+                WorkCode.WEEKEND_CODE.equals(timeOffType);
     }
 }

@@ -54,8 +54,6 @@ public class StatusController extends BaseController {
 
     private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
-    // REMOVED: StatusService dependency
-    // ADDED: WorktimeOperationContext for commands
     private final WorktimeOperationContext worktimeContext;
     private final ReadFileNameStatusService readFileNameStatusService;
     private final ThymeleafService thymeleafService;
@@ -226,7 +224,7 @@ public class StatusController extends BaseController {
             // REFACTORED: Use LoadUserRegisterStatusCommand instead of StatusService
             LoadUserRegisterStatusCommand command = new LoadUserRegisterStatusCommand(
                     worktimeContext, targetUser.getUsername(), targetUser.getUserId(),
-                    year, month, startDate, endDate, searchTerm, actionType, printPrepTypes, clientName);
+                    displayYear, displayMonth, startDate, endDate, searchTerm, actionType, printPrepTypes, clientName);
 
             OperationResult result = command.execute();
 
@@ -443,7 +441,7 @@ public class StatusController extends BaseController {
 
             // REFACTORED: Use LoadUserWorktimeStatusCommand instead of StatusService
             LoadUserWorktimeStatusCommand command = new LoadUserWorktimeStatusCommand(
-                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(), currentYear, currentMonth);
+                    worktimeContext, targetUser.getUsername(), currentYear, currentMonth);
 
             OperationResult result = command.execute();
 
@@ -501,7 +499,7 @@ public class StatusController extends BaseController {
 
             // REFACTORED: Use LoadUserWorktimeStatusCommand instead of StatusService
             LoadUserWorktimeStatusCommand command = new LoadUserWorktimeStatusCommand(
-                    worktimeContext, targetUser.getUsername(), targetUser.getUserId(), selectedYear, selectedMonth);
+                    worktimeContext, targetUser.getUsername(), selectedYear, selectedMonth);
 
             OperationResult result = command.execute();
 

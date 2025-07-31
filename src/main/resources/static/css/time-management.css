@@ -57,6 +57,104 @@
 }
 
 /* ========================================================================
+ENHANCED CARD HEADER STYLES
+======================================================================== */
+
+/* Enhanced card header layout */
+.card-header .d-flex.justify-content-between {
+    min-height: 60px;
+}
+
+/* Period selection form styling */
+.card-header form.d-flex {
+    background-color: rgba(248, 249, 250, 0.5);
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid #dee2e6;
+}
+
+.card-header .form-group {
+    min-width: fit-content;
+}
+
+.card-header .form-label.small {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.card-header .form-select-sm {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #ced4da;
+}
+
+.card-header .btn-sm {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+    white-space: nowrap;
+}
+
+/* Vertical divider */
+.card-header .vr {
+    width: 1px;
+    height: 35px;
+    background-color: #dee2e6;
+    margin: 0 0.5rem;
+}
+
+/* Export button styling */
+.card-header .btn-outline-success {
+    border-color: #198754;
+    color: #198754;
+}
+
+.card-header .btn-outline-success:hover {
+    background-color: #198754;
+    color: white;
+}
+
+/* Responsive behavior */
+@media (max-width: 992px) {
+    .card-header .d-flex.justify-content-between {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem;
+    }
+
+    .card-header .d-flex.align-items-center.gap-2.flex-wrap {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .card-header .vr {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .card-header form.d-flex {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .card-header .form-group {
+        min-width: auto;
+        flex: 1;
+    }
+
+    .card-header .form-select-sm {
+        min-width: 70px;
+    }
+
+    .card-header .btn-sm {
+        flex: 0 0 auto;
+        margin-top: auto;
+    }
+}
+
+/* ========================================================================
    COMPACT TIME OFF REQUEST FORM
    ======================================================================== */
 
@@ -69,15 +167,40 @@
     transform: translateY(-2px);
 }
 
-/* Compact form controls */
-.timeoff-card .form-control-sm {
+/* Fixed: Support both g-2 and g-3 gap classes */
+.timeoff-card .row.g-2,
+.timeoff-card .row.g-3 {
+    --bs-gutter-x: 0.75rem;
+}
+
+/* Ensure form controls take full width */
+.timeoff-card .form-control,
+.timeoff-card .form-select,
+.timeoff-card .form-control-sm,
+.timeoff-card .form-select-sm {
+    width: 100%;
     font-size: 0.875rem;
     padding: 0.375rem 0.5rem;
 }
 
-/* Compact form check */
-.timeoff-card .form-check-inline {
-    margin-right: 0.75rem;
+/* Fix select dropdown width specifically */
+.timeoff-card select[name="timeOffType"] {
+    min-width: 100%;
+    background-position: right 0.5rem center;
+    padding-right: 2rem; /* Extra space for dropdown arrow */
+}
+
+/* Form labels */
+.timeoff-card .form-label {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+    display: block;
+    width: 100%;
+}
+
+/* Form check styling */
+.timeoff-card .form-check {
+    margin-bottom: 0.5rem;
 }
 
 .timeoff-card .form-check-label {
@@ -85,17 +208,41 @@
     margin-bottom: 0;
 }
 
-/* Compact button */
+/* Button styling */
 .timeoff-card .btn-sm {
     padding: 0.375rem 0.5rem;
     font-size: 0.875rem;
+    width: 100%;
 }
 
-/* Form layout improvements */
-.timeoff-card .row.g-3 {
-    --bs-gutter-x: 0.75rem;
+/* Ensure all columns take full width */
+.timeoff-card .col-12 {
+    width: 100%;
+    margin-bottom: 0.5rem;
 }
 
+.timeoff-card .col-12:last-child {
+    margin-bottom: 0;
+}
+
+/* Remove any conflicting responsive rules */
+@media (max-width: 1200px) {
+    .timeoff-card .col-12 {
+        margin-bottom: 0.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .timeoff-card .form-control-sm,
+    .timeoff-card .form-select-sm {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.4rem;
+    }
+
+    .timeoff-card select[name="timeOffType"] {
+        padding-right: 1.8rem;
+    }
+}
 /* ========================================================================
    ENHANCED TABLE STYLES WITH SN OVERTIME SUPPORT
    ======================================================================== */
@@ -178,6 +325,259 @@
     background-color: #ffcd39 !important;
     transform: scale(1.05);
     box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+/*  ========================================================================
+    NEW: CO/CM/W WORK DISPLAY STYLES (Add after existing SN styles)
+    ======================================================================== */
+
+/* CO work display (Time Off with overtime) - Cyan background */
+.co-work-display {
+    background-color: #0dcaf0 !important;
+    color: #000 !important;
+    border: 1px solid #3dd5f3;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.co-work-display:hover {
+    background-color: #31d2f2 !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(13, 202, 240, 0.3);
+}
+
+/* CM work display (Medical Leave with overtime) - Orange background */
+.cm-work-display {
+    background-color: #fd7e14 !important;
+    color: #fff !important;
+    border: 1px solid #fd8c3a;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.cm-work-display:hover {
+    background-color: #fd8e3a !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(253, 126, 20, 0.3);
+}
+
+/* W work display (Weekend with overtime) - Gray background */
+.w-work-display {
+    background-color: #6c757d !important;
+    color: #fff !important;
+    border: 1px solid #7c838a;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.w-work-display:hover {
+    background-color: #7c838a !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+/* ========================================================================
+   NEW: WEEKEND TIME OFF STYLE (Add after existing medical style)
+   ======================================================================== */
+
+/* Weekend time off (W without work) */
+.weekend {
+    background-color: #6c757d !important;
+    color: white !important;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    border: 1px solid #6c757d;
+}
+
+.weekend:hover {
+    background-color: #5c636a !important;
+    transform: scale(1.02);
+}
+
+/* ========================================================================
+   NEW: CO/CM/W OVERTIME BADGE STYLES (Add after existing sn-overtime)
+   ======================================================================== */
+
+/* CO overtime badge */
+.co-overtime {
+    background-color: #0dcaf0 !important;
+    color: #000 !important;
+    border: 1px solid #3dd5f3;
+    font-weight: 600;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.co-overtime:hover {
+    background-color: #31d2f2 !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(13, 202, 240, 0.3);
+}
+
+/* CM overtime badge */
+.cm-overtime {
+    background-color: #fd7e14 !important;
+    color: #fff !important;
+    border: 1px solid #fd8c3a;
+    font-weight: 600;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.cm-overtime:hover {
+    background-color: #fd8e3a !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(253, 126, 20, 0.3);
+}
+
+/* W overtime badge */
+.w-overtime {
+    background-color: #6c757d !important;
+    color: #fff !important;
+    border: 1px solid #7c838a;
+    font-weight: 600;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.w-overtime:hover {
+    background-color: #7c838a !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+/* ========================================================================
+   NEW: CO/CM/W WORK ENTRY ROW STYLES (Add after existing sn-work-entry)
+   ======================================================================== */
+
+/* CO work entry row styling */
+.worktime-entry.co-work-entry {
+    background-color: rgba(13, 202, 240, 0.05);
+    border-left: 3px solid #0dcaf0;
+}
+
+.worktime-entry.co-work-entry:hover {
+    background-color: rgba(13, 202, 240, 0.08);
+}
+
+/* CM work entry row styling */
+.worktime-entry.cm-work-entry {
+    background-color: rgba(253, 126, 20, 0.05);
+    border-left: 3px solid #fd7e14;
+}
+
+.worktime-entry.cm-work-entry:hover {
+    background-color: rgba(253, 126, 20, 0.08);
+}
+
+/* W work entry row styling */
+.worktime-entry.w-work-entry {
+    background-color: rgba(108, 117, 125, 0.05);
+    border-left: 3px solid #6c757d;
+}
+
+.worktime-entry.w-work-entry:hover {
+    background-color: rgba(108, 117, 125, 0.08);
+}
+
+/* ========================================================================
+   NEW: ENHANCED TOOLTIP STYLES FOR ALL SPECIAL DAYS
+   ======================================================================== */
+
+/* Enhanced tooltips for all special day work displays */
+.co-work-display[title]:hover::after,
+.cm-work-display[title]:hover::after,
+.w-work-display[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #212529;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 0.25rem;
+}
+
+/* ========================================================================
+   NEW: ACCESSIBILITY IMPROVEMENTS FOR ALL SPECIAL DAYS
+   ======================================================================== */
+
+/* Focus styles for all special day displays */
+.co-work-display:focus,
+.cm-work-display:focus,
+.w-work-display:focus,
+.weekend:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+/* ========================================================================
+   NEW: SPECIAL DAY EDIT MODE STYLING
+   ======================================================================== */
+
+/* Special day editing states */
+.editable-cell.co-day-edit {
+    border-color: #0dcaf0 !important;
+    background-color: rgba(13, 202, 240, 0.1) !important;
+}
+
+.editable-cell.cm-day-edit {
+    border-color: #fd7e14 !important;
+    background-color: rgba(253, 126, 20, 0.1) !important;
+}
+
+.editable-cell.w-day-edit {
+    border-color: #6c757d !important;
+    background-color: rgba(108, 117, 125, 0.1) !important;
+}
+
+/* Animation for special day updates */
+@keyframes specialDayOvertimeHighlight {
+    0% { background-color: rgba(13, 202, 240, 0.3); }
+    100% { background-color: rgba(13, 202, 240, 0.05); }
+}
+
+.worktime-entry.co-work-entry.updated {
+    animation: specialDayOvertimeHighlight 2s ease-out;
+}
+
+.worktime-entry.cm-work-entry.updated {
+    animation: specialDayOvertimeHighlight 2s ease-out;
+}
+
+.worktime-entry.w-work-entry.updated {
+    animation: specialDayOvertimeHighlight 2s ease-out;
 }
 
 /* Enhanced time off type styling */
@@ -519,6 +919,23 @@
         padding: 0.125rem 0.375rem;
         font-size: 0.7rem;
     }
+
+    /* Mobile adjustments for new special day displays */
+    .co-work-display,
+    .cm-work-display,
+    .w-work-display,
+    .weekend {
+        padding: 0.125rem 0.375rem;
+        font-size: 0.7rem;
+        min-width: 30px;
+    }
+
+    .co-overtime,
+    .cm-overtime,
+    .w-overtime {
+        padding: 0.125rem 0.375rem;
+        font-size: 0.7rem;
+    }
 }
 
 /* ========================================================================
@@ -577,6 +994,214 @@
         background-color: #f8f9fa !important;
         color: #212529 !important;
         border: 1px solid #dee2e6 !important;
+    }
+
+    /* Print styles for new special day displays */
+    .co-work-display,
+    .cm-work-display,
+    .w-work-display,
+    .co-overtime,
+    .cm-overtime,
+    .w-overtime,
+    .weekend {
+        background-color: #f8f9fa !important;
+        color: #212529 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+}
+
+
+/* ========================================================================
+   ENHANCED STATUS COLUMN STYLES
+   ======================================================================== */
+
+.status-cell {
+    min-width: 80px;
+    padding: 0.5rem 0.25rem !important;
+}
+
+.status-indicator {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0.25rem;
+    border-radius: 0.375rem;
+    min-height: 50px;
+    justify-content: center;
+}
+
+.status-indicator:hover {
+    background-color: rgba(13, 110, 253, 0.08);
+    transform: scale(1.02);
+}
+
+/* Status Icon Styling */
+.status-icon {
+    font-size: 1rem;
+    margin-bottom: 0.125rem;
+}
+
+/* Status Badge Styling */
+.status-badge {
+    font-size: 0.7rem;
+    padding: 0.125rem 0.375rem;
+    min-width: 25px;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Modifiable/Locked Indicators */
+.modifiable-indicator {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.6rem;
+    color: #198754;
+    opacity: 0.7;
+}
+
+.locked-indicator {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.6rem;
+    color: #dc3545;
+    opacity: 0.9;
+}
+
+.edit-allowed-icon {
+    color: #198754;
+}
+
+.edit-locked-icon {
+    color: #dc3545;
+}
+
+/* Status-specific styling */
+.status-indicator.text-success .status-icon {
+    color: #198754;
+}
+
+.status-indicator.text-warning .status-icon {
+    color: #ffc107;
+}
+
+.status-indicator.text-danger .status-icon {
+    color: #dc3545;
+}
+
+.status-indicator.text-info .status-icon {
+    color: #0dcaf0;
+}
+
+.status-indicator.text-primary .status-icon {
+    color: #0d6efd;
+}
+
+.status-indicator.text-muted .status-icon {
+    color: #6c757d;
+}
+
+/* ========================================================================
+   ENHANCED EDITABLE CELL STYLING WITH STATUS INTEGRATION
+   ======================================================================== */
+
+/* Override editable cell styling based on status */
+.editable-cell.status-locked {
+    cursor: not-allowed !important;
+    opacity: 0.6;
+    background-color: rgba(220, 53, 69, 0.05) !important;
+    border: 1px solid rgba(220, 53, 69, 0.2) !important;
+}
+
+.editable-cell.status-locked:hover {
+    background-color: rgba(220, 53, 69, 0.08) !important;
+    transform: none !important;
+}
+
+.editable-cell.status-locked .edit-icon {
+    display: none !important;
+}
+
+/* Status-based row styling */
+.worktime-entry.status-final {
+    background-color: rgba(220, 53, 69, 0.03);
+    border-left: 3px solid #dc3545;
+}
+
+.worktime-entry.status-in-process {
+    background-color: rgba(13, 110, 253, 0.03);
+    border-left: 3px solid #0d6efd;
+}
+
+.worktime-entry.status-admin-edited {
+    background-color: rgba(255, 193, 7, 0.03);
+    border-left: 3px solid #ffc107;
+}
+
+/* ========================================================================
+   STATUS DETAILS MODAL
+   ======================================================================== */
+
+.status-details-section {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.status-details-section:last-child {
+    margin-bottom: 0;
+    border-bottom: none;
+}
+
+.status-details-label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.status-details-value {
+    color: #6c757d;
+    font-size: 0.8rem;
+    line-height: 1.3;
+}
+
+.status-icon-large {
+    font-size: 1.25rem;
+    margin-right: 0.5rem;
+}
+
+/* ========================================================================
+   RESPONSIVE ADJUSTMENTS
+   ======================================================================== */
+
+@media (max-width: 768px) {
+    .status-cell {
+        min-width: 60px;
+    }
+
+    .status-indicator {
+        min-height: 40px;
+        padding: 0.125rem;
+    }
+
+    .status-icon {
+        font-size: 0.9rem;
+    }
+
+    .status-badge {
+        font-size: 0.65rem;
+        padding: 0.1rem 0.25rem;
+    }
+
+    .modifiable-indicator,
+    .locked-indicator {
+        font-size: 0.55rem;
     }
 }
 

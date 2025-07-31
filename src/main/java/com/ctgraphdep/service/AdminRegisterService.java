@@ -22,13 +22,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * REFACTORED AdminRegisterService with consolidated request handling.
- * Key Changes:
- * - All data conversion logic moved from controller to service
- * - New unified request handling methods (saveEntriesFromRequest, etc.)
- * - Centralized user operations
- * - Controller becomes thin HTTP layer, service handles all business logic
- * - Eliminated code duplication between controller and service
+ * FIXED AdminRegisterService with working bonus calculation and compilation fixes.
  */
 @Service
 @PreAuthorize("hasRole('ADMIN')")
@@ -52,13 +46,11 @@ public class AdminRegisterService {
     }
 
     // ========================================================================
-    // NEW: UNIFIED REQUEST HANDLING METHODS
+    // FIXED: UNIFIED REQUEST HANDLING METHODS
     // ========================================================================
 
     /**
-     * NEW: Save entries from HTTP request (consolidates controller logic)
-     * @param request Raw HTTP request data
-     * @return ServiceResult indicating success or failure
+     * FIXED: Save entries from HTTP request (consolidates controller logic)
      */
     public ServiceResult<Void> saveEntriesFromRequest(Map<String, Object> request) {
         try {
@@ -73,7 +65,7 @@ public class AdminRegisterService {
 
             SaveRequestData requestData = requestParseResult.getData();
 
-            // Convert entries data to RegisterEntry objects
+            // Convert entries data to RegisterEntry objects using the GENERIC method (for saving)
             ServiceResult<List<RegisterEntry>> entriesConversionResult = convertRequestEntriesToRegisterEntries(requestData.entriesData());
             if (entriesConversionResult.isFailure()) {
                 return ServiceResult.validationError("Invalid entries data: " + entriesConversionResult.getErrorMessage(),
@@ -104,9 +96,7 @@ public class AdminRegisterService {
     }
 
     /**
-     * ENHANCED: Calculate bonus from HTTP request with automatic saving
-     * @param request Raw HTTP request data
-     * @return ServiceResult with bonus calculation result
+     * FIXED: Calculate bonus from HTTP request - now uses BONUS-SPECIFIC conversion
      */
     public ServiceResult<BonusCalculationResultDTO> calculateBonusFromRequest(Map<String, Object> request) {
         try {
@@ -129,16 +119,13 @@ public class AdminRegisterService {
                 return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
             }
 
-            // Convert and validate entries
+            // Convert and validate entries using BONUS-SPECIFIC method
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> entriesData = (List<Map<String, Object>>) request.get("entries");
 
-            ServiceResult<List<RegisterEntry>> entriesResult = convertRequestEntriesToRegisterEntries(entriesData);
-            if (entriesResult.isFailure()) {
-                return ServiceResult.validationError("Invalid entries data: " + entriesResult.getErrorMessage(), "invalid_entries");
-            }
+            // FIXED: Use bonus-specific conversion that handles minimal data
+            List<RegisterEntry> entries = convertToRegisterEntriesForBonus(entriesData);
 
-            List<RegisterEntry> entries = entriesResult.getData();
             Integer userId = (Integer) request.get("userId");
             Integer year = (Integer) request.get("year");
             Integer month = (Integer) request.get("month");
@@ -170,7 +157,6 @@ public class AdminRegisterService {
             ServiceResult<User> userResult = getUserById(userId);
             if (userResult.isFailure()) {
                 LoggerUtil.warn(this.getClass(), "Bonus calculated but cannot save - user not found: " + userResult.getErrorMessage());
-                // Return calculation result even if save will fail
                 return ServiceResult.successWithWarnings(result, List.of("Bonus calculated but could not be saved: user not found"));
             }
 
@@ -180,7 +166,6 @@ public class AdminRegisterService {
             ServiceResult<Void> saveResult = saveBonusResult(userId, year, month, result, username);
             if (saveResult.isFailure()) {
                 LoggerUtil.warn(this.getClass(), "Bonus calculated successfully but failed to save: " + saveResult.getErrorMessage());
-                // Return calculation result with warning
                 return ServiceResult.successWithWarnings(result, List.of("Bonus calculated but could not be saved: " + saveResult.getErrorMessage()));
             }
 
@@ -195,71 +180,52 @@ public class AdminRegisterService {
         }
     }
 
-    /**
-     * NEW: Get user by ID with proper error handling (centralized from controller)
-     * @param userId User ID
-     * @return ServiceResult with user data
-     */
-    public ServiceResult<User> getUserById(Integer userId) {
-        try {
-            if (userId == null) {
-                return ServiceResult.validationError("User ID cannot be null", "null_user_id");
-            }
-
-            Optional<User> userOpt = userService.getUserById(userId);
-            return userOpt.map(ServiceResult::success).orElseGet(() -> ServiceResult.notFound("User not found with ID: " + userId, "user_not_found"));
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error getting user by ID %d: %s", userId, e.getMessage()), e);
-            return ServiceResult.systemError("Failed to retrieve user information", "user_retrieval_failed");
-        }
-    }
-
-    /**
-     * NEW: Get register summary from HTTP request
-     * @param username Username
-     * @param userId User ID
-     * @param year Year
-     * @param month Month
-     * @return ServiceResult with register summary
-     */
-    public ServiceResult<RegisterSummaryDTO> getRegisterSummaryForUser(String username, Integer userId, Integer year, Integer month) {
-        try {
-            if (username == null || username.trim().isEmpty()) {
-                return ServiceResult.validationError("Username is required", "missing_username");
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Getting register summary for %s - %d/%d", username, year, month));
-
-            // Load entries
-            ServiceResult<List<RegisterEntry>> entriesResult = readMergedAdminEntries(username, userId, year, month);
-            if (entriesResult.isFailure()) {
-                LoggerUtil.error(this.getClass(), String.format("Failed to load entries for summary for %s: %s", username, entriesResult.getErrorMessage()));
-                return ServiceResult.systemError("Failed to load entries for summary", "load_entries_for_summary_failed");
-            }
-
-            List<RegisterEntry> entries = entriesResult.getData();
-
-            // Calculate summary
-            ServiceResult<RegisterSummaryDTO> summaryResult = calculateRegisterSummary(entries);
-            if (summaryResult.isSuccess()) {
-                LoggerUtil.info(this.getClass(), String.format("Successfully calculated summary for %s", username));
-            }
-
-            return summaryResult;
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Unexpected error getting summary for %s: %s", username, e.getMessage()), e);
-            return ServiceResult.systemError("Unexpected error calculating summary", "summary_calculation_system_error");
-        }
-    }
-
     // ========================================================================
-    // DATA CONVERSION METHODS (MOVED FROM CONTROLLER)
+    // FIXED: BONUS-SPECIFIC CONVERSION (NULL-SAFE)
     // ========================================================================
 
     /**
-     * MOVED FROM CONTROLLER: Parse and validate save request data
+     * FIXED: Convert minimal bonus calculation data to RegisterEntry objects
+     * This method handles the minimal data sent by the frontend for bonus calculation
+     */
+    private List<RegisterEntry> convertToRegisterEntriesForBonus(List<Map<String, Object>> entriesData) {
+        if (entriesData == null) return new ArrayList<>();
+
+        return entriesData.stream()
+                .map(this::convertToRegisterEntryForBonus)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * FIXED: Convert individual bonus entry data to RegisterEntry (null-safe)
+     * Only uses the fields needed for bonus calculation: articleNumbers, graphicComplexity, actionType
+     */
+    private RegisterEntry convertToRegisterEntryForBonus(Map<String, Object> data) {
+        // Use safe defaults for all missing fields since we only need 3 fields for bonus calculation
+        return RegisterEntry.builder()
+                .entryId(0) // Not needed for bonus calculation
+                .userId(0) // Will be set from request level
+                .date(LocalDate.now()) // Not needed for bonus calculation
+                .orderId("BONUS_CALC") // Not needed for bonus calculation
+                .productionId("BONUS_CALC") // Not needed for bonus calculation
+                .omsId("BONUS_CALC") // Not needed for bonus calculation
+                .clientName("BONUS_CALC") // Not needed for bonus calculation
+                .actionType(convertToString(data.get("actionType"))) // NEEDED for bonus calculation
+                .printPrepTypes(List.of("DIGITAL")) // Not needed for bonus calculation
+                .colorsProfile("BONUS_CALC") // Not needed for bonus calculation
+                .articleNumbers(convertToInteger(data.get("articleNumbers"))) // NEEDED for bonus calculation
+                .graphicComplexity(convertToDouble(data.get("graphicComplexity"))) // NEEDED for bonus calculation
+                .observations("") // Not needed for bonus calculation
+                .adminSync("BONUS_CALC") // Not needed for bonus calculation
+                .build();
+    }
+
+    // ========================================================================
+    // FIXED: DATA CONVERSION METHODS (MOVED FROM CONTROLLER)
+    // ========================================================================
+
+    /**
+     * FIXED: Parse and validate save request data
      */
     private ServiceResult<SaveRequestData> parseAndValidateSaveRequest(Map<String, Object> request) {
         try {
@@ -316,7 +282,7 @@ public class AdminRegisterService {
     }
 
     /**
-     * MOVED FROM CONTROLLER: Convert request entries data to RegisterEntry objects
+     * FIXED: Convert request entries data to RegisterEntry objects (for SAVING - expects complete data)
      */
     private ServiceResult<List<RegisterEntry>> convertRequestEntriesToRegisterEntries(List<Map<String, Object>> entriesData) {
         try {
@@ -440,8 +406,26 @@ public class AdminRegisterService {
     }
 
     // ========================================================================
-    // EXISTING METHODS (UNCHANGED)
+    // EXISTING METHODS (DELEGATED TO MERGE SERVICE)
     // ========================================================================
+
+    /**
+     * Get user by ID with proper error handling (centralized from controller)
+     */
+    public ServiceResult<User> getUserById(Integer userId) {
+        try {
+            if (userId == null) {
+                return ServiceResult.validationError("User ID cannot be null", "null_user_id");
+            }
+
+            Optional<User> userOpt = userService.getUserById(userId);
+            return userOpt.map(ServiceResult::success).orElseGet(() -> ServiceResult.notFound("User not found with ID: " + userId, "user_not_found"));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error getting user by ID %d: %s", userId, e.getMessage()), e);
+            return ServiceResult.systemError("Failed to retrieve user information", "user_retrieval_failed");
+        }
+    }
 
     /**
      * Load user register entries using the new merge service.
@@ -473,51 +457,18 @@ public class AdminRegisterService {
             }
 
             List<RegisterEntry> mergedEntries = mergeResult.getData();
-            List<RegisterEntry> sortedEntries = sortEntriesForDisplay(mergedEntries);
 
-            LoggerUtil.info(this.getClass(), String.format("Successfully loaded %d register entries for %s - %d/%d", sortedEntries.size(), username, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Successfully loaded %d register entries for %s - %d/%d", mergedEntries.size(), username, year, month));
 
             if (mergeResult.hasWarnings()) {
-                return ServiceResult.successWithWarnings(sortedEntries, mergeResult.getWarnings());
+                return ServiceResult.successWithWarnings(mergedEntries, mergeResult.getWarnings());
             }
 
-            return ServiceResult.success(sortedEntries);
+            return ServiceResult.success(mergedEntries);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Unexpected error loading register entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             return ServiceResult.systemError("Unexpected error loading register entries", "load_entries_system_error");
-        }
-    }
-
-    /**
-     * Reads already-merged admin register entries without triggering new merge operations.
-     */
-    public ServiceResult<List<RegisterEntry>> readMergedAdminEntries(String username, Integer userId, Integer year, Integer month) {
-        try {
-            // Validate input parameters
-            ValidationServiceResult validation = ValidationServiceResult.create()
-                    .requireNotEmpty(username, "Username", "missing_username")
-                    .requireNotNull(userId, "User ID", "missing_user_id")
-                    .requireNotNull(year, "Year", "missing_year")
-                    .requireNotNull(month, "Month", "missing_month");
-
-            if (validation.hasErrors()) {
-                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
-            }
-
-            LoggerUtil.debug(this.getClass(), String.format("Reading merged admin entries for %s - %d/%d (read-only)", username, year, month));
-
-            // Read directly from admin's local file (already merged by previous load operation)
-            List<RegisterEntry> entries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
-            List<RegisterEntry> sortedEntries = sortEntriesForDisplay(entries);
-
-            LoggerUtil.debug(this.getClass(), String.format("Successfully read %d merged admin entries for %s - %d/%d", sortedEntries.size(), username, year, month));
-
-            return ServiceResult.success(sortedEntries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error reading merged admin entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
-            return ServiceResult.systemError("Failed to read merged admin entries", "read_entries_failed");
         }
     }
 
@@ -570,135 +521,9 @@ public class AdminRegisterService {
         }
     }
 
-    /**
-     * Resolve all ADMIN_CHECK conflicts by changing them to ADMIN_EDITED
-     */
-    public ServiceResult<Integer> confirmAllAdminChanges(String username, Integer userId, Integer year, Integer month) {
-        try {
-            // Validate input parameters
-            ValidationServiceResult validation = ValidationServiceResult.create()
-                    .requireNotEmpty(username, "Username", "missing_username")
-                    .requireNotNull(userId, "User ID", "missing_user_id")
-                    .requireNotNull(year, "Year", "missing_year")
-                    .requireNotNull(month, "Month", "missing_month");
-
-            if (validation.hasErrors()) {
-                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
-            }
-
-            // Read current admin entries
-            List<RegisterEntry> currentEntries;
-            try {
-                currentEntries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), String.format("Error reading admin entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
-                return ServiceResult.systemError("Failed to read current admin entries", "read_entries_failed");
-            }
-
-            if (currentEntries == null || currentEntries.isEmpty()) {
-                LoggerUtil.info(this.getClass(), String.format("No entries found to confirm for %s - %d/%d", username, year, month));
-                return ServiceResult.success(0);
-            }
-
-            // Count and resolve ADMIN_CHECK conflicts
-            int resolvedCount = 0;
-            List<RegisterEntry> updatedEntries = new ArrayList<>();
-            List<String> warnings = new ArrayList<>();
-
-            for (RegisterEntry entry : currentEntries) {
-                if (SyncStatusMerge.ADMIN_CHECK.name().equals(entry.getAdminSync())) {
-                    try {
-                        // Resolve conflict: ADMIN_CHECK → ADMIN_EDITED (admin's final decision)
-                        RegisterEntry resolvedEntry = RegisterEntry.builder()
-                                .entryId(entry.getEntryId())
-                                .userId(entry.getUserId())
-                                .date(entry.getDate())
-                                .orderId(entry.getOrderId())
-                                .productionId(entry.getProductionId())
-                                .omsId(entry.getOmsId())
-                                .clientName(entry.getClientName())
-                                .actionType(entry.getActionType())
-                                .printPrepTypes(entry.getPrintPrepTypes() != null ? List.copyOf(entry.getPrintPrepTypes()) : null)
-                                .colorsProfile(entry.getColorsProfile())
-                                .articleNumbers(entry.getArticleNumbers())
-                                .graphicComplexity(entry.getGraphicComplexity())
-                                .observations(entry.getObservations())
-                                .adminSync(SyncStatusMerge.ADMIN_EDITED.name()) // ADMIN_CHECK → ADMIN_EDITED
-                                .build();
-
-                        updatedEntries.add(resolvedEntry);
-                        resolvedCount++;
-
-                        LoggerUtil.info(this.getClass(), String.format("Resolved conflict for entry %d: ADMIN_CHECK → ADMIN_EDITED (admin decision)", entry.getEntryId()));
-                    } catch (Exception e) {
-                        warnings.add("Failed to resolve conflict for entry " + entry.getEntryId() + ": " + e.getMessage());
-                        updatedEntries.add(entry); // Keep original if resolution fails
-                        LoggerUtil.warn(this.getClass(), String.format("Error resolving conflict for entry %d: %s", entry.getEntryId(), e.getMessage()));
-                    }
-                } else {
-                    // Keep other entries unchanged
-                    updatedEntries.add(entry);
-                }
-            }
-
-            if (resolvedCount > 0) {
-                // Save the updated entries
-                try {
-                    registerDataService.writeAdminLocalWithSyncAndBackup(username, userId, updatedEntries, year, month);
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format("Error saving resolved conflicts for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
-                    return ServiceResult.systemError("Failed to save resolved conflicts", "save_resolved_failed");
-                }
-
-                LoggerUtil.info(this.getClass(), String.format("Successfully resolved %d ADMIN_CHECK conflicts for %s - %d/%d", resolvedCount, username, year, month));
-            } else {
-                LoggerUtil.info(this.getClass(), String.format("No ADMIN_CHECK conflicts found to resolve for %s - %d/%d", username, year, month));
-            }
-
-            if (!warnings.isEmpty()) {
-                return ServiceResult.successWithWarnings(resolvedCount, warnings);
-            }
-
-            return ServiceResult.success(resolvedCount);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Unexpected error resolving admin conflicts for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
-            return ServiceResult.systemError("Unexpected error resolving admin conflicts", "resolve_conflicts_system_error");
-        }
-    }
-
     // ========================================================================
-    // BONUS METHODS (UNCHANGED)
+    // BONUS METHODS
     // ========================================================================
-
-    /**
-     * Load bonus entry with error handling
-     */
-    public ServiceResult<Optional<BonusEntry>> loadBonusEntry(Integer userId, Integer year, Integer month) {
-        try {
-            // Validate parameters
-            ValidationServiceResult validation = ValidationServiceResult.create()
-                    .requireNotNull(userId, "User ID", "missing_user_id")
-                    .requireNotNull(year, "Year", "missing_year")
-                    .requireNotNull(month, "Month", "missing_month")
-                    .validate(() -> userId > 0, "User ID must be positive", "invalid_user_id");
-
-            if (validation.hasErrors()) {
-                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
-            }
-
-            List<BonusEntry> bonusEntries = registerDataService.readAdminBonus(year, month);
-            Optional<BonusEntry> result = bonusEntries.stream()
-                    .filter(entry -> entry.getEmployeeId().equals(userId))
-                    .findFirst();
-
-            return ServiceResult.success(result);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error loading bonus entry for user %d: %s", userId, e.getMessage()), e);
-            return ServiceResult.systemError("Failed to load bonus entry", "load_bonus_failed");
-        }
-    }
 
     /**
      * Calculate bonus with validation and error handling
@@ -822,62 +647,6 @@ public class AdminRegisterService {
     }
 
     /**
-     * Load saved bonus result with error handling
-     */
-    public ServiceResult<BonusCalculationResultDTO> loadSavedBonusResult(Integer userId, Integer year, Integer month) {
-        try {
-            // Validate parameters
-            ValidationServiceResult validation = ValidationServiceResult.create()
-                    .requireNotNull(userId, "User ID", "missing_user_id")
-                    .requireNotNull(year, "Year", "missing_year")
-                    .requireNotNull(month, "Month", "missing_month");
-
-            if (validation.hasErrors()) {
-                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
-            }
-
-            // Get user's employeeId
-            Integer employeeId;
-            try {
-                employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
-            } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), String.format("Error getting employee ID for user %d: %s", userId, e.getMessage()), e);
-                return ServiceResult.notFound("User not found: " + userId, "user_not_found");
-            }
-
-            ServiceResult<Optional<BonusEntry>> bonusEntryResult = loadBonusEntry(employeeId, year, month);
-            if (bonusEntryResult.isFailure()) {
-                return ServiceResult.systemError("Failed to load bonus entry: " + bonusEntryResult.getErrorMessage(), "load_bonus_entry_failed");
-            }
-
-            Optional<BonusEntry> bonusEntryOpt = bonusEntryResult.getData();
-            if (bonusEntryOpt.isEmpty()) {
-                return ServiceResult.success(null);
-            }
-
-            BonusEntry entry = bonusEntryOpt.get();
-
-            BonusCalculationResultDTO result = BonusCalculationResultDTO.builder()
-                    .entries(entry.getEntries())
-                    .articleNumbers(entry.getArticleNumbers())
-                    .graphicComplexity(entry.getGraphicComplexity())
-                    .misc(entry.getMisc())
-                    .workedDays(entry.getWorkedDays())
-                    .workedPercentage(entry.getWorkedPercentage())
-                    .bonusPercentage(entry.getBonusPercentage())
-                    .bonusAmount(entry.getBonusAmount())
-                    .previousMonths(entry.getPreviousMonths())
-                    .build();
-
-            return ServiceResult.success(result);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Unexpected error loading bonus result for user %d: %s", userId, e.getMessage()), e);
-            return ServiceResult.systemError("Unexpected error loading bonus result", "load_bonus_result_system_error");
-        }
-    }
-
-    /**
      * Calculate register summary with error handling
      */
     public ServiceResult<RegisterSummaryDTO> calculateRegisterSummary(List<RegisterEntry> entries) {
@@ -906,6 +675,71 @@ public class AdminRegisterService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error calculating register summary: " + e.getMessage(), e);
             return ServiceResult.systemError("Failed to calculate register summary", "calculate_summary_failed");
+        }
+    }
+
+    /**
+     * Get register summary from HTTP request
+     */
+    public ServiceResult<RegisterSummaryDTO> getRegisterSummaryForUser(String username, Integer userId, Integer year, Integer month) {
+        try {
+            if (username == null || username.trim().isEmpty()) {
+                return ServiceResult.validationError("Username is required", "missing_username");
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Getting register summary for %s - %d/%d", username, year, month));
+
+            // Load entries
+            ServiceResult<List<RegisterEntry>> entriesResult = readMergedAdminEntries(username, userId, year, month);
+            if (entriesResult.isFailure()) {
+                LoggerUtil.error(this.getClass(), String.format("Failed to load entries for summary for %s: %s", username, entriesResult.getErrorMessage()));
+                return ServiceResult.systemError("Failed to load entries for summary", "load_entries_for_summary_failed");
+            }
+
+            List<RegisterEntry> entries = entriesResult.getData();
+
+            // Calculate summary
+            ServiceResult<RegisterSummaryDTO> summaryResult = calculateRegisterSummary(entries);
+            if (summaryResult.isSuccess()) {
+                LoggerUtil.info(this.getClass(), String.format("Successfully calculated summary for %s", username));
+            }
+
+            return summaryResult;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Unexpected error getting summary for %s: %s", username, e.getMessage()), e);
+            return ServiceResult.systemError("Unexpected error calculating summary", "summary_calculation_system_error");
+        }
+    }
+
+    /**
+     * Reads already-merged admin register entries without triggering new merge operations.
+     */
+    public ServiceResult<List<RegisterEntry>> readMergedAdminEntries(String username, Integer userId, Integer year, Integer month) {
+        try {
+            // Validate input parameters
+            ValidationServiceResult validation = ValidationServiceResult.create()
+                    .requireNotEmpty(username, "Username", "missing_username")
+                    .requireNotNull(userId, "User ID", "missing_user_id")
+                    .requireNotNull(year, "Year", "missing_year")
+                    .requireNotNull(month, "Month", "missing_month");
+
+            if (validation.hasErrors()) {
+                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
+            }
+
+            LoggerUtil.debug(this.getClass(), String.format("Reading merged admin entries for %s - %d/%d (read-only)", username, year, month));
+
+            // Read directly from admin's local file (already merged by previous load operation)
+            List<RegisterEntry> entries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
+
+            LoggerUtil.debug(this.getClass(), String.format("Successfully read %d merged admin entries for %s - %d/%d", entries.size(), username, year, month));
+
+            return ServiceResult.success(entries);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error reading merged admin entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            return ServiceResult.systemError("Failed to read merged admin entries", "read_entries_failed");
         }
     }
 
@@ -993,31 +827,199 @@ public class AdminRegisterService {
         }
     }
 
-    private List<RegisterEntry> sortEntriesForDisplay(List<RegisterEntry> entries) {
-        if (entries == null || entries.isEmpty()) {
-            return entries;
-        }
-
-        return entries.stream()
-                .sorted((e1, e2) -> {
-                    // First sort by date (newest first)
-                    int dateCompare = e2.getDate().compareTo(e1.getDate());
-                    if (dateCompare != 0) {
-                        return dateCompare;
-                    }
-
-                    // Then by ID (highest first)
-                    if (e1.getEntryId() == null && e2.getEntryId() == null) return 0;
-                    if (e1.getEntryId() == null) return 1;
-                    if (e2.getEntryId() == null) return -1;
-
-                    return e2.getEntryId().compareTo(e1.getEntryId());
-                })
-                .collect(Collectors.toList());
+    private String convertToString(Object value) {
+        if (value == null) return "";
+        return value.toString();
     }
 
     /**
-     * Data record for save request parsing
+     * Load saved bonus result with error handling
+     */
+    public ServiceResult<BonusCalculationResultDTO> loadSavedBonusResult(Integer userId, Integer year, Integer month) {
+        try {
+            // Validate parameters
+            ValidationServiceResult validation = ValidationServiceResult.create()
+                    .requireNotNull(userId, "User ID", "missing_user_id")
+                    .requireNotNull(year, "Year", "missing_year")
+                    .requireNotNull(month, "Month", "missing_month");
+
+            if (validation.hasErrors()) {
+                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
+            }
+
+            // Get user's employeeId
+            Integer employeeId;
+            try {
+                employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), String.format("Error getting employee ID for user %d: %s", userId, e.getMessage()), e);
+                return ServiceResult.notFound("User not found: " + userId, "user_not_found");
+            }
+
+            ServiceResult<Optional<BonusEntry>> bonusEntryResult = loadBonusEntry(employeeId, year, month);
+            if (bonusEntryResult.isFailure()) {
+                return ServiceResult.systemError("Failed to load bonus entry: " + bonusEntryResult.getErrorMessage(), "load_bonus_entry_failed");
+            }
+
+            Optional<BonusEntry> bonusEntryOpt = bonusEntryResult.getData();
+            if (bonusEntryOpt.isEmpty()) {
+                return ServiceResult.success(null);
+            }
+
+            BonusEntry entry = bonusEntryOpt.get();
+
+            BonusCalculationResultDTO result = BonusCalculationResultDTO.builder()
+                    .entries(entry.getEntries())
+                    .articleNumbers(entry.getArticleNumbers())
+                    .graphicComplexity(entry.getGraphicComplexity())
+                    .misc(entry.getMisc())
+                    .workedDays(entry.getWorkedDays())
+                    .workedPercentage(entry.getWorkedPercentage())
+                    .bonusPercentage(entry.getBonusPercentage())
+                    .bonusAmount(entry.getBonusAmount())
+                    .previousMonths(entry.getPreviousMonths())
+                    .build();
+
+            return ServiceResult.success(result);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Unexpected error loading bonus result for user %d: %s", userId, e.getMessage()), e);
+            return ServiceResult.systemError("Unexpected error loading bonus result", "load_bonus_result_system_error");
+        }
+    }
+
+    /**
+     * Load bonus entry with error handling
+     */
+    public ServiceResult<Optional<BonusEntry>> loadBonusEntry(Integer userId, Integer year, Integer month) {
+        try {
+            // Validate parameters
+            ValidationServiceResult validation = ValidationServiceResult.create()
+                    .requireNotNull(userId, "User ID", "missing_user_id")
+                    .requireNotNull(year, "Year", "missing_year")
+                    .requireNotNull(month, "Month", "missing_month")
+                    .validate(() -> userId > 0, "User ID must be positive", "invalid_user_id");
+
+            if (validation.hasErrors()) {
+                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
+            }
+
+            List<BonusEntry> bonusEntries = registerDataService.readAdminBonus(year, month);
+            Optional<BonusEntry> result = bonusEntries.stream()
+                    .filter(entry -> entry.getEmployeeId().equals(userId))
+                    .findFirst();
+
+            return ServiceResult.success(result);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error loading bonus entry for user %d: %s", userId, e.getMessage()), e);
+            return ServiceResult.systemError("Failed to load bonus entry", "load_bonus_failed");
+        }
+    }
+
+    /**
+     * Resolve all ADMIN_CHECK conflicts by changing them to ADMIN_EDITED
+     */
+    public ServiceResult<Integer> confirmAllAdminChanges(String username, Integer userId, Integer year, Integer month) {
+        try {
+            // Validate input parameters
+            ValidationServiceResult validation = ValidationServiceResult.create()
+                    .requireNotEmpty(username, "Username", "missing_username")
+                    .requireNotNull(userId, "User ID", "missing_user_id")
+                    .requireNotNull(year, "Year", "missing_year")
+                    .requireNotNull(month, "Month", "missing_month");
+
+            if (validation.hasErrors()) {
+                return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
+            }
+
+            // Read current admin entries
+            List<RegisterEntry> currentEntries;
+            try {
+                currentEntries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), String.format("Error reading admin entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+                return ServiceResult.systemError("Failed to read current admin entries", "read_entries_failed");
+            }
+
+            if (currentEntries == null || currentEntries.isEmpty()) {
+                LoggerUtil.info(this.getClass(), String.format("No entries found to confirm for %s - %d/%d", username, year, month));
+                return ServiceResult.success(0);
+            }
+
+            // Count and resolve ADMIN_CHECK conflicts
+            int resolvedCount = 0;
+            List<RegisterEntry> updatedEntries = new ArrayList<>();
+            List<String> warnings = new ArrayList<>();
+
+            for (RegisterEntry entry : currentEntries) {
+                if (SyncStatusMerge.ADMIN_CHECK.name().equals(entry.getAdminSync())) {
+                    try {
+                        // Resolve conflict: ADMIN_CHECK → ADMIN_EDITED (admin's final decision)
+                        RegisterEntry resolvedEntry = RegisterEntry.builder()
+                                .entryId(entry.getEntryId())
+                                .userId(entry.getUserId())
+                                .date(entry.getDate())
+                                .orderId(entry.getOrderId())
+                                .productionId(entry.getProductionId())
+                                .omsId(entry.getOmsId())
+                                .clientName(entry.getClientName())
+                                .actionType(entry.getActionType())
+                                .printPrepTypes(entry.getPrintPrepTypes() != null ? List.copyOf(entry.getPrintPrepTypes()) : null)
+                                .colorsProfile(entry.getColorsProfile())
+                                .articleNumbers(entry.getArticleNumbers())
+                                .graphicComplexity(entry.getGraphicComplexity())
+                                .observations(entry.getObservations())
+                                .adminSync(SyncStatusMerge.ADMIN_EDITED.name()) // ADMIN_CHECK → ADMIN_EDITED
+                                .build();
+
+                        updatedEntries.add(resolvedEntry);
+                        resolvedCount++;
+
+                        LoggerUtil.info(this.getClass(), String.format("Resolved conflict for entry %d: ADMIN_CHECK → ADMIN_EDITED (admin decision)", entry.getEntryId()));
+                    } catch (Exception e) {
+                        warnings.add("Failed to resolve conflict for entry " + entry.getEntryId() + ": " + e.getMessage());
+                        updatedEntries.add(entry); // Keep original if resolution fails
+                        LoggerUtil.warn(this.getClass(), String.format("Error resolving conflict for entry %d: %s", entry.getEntryId(), e.getMessage()));
+                    }
+                } else {
+                    // Keep other entries unchanged
+                    updatedEntries.add(entry);
+                }
+            }
+
+            if (resolvedCount > 0) {
+                // Save the updated entries
+                try {
+                    registerDataService.writeAdminLocalWithSyncAndBackup(username, userId, updatedEntries, year, month);
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), String.format("Error saving resolved conflicts for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+                    return ServiceResult.systemError("Failed to save resolved conflicts", "save_resolved_failed");
+                }
+
+                LoggerUtil.info(this.getClass(), String.format("Successfully resolved %d ADMIN_CHECK conflicts for %s - %d/%d", resolvedCount, username, year, month));
+            } else {
+                LoggerUtil.info(this.getClass(), String.format("No ADMIN_CHECK conflicts found to resolve for %s - %d/%d", username, year, month));
+            }
+
+            if (!warnings.isEmpty()) {
+                return ServiceResult.successWithWarnings(resolvedCount, warnings);
+            }
+
+            return ServiceResult.success(resolvedCount);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Unexpected error resolving admin conflicts for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            return ServiceResult.systemError("Unexpected error resolving admin conflicts", "resolve_conflicts_system_error");
+        }
+    }
+
+    // ========================================================================
+    // FIXED: DATA RECORD FOR SAVE REQUEST PARSING
+    // ========================================================================
+
+    /**
+     * FIXED: Data record for save request parsing
      */
     private record SaveRequestData(String username, Integer userId, Integer year, Integer month, List<Map<String, Object>> entriesData) {
     }
