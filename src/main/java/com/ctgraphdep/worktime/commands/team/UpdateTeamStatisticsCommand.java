@@ -19,12 +19,6 @@ import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * REFACTORED: Command to update statistics for all team members using original logic.
- * Replaces TeamStatisticsService.updateTeamStatistics() method.
- * Updates work time stats, register stats, session details, and time off information.
- * Uses NetworkOnlyAccessor for member data access, keeps original time off logic.
- */
 public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object> {
     private final String teamLeadUsername;
     private final int year;
@@ -58,8 +52,7 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
             throw new SecurityException("Only the team lead can update team statistics");
         }
 
-        LoggerUtil.info(this.getClass(), String.format("Validating team statistics update for team lead %s - %d/%d",
-                teamLeadUsername, year, month));
+        LoggerUtil.info(this.getClass(), String.format("Validating team statistics update for team lead %s - %d/%d", teamLeadUsername, year, month));
     }
 
     @Override
@@ -115,8 +108,7 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
             // Create result message
             String message;
             if (updateErrors.isEmpty()) {
-                message = String.format("Successfully updated statistics for all %d team members for %s - %d/%d",
-                        successfulUpdates, teamLeadUsername, year, month);
+                message = String.format("Successfully updated statistics for all %d team members for %s - %d/%d", successfulUpdates, teamLeadUsername, year, month);
             } else {
                 message = String.format("Updated statistics for %d/%d team members for %s - %d/%d. %d failures: %s",
                         successfulUpdates, teamMemberDTOS.size(), teamLeadUsername, year, month,
@@ -127,18 +119,12 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
 
             // Create side effects tracking
             OperationResult.OperationSideEffects sideEffects = OperationResult.OperationSideEffects.builder()
-                    .fileUpdated(String.format("team/%s/%d/%d", teamLeadUsername, year, month))
-                    .build();
+                    .fileUpdated(String.format("team/%s/%d/%d", teamLeadUsername, year, month)).build();
 
-            return OperationResult.successWithSideEffects(
-                    message,
-                    getOperationType(),
-                    teamMemberDTOS,
-                    sideEffects);
+            return OperationResult.successWithSideEffects(message, getOperationType(), teamMemberDTOS, sideEffects);
 
         } catch (Exception e) {
-            String errorMessage = String.format("Error updating team statistics for %s - %d/%d: %s",
-                    teamLeadUsername, year, month, e.getMessage());
+            String errorMessage = String.format("Error updating team statistics for %s - %d/%d: %s", teamLeadUsername, year, month, e.getMessage());
 
             LoggerUtil.error(this.getClass(), errorMessage, e);
 
@@ -146,9 +132,7 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
         }
     }
 
-    /**
-     * Update work time statistics for a team member - ORIGINAL LOGIC with NetworkOnlyAccessor
-     */
+    // Update work time statistics for a team member - ORIGINAL LOGIC with NetworkOnlyAccessor
     private void updateWorkTimeStats(TeamMemberDTO member, int year, int month) {
         try {
             // Use NetworkOnlyAccessor for consistent cross-user data access
@@ -207,24 +191,20 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
         }
     }
 
-    /**
-     * Update register statistics for a team member - ORIGINAL LOGIC
-     */
+    // Update register statistics for a team member - ORIGINAL LOGIC
     private void updateRegisterStats(TeamMemberDTO member, int year, int month) {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Loading register entries for team member %s - %d/%d",
                     member.getUsername(), year, month));
 
             // Use ServiceResult pattern to load entries - ORIGINAL LOGIC
-            ServiceResult<List<RegisterEntry>> entriesResult = context.loadUserRegisterEntries(
-                    member.getUsername(), member.getUserId(), year, month);
+            ServiceResult<List<RegisterEntry>> entriesResult = context.loadUserRegisterEntries(member.getUsername(), member.getUserId(), year, month);
 
             if (entriesResult.isSuccess()) {
                 List<RegisterEntry> entries = entriesResult.getData();
 
                 if (entries == null || entries.isEmpty()) {
-                    LoggerUtil.debug(this.getClass(), String.format("No register entries found for team member %s - %d/%d",
-                            member.getUsername(), year, month));
+                    LoggerUtil.debug(this.getClass(), String.format("No register entries found for team member %s - %d/%d", member.getUsername(), year, month));
                     // Set empty stats for this member
                     member.getRegisterStats().setMonthSummaryDTO(createEmptyMonthSummary());
                     member.getRegisterStats().setClientSpecificStats(new HashMap<>());
@@ -268,9 +248,7 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
         }
     }
 
-    /**
-     * Update session details for a team member - ORIGINAL LOGIC
-     */
+    // Update session details for a team member - ORIGINAL LOGIC
     private void updateSessionDetails(TeamMemberDTO member) {
         try {
             WorkUsersSessionsStates session = context.readNetworkSessionFile(member.getUsername(), member.getUserId());
@@ -306,9 +284,7 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
         }
     }
 
-    /**
-     * Update time off list for a team member - ORIGINAL LOGIC with NetworkOnlyAccessor
-     */
+    // Update time off list for a team member - ORIGINAL LOGIC with NetworkOnlyAccessor
     private void updateTimeOffList(TeamMemberDTO member, int year, int month) {
         try {
             // Use NetworkOnlyAccessor for consistent cross-user data access
@@ -328,38 +304,27 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
             }
 
             // Group by time off type - ORIGINAL LOGIC
-            Map<String, List<LocalDate>> timeOffDays = worktime.stream()
-                    .filter(wt -> wt.getTimeOffType() != null)
-                    .collect(Collectors.groupingBy(
-                            WorkTimeTable::getTimeOffType,
-                            Collectors.mapping(WorkTimeTable::getWorkDate, Collectors.toList())
-                    ));
+            Map<String, List<LocalDate>> timeOffDays = worktime.stream().filter(wt -> wt.getTimeOffType() != null)
+                    .collect(Collectors.groupingBy(WorkTimeTable::getTimeOffType,
+                            Collectors.mapping(WorkTimeTable::getWorkDate, Collectors.toList())));
 
             // Create time off entries - ORIGINAL LOGIC
             List<TimeOffEntryDTO> coEntries = createTimeOffEntries(WorkCode.TIME_OFF_CODE, timeOffDays.get(WorkCode.TIME_OFF_CODE));
             List<TimeOffEntryDTO> cmEntries = createTimeOffEntries(WorkCode.MEDICAL_LEAVE_CODE, timeOffDays.get(WorkCode.MEDICAL_LEAVE_CODE));
             List<TimeOffEntryDTO> snEntries = createTimeOffEntries(WorkCode.NATIONAL_HOLIDAY_CODE, timeOffDays.get(WorkCode.NATIONAL_HOLIDAY_CODE));
 
-            member.setTimeOffListDTO(TimeOffListDTO.builder()
-                    .timeOffCO(coEntries)
-                    .timeOffCM(cmEntries)
-                    .timeOffSN(snEntries)
-                    .build());
+            member.setTimeOffListDTO(TimeOffListDTO.builder().timeOffCO(coEntries).timeOffCM(cmEntries).timeOffSN(snEntries).build());
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Updated time off list for %s: CO=%d, CM=%d, SN=%d",
+            LoggerUtil.debug(this.getClass(), String.format("Updated time off list for %s: CO=%d, CM=%d, SN=%d",
                     member.getUsername(), coEntries.size(), cmEntries.size(), snEntries.size()));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error updating time off list for %s: %s", member.getUsername(), e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error updating time off list for %s: %s", member.getUsername(), e.getMessage()));
             // Don't throw - continue with other updates
         }
     }
 
-    /**
-     * Create empty month summary for cases where no data is available - ORIGINAL LOGIC
-     */
+    // Create empty month summary for cases where no data is available - ORIGINAL LOGIC
     private MonthSummaryDTO createEmptyMonthSummary() {
         return MonthSummaryDTO.builder()
                 .totalWorkDays(0)
@@ -370,9 +335,7 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
                 .build();
     }
 
-    /**
-     * Calculate month summary from register entries - ORIGINAL LOGIC with IMPOSTARE filter
-     */
+    // Calculate month summary from register entries - ORIGINAL LOGIC with IMPOSTARE filter
     private MonthSummaryDTO calculateMonthSummary(List<RegisterEntry> entries) {
         // Filter out IMPOSTARE entries from calculations
         List<RegisterEntry> filteredEntries = entries.stream()
@@ -406,23 +369,15 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
                 .build();
     }
 
-    /**
-     * Calculate client specific statistics - ORIGINAL LOGIC with IMPOSTARE filter
-     */
+    // Calculate client specific statistics - ORIGINAL LOGIC with IMPOSTARE filter
     private Map<String, ClientDetailedStatsDTO> calculateClientStats(List<RegisterEntry> entries) {
-        Map<String, List<RegisterEntry>> entriesByClient = entries.stream()
-                .collect(Collectors.groupingBy(RegisterEntry::getClientName));
+        Map<String, List<RegisterEntry>> entriesByClient = entries.stream().collect(Collectors.groupingBy(RegisterEntry::getClientName));
 
-        return entriesByClient.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> calculateClientDetailedStats(e.getValue())
-                ));
+        return entriesByClient.entrySet().stream().collect(Collectors.toMap(
+                        Map.Entry::getKey, e -> calculateClientDetailedStats(e.getValue())));
     }
 
-    /**
-     * Calculate detailed statistics for a specific client - ORIGINAL LOGIC with IMPOSTARE filter
-     */
+    // Calculate detailed statistics for a specific client - ORIGINAL LOGIC with IMPOSTARE filter
     private ClientDetailedStatsDTO calculateClientDetailedStats(List<RegisterEntry> clientEntries) {
         // Filter out IMPOSTARE entries from calculations
         List<RegisterEntry> filteredEntries = clientEntries.stream()
@@ -446,21 +401,14 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
         // Calculate overall print prep type distribution (excluding IMPOSTARE)
         Map<String, Integer> printPrepDist = calculatePrintPrepDistribution(filteredEntries);
 
-        return ClientDetailedStatsDTO.builder()
-                .totalOrders(filteredEntries.size()) // Use filtered count
-                .averageComplexity(avgComplexity)
-                .averageArticleNumbers(avgArticles)
-                .actionTypeStats(actionTypeStats)
-                .printPrepTypeDistribution(printPrepDist)
+        return ClientDetailedStatsDTO.builder().totalOrders(filteredEntries.size()).averageComplexity(avgComplexity)
+                .averageArticleNumbers(avgArticles).actionTypeStats(actionTypeStats).printPrepTypeDistribution(printPrepDist)
                 .build();
     }
 
-    /**
-     * Calculate action type specific statistics - ORIGINAL LOGIC with IMPOSTARE filter
-     */
+    // Calculate action type specific statistics - ORIGINAL LOGIC with IMPOSTARE filter
     private Map<String, ActionTypeStatsDTO> calculateActionTypeStats(List<RegisterEntry> entries) {
-        Map<String, List<RegisterEntry>> entriesByActionType = entries.stream()
-                .collect(Collectors.groupingBy(RegisterEntry::getActionType));
+        Map<String, List<RegisterEntry>> entriesByActionType = entries.stream().collect(Collectors.groupingBy(RegisterEntry::getActionType));
 
         return entriesByActionType.entrySet().stream()
                 .collect(Collectors.toMap(
@@ -496,18 +444,14 @@ public class UpdateTeamStatisticsCommand extends WorktimeOperationCommand<Object
                 ));
     }
 
-    /**
-     * Calculate print preparation type distribution - ORIGINAL LOGIC
-     */
+    // Calculate print preparation type distribution - ORIGINAL LOGIC
     private Map<String, Integer> calculatePrintPrepDistribution(List<RegisterEntry> entries) {
         return entries.stream().flatMap(entry -> entry.getPrintPrepTypes().stream())
                 .collect(Collectors.groupingBy(type -> type,
                         Collectors.collectingAndThen(Collectors.counting(), Long::intValue)));
     }
 
-    /**
-     * Create time off entries from days list - ORIGINAL LOGIC
-     */
+    // Create time off entries from days list - ORIGINAL LOGIC
     private List<TimeOffEntryDTO> createTimeOffEntries(String type, List<LocalDate> days) {
         if (days == null || days.isEmpty()) {
             return new ArrayList<>();

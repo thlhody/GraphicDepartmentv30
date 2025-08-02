@@ -14,23 +14,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * REFACTORED: Command to initialize team member entries for selected users.
- * Replaces TeamStatisticsService.initializeTeamMembers() method.
- * Creates initial team member DTOs and saves them to team data files.
- * Team operations use context methods directly (no accessor needed).
- */
 public class InitializeTeamMembersCommand extends WorktimeOperationCommand<Object> {
     private final List<Integer> selectedUserIds;
     private final String teamLeadUsername;
     private final int year;
     private final int month;
 
-    public InitializeTeamMembersCommand(WorktimeOperationContext context,
-                                        List<Integer> selectedUserIds,
-                                        String teamLeadUsername,
-                                        int year,
-                                        int month) {
+    public InitializeTeamMembersCommand(WorktimeOperationContext context, List<Integer> selectedUserIds, String teamLeadUsername,
+                                        int year, int month) {
         super(context);
         this.selectedUserIds = selectedUserIds;
         this.teamLeadUsername = teamLeadUsername;
@@ -62,15 +53,13 @@ public class InitializeTeamMembersCommand extends WorktimeOperationCommand<Objec
             throw new SecurityException("Only the team lead can initialize team members");
         }
 
-        LoggerUtil.info(this.getClass(), String.format(
-                "Validating team member initialization: %d users for team lead %s - %d/%d",
+        LoggerUtil.info(this.getClass(), String.format("Validating team member initialization: %d users for team lead %s - %d/%d",
                 selectedUserIds.size(), teamLeadUsername, year, month));
     }
 
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Initializing team members: %d users for team lead %s - %d/%d",
+        LoggerUtil.info(this.getClass(), String.format("Initializing team members: %d users for team lead %s - %d/%d",
                 selectedUserIds.size(), teamLeadUsername, year, month));
 
         try {
@@ -81,8 +70,7 @@ public class InitializeTeamMembersCommand extends WorktimeOperationCommand<Objec
                 try {
                     Optional<User> userOpt = context.getUserById(userId);
                     if (userOpt.isEmpty()) {
-                        LoggerUtil.warn(this.getClass(), String.format(
-                                "User not found during team initialization: %d", userId));
+                        LoggerUtil.warn(this.getClass(), String.format("User not found during team initialization: %d", userId));
                         continue;
                     }
 
@@ -90,47 +78,35 @@ public class InitializeTeamMembersCommand extends WorktimeOperationCommand<Objec
                     TeamMemberDTO member = createInitialTeamMember(user);
                     teamMemberDTOs.add(member);
 
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Created team member DTO for user %s (ID: %d)", user.getUsername(), userId));
+                    LoggerUtil.debug(this.getClass(), String.format("Created team member DTO for user %s (ID: %d)", user.getUsername(), userId));
 
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format(
-                            "Error creating team member DTO for user %d: %s", userId, e.getMessage()), e);
+                    LoggerUtil.error(this.getClass(), String.format("Error creating team member DTO for user %d: %s", userId, e.getMessage()), e);
                     // Continue with other users rather than failing completely
                 }
             }
 
             if (teamMemberDTOs.isEmpty()) {
-                return OperationResult.failure(
-                        "No valid team members could be created",
-                        getOperationType());
+                return OperationResult.failure("No valid team members could be created", getOperationType());
             }
 
             // Save team members using context (no accessor needed for team operations)
             context.writeTeamMembers(teamMemberDTOs, teamLeadUsername, year, month);
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully initialized %d team members for %s - %d/%d",
+            LoggerUtil.info(this.getClass(), String.format("Successfully initialized %d team members for %s - %d/%d",
                     teamMemberDTOs.size(), teamLeadUsername, year, month));
 
-            return OperationResult.success(
-                    String.format("Initialized %d team members successfully", teamMemberDTOs.size()),
-                    getOperationType(),
-                    teamMemberDTOs);
+            return OperationResult.success(String.format("Initialized %d team members successfully", teamMemberDTOs.size()),
+                    getOperationType(), teamMemberDTOs);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error initializing team members for %s - %d/%d: %s",
+            LoggerUtil.error(this.getClass(), String.format("Error initializing team members for %s - %d/%d: %s",
                     teamLeadUsername, year, month, e.getMessage()), e);
-            return OperationResult.failure(
-                    "Failed to initialize team members: " + e.getMessage(),
-                    getOperationType());
+            return OperationResult.failure("Failed to initialize team members: " + e.getMessage(), getOperationType());
         }
     }
 
-    /**
-     * Create initial team member DTO with empty statistics
-     */
+    // Create initial team member DTO with empty statistics
     private TeamMemberDTO createInitialTeamMember(User user) {
         return TeamMemberDTO.builder()
                 .userId(user.getUserId())
@@ -146,20 +122,15 @@ public class InitializeTeamMembersCommand extends WorktimeOperationCommand<Objec
                 .build();
     }
 
-    /**
-     * Create initial register statistics with empty values
-     */
+    // Create initial register statistics with empty values
     private TeamMemberRegisterStatsDTO createInitialRegisterStats() {
-        return TeamMemberRegisterStatsDTO.builder()
-                .monthSummaryDTO(new MonthSummaryDTO())
-                .clientSpecificStats(new HashMap<>())
-                .build();
+        return TeamMemberRegisterStatsDTO.builder().monthSummaryDTO(new MonthSummaryDTO())
+                .clientSpecificStats(new HashMap<>()).build();
     }
 
     @Override
     protected String getCommandName() {
-        return String.format("InitializeTeamMembers[lead=%s, users=%d, period=%d/%d]",
-                teamLeadUsername, selectedUserIds.size(), year, month);
+        return String.format("InitializeTeamMembers[lead=%s, users=%d, period=%d/%d]", teamLeadUsername, selectedUserIds.size(), year, month);
     }
 
     @Override

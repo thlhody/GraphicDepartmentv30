@@ -252,7 +252,13 @@
                                                    (${record.timeOffType == 'CO' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'co-work-entry ' : '') +
                                                    (${record.timeOffType == 'CM' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'cm-work-entry ' : '') +
                                                    (${record.timeOffType == 'W' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'w-work-entry' : '')"
-                                    th:attr="data-date=${record.workDate},data-overtime-minutes=${record.totalOvertimeMinutes}">
+                                    th:attr="data-date=${record.workDate},
+                                             data-overtime-minutes=${record.totalOvertimeMinutes},
+                                             data-status-role=${record.statusInfo?.roleName},
+                                             data-status-action=${record.statusInfo?.actionType},
+                                             data-status-description=${record.statusInfo?.fullDescription},
+                                             data-status-modifiable=${record.statusInfo?.isModifiable},
+                                             data-status-final=${record.statusInfo?.isFinal}">
 
                                     <!-- Date Column -->
                                     <td class="date-cell fw-medium">
@@ -262,58 +268,73 @@
                                         </div>
                                     </td>
 
-                                    <!-- Time Off Column - ENHANCED WITH ALL SPECIAL DAY WORK LOGIC -->
-                                    <td class="text-center timeoff-cell">
-                                        <!-- SN with overtime work: Show "SN4" style -->
-                                        <span th:if="${record.timeOffType == 'SN' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
-                                              class="sn-work-display small fw-bold"
-                                              th:title="'National Holiday with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
-                                              th:text="'SN' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">SN4</span>
+                                    <!-- Time Off Column - FIXED STRUCTURE -->
+                                    <td class="text-center timeoff-cell"
+                                        th:classappend="${(record.timeOffType == 'CO' || record.timeOffType == 'CM') ? 'deletable-timeoff' : ''}"
+                                        th:attr="data-timeoff-type=${record.timeOffType},
+                                                 data-date=${record.workDate},
+                                                 data-has-overtime=${record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0},
+                                                 data-deletable=${record.timeOffType == 'CO' || record.timeOffType == 'CM'}">
 
-                                        <!-- CO with overtime work: Show "CO6" style -->
-                                        <span th:if="${record.timeOffType == 'CO' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
-                                              class="co-work-display small fw-bold"
-                                              th:title="'Time Off Day with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
-                                              th:text="'CO' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">CO6</span>
 
-                                        <!-- CM with overtime work: Show "CM4" style -->
-                                        <span th:if="${record.timeOffType == 'CM' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
-                                              class="cm-work-display small fw-bold"
-                                              th:title="'Medical Leave with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
-                                              th:text="'CM' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">CM4</span>
 
-                                        <!-- W with overtime work: Show "W8" style -->
-                                        <span th:if="${record.timeOffType == 'W' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
-                                              class="w-work-display small fw-bold"
-                                              th:title="'Weekend with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
-                                              th:text="'W' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">W8</span>
+                                    <!-- SINGLE CONTENT CONTAINER (required for editing) -->
+                                        <div class="cell-value">
+                                            <!-- SN with overtime work: Show "SN4" style -->
+                                            <span th:if="${record.timeOffType == 'SN' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="sn-work-display small fw-bold"
+                                                  th:title="'National Holiday with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
+                                                  th:text="'SN' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">SN4</span>
 
-                                        <!-- Regular SN (no work): Show green SN -->
-                                        <span th:if="${record.timeOffType == 'SN' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
-                                              class="holiday small"
-                                              title="National Holiday (Free Day)"
-                                              th:text="${record.timeOffType}">SN</span>
+                                            <!-- CO with overtime work: Show "CO6" style -->
+                                            <span th:if="${record.timeOffType == 'CO' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="co-work-display small fw-bold"
+                                                  th:title="'Time Off Day with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
+                                                  th:text="'CO' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">CO6</span>
 
-                                        <!-- Regular CO (no work): Blue -->
-                                        <span th:if="${record.timeOffType == 'CO' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
-                                              class="vacation small"
-                                              title="Vacation Day"
-                                              th:text="${record.timeOffType}">CO</span>
+                                            <!-- CM with overtime work: Show "CM4" style -->
+                                            <span th:if="${record.timeOffType == 'CM' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="cm-work-display small fw-bold"
+                                                  th:title="'Medical Leave with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
+                                                  th:text="'CM' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">CM4</span>
 
-                                        <!-- Regular CM (no work): Orange -->
-                                        <span th:if="${record.timeOffType == 'CM' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
-                                              class="medical small"
-                                              title="Medical Leave"
-                                              th:text="${record.timeOffType}">CM</span>
+                                            <!-- W with overtime work: Show "W8" style -->
+                                            <span th:if="${record.timeOffType == 'W' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="w-work-display small fw-bold"
+                                                  th:title="'Weekend with ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes)} + ' overtime work'"
+                                                  th:text="'W' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '')}">W8</span>
 
-                                        <!-- Regular W (no work): Gray -->
-                                        <span th:if="${record.timeOffType == 'W' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
-                                              class="weekend small"
-                                              title="Weekend Day"
-                                              th:text="${record.timeOffType}">W</span>
+                                            <!-- Regular SN (no work): Show green SN -->
+                                            <span th:if="${record.timeOffType == 'SN' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="holiday small"
+                                                  title="National Holiday (Free Day)"
+                                                  th:text="${record.timeOffType}">SN</span>
 
-                                        <!-- No time off -->
-                                        <span th:unless="${record.timeOffType}">-</span>
+                                            <!-- Regular CO (no work): Blue -->
+                                            <span th:if="${record.timeOffType == 'CO' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="vacation small"
+                                                  title="Vacation Day"
+                                                  th:text="${record.timeOffType}">CO</span>
+
+                                            <!-- Regular CM (no work): Orange -->
+                                            <span th:if="${record.timeOffType == 'CM' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="medical small"
+                                                  title="Medical Leave"
+                                                  th:text="${record.timeOffType}">CM</span>
+
+                                            <!-- Regular W (no work): Gray -->
+                                            <span th:if="${record.timeOffType == 'W' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="weekend small"
+                                                  title="Weekend Day"
+                                                  th:text="${record.timeOffType}">W</span>
+
+                                            <!-- No time off -->
+                                            <span th:unless="${record.timeOffType}">-</span>
+                                        </div>
+
+                                        <!-- Delete icon for CO/CM only -->
+                                        <i th:if="${record.timeOffType == 'CO' || record.timeOffType == 'CM'}"
+                                           class="bi bi-trash delete-icon d-none"></i>
                                     </td>
 
                                     <!-- Start Time Column - EDITABLE -->
@@ -483,8 +504,8 @@
                                              th:attr="data-bs-toggle='tooltip',
                                                       data-bs-placement='top',
                                                       data-bs-html='true',
-                                                      title=${record.statusInfo.tooltipText}"
-                                             onclick="showStatusDetails(this, event)">
+                                                      title=${record.statusInfo.fullDescription}"
+                                        onclick="showStatusDetails(this, event)">
 
                                             <!-- Status Icon -->
                                             <i th:class="${record.statusInfo.iconClass + ' status-icon'}"></i>
@@ -508,6 +529,11 @@
                                         <div class="status-indicator text-muted" th:unless="${record.statusInfo}">
                                             <i class="bi bi-question-circle"></i>
                                             <span class="badge bg-secondary small">?</span>
+                                        </div>
+
+                                        <!-- Add this temporarily right after the status indicator div -->
+                                        <div style="display:none;" class="debug-status-info"
+                                             th:text="|Debug: tooltipText=[${record.statusInfo?.tooltipText}] fullDescription=[${record.statusInfo?.fullDescription}] shortDisplay=[${record.statusInfo?.shortDisplay}]|">
                                         </div>
                                     </td>
                                 </tr>
@@ -554,14 +580,14 @@
     </div>
 
     <!-- Status Details Modal -->
-    <div class="modal fade" id="statusDetailsModal" tabindex="-1">
+    <div class="modal fade" id="statusDetailsModal" tabindex="-1" data-bs-focus="false">
         <div class="modal-dialog modal-sm">
             <div class="modal-content">
                 <div class="modal-header py-2">
                     <h6 class="modal-title">
                         <i class="bi bi-info-circle me-2"></i>Entry Status Details
                     </h6>
-                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body py-3">
                     <div id="statusDetailsContent">
@@ -758,6 +784,41 @@
         </div>
     </div>
 
+    <!-- Time Off Delete Confirmation Modal -->
+    <div class="modal fade" id="timeOffDeleteModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title">
+                        <i class="bi bi-trash me-2"></i>Remove Time Off
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <div class="mb-3">
+                        <i class="bi bi-question-circle-fill text-warning" style="font-size: 3rem;"></i>
+                    </div>
+                    <h6 id="deleteModalTitle">Remove Vacation Day?</h6>
+                    <p id="deleteModalMessage" class="text-muted mb-0">
+                        This will remove your vacation request for <strong id="deleteModalDate"></strong>
+                    </p>
+                    <div id="deleteModalBalanceInfo" class="alert alert-info mt-3 d-none">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <span>Your vacation balance will be restored (+1 day)</span>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x me-1"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteTimeOff">
+                        <i class="bi bi-trash me-1"></i>Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay d-none">
         <div class="spinner-border text-primary" role="status">
@@ -778,7 +839,7 @@
     <script th:src="@{/js/holiday-export-utils.js?v=18833}"></script>
 
     <!-- Main time management script -->
-    <script th:src="@{/js/time-management.js?v=18815}"></script>
+    <script th:src="@{/js/time-management.js?v=18829}"></script>
 
     <!-- Holiday modal script - Now uses HolidayExportUtils -->
     <script th:src="@{/js/holiday-request-modal.js?v=18815}"></script>

@@ -1,6 +1,7 @@
 package com.ctgraphdep.worktime.commands;
 
 import com.ctgraphdep.config.SecurityConstants;
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
@@ -16,33 +17,68 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * RemoveCommand - Handles removal/reset of worktime entries
- * RULES FOR NON-ADMIN ROLES:
- * 1. If timeOffType=null:
- *    - User sets start=0 and end=0 → setAdminSync = DELETE
- *    - Any other combination → setAdminSync = EDITED (based on role)
- * 2. If timeOffType=CO/CM/SN:
- *    - User sets start=0 and end=0 → keep timeOffType, reset other values to 0, setAdminSync = EDITED (based on role)
- * RULES FOR ADMIN:
- * - Admin can delete anything → setAdminSync = DELETE
- * - Reset all values to 0/null and set DELETE status
+ * Enhanced RemoveCommand - Unified removal system that handles:
+ * 1. Complete entry removal (admin delete button)
+ * 2. Time-off field removal (CO/CM removal for users)
+ * 3. Individual field removal (future extensibility)
+ * MERGED FUNCTIONALITY:
+ * - Original RemoveCommand: Complete entry removal with admin/user rules
+ * - Original : Time-off specific removal with holiday balance restoration
+ * REMOVAL TYPES:
+ * - "all": Complete entry removal (admin delete button)
+ * - "timeoff": Remove only time-off field, preserve work data
+ * - "starttime"/"endtime"/"tempstop": Remove specific fields (future use)
+ * USER RULES FOR TIME-OFF REMOVAL:
+ * - Can remove CO/CM from previous month + current month + future months
+ * - Cannot remove SN (admin only)
+ * - Cannot remove from dates older than previous month
+ * - CO removal restores 1 vacation day to holiday balance
+ * ADMIN RULES:
+ * - Can remove any time-off type from any date
+ * - Can completely delete entries
+ * - Holiday balance not affected by admin operations
  */
 public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
 
     private final String username;
     private final LocalDate date;
-    private final boolean isAdminDelete; // True if admin is using delete button
+    private final boolean isAdminDelete;
+    private final String removalType; // "all", "timeoff", "starttime", etc.
+    private final WorktimeDataAccessor accessor;
 
-    public RemoveCommand(WorktimeOperationContext context, WorktimeDataAccessor accessor,
-                         String username, LocalDate date, boolean isAdminDelete) {
+    // Private constructor - use factory methods
+    private RemoveCommand(WorktimeOperationContext context, WorktimeDataAccessor accessor,
+                          String username, LocalDate date, boolean isAdminDelete, String removalType) {
         super(context);
         this.accessor = accessor;
         this.username = username;
         this.date = date;
         this.isAdminDelete = isAdminDelete;
+        this.removalType = removalType;
     }
 
-    private final WorktimeDataAccessor accessor;
+    // ========================================================================
+    // FACTORY METHODS FOR DIFFERENT REMOVAL SCENARIOS
+    // ========================================================================
+
+    // Create command for complete entry removal (admin delete button)
+    public static RemoveCommand forCompleteRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date, boolean isAdminDelete) {
+        return new RemoveCommand(context, accessor, username, date, isAdminDelete, "all");
+    }
+
+    // Create command for time-off field removal (user CO/CM removal)
+    public static RemoveCommand forTimeOffRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date) {
+        return new RemoveCommand(context, accessor, username, date, false, "timeoff");
+    }
+
+    // Create command for specific field removal (future extensibility)
+    public static RemoveCommand forFieldRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date, String fieldName) {
+        return new RemoveCommand(context, accessor, username, date, false, fieldName);
+    }
+
+    // ========================================================================
+    // VALIDATION
+    // ========================================================================
 
     @Override
     protected void validate() {
@@ -55,12 +91,79 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
         if (context.getCurrentUser() == null) {
             throw new IllegalArgumentException("Current user context is required");
         }
+        if (removalType == null || removalType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Removal type cannot be null or empty");
+        }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Validating removal: user=%s, date=%s, type=%s, adminDelete=%s",
+                username, date, removalType, isAdminDelete));
+
+        // Validate permissions
+        context.validateUserPermissions(username, "remove " + removalType);
+
+        // Type-specific validation
+        if ("timeoff".equals(removalType)) {
+            validateTimeOffRemoval();
+        }
     }
+
+    // Validate time-off removal specific rules
+    private void validateTimeOffRemoval() {
+        boolean isCurrentUserAdmin = context.isCurrentUserAdmin();
+        String currentUsername = context.getCurrentUsername();
+
+        if (isCurrentUserAdmin && !currentUsername.equals(username)) {
+            // Admin removing time off for another user - more permissive
+            validateAdminTimeOffRemoval();
+        } else {
+            // User removing their own time off - strict rules
+            validateUserTimeOffRemoval();
+        }
+    }
+
+    // Admin time-off removal validation (can remove any type, any date)
+    private void validateAdminTimeOffRemoval() {
+        LoggerUtil.debug(this.getClass(), "Validating admin time-off removal operation");
+
+        try {
+            context.validateHolidayDate(date);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Admin date validation warning for %s: %s", date, e.getMessage()));
+            // Don't throw exception for admin operations - more lenient
+        }
+    }
+
+    // User time-off removal validation (CO/CM only, date range restricted)
+    private void validateUserTimeOffRemoval() {
+        LoggerUtil.debug(this.getClass(), "Validating user time-off removal operation");
+
+        // Date range validation: previous month + current + future
+        if (!isDateWithinUserRemovalRange(date)) {
+            throw new IllegalArgumentException(String.format(
+                    "Users can only remove time off from previous, current, or future months. " +
+                            "Date %s is too old to modify.", date));
+        }
+
+        LoggerUtil.debug(this.getClass(), String.format("User time-off removal date %s is within allowed range", date));
+    }
+
+    // Check if date is within user removal range (previous month + current + future)
+    private boolean isDateWithinUserRemovalRange(LocalDate date) {
+        LocalDate today = LocalDate.now();
+        LocalDate earliestAllowed = today.withDayOfMonth(1).minusMonths(1); // First day of previous month
+        return !date.isBefore(earliestAllowed);
+    }
+
+    // ========================================================================
+    // EXECUTION
+    // ========================================================================
 
     @Override
     protected OperationResult executeCommand() {
         LoggerUtil.info(this.getClass(), String.format(
-                "Executing RemoveCommand for %s on %s (adminDelete: %s)", username, date, isAdminDelete));
+                "Executing RemoveCommand: user=%s, date=%s, type=%s, adminDelete=%s",
+                username, date, removalType, isAdminDelete));
 
         try {
             // Load existing entries
@@ -68,7 +171,11 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
             int month = date.getMonthValue();
             List<WorkTimeTable> entries = accessor.readWorktime(username, year, month);
 
-            // Find the entry to remove/reset
+            if (entries == null) {
+                entries = new java.util.ArrayList<>();
+            }
+
+            // Find the entry to remove/modify
             Optional<WorkTimeTable> existingEntryOpt = findEntryByDate(entries,
                     context.getCurrentUser().getUserId(), date);
 
@@ -79,40 +186,29 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
             }
 
             WorkTimeTable entry = existingEntryOpt.get();
-            String originalTimeOffType = entry.getTimeOffType();
             String userRole = context.getCurrentUser().getRole();
 
             LoggerUtil.debug(this.getClass(), String.format(
-                    "Found entry to remove: timeOffType=%s, start=%s, end=%s, adminSync=%s",
-                    originalTimeOffType,
-                    entry.getDayStartTime() != null ? entry.getDayStartTime().toLocalTime() : "null",
-                    entry.getDayEndTime() != null ? entry.getDayEndTime().toLocalTime() : "null",
-                    entry.getAdminSync()));
+                    "Found entry to process: timeOffType=%s, removalType=%s",
+                    entry.getTimeOffType(), removalType));
 
-            // Apply removal rules based on user role and entry type
-            RemovalResult removalResult = applyRemovalRules(entry, userRole, isAdminDelete);
+            // Route to appropriate removal handler
+            OperationResult result = switch (removalType) {
+                case "all" -> handleCompleteEntryRemoval(entry, userRole);
+                case "timeoff" -> handleTimeOffRemoval(entry, userRole);
+                case "starttime", "endtime", "tempstop" -> handleFieldRemoval(entry, userRole, removalType);
+                default -> OperationResult.failure("Unknown removal type: " + removalType, getOperationType());
+            };
 
-            // Assign status using StatusAssignmentEngine
-            StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
-                    entry, userRole, removalResult.getOperationType());
-
-            if (!statusResult.isSuccess()) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "Status assignment failed: %s", statusResult.getMessage()));
-                return OperationResult.failure("Cannot remove entry: " + statusResult.getMessage(), getOperationType());
+            if (!result.isSuccess()) {
+                return result;
             }
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Status assigned: %s → %s", statusResult.getOriginalStatus(), statusResult.getNewStatus()));
-
-            // Replace entry in list
+            // Update entry in list
             replaceEntry(entries, entry);
 
             // Save using accessor
             accessor.writeWorktimeWithStatus(username, entries, year, month, userRole);
-
-            // Create success message
-            String message = createSuccessMessage(removalResult, originalTimeOffType, statusResult);
 
             // Create side effects tracking
             OperationResult.OperationSideEffects sideEffects = OperationResult.OperationSideEffects.builder()
@@ -120,157 +216,268 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
                     .build();
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully executed removal for %s on %s: %s", username, date, message));
+                    "Successfully executed removal for %s on %s: %s", username, date, result.getMessage()));
 
-            return OperationResult.successWithSideEffects(message, getOperationType(), entry, sideEffects);
+            return OperationResult.successWithSideEffects(result.getMessage(), getOperationType(), entry, sideEffects);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
                     "Error executing removal for %s on %s: %s", username, date, e.getMessage()), e);
-            return OperationResult.failure("Failed to remove entry: " + e.getMessage(), getOperationType());
+            return OperationResult.failure("Failed to remove: " + e.getMessage(), getOperationType());
         }
     }
 
-    /**
-     * Apply removal rules based on user role and entry characteristics
-     */
-    private RemovalResult applyRemovalRules(WorkTimeTable entry, String userRole, boolean isAdminDelete) {
+    // ========================================================================
+    // REMOVAL HANDLERS
+    // ========================================================================
 
-        // ADMIN DELETE BUTTON - Reset everything and mark for deletion
-        if (isAdminDelete && SecurityConstants.ROLE_ADMIN.equalsIgnoreCase(userRole)) {
-            LoggerUtil.debug(this.getClass(), "Applying admin delete button rules");
+    // Handle complete entry removal (admin delete button)
+    private OperationResult handleCompleteEntryRemoval(WorkTimeTable entry, String userRole) {
+        LoggerUtil.debug(this.getClass(), "Handling complete entry removal");
 
-            resetAllFieldsExceptDate(entry);
-            return RemovalResult.deleteEntry("Admin delete button - complete removal");
+        // Reset all fields except date and userId
+        resetAllFieldsExceptDate(entry);
+
+        // Assign delete status
+        StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(entry, userRole, isAdminDelete ? "ADMIN_DELETE" : "DELETE_ENTRY");
+
+        if (!statusResult.isSuccess()) {
+            return OperationResult.failure("Cannot delete entry: " + statusResult.getMessage(), getOperationType());
         }
 
-        // NON-ADMIN RULES
-        String timeOffType = entry.getTimeOffType();
+        LoggerUtil.info(this.getClass(), String.format("Complete entry removal: Status assigned %s → %s",
+                statusResult.getOriginalStatus(), statusResult.getNewStatus()));
 
-        if (timeOffType == null || timeOffType.trim().isEmpty()) {
-            // Rule 1: timeOffType=null - Reset all fields and mark for deletion
-            LoggerUtil.debug(this.getClass(), "Applying rules for regular work day (no timeOffType)");
+        return OperationResult.success("Entry deleted successfully", getOperationType(), entry);
+    }
 
-            resetAllFieldsExceptDate(entry);
+    // Handle time-off field removal with holiday balance restoration
+    private OperationResult handleTimeOffRemoval(WorkTimeTable entry, String userRole) {
+        LoggerUtil.debug(this.getClass(), "Handling time-off field removal");
 
-            return RemovalResult.deleteEntry("Regular work day removed - all fields reset");
+        String originalTimeOffType = entry.getTimeOffType();
 
-        } else {
-            // Rule 2: timeOffType=CO/CM/SN - Reset all fields except timeOffType
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Applying rules for special day removal (timeOffType=%s)", timeOffType));
-
-            // Keep timeOffType and date, reset everything else
-            String preservedTimeOffType = entry.getTimeOffType();
-            resetAllFieldsExceptDate(entry);
-            entry.setTimeOffType(preservedTimeOffType); // Restore timeOffType
-
-            return RemovalResult.resetSpecialDay("Special day work times reset - timeOffType preserved");
+        if (originalTimeOffType == null || originalTimeOffType.trim().isEmpty()) {
+            return OperationResult.failure("No time off found to remove", getOperationType());
         }
+
+        // Validate time-off type for user operations
+        if (!SecurityConstants.ROLE_ADMIN.equalsIgnoreCase(userRole)) {
+            if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(originalTimeOffType)) {
+                return OperationResult.failure("Users cannot remove national holidays (SN). Only admin can modify SN entries.", getOperationType());
+            }
+            if (!WorkCode.TIME_OFF_CODE.equals(originalTimeOffType) && !WorkCode.MEDICAL_LEAVE_CODE.equals(originalTimeOffType)) {
+                return OperationResult.failure("Users can only remove vacation (CO) or medical (CM) time off", getOperationType());
+            }
+        }
+
+        LoggerUtil.info(this.getClass(), String.format("Removing time-off type '%s' from entry", originalTimeOffType));
+
+        // Remove time-off field but preserve work data
+        entry.setTimeOffType(null);
+
+        // Assign status
+        StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
+                entry, userRole, "REMOVE_TIME_OFF");
+
+        if (!statusResult.isSuccess()) {
+            return OperationResult.failure("Cannot remove time off: " + statusResult.getMessage(), getOperationType());
+        }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Time-off removal: Status assigned %s → %s",
+                statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+
+        // Handle holiday balance restoration for CO
+        HolidayBalanceResult balanceResult = handleHolidayBalanceRestoration(originalTimeOffType, userRole);
+
+        // Create success message
+        String message = createTimeOffRemovalMessage(originalTimeOffType, balanceResult);
+
+        // Update tracker for user operations
+        if (!SecurityConstants.ROLE_ADMIN.equalsIgnoreCase(userRole) || context.getCurrentUsername().equals(username)) {
+            try {
+                context.removeTimeOffFromTracker(username, context.getCurrentUser().getUserId(), date, date.getYear());
+                LoggerUtil.debug(this.getClass(), String.format("Removed from time off tracker for user %s on %s", username, date));
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format("Failed to remove from tracker for %s on %s: %s",
+                        username, date, e.getMessage()));
+                // Don't fail entire operation for tracker sync issue
+            }
+        }
+
+        // Invalidate cache
+        context.invalidateTimeOffCache(username, date.getYear());
+        context.refreshTimeOffTracker(username, context.getCurrentUser().getUserId(), date.getYear());
+
+        return OperationResult.success(message, getOperationType(), entry);
     }
 
-    /**
-     * Reset all fields except date (for both admin and user operations)
-     */
-    private void resetAllFieldsExceptDate(WorkTimeTable entry) {
-        // Reset all fields except userId, workDate, and adminSync (handled by StatusAssignmentEngine)
-        entry.setDayStartTime(null);
-        entry.setDayEndTime(null);
-        entry.setTimeOffType(null);  // Will be restored for special days
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setLunchBreakDeducted(false);
+    // Handle individual field removal (future extensibility)
+    private OperationResult handleFieldRemoval(WorkTimeTable entry, String userRole, String fieldName) {
+        LoggerUtil.debug(this.getClass(), String.format("Handling individual field removal: %s", fieldName));
 
-        LoggerUtil.debug(this.getClass(), "All fields reset except date (userId: "+entry.getUserId()+" workDate: "+ entry.getWorkDate()+" preserved)");
+        // Reset specific field
+        switch (fieldName) {
+            case "starttime" -> entry.setDayStartTime(null);
+            case "endtime" -> entry.setDayEndTime(null);
+            case "tempstop" -> {
+                entry.setTemporaryStopCount(0);
+                entry.setTotalTemporaryStopMinutes(0);
+            }
+            default -> {
+                return OperationResult.failure("Unknown field for removal: " + fieldName, getOperationType());
+            }
+        }
+
+        // Assign status
+        StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
+                entry, userRole, "REMOVE_FIELD");
+
+        if (!statusResult.isSuccess()) {
+            return OperationResult.failure("Cannot remove field: " + statusResult.getMessage(), getOperationType());
+        }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Field removal: %s removed, Status assigned %s → %s",
+                fieldName, statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+
+        return OperationResult.success(String.format("Field %s removed successfully", fieldName), getOperationType(), entry);
     }
 
-    /**
-     * Create success message based on removal result
-     */
-    private String createSuccessMessage(RemovalResult removalResult, String originalTimeOffType, StatusAssignmentResult statusResult) {
+    // ========================================================================
+    // HOLIDAY BALANCE HANDLING
+    // ========================================================================
 
+    // Handle holiday balance restoration for CO entries
+    private HolidayBalanceResult handleHolidayBalanceRestoration(String originalTimeOffType, String userRole) {
+        if (!WorkCode.TIME_OFF_CODE.equals(originalTimeOffType)) {
+            return new HolidayBalanceResult(false, null, null);
+        }
+
+        // Only restore balance for user operations (not admin operations on other users)
+        boolean isAdminOperation = SecurityConstants.ROLE_ADMIN.equalsIgnoreCase(userRole) &&
+                !context.getCurrentUsername().equals(username);
+
+        if (isAdminOperation) {
+            LoggerUtil.debug(this.getClass(), "Skipping holiday balance restoration for admin operation on other user");
+            return new HolidayBalanceResult(false, null, null);
+        }
+
+        // Get old balance before updating
+        Integer oldBalance = context.getCurrentHolidayBalance();
+
+        // Check if vacation day should be restored
+        if (context.shouldProcessVacationDay(date, "remove vacation")) {
+            boolean balanceUpdated = context.updateHolidayBalance(1); // Restore 1 day
+
+            if (balanceUpdated) {
+                Integer newBalance = context.getCurrentHolidayBalance();
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Restored 1 vacation day for %s (removed CO from %s). Balance: %d → %d",
+                        username, date, oldBalance, newBalance));
+                return new HolidayBalanceResult(true, oldBalance, newBalance);
+            }
+        }
+
+        return new HolidayBalanceResult(false, oldBalance, oldBalance);
+    }
+
+    // Create success message for time-off removal
+    private String createTimeOffRemovalMessage(String originalTimeOffType, HolidayBalanceResult balanceResult) {
         StringBuilder message = new StringBuilder();
 
-        if (removalResult.isAdminDelete()) {
-            message.append("Admin deleted entire entry");
-        } else if (originalTimeOffType != null) {
-            message.append(String.format("Reset all fields for %s day - timeOffType preserved", originalTimeOffType));
-        } else {
-            message.append("Removed regular work day entry - all fields reset");
-        }
+        String timeOffDescription = getTimeOffDescription(originalTimeOffType);
+        message.append(String.format("Successfully removed %s from %s", timeOffDescription, date));
 
-        if (statusResult.statusChanged()) {
-            message.append(String.format(" [Status: %s]", statusResult.getNewStatus()));
+        if (balanceResult.isUpdated()) {
+            message.append(String.format(". Holiday balance restored: %d → %d (vacation request removed)",
+                    balanceResult.getOldBalance(), balanceResult.getNewBalance()));
+        } else if (WorkCode.TIME_OFF_CODE.equals(originalTimeOffType) && context.isExistingNationalHoliday(date)) {
+            message.append(" (no vacation day restored - national holiday)");
         }
-
         return message.toString();
     }
 
-    @Override
-    protected String getCommandName() {
-        return String.format("Remove[%s, %s, adminDelete=%s]", username, date, isAdminDelete);
-    }
+    // Get user-friendly description for time-off types
+    private String getTimeOffDescription(String timeOffType) {
+        if (timeOffType == null) return "time off";
 
-    @Override
-    protected String getOperationType() {
-        if (isAdminDelete) {
-            return "ADMIN_DELETE"; // Custom operation type for admin delete button
-        }
-        return "REMOVE_ENTRY"; // Custom operation type for user remove
+        return switch (timeOffType.toUpperCase()) {
+            case WorkCode.NATIONAL_HOLIDAY_CODE -> WorkCode.NATIONAL_HOLIDAY_CODE_LONG;
+            case WorkCode.TIME_OFF_CODE -> WorkCode.TIME_OFF_CODE_LONG;
+            case WorkCode.MEDICAL_LEAVE_CODE -> WorkCode.MEDICAL_LEAVE_CODE_LONG;
+            case WorkCode.WEEKEND_CODE -> WorkCode.WEEKEND_CODE_LONG;
+            default -> timeOffType;
+        };
     }
 
     // ========================================================================
     // UTILITY METHODS
     // ========================================================================
 
+    // Reset all fields except date and userId (for complete removal)
+    private void resetAllFieldsExceptDate(WorkTimeTable entry) {
+        entry.setDayStartTime(null);
+        entry.setDayEndTime(null);
+        entry.setTimeOffType(null);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setLunchBreakDeducted(false);
+
+        LoggerUtil.debug(this.getClass(), String.format(
+                "All fields reset except date for userId: %d, workDate: %s",
+                entry.getUserId(), entry.getWorkDate()));
+    }
+
     private Optional<WorkTimeTable> findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
-        return entries.stream()
-                .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
+        return entries.stream().filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
                 .findFirst();
     }
 
     private void replaceEntry(List<WorkTimeTable> entries, WorkTimeTable updatedEntry) {
-        entries.removeIf(entry ->
-                updatedEntry.getUserId().equals(entry.getUserId()) &&
+        entries.removeIf(entry -> updatedEntry.getUserId().equals(entry.getUserId()) &&
                         updatedEntry.getWorkDate().equals(entry.getWorkDate())
         );
         entries.add(updatedEntry);
-        entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate)
-                .thenComparingInt(WorkTimeTable::getUserId));
+        entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparingInt(WorkTimeTable::getUserId));
     }
 
     private String createFilePathId(String username, int year, int month) {
         return String.format("%s/%d/%d", username, year, month);
     }
 
+    @Override
+    protected String getCommandName() {
+        return String.format("Remove[%s, %s, type=%s, adminDelete=%s]", username, date, removalType, isAdminDelete);
+    }
+
+    @Override
+    protected String getOperationType() {
+        return switch (removalType) {
+            case "all" -> isAdminDelete ?  OperationResult.OperationType.ADMIN_DELETE :  OperationResult.OperationType.REMOVE_ENTRY;
+            case "timeoff" -> OperationResult.OperationType.REMOVE_TIME_OFF;
+            default -> OperationResult.OperationType.REMOVE_FIELD;
+        };
+    }
+
     // ========================================================================
-    // RESULT CLASS
+    // RESULT CLASSES
     // ========================================================================
 
-    /**
-     * Result of removal operation analysis
-     */
+    // Result holder for holiday balance operations
     @Getter
-    private static class RemovalResult {
-        private final String operationType;
-        private final String description;
-        private final boolean isAdminDelete;
+    private static class HolidayBalanceResult {
+        private final boolean updated;
+        private final Integer oldBalance;
+        private final Integer newBalance;
 
-        private RemovalResult(String operationType, String description, boolean isAdminDelete) {
-            this.operationType = operationType;
-            this.description = description;
-            this.isAdminDelete = isAdminDelete;
+        public HolidayBalanceResult(boolean updated, Integer oldBalance, Integer newBalance) {
+            this.updated = updated;
+            this.oldBalance = oldBalance;
+            this.newBalance = newBalance;
         }
-
-        public static RemovalResult deleteEntry(String description) {
-            return new RemovalResult("DELETE_ENTRY", description, false);
-        }
-
-        public static RemovalResult resetSpecialDay(String description) {
-            return new RemovalResult("RESET_SPECIAL_DAY", description, false);
-        }
-
     }
 }

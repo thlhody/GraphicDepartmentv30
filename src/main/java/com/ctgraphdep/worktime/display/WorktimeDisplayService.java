@@ -27,16 +27,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * ENHANCED WorktimeDisplayService - Handles both worktime and timeoff display.
- * Consolidates display logic for the unified time management page.
- * Key Enhancements:
- * - Combined worktime + timeoff data preparation
- * - Uses new WorktimeOperationService for data loading
- * - Integrated holiday balance display
- * - Consistent display formatting
- */
-
 @Service
 public class WorktimeDisplayService {
 
@@ -61,9 +51,7 @@ public class WorktimeDisplayService {
     // COMBINED DISPLAY DATA PREPARATION
     // ========================================================================
 
-    /**
-     * ENHANCED: Prepare combined worktime + timeoff display data for unified page
-     */
+    // Prepare combined worktime + timeoff display data for unified page
     @PreAuthorize("#user.username == authentication.name or hasRole('ADMIN')")
     public Map<String, Object> prepareCombinedDisplayData(User user, int year, int month) {
         validateInput(user, year, month);
@@ -96,9 +84,7 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * EXISTING: Process worktime data for display (enhanced)
-     */
+    // Process worktime data for display (enhanced)
     @PreAuthorize("#user.username == authentication.name or hasRole('ADMIN')")
     public Map<String, Object> prepareWorktimeDisplayData(User user, List<WorkTimeTable> worktimeData, int year, int month) {
         validateInput(user, worktimeData, year, month);
@@ -112,7 +98,7 @@ public class WorktimeDisplayService {
             List<WorkTimeTable> displayableEntries = filterEntriesForDisplay(worktimeData);
 
             // Calculate summary
-            WorkTimeSummary summary = calculateMonthSummary(displayableEntries, year, month);
+            WorkTimeSummary summary = calculateMonthSummary(displayableEntries, year, month, user);
 
             // Convert to DTOs with pre-calculated values AND status information
             int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8; // Default to 8 hours
@@ -148,9 +134,7 @@ public class WorktimeDisplayService {
     // ADMIN DISPLAY METHODS (EXISTING, ENHANCED)
     // ========================================================================
 
-    /**
-     * EXISTING: Prepare day headers for admin display
-     */
+    // Prepare day headers for admin display
     public List<Map<String, String>> prepareDayHeaders(YearMonth yearMonth) {
         WorkTimeEntryUtil.validateYearMonth(yearMonth);
 
@@ -172,10 +156,7 @@ public class WorktimeDisplayService {
         return dayHeaders;
     }
 
-    /**
-     * NEW: Prepare worktime display data as DTOs for consistent frontend display
-     * This eliminates frontend calculation inconsistencies by processing everything in backend
-     */
+    // NEW: Prepare worktime display data as DTOs for consistent frontend display
     public Map<Integer, Map<LocalDate, WorkTimeDisplayDTO>> prepareDisplayDTOs(List<User> users, Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap, int year, int month) {
 
         LoggerUtil.info(this.getClass(), String.format("Preparing display DTOs for %d users in %d/%d", users.size(), month, year));
@@ -207,9 +188,7 @@ public class WorktimeDisplayService {
         return displayDTOs;
     }
 
-    /**
-     * NEW: Create appropriate display DTO based on entry type
-     */
+    // Create appropriate display DTO based on entry type
     private WorkTimeDisplayDTO createDisplayDTO(WorkTimeTable entry, User user, LocalDate date, boolean isWeekend) {
 
         GeneralDataStatusDTO statusInfo = createStatusInfo(entry, user.getUserId(), user.getUserId());
@@ -255,10 +234,7 @@ public class WorktimeDisplayService {
         return WorkTimeDisplayDTO.createEmpty(user.getUserId(), date, isWeekend, statusInfo);
     }
 
-    /**
-     * NEW: Calculate summary with verification against display DTOs
-     * This ensures totals match what users see in individual cells
-     */
+    // Calculate summary with verification against display DTOs
     public Map<Integer, WorkTimeSummary> calculateUserSummariesFromDTOs(Map<Integer, Map<LocalDate, WorkTimeDisplayDTO>> displayDTOs, List<User> users, Integer year, Integer month) {
 
         LoggerUtil.info(this.getClass(), String.format("Calculating summaries from display DTOs for %d users", users.size()));
@@ -281,9 +257,7 @@ public class WorktimeDisplayService {
         return summaries;
     }
 
-    /**
-     * NEW: Calculate summary from display DTOs to ensure consistency
-     */
+    // Calculate summary from display DTOs to ensure consistency
     private WorkTimeSummary calculateSummaryFromDTOs(Map<LocalDate, WorkTimeDisplayDTO> userDTOs, int totalWorkDays) {
         int daysWorked = 0;
         int snDays = 0;
@@ -331,9 +305,7 @@ public class WorktimeDisplayService {
                 .build();
     }
 
-    /**
-     * NEW: Enhanced method for preparing model with display DTOs
-     */
+    // Enhanced method for preparing model with display DTOs
     public void prepareWorkTimeModelWithDTOs(Model model, int year, int month, Integer selectedUserId, List<User> nonAdminUsers, Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
 
         LoggerUtil.info(this.getClass(), String.format("Preparing worktime model with DTOs for %d/%d", month, year));
@@ -376,9 +348,7 @@ public class WorktimeDisplayService {
         LoggerUtil.info(this.getClass(), "Successfully prepared worktime model with display DTOs");
     }
 
-    /**
-     * Calculate entry counts for statistics (moved from AdminWorkTimeController)
-     */
+    // Calculate entry counts for statistics (moved from AdminWorkTimeController)
     private Map<String, Long> calculateEntryCounts(Map<Integer, Map<LocalDate, WorkTimeTable>> userEntriesMap) {
         Map<String, Long> counts = new HashMap<>();
 
@@ -400,9 +370,8 @@ public class WorktimeDisplayService {
     // ========================================================================
     // PRIVATE HELPER METHODS
     // ========================================================================
-    /**
-     * ENHANCED: Prepare month summary with proper SN overtime inclusion
-     */
+
+    // Prepare month summary with proper SN overtime inclusion
     public WorkTimeSummaryDTO prepareMonthSummary(User user, int year, int month) {
         validateInput(user, year, month);
 
@@ -415,13 +384,13 @@ public class WorktimeDisplayService {
             LoggerUtil.debug(this.getClass(), String.format("Loaded %d worktime entries for processing", worktimeData.size()));
 
             // Calculate work time counts (includes SN overtime)
-            WorkTimeCountsDTO counts = calculateWorkTimeCounts(worktimeData);
+            WorkTimeCountsDTO counts = calculateWorkTimeCounts(worktimeData, user);
 
             // Get holiday balance
             Integer holidayBalance = worktimeOperationService.getHolidayBalance(user.getUsername());
 
             // Convert to display entries with proper SN handling
-            List<WorkTimeEntryDTO> displayEntries = convertToDisplayEntries(worktimeData);
+            List<WorkTimeEntryDTO> displayEntries = convertToDisplayEntries(worktimeData, user);
 
             LoggerUtil.info(this.getClass(), String.format("Month summary completed: %d entries, %d regular minutes, %d overtime minutes (includes SN)",
                     displayEntries.size(), counts.getRegularMinutes(), counts.getOvertimeMinutes()));
@@ -434,21 +403,19 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * ENHANCED: Convert WorkTimeTable entries to display DTOs with proper SN overtime handling
-     */
-    private List<WorkTimeEntryDTO> convertToDisplayEntries(List<WorkTimeTable> worktimeData) {
+    // Convert WorkTimeTable entries to display DTOs with proper SN overtime handling
+    private List<WorkTimeEntryDTO> convertToDisplayEntries(List<WorkTimeTable> worktimeData, User user) {
         LoggerUtil.debug(this.getClass(), "Converting worktime entries to display DTOs");
 
-        return worktimeData.stream().map(this::convertToDisplayEntry).collect(Collectors.toList());
+        return worktimeData.stream()
+                .map(entry -> convertToDisplayEntry(entry, user))  // PASS USER
+                .collect(Collectors.toList());
     }
 
-    /**
-     * ENHANCED: Convert single WorkTimeTable to WorkTimeEntryDTO with all special day support
-     */
-    private WorkTimeEntryDTO convertToDisplayEntry(WorkTimeTable entry) {
+    // Convert single WorkTimeTable to WorkTimeEntryDTO with all special day support
+    private WorkTimeEntryDTO convertToDisplayEntry(WorkTimeTable entry, User user) {
         // Get actual user schedule (default to 8 if not available)
-        int userSchedule = 8; // TODO: Needs to be enhanced to get actual user schedule from context
+        int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
         GeneralDataStatusDTO statusInfo = createStatusInfo(entry, null, entry.getUserId());
 
         // Use the enhanced DTO conversion method
@@ -462,17 +429,13 @@ public class WorktimeDisplayService {
         return dto;
     }
 
-    /**
-     * Filter entries for display (hide certain statuses)
-     */
+    // Filter entries for display (hide certain statuses)
     private List<WorkTimeTable> filterEntriesForDisplay(List<WorkTimeTable> entries) {
         return entries.stream().filter(WorkTimeEntryUtil::isEntryDisplayable).map(this::prepareEntryForDisplay)
                 .sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).toList();
     }
 
-    /**
-     * Prepare individual entry for display
-     */
+    // Prepare individual entry for display
     private WorkTimeTable prepareEntryForDisplay(WorkTimeTable entry) {
         WorkTimeTable displayEntry = WorkTimeEntryUtil.copyWorkTimeEntry(entry);
 
@@ -499,10 +462,8 @@ public class WorktimeDisplayService {
         return displayEntry;
     }
 
-    /**
-     * ENHANCED: Calculate month summary with proper special day overtime inclusion
-     */
-    private WorkTimeSummary calculateMonthSummary(List<WorkTimeTable> displayableEntries, int year, int month) {
+    // Calculate month summary with proper special day overtime inclusion
+    private WorkTimeSummary calculateMonthSummary(List<WorkTimeTable> displayableEntries, int year, int month, User user) {
         // Get total work days in month (excluding weekends)
         LocalDate firstDay = LocalDate.of(year, month, 1);
         LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
@@ -542,7 +503,7 @@ public class WorktimeDisplayService {
                 daysWorked++;
 
                 // Use default schedule
-                int userSchedule = 8;
+                int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
                 WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
                 totalRegularMinutes += result.getProcessedMinutes();
                 totalOvertimeMinutes += result.getOvertimeMinutes();
@@ -575,10 +536,9 @@ public class WorktimeDisplayService {
                 .totalOvertimeMinutes(totalOvertimeMinutes) // Now includes ALL special day overtime
                 .build();
     }
-    /**
-     * ENHANCED: Calculate work time counts with proper special day overtime inclusion for ALL types
-     */
-    private WorkTimeCountsDTO calculateWorkTimeCounts(List<WorkTimeTable> worktimeData) {
+
+    // Calculate work time counts with proper special day overtime inclusion for ALL types
+    private WorkTimeCountsDTO calculateWorkTimeCounts(List<WorkTimeTable> worktimeData, User user) {
         WorkTimeCountsDTO counts = new WorkTimeCountsDTO();
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
@@ -622,7 +582,7 @@ public class WorktimeDisplayService {
                 counts.incrementDaysWorked();
 
                 // Use default schedule if not available
-                int userSchedule = 8;
+                int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
 
                 // Use calculation utility for consistency
                 WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
@@ -653,9 +613,7 @@ public class WorktimeDisplayService {
         return counts;
     }
 
-    /**
-     * Get recent time off history
-     */
+    // Get recent time off history
     private List<WorkTimeTable> getRecentTimeOffHistory(String username, Integer userId, int year) {
         try {
             // Get current year data from cache
@@ -673,10 +631,7 @@ public class WorktimeDisplayService {
         }
     }
 
-
-    /**
-     * Validate input parameters
-     */
+    // Validate input parameters
     private void validateInput(User user, int year, int month) {
         if (user == null) {
             throw new IllegalArgumentException("User cannot be null");
@@ -689,9 +644,7 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * Validate input with worktime data
-     */
+    // Validate input with worktime data
     private void validateInput(User user, List<WorkTimeTable> worktimeData, int year, int month) {
         validateInput(user, year, month);
 
@@ -704,9 +657,7 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * Sanitize user data for display
-     */
+    // Sanitize user data for display
     private User sanitizeUserData(User user) {
         User sanitized = new User();
         sanitized.setUserId(user.getUserId());
@@ -718,10 +669,8 @@ public class WorktimeDisplayService {
         return sanitized;
     }
 
-    /**
-     * Get detailed entry information for a specific user and date
-     * Used by admin worktime API to provide rich entry details
-     */
+    // Get detailed entry information for a specific user and date
+    // Used by admin worktime API to provide rich entry details
     public Map<String, Object> getEntryDetails(Integer userId, Integer year, Integer month, Integer day) {
         // Validate date parameters
         LocalDate date;
@@ -786,9 +735,7 @@ public class WorktimeDisplayService {
         return userEntriesMap;
     }
 
-    /**
-     * Build response for cases where no entry exists
-     */
+    // Build response for cases where no entry exists
     private void buildNoEntryResponse(Map<String, Object> response, User user, LocalDate date) {
         response.put("hasEntry", false);
         response.put("date", date.toString());
@@ -800,9 +747,7 @@ public class WorktimeDisplayService {
         response.put("isHolidayWithWork", false);
     }
 
-    /**
-     * Build detailed response for existing entries
-     */
+    // Build detailed response for existing entries
     private void buildDetailedEntryResponse(Map<String, Object> response, User user, LocalDate date, WorkTimeTable entry) {
         // Basic information
         response.put("hasEntry", true);
@@ -820,9 +765,7 @@ public class WorktimeDisplayService {
         addMetadata(response, entry);
     }
 
-    /**
-     * Add time-related information (start/end times, elapsed time)
-     */
+    // Add time-related information (start/end times, elapsed time)
     private void addTimeInformation(Map<String, Object> response, WorkTimeTable entry) {
         // Start time
         if (entry.getDayStartTime() != null) {
@@ -844,9 +787,7 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * Add work time calculations and formatting
-     */
+    // Add work time calculations and formatting
     private void addWorkCalculations(Map<String, Object> response, WorkTimeTable entry) {
         // Regular work minutes
         response.put("totalWorkedMinutes", entry.getTotalWorkedMinutes());
@@ -861,9 +802,7 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * Add break and temporary stop information
-     */
+    // Add break and temporary stop information
     private void addBreakInformation(Map<String, Object> response, WorkTimeTable entry) {
         // Temporary stops
         response.put("temporaryStopCount", entry.getTemporaryStopCount());
@@ -877,9 +816,7 @@ public class WorktimeDisplayService {
         response.put("lunchBreakDeducted", entry.isLunchBreakDeducted());
     }
 
-    /**
-     * Add time off type information and display formatting
-     */
+    // Add time off type information and display formatting
     private void addTimeOffInformation(Map<String, Object> response, WorkTimeTable entry) {
         response.put("timeOffType", entry.getTimeOffType());
 
@@ -908,9 +845,7 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * Add administrative status information
-     */
+    // Add administrative status information
     private void addStatusInformation(Map<String, Object> response, WorkTimeTable entry) {
         response.put("adminSync", entry.getAdminSync() != null ? entry.getAdminSync() : null);
 
@@ -920,9 +855,7 @@ public class WorktimeDisplayService {
         }
     }
 
-    /**
-     * Add metadata flags for frontend convenience
-     */
+    // Add metadata flags for frontend convenience
     private void addMetadata(Map<String, Object> response, WorkTimeTable entry) {
         response.put("hasWorkTime", entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0);
         response.put("hasOvertime", entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0);
@@ -931,53 +864,100 @@ public class WorktimeDisplayService {
         response.put("hasLunchBreak", entry.isLunchBreakDeducted());
     }
 
-    /**
-     * Get human-readable time off label
-     */
+    // Get human-readable time off label
     private String getTimeOffLabel(String timeOffType) {
         if (timeOffType == null) return null;
 
         return switch (timeOffType) {
-            case WorkCode.NATIONAL_HOLIDAY_CODE -> "National Holiday";
-            case WorkCode.TIME_OFF_CODE -> "Vacation";
-            case WorkCode.MEDICAL_LEAVE_CODE -> "Medical Leave";
+            case WorkCode.NATIONAL_HOLIDAY_CODE -> WorkCode.NATIONAL_HOLIDAY_CODE_LONG;
+            case WorkCode.TIME_OFF_CODE -> WorkCode.TIME_OFF_CODE_LONG;
+            case WorkCode.MEDICAL_LEAVE_CODE -> WorkCode.MEDICAL_LEAVE_CODE_LONG;
+            case WorkCode.WEEKEND_CODE -> WorkCode.WEEKEND_CODE_LONG;
             default -> timeOffType;
         };
     }
 
-    /**
-     * Get human-readable status label
-     */
+    // Get human-readable status label
     private String getStatusLabel(String adminSync) {
         if (adminSync == null) return null;
 
-        return switch (adminSync) {
-            case "USER_DONE" -> "User Completed";
-            case "ADMIN_EDITED" -> "Admin Modified";
-            case "USER_IN_PROCESS" -> "In Progress";
-            case "ADMIN_BLANK" -> "Admin Blank";
-            default -> adminSync;
-        };
+        // Handle base statuses
+        switch (adminSync) {
+            case MergingStatusConstants.USER_INPUT -> {
+                return "User Completed";
+            }
+            case MergingStatusConstants.USER_IN_PROCESS -> {
+                return "In Progress";
+            }
+            case MergingStatusConstants.DELETE -> {
+                return "Admin Blank";
+            }
+            case MergingStatusConstants.ADMIN_FINAL -> {
+                return "Admin Final";
+            }
+            case MergingStatusConstants.TEAM_FINAL -> {
+                return "Team Final";
+            }
+            case MergingStatusConstants.ADMIN_INPUT -> {
+                return "Admin Input";
+            }
+            case MergingStatusConstants.TEAM_INPUT -> {
+                return "Team Input";
+            }
+        }
+
+        // Handle timestamped edit statuses
+        if (MergingStatusConstants.isTimestampedEditStatus(adminSync)) {
+            String editorType = MergingStatusConstants.getEditorType(adminSync);
+            return editorType + " Modified";
+        }
+
+        // Fallback for unrecognized statuses
+        return "Unknown Status";
     }
 
-    /**
-     * Get CSS class for status display (for frontend styling)
-     */
+    // Get CSS class for status display (for frontend styling)
     private String getStatusClass(String adminSync) {
         if (adminSync == null) return "text-muted";
 
-        return switch (adminSync) {
-            case "USER_DONE" -> "text-success";
-            case "ADMIN_EDITED" -> "text-warning";
-            case "USER_IN_PROCESS" -> "text-info";
-            case "ADMIN_BLANK" -> "text-secondary";
-            default -> "text-muted";
-        };
+        // Handle base statuses
+        switch (adminSync) {
+            case MergingStatusConstants.USER_INPUT -> {
+                return "text-success";
+            }
+            case MergingStatusConstants.USER_IN_PROCESS-> {
+                return "text-info";
+            }
+            case MergingStatusConstants.DELETE -> {
+                return "text-secondary";
+            }
+            case MergingStatusConstants.ADMIN_FINAL -> {
+                return "text-danger";
+            }
+            case MergingStatusConstants.TEAM_FINAL  -> {
+                return "text-warning";
+            }
+            case MergingStatusConstants.ADMIN_INPUT, MergingStatusConstants.TEAM_INPUT -> {
+                return "text-primary";
+            }
+        }
+
+        // Handle timestamped edit statuses
+        if (MergingStatusConstants.isTimestampedEditStatus(adminSync)) {
+            String editorType = MergingStatusConstants.getEditorType(adminSync);
+            return switch (editorType) {
+                case "USER" -> "text-primary";
+                case "ADMIN" -> "text-warning";
+                case "TEAM" -> "text-info";
+                default -> "text-muted";
+            };
+        }
+
+        // Fallback for unrecognized statuses
+        return "text-danger"; // Use danger color to highlight unknown/problematic statuses
     }
 
-    /**
-     * ENHANCED: Helper method to check if a time off type is a special day type
-     */
+    // Helper method to check if a time off type is a special day type
     private boolean isSpecialDayType(String timeOffType) {
         return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) ||
                 WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
@@ -985,9 +965,7 @@ public class WorktimeDisplayService {
                 WorkCode.WEEKEND_CODE.equals(timeOffType);
     }
 
-    /**
-     * NEW: Create status information using StatusDTOConverter
-     */
+    // Create status information using StatusDTOConverter
     private GeneralDataStatusDTO createStatusInfo(WorkTimeTable entry, Integer currentUserId, Integer entryUserId) {
         if (entry == null) {
             return GeneralDataStatusDTO.createUnknown();

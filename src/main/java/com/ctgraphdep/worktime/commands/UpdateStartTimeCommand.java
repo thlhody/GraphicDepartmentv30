@@ -1,5 +1,6 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
@@ -18,12 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * REFACTORED: Command to update start time for a worktime entry using accessor pattern.
- * Uses UserOwnDataAccessor for user's own data operations.
- * BUSINESS LOGIC PRESERVED: Supports both regular days and special days (SN/CO/CM/W)
- * with automatic recalculation and timeOffType preservation.
- */
 public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTable> {
     private final String username;
     private final Integer userId;
@@ -31,8 +26,36 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
     private final String newStartTime; // HH:mm format
     private final int userScheduleHours;
 
-    public UpdateStartTimeCommand(WorktimeOperationContext context, String username,
-                                  Integer userId, LocalDate date, String newStartTime, int userScheduleHours) {
+    // Create command for user start time update
+    public static UpdateStartTimeCommand forUser(WorktimeOperationContext context, String username, Integer userId, LocalDate date, String startTime) {
+        // Validate parameters early
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("Username required for start time update");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID required for start time update");
+        }
+        if (date == null) {
+            throw new IllegalArgumentException("Date required for start time update");
+        }
+
+        // Factory handles user lookup and schedule extraction
+        Optional<User> userOpt = context.getUser(username);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("User not found: " + username);
+        }
+
+        int userScheduleHours = userOpt.get().getSchedule();
+
+        LoggerUtil.debug(UpdateStartTimeCommand.class, String.format(
+                "Factory creating UpdateStartTimeCommand: user=%s, schedule=%dh, date=%s, startTime=%s",
+                username, userScheduleHours, date, startTime));
+
+        return new UpdateStartTimeCommand(context, username, userId, date, startTime, userScheduleHours);
+    }
+
+    private UpdateStartTimeCommand(WorktimeOperationContext context, String username,
+                                   Integer userId, LocalDate date, String newStartTime, int userScheduleHours) {
         super(context);
         this.username = username;
         this.userId = userId;
@@ -188,9 +211,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
         }
     }
 
-    /**
-     * PRESERVED: Apply special day calculation logic (SN/CO/CM/W)
-     */
+    // Apply special day calculation logic (SN/CO/CM/W)
     private void applySpecialDayCalculation(WorkTimeTable entry, String timeOffType) {
         LoggerUtil.debug(this.getClass(), String.format("Applying special day calculation for %s day", timeOffType));
 
@@ -201,9 +222,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
                 entry.getTimeOffType(), entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0));
     }
 
-    /**
-     * PRESERVED: Apply regular day calculation logic
-     */
+    // Apply regular day calculation logic
     private void applyRegularDayCalculation(WorkTimeTable entry) {
         LoggerUtil.debug(this.getClass(), "Applying regular day calculation");
 
@@ -225,9 +244,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
                 entry.isLunchBreakDeducted()));
     }
 
-    /**
-     * PRESERVED: Parse time string in HH:mm format and combine with date
-     */
+    // Parse time string in HH:mm format and combine with date
     private LocalDateTime parseStartTime(String timeString) {
         if (timeString == null || timeString.trim().isEmpty()) {
             return null;
@@ -244,9 +261,8 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
             throw new IllegalArgumentException("Invalid time format: " + timeString, e);
         }
     }
-    /**
-     * PRESERVED: Parse time string to LocalTime
-     */
+
+    // Parse time string to LocalTime
     private LocalTime parseTimeString(String timeString) throws DateTimeParseException {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
         return LocalTime.parse(timeString, timeFormatter);

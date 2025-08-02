@@ -17,7 +17,7 @@ import java.util.List;
 public class StatusCleanupUtil {
 
     // Cleanup period - will be manually removed when conversion is complete
-    private static final LocalDate CLEANUP_END_DATE = LocalDate.of(2025, 9, 1);
+    private static final LocalDate CLEANUP_END_DATE = LocalDate.of(2025, 12, 1);
 
     static {
         LoggerUtil.initialize(StatusCleanupUtil.class, null);
@@ -26,7 +26,6 @@ public class StatusCleanupUtil {
     /**
      * Clean up old enum-based statuses in a list of WorkTimeTable entries.
      * Converts old enum values to new string constants and logs conversions.
-     *
      * @param entries List of WorkTimeTable entries to clean up
      * @param source Description of the source (for logging)
      * @return true if any entries were modified, false otherwise
@@ -52,18 +51,15 @@ public class StatusCleanupUtil {
                 hasChanges = true;
                 conversionCount++;
 
-                LoggerUtil.debug(StatusCleanupUtil.class, String.format(
-                        "Status conversion [%s]: '%s' → '%s' [%s, userId=%d]",
+                LoggerUtil.debug(StatusCleanupUtil.class, String.format("Status conversion [%s]: '%s' → '%s' [%s, userId=%d]",
                         source, original, cleaned, entry.getWorkDate(), entry.getUserId()));
             }
         }
 
         if (conversionCount > 0) {
-            LoggerUtil.info(StatusCleanupUtil.class, String.format(
-                    "Status cleanup [%s]: %d entries converted to new format", source, conversionCount));
+            LoggerUtil.info(StatusCleanupUtil.class, String.format("Status cleanup [%s]: %d entries converted to new format", source, conversionCount));
         } else {
-            LoggerUtil.debug(StatusCleanupUtil.class, String.format(
-                    "Status cleanup [%s]: %d entries checked, no conversions needed", source, entries.size()));
+            LoggerUtil.debug(StatusCleanupUtil.class, String.format("Status cleanup [%s]: %d entries checked, no conversions needed", source, entries.size()));
         }
 
         return hasChanges;
@@ -72,7 +68,6 @@ public class StatusCleanupUtil {
     /**
      * Convert old enum-based status to new string-based status.
      * Handles all known old SyncStatusMerge enum values.
-     *
      * @param oldStatus The old status (possibly enum-based)
      * @return New string-based status constant
      */
@@ -101,8 +96,7 @@ public class StatusCleanupUtil {
 
             // Unknown values also become USER_INPUT
             default -> {
-                LoggerUtil.warn(StatusCleanupUtil.class, String.format(
-                        "Unknown old status format: '%s' - converting to USER_INPUT", oldStatus));
+                LoggerUtil.warn(StatusCleanupUtil.class, String.format("Unknown old status format: '%s' - converting to USER_INPUT", oldStatus));
                 yield MergingStatusConstants.USER_INPUT;
             }
         };

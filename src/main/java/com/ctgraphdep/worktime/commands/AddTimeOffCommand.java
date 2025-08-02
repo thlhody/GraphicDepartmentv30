@@ -20,25 +20,55 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-/**
- * REFACTORED: Add Time Off Command using accessor pattern with StatusAssignmentEngine.
- * Uses appropriate accessor based on user context (admin or user).
- * NOW USES StatusAssignmentEngine for proper status assignment based on role.
- * PRESERVED: Original business logic for holiday balance and conflict detection.
- */
 public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTable>> {
     private final String username;
     private final Integer userId;
     private final List<LocalDate> dates;
     private final String timeOffType;
 
-    public AddTimeOffCommand(WorktimeOperationContext context, String username, Integer userId,
+    private AddTimeOffCommand(WorktimeOperationContext context, String username, Integer userId,
                              List<LocalDate> dates, String timeOffType) {
         super(context);
         this.username = username;
         this.userId = userId;
         this.dates = dates;
         this.timeOffType = timeOffType;
+    }
+
+    // FACTORY METHOD: Create command for user time off addition
+    public static AddTimeOffCommand forUser(WorktimeOperationContext context, String username, Integer userId, List<LocalDate> dates, String timeOffType) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("Username required for time off addition");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID required for time off addition");
+        }
+        if (dates == null || dates.isEmpty()) {
+            throw new IllegalArgumentException("Dates list required for time off addition");
+        }
+        if (timeOffType == null || timeOffType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Time off type required for time off addition");
+        }
+
+        return new AddTimeOffCommand(context, username, userId, dates, timeOffType);
+    }
+
+    // FACTORY METHOD: Create command for admin time off addition
+    public static AddTimeOffCommand forAdmin(WorktimeOperationContext context, String targetUsername, Integer targetUserId, List<LocalDate> dates, String timeOffType) {
+        if (targetUsername == null || targetUsername.trim().isEmpty()) {
+            throw new IllegalArgumentException("Target username required for admin time off addition");
+        }
+        if (targetUserId == null) {
+            throw new IllegalArgumentException("Target user ID required for admin time off addition");
+        }
+        if (dates == null || dates.isEmpty()) {
+            throw new IllegalArgumentException("Dates list required for admin time off addition");
+        }
+        if (timeOffType == null || timeOffType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Time off type required for admin time off addition");
+        }
+
+        return new AddTimeOffCommand(context, targetUsername, targetUserId, dates, timeOffType);
     }
 
     @Override
@@ -76,9 +106,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                 "Validating time off addition: user=%s, dates=%d, type=%s", username, dates.size(), timeOffType));
     }
 
-    /**
-     * ENHANCED: AddTimeOffCommand with Part 2 file-based validation and StatusAssignmentEngine
-     */
+    // AddTimeOffCommand with Part 2 file-based validation and StatusAssignmentEngine
     @Override
     protected OperationResult executeCommand() {
         try {
@@ -119,8 +147,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                 YearMonth yearMonth = monthEntry.getKey();
                 List<LocalDate> monthDates = monthEntry.getValue();
 
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Processing month %s with %d valid dates: %s", yearMonth, monthDates.size(), monthDates));
+                LoggerUtil.info(this.getClass(), String.format("Processing month %s with %d valid dates: %s", yearMonth, monthDates.size(), monthDates));
 
                 // Use appropriate accessor based on context
                 WorktimeDataAccessor accessor = context.getDataAccessor(username);
@@ -144,7 +171,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                     if (findEntryByDate(entries, userId, date).isEmpty()) {
                         WorkTimeTable timeOffEntry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, timeOffType);
 
-                        // ✅ NEW: Use StatusAssignmentEngine instead of hardcoded status assignment
+                        // Use StatusAssignmentEngine instead of hardcoded status assignment
                         StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
                                 timeOffEntry,
                                 currentUserRole,
@@ -243,10 +270,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
         return messageBuilder.toString();
     }
 
-    /**
-     * Filter dates against existing worktime entries (Part 2 validation)
-     * PRESERVED: Original business logic
-     */
+    // Filter dates against existing worktime entries (Part 2 validation)
     private DateFilterResult filterDatesAgainstExistingEntries(List<LocalDate> requestedDates, String username, Integer userId) {
         LoggerUtil.info(this.getClass(), String.format("Filtering %d requested dates against existing worktime files", requestedDates.size()));
 
@@ -308,9 +332,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
         return new DateFilterResult(validDates, skippedConflicts);
     }
 
-    /**
-     * Helper class to return filtering results
-     */
+    // Helper class to return filtering results
     @Getter
     private static class DateFilterResult {
         private final List<LocalDate> validDates;
@@ -322,9 +344,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
         }
     }
 
-    /**
-     * Get user-friendly description for time-off types
-     */
+    // Get user-friendly description for time-off types
     private String getTimeOffDescription(String timeOffType) {
         if (timeOffType == null) return "unknown";
 
@@ -337,18 +357,14 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
         };
     }
 
-    /**
-     * Find entry by date and user ID - UTILITY METHOD
-     */
+    // Find entry by date and user ID - UTILITY METHOD
     private Optional<WorkTimeTable> findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
         return entries.stream()
                 .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
                 .findFirst();
     }
 
-    /**
-     * Add or replace entry in list - UTILITY METHOD
-     */
+    // Add or replace entry in list - UTILITY METHOD
     private void addOrReplaceEntry(List<WorkTimeTable> entries, WorkTimeTable newEntry) {
         entries.removeIf(entry ->
                 newEntry.getUserId().equals(entry.getUserId()) &&
@@ -366,6 +382,6 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
 
     @Override
     protected String getOperationType() {
-        return "ADD_TIME_OFF";
+        return OperationResult.OperationType.ADD_TIME_OFF;
     }
 }

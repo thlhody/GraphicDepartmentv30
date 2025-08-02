@@ -780,6 +780,28 @@ ENHANCED CARD HEADER STYLES
     border-radius: 0.25rem;
 }
 
+.deletable-timeoff {
+    position: relative;
+    transition: background-color 0.2s ease;
+}
+
+.deletable-timeoff:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+.delete-icon {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    color: #dc3545;
+    font-size: 0.8rem;
+}
+
+#timeOffDeleteModal .modal-content {
+    border: none;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
 /* ========================================================================
    LOADING AND ANIMATION STYLES
    ======================================================================== */

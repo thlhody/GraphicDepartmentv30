@@ -11,18 +11,12 @@ import com.ctgraphdep.utils.LoggerUtil;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * REFACTORED: Command to load worktime data for status display using accessor pattern.
- * Always uses NetworkOnlyAccessor for consistent cross-user viewing.
- * Used by StatusController for worktime status viewing.
- */
 public class LoadUserWorktimeStatusCommand extends WorktimeOperationCommand<List<WorkTimeTable>> {
     private final String targetUsername;
     private final int year;
     private final int month;
 
-    public LoadUserWorktimeStatusCommand(WorktimeOperationContext context, String targetUsername,
-                                         int year, int month) {
+    public LoadUserWorktimeStatusCommand(WorktimeOperationContext context, String targetUsername, int year, int month) {
         super(context);
         this.targetUsername = targetUsername;
         this.year = year;
@@ -41,14 +35,12 @@ public class LoadUserWorktimeStatusCommand extends WorktimeOperationCommand<List
             throw new IllegalArgumentException("Invalid month: " + month);
         }
 
-        LoggerUtil.info(this.getClass(), String.format(
-                "Validating worktime status load: target=%s, period=%d/%d", targetUsername, year, month));
+        LoggerUtil.info(this.getClass(), String.format("Validating worktime status load: target=%s, period=%d/%d", targetUsername, year, month));
     }
 
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Loading worktime status for %s - %d/%d using NetworkOnlyAccessor", targetUsername, year, month));
+        LoggerUtil.info(this.getClass(), String.format("Loading worktime status for %s - %d/%d using NetworkOnlyAccessor", targetUsername, year, month));
 
         try {
             // Always use NetworkOnlyAccessor for status viewing (consistent cross-user data)
@@ -66,14 +58,12 @@ public class LoadUserWorktimeStatusCommand extends WorktimeOperationCommand<List
                 entries = new ArrayList<>();
             }
 
-            String message = String.format("Loaded %d worktime entries for %s - %d/%d",
-                    entries.size(), targetUsername, year, month);
+            String message = String.format("Loaded %d worktime entries for %s - %d/%d", entries.size(), targetUsername, year, month);
 
             return OperationResult.success(message, getOperationType(), entries);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading worktime status for %s - %d/%d: %s", targetUsername, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error loading worktime status for %s - %d/%d: %s", targetUsername, year, month, e.getMessage()), e);
             return OperationResult.failure("Failed to load worktime data: " + e.getMessage(), getOperationType());
         }
     }

@@ -17,11 +17,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * REFACTORED: Command to load register data for status display using accessor pattern.
- * Always uses NetworkOnlyAccessor for consistent cross-user viewing.
- * Used by StatusController for register status viewing with filtering.
- */
 public class LoadUserRegisterStatusCommand extends WorktimeOperationCommand<LoadUserRegisterStatusCommand.RegisterStatusData> {
     private final String targetUsername;
     private final Integer targetUserId;
@@ -67,8 +62,7 @@ public class LoadUserRegisterStatusCommand extends WorktimeOperationCommand<Load
 
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Loading register status for %s using NetworkOnlyAccessor", targetUsername));
+        LoggerUtil.info(this.getClass(), String.format("Loading register status for %s using NetworkOnlyAccessor", targetUsername));
 
         try {
             // Always use NetworkOnlyAccessor for status viewing
@@ -84,8 +78,7 @@ public class LoadUserRegisterStatusCommand extends WorktimeOperationCommand<Load
             // Load data based on determined months
             List<YearMonth> monthsToLoad = determineMonthsToLoad();
             for (YearMonth monthToLoad : monthsToLoad) {
-                List<RegisterEntry> monthEntries = accessor.readRegister(
-                        targetUsername, targetUserId, monthToLoad.getYear(), monthToLoad.getMonthValue());
+                List<RegisterEntry> monthEntries = accessor.readRegister(targetUsername, targetUserId, monthToLoad.getYear(), monthToLoad.getMonthValue());
                 if (monthEntries != null) {
                     allEntries.addAll(monthEntries);
                 }
@@ -99,21 +92,17 @@ public class LoadUserRegisterStatusCommand extends WorktimeOperationCommand<Load
 
             RegisterStatusData statusData = new RegisterStatusData(filteredEntries, uniqueClients);
 
-            String message = String.format("Loaded %d register entries (%d after filtering) for %s",
-                    allEntries.size(), filteredEntries.size(), targetUsername);
+            String message = String.format("Loaded %d register entries (%d after filtering) for %s", allEntries.size(), filteredEntries.size(), targetUsername);
 
             return OperationResult.success(message, getOperationType(), statusData);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading register status for %s: %s", targetUsername, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error loading register status for %s: %s", targetUsername, e.getMessage()), e);
             return OperationResult.failure("Failed to load register data: " + e.getMessage(), getOperationType());
         }
     }
 
-    /**
-     * Determine which months to load based on filters
-     */
+    // Determine which months to load based on filters
     private List<YearMonth> determineMonthsToLoad() {
         List<YearMonth> months = new ArrayList<>();
 
@@ -142,9 +131,7 @@ public class LoadUserRegisterStatusCommand extends WorktimeOperationCommand<Load
         return months;
     }
 
-    /**
-     * Apply search and filter criteria to entries - FIXED with correct field names
-     */
+    // Apply search and filter criteria to entries - FIXED with correct field names
     private List<RegisterEntry> applyFilters(List<RegisterEntry> entries) {
         List<RegisterEntry> filtered = new ArrayList<>(entries);
 
@@ -205,9 +192,7 @@ public class LoadUserRegisterStatusCommand extends WorktimeOperationCommand<Load
         return filtered;
     }
 
-    /**
-     * Extract unique clients for filter dropdown
-     */
+    // Extract unique clients for filter dropdown
     private Set<String> extractUniqueClients(List<RegisterEntry> entries) {
         return entries.stream()
                 .map(RegisterEntry::getClientName)

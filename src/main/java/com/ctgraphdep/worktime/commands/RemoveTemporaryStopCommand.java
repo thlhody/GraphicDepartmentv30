@@ -1,5 +1,6 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
@@ -11,28 +12,45 @@ import com.ctgraphdep.utils.LoggerUtil;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * REFACTORED: Command to remove temporary stop time from a worktime entry using accessor pattern.
- * Uses UserOwnDataAccessor for user's own data operations.
- * BUSINESS LOGIC PRESERVED: Resets temporaryStopCount to 0 and totalTemporaryStopMinutes to 0
- * with recalculation using user schedule.
- */
 public class RemoveTemporaryStopCommand extends WorktimeOperationCommand<WorkTimeTable> {
     private final String username;
     private final Integer userId;
     private final LocalDate date;
     private final int userScheduleHours;
 
-    public RemoveTemporaryStopCommand(WorktimeOperationContext context, String username, Integer userId,
+    private RemoveTemporaryStopCommand(WorktimeOperationContext context, String username, Integer userId,
                                       LocalDate date, int userScheduleHours) {
         super(context);
         this.username = username;
         this.userId = userId;
         this.date = date;
         this.userScheduleHours = userScheduleHours;
+    }
+
+    // Create command for user temporary stop removal
+    public static RemoveTemporaryStopCommand forUser(WorktimeOperationContext context, String username, Integer userId, LocalDate date) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("Username required for temporary stop removal");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID required for temporary stop removal");
+        }
+        if (date == null) {
+            throw new IllegalArgumentException("Date required for temporary stop removal");
+        }
+
+        Optional<User> userOpt = context.getUser(username);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("User not found: " + username);
+        }
+
+        int userScheduleHours = userOpt.get().getSchedule();
+
+        return new RemoveTemporaryStopCommand(context, username, userId, date, userScheduleHours);
     }
 
     @Override
@@ -64,14 +82,13 @@ public class RemoveTemporaryStopCommand extends WorktimeOperationCommand<WorkTim
 
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Executing remove temporary stop command for %s on %s using UserOwnDataAccessor", username, date));
+        LoggerUtil.info(this.getClass(), String.format("Executing remove temporary stop command for %s on %s using UserOwnDataAccessor", username, date));
 
         int year = date.getYear();
         int month = date.getMonthValue();
 
         try {
-            // NEW: Use UserOwnDataAccessor for user's own data
+            // Use UserOwnDataAccessor for user's own data
             WorktimeDataAccessor accessor = context.getDataAccessor(username);
 
             // Load current month entries using accessor
@@ -80,12 +97,11 @@ public class RemoveTemporaryStopCommand extends WorktimeOperationCommand<WorkTim
                 entries = new ArrayList<>();
             }
 
-            // PRESERVED: Find existing entry logic
+            // Find existing entry logic
             Optional<WorkTimeTable> existingEntryOpt = findEntryByDate(entries, userId, date);
 
             if (existingEntryOpt.isEmpty()) {
-                LoggerUtil.info(this.getClass(), String.format(
-                        "No entry found for %s on %s - nothing to remove", username, date));
+                LoggerUtil.info(this.getClass(), String.format("No entry found for %s on %s - nothing to remove", username, date));
                 return OperationResult.success("No temporary stop to remove", getOperationType());
             }
 
@@ -93,13 +109,11 @@ public class RemoveTemporaryStopCommand extends WorktimeOperationCommand<WorkTim
 
             // PRESERVED: Check if there's actually a temporary stop to remove
             if (entry.getTotalTemporaryStopMinutes() == null || entry.getTotalTemporaryStopMinutes() == 0) {
-                LoggerUtil.info(this.getClass(), String.format(
-                        "No temporary stop found for %s on %s - nothing to remove", username, date));
+                LoggerUtil.info(this.getClass(), String.format("No temporary stop found for %s on %s - nothing to remove", username, date));
                 return OperationResult.success("No temporary stop to remove", getOperationType(), entry);
             }
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Current entry: tempStopCount=%d, tempStopMinutes=%d",
+            LoggerUtil.debug(this.getClass(), String.format("Current entry: tempStopCount=%d, tempStopMinutes=%d",
                     entry.getTemporaryStopCount(), entry.getTotalTemporaryStopMinutes()));
 
             // PRESERVED: Remove temporary stop using WorktimeEntityBuilder (SAME BUSINESS LOGIC)
@@ -132,43 +146,33 @@ public class RemoveTemporaryStopCommand extends WorktimeOperationCommand<WorkTim
                     .fileUpdated(createFilePathId(username, year, month))
                     .build();
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully removed temporary stop for %s on %s", username, date));
+            LoggerUtil.info(this.getClass(), String.format("Successfully removed temporary stop for %s on %s", username, date));
 
             return OperationResult.successWithSideEffects(message, getOperationType(), updatedEntry, sideEffects);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Failed to remove temporary stop for %s on %s: %s", username, date, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Failed to remove temporary stop for %s on %s: %s", username, date, e.getMessage()), e);
             return OperationResult.failure("Failed to remove temporary stop: " + e.getMessage(), getOperationType());
         }
     }
 
-    /**
-     * PRESERVED: Find entry by date and user ID - same logic
-     */
+    // Find entry by date and user ID - same logic
     private Optional<WorkTimeTable> findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
         return entries.stream()
                 .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
                 .findFirst();
     }
 
-    /**
-     * PRESERVED: Replace entry in list - same logic
-     */
+    //  Replace entry in list - same logic
     private void replaceEntry(List<WorkTimeTable> entries, WorkTimeTable updatedEntry) {
-        entries.removeIf(entry ->
-                updatedEntry.getUserId().equals(entry.getUserId()) &&
+        entries.removeIf(entry -> updatedEntry.getUserId().equals(entry.getUserId()) &&
                         updatedEntry.getWorkDate().equals(entry.getWorkDate())
         );
         entries.add(updatedEntry);
-        entries.sort(java.util.Comparator.comparing(WorkTimeTable::getWorkDate)
-                .thenComparingInt(WorkTimeTable::getUserId));
+        entries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparingInt(WorkTimeTable::getUserId));
     }
 
-    /**
-     * PRESERVED: Create file path ID - same logic as original context method
-     */
+    // Create file path ID - same logic as original context method
     private String createFilePathId(String username, int year, int month) {
         return String.format("%s/%d/%d", username, year, month);
     }

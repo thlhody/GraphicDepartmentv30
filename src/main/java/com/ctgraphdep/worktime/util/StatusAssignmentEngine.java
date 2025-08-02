@@ -4,6 +4,7 @@ import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.worktime.model.OperationResult;
 import lombok.Getter;
 
 /**
@@ -47,15 +48,12 @@ public class StatusAssignmentEngine {
         }
 
         String currentStatus = entry.getAdminSync();
-        LoggerUtil.debug(LOGGER_CLASS, String.format(
-                "assignStatus() - User: %s, Operation: %s, CurrentStatus: %s",
-                userRole, operationType, currentStatus));
+        LoggerUtil.debug(LOGGER_CLASS, String.format("assignStatus() - User: %s, Operation: %s, CurrentStatus: %s", userRole, operationType, currentStatus));
 
         // Check protection rules first
         ProtectionResult protection = checkProtectionRules(currentStatus, userRole, operationType);
         if (protection.isProtected()) {
-            LoggerUtil.info(LOGGER_CLASS, String.format(
-                    "Status protected: %s - %s", currentStatus, protection.getReason()));
+            LoggerUtil.info(LOGGER_CLASS, String.format("Status protected: %s - %s", currentStatus, protection.getReason()));
             return StatusAssignmentResult.protectedStatus(currentStatus, protection.getReason());
         }
 
@@ -65,21 +63,16 @@ public class StatusAssignmentEngine {
         // Apply the new status
         entry.setAdminSync(newStatus);
 
-        LoggerUtil.info(LOGGER_CLASS, String.format(
-                "Status updated: %s → %s (User: %s, Operation: %s)",
-                currentStatus, newStatus, userRole, operationType));
+        LoggerUtil.info(LOGGER_CLASS, String.format("Status updated: %s → %s (User: %s, Operation: %s)", currentStatus, newStatus, userRole, operationType));
 
-        return StatusAssignmentResult.success(currentStatus, newStatus,
-                String.format("Status updated for %s operation by %s", operationType, userRole));
+        return StatusAssignmentResult.success(currentStatus, newStatus, String.format("Status updated for %s operation by %s", operationType, userRole));
     }
 
     // ========================================================================
     // PROTECTION RULES - Check if status can be changed
     // ========================================================================
 
-    /**
-     * Checks if the current status is protected from changes
-     */
+    // Checks if the current status is protected from changes
     private static ProtectionResult checkProtectionRules(String currentStatus, String userRole, String operationType) {
         if (currentStatus == null) {
             return ProtectionResult.allowed();
@@ -105,10 +98,7 @@ public class StatusAssignmentEngine {
         }
 
         // Rule 4: DELETE status analysis
-        if (MergingStatusConstants.DELETE.equals(currentStatus)) {
-            return ProtectionResult.allowed(); // Anyone can modify DELETE entries
-        }
-
+        // Anyone can modify DELETE entries
         return ProtectionResult.allowed();
     }
 
@@ -116,25 +106,22 @@ public class StatusAssignmentEngine {
     // STATUS DETERMINATION - Determine new status based on rules
     // ========================================================================
 
-    /**
-     * Determines the new status based on current status, role, and operation
-     */
+    // Determines the new status based on current status, role, and operation
     private static String determineNewStatus(String currentStatus, String userRole, String operationType) {
 
-        // ✅ NEW: Handle CONSOLIDATION operations - preserve existing status
+        // Handle CONSOLIDATION operations - preserve existing status
         if (isConsolidationOperation(operationType)) {
-            LoggerUtil.debug(LOGGER_CLASS, String.format(
-                    "Consolidation operation detected: preserving existing status '%s'", currentStatus));
+            LoggerUtil.debug(LOGGER_CLASS, String.format("Consolidation operation detected: preserving existing status '%s'", currentStatus));
             return currentStatus; // Keep whatever status the merge engine decided
         }
 
 
-        // ✅ NEW: Handle DELETE operations - always return DELETE status
+        // Handle DELETE operations - always return DELETE status
         if (isDeleteOperation(operationType)) {
             return MergingStatusConstants.DELETE;
         }
 
-        // ✅ NEW: Handle RESET operations - return role-based EDITED status
+        // Handle RESET operations - return role-based EDITED status
         if (isResetOperation(operationType)) {
             return getEditStatusForRole(userRole);
         }
@@ -158,34 +145,19 @@ public class StatusAssignmentEngine {
         return getEditStatusForRole(userRole);
     }
 
-    /**
-     * Get status for new entries based on role and operation type
-     */
+    // Get status for new entries based on role and operation type
     private static String getNewEntryStatus(String userRole, String operationType) {
 
         // Special operation types
-        if ("ADD_NATIONAL_HOLIDAY".equals(operationType)) {
+        if (OperationResult.OperationType.ADD_NATIONAL_HOLIDAY.equals(operationType)) {
             return MergingStatusConstants.ADMIN_INPUT; // Always admin for national holidays
         }
 
-        if ("ADD_TIME_OFF".equals(operationType)) {
-            // Time off follows normal role rules
-            return getInputStatusForRole(userRole);
-        }
-
-        if ("UPDATE_START_TIME".equals(operationType) ||
-                "UPDATE_END_TIME".equals(operationType) ||
-                "UPDATE_TEMPORARY_STOP".equals(operationType)) {
-            return getInputStatusForRole(userRole);  // For new entries
-        }
-
-        // Default: use role-based input status
+        // Start/End/TempStop/TimeOff normal assignment for rest
         return getInputStatusForRole(userRole);
     }
 
-    /**
-     * Get input status based on user role (for new entries)
-     */
+    // Get input status based on user role (for new entries)
     private static String getInputStatusForRole(String userRole) {
         return switch (normalizeRole(userRole)) {
             case SecurityConstants.ROLE_ADMIN -> MergingStatusConstants.ADMIN_INPUT;
@@ -194,9 +166,7 @@ public class StatusAssignmentEngine {
         };
     }
 
-    /**
-     * Get edit status based on user role (for existing entries)
-     */
+    // Get edit status based on user role (for existing entries)
     private static String getEditStatusForRole(String userRole) {
         return switch (normalizeRole(userRole)) {
             case SecurityConstants.ROLE_ADMIN -> MergingStatusConstants.createAdminEditedStatus();
@@ -210,18 +180,14 @@ public class StatusAssignmentEngine {
     // UTILITY METHODS
     // ========================================================================
 
-    /**
-     * Check if status is an INPUT status that can be overwritten
-     */
+    // Check if status is an INPUT status that can be overwritten
     private static boolean isInputStatus(String status) {
         return MergingStatusConstants.ADMIN_INPUT.equals(status) ||
                 MergingStatusConstants.TEAM_INPUT.equals(status) ||
                 MergingStatusConstants.USER_INPUT.equals(status);
     }
 
-    /**
-     * Check if status is an EDIT status (timestamped)
-     */
+    // Check if status is an EDIT status (timestamped)
     private static boolean isEditStatus(String status) {
         return status != null && (
                 status.startsWith(MergingStatusConstants.USER_EDITED_PREFIX) ||
@@ -230,16 +196,12 @@ public class StatusAssignmentEngine {
         );
     }
 
-    /**
-     * Check if user has admin role
-     */
+    // Check if user has admin role
     private static boolean isNonAdminRole(String userRole) {
         return !SecurityConstants.ROLE_ADMIN.equals(normalizeRole(userRole));
     }
 
-    /**
-     * Normalize role string for consistent comparison
-     */
+    // Normalize role string for consistent comparison
     private static String normalizeRole(String userRole) {
         if (userRole == null) {
             return SecurityConstants.ROLE_USER; // Default to user role
@@ -247,34 +209,26 @@ public class StatusAssignmentEngine {
         return userRole.trim().toUpperCase();
     }
 
-    /**
-     * Check if operation type should result in DELETE status
-     */
+    // Check if operation type should result in DELETE status
     private static boolean isDeleteOperation(String operationType) {
-        return "DELETE_ENTRY".equals(operationType);
+        return OperationResult.OperationType.DELETE_ENTRY.equals(operationType);
     }
 
-    /**
-     * Check if operation type should result in EDIT status (for special day resets)
-     */
+    // Check if operation type should result in EDIT status (for special day resets)
     private static boolean isResetOperation(String operationType) {
-        return "RESET_SPECIAL_DAY".equals(operationType);
+        return OperationResult.OperationType.RESET_SPECIAL_DAY.equals(operationType);
     }
 
-    /**
-     * Check if operation type is a consolidation that should preserve existing statuses
-     */
+    // Check if operation type is a consolidation that should preserve existing statuses
     private static boolean isConsolidationOperation(String operationType) {
-        return "CONSOLIDATE_WORKTIME".equals(operationType);
+        return OperationResult.OperationType.CONSOLIDATE_WORKTIME.equals(operationType);
     }
 
     // ========================================================================
     // RESULT CLASSES
     // ========================================================================
 
-    /**
-     * Result of protection rule check
-     */
+    // Result of protection rule check
     @Getter
     private static class ProtectionResult {
         private final boolean isProtected;

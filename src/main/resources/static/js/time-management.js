@@ -1,10 +1,6 @@
-/**
- * Refactored Unified Time Management JavaScript
- * Enhanced with toast notifications and improved editing controls
- */
 
 // ========================================================================
-// ENHANCED PAGE INITIALIZATION
+// PAGE INITIALIZATION
 // ========================================================================
 
 
@@ -26,9 +22,9 @@ document.addEventListener('DOMContentLoaded', function () {
     initializeTooltips();
     initializeSNOvertimeDisplay();
 
-    // NEW: Initialize period selection and export
     initializePeriodSelection();
     initializeExportButton();
+    initializeTimeOffDeletion();
 
     // Handle success messages with toast system
     handleServerMessages();
@@ -38,6 +34,76 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Mark as initialized
     window.timeManagementInitialized = true;
+
+    const confirmDeleteButton = document.getElementById('confirmDeleteTimeOff');
+    if (confirmDeleteButton) {
+        confirmDeleteButton.addEventListener('click', executeTimeOffDeletion);
+    }
+
+    const statusModal = document.getElementById('statusDetailsModal');
+    if (statusModal) {
+
+        // Store the element that opened the modal
+        let modalTrigger = null;
+
+        // Capture what opened the modal
+        statusModal.addEventListener('show.bs.modal', function(event) {
+            modalTrigger = event.relatedTarget || document.activeElement;
+        });
+
+        // Before hiding the modal, remove focus from ALL elements inside
+        statusModal.addEventListener('hide.bs.modal', function() {
+            // Remove focus from the modal itself
+            if (statusModal === document.activeElement) {
+                statusModal.blur();
+            }
+
+            // Remove focus from any child elements
+            const allFocusable = statusModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            allFocusable.forEach(element => {
+                if (element === document.activeElement) {
+                    element.blur();
+                }
+            });
+
+            // Force blur on the modal container
+            setTimeout(() => {
+                statusModal.blur();
+            }, 0);
+        });
+
+        // After modal is completely hidden, ensure clean focus state
+        statusModal.addEventListener('hidden.bs.modal', function() {
+            // Final cleanup - blur modal and all children
+            statusModal.blur();
+            const allElements = statusModal.querySelectorAll('*');
+            allElements.forEach(element => {
+                if (element === document.activeElement) {
+                    element.blur();
+                }
+            });
+
+            // Return focus to the original trigger if it exists and is still in DOM
+            if (modalTrigger && document.contains(modalTrigger)) {
+                modalTrigger.focus();
+            }
+
+            modalTrigger = null;
+        });
+
+        // Handle clicks outside the modal more gracefully
+        statusModal.addEventListener('click', function(event) {
+            // If clicking on the backdrop (outside the modal content)
+            if (event.target === statusModal) {
+                // Remove focus before Bootstrap handles the close
+                statusModal.blur();
+                const focusedElement = statusModal.querySelector(':focus');
+                if (focusedElement) {
+                    focusedElement.blur();
+                }
+            }
+        });
+    }
 });
 
 // ========================================================================
@@ -122,19 +188,59 @@ function initializeTimeOffForm() {
     });
 }
 
+function initializeTimeOffDeletion() {
+    console.log('Initializing time off deletion handlers');
+
+    // Use event delegation to handle clicks on deletable time off cells
+    document.addEventListener('click', function(e) {
+        const timeOffCell = e.target.closest('.deletable-timeoff[data-deletable="true"]');
+
+        if (timeOffCell) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Deletable time off cell clicked:', timeOffCell);
+            showTimeOffDeletePopup(timeOffCell);
+        }
+    });
+
+    // Connect the delete confirmation button
+    const confirmDeleteButton = document.getElementById('confirmDeleteTimeOff');
+    if (confirmDeleteButton) {
+        confirmDeleteButton.addEventListener('click', executeTimeOffDeletion);
+    }
+
+    // FIXED: Add modal event listeners for proper cleanup
+    const modalElement = document.getElementById('timeOffDeleteModal');
+    if (modalElement) {
+        // Handle modal hide events for cleanup
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            console.log('Modal hidden event - cleaning up');
+            const modal = modalElement._currentModalInstance;
+            if (modal) {
+                modal.dispose();
+                modalElement._currentModalInstance = null;
+            }
+            // Clear pending deletion if user closed modal without action
+            window.pendingTimeOffDeletion = null;
+        });
+
+        // Handle escape key and backdrop clicks
+        modalElement.addEventListener('hide.bs.modal', function() {
+            console.log('Modal hide event - user canceling');
+            window.pendingTimeOffDeletion = null;
+        });
+    }
+}
+
 // ========================================================================
 // ENHANCED EDITABILITY WITH STATUS INTEGRATION
 // ========================================================================
 
 let currentlyEditing = null;
 let editingTimeout = null;
-// Global flag to prevent multiple simultaneous saves
 let isSaving = false;
 let isInitialized = false;
 
-/**
- * UPDATED: Create time editors using TimeInputModule
- */
 function createEnhancedTimeEditor(currentValue) {
     // Use the TimeInputModule instead of creating editor manually
     return TimeInputModule.create24HourEditor(currentValue, {
@@ -144,9 +250,6 @@ function createEnhancedTimeEditor(currentValue) {
     });
 }
 
-/**
- * Initialize inline editing with status-based restrictions
- */
 function initializeInlineEditing() {
     // Prevent multiple initializations
     if (isInitialized) {
@@ -228,9 +331,6 @@ function initializeInlineEditing() {
     isInitialized = true;
 }
 
-/**
- * Check status-based editability using backend status info
- */
 function checkStatusBasedEditability(cell) {
     const row = cell.closest('tr');
     if (!row) return;
@@ -265,36 +365,57 @@ function checkStatusBasedEditability(cell) {
     }
 }
 
-/**
- * Extract status information from row
- */
 function getRowStatusInfo(row) {
-    // Try to get status from hidden data attributes (if added by backend)
-    const statusData = row.dataset.statusInfo;
-    if (statusData) {
-        try {
-            return JSON.parse(statusData);
-        } catch (e) {
-            console.warn('Failed to parse status data:', statusData);
-        }
+    // First try to get status from data attributes (new approach)
+    const statusRole = row.dataset.statusRole;
+    const statusAction = row.dataset.statusAction;
+    const statusDescription = row.dataset.statusDescription;
+    const statusModifiable = row.dataset.statusModifiable === 'true';
+    const statusFinal = row.dataset.statusFinal === 'true';
+
+    if (statusDescription) {
+        console.log('Using data attributes for status:', {
+            role: statusRole,
+            action: statusAction,
+            description: statusDescription,
+            modifiable: statusModifiable,
+            final: statusFinal
+        });
+
+        return {
+            roleName: statusRole,
+            actionType: statusAction,
+            fullDescription: statusDescription,
+            isModifiable: statusModifiable,
+            isFinal: statusFinal,
+            tooltipText: statusDescription,
+            rawStatus: row.dataset.statusRole + '_' + row.dataset.statusAction
+        };
     }
 
-    // Fallback: Extract from status cell
+    // Fallback: Extract from status cell DOM (existing code)
     const statusCell = row.querySelector('.status-cell .status-indicator');
     if (!statusCell) return null;
 
-    // Extract basic info from DOM
     const isModifiable = statusCell.querySelector('.modifiable-indicator') !== null;
     const isLocked = statusCell.querySelector('.locked-indicator') !== null;
     const badgeText = statusCell.querySelector('.status-badge')?.textContent?.trim();
     const tooltipText = statusCell.getAttribute('title');
+
+    console.log('Using DOM fallback for status:', {
+        badgeText,
+        tooltipText,
+        isModifiable,
+        isLocked
+    });
 
     return {
         isModifiable: isModifiable && !isLocked,
         isFinal: badgeText?.includes('F'),
         isUserInProcess: badgeText?.includes('Active'),
         fullDescription: tooltipText || 'Unknown status',
-        tooltipText: tooltipText
+        tooltipText: tooltipText,
+        rawStatus: badgeText
     };
 }
 
@@ -521,9 +642,6 @@ function startEditing(cell) {
     showEditingHelp(cell, field);
 }
 
-/**
- * NEW: Create temporary stop editor (add this new function)
- */
 function createTempStopEditor(currentValue) {
     const editor = document.createElement('input');
     editor.className = 'inline-editor';
@@ -571,9 +689,6 @@ function createTimeOffEditor(currentValue) {
     return editor;
 }
 
-/**
- * ENHANCED: Setup editor handlers with better save control
- */
 function setupEditorHandlers(editor, cell) {
     const field = cell.getAttribute('data-field');
 
@@ -655,9 +770,6 @@ function setupEditorHandlers(editor, cell) {
     });
 }
 
-/**
- * UPDATED: Enhanced help text using TimeInputModule
- */
 function showEditingHelp(cell, field) {
     // REPLACE THE ENTIRE EXISTING FUNCTION WITH THIS:
 
@@ -712,9 +824,6 @@ function showEditingHelp(cell, field) {
     }, 5000);
 }
 
-/**
- * Create standard help text for non-time fields
- */
 function createStandardHelpText(field) {
     const helpText = document.createElement('div');
     helpText.className = 'editing-help';
@@ -746,9 +855,6 @@ function createStandardHelpText(field) {
     return helpText;
 }
 
-/**
- * ENHANCED: Save edit function with robust error handling and multiple-save protection
- */
 async function saveEdit(cell, value) {
     // Prevent multiple simultaneous saves
     if (isSaving) {
@@ -948,9 +1054,6 @@ async function saveEdit(cell, value) {
     }
 }
 
-/**
- * ENHANCED: Cancel editing with proper cleanup
- */
 function cancelEditing() {
     if (!currentlyEditing) return;
 
@@ -958,9 +1061,6 @@ function cancelEditing() {
     finishEditing(currentlyEditing);
 }
 
-/**
- * ENHANCED: Finish editing with better cleanup
- */
 function finishEditing(cell) {
     if (!cell) return;
 
@@ -1173,19 +1273,10 @@ function initializeExportButton() {
     });
 }
 
-/**
- * ENHANCED: SN Overtime handling for time-management.js
- * Add these functions and modifications to handle SN days with overtime
- */
-
 // ========================================================================
 // SN OVERTIME DISPLAY ENHANCEMENTS
-// MODULAR CELL DISPLAY UPDATE FUNCTIONS
 // ========================================================================
 
-/**
- * Main function to update cell display - now modular and easy to understand
- */
 function updateCellDisplay(cell, field, value, rawData = null) {
     // Handle both cell-value and cell-content structures
     let cellValue = cell.querySelector('.cell-value');
@@ -1223,9 +1314,6 @@ function updateCellDisplay(cell, field, value, rawData = null) {
     cell.setAttribute('data-original', value || '');
 }
 
-/**
- * Handle temporary stop display
- */
 function updateTempStopDisplay(cellValue, value) {
     const minutes = parseInt(value) || 0;
 
@@ -1236,9 +1324,6 @@ function updateTempStopDisplay(cellValue, value) {
     }
 }
 
-/**
- * Handle time off display with SN overtime logic
- */
 function updateTimeOffDisplay(cellValue, value, rawData) {
     if (value && value !== '-') {
         // Check if this is an SN day with overtime work
@@ -1270,9 +1355,6 @@ function updateTimeOffDisplay(cellValue, value, rawData) {
     }
 }
 
-/**
- * Handle work time display for regular vs SN days
- */
 function updateWorkTimeDisplay(cellValue, value, rawData) {
     if (rawData && rawData.timeOffType === 'SN') {
         // SN days show 0 work time (all time is overtime)
@@ -1284,9 +1366,6 @@ function updateWorkTimeDisplay(cellValue, value, rawData) {
     }
 }
 
-/**
- * Handle overtime display with special SN styling
- */
 function updateOvertimeDisplay(cellValue, value, rawData) {
     if (value && value !== '-') {
         const isSnOvertime = rawData && rawData.timeOffType === 'SN';
@@ -1303,9 +1382,6 @@ function updateOvertimeDisplay(cellValue, value, rawData) {
     }
 }
 
-/**
- * Handle start time and end time display with SN warnings
- */
 function updateTimeDisplay(cellValue, value, rawData) {
     // Format the time properly for display
     let displayTime = '-';
@@ -1322,9 +1398,6 @@ function updateTimeDisplay(cellValue, value, rawData) {
     }
 }
 
-/**
- * ENHANCED: Add validation indicator for time inputs
- */
 function addTimeInputValidation() {
     // Add real-time validation styling for all time inputs
     document.addEventListener('input', function(e) {
@@ -1343,9 +1416,6 @@ function addTimeInputValidation() {
     });
 }
 
-/**
- * ENHANCED: Initialize time input module features
- */
 function initializeTimeInputFeatures() {
     // Add time input validation listeners
     document.addEventListener('input', function(e) {
@@ -1371,20 +1441,251 @@ function initializeTimeInputFeatures() {
     }
 }
 
-/**
- * Default display for unhandled field types
- */
 function updateDefaultDisplay(cellValue, value) {
     cellValue.textContent = value || '-';
 }
 
 // ========================================================================
-// HELPER FUNCTIONS (Keep existing ones)
+// TIME OFF DELETION FUNCTIONALITY (CO/CM ONLY)
 // ========================================================================
 
-/**
- * ENHANCED: Check if a row represents an SpecialDay day with work
- */
+function showTimeOffDeletePopup(cell) {
+    const timeOffType = cell.getAttribute('data-timeoff-type');
+    const date = cell.getAttribute('data-date');
+    const isDeletable = cell.getAttribute('data-deletable') === 'true';
+
+    console.log('Time off delete clicked:', { timeOffType, date, isDeletable });
+
+    // Double-check deletability
+    if (!isDeletable || (timeOffType !== 'CO' && timeOffType !== 'CM')) {
+        console.log('Time off type not deletable:', timeOffType);
+        showToast('Cannot Delete',
+            `${timeOffType || 'This'} entries cannot be removed by users. Contact admin if needed.`,
+            'warning', { duration: 4000 });
+        return;
+    }
+
+    // Validate required data
+    if (!timeOffType || !date) {
+        console.error('Missing required data:', { timeOffType, date });
+        showToast('Error', 'Missing time off data', 'error');
+        return;
+    }
+
+    // Store the cell reference for later use
+    window.pendingTimeOffDeletion = {
+        cell: cell,
+        timeOffType: timeOffType,
+        date: date
+    };
+
+    // FIXED: Properly dispose of any existing modal instance first
+    const modalElement = document.getElementById('timeOffDeleteModal');
+    if (!modalElement) {
+        console.error('Modal element not found');
+        showToast('Modal Error', 'Cannot show delete confirmation', 'error');
+        return;
+    }
+
+    // Dispose of any existing modal instance
+    const existingModalInstance = bootstrap.Modal.getInstance(modalElement);
+    if (existingModalInstance) {
+        console.log('Disposing existing modal instance');
+        existingModalInstance.dispose();
+    }
+
+    // Update modal content
+    updateDeleteModal(timeOffType, date);
+
+    try {
+        // Create fresh modal instance
+        const modal = new bootstrap.Modal(modalElement, {
+            backdrop: 'static',
+            keyboard: true
+        });
+
+        // Store modal instance for cleanup
+        modalElement._currentModalInstance = modal;
+
+        modal.show();
+        console.log('Fresh modal instance created and shown');
+
+    } catch (error) {
+        console.error('Error showing modal:', error);
+        showToast('Modal Error', 'Failed to show delete confirmation', 'error');
+    }
+}
+
+async function executeTimeOffDeletion() {
+    if (!window.pendingTimeOffDeletion) {
+        console.error('No pending deletion found');
+        return;
+    }
+
+    const { cell, timeOffType, date } = window.pendingTimeOffDeletion;
+
+    try {
+        console.log('Executing time off deletion:', { timeOffType, date });
+
+        // FIXED: Properly close and dispose modal before proceeding
+        const modalElement = document.getElementById('timeOffDeleteModal');
+        const modal = modalElement._currentModalInstance || bootstrap.Modal.getInstance(modalElement);
+
+        if (modal) {
+            modal.hide();
+            // Clean disposal after hide completes
+            setTimeout(() => {
+                modal.dispose();
+                modalElement._currentModalInstance = null;
+            }, 300);
+        }
+
+        // Show loading indicator
+        showLoadingOverlay();
+
+        // Prepare form data - empty value removes the time off type
+        const formData = new URLSearchParams();
+        formData.append('date', date);
+        formData.append('field', 'timeOff');
+        formData.append('value', ''); // Empty value = remove time off type
+
+        console.log('Sending deletion request:', formData.toString());
+
+        // Send deletion request to backend
+        const response = await fetch('/user/time-management/update-field', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('Deletion result:', result);
+
+        if (result.success) {
+            // Update the cell display to show work time preserved
+            updateCellAfterTimeOffDeletion(cell, timeOffType);
+
+            // Show success message with balance info if applicable
+            let successMessage = `${timeOffType} removed successfully`;
+            if (result.holidayBalanceChange) {
+                successMessage += `. ${result.holidayBalanceChange}`;
+            }
+
+            showToast('Time Off Removed', successMessage, 'success', { duration: 3000 });
+
+            // Refresh the page after a short delay to show updated data
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+
+        } else {
+            throw new Error(result.message || 'Deletion failed');
+        }
+
+    } catch (error) {
+        console.error('Time off deletion failed:', error);
+        showToast('Deletion Failed', error.message || 'Failed to remove time off', 'error', { duration: 4000 });
+    } finally {
+        hideLoadingOverlay();
+        // Clear pending deletion
+        window.pendingTimeOffDeletion = null;
+    }
+}
+
+function cancelTimeOffDeletion() {
+    console.log('Canceling time off deletion');
+
+    // Clear pending deletion
+    window.pendingTimeOffDeletion = null;
+
+    // FIXED: Properly dispose modal
+    const modalElement = document.getElementById('timeOffDeleteModal');
+    const modal = modalElement._currentModalInstance || bootstrap.Modal.getInstance(modalElement);
+
+    if (modal) {
+        modal.hide();
+        // Clean disposal after hide completes
+        setTimeout(() => {
+            modal.dispose();
+            modalElement._currentModalInstance = null;
+            console.log('Modal properly disposed after cancellation');
+        }, 300);
+    }
+}
+
+function updateDeleteModal(timeOffType, date) {
+    const modal = document.getElementById('timeOffDeleteModal');
+    const titleElement = modal.querySelector('#deleteModalTitle');
+    const messageElement = modal.querySelector('#deleteModalMessage');
+    const dateElement = modal.querySelector('#deleteModalDate');
+    const balanceInfoElement = modal.querySelector('#deleteModalBalanceInfo');
+
+    // Format date for display
+    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+
+    // Update content based on type
+    if (timeOffType === 'CO') {
+        titleElement.textContent = 'Remove Vacation Day?';
+        messageElement.innerHTML = `This will remove your vacation request for <strong>${formattedDate}</strong>`;
+        // Show balance restoration info for CO
+        balanceInfoElement.classList.remove('d-none');
+        balanceInfoElement.innerHTML = `
+            <i class="bi bi-info-circle me-1"></i>
+            <span>Your vacation balance will be restored (+1 day)</span>
+        `;
+    } else if (timeOffType === 'CM') {
+        titleElement.textContent = 'Remove Medical Leave?';
+        messageElement.innerHTML = `This will remove your medical leave for <strong>${formattedDate}</strong>`;
+        // Hide balance info for CM (no balance change)
+        balanceInfoElement.classList.add('d-none');
+    }
+
+    dateElement.textContent = formattedDate;
+}
+
+function updateCellAfterTimeOffDeletion(cell, originalTimeOffType) {
+    // Remove the time off type but preserve any work time display
+    const cellValue = cell.querySelector('.cell-value');
+    if (cellValue) {
+        // Check if there was work time with this time off (like CO6, CM4)
+        const hasOvertimeWork = cell.getAttribute('data-has-overtime') === 'true';
+
+        if (hasOvertimeWork) {
+            // Show that work time is preserved but time off type is removed
+            cellValue.innerHTML = '<span class="text-muted" title="Time off removed, work time preserved">Work Only</span>';
+        } else {
+            // No work time, just show empty
+            cellValue.innerHTML = '<span class="text-muted">-</span>';
+        }
+    }
+
+    // Remove the deletable styling
+    cell.classList.remove('deletable-timeoff');
+    cell.removeAttribute('data-timeoff-type');
+    cell.removeAttribute('onclick');
+
+    // Remove delete icon
+    const deleteIcon = cell.querySelector('.delete-icon');
+    if (deleteIcon) {
+        deleteIcon.remove();
+    }
+
+    console.log(`Updated cell display after ${originalTimeOffType} deletion`);
+}
+
+// ========================================================================
+// HELPER FUNCTIONS (Keep existing ones)
+// ========================================================================
 
 function isSpecialDayWithWork(rowData) {
     return rowData &&
@@ -1393,9 +1694,6 @@ function isSpecialDayWithWork(rowData) {
     rowData.totalOvertimeMinutes > 0;
 }
 
-/**
- * ENHANCED: Get appropriate CSS class for time off types
- */
 function getTimeOffClass(timeOffType) {
     switch (timeOffType) {
         case 'SN': return 'holiday';
@@ -1405,9 +1703,6 @@ function getTimeOffClass(timeOffType) {
     }
 }
 
-/**
- * ENHANCED: Get descriptive label for time off types
- */
 function getTimeOffLabel(timeOffType) {
     switch (timeOffType) {
         case 'SN': return 'National Holiday';
@@ -1417,9 +1712,6 @@ function getTimeOffLabel(timeOffType) {
     }
 }
 
-/**
- * ENHANCED: Format minutes to hours display
- */
 function formatMinutesToHours(minutes) {
     if (!minutes || minutes === 0) return '0h';
 
@@ -1432,9 +1724,6 @@ function formatMinutesToHours(minutes) {
     return `${hours}h ${mins}m`;
 }
 
-/**
- * ENHANCED: Refresh row display after updates
- */
 function refreshRowAfterUpdate(row, updatedData) {
     // Check if this became or stopped being an SN work day
     if (isSpecialDayWithWork(updatedData)) {
@@ -1462,9 +1751,6 @@ function refreshRowAfterUpdate(row, updatedData) {
     }
 }
 
-/**
- * ENHANCED: Validate field editing for SN days
- */
 function validateFieldForSNDay(field, value, rowData) {
     if (!rowData || rowData.timeOffType !== 'SN') {
         return null; // Not an SN day, normal validation applies
@@ -1485,9 +1771,6 @@ function validateFieldForSNDay(field, value, rowData) {
     }
 }
 
-/**
- * ENHANCED: Show special notification for SN day work
- */
 function showSNWorkNotification(actionType) {
     const messages = {
         'timeUpdated': 'Work time updated for national holiday. All time counts as overtime.',
@@ -1503,9 +1786,6 @@ function showSNWorkNotification(actionType) {
 // ENHANCED INLINE EDITING WITH SN SUPPORT
 // ========================================================================
 
-/**
- * ENHANCED: Start inline editing with SN day validation
- */
 function startInlineEdit(cell) {
     const field = cell.getAttribute('data-field');
     const rowData = getRowData(cell.closest('tr'));
@@ -1545,9 +1825,6 @@ function startInlineEdit(cell) {
     });
 }
 
-/**
- * ENHANCED: Save inline edit with SN day handling
- */
 function saveInlineEdit(cell, input, field) {
     const newValue = input.value.trim();
     const row = cell.closest('tr');
@@ -1572,9 +1849,6 @@ function saveInlineEdit(cell, input, field) {
 // UTILITY FUNCTIONS FOR SN DISPLAY
 // ========================================================================
 
-/**
- * Get row data including SN overtime information
- */
 function getRowData(row) {
     if (!row) return null;
 
@@ -1602,9 +1876,6 @@ function getRowData(row) {
     };
 }
 
-/**
- * Initialize SN overtime display on page load
- */
 function initializeSNOvertimeDisplay() {
     console.log('Initializing enhanced special day work display...');
 
@@ -1622,9 +1893,6 @@ function initializeSNOvertimeDisplay() {
     console.log('Enhanced special day work display initialized');
 }
 
-/**
- * Apply special day work styling based on type
- */
 function applySpecialDayWorkStyling(row, rowData) {
     // Add appropriate work entry class
     const classMap = {
@@ -1644,9 +1912,6 @@ function applySpecialDayWorkStyling(row, rowData) {
     row.setAttribute('data-has-special-work', 'true');
 }
 
-/**
- * Initialize tooltips for all special day work types
- */
 function initializeSpecialDayTooltips() {
     // Initialize tooltips for special day work displays
     const specialDaySelectors = [
@@ -1670,9 +1935,6 @@ function initializeSpecialDayTooltips() {
     });
 }
 
-/**
- * Get special day type from CSS class
- */
 function getSpecialDayTypeFromClass(className) {
     if (className.includes('sn-work-display')) return 'SN';
     if (className.includes('co-work-display')) return 'CO';
@@ -1681,17 +1943,11 @@ function getSpecialDayTypeFromClass(className) {
     return 'Special Day';
 }
 
-/**
- * Extract hours from display text (e.g., "SN4" → 4)
- */
 function extractHoursFromDisplay(displayText) {
     const match = displayText.match(/(\d+)$/);
     return match ? parseInt(match[1]) : 0;
 }
 
-/**
- * Generate tooltip text for special day work
- */
 function generateSpecialDayTooltip(type, hours) {
     const typeNames = {
         'SN': 'National Holiday',
@@ -1706,9 +1962,6 @@ function generateSpecialDayTooltip(type, hours) {
     `${typeName}`;
 }
 
-/**
- * Extract overtime minutes from text content
- */
 function extractOvertimeMinutes(text) {
     if (!text) return 0;
 
@@ -1727,9 +1980,6 @@ function extractOvertimeMinutes(text) {
 // STATUS DISPLAY FUNCTIONALITY
 // ========================================================================
 
-/**
- * Initialize status tooltips
- */
 function initializeStatusTooltips() {
     // Initialize Bootstrap tooltips for status indicators
     const statusIndicators = document.querySelectorAll('.status-indicator[data-bs-toggle="tooltip"]');
@@ -1742,9 +1992,6 @@ function initializeStatusTooltips() {
     });
 }
 
-/**
- * Show detailed status information in modal
- */
 function showStatusDetails(statusElement, event) {
     event.stopPropagation();
 
@@ -1795,30 +2042,52 @@ function showStatusDetails(statusElement, event) {
         </div>
     `;
 
-    if (statusInfo.editedTimeAgo) {
+    // Add role and action info
+    if (statusInfo.roleName) {
         content += `
             <div class="status-details-section">
-                <div class="status-details-label">Last Modified</div>
-                <div class="status-details-value">${statusInfo.editedTimeAgo}</div>
+                <div class="status-details-label">Role</div>
+                <div class="status-details-value">${statusInfo.roleName}</div>
             </div>
         `;
     }
 
-    if (statusInfo.isOwnedByCurrentUser !== undefined) {
+    if (statusInfo.actionType) {
         content += `
             <div class="status-details-section">
-                <div class="status-details-label">Ownership</div>
-                <div class="status-details-value">
-                    ${statusInfo.isOwnedByCurrentUser ?
-                        '<i class="bi bi-person-check text-success me-1"></i>Your entry' :
-                        '<i class="bi bi-person-x text-warning me-1"></i>Admin/Team entry'}
-                </div>
+                <div class="status-details-label">Action</div>
+                <div class="status-details-value">${statusInfo.actionType}</div>
             </div>
         `;
     }
 
     contentDiv.innerHTML = content;
+
+    // FIX: Handle modal focus properly
     modal.show();
+
+    // Fix the focus issue by ensuring proper event handling
+    const modalElement = document.getElementById('statusDetailsModal');
+
+    // Remove focus from close button when modal is shown
+    modalElement.addEventListener('shown.bs.modal', function() {
+        // Remove focus from any focused element within the modal
+        const focusedElement = modalElement.querySelector(':focus');
+        if (focusedElement) {
+            focusedElement.blur();
+        }
+    }, { once: true });
+
+    // Handle modal hiding properly
+    modalElement.addEventListener('hidden.bs.modal', function() {
+        // Ensure no elements retain focus when modal is hidden
+        const focusedElement = modalElement.querySelector(':focus');
+        if (focusedElement) {
+            focusedElement.blur();
+        }
+        // Return focus to the original status element
+        statusElement.focus();
+    }, { once: true });
 }
 
 // ========================================================================
@@ -1846,9 +2115,6 @@ function refreshRowEditability(row) {
 // TIME FORMAT UTILITIES
 // ========================================================================
 
-/**
- * UPDATED: Time conversion using TimeInputModule
- */
 function convertTo24Hour(timeString) {
     return TimeInputModule.convertTo24Hour(timeString);
 }
@@ -1905,7 +2171,6 @@ function validateFieldValue(field, value) {
 
     return null;
 }
-
 
 // ========================================================================
 // SERVER MESSAGE HANDLING WITH TOAST SYSTEM

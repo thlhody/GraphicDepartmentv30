@@ -1,5 +1,6 @@
 package com.ctgraphdep.worktime.service;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.fileOperations.data.TimeOffDataService;
 import com.ctgraphdep.model.User;
@@ -24,15 +25,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * FULLY OPTIMIZED WorktimeLoginMergeService - Complete performance and cleanup implementation.
- * Key Optimizations:
- * 1. PARALLEL PROCESSING: Concurrent month processing with automatic fallback
- * 2. REDUCED SCOPE: 2 months instead of 4+ months (50% file operation reduction)
- * 3. COMPLETE STATUS CLEANUP: Both user and admin file status cleanup
- * 4. TIME-OFF SYNC: Automatic time off tracker synchronization
- * Performance: ~7 seconds → ~2-3 seconds (60-70% improvement)
- */
 @Service
 public class WorktimeLoginMergeService {
 
@@ -57,13 +49,6 @@ public class WorktimeLoginMergeService {
     // MAIN LOGIN MERGE OPERATION (FULLY OPTIMIZED)
     // ========================================================================
 
-    /**
-     * FULLY OPTIMIZED: Perform worktime merge at user login.
-     * - Parallel processing with automatic fallback
-     * - Reduced scope (2 months vs 4+ months)
-     * - Complete status cleanup (user + admin files)
-     * - Time off tracker synchronization
-     */
     public void performUserWorktimeLoginMerge(String username) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Starting OPTIMIZED worktime login merge for user: %s", username));
@@ -113,9 +98,7 @@ public class WorktimeLoginMergeService {
     // PARALLEL PROCESSING WITH FALLBACK (NEW)
     // ========================================================================
 
-    /**
-     * OPTIMIZATION: Attempt parallel processing with fallback to sequential.
-     */
+    // Attempt parallel processing with fallback to sequential.
     private List<MergeResult> attemptParallelMerge(String username, List<YearMonth> monthsToMerge) {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Attempting PARALLEL merge for %s with %d months", username, monthsToMerge.size()));
@@ -155,9 +138,7 @@ public class WorktimeLoginMergeService {
         }
     }
 
-    /**
-     * FALLBACK: Sequential merge processing (reliable fallback).
-     */
+    // Sequential merge processing (reliable fallback).
     private List<MergeResult> performSequentialMerge(String username, List<YearMonth> monthsToMerge) {
         LoggerUtil.info(this.getClass(), String.format("Performing SEQUENTIAL merge for %s", username));
 
@@ -186,9 +167,7 @@ public class WorktimeLoginMergeService {
     // OPTIMIZED MONTH MERGE WITH COMPLETE STATUS CLEANUP
     // ========================================================================
 
-    /**
-     * OPTIMIZED: Merge worktime for a specific month with complete status cleanup + tracker sync.
-     */
+    // Merge worktime for a specific month with complete status cleanup + tracker sync.
     private MergeResult mergeMonthWorktimeOptimized(String username, YearMonth yearMonth) {
         try {
             int year = yearMonth.getYear();
@@ -265,10 +244,7 @@ public class WorktimeLoginMergeService {
     // OPTIMIZED SCOPE (50% REDUCTION)
     // ========================================================================
 
-    /**
-     * OPTIMIZATION: Get optimized months for merge - Only 2 months instead of 4+.
-     * 50% reduction in file operations for significant performance gain.
-     */
+    // Get optimized months for merge - Only 2 months.
     private List<YearMonth> getOptimizedMonthsForMerge(int currentYear, LocalDate now) {
         List<YearMonth> months = new ArrayList<>();
         YearMonth currentMonth = YearMonth.of(currentYear, now.getMonthValue());
@@ -292,10 +268,8 @@ public class WorktimeLoginMergeService {
     // TIME OFF TRACKER SYNCHRONIZATION (UNCHANGED)
     // ========================================================================
 
-    /**
-     * Update time off tracker with missing entries from merged worktime.
-     * This ensures tracker stays in sync with admin-created time off entries.
-     */
+    // Update time off tracker with missing entries from merged worktime.
+    // This ensures tracker stays in sync with admin-created time off entries.
     private boolean updateTimeOffTrackerFromWorktime(String username, Integer userId, int year, List<WorkTimeTable> mergedEntries) {
         try {
             // Extract time off entries from merged worktime
@@ -363,9 +337,7 @@ public class WorktimeLoginMergeService {
         }
     }
 
-    /**
-     * Extract time off entries (SN/CO/CM) from worktime entries.
-     */
+    // Extract time off entries (SN/CO/CM) from worktime entries.
     private Map<LocalDate, String> extractTimeOffEntries(List<WorkTimeTable> entries) {
         Map<LocalDate, String> timeOffEntries = new HashMap<>();
 
@@ -383,9 +355,7 @@ public class WorktimeLoginMergeService {
         return timeOffEntries;
     }
 
-    /**
-     * Find time off entries that are missing from the tracker.
-     */
+    // Find time off entries that are missing from the tracker.
     private List<TimeOffRequest> findMissingTimeOffRequests(Map<LocalDate, String> timeOffEntries, TimeOffTracker tracker) {
         List<TimeOffRequest> newRequests = new ArrayList<>();
 
@@ -416,15 +386,13 @@ public class WorktimeLoginMergeService {
         return newRequests;
     }
 
-    /**
-     * Create a TimeOffRequest for tracker synchronization.
-     */
+    // Create a TimeOffRequest for tracker synchronization.
     private TimeOffRequest createTimeOffRequest(LocalDate date, String timeOffType) {
         TimeOffRequest request = new TimeOffRequest();
         request.setRequestId(UUID.randomUUID().toString());
         request.setDate(date);
         request.setTimeOffType(timeOffType);
-        request.setStatus("APPROVED");
+        request.setStatus(WorkCode.APPROVED);
         request.setEligibleDays(0);
         request.setCreatedAt(LocalDateTime.now());
         request.setLastUpdated(LocalDateTime.now());
@@ -432,9 +400,7 @@ public class WorktimeLoginMergeService {
         return request;
     }
 
-    /**
-     * Create empty time off tracker.
-     */
+    // Create empty time off tracker.
     private TimeOffTracker createEmptyTracker(String username, Integer userId, int year) {
         TimeOffTracker tracker = new TimeOffTracker();
         tracker.setUsername(username);
@@ -467,9 +433,7 @@ public class WorktimeLoginMergeService {
         }
     }
 
-    /**
-     * Filter admin entries for specific user by userId
-     */
+    // Filter admin entries for specific user by userId
     private List<WorkTimeTable> filterAdminEntriesForUser(List<WorkTimeTable> adminEntries, Integer userId) {
         if (userId == null) {
             return new ArrayList<>();
@@ -482,14 +446,12 @@ public class WorktimeLoginMergeService {
     // ENHANCED RESULT CLASS (WITH CLEANUP TRACKING)
     // ========================================================================
 
-    /**
-     * ENHANCED: Result class for merge operations - now includes cleanup tracking.
-     */
+    // Result class for merge operations - now includes cleanup tracking.
     private record MergeResult(
             boolean modified,
             @Getter int totalEntries,
             @Getter boolean trackerUpdated,
-            @Getter boolean hadStatusCleanup  // NEW: track if cleanup occurred
+            @Getter boolean hadStatusCleanup
     ) {
         public boolean wasModified() {
             return modified;

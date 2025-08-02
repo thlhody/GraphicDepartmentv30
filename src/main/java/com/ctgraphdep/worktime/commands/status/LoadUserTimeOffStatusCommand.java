@@ -1,6 +1,6 @@
-
 package com.ctgraphdep.worktime.commands.status;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.TimeOffRequest;
 import com.ctgraphdep.model.TimeOffTracker;
@@ -22,11 +22,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-/**
- * REFACTORED: Command to load time off data for status display using accessor pattern.
- * Always uses NetworkOnlyAccessor for consistent cross-user viewing.
- * Used by StatusController for time off status viewing.
- */
 public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadUserTimeOffStatusCommand.TimeOffStatusData> {
     private final String targetUsername;
     private final Integer targetUserId;
@@ -58,8 +53,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
 
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Loading time off status for %s - %d using NetworkOnlyAccessor", targetUsername, year));
+        LoggerUtil.info(this.getClass(), String.format("Loading time off status for %s - %d using NetworkOnlyAccessor", targetUsername, year));
 
         try {
             // FIXED: Always use NetworkOnlyAccessor for status viewing
@@ -103,9 +97,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
         }
     }
 
-    /**
-     * Create empty tracker for user
-     */
+    // Create empty tracker for user
     private TimeOffTracker createEmptyTracker(String username, Integer userId, int year) {
         TimeOffTracker tracker = new TimeOffTracker();
         tracker.setUsername(username);
@@ -115,9 +107,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
         return tracker;
     }
 
-    /**
-     * Convert TimeOffTracker to status display data
-     */
+    // Convert TimeOffTracker to status display data
     private TimeOffStatusData convertTrackerToStatusData(TimeOffTracker tracker) {
         // Calculate summary
         TimeOffSummaryDTO summary = calculateSummaryFromTracker(tracker);
@@ -131,9 +121,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
         return new TimeOffStatusData(tracker, summary, approvedEntries, upcomingEntries);
     }
 
-    /**
-     * Calculate time off summary from tracker
-     */
+    // Calculate time off summary from tracker
     private TimeOffSummaryDTO calculateSummaryFromTracker(TimeOffTracker tracker) {
         int coDays = 0;
         int cmDays = 0;
@@ -141,11 +129,11 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
 
         if (tracker.getRequests() != null) {
             for (TimeOffRequest request : tracker.getRequests()) {
-                if ("APPROVED".equals(request.getStatus())) {
+                if (WorkCode.APPROVED.equals(request.getStatus())) {
                     switch (request.getTimeOffType()) {
-                        case "CO" -> coDays++;
-                        case "CM" -> cmDays++;
-                        case "SN" -> snDays++;
+                        case WorkCode.TIME_OFF_CODE -> coDays++;
+                        case WorkCode.MEDICAL_LEAVE_CODE -> cmDays++;
+                        case WorkCode.NATIONAL_HOLIDAY_CODE -> snDays++;
                     }
                 }
             }
@@ -156,8 +144,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
         int paidDaysTaken = coDays; // CO days are paid vacation days
         int remainingPaidDays = Math.max(0, availablePaidDays - paidDaysTaken);
 
-        LoggerUtil.debug(this.getClass(), String.format(
-                "Summary calculation for %s: availablePaidDays=%d (from user cache), paidDaysTaken=%d, remainingPaidDays=%d",
+        LoggerUtil.debug(this.getClass(), String.format("Summary calculation for %s: availablePaidDays=%d (from user cache), paidDaysTaken=%d, remainingPaidDays=%d",
                 targetUsername, availablePaidDays, paidDaysTaken, remainingPaidDays));
 
         return TimeOffSummaryDTO.builder()
@@ -170,9 +157,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
                 .build();
     }
 
-    /**
-     * FIXED: Get holiday balance from user cache (same logic as TimeOffCacheService)
-     */
+    // Get holiday balance from user cache (same logic as TimeOffCacheService)
     private int getHolidayBalanceFromUserCache(String username) {
         try {
             // Get current user context
@@ -181,8 +166,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
             if (username.equals(currentUsername)) {
                 // For current user - use MainDefaultUserContextCache (authoritative)
                 Integer balance = context.getCurrentHolidayBalance();
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Got holiday balance from MainDefaultUserContextCache for %s: %d",
+                LoggerUtil.debug(this.getClass(), String.format("Got holiday balance from MainDefaultUserContextCache for %s: %d",
                         username, balance != null ? balance : 0));
                 return balance != null ? balance : 0;
             } else {
@@ -190,41 +174,33 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
                 Optional<User> userOpt = context.getUser(username);
                 if (userOpt.isPresent()) {
                     Integer balance = userOpt.get().getPaidHolidayDays();
-                    LoggerUtil.debug(this.getClass(), String.format(
-                            "Got holiday balance from user cache for %s: %d",
-                            username, balance != null ? balance : 0));
+                    LoggerUtil.debug(this.getClass(), String.format("Got holiday balance from user cache for %s: %d", username, balance != null ? balance : 0));
                     return balance != null ? balance : 0;
                 } else {
-                    LoggerUtil.warn(this.getClass(), String.format(
-                            "User not found in cache: %s", username));
+                    LoggerUtil.warn(this.getClass(), String.format("User not found in cache: %s", username));
                     return 0;
                 }
             }
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Error getting holiday balance for %s: %s", username, e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Error getting holiday balance for %s: %s", username, e.getMessage()));
             return 0;
         }
     }
 
-    /**
-     * Get approved time off entries as WorkTimeTable for display
-     */
+    // Get approved time off entries as WorkTimeTable for display
     private List<WorkTimeTable> getApprovedEntriesFromTracker(TimeOffTracker tracker, Integer userId) {
         if (tracker.getRequests() == null) {
             return new ArrayList<>();
         }
 
         return tracker.getRequests().stream()
-                .filter(request -> "APPROVED".equals(request.getStatus()))
+                .filter(request -> WorkCode.APPROVED.equals(request.getStatus()))
                 .map(request -> convertRequestToWorkTimeTable(request, userId))
                 .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get upcoming time off entries
-     */
+    // Get upcoming time off entries
     private List<WorkTimeTable> getUpcomingEntriesFromTracker(TimeOffTracker tracker, Integer userId) {
         if (tracker.getRequests() == null) {
             return new ArrayList<>();
@@ -232,16 +208,14 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
 
         LocalDate today = LocalDate.now();
         return tracker.getRequests().stream()
-                .filter(request -> "APPROVED".equals(request.getStatus()))
+                .filter(request -> WorkCode.APPROVED.equals(request.getStatus()))
                 .filter(request -> request.getDate().isAfter(today))
                 .map(request -> convertRequestToWorkTimeTable(request, userId))
                 .sorted(Comparator.comparing(WorkTimeTable::getWorkDate))
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Convert TimeOffRequest to WorkTimeTable for display compatibility
-     */
+    // Convert TimeOffRequest to WorkTimeTable for display compatibility
     private WorkTimeTable convertRequestToWorkTimeTable(TimeOffRequest request, Integer userId) {
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(userId);
@@ -271,9 +245,7 @@ public class LoadUserTimeOffStatusCommand extends WorktimeOperationCommand<LoadU
         return OperationResult.OperationType.LOAD_USER_WORKTIME; // Reuse existing type
     }
 
-    /**
-     * Data container for time off status information
-     */
+    // Data container for time off status information
     @Getter
     public static class TimeOffStatusData {
         private final TimeOffTracker tracker;

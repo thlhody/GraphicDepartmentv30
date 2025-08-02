@@ -1,6 +1,7 @@
 package com.ctgraphdep.worktime.commands;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
@@ -21,9 +22,18 @@ public class AddNationalHolidayCommand extends WorktimeOperationCommand<List<Wor
 
     private final LocalDate date;
 
-    public AddNationalHolidayCommand(WorktimeOperationContext context, LocalDate date) {
+    private AddNationalHolidayCommand(WorktimeOperationContext context, LocalDate date) {
         super(context);
         this.date = date;
+    }
+
+    // Create command for national holiday addition
+    public static AddNationalHolidayCommand forDate(WorktimeOperationContext context, LocalDate date) {
+        if (date == null) {
+            throw new IllegalArgumentException("Date required for national holiday addition");
+        }
+
+        return new AddNationalHolidayCommand(context, date);
     }
 
     @Override
@@ -116,7 +126,6 @@ public class AddNationalHolidayCommand extends WorktimeOperationCommand<List<Wor
             return OperationResult.failure(errorMessage, getOperationType());
         }
     }
-
 
     // Process individual user for national holiday with proper transformation logic
     private EntryTransformationResult processUserForNationalHoliday(List<WorkTimeTable> adminEntries, User user, HolidayBalanceTracker balanceTracker) {
@@ -280,7 +289,7 @@ public class AddNationalHolidayCommand extends WorktimeOperationCommand<List<Wor
     // Determine original entry type for logging
     private String determineOriginalEntryType(WorkTimeTable entry) {
         if (entry.getTimeOffType() != null) {
-            if ("DELETE".equals(entry.getAdminSync())) {
+            if (MergingStatusConstants.DELETE.equals(entry.getAdminSync())) {
                 return "DELETED";
             }
             return entry.getTimeOffType(); // CO, CM, SN, W
@@ -346,7 +355,7 @@ public class AddNationalHolidayCommand extends WorktimeOperationCommand<List<Wor
 
     @Override
     protected String getOperationType() {
-        return "ADD_NATIONAL_HOLIDAY";
+        return OperationResult.OperationType.ADD_NATIONAL_HOLIDAY;
     }
 
     // ========================================================================

@@ -117,42 +117,42 @@ public interface WorktimeDataAccessor {
 // IMPLEMENTATION MATRIX
 // ========================================================================
 
-/**
- * IMPLEMENTATION SUPPORT MATRIX:
+/*
+  IMPLEMENTATION SUPPORT MATRIX:
 
- * | Operation              | AdminOwnDataAccessor | UserOwnDataAccessor | NetworkOnlyAccessor |
- * |------------------------|---------------------|-------------------|-------------------|
- * | readWorktime()         | ✅ (admin files)     | ✅ (cache)         | ✅ (network)       |
- * | writeWorktime()        | ✅ (admin files)     | ✅ (cache)         | ❌ (throws)        |
- * | readRegister()         | ❌ (throws)          | ✅ (cache)         | ✅ (network)       |
- * | readCheckRegister()    | ❌ (throws)          | ✅ (cache)         | ✅ (network)       |
- * | readTimeOffTracker()   | ❌ (throws)          | ✅ (cache)         | ✅ (network)       |
+  | Operation              | AdminOwnDataAccessor | UserOwnDataAccessor | NetworkOnlyAccessor |
+  |------------------------|---------------------|-------------------|-------------------|
+  | readWorktime()         | ✅ (admin files)     | ✅ (cache)         | ✅ (network)       |
+  | writeWorktime()        | ✅ (admin files)     | ✅ (cache)         | ❌ (throws)        |
+  | readRegister()         | ❌ (throws)          | ✅ (cache)         | ✅ (network)       |
+  | readCheckRegister()    | ❌ (throws)          | ✅ (cache)         | ✅ (network)       |
+  | readTimeOffTracker()   | ❌ (throws)          | ✅ (cache)         | ✅ (network)       |
 
- * RATIONALE:
- * - AdminOwnDataAccessor: Admin files only contain worktime data
- * - UserOwnDataAccessor: Uses cache for all data types (own data)
- * - NetworkOnlyAccessor: Network-only reads for viewing others' data
+  RATIONALE:
+  - AdminOwnDataAccessor: Admin files only contain worktime data
+  - UserOwnDataAccessor: Uses cache for all data types (own data)
+  - NetworkOnlyAccessor: Network-only reads for viewing others' data
 
 // ========================================================================
 // USAGE EXAMPLES
 // ========================================================================
 
- * EXAMPLE USAGE IN WORKTIME PACKAGE:
+  EXAMPLE USAGE IN WORKTIME PACKAGE:
 
- * // Worktime editing (main purpose)
- * WorktimeDataAccessor accessor = context.getDataAccessor(username);
- * List<WorkTimeTable> entries = accessor.readWorktime(username, year, month);
- * accessor.writeWorktime(username, updatedEntries, year, month);
+  // Worktime editing (main purpose)
+  WorktimeDataAccessor accessor = context.getDataAccessor(username);
+  List<WorkTimeTable> entries = accessor.readWorktime(username, year, month);
+  accessor.writeWorktime(username, updatedEntries, year, month);
 
- * // Status viewing (connected to StatusController)
- * WorktimeDataAccessor accessor = context.getDataAccessor(targetUsername);
- * List<RegisterEntry> register = accessor.readRegister(targetUsername, userId, year, month);
- * TimeOffTracker timeOff = accessor.readTimeOffTracker(targetUsername, userId, year);
- * // Exception handling for unsupported operations
- * try {
- *     adminAccessor.readRegister(username, userId, year, month);
- * } catch (UnsupportedOperationException e) {
- *     // Admin files don't contain register data
- *     // Use NetworkOnlyAccessor to view user register data
- * }
+  // Status viewing (connected to StatusController)
+  WorktimeDataAccessor accessor = context.getDataAccessor(targetUsername);
+  List<RegisterEntry> register = accessor.readRegister(targetUsername, userId, year, month);
+  TimeOffTracker timeOff = accessor.readTimeOffTracker(targetUsername, userId, year);
+  // Exception handling for unsupported operations
+  try {
+      adminAccessor.readRegister(username, userId, year, month);
+  } catch (UnsupportedOperationException e) {
+      // Admin files don't contain register data
+      // Use NetworkOnlyAccessor to view user register data
+  }
  */

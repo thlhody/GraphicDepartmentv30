@@ -19,15 +19,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
-/**
- * REFACTORED WorktimeOperationService - Updated to use new universal merge system.
- * Key Changes:
- * - Uses new string-based status constants instead of old enum
- * - Implements proper status determination logic based on user role
- * - Integrates with universal merge system
- * - Maintains same public API for backward compatibility
- * - Enhanced status management for create vs edit scenarios
- */
 @Service
 public class WorktimeOperationService {
 
@@ -51,9 +42,7 @@ public class WorktimeOperationService {
     // USER OPERATIONS - Time Field Updates (REFACTORED)
     // ========================================================================
 
-    /**
-     * Update start time - let command handle everything
-     */
+    // Update start time - let command handle everything
     @PreAuthorize("#username == authentication.name")
     public OperationResult updateUserStartTime(String username, Integer userId, LocalDate date, String startTime) {
         userLock.writeLock().lock();
@@ -61,16 +50,8 @@ public class WorktimeOperationService {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Executing start time update for %s on %s", username, date));
 
-            // Get user schedule for command
-            Optional<User> userOpt = context.getUser(username);
-            if (userOpt.isEmpty()) {
-                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.UPDATE_START_TIME);
-            }
-
-            int userScheduleHours = userOpt.get().getSchedule();
-
-            // SIMPLIFIED: Just execute command - no manual status handling
-            UpdateStartTimeCommand command = new UpdateStartTimeCommand(context, username, userId, date, startTime, userScheduleHours);
+            // FACTORY METHOD - handles user lookup and setup internally
+            UpdateStartTimeCommand command = UpdateStartTimeCommand.forUser(context, username, userId, date, startTime);
             return command.execute();
 
         } finally {
@@ -78,9 +59,7 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Update end time - let command handle everything
-     */
+    // Update end time - let command handle everything
     @PreAuthorize("#username == authentication.name")
     public OperationResult updateUserEndTime(String username, Integer userId, LocalDate date, String endTime) {
         userLock.writeLock().lock();
@@ -88,16 +67,8 @@ public class WorktimeOperationService {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Executing end time update for %s on %s", username, date));
 
-            // Get user schedule for command
-            Optional<User> userOpt = context.getUser(username);
-            if (userOpt.isEmpty()) {
-                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.UPDATE_END_TIME);
-            }
-
-            int userScheduleHours = userOpt.get().getSchedule();
-
-            // SIMPLIFIED: Just execute command - no manual status handling
-            UpdateEndTimeCommand command = new UpdateEndTimeCommand(context, username, userId, date, endTime, userScheduleHours);
+            // FACTORY METHOD - handles user lookup and setup internally
+            UpdateEndTimeCommand command = UpdateEndTimeCommand.forUser(context, username, userId, date, endTime);
             return command.execute();
 
         } finally {
@@ -109,18 +80,14 @@ public class WorktimeOperationService {
     // USER OPERATIONS - Time Off Management (REFACTORED)
     // ========================================================================
 
-    /**
-     * Add time off - let command handle everything
-     */
+    // Add time off - factory method
     @PreAuthorize("#username == authentication.name")
     public OperationResult addUserTimeOff(String username, Integer userId, List<LocalDate> dates, String timeOffType) {
         userLock.writeLock().lock();
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Executing time off addition for %s: %d dates, type=%s", username, dates.size(), timeOffType));
+            LoggerUtil.debug(this.getClass(), String.format("Executing time off addition for %s: %d dates, type=%s", username, dates.size(), timeOffType));
 
-            // SIMPLIFIED: Just execute command - no manual status handling
-            AddTimeOffCommand command = new AddTimeOffCommand(context, username, userId, dates, timeOffType);
+            AddTimeOffCommand command = AddTimeOffCommand.forUser(context, username, userId, dates, timeOffType);
             return command.execute();
 
         } finally {
@@ -128,9 +95,7 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Remove time off - let command handle everything
-     */
+    // Remove time off - let command handle everything
     @PreAuthorize("#username == authentication.name")
     public OperationResult removeUserTimeOff(String username, Integer userId, LocalDate date) {
         userLock.writeLock().lock();
@@ -138,8 +103,9 @@ public class WorktimeOperationService {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Executing time off removal for %s on %s", username, date));
 
-            // SIMPLIFIED: Just execute command - no manual status handling
-            RemoveTimeOffCommand command = new RemoveTimeOffCommand(context, username, userId, date);
+            // NEW: Use enhanced RemoveCommand instead of
+            WorktimeDataAccessor accessor = context.getDataAccessor(username);
+            RemoveCommand command = RemoveCommand.forTimeOffRemoval(context, accessor, username, date);
             return command.execute();
 
         } finally {
@@ -151,9 +117,7 @@ public class WorktimeOperationService {
     // USER OPERATIONS - Temporary Stop Updates (REFACTORED)
     // ========================================================================
 
-    /**
-     * Update temporary stop - let command handle everything
-     */
+    // Update temporary stop - factory method
     @PreAuthorize("#username == authentication.name")
     public OperationResult updateUserTemporaryStop(String username, Integer userId, LocalDate date, Integer tempStopMinutes) {
         userLock.writeLock().lock();
@@ -161,16 +125,7 @@ public class WorktimeOperationService {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Executing temporary stop update for %s on %s", username, date));
 
-            // Get user schedule
-            Optional<User> userOpt = context.getUser(username);
-            if (userOpt.isEmpty()) {
-                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.UPDATE_TEMPORARY_STOP);
-            }
-
-            int userScheduleHours = userOpt.get().getSchedule();
-
-            // SIMPLIFIED: Just execute command - no manual status handling
-            AddTemporaryStopCommand command = new AddTemporaryStopCommand(context, username, userId, date, tempStopMinutes, userScheduleHours);
+            AddTemporaryStopCommand command = AddTemporaryStopCommand.forUser(context, username, userId, date, tempStopMinutes);
             return command.execute();
 
         } finally {
@@ -178,9 +133,7 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Remove temporary stop - let command handle everything
-     */
+    // Remove temporary stop - factory method
     @PreAuthorize("#username == authentication.name")
     public OperationResult removeUserTemporaryStop(String username, Integer userId, LocalDate date) {
         userLock.writeLock().lock();
@@ -188,16 +141,7 @@ public class WorktimeOperationService {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Executing temporary stop removal for %s on %s", username, date));
 
-            // Get user schedule
-            Optional<User> userOpt = context.getUser(username);
-            if (userOpt.isEmpty()) {
-                return OperationResult.failure("User not found: " + username, OperationResult.OperationType.REMOVE_TEMPORARY_STOP);
-            }
-
-            int userScheduleHours = userOpt.get().getSchedule();
-
-            // SIMPLIFIED: Just execute command - no manual status handling
-            RemoveTemporaryStopCommand command = new RemoveTemporaryStopCommand(context, username, userId, date, userScheduleHours);
+            RemoveTemporaryStopCommand command = RemoveTemporaryStopCommand.forUser(context, username, userId, date);
             return command.execute();
 
         } finally {
@@ -209,18 +153,14 @@ public class WorktimeOperationService {
     // ADMIN OPERATIONS (REFACTORED)
     // ========================================================================
 
-    /**
-     * Admin add time off - let command handle everything
-     */
+    // Admin add time off - factory method
     @PreAuthorize("hasRole('ADMIN')")
     public OperationResult addAdminTimeOff(String targetUsername, Integer targetUserId, List<LocalDate> dates, String timeOffType) {
         adminLock.lock();
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Executing admin time off addition for %s: %d dates, type=%s", targetUsername, dates.size(), timeOffType));
+            LoggerUtil.debug(this.getClass(), String.format("Executing admin time off addition for %s: %d dates, type=%s", targetUsername, dates.size(), timeOffType));
 
-            // SIMPLIFIED: Just execute command - no manual status handling
-            AddTimeOffCommand command = new AddTimeOffCommand(context, targetUsername, targetUserId, dates, timeOffType);
+            AddTimeOffCommand command = AddTimeOffCommand.forAdmin(context, targetUsername, targetUserId, dates, timeOffType);
             return command.execute();
 
         } finally {
@@ -228,17 +168,15 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Add national holiday - let command handle everything
-     */
+
+    // Add national holiday - let command handle everything
     @PreAuthorize("hasRole('ADMIN')")
     public OperationResult addNationalHoliday(LocalDate date) {
         adminLock.lock();
         try {
             LoggerUtil.debug(this.getClass(), String.format("Executing national holiday addition for %s", date));
 
-            // SIMPLIFIED: Just execute command - no manual status handling
-            AddNationalHolidayCommand command = new AddNationalHolidayCommand(context, date);
+            AddNationalHolidayCommand command = AddNationalHolidayCommand.forDate(context, date);
             return command.execute();
 
         } finally {
@@ -246,9 +184,7 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Finalize worktime entries for a period
-     */
+    // Finalize worktime entries for a period
     @PreAuthorize("hasRole('ADMIN')")
     public OperationResult finalizeWorktimePeriod(int year, int month, Integer userId) {
         adminLock.lock();
@@ -291,9 +227,7 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Direct finalization logic for WorkTimeTable entries
-     */
+    // Direct finalization logic for WorkTimeTable entries
     private FinalizationStats performDirectFinalization(List<WorkTimeTable> entries, Integer targetUserId) {
         FinalizationStats stats = new FinalizationStats();
 
@@ -337,9 +271,7 @@ public class WorktimeOperationService {
         return stats;
     }
 
-    /**
-     * Simple stats tracking class for finalization results
-     */
+    // Simple stats tracking class for finalization results
     private static class FinalizationStats {
         int totalProcessed = 0;
         int totalFinalized = 0;
@@ -357,9 +289,7 @@ public class WorktimeOperationService {
     // DATA LOADING OPERATIONS (UNCHANGED PUBLIC API)
     // ========================================================================
 
-    /**
-     * FIXED: Load user worktime with merge processing using accessor pattern
-     */
+    // Load user worktime with merge processing using accessor pattern
     public List<WorkTimeTable> loadUserWorktime(String username, int year, int month) {
         userLock.readLock().lock();
         try {
@@ -415,17 +345,13 @@ public class WorktimeOperationService {
         }
     }
 
-    /**
-     * Load admin worktime entries
-     */
+    // Load admin worktime entries
     @PreAuthorize("hasRole('ADMIN')")
     public List<WorkTimeTable> loadAdminWorktime(int year, int month) {
         return context.loadAdminWorktime(year, month);
     }
 
-    /**
-     * Save admin worktime entries
-     */
+    // Save admin worktime entries
     @PreAuthorize("hasRole('ADMIN')")
     public void saveAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
         context.saveAdminWorktime(entries, year, month);
@@ -435,16 +361,14 @@ public class WorktimeOperationService {
     // CONSOLIDATION OPERATIONS (REFACTORED)
     // ========================================================================
 
-    /**
-     * REFACTORED: Consolidate worktime with proper status handling
-     */
+    // Consolidate worktime with proper status handling
     @PreAuthorize("hasRole('ADMIN')")
     public OperationResult consolidateWorktime(int year, int month) {
         consolidationLock.lock();
         try {
             LoggerUtil.info(this.getClass(), String.format("Starting worktime consolidation for %d/%d", year, month));
 
-            ConsolidateWorkTimeCommand command = new ConsolidateWorkTimeCommand(context,worktimeMergeService,year, month);
+            ConsolidateWorkTimeCommand command = ConsolidateWorkTimeCommand.forPeriod(context, worktimeMergeService, year, month);
             OperationResult result = command.execute();
 
             LoggerUtil.info(this.getClass(), String.format("Worktime consolidation completed for %d/%d: %s",
@@ -460,9 +384,7 @@ public class WorktimeOperationService {
     // HELPER METHODS - New status management logic
     // ========================================================================
 
-    /**
-     * Get current user's role for status determination
-     */
+    // Get current user's role for status determination
     private String getCurrentUserRole() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getAuthorities() != null) {
@@ -473,32 +395,27 @@ public class WorktimeOperationService {
         }
         return SecurityConstants.ROLE_USER;
     }
-    /**
-     * Update holiday balance for user (admin operation)
-     * REFACTORED: Now uses UpdateHolidayBalanceCommand instead of HolidayManagementService
-     */
+
+    // Update holiday balance for user (admin operation)
     @PreAuthorize("hasRole('ADMIN')")
     public OperationResult updateHolidayBalance(Integer userId, Integer newBalance) {
         adminLock.lock();
         try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Admin updating holiday balance: userId=%d, newBalance=%d", userId, newBalance));
+            LoggerUtil.info(this.getClass(), String.format("User updating holiday balance: userId=%d, newBalance=%d", userId, newBalance));
 
-            return new UpdateHolidayBalanceCommand(context, userId, newBalance).execute();
+            UpdateHolidayBalanceCommand command = UpdateHolidayBalanceCommand.forUser(context, userId, newBalance);
+            return command.execute();
 
         } finally {
             adminLock.unlock();
         }
     }
 
-
     // ========================================================================
     // QUERY OPERATIONS
     // ========================================================================
 
-    /**
-     * Get holiday balance for user
-     */
+    // Get holiday balance for user
     public Integer getHolidayBalance(String username) {
         // If requesting own balance, use context cache
         if (username.equals(context.getCurrentUsername())) {
@@ -513,9 +430,7 @@ public class WorktimeOperationService {
     // CONVENIENCE METHODS FOR BACKWARD COMPATIBILITY
     // ========================================================================
 
-    /**
-     * FIXED: Check worked days count for a user in a specific month using accessor pattern
-     */
+    // FIXED: Check worked days count for a user in a specific month using accessor pattern
     @PreAuthorize("hasRole('ADMIN')")
     public int getWorkedDays(Integer userId, int year, int month) {
         try {
@@ -551,11 +466,7 @@ public class WorktimeOperationService {
         }
     }
 
-
-    /**
-     * Get viewable entries for admin display (filtering out USER_IN_PROCESS entries)
-     * Convenience method for admin controllers
-     */
+    // Get viewable entries for admin display (filtering out USER_IN_PROCESS entries)
     @PreAuthorize("hasRole('ADMIN')")
     public List<WorkTimeTable> getViewableEntries(int year, int month) {
         try {
@@ -583,9 +494,7 @@ public class WorktimeOperationService {
     // ADMIN OPERATIONS - Special Day Work & Regular Updates (NEW)
     // ========================================================================
 
-    /**
-     * Handle regular admin updates
-     */
+    // Handle regular admin updates
     @PreAuthorize("hasRole('ADMIN')")
     public OperationResult processAdminUpdate(Integer userId, LocalDate date, String value) {
         adminLock.lock();
@@ -593,8 +502,7 @@ public class WorktimeOperationService {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Executing admin regular update for user %d on %s", userId, date));
 
-            // SIMPLIFIED: Just execute command - no manual status handling
-            AdminUpdateCommand command = new AdminUpdateCommand(context, userId, date, value);
+            AdminUpdateCommand command = AdminUpdateCommand.forUpdate(context, userId, date, value);
             return command.execute();
 
         } finally {

@@ -8,26 +8,13 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * OPTIMIZED Status Update Utility - Eliminates excessive cache reads and status updates.
- * Key Optimizations:
- * 1. Batch Operations: Single cache read instead of N reads
- * 2. Change Tracking: Only update status for actually modified entries
- * 3. Smart Status Preservation: Keep existing timestamps for unchanged entries
- * 4. Performance Metrics: Track optimization effectiveness
- */
 public class OptimizedStatusUpdateUtil {
 
     private static final String LOGGER_CLASS = OptimizedStatusUpdateUtil.class.getSimpleName();
 
-    /**
-     * OPTIMIZED: Update statuses only for changed entries using batch operations
-     * Performance: O(1) cache read instead of O(n) cache reads
-     */
-    public static StatusUpdateResult updateChangedEntriesOnly(
-            List<WorkTimeTable> newEntries,
-            List<WorkTimeTable> existingEntries,
-            String operationContext) {
+    // Update statuses only for changed entries using batch operations
+    public static StatusUpdateResult updateChangedEntriesOnly(List<WorkTimeTable> newEntries,
+            List<WorkTimeTable> existingEntries, String operationContext) {
 
         long startTime = System.currentTimeMillis();
         LoggerUtil.info(LOGGER_CLASS.getClass(), String.format(
@@ -44,44 +31,27 @@ public class OptimizedStatusUpdateUtil {
         List<WorkTimeTable> processedEntries = batchProcessEntries(newEntries);
 
         long endTime = System.currentTimeMillis();
-        StatusUpdateResult result = new StatusUpdateResult(
-                processedEntries,
-                changeTracker.getChangedDates().size(),
-                newEntries.size(),
-                endTime - startTime,
-                changeTracker.getChangeStatistics()
-        );
+        StatusUpdateResult result = new StatusUpdateResult(processedEntries, changeTracker.getChangedDates().size(),
+                newEntries.size(), endTime - startTime, changeTracker.getChangeStatistics());
 
-        LoggerUtil.info(LOGGER_CLASS.getClass(), String.format(
-                "OPTIMIZED status update completed: %d total entries, %d changed, %d preserved, %dms (%s)",
-                result.getTotalEntries(), result.getChangedEntries(),
-                result.getPreservedEntries(), result.getProcessingTimeMs(), operationContext));
+        LoggerUtil.info(LOGGER_CLASS.getClass(), String.format("OPTIMIZED status update completed: %d total entries, %d changed, %d preserved, %dms (%s)",
+                result.getTotalEntries(), result.getChangedEntries(), result.getPreservedEntries(), result.getProcessingTimeMs(), operationContext));
 
         return result;
     }
 
-    /**
-     * OPTIMIZATION 1: Create efficient lookup map (O(n) creation, O(1) lookup)
-     */
+    //Create efficient lookup map (O(n) creation, O(1) lookup)
     private static Map<String, WorkTimeTable> createEntryLookupMap(List<WorkTimeTable> entries) {
         if (entries == null || entries.isEmpty()) {
             return new HashMap<>();
         }
 
-        return entries.stream()
-                .collect(Collectors.toMap(
-                        entry -> createEntryKey(entry.getUserId(), entry.getWorkDate()),
-                        entry -> entry,
-                        (existing, replacement) -> replacement // Handle duplicates
-                ));
+        return entries.stream().collect(Collectors.toMap(entry -> createEntryKey(entry.getUserId(), entry.getWorkDate()),
+                        entry -> entry, (existing, replacement) -> replacement));
     }
 
-    /**
-     * OPTIMIZATION 2: Identify actually changed entries using efficient comparison
-     */
-    private static ChangeTracker identifyChangedEntries(
-            List<WorkTimeTable> newEntries,
-            Map<String, WorkTimeTable> existingEntriesMap) {
+    // Identify actually changed entries using efficient comparison
+    private static ChangeTracker identifyChangedEntries(List<WorkTimeTable> newEntries, Map<String, WorkTimeTable> existingEntriesMap) {
 
         ChangeTracker tracker = new ChangeTracker();
 
@@ -92,13 +62,11 @@ public class OptimizedStatusUpdateUtil {
             if (existingEntry == null) {
                 // New entry
                 tracker.markAsNew(newEntry.getWorkDate());
-                LoggerUtil.debug(LOGGER_CLASS.getClass(), String.format(
-                        "New entry detected: user %d on %s", newEntry.getUserId(), newEntry.getWorkDate()));
+                LoggerUtil.debug(LOGGER_CLASS.getClass(), String.format("New entry detected: user %d on %s", newEntry.getUserId(), newEntry.getWorkDate()));
             } else if (hasContentChanged(newEntry, existingEntry)) {
                 // Changed entry
                 tracker.markAsChanged(newEntry.getWorkDate(), existingEntry);
-                LoggerUtil.debug(LOGGER_CLASS.getClass(), String.format(
-                        "Changed entry detected: user %d on %s", newEntry.getUserId(), newEntry.getWorkDate()));
+                LoggerUtil.debug(LOGGER_CLASS.getClass(), String.format("Changed entry detected: user %d on %s", newEntry.getUserId(), newEntry.getWorkDate()));
             } else {
                 // Unchanged entry
                 tracker.markAsUnchanged(newEntry.getWorkDate(), existingEntry);
@@ -108,21 +76,15 @@ public class OptimizedStatusUpdateUtil {
         return tracker;
     }
 
-    /**
-     * OPTIMIZATION 3: Batch process entries with smart status handling
-     */
-    private static List<WorkTimeTable> batchProcessEntries(
-            List<WorkTimeTable> newEntries) {
+    // Batch process entries with smart status handling
+    private static List<WorkTimeTable> batchProcessEntries(List<WorkTimeTable> newEntries) {
 
         List<WorkTimeTable> processedEntries = new ArrayList<>();
-
 
         for (WorkTimeTable newEntry : newEntries) {
             WorkTimeTable processedEntry = cloneEntry(newEntry);
 
-
-            LoggerUtil.debug(LOGGER_CLASS.getClass(), String.format(
-                    "PRESERVING existing status '%s' for user %d on %s",
+            LoggerUtil.debug(LOGGER_CLASS.getClass(), String.format("PRESERVING existing status '%s' for user %d on %s",
                     processedEntry.getAdminSync(), newEntry.getUserId(), newEntry.getWorkDate()));
 
             processedEntries.add(processedEntry);
@@ -131,10 +93,7 @@ public class OptimizedStatusUpdateUtil {
         return processedEntries;
     }
 
-    /**
-     * Efficient content change detection (business fields only)
-     * FIXED: Added comprehensive field comparison and debug logging
-     */
+    // Efficient content change detection (business fields only)
     private static boolean hasContentChanged(WorkTimeTable newEntry, WorkTimeTable existingEntry) {
         boolean workedMinutesChanged = !Objects.equals(newEntry.getTotalWorkedMinutes(), existingEntry.getTotalWorkedMinutes());
         boolean overtimeChanged = !Objects.equals(newEntry.getTotalOvertimeMinutes(), existingEntry.getTotalOvertimeMinutes());
@@ -202,9 +161,7 @@ public class OptimizedStatusUpdateUtil {
     // CHANGE TRACKING CLASSES
     // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Efficient change tracking with performance metrics
-     */
+    // Efficient change tracking with performance metrics
     @Getter
     private static class ChangeTracker {
         private final Set<LocalDate> newDates = new HashSet<>();
@@ -247,9 +204,7 @@ public class OptimizedStatusUpdateUtil {
         }
     }
 
-    /**
-     * Result tracking with performance metrics
-     */
+    // Result tracking with performance metrics
     @Getter
     public static class StatusUpdateResult {
         private final List<WorkTimeTable> processedEntries;

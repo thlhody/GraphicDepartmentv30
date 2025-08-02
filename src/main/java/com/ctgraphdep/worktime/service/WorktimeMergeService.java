@@ -13,15 +13,6 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * REFACTORED WorktimeMergeService - Now uses GenericEntityWrapper for universal merge support.
- * Key Changes:
- * - Removed complex WorkTimeUniversalWrapper completely
- * - Uses GenericEntityWrapper from merge package
- * - Simplified merge logic with factory pattern
- * - Maintains same public API for backward compatibility
- * - All merge decisions now use Universal Merge Engine with consistent behavior
- */
 @Service
 public class WorktimeMergeService {
 
@@ -33,12 +24,9 @@ public class WorktimeMergeService {
     // CORE MERGE METHODS - Using GenericEntityWrapper
     // ========================================================================
 
-    /**
-     * REFACTORED: Main merge method using GenericEntityWrapper
-     */
+    // Main merge method using GenericEntityWrapper
     private WorkTimeTable mergeWorkTimeEntries(WorkTimeTable entry1, WorkTimeTable entry2) {
-        LoggerUtil.debug(this.getClass(), String.format("Universal merge: entry1=%s, entry2=%s",
-                getEntryStatusString(entry1), getEntryStatusString(entry2)));
+        LoggerUtil.debug(this.getClass(), String.format("Universal merge: entry1=%s, entry2=%s", getEntryStatusString(entry1), getEntryStatusString(entry2)));
 
         if (entry1 == null && entry2 == null) {
             return null;
@@ -136,15 +124,11 @@ public class WorktimeMergeService {
         return mergedEntries;
     }
 
-
-
     // ========================================================================
     // HELPER METHODS - Simplified without complex wrapper logic
     // ========================================================================
 
-    /**
-     * PUBLIC API - unchanged for backward compatibility
-     */
+    // PUBLIC API - unchanged for backward compatibility
     public Map<LocalDate, WorkTimeTable> createEntriesMap(List<WorkTimeTable> entries) {
         if (entries == null) {
             return new HashMap<>();
@@ -157,9 +141,7 @@ public class WorktimeMergeService {
         ));
     }
 
-    /**
-     * SIMPLIFIED: Helper method for readable status logging
-     */
+    // Helper method for readable status logging
     private String getEntryStatusString(WorkTimeTable entry) {
         if (entry == null) {
             return "null";
@@ -180,9 +162,7 @@ public class WorktimeMergeService {
         return String.format("%s[%s]", status, entry.getWorkDate());
     }
 
-    /**
-     * Log merge statistics for monitoring
-     */
+    // Log merge statistics for monitoring
     public void logMergeStatistics(List<WorkTimeTable> userEntries, List<WorkTimeTable> adminEntries, List<WorkTimeTable> mergedEntries) {
 
         LoggerUtil.info(this.getClass(), String.format("Universal Merge Statistics - Input: %d user + %d admin = %d merged",

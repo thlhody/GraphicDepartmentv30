@@ -18,6 +18,8 @@ public class WorkCode {
     public static final String WEEKEND_CODE_LONG = "Weekend Work(W)";
     public static final String AVAILABLE_PAID_DAYS = "Available Paid Days";
 
+    public static final String APPROVED = "APPROVED";
+
     public static final String WORK_DAYS = "Work Days";
     public static final String DAYS_WORKED = "Days Worked";
     public static final String DAYS_REMAINING = "Remaining";

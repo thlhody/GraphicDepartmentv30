@@ -1,8 +1,3 @@
-
-// ========================================================================
-// 3. NetworkOnlyAccessor - Anyone viewing other user data
-// ========================================================================
-
 package com.ctgraphdep.worktime.accessor;
 
 import com.ctgraphdep.fileOperations.data.CheckRegisterDataService;
@@ -74,16 +69,14 @@ public class NetworkOnlyAccessor implements WorktimeDataAccessor {
     @Override
     public List<RegisterEntry> readRegister(String username, Integer userId, int year, int month) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Reading register from network-only (no backup/cache) for %s: %d/%d", username, year, month));
+            LoggerUtil.debug(this.getClass(), String.format("Reading register from network-only (no backup/cache) for %s: %d/%d", username, year, month));
 
             // Direct network access only, no backup, no cache
             List<RegisterEntry> entries = registerDataService.readUserFromNetworkOnly(username, userId, year, month);
             return entries != null ? entries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading register from network for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading register from network for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
@@ -91,16 +84,14 @@ public class NetworkOnlyAccessor implements WorktimeDataAccessor {
     @Override
     public List<RegisterCheckEntry> readCheckRegister(String username, Integer userId, int year, int month) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Reading check register from network-only (no backup/cache) for %s: %d/%d", username, year, month));
+            LoggerUtil.debug(this.getClass(), String.format("Reading check register from network-only (no backup/cache) for %s: %d/%d", username, year, month));
 
             // Direct network access only, no backup, no cache
             List<RegisterCheckEntry> entries = checkRegisterDataService.readUserCheckRegisterFromNetworkOnly(username, userId, year, month);
             return entries != null ? entries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading check register from network for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading check register from network for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
@@ -108,15 +99,13 @@ public class NetworkOnlyAccessor implements WorktimeDataAccessor {
     @Override
     public TimeOffTracker readTimeOffTracker(String username, Integer userId, int year) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Reading time off from network-only (no backup/cache) for %s: %d", username, year));
+            LoggerUtil.debug(this.getClass(), String.format("Reading time off from network-only (no backup/cache) for %s: %d", username, year));
 
             // Direct network access only, no backup, no cache
             return timeOffDataService.readTrackerFromNetworkReadOnly(username, userId, year);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading time off from network for %s - %d: %s", username, year, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading time off from network for %s - %d: %s", username, year, e.getMessage()), e);
             return null;
         }
     }

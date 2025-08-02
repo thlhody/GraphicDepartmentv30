@@ -345,10 +345,15 @@ public class UserTimeManagementController extends BaseController {
                     }
                 }
             }
-            // TODO: Future timeoff field editing will be implemented here
-            // For now, timeoff editing is handled via separate form (AddTimeOffCommand)
-            // and admin operations (AdminUpdateCommand)
-            case "timeoff" -> OperationResult.failure("Timeoff field editing not yet implemented for users", "FIELD_UPDATE");
+            case "timeoff" -> {
+                if (value == null || value.trim().isEmpty()) {
+                    // REMOVAL: Use existing service method
+                    yield worktimeOperationService.removeUserTimeOff(username, userId, workDate);
+                } else {
+                    // ADDITION: Block direct addition
+                    yield OperationResult.failure("Use the Time Off Request form to add time off", "FIELD_UPDATE");
+                }
+            }
             default -> OperationResult.failure("Unknown field type: " + field, "FIELD_UPDATE");
         };
     }

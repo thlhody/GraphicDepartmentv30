@@ -1,6 +1,5 @@
 package com.ctgraphdep.worktime.accessor;
 
-
 import com.ctgraphdep.worktime.util.OptimizedStatusUpdateUtil;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.RegisterEntry;
@@ -52,8 +51,7 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public List<WorkTimeTable> readWorktime(String username, int year, int month) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "User reading own worktime data through cache with backup for %s: %d/%d", username, year, month));
+            LoggerUtil.debug(this.getClass(), String.format("User reading own worktime data through cache with backup for %s: %d/%d", username, year, month));
 
             Integer userId = context.getUserId(username);
             if (userId == null) {
@@ -66,8 +64,7 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
             return entries != null ? entries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading own worktime data for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading own worktime data for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
@@ -75,8 +72,7 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public void writeWorktimeWithStatus(String username, List<WorkTimeTable> entries, int year, int month, String userRole) {
         try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "OPTIMIZED user writing %d worktime entries with intelligent status management for %s: %d/%d (role: %s)",
+            LoggerUtil.info(this.getClass(), String.format("OPTIMIZED user writing %d worktime entries with intelligent status management for %s: %d/%d (role: %s)",
                     entries.size(), username, year, month, userRole));
 
             Integer userId = context.getUserId(username);
@@ -92,31 +88,24 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
 
             // OPTIMIZATION: Use new optimized status update utility
             OptimizedStatusUpdateUtil.StatusUpdateResult result = OptimizedStatusUpdateUtil.updateChangedEntriesOnly(
-                    entries,
-                    existingEntries,
-                    String.format("user-write-%s-%d/%d", username, year, month)
-            );
+                    entries, existingEntries, String.format("user-write-%s-%d/%d", username, year, month));
 
             // Sort entries for consistency
             List<WorkTimeTable> processedEntries = result.getProcessedEntries();
-            processedEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate)
-                    .thenComparingInt(WorkTimeTable::getUserId));
+            processedEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate).thenComparingInt(WorkTimeTable::getUserId));
 
             // Use WorktimeCacheService: file first → cache second
-            boolean success = worktimeCacheService.saveMonthEntriesWithWriteThrough(
-                    username, userId, year, month, processedEntries);
+            boolean success = worktimeCacheService.saveMonthEntriesWithWriteThrough(username, userId, year, month, processedEntries);
 
             if (!success) {
                 throw new RuntimeException("Failed to save worktime entries with status through cache");
             }
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d user worktime entries to %d/%d for %s. %s",
+            LoggerUtil.info(this.getClass(), String.format("Successfully wrote %d user worktime entries to %d/%d for %s. %s",
                     processedEntries.size(), year, month, username, result.getPerformanceSummary()));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error writing user worktime with status for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error writing user worktime with status for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             throw new RuntimeException("Failed to write user worktime entries with status", e);
         }
     }
@@ -124,8 +113,7 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public void writeWorktimeEntryWithStatus(String username, WorkTimeTable entry, String userRole) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "OPTIMIZED user writing single worktime entry with status for %s: user %d on %s (role: %s)",
+            LoggerUtil.debug(this.getClass(), String.format("OPTIMIZED user writing single worktime entry with status for %s: user %d on %s (role: %s)",
                     username, entry.getUserId(), entry.getWorkDate(), userRole));
 
             LocalDate date = entry.getWorkDate();
@@ -141,10 +129,7 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
 
             // Use optimized status update utility
             OptimizedStatusUpdateUtil.StatusUpdateResult result = OptimizedStatusUpdateUtil.updateChangedEntriesOnly(
-                    singleEntryList,
-                    existingEntries,
-                    String.format("user-single-write-%s-%s", username, date)
-            );
+                    singleEntryList, existingEntries, String.format("user-single-write-%s-%s", username, date));
 
             // Get the processed entry
             WorkTimeTable processedEntry = result.getProcessedEntries().get(0);
@@ -158,22 +143,15 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
             // Write all entries with optimized status management
             writeWorktimeWithStatus(username, existingEntries, year, month, userRole);
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Successfully wrote single user entry for %s: user %d on %s. %s",
+            LoggerUtil.debug(this.getClass(), String.format("Successfully wrote single user entry for %s: user %d on %s. %s",
                     username, entry.getUserId(), date, result.getPerformanceSummary()));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error writing single user entry with status for %s: user %d on %s: %s",
+            LoggerUtil.error(this.getClass(), String.format("Error writing single user entry with status for %s: user %d on %s: %s",
                     username, entry.getUserId(), entry.getWorkDate(), e.getMessage()), e);
             throw new RuntimeException("Failed to write user worktime entry with status", e);
         }
     }
-
-    // ========================================================================
-    // INTELLIGENT STATUS DETERMINATION LOGIC
-    // ========================================================================
-
 
     // ========================================================================
     // REGISTER OPERATIONS - CACHE WITH BACKUP
@@ -182,16 +160,14 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public List<RegisterEntry> readRegister(String username, Integer userId, int year, int month) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "User reading own register data through cache with backup for %s: %d/%d", username, year, month));
+            LoggerUtil.debug(this.getClass(), String.format("User reading own register data through cache with backup for %s: %d/%d", username, year, month));
 
             // Use RegisterCacheService: cache → file fallback with backup
             List<RegisterEntry> entries = registerCacheService.getMonthEntries(username, userId, year, month);
             return entries != null ? entries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading own register data for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading own register data for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
@@ -199,16 +175,14 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public List<RegisterCheckEntry> readCheckRegister(String username, Integer userId, int year, int month) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "User reading own check register data through cache with backup for %s: %d/%d", username, year, month));
+            LoggerUtil.debug(this.getClass(), String.format("User reading own check register data through cache with backup for %s: %d/%d", username, year, month));
 
             // Use RegisterCheckCacheService: cache → file fallback with backup
             List<RegisterCheckEntry> entries = registerCheckCacheService.getMonthEntries(username, userId, year, month);
             return entries != null ? entries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading own check register data for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading own check register data for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
@@ -220,26 +194,22 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public TimeOffTracker readTimeOffTracker(String username, Integer userId, int year) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "User reading own time off data through cache with backup for %s: %d", username, year));
+            LoggerUtil.debug(this.getClass(), String.format("User reading own time off data through cache with backup for %s: %d", username, year));
 
             // Use TimeOffCacheService: session load → cache get with backup
             boolean sessionLoaded = timeOffCacheService.loadUserSession(username, userId, year);
             if (!sessionLoaded) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "Failed to load time off session for %s - %d", username, year));
+                LoggerUtil.warn(this.getClass(), String.format("Failed to load time off session for %s - %d", username, year));
             }
 
             TimeOffTracker tracker = timeOffCacheService.getTracker(username, year);
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Retrieved own time off tracker for %s - %d: %s",
+            LoggerUtil.debug(this.getClass(), String.format("Retrieved own time off tracker for %s - %d: %s",
                     username, year, tracker != null ? "found" : "null"));
 
             return tracker;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading own time off tracker for %s - %d: %s", username, year, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading own time off tracker for %s - %d: %s", username, year, e.getMessage()), e);
             return null;
         }
     }

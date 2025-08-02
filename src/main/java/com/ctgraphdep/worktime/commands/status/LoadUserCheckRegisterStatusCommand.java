@@ -8,6 +8,7 @@ import com.ctgraphdep.worktime.accessor.NetworkOnlyAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -73,23 +74,11 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
 
     @Override
     protected OperationResult executeCommand() {
-        LoggerUtil.info(this.getClass(), String.format(
-                "Loading check register status for %s - %d/%d using NetworkOnlyAccessor", targetUsername, year, month));
+        LoggerUtil.info(this.getClass(), String.format("Loading check register status for %s - %d/%d using NetworkOnlyAccessor", targetUsername, year, month));
 
         try {
-            // FIXED: Always use NetworkOnlyAccessor for status viewing (consistent cross-user viewing)
-            WorktimeDataAccessor accessor = new NetworkOnlyAccessor(
-                    context.getWorktimeDataService(),
-                    context.getRegisterDataService(),
-                    context.getCheckRegisterDataService(),
-                    context.getTimeOffDataService()
-            );
-
-            // Load check register entries using accessor
-            List<RegisterCheckEntry> entries = accessor.readCheckRegister(targetUsername, targetUserId, year, month);
-            if (entries == null) {
-                entries = new ArrayList<>();
-            }
+            // Always use NetworkOnlyAccessor for status viewing (consistent cross-user viewing)
+            List<RegisterCheckEntry> entries = getRegisterCheckEntries();
 
             // Apply filters
             List<RegisterCheckEntry> filteredEntries = applyFilters(entries);
@@ -100,33 +89,42 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
             // Extract unique designers for filter dropdown
             List<String> uniqueDesigners = extractUniqueDesigners(entries);
 
-            CheckRegisterStatusData statusData = new CheckRegisterStatusData(
-                    filteredEntries, summary, uniqueDesigners);
+            CheckRegisterStatusData statusData = new CheckRegisterStatusData(filteredEntries, summary, uniqueDesigners);
 
-            String message = String.format("Loaded %d check register entries for %s (filtered from %d)",
-                    filteredEntries.size(), targetUsername, entries.size());
+            String message = String.format("Loaded %d check register entries for %s (filtered from %d)", filteredEntries.size(), targetUsername, entries.size());
 
             LoggerUtil.info(this.getClass(), message);
 
             return OperationResult.successWithSideEffects(message, getOperationType(), statusData, null);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading check register status for %s - %d/%d: %s", targetUsername, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error loading check register status for %s - %d/%d: %s", targetUsername, year, month, e.getMessage()), e);
 
             // Return empty data on error
-            CheckRegisterStatusData emptyData = new CheckRegisterStatusData(
-                    new ArrayList<>(), new CheckRegisterSummary(), new ArrayList<>());
+            CheckRegisterStatusData emptyData = new CheckRegisterStatusData(new ArrayList<>(), new CheckRegisterSummary(), new ArrayList<>());
 
-            return OperationResult.successWithSideEffects(
-                    String.format("No check register data available for %s - %d/%d", targetUsername, year, month),
+            return OperationResult.successWithSideEffects(String.format("No check register data available for %s - %d/%d", targetUsername, year, month),
                     getOperationType(), emptyData, null);
         }
     }
 
-    /**
-     * Apply search and filter criteria to entries
-     */
+    private @NotNull List<RegisterCheckEntry> getRegisterCheckEntries() {
+        WorktimeDataAccessor accessor = new NetworkOnlyAccessor(
+                context.getWorktimeDataService(),
+                context.getRegisterDataService(),
+                context.getCheckRegisterDataService(),
+                context.getTimeOffDataService()
+        );
+
+        // Load check register entries using accessor
+        List<RegisterCheckEntry> entries = accessor.readCheckRegister(targetUsername, targetUserId, year, month);
+        if (entries == null) {
+            entries = new ArrayList<>();
+        }
+        return entries;
+    }
+
+    // Apply search and filter criteria to entries
     private List<RegisterCheckEntry> applyFilters(List<RegisterCheckEntry> entries) {
         List<RegisterCheckEntry> filtered = new ArrayList<>(entries);
 
@@ -185,9 +183,7 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
         return filtered;
     }
 
-    /**
-     * FIXED: Calculate summary statistics for check register entries
-     */
+    // FIXED: Calculate summary statistics for check register entries
     private CheckRegisterSummary calculateSummary(List<RegisterCheckEntry> entries) {
         if (entries == null || entries.isEmpty()) {
             return new CheckRegisterSummary();
@@ -226,9 +222,7 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
                 approvalStatusCounts);
     }
 
-    /**
-     * Extract unique designer names for filter dropdown
-     */
+    // Extract unique designer names for filter dropdown
     private List<String> extractUniqueDesigners(List<RegisterCheckEntry> entries) {
         return entries.stream()
                 .map(RegisterCheckEntry::getDesignerName)
@@ -248,9 +242,7 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
         return OperationResult.OperationType.LOAD_USER_WORKTIME; // Reuse existing type
     }
 
-    /**
-     * Data container for check register status information
-     */
+    // Data container for check register status information
     @Getter
     public static class CheckRegisterStatusData {
         private final List<RegisterCheckEntry> entries;
@@ -265,9 +257,7 @@ public class LoadUserCheckRegisterStatusCommand extends WorktimeOperationCommand
         }
     }
 
-    /**
-     * FIXED: Summary statistics for check register with approvalStatusCounts Map
-     */
+    // Summary statistics for check register with approvalStatusCounts Map
     @Getter
     public static class CheckRegisterSummary {
         private final int totalEntries;

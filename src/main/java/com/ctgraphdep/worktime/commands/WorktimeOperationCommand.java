@@ -4,10 +4,8 @@ import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.utils.LoggerUtil;
 
-/**
- * Base class for worktime operation commands following the Command pattern.
- * Provides consistent structure and error handling for all worktime operations.
- */
+// Base class for worktime operation commands following the Command pattern.
+// Provides consistent structure and error handling for all worktime operations.
 public abstract class WorktimeOperationCommand<T> {
 
     protected final WorktimeOperationContext context;
@@ -17,9 +15,7 @@ public abstract class WorktimeOperationCommand<T> {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Execute the command with error handling and logging
-     */
+    // Execute the command with error handling and logging
     public final OperationResult execute() {
         try {
             LoggerUtil.info(this.getClass(), String.format("Executing command: %s", getCommandName()));
@@ -57,24 +53,16 @@ public abstract class WorktimeOperationCommand<T> {
         }
     }
 
-    /**
-     * Validate command parameters and business rules
-     */
+    // Validate command parameters and business rules
     protected abstract void validate();
 
-    /**
-     * Execute the specific command logic
-     */
+    // Execute the specific command logic
     protected abstract OperationResult executeCommand();
 
-    /**
-     * Get command name for logging
-     */
+    // Get command name for logging
     protected abstract String getCommandName();
 
-    /**
-     * Get operation type for result
-     */
+    // Get operation type for result
     protected abstract String getOperationType();
 }
 

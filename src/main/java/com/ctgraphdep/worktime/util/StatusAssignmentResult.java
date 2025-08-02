@@ -27,23 +27,17 @@ public class StatusAssignmentResult {
         this.wasProtected = wasProtected;
     }
 
-    /**
-     * Create successful status assignment result
-     */
+    // Create successful status assignment result
     public static StatusAssignmentResult success(String originalStatus, String newStatus, String message) {
         return new StatusAssignmentResult(true, originalStatus, newStatus, message, false);
     }
 
-    /**
-     * Create protected status result (no change allowed)
-     */
+    // Create protected status result (no change allowed)
     public static StatusAssignmentResult protectedStatus(String currentStatus, String reason) {
         return new StatusAssignmentResult(false, currentStatus, currentStatus, reason, true);
     }
 
-    /**
-     * Create error result
-     */
+    // Create error result
     public static StatusAssignmentResult error(String message) {
         return new StatusAssignmentResult(false, null, null, message, false);
     }
@@ -60,9 +54,7 @@ public class StatusAssignmentResult {
     // UTILITY METHODS
     // ========================================================================
 
-    /**
-     * Check if status was actually changed
-     */
+    // Check if status was actually changed
     public boolean statusChanged() {
         if (!success) return false;
         if (originalStatus == null && newStatus == null) return false;
@@ -70,18 +62,14 @@ public class StatusAssignmentResult {
         return !originalStatus.equals(newStatus);
     }
 
-    /**
-     * Get status change description
-     */
+    // Get status change description
     public String getChangeDescription() {
         if (!success) {
             return wasProtected ? "Protected: " + message : "Error: " + message;
         }
 
         if (statusChanged()) {
-            return String.format("Changed: %s → %s",
-                    originalStatus != null ? originalStatus : "null",
-                    newStatus != null ? newStatus : "null");
+            return String.format("Changed: %s → %s", originalStatus != null ? originalStatus : "null", newStatus != null ? newStatus : "null");
         }
 
         return "No change needed";

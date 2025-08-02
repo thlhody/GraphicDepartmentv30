@@ -1,5 +1,6 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
@@ -13,11 +14,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * REFACTORED: Command to add/update temporary stop time using accessor pattern.
- * Uses UserOwnDataAccessor for user's own data operations.
- * Keeps original business logic intact.
- */
 public class AddTemporaryStopCommand extends WorktimeOperationCommand<WorkTimeTable> {
     private final String username;
     private final Integer userId;
@@ -25,7 +21,7 @@ public class AddTemporaryStopCommand extends WorktimeOperationCommand<WorkTimeTa
     private final Integer tempStopMinutes;
     private final int userScheduleHours;
 
-    public AddTemporaryStopCommand(WorktimeOperationContext context, String username, Integer userId,
+    private AddTemporaryStopCommand(WorktimeOperationContext context, String username, Integer userId,
                                    LocalDate date, Integer tempStopMinutes, int userScheduleHours) {
         super(context);
         this.username = username;
@@ -34,6 +30,32 @@ public class AddTemporaryStopCommand extends WorktimeOperationCommand<WorkTimeTa
         this.tempStopMinutes = tempStopMinutes;
         this.userScheduleHours = userScheduleHours;
     }
+
+    // Create command for user temporary stop update
+    public static AddTemporaryStopCommand forUser(WorktimeOperationContext context, String username, Integer userId, LocalDate date, Integer tempStopMinutes) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("Username required for temporary stop update");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID required for temporary stop update");
+        }
+        if (date == null) {
+            throw new IllegalArgumentException("Date required for temporary stop update");
+        }
+        if (tempStopMinutes == null || tempStopMinutes < 0) {
+            throw new IllegalArgumentException("Valid temporary stop minutes required");
+        }
+
+        Optional<User> userOpt = context.getUser(username);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("User not found: " + username);
+        }
+
+        int userScheduleHours = userOpt.get().getSchedule();
+
+        return new AddTemporaryStopCommand(context, username, userId, date, tempStopMinutes, userScheduleHours);
+    }
+
 
     @Override
     protected void validate() {
@@ -119,26 +141,19 @@ public class AddTemporaryStopCommand extends WorktimeOperationCommand<WorkTimeTa
         }
     }
 
-    /**
-     * Find entry by date and user ID - UTILITY METHOD
-     */
+    // Find entry by date and user ID - UTILITY METHOD
     private Optional<WorkTimeTable> findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
-        return entries.stream()
-                .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
+        return entries.stream().filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
                 .findFirst();
     }
 
-    /**
-     * Replace entry in list - UTILITY METHOD
-     */
+    // Replace entry in list - UTILITY METHOD
     private void replaceEntry(List<WorkTimeTable> entries, WorkTimeTable updatedEntry) {
-        entries.removeIf(entry ->
-                updatedEntry.getUserId().equals(entry.getUserId()) &&
+        entries.removeIf(entry -> updatedEntry.getUserId().equals(entry.getUserId()) &&
                         updatedEntry.getWorkDate().equals(entry.getWorkDate())
         );
         entries.add(updatedEntry);
-        entries.sort(java.util.Comparator.comparing(WorkTimeTable::getWorkDate)
-                .thenComparingInt(WorkTimeTable::getUserId));
+        entries.sort(java.util.Comparator.comparing(WorkTimeTable::getWorkDate).thenComparingInt(WorkTimeTable::getUserId));
     }
 
     @Override
@@ -148,6 +163,6 @@ public class AddTemporaryStopCommand extends WorktimeOperationCommand<WorkTimeTa
 
     @Override
     protected String getOperationType() {
-        return "ADD_TEMPORARY_STOP";
+        return OperationResult.OperationType.ADD_TEMPORARY_STOP;
     }
 }

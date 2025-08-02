@@ -31,16 +31,14 @@ public class AdminOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public List<WorkTimeTable> readWorktime(String username, int year, int month) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Admin reading own admin worktime files: %d/%d", year, month));
+            LoggerUtil.debug(this.getClass(), String.format("Admin reading own admin worktime files: %d/%d", year, month));
 
             // Read from admin local files with network fallback
             List<WorkTimeTable> entries = worktimeDataService.readAdminLocalReadOnly(year, month);
             return entries != null ? entries : new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error reading admin worktime for %d/%d: %s", year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error reading admin worktime for %d/%d: %s", year, month, e.getMessage()), e);
             return new ArrayList<>();
         }
     }
@@ -87,8 +85,7 @@ public class AdminOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public void writeWorktimeEntryWithStatus(String username, WorkTimeTable entry, String userRole) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "OPTIMIZED admin writing single worktime entry with status: user %d on %s (role: %s)",
+            LoggerUtil.debug(this.getClass(), String.format("OPTIMIZED admin writing single worktime entry with status: user %d on %s (role: %s)",
                     entry.getUserId(), entry.getWorkDate(), userRole));
 
             LocalDate date = entry.getWorkDate();
@@ -104,30 +101,23 @@ public class AdminOwnDataAccessor implements WorktimeDataAccessor {
 
             // Use optimized status update utility
             OptimizedStatusUpdateUtil.StatusUpdateResult result = OptimizedStatusUpdateUtil.updateChangedEntriesOnly(
-                    singleEntryList,
-                    existingEntries,
-                    String.format("admin-single-write-%d-%s", entry.getUserId(), date)
-            );
+                    singleEntryList, existingEntries, String.format("admin-single-write-%d-%s", entry.getUserId(), date));
 
             // Get the processed entry
             WorkTimeTable processedEntry = result.getProcessedEntries().get(0);
 
             // Replace entry in existing list
-            existingEntries.removeIf(existing ->
-                    existing.getUserId().equals(processedEntry.getUserId()) &&
-                            existing.getWorkDate().equals(date));
-            existingEntries.add(processedEntry);
+            existingEntries.removeIf(existing -> existing.getUserId().equals(processedEntry.getUserId()) &&
+                            existing.getWorkDate().equals(date));existingEntries.add(processedEntry);
 
             // Write updated entries
             writeWorktimeWithStatus(username, existingEntries, year, month, userRole);
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Successfully wrote single admin entry for user %d on %s. %s",
+            LoggerUtil.debug(this.getClass(), String.format("Successfully wrote single admin entry for user %d on %s. %s",
                     entry.getUserId(), date, result.getPerformanceSummary()));
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error writing single admin entry with status for user %d on %s: %s",
+            LoggerUtil.error(this.getClass(), String.format("Error writing single admin entry with status for user %d on %s: %s",
                     entry.getUserId(), entry.getWorkDate(), e.getMessage()), e);
             throw new RuntimeException("Failed to write admin worktime entry with status", e);
         }

@@ -23,10 +23,17 @@ public class UpdateHolidayBalanceCommand extends WorktimeOperationCommand<Intege
     private final Integer userId;
     private final Integer newBalance;
 
-    public UpdateHolidayBalanceCommand(WorktimeOperationContext context, Integer userId, Integer newBalance) {
+    private UpdateHolidayBalanceCommand(WorktimeOperationContext context, Integer userId, Integer newBalance) {
         super(context);
         this.userId = userId;
         this.newBalance = newBalance;
+    }
+
+    public static UpdateHolidayBalanceCommand forUser(WorktimeOperationContext context, Integer userId, Integer newBalance){
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID required for updating holiday balance");
+        }
+        return new UpdateHolidayBalanceCommand(context,  userId, newBalance);
     }
 
     @Override

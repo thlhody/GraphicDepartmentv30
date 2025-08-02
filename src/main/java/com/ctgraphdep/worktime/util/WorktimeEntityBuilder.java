@@ -10,20 +10,13 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * CLEANED WorktimeEntityBuilder - Pure entity manipulation, NO VALIDATION
- * All validation is handled at controller level using TimeValidationService
- * This class assumes all input data is already validated
- */
 public class WorktimeEntityBuilder {
 
     // ========================================================================
     // FACTORY METHODS - Entry Creation (CLEAN - NO VALIDATION)
     // ========================================================================
 
-    /**
-     * Create a new blank worktime entry with default values
-     */
+    // Create a new blank worktime entry with default values
     public static WorkTimeTable createNewEntry(Integer userId, LocalDate date) {
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(userId);
@@ -36,10 +29,8 @@ public class WorktimeEntityBuilder {
 
         return entry;
     }
-    /**
-     * Create a time off entry (CO/CM/SN)
-     * ASSUMES: userId, date, and timeOffType are already validated
-     */
+
+    // Create a time off entry (CO/CM/SN)
     public static WorkTimeTable createTimeOffEntry(Integer userId, LocalDate date, String timeOffType) {
         WorkTimeTable entry = createNewEntry(userId, date);
         entry.setTimeOffType(timeOffType.toUpperCase());
@@ -52,10 +43,7 @@ public class WorktimeEntityBuilder {
         return entry;
     }
 
-    /**
-     * Create admin work hours entry (admin sets specific hours)
-     * ASSUMES: All parameters are already validated
-     */
+    // Create admin work hours entry (admin sets specific hours)
     public static WorkTimeTable createAdminWorkHoursEntry(Integer userId, LocalDate date, int hours) {
         WorkTimeTable entry = createNewEntry(userId, date);
 
@@ -79,33 +67,10 @@ public class WorktimeEntityBuilder {
     }
 
     // ========================================================================
-    // UPDATE METHODS - Entry Modification (CLEAN - NO VALIDATION)
-    // ========================================================================
-
-    /**
-     * Remove time off from entry (preserves work time if exists)
-     * ASSUMES: Entry is already validated
-     */
-    public static WorkTimeTable removeTimeOff(WorkTimeTable entry) {
-        String oldTimeOffType = entry.getTimeOffType();
-        entry.setTimeOffType(null);
-
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Removed %s time off for user %d on %s",
-                oldTimeOffType, entry.getUserId(), entry.getWorkDate()));
-
-        return entry;
-    }
-
-    // ========================================================================
     // TEMPORARY STOP UPDATE METHODS - Entry Modification (CLEAN - NO VALIDATION)
     // ========================================================================
 
-    /**
-     * Update temporary stop minutes with recalculation
-     * ASSUMES: Entry and tempStopMinutes are already validated
-     * Sets temporaryStopCount to 1 regardless of current value when adding/editing
-     */
+    // Update temporary stop minutes with recalculation
     public static WorkTimeTable updateTemporaryStop(WorkTimeTable entry, Integer tempStopMinutes, Integer userSchedule) {
         entry.setTemporaryStopCount(1); // Always set to 1 when user edits
         entry.setTotalTemporaryStopMinutes(tempStopMinutes);
@@ -113,18 +78,13 @@ public class WorktimeEntityBuilder {
         // Recalculate work time if both start and end times exist
         recalculateWorkTime(entry, userSchedule);
 
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Updated temporary stop for user %d on %s to %d minutes",
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Updated temporary stop for user %d on %s to %d minutes",
                 entry.getUserId(), entry.getWorkDate(), tempStopMinutes));
 
         return entry;
     }
 
-    /**
-     * Remove temporary stop (reset to 0)
-     * ASSUMES: Entry is already validated
-     * Sets both temporaryStopCount and totalTemporaryStopMinutes to 0
-     */
+    // Remove temporary stop (reset to 0)
     public static WorkTimeTable removeTemporaryStop(WorkTimeTable entry, Integer userSchedule) {
         entry.setTemporaryStopCount(0);
         entry.setTotalTemporaryStopMinutes(0);
@@ -141,14 +101,9 @@ public class WorktimeEntityBuilder {
     // SPECIAL DAY METHODS
     // ========================================================================
 
-    /**
-     * Create special day entry with work time (for admin use)
-     * Supports all special day types: SN, CO, CM, W
-     * ASSUMES: All parameters are already validated
-     */
+    // Create special day entry with work time (for admin use) Supports all special day types: SN, CO, CM, W
     public static WorkTimeTable createSpecialDayWithWorkTime(Integer userId, LocalDate date, String timeOffType, double workHours) {
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Creating %s entry with work time for user %d on %s: %.2f hours",
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Creating %s entry with work time for user %d on %s: %.2f hours",
                 timeOffType, userId, date, workHours));
 
         WorkTimeTable entry = createNewEntry(userId, date);
@@ -167,21 +122,15 @@ public class WorktimeEntityBuilder {
         // Apply special day calculation logic
         applySpecialDayWorkTimeCalculation(entry, timeOffType);
 
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Created %s work entry for user %d on %s: input=%.2f hours, processed=%d full hours",
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Created %s work entry for user %d on %s: input=%.2f hours, processed=%d full hours",
                 timeOffType, userId, date, workHours, entry.getTotalOvertimeMinutes() / 60));
 
         return entry;
     }
 
-    /**
-     * Update existing entry with special day work time
-     * Preserves entry structure while updating work time
-     * ASSUMES: All parameters are already validated
-     */
+    // Update existing entry with special day work time Preserves entry structure while updating work time
     public static WorkTimeTable updateSpecialDayWithWorkTime(WorkTimeTable entry, String timeOffType, double workHours) {
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Updating %s entry with work time for user %d on %s: %.2f hours",
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Updating %s entry with work time for user %d on %s: %.2f hours",
                 timeOffType, entry.getUserId(), entry.getWorkDate(), workHours));
 
         // Update timeOffType and sync status
@@ -202,18 +151,13 @@ public class WorktimeEntityBuilder {
         // Apply special day calculation logic
         applySpecialDayWorkTimeCalculation(entry, timeOffType);
 
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Updated %s work entry for user %d on %s: input=%.2f hours, processed=%d full hours",
-                timeOffType, entry.getUserId(), entry.getWorkDate(), workHours,
-                entry.getTotalOvertimeMinutes() / 60));
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Updated %s work entry for user %d on %s: input=%.2f hours, processed=%d full hours",
+                timeOffType, entry.getUserId(), entry.getWorkDate(), workHours, entry.getTotalOvertimeMinutes() / 60));
 
         return entry;
     }
 
-    /**
-     * Apply special day work time calculation
-     * Uses the same logic as SpecialDayOvertimeProcessor but directly on entry
-     */
+    // Apply special day work time calculation
     private static void applySpecialDayWorkTimeCalculation(WorkTimeTable entry, String timeOffType) {
         if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
             LoggerUtil.warn(WorktimeEntityBuilder.class, "Cannot calculate special day work time: missing start or end time");
@@ -237,30 +181,22 @@ public class WorktimeEntityBuilder {
         int overtimeMinutes = fullHours * 60;
         entry.setTotalOvertimeMinutes(overtimeMinutes);
 
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "%s work calculation: elapsed=%d, tempStops=%d, netWork=%d → %d full hours (%d overtime minutes)",
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("%s work calculation: elapsed=%d, tempStops=%d, netWork=%d → %d full hours (%d overtime minutes)",
                 timeOffType, totalElapsedMinutes, tempStopMinutes, netWorkMinutes, fullHours, overtimeMinutes));
     }
 
-    /**
-     * Check if an entry has a special day timeOffType that requires special processing
-     */
+    // Check if an entry has a special day timeOffType that requires special processing
     public static boolean hasSpecialDayTimeOffType(WorkTimeTable entry) {
         if (entry == null || entry.getTimeOffType() == null || entry.getTimeOffType().trim().isEmpty()) {
             return false;
         }
 
         String timeOffType = entry.getTimeOffType().trim().toUpperCase();
-        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) ||
-                WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
-                WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) ||
-                WorkCode.WEEKEND_CODE.equals(timeOffType);
+        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) || WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
+                WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) || WorkCode.WEEKEND_CODE.equals(timeOffType);
     }
 
-    /**
-     * Apply special day calculation to existing entry with start/end times
-     * Used by enhanced UpdateStartTimeCommand and UpdateEndTimeCommand
-     */
+    // Apply special day calculation to existing entry with start/end times
     public static void applySpecialDayTimeIntervalCalculation(WorkTimeTable entry) {
         if (!hasSpecialDayTimeOffType(entry)) {
             LoggerUtil.debug(WorktimeEntityBuilder.class, "Not a special day entry - skipping special calculation");
@@ -268,8 +204,7 @@ public class WorktimeEntityBuilder {
         }
 
         String timeOffType = entry.getTimeOffType();
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Applying special day time interval calculation for %s entry", timeOffType));
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Applying special day time interval calculation for %s entry", timeOffType));
 
         applySpecialDayWorkTimeCalculation(entry, timeOffType);
     }
@@ -278,9 +213,7 @@ public class WorktimeEntityBuilder {
     // PRIVATE HELPER METHODS (UNCHANGED)
     // ========================================================================
 
-    /**
-     * Reset work fields to default values
-     */
+    // Reset work fields to default values
     private static void resetWorkFields(WorkTimeTable entry) {
         entry.setDayStartTime(null);
         entry.setDayEndTime(null);
@@ -291,10 +224,7 @@ public class WorktimeEntityBuilder {
         entry.setLunchBreakDeducted(false);
     }
 
-    /**
-     * Recalculate work time based on start/end times and entry type
-     * MODIFIED: Now accepts user schedule parameter
-     */
+    // Recalculate work time based on start/end times and entry type
     public static void recalculateWorkTime(WorkTimeTable entry, int userScheduleHours) {
         if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
             resetWorkFields(entry);
@@ -314,9 +244,7 @@ public class WorktimeEntityBuilder {
         }
     }
 
-    /**
-     * Calculate work time for SN (holiday) entries
-     */
+    // Calculate work time for SN (holiday) entries
     private static void recalculateSNWorkTime(WorkTimeTable entry, int totalElapsedMinutes) {
         // Account for temporary stops
         int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ?
@@ -337,10 +265,7 @@ public class WorktimeEntityBuilder {
                 totalElapsedMinutes, tempStopMinutes, netWorkMinutes, fullHours, overtimeMinutes));
     }
 
-    /**
-     * Calculate work time for regular entries using proven CalculateWorkHoursUtil
-     * REFACTORED: Now uses the same calculation logic as the rest of the application
-     */
+    // Calculate work time for regular entries using proven CalculateWorkHoursUtil
     private static void recalculateRegularWorkTime(WorkTimeTable entry, int totalElapsedMinutes, int userScheduleHours) {
         // 1. Calculate net work minutes (elapsed - temp stops)
         int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ?
@@ -357,7 +282,6 @@ public class WorktimeEntityBuilder {
 
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
                 "Regular work calculation using CalculateWorkHoursUtil: elapsed=%d, tempStops=%d, netWork=%d, schedule=%dh → regular=%d, overtime=%d, lunch=%s",
-                totalElapsedMinutes, tempStopMinutes, netWorkMinutes, userScheduleHours,
-                result.getProcessedMinutes(), result.getOvertimeMinutes(), result.isLunchDeducted()));
+                totalElapsedMinutes, tempStopMinutes, netWorkMinutes, userScheduleHours, result.getProcessedMinutes(), result.getOvertimeMinutes(), result.isLunchDeducted()));
     }
 }

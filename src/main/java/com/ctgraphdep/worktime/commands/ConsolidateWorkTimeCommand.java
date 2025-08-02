@@ -16,22 +16,28 @@ import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * REFACTORED: Consolidate worktime command using accessor pattern.
- * Uses AdminOwnDataAccessor for admin file operations and NetworkOnlyAccessor for user data.
- * Keeps original Universal Merge business logic intact.
- * Flow: user NETWORK files + local admin → admin GENERAL file using Universal Merge
- */
 public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<String, Object>> {
     private final WorktimeMergeService worktimeMergeService;
     private final int year;
     private final int month;
 
-    public ConsolidateWorkTimeCommand(WorktimeOperationContext context, WorktimeMergeService worktimeMergeService, int year, int month) {
+    private ConsolidateWorkTimeCommand(WorktimeOperationContext context, WorktimeMergeService worktimeMergeService, int year, int month) {
         super(context);
         this.worktimeMergeService = worktimeMergeService;
         this.year = year;
         this.month = month;
+    }
+
+    // FACTORY METHOD: Create command for worktime consolidation
+    public static ConsolidateWorkTimeCommand forPeriod(WorktimeOperationContext context, WorktimeMergeService worktimeMergeService, int year, int month) {
+        if (year < 2000 || year > 2100) {
+            throw new IllegalArgumentException("Invalid year for consolidation: " + year);
+        }
+        if (month < 1 || month > 12) {
+            throw new IllegalArgumentException("Invalid month for consolidation: " + month);
+        }
+
+        return new ConsolidateWorkTimeCommand(context, worktimeMergeService, year, month);
     }
 
     @Override
@@ -121,9 +127,7 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
         }
     }
 
-    /**
-     * Calculate consolidation result using Universal Merge Engine with accessor pattern - ORIGINAL LOGIC
-     */
+    // Calculate consolidation result using Universal Merge Engine with accessor pattern - ORIGINAL LOGIC
     private ConsolidationResult calculateUniversalMergeConsolidationResult(List<User> users, List<WorkTimeTable> adminLocalEntries) {
         List<WorkTimeTable> consolidatedEntries = new ArrayList<>();
         int totalMergeOperations = 0;
@@ -190,9 +194,7 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
         return new ConsolidationResult(consolidatedEntries, totalMergeOperations, mergeStatistics);
     }
 
-    /**
-     * Process individual user using Universal Merge Engine with NetworkOnlyAccessor - ORIGINAL LOGIC
-     */
+    // Process individual user using Universal Merge Engine with NetworkOnlyAccessor - ORIGINAL LOGIC
     private UserConsolidationResult processUserForUniversalMergeConsolidation(User user, Map<String, WorkTimeTable> adminEntriesMap, NetworkOnlyAccessor networkAccessor) {
         String username = user.getUsername();
         Integer userId = user.getUserId();
@@ -238,9 +240,7 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
         }
     }
 
-    /**
-     * Check if consolidation is up to date - ORIGINAL LOGIC
-     */
+    // Check if consolidation is up to date - ORIGINAL LOGIC
     private boolean isConsolidationUpToDate(List<WorkTimeTable> currentAdminGeneral, List<WorkTimeTable> expectedConsolidation) {
         if (currentAdminGeneral.size() != expectedConsolidation.size()) {
             return false;
@@ -255,9 +255,7 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
         return isEqual;
     }
 
-    /**
-     * Compare work time entries with Universal Status - ORIGINAL LOGIC
-     */
+    // Compare work time entries with Universal Status - ORIGINAL LOGIC
     private boolean compareWorkTimeEntriesWithUniversalStatus(List<WorkTimeTable> list1, List<WorkTimeTable> list2) {
         if (list1.size() != list2.size()) {
             return false;
@@ -283,9 +281,7 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
         return true;
     }
 
-    /**
-     * Create a map of entries by user-date key for efficient lookup - ORIGINAL LOGIC
-     */
+    // Create a map of entries by user-date key for efficient lookup - ORIGINAL LOGIC
     private Map<String, WorkTimeTable> createEntriesMap(List<WorkTimeTable> entries) {
         if (entries == null) {
             return new HashMap<>();
@@ -295,9 +291,7 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
                 entry -> entry, (existing, replacement) -> replacement));
     }
 
-    /**
-     * Create unique key for entry lookup - ORIGINAL LOGIC
-     */
+    // Create unique key for entry lookup - ORIGINAL LOGIC
     private String createEntryKey(Integer userId, LocalDate date) {
         return userId + "_" + date.toString();
     }
@@ -309,22 +303,18 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
 
     @Override
     protected String getOperationType() {
-        return "CONSOLIDATE_WORKTIME";
+        return OperationResult.OperationType.CONSOLIDATE_WORKTIME;
     }
 
     // ========================================================================
     // HELPER CLASSES FOR TRACKING CONSOLIDATION RESULTS - ORIGINAL LOGIC
     // ========================================================================
 
-    /**
-     * Result of overall consolidation operation
-     */
+    // Result of overall consolidation operation
     private record ConsolidationResult(List<WorkTimeTable> consolidatedEntries, int totalMergeOperations, Map<String, Integer> mergeStatistics) {
     }
 
-    /**
-     * Result of processing single user for consolidation
-     */
+    // Result of processing single user for consolidation
     private record UserConsolidationResult(List<WorkTimeTable> entries, int mergeOperations, int userEntriesCount,
                                            int skippedInProcessEntries, boolean hadOldStatuses) {
     }

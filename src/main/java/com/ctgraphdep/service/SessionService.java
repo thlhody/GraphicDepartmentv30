@@ -327,11 +327,11 @@ public class SessionService {
 
     /**
      * Finds a specific worktime entry for a date
+     *    // Use getDataAccessor(username).readWorktime() instead
      */
     private WorkTimeTable findEntryForDate(String username, LocalDate date) {
         try {
-            List<WorkTimeTable> entries = worktimeOperationContext.loadUserWorktime(username, date.getYear(), date.getMonthValue());
-
+            List<WorkTimeTable> entries = worktimeOperationContext.getDataAccessor(username).readWorktime(username,date.getYear(), date.getMonthValue());
             return entries.stream()
                     .filter(e -> e.getWorkDate() != null && e.getWorkDate().equals(date))
                     .findFirst()
