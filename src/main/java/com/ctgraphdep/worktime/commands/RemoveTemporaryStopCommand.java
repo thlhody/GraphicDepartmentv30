@@ -4,6 +4,8 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
+import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
+import com.ctgraphdep.worktime.util.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 
@@ -102,6 +104,15 @@ public class RemoveTemporaryStopCommand extends WorktimeOperationCommand<WorkTim
 
             // PRESERVED: Remove temporary stop using WorktimeEntityBuilder (SAME BUSINESS LOGIC)
             WorkTimeTable updatedEntry = WorktimeEntityBuilder.removeTemporaryStop(entry, userScheduleHours);
+
+            StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(updatedEntry, context.getCurrentUser().getRole(), getOperationType());
+
+            if (!statusResult.isSuccess()) {
+                LoggerUtil.warn(this.getClass(), String.format("Status assignment failed: %s", statusResult.getMessage()));
+                return OperationResult.failure("Cannot remove temporary stop: " + statusResult.getMessage(), getOperationType());
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Status assigned: %s → %s", statusResult.getOriginalStatus(), statusResult.getNewStatus()));
 
             LoggerUtil.info(this.getClass(), String.format(
                     "Updated entry: tempStopCount=%d, tempStopMinutes=%d, totalWorkedMinutes=%d",

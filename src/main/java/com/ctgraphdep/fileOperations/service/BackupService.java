@@ -26,6 +26,7 @@ import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,6 +48,8 @@ public class BackupService {
     private int backupRetentionDays;
 
     private final PathConfig pathConfig;
+    private final Set<String> syncedBackupFiles = ConcurrentHashMap.newKeySet();
+
 
     @Autowired
     public BackupService(PathConfig pathConfig) {
@@ -794,10 +797,19 @@ public class BackupService {
             long lastModified = Files.getLastModifiedTime(file).toMillis();
             long timeSinceModified = System.currentTimeMillis() - lastModified;
 
-            if (timeSinceModified < 1000) { // Less than 1 second ago
+            // ORIGINAL: Skip files modified in last 1 second
+            if (timeSinceModified < 1000) {
                 LoggerUtil.debug(this.getClass(), "File recently modified, might still be writing: " + file.getFileName());
                 return false;
             }
+
+            // NEW: Skip files older than 1 hour (only sync recent backups)
+            long oneHourInMs = 60 * 60 * 1000; // 1 hour
+            if (timeSinceModified > oneHourInMs) {
+                LoggerUtil.debug(this.getClass(), "Skipping old backup file (>1 hour): " + file.getFileName());
+                return false;
+            }
+
             return true;
         } catch (IOException e) {
             LoggerUtil.debug(this.getClass(), "Cannot check file modification time: " + file.getFileName());
@@ -844,8 +856,33 @@ public class BackupService {
      */
     private boolean syncSingleFile(Path sourceFile, Path localBackupDir, Path networkBackupDir) {
         try {
+            String fileName = sourceFile.getFileName().toString();
+
+            // Check if this backup file was already synced in this session
+            if (syncedBackupFiles.contains(fileName)) {
+                LoggerUtil.debug(this.getClass(), "Skipping already synced backup file: " + fileName);
+                return true; // Return true to avoid counting as failed
+            }
+
             Path relativePath = localBackupDir.relativize(sourceFile);
             Path targetPath = networkBackupDir.resolve(relativePath);
+
+            // Check if target already exists and is newer or same age
+            if (Files.exists(targetPath)) {
+                try {
+                    long sourceModified = Files.getLastModifiedTime(sourceFile).toMillis();
+                    long targetModified = Files.getLastModifiedTime(targetPath).toMillis();
+
+                    // If network file is same or newer, skip sync
+                    if (targetModified >= sourceModified) {
+                        LoggerUtil.debug(this.getClass(), "Skipping sync - network backup is up to date: " + fileName);
+                        syncedBackupFiles.add(fileName); // Mark as synced to avoid future attempts
+                        return true;
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.debug(this.getClass(), "Could not compare file times, proceeding with sync: " + fileName);
+                }
+            }
 
             // Ensure target directory exists
             Files.createDirectories(targetPath.getParent());
@@ -853,7 +890,10 @@ public class BackupService {
             // Perform the copy with replace existing
             Files.copy(sourceFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            LoggerUtil.debug(this.getClass(), "Successfully synced backup file: " + sourceFile.getFileName());
+            // Mark this file as synced
+            syncedBackupFiles.add(fileName);
+
+            LoggerUtil.debug(this.getClass(), "Successfully synced NEW backup file: " + fileName);
             return true;
 
         } catch (IOException e) {
@@ -939,5 +979,18 @@ public class BackupService {
         }
 
         return diag.toString();
+    }
+
+    // Add method to clear synced files cache (call this on app shutdown or daily reset)
+    public void clearSyncedBackupFilesCache() {
+        int count = syncedBackupFiles.size();
+        syncedBackupFiles.clear();
+        LoggerUtil.info(this.getClass(), String.format("Cleared synced backup files cache (%d files)", count));
+    }
+
+    // Add method to clear cache for specific user (optional)
+    public void clearSyncedBackupFilesForUser(String username) {
+        syncedBackupFiles.removeIf(fileName -> fileName.contains("_" + username + "_"));
+        LoggerUtil.debug(this.getClass(), "Cleared synced backup cache for user: " + username);
     }
 }

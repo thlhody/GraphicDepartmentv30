@@ -291,10 +291,8 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
             return new HashMap<>();
         }
 
-        return entries.stream().collect(Collectors.toMap(
-                entry -> createEntryKey(entry.getUserId(), entry.getWorkDate()),
-                entry -> entry,
-                (existing, replacement) -> replacement));
+        return entries.stream().collect(Collectors.toMap(entry -> createEntryKey(entry.getUserId(), entry.getWorkDate()),
+                entry -> entry, (existing, replacement) -> replacement));
     }
 
     /**
@@ -321,8 +319,7 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
     /**
      * Result of overall consolidation operation
      */
-    private record ConsolidationResult(List<WorkTimeTable> consolidatedEntries, int totalMergeOperations,
-                                       Map<String, Integer> mergeStatistics) {
+    private record ConsolidationResult(List<WorkTimeTable> consolidatedEntries, int totalMergeOperations, Map<String, Integer> mergeStatistics) {
     }
 
     /**

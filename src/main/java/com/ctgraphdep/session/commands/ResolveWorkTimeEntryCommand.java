@@ -33,28 +33,32 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
             // Get standardized time values
             GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
+            LocalDate today = timeValues.getCurrentDate();
 
-            // Use explicit end time if provided, otherwise use standardized current time
-            LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
+            // FIXED LOGIC: Check if we're trying to resolve today's active session
+            if (entryDate.equals(today)) {
+                WorkUsersSessionsStates currentSession = ctx.getCurrentSession(username, userId);
 
-            // Get current session for this date
-            WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
-
-            // Validate if this session is for the same date we're resolving
-            if (session == null || session.getDayStartTime() == null ||
-                    !session.getDayStartTime().toLocalDate().equals(entryDate)) {
-                warn(String.format("No matching session found for resolution date %s", entryDate));
-                return false;
+                // If there's an active session for today, don't allow resolution
+                if (currentSession != null && currentSession.getDayStartTime() != null &&
+                        currentSession.getDayStartTime().toLocalDate().equals(today)) {
+                    warn(String.format("Cannot resolve active session for current day (%s)", entryDate));
+                    return false;
+                }
             }
 
-            // ENHANCED: Update worktime entry with special day detection
-            updateWorktimeEntryWithSpecialDayLogic(session, ctx);
+            // Determine end time for resolution
+            LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
+
+            // Use the base class session-independent resolution method
+            resolveWorktimeEntryDirectly(entryDate, endTime, ctx);
 
             info(String.format("Successfully resolved work time entry for user %s on %s", username, entryDate));
             return true;
 
         }, false);
     }
+
 
     // ========================================================================
     // ABSTRACT METHOD IMPLEMENTATIONS - ResolveWorkTimeEntryCommand specific logic
@@ -95,28 +99,17 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
     protected String getCommandDescription() {
         return "resolve work time entry";
     }
-}
+    /**
+     * Override to apply resolution-specific customizations
+     */
+    @Override
+    protected void applyResolutionCustomizations(WorkTimeTable entry, LocalDateTime endTime, SessionContext context) {
+        logCustomization("resolution-specific customizations");
 
-/**
- * COMPLETE REFACTORING SUMMARY:
- * ✅ ALL 7 COMMANDS REFACTORED using BaseWorktimeUpdateSessionCommand
- * ✅ MASSIVE DUPLICATION ELIMINATION - Common logic in one place
- * ✅ ALL ORIGINAL FUNCTIONALITY PRESERVED - No loss of features
- * ✅ ENHANCED CAPABILITIES - Special day detection across all commands
- * ✅ CLEAN ARCHITECTURE - Clear separation of concerns
- * ✅ CONSISTENT PATTERNS - Same structure for all commands
- * ✅ EXTENSIBLE DESIGN - Easy to add new commands or modify logic
- * COMMANDS COMPLETED:
- * 1. ✅ StartDayCommand → Weekend detection + timeOffType preservation
- * 2. ✅ EndDayCommand → Final special day overtime calculation
- * 3. ✅ StartTemporaryStopCommand → Special day logic during temp stops
- * 4. ✅ ResumeFromTemporaryStopCommand → Special day logic on resume
- * 5. ✅ ResumePreviousSessionCommand → Special day logic on session resume
- * 6. ✅ AutoEndSessionCommand → Special day logic on auto-end
- * 7. ✅ ResolveWorkTimeEntryCommand → Special day logic on resolution
- * NEXT STEPS:
- * 1. Update SessionEntityBuilder.java (remove null assignment)
- * 2. Implement SessionSpecialDayDetector.java
- * 3. Replace existing command implementations with refactored versions
- * 4. Test all scenarios thoroughly
- */
+        // Ensure end time is set correctly
+        entry.setDayEndTime(endTime);
+
+        // Any additional resolution-specific logic can be added here
+        debug(String.format("Applied resolution end time: %s", endTime));
+    }
+}

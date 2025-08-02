@@ -1,6 +1,8 @@
 package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.fileOperations.events.BackupEventListener;
+import com.ctgraphdep.fileOperations.service.BackupService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.MonitoringStateService;
@@ -45,6 +47,8 @@ public class SessionMidnightHandler {
     private final SessionCacheService sessionCacheService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
     private final LoginMergeCacheService loginMergeCacheService; // NEW DEPENDENCY
+    private final BackupService backupService;           // For clearSyncedBackupFilesCache()
+    private final BackupEventListener backupEventListener;
 
     public SessionMidnightHandler(
             SessionCommandService commandService,
@@ -56,7 +60,7 @@ public class SessionMidnightHandler {
             AllUsersCacheService allUsersCacheService,
             SessionCacheService sessionCacheService,
             MainDefaultUserContextService mainDefaultUserContextService,
-            LoginMergeCacheService loginMergeCacheService) { // NEW PARAMETER
+            LoginMergeCacheService loginMergeCacheService, BackupService backupService, BackupEventListener backupEventListener) { // NEW PARAMETER
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.healthMonitor = healthMonitor;
@@ -67,6 +71,8 @@ public class SessionMidnightHandler {
         this.sessionCacheService = sessionCacheService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.loginMergeCacheService = loginMergeCacheService; // NEW ASSIGNMENT
+        this.backupService = backupService;
+        this.backupEventListener = backupEventListener;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -129,11 +135,30 @@ public class SessionMidnightHandler {
                     loginStatusBefore, loginStatusAfter));
             LoggerUtil.info(this.getClass(), "Next login will trigger full merge for optimal data synchronization");
 
-            // STEP 8: Reset notification system
+            // STEP 8: NEW - Clear backup sync caches for fresh daily state
+            try {
+                // Clear the "already synced files" cache in BackupService
+                backupService.clearSyncedBackupFilesCache();
+
+                // Clear the "user synced this session" cache in BackupEventListener
+                backupEventListener.clearAllBackupSyncCaches();
+
+                LoggerUtil.info(this.getClass(), "Cleared all backup sync caches for fresh daily state");
+                LoggerUtil.info(this.getClass(), "Tomorrow's first login will sync one fresh backup to network");
+
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), "Error clearing backup sync caches: " + e.getMessage());
+                // Don't fail the entire midnight reset for this
+            }
+
+
+            // STEP 9: Reset notification system
             resetNotificationSystem(username);
 
-            // STEP 9: Cancel backup task explicitly
+            // STEP 10: Cancel backup task explicitly
             notificationBackupService.cancelBackupTask(username);
+
+
 
             LoggerUtil.info(this.getClass(), "Completed comprehensive midnight reset for user " + username);
             LoggerUtil.info(this.getClass(), loginMergeCacheService.getPerformanceBenefit());

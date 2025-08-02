@@ -331,15 +331,6 @@ public class UserTimeManagementController extends BaseController {
         return switch (field.toLowerCase()) {
             case "starttime" -> worktimeOperationService.updateUserStartTime(username, userId, workDate, value);
             case "endtime" -> worktimeOperationService.updateUserEndTime(username, userId, workDate, value);
-            case "timeoff" -> {
-                if (value == null || value.trim().isEmpty()) {
-                    // Remove time off
-                    yield worktimeOperationService.removeUserTimeOff(username, userId, workDate);
-                } else {
-                    // Transform to time off or add time off
-                    yield worktimeOperationService.transformWorkToTimeOff(username, userId, workDate, value.trim().toUpperCase());
-                }
-            }
             case "tempstop" -> {
                 if (value == null || value.trim().isEmpty() || "0".equals(value.trim())) {
                     // Remove temporary stop
@@ -354,6 +345,10 @@ public class UserTimeManagementController extends BaseController {
                     }
                 }
             }
+            // TODO: Future timeoff field editing will be implemented here
+            // For now, timeoff editing is handled via separate form (AddTimeOffCommand)
+            // and admin operations (AdminUpdateCommand)
+            case "timeoff" -> OperationResult.failure("Timeoff field editing not yet implemented for users", "FIELD_UPDATE");
             default -> OperationResult.failure("Unknown field type: " + field, "FIELD_UPDATE");
         };
     }

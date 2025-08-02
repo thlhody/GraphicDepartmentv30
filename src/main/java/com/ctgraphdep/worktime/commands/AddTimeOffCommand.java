@@ -1,12 +1,13 @@
 package com.ctgraphdep.worktime.commands;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
+import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
+import com.ctgraphdep.worktime.util.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
@@ -20,9 +21,10 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * REFACTORED: Add Time Off Command using accessor pattern.
+ * REFACTORED: Add Time Off Command using accessor pattern with StatusAssignmentEngine.
  * Uses appropriate accessor based on user context (admin or user).
- * Keeps original business logic intact.
+ * NOW USES StatusAssignmentEngine for proper status assignment based on role.
+ * PRESERVED: Original business logic for holiday balance and conflict detection.
  */
 public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTable>> {
     private final String username;
@@ -75,16 +77,14 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
     }
 
     /**
-     * ENHANCED: AddTimeOffCommand with Part 2 file-based validation and cleanup
-     * This command now loads worktime files and filters out conflicting dates
+     * ENHANCED: AddTimeOffCommand with Part 2 file-based validation and StatusAssignmentEngine
      */
     @Override
     protected OperationResult executeCommand() {
         try {
-            LoggerUtil.info(this.getClass(), String.format("=== STARTING AddTimeOffCommand for %s: %d dates, type=%s ===",
-                    username, dates.size(), timeOffType));
+            LoggerUtil.info(this.getClass(), String.format("=== STARTING AddTimeOffCommand for %s: %d dates, type=%s ===", username, dates.size(), timeOffType));
 
-            boolean isAdminOperation = context.isCurrentUserAdmin() && !context.getCurrentUsername().equals(username);
+            String currentUserRole = context.getCurrentUser().getRole();
 
             // PART 2 VALIDATION: Load files and filter conflicting dates
             LoggerUtil.info(this.getClass(), "=== PART 2: File-based conflict detection and cleanup ===");
@@ -144,34 +144,40 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                     if (findEntryByDate(entries, userId, date).isEmpty()) {
                         WorkTimeTable timeOffEntry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, timeOffType);
 
-                        // Set appropriate sync status based on operation type
-                        if (isAdminOperation) {
-                            timeOffEntry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
-                            LoggerUtil.debug(this.getClass(), String.format(
-                                    "Admin created %s time off entry with ADMIN_INPUT status for %s on %s",
-                                    timeOffType, username, date));
-                        } else {
-                            timeOffEntry.setAdminSync(MergingStatusConstants.USER_INPUT);
-                            LoggerUtil.debug(this.getClass(), String.format(
-                                    "User created %s time off entry with USER_INPUT status for %s on %s",
-                                    timeOffType, username, date));
+                        // ✅ NEW: Use StatusAssignmentEngine instead of hardcoded status assignment
+                        StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
+                                timeOffEntry,
+                                currentUserRole,
+                                getOperationType()
+                        );
+
+                        if (!statusResult.isSuccess()) {
+                            LoggerUtil.warn(this.getClass(), String.format(
+                                    "Status assignment failed for %s entry on %s: %s",
+                                    timeOffType, date, statusResult.getMessage()));
+                            return OperationResult.failure("Cannot create time off entry: " + statusResult.getMessage(), getOperationType());
                         }
+
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "Status assigned for %s entry on %s: %s → %s (Role: %s)",
+                                timeOffType, date, statusResult.getOriginalStatus(), statusResult.getNewStatus(), currentUserRole));
 
                         addOrReplaceEntry(entries, timeOffEntry);
                         allCreatedEntries.add(timeOffEntry);
                         totalEntriesCreated++;
 
                         LoggerUtil.debug(this.getClass(), String.format(
-                                "Created %s time off entry for %s on %s", timeOffType, username, date));
+                                "Created %s time off entry for %s on %s with status: %s",
+                                timeOffType, username, date, timeOffEntry.getAdminSync()));
                     } else {
                         LoggerUtil.warn(this.getClass(), String.format(
                                 "Unexpected: Entry already exists for %s on %s even after filtering", username, date));
                     }
                 }
 
-                // Save updated entries
+                // Save updated entries using accessor
                 try {
-                    accessor.writeWorktimeWithStatus(username, entries, yearMonth.getYear(), yearMonth.getMonthValue(), context.getCurrentUser().getRole());
+                    accessor.writeWorktimeWithStatus(username, entries, yearMonth.getYear(), yearMonth.getMonthValue(), currentUserRole);
                     LoggerUtil.info(this.getClass(), String.format(
                             "Successfully saved entries for %s - %d/%d", username, yearMonth.getYear(), yearMonth.getMonthValue()));
                 } catch (Exception writeError) {
@@ -182,7 +188,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                 }
             }
 
-            // Handle holiday balance for CO (vacation)
+            // Handle holiday balance for CO (vacation) - PRESERVED LOGIC
             boolean balanceUpdated = false;
             if (WorkCode.TIME_OFF_CODE.equalsIgnoreCase(timeOffType) && totalEntriesCreated > 0) {
                 int actualDaysNeeded = context.calculateActualVacationDaysNeeded(validDates);
@@ -214,6 +220,10 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
         }
     }
 
+    // ========================================================================
+    // HELPER METHODS (PRESERVED BUSINESS LOGIC)
+    // ========================================================================
+
     private @NotNull String getString(int totalEntriesCreated, List<LocalDate> skippedConflicts, boolean balanceUpdated) {
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(String.format("Successfully added %d %s time off entries for %s",
@@ -234,8 +244,8 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
     }
 
     /**
-     * NEW: Filter dates against existing worktime entries (Part 2 validation)
-     * Loads actual worktime files and removes conflicting dates
+     * Filter dates against existing worktime entries (Part 2 validation)
+     * PRESERVED: Original business logic
      */
     private DateFilterResult filterDatesAgainstExistingEntries(List<LocalDate> requestedDates, String username, Integer userId) {
         LoggerUtil.info(this.getClass(), String.format("Filtering %d requested dates against existing worktime files", requestedDates.size()));
@@ -310,7 +320,6 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
             this.validDates = validDates;
             this.skippedConflicts = skippedConflicts;
         }
-
     }
 
     /**

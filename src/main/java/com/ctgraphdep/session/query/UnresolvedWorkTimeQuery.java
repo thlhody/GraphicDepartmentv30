@@ -55,7 +55,6 @@ public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>
             List<WorkTimeTable> result = unresolvedEntries.stream()
                     .filter(entry -> Objects.equals(entry.getAdminSync(), MergingStatusConstants.USER_IN_PROCESS))
                     .filter(entry -> entry.getWorkDate() != null && entry.getWorkDate().isBefore(currentDate))
-                    .filter(entry -> entry.getTimeOffType() == null)
                     .filter(entry -> entry.getDayStartTime() != null && entry.getDayEndTime() == null)
                     .sorted(Comparator.comparing(WorkTimeTable::getWorkDate).reversed())
                     .collect(Collectors.toList());

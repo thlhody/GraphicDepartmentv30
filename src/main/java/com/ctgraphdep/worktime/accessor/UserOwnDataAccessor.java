@@ -1,12 +1,7 @@
-
-// ========================================================================
-// 2. UserOwnDataAccessor - User accessing own data through cache
-// ========================================================================
-
 package com.ctgraphdep.worktime.accessor;
 
-import com.ctgraphdep.config.SecurityConstants;
-import com.ctgraphdep.merge.constants.MergingStatusConstants;
+
+import com.ctgraphdep.worktime.util.OptimizedStatusUpdateUtil;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.TimeOffTracker;
@@ -78,11 +73,10 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     }
 
     @Override
-    public void writeWorktimeWithStatus(String username, List<WorkTimeTable> entries,
-                                        int year, int month, String userRole) {
+    public void writeWorktimeWithStatus(String username, List<WorkTimeTable> entries, int year, int month, String userRole) {
         try {
             LoggerUtil.info(this.getClass(), String.format(
-                    "User writing %d worktime entries with intelligent status management for %s: %d/%d (role: %s)",
+                    "OPTIMIZED user writing %d worktime entries with intelligent status management for %s: %d/%d (role: %s)",
                     entries.size(), username, year, month, userRole));
 
             Integer userId = context.getUserId(username);
@@ -90,29 +84,21 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
                 throw new IllegalArgumentException("User ID not found for " + username);
             }
 
-            // INTELLIGENT STATUS MANAGEMENT: Determine status for each entry
-            List<WorkTimeTable> processedEntries = new ArrayList<>();
-
-            for (WorkTimeTable entry : entries) {
-                WorkTimeTable processedEntry = cloneEntry(entry);
-
-                // Find existing entry to determine appropriate status
-                WorkTimeTable existingEntry = findExistingEntry(username, userId,
-                        processedEntry.getWorkDate(), year, month);
-
-                // Apply intelligent status determination
-                String appropriateStatus = determineAppropriateStatus(existingEntry, userRole);
-                processedEntry.setAdminSync(appropriateStatus);
-
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Set status '%s' for user %d on %s (existing: %s, role: %s)",
-                        appropriateStatus, processedEntry.getUserId(), processedEntry.getWorkDate(),
-                        existingEntry != null ? "exists" : "new", userRole));
-
-                processedEntries.add(processedEntry);
+            // OPTIMIZATION: Load existing entries ONCE for comparison
+            List<WorkTimeTable> existingEntries = worktimeCacheService.getMonthEntriesWithFallback(username, userId, year, month);
+            if (existingEntries == null) {
+                existingEntries = new ArrayList<>();
             }
 
+            // OPTIMIZATION: Use new optimized status update utility
+            OptimizedStatusUpdateUtil.StatusUpdateResult result = OptimizedStatusUpdateUtil.updateChangedEntriesOnly(
+                    entries,
+                    existingEntries,
+                    String.format("user-write-%s-%d/%d", username, year, month)
+            );
+
             // Sort entries for consistency
+            List<WorkTimeTable> processedEntries = result.getProcessedEntries();
             processedEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate)
                     .thenComparingInt(WorkTimeTable::getUserId));
 
@@ -125,8 +111,8 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
             }
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d user worktime entries with intelligent status to %d/%d for %s",
-                    processedEntries.size(), year, month, username));
+                    "Successfully wrote %d user worktime entries to %d/%d for %s. %s",
+                    processedEntries.size(), year, month, username, result.getPerformanceSummary()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
@@ -139,30 +125,42 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     public void writeWorktimeEntryWithStatus(String username, WorkTimeTable entry, String userRole) {
         try {
             LoggerUtil.debug(this.getClass(), String.format(
-                    "User writing single worktime entry with status for %s: user %d on %s (role: %s)",
+                    "OPTIMIZED user writing single worktime entry with status for %s: user %d on %s (role: %s)",
                     username, entry.getUserId(), entry.getWorkDate(), userRole));
 
             LocalDate date = entry.getWorkDate();
             int year = date.getYear();
             int month = date.getMonthValue();
 
-            // Load existing entries
+            // OPTIMIZATION: Load existing entries for the month
             List<WorkTimeTable> existingEntries = readWorktime(username, year, month);
 
-            // Remove existing entry for same user/date if any
+            // Create single-entry list for processing
+            List<WorkTimeTable> singleEntryList = new ArrayList<>();
+            singleEntryList.add(entry);
+
+            // Use optimized status update utility
+            OptimizedStatusUpdateUtil.StatusUpdateResult result = OptimizedStatusUpdateUtil.updateChangedEntriesOnly(
+                    singleEntryList,
+                    existingEntries,
+                    String.format("user-single-write-%s-%s", username, date)
+            );
+
+            // Get the processed entry
+            WorkTimeTable processedEntry = result.getProcessedEntries().get(0);
+
+            // Replace entry in existing list
             existingEntries.removeIf(existing ->
-                    existing.getUserId().equals(entry.getUserId()) &&
+                    existing.getUserId().equals(processedEntry.getUserId()) &&
                             existing.getWorkDate().equals(date));
+            existingEntries.add(processedEntry);
 
-            // Add new entry
-            existingEntries.add(entry);
-
-            // Write all entries with status management
+            // Write all entries with optimized status management
             writeWorktimeWithStatus(username, existingEntries, year, month, userRole);
 
             LoggerUtil.debug(this.getClass(), String.format(
-                    "Successfully wrote single user entry with intelligent status for %s: user %d on %s",
-                    username, entry.getUserId(), date));
+                    "Successfully wrote single user entry for %s: user %d on %s. %s",
+                    username, entry.getUserId(), date, result.getPerformanceSummary()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
@@ -176,85 +174,6 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     // INTELLIGENT STATUS DETERMINATION LOGIC
     // ========================================================================
 
-    /**
-     * MOVED FROM SERVICE: Determine appropriate status when saving entries.
-     * Same logic as WorktimeOperationService.determineAppropriateStatus() but now in accessor.
-     * Status Transition Rules:
-     * - If no existing entry → use base input status (USER_INPUT, ADMIN_INPUT, TEAM_INPUT)
-     * - If entry status null/empty → use base input status
-     * - If entry status is modifiable → create timestamped edit status
-     * - If entry status is final → throw exception (cannot modify)
-     */
-    private String determineAppropriateStatus(WorkTimeTable existingEntry, String userRole) {
-        // If no existing entry → use base input status
-        if (existingEntry == null) {
-            return getBaseInputStatusForRole(userRole);
-        }
-
-        // Get the existing entry's current status
-        String currentStatus = existingEntry.getAdminSync();
-
-        // Handle null or empty status as if entry doesn't exist
-        if (currentStatus == null || currentStatus.trim().isEmpty()) {
-            return getBaseInputStatusForRole(userRole);
-        }
-
-        // Check if existing entry can be modified
-        if (MergingStatusConstants.isFinalStatus(currentStatus)) {
-            String errorMsg = String.format("Cannot modify entry with final status: %s (user: %d, date: %s)",
-                    currentStatus, existingEntry.getUserId(), existingEntry.getWorkDate());
-            LoggerUtil.error(this.getClass(), errorMsg);
-            throw new IllegalStateException(errorMsg);
-        }
-
-        // For all modifiable statuses → create timestamped edit status
-        return getEditedStatusForRole(userRole);
-    }
-
-    /**
-     * Get base input status for role (new entries)
-     */
-    private String getBaseInputStatusForRole(String userRole) {
-        return switch(userRole.toUpperCase()) {
-            case SecurityConstants.ROLE_ADMIN -> MergingStatusConstants.ADMIN_INPUT;
-            case SecurityConstants.ROLE_TL_CHECKING -> MergingStatusConstants.TEAM_INPUT;
-            default -> MergingStatusConstants.USER_INPUT;
-        };
-    }
-
-    /**
-     * Get timestamped edit status for role (existing entries)
-     */
-    private String getEditedStatusForRole(String userRole) {
-        return switch(userRole.toUpperCase()) {
-            case SecurityConstants.ROLE_ADMIN -> MergingStatusConstants.createAdminEditedStatus();
-            case SecurityConstants.ROLE_TL_CHECKING -> MergingStatusConstants.createTeamEditedStatus();
-            default -> MergingStatusConstants.createUserEditedStatus();
-        };
-    }
-
-    /**
-     * Find existing entry for status determination
-     */
-    private WorkTimeTable findExistingEntry(String username, Integer userId, LocalDate date, int year, int month) {
-        try {
-            List<WorkTimeTable> existingEntries = readWorktime(username, year, month);
-
-            if (existingEntries == null) {
-                return null;
-            }
-
-            return existingEntries.stream()
-                    .filter(entry -> entry.getWorkDate().equals(date) && userId.equals(entry.getUserId()))
-                    .findFirst()
-                    .orElse(null);
-
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Could not find existing entry for %s on %s: %s", username, date, e.getMessage()));
-            return null;
-        }
-    }
 
     // ========================================================================
     // REGISTER OPERATIONS - CACHE WITH BACKUP
@@ -333,27 +252,5 @@ public class UserOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public boolean supportsWrite() {
         return true;
-    }
-
-    /**
-     * Clone entry to avoid modifying the original
-     */
-    private WorkTimeTable cloneEntry(WorkTimeTable original) {
-        WorkTimeTable clone = new WorkTimeTable();
-
-        // Copy all fields
-        clone.setUserId(original.getUserId());
-        clone.setWorkDate(original.getWorkDate());
-        clone.setDayStartTime(original.getDayStartTime());
-        clone.setDayEndTime(original.getDayEndTime());
-        clone.setTotalWorkedMinutes(original.getTotalWorkedMinutes());
-        clone.setTotalOvertimeMinutes(original.getTotalOvertimeMinutes());
-        clone.setTotalTemporaryStopMinutes(original.getTotalTemporaryStopMinutes());
-        clone.setTemporaryStopCount(original.getTemporaryStopCount());
-        clone.setLunchBreakDeducted(original.isLunchBreakDeducted());
-        clone.setTimeOffType(original.getTimeOffType());
-        clone.setAdminSync(original.getAdminSync()); // Will be overridden with admin status
-
-        return clone;
     }
 }

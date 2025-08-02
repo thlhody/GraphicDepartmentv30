@@ -1,7 +1,6 @@
 package com.ctgraphdep.worktime.util;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
@@ -29,13 +28,11 @@ public class WorktimeEntityBuilder {
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(userId);
         entry.setWorkDate(date);
-        entry.setAdminSync(MergingStatusConstants.USER_INPUT); // ← CHANGED: Use string directly
 
         // Initialize with safe defaults
         resetWorkFields(entry);
 
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Created new worktime entry for user %d on %s", userId, date));
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Created new worktime entry for user %d on %s", userId, date));
 
         return entry;
     }
@@ -61,7 +58,6 @@ public class WorktimeEntityBuilder {
      */
     public static WorkTimeTable createAdminWorkHoursEntry(Integer userId, LocalDate date, int hours) {
         WorkTimeTable entry = createNewEntry(userId, date);
-        entry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
 
         // Calculate times based on hours
         LocalDateTime startTime = date.atTime(WorkCode.START_HOUR, 0);
@@ -87,31 +83,12 @@ public class WorktimeEntityBuilder {
     // ========================================================================
 
     /**
-     * Add time off to entry (clears work time)
-     * ASSUMES: Entry and timeOffType are already validated
-     */
-    public static WorkTimeTable addTimeOff(WorkTimeTable entry, String timeOffType) {
-        entry.setTimeOffType(timeOffType.toUpperCase());
-        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-        // Clear work time when setting time off
-        resetWorkFields(entry);
-
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Added %s time off for user %d on %s",
-                timeOffType, entry.getUserId(), entry.getWorkDate()));
-
-        return entry;
-    }
-
-    /**
      * Remove time off from entry (preserves work time if exists)
      * ASSUMES: Entry is already validated
      */
     public static WorkTimeTable removeTimeOff(WorkTimeTable entry) {
         String oldTimeOffType = entry.getTimeOffType();
         entry.setTimeOffType(null);
-        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
 
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
                 "Removed %s time off for user %d on %s",
@@ -119,38 +96,6 @@ public class WorktimeEntityBuilder {
 
         return entry;
     }
-
-    /**
-     * Transform work entry to time off (atomic operation)
-     * ASSUMES: All parameters are already validated
-     */
-    public static WorkTimeTable transformWorkToTimeOff(WorkTimeTable entry, String timeOffType) {
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Transforming work entry to %s for user %d on %s",
-                timeOffType, entry.getUserId(), entry.getWorkDate()));
-
-        return addTimeOff(entry, timeOffType);
-    }
-
-    /**
-     * Transform time off entry to work entry
-     * ASSUMES: All parameters are already validated
-     */
-    public static WorkTimeTable transformTimeOffToWork(WorkTimeTable entry, LocalDateTime startTime, LocalDateTime endTime, int userSchedule) {
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Transforming %s time off to work entry for user %d on %s",
-                entry.getTimeOffType(), entry.getUserId(), entry.getWorkDate()));
-
-        entry.setTimeOffType(null);
-        entry.setDayStartTime(startTime);
-        entry.setDayEndTime(endTime);
-        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-        recalculateWorkTime(entry,userSchedule);
-
-        return entry;
-    }
-
 
     // ========================================================================
     // TEMPORARY STOP UPDATE METHODS - Entry Modification (CLEAN - NO VALIDATION)
@@ -164,7 +109,6 @@ public class WorktimeEntityBuilder {
     public static WorkTimeTable updateTemporaryStop(WorkTimeTable entry, Integer tempStopMinutes, Integer userSchedule) {
         entry.setTemporaryStopCount(1); // Always set to 1 when user edits
         entry.setTotalTemporaryStopMinutes(tempStopMinutes);
-        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
 
         // Recalculate work time if both start and end times exist
         recalculateWorkTime(entry, userSchedule);
@@ -184,14 +128,11 @@ public class WorktimeEntityBuilder {
     public static WorkTimeTable removeTemporaryStop(WorkTimeTable entry, Integer userSchedule) {
         entry.setTemporaryStopCount(0);
         entry.setTotalTemporaryStopMinutes(0);
-        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
 
         // Recalculate work time if both start and end times exist
         recalculateWorkTime(entry, userSchedule);
 
-        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Removed temporary stop for user %d on %s",
-                entry.getUserId(), entry.getWorkDate()));
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Removed temporary stop for user %d on %s", entry.getUserId(), entry.getWorkDate()));
 
         return entry;
     }
@@ -212,7 +153,6 @@ public class WorktimeEntityBuilder {
 
         WorkTimeTable entry = createNewEntry(userId, date);
         entry.setTimeOffType(timeOffType);
-        entry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
 
         // Calculate start and end times based on work hours
         LocalDateTime startTime = date.atTime(8, 0); // Default 08:00 start
@@ -246,7 +186,6 @@ public class WorktimeEntityBuilder {
 
         // Update timeOffType and sync status
         entry.setTimeOffType(timeOffType);
-        entry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
 
         // Calculate new work times
         LocalDateTime startTime = entry.getWorkDate().atTime(8, 0); // Default 08:00 start

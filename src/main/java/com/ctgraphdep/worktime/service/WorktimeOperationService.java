@@ -14,7 +14,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -147,44 +146,6 @@ public class WorktimeOperationService {
             userLock.writeLock().unlock();
         }
     }
-
-    /**
-     * Transform work to time off - let command handle everything
-     */
-    @PreAuthorize("#username == authentication.name")
-    public OperationResult transformWorkToTimeOff(String username, Integer userId, LocalDate date, String timeOffType) {
-        userLock.writeLock().lock();
-        try {
-            LoggerUtil.debug(this.getClass(), String.format("Executing work to time off transformation for %s on %s", username, date));
-
-            // SIMPLIFIED: Just execute command - no manual status handling
-            TransformWorkToTimeOffCommand command = new TransformWorkToTimeOffCommand(context, username, userId, date, timeOffType);
-            return command.execute();
-
-        } finally {
-            userLock.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Transform time off to work - let command handle everything
-     */
-    @PreAuthorize("#username == authentication.name")
-    public OperationResult transformTimeOffToWork(String username, Integer userId, LocalDate date, LocalDateTime startTime, LocalDateTime endTime) {
-        userLock.writeLock().lock();
-        try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Executing time off to work transformation for %s on %s", username, date));
-
-            // SIMPLIFIED: Just execute command - no manual status handling
-            TransformTimeOffToWorkCommand command = new TransformTimeOffToWorkCommand(context, username, userId, date, startTime, endTime);
-            return command.execute();
-
-        } finally {
-            userLock.writeLock().unlock();
-        }
-    }
-
 
     // ========================================================================
     // USER OPERATIONS - Temporary Stop Updates (REFACTORED)
@@ -621,25 +582,6 @@ public class WorktimeOperationService {
     // ========================================================================
     // ADMIN OPERATIONS - Special Day Work & Regular Updates (NEW)
     // ========================================================================
-
-    /**
-     * Handle admin special day work updates
-     */
-    @PreAuthorize("hasRole('ADMIN')")
-    public OperationResult updateAdminSpecialDayWork(Integer userId, LocalDate date, String value) {
-        adminLock.lock();
-        try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Executing admin special day work update for user %d on %s", userId, date));
-
-            // SIMPLIFIED: Just execute command - no manual status handling
-            AdminUpdateSpecialDayWithWorkCommand command = new AdminUpdateSpecialDayWithWorkCommand(context, userId, date, value);
-            return command.execute();
-
-        } finally {
-            adminLock.unlock();
-        }
-    }
 
     /**
      * Handle regular admin updates

@@ -4,6 +4,8 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
+import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
+import com.ctgraphdep.worktime.util.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 
@@ -110,8 +112,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
             // PRESERVED: Parse and set new start time
             LocalDateTime startTime = parseStartTime(newStartTime);
             entry.setDayStartTime(startTime);
-            LoggerUtil.debug(this.getClass(), String.format("Set start time on entry: %s",
-                    entry.getDayStartTime()));  // Add this debug line
+            LoggerUtil.debug(this.getClass(), String.format("Set start time on entry: %s", entry.getDayStartTime()));  // Add this debug line
             // PRESERVED: Apply appropriate calculation based on day type
             if (isSpecialDay) {
                 applySpecialDayCalculation(entry, originalTimeOffType);
@@ -130,6 +131,36 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
                     entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0,
                     entry.isLunchBreakDeducted()));
 
+            // Determine operation type based on timeOffType presence
+            String dynamicOperationType;
+            if (entry.getTimeOffType() != null && !entry.getTimeOffType().trim().isEmpty()) {
+                // Has timeOffType → field modification on special day
+                dynamicOperationType = getOperationType(); // Uses original operation type
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "TimeOffType '%s' exists - treating as field modification", entry.getTimeOffType()));
+            } else {
+                // No timeOffType → work entry being removed
+                dynamicOperationType = "DELETE_ENTRY";
+                LoggerUtil.debug(this.getClass(),
+                        "No timeOffType - treating as entry removal");
+            }
+
+            // Use dynamic operation type for status assignment
+            StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
+                    entry,
+                    context.getCurrentUser().getRole(),
+                    dynamicOperationType
+            );
+
+            if (!statusResult.isSuccess()) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Status assignment failed: %s", statusResult.getMessage()));
+                return OperationResult.failure("Cannot update start time: " + statusResult.getMessage(), getOperationType());
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Status assigned: %s → %s", statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+
             // PRESERVED: Replace entry in list
             replaceEntry(entries, entry);
 
@@ -145,8 +176,7 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
             }
 
             // PRESERVED: Create side effects tracking
-            OperationResult.OperationSideEffects sideEffects = OperationResult.OperationSideEffects.builder()
-                    .fileUpdated(createFilePathId(username, year, month)).build();
+            OperationResult.OperationSideEffects sideEffects = OperationResult.OperationSideEffects.builder().fileUpdated(createFilePathId(username, year, month)).build();
 
             LoggerUtil.info(this.getClass(), String.format("Successfully updated start time for %s on %s: %s", username, date, message));
 

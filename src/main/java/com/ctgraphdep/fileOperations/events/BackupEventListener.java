@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * REFACTORED: Event listener that handles file operation events and creates backups accordingly.
@@ -31,6 +32,7 @@ public class BackupEventListener {
     private final BackupService backupService;
     private final ApplicationEventPublisher eventPublisher;
     private final BackupEventMonitor backupEventMonitor;
+    private final ConcurrentHashMap<String, Boolean> userBackupSyncedThisSession = new ConcurrentHashMap<>();
 
     @Autowired
     public BackupEventListener(BackupService backupService,
@@ -97,28 +99,45 @@ public class BackupEventListener {
 
                 // For high criticality files, also sync backups to network
                 if (criticalityLevel == CriticalityLevel.LEVEL3_HIGH && event.getUsername() != null) {
-                    try {
+                    String username = event.getUsername();
 
-                        // Add a small delay to ensure backup files are completely written
-                        CompletableFuture.runAsync(() -> {
-                            try {
-                                Thread.sleep(1000); // 1-second delay
+                    // Check if we've already synced backups for this user in this session
+                    boolean alreadySynced = userBackupSyncedThisSession.getOrDefault(username, false);
 
-                                // Pass the file type to sync only the relevant subdirectory
-                                backupService.syncBackupsToNetworkByType(event.getUsername(), criticalityLevel, fileType);
-                                LoggerUtil.info(this.getClass(), String.format(
-                                        "Synced %s backups to network for user %s (Event ID: %s)",
-                                        fileType, event.getUsername(), event.getEventId()));
-                            } catch (Exception syncException) {
-                                LoggerUtil.warn(this.getClass(), String.format(
-                                        "Failed to sync %s backups to network: %s (Event ID: %s)",
-                                        fileType, syncException.getMessage(), event.getEventId()));
-                            }
-                        });
-                    } catch (Exception syncException) {
-                        LoggerUtil.warn(this.getClass(), String.format(
-                                "Failed to schedule backup sync: %s (Event ID: %s)",
-                                syncException.getMessage(), event.getEventId()));
+                    if (!alreadySynced) {
+                        try {
+                            LoggerUtil.info(this.getClass(), String.format(
+                                    "First Level 3 backup for user %s this session - syncing to network (Event ID: %s)",
+                                    username, event.getEventId()));
+
+                            // Mark this user as having synced backups this session
+                            userBackupSyncedThisSession.put(username, true);
+
+                            // Add a small delay to ensure backup files are completely written
+                            CompletableFuture.runAsync(() -> {
+                                try {
+                                    Thread.sleep(1000); // 1-second delay
+
+                                    // Pass the file type to sync only the relevant subdirectory
+                                    backupService.syncBackupsToNetworkByType(event.getUsername(), criticalityLevel, fileType);
+                                    LoggerUtil.info(this.getClass(), String.format(
+                                            "Synced %s backups to network for user %s (Event ID: %s)",
+                                            fileType, event.getUsername(), event.getEventId()));
+                                } catch (Exception syncException) {
+                                    LoggerUtil.warn(this.getClass(), String.format(
+                                            "Failed to sync %s backups to network: %s (Event ID: %s)",
+                                            fileType, syncException.getMessage(), event.getEventId()));
+                                }
+                            });
+                        } catch (Exception syncException) {
+                            LoggerUtil.warn(this.getClass(), String.format(
+                                    "Failed to schedule backup sync: %s (Event ID: %s)",
+                                    syncException.getMessage(), event.getEventId()));
+                        }
+                    } else {
+                        LoggerUtil.debug(this.getClass(), String.format(
+                                "Skipping backup sync for user %s - already synced this session (Event ID: %s)",
+                                username, event.getEventId()));
                     }
                 }
             } else {
@@ -263,5 +282,18 @@ public class BackupEventListener {
         diag.append("Async executor: backupTaskExecutor\n");
 
         return diag.toString();
+    }
+
+    // Add this method to BackupEventListener class to clear the session cache on logout
+    public void clearUserBackupSyncCache(String username) {
+        userBackupSyncedThisSession.remove(username);
+        LoggerUtil.debug(this.getClass(), String.format("Cleared backup sync cache for user: %s", username));
+    }
+
+    // Add this method to clear all session caches (for app restart/midnight reset)
+    public void clearAllBackupSyncCaches() {
+        int count = userBackupSyncedThisSession.size();
+        userBackupSyncedThisSession.clear();
+        LoggerUtil.info(this.getClass(), String.format("Cleared backup sync cache for %d users", count));
     }
 }

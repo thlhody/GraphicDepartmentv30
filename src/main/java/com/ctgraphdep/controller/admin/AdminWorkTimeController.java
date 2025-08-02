@@ -137,15 +137,13 @@ public class AdminWorkTimeController extends BaseController {
                 return String.format("redirect:/admin/worktime?year=%d&month=%d", year, month);
             }
 
-            // ENHANCED: Execute update with special day work support
-            OperationResult result;
-            if (isSpecialDayWorkFormat(value)) {
-                // Handle "SN:5", "CO:6", "CM:4", "W:8" format - NEW ENHANCED LOGIC
-                result = worktimeOperationService.updateAdminSpecialDayWork(userId, date, value);
-            } else {
-                // Handle regular admin updates (hours, time off types, BLANK, etc.)
-                result = worktimeOperationService.processAdminUpdate(userId, date, value);
-            }
+            // ✅ SIMPLIFIED: Use only AdminUpdateCommand for ALL admin updates
+            // AdminUpdateCommand now handles:
+            // - Regular work hours: "8"
+            // - Time off types: "CO", "CM", "SN"
+            // - Special day work: "SN:5", "CO:6", "CM:4", "W:8"
+            // - Removal: "BLANK", "REMOVE", empty string
+            OperationResult result = worktimeOperationService.processAdminUpdate(userId, date, value);
 
             // Process result
             if (result.isSuccess()) {
@@ -369,19 +367,6 @@ public class AdminWorkTimeController extends BaseController {
     // ========================================================================
     // HELPER METHODS
     // ========================================================================
-
-    /**
-     * ENHANCED: Check if value matches special day work format (TYPE:HOURS)
-     * Supports: SN:5, CO:6, CM:4, W:8
-     */
-    private boolean isSpecialDayWorkFormat(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return false;
-        }
-
-        // Pattern: (SN|CO|CM|W):HOURS - enhanced from just SN
-        return value.trim().toUpperCase().matches("^(SN|CO|CM|W):\\d+(\\.\\d+)?$");
-    }
 
     /**
      * Convert list of entries to user entries map (existing implementation)

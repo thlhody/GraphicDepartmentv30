@@ -5,6 +5,8 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
+import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
+import com.ctgraphdep.worktime.util.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -77,14 +79,20 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
                 return entryContext.getErrorResult();
             }
 
-            // PRESERVED: Process the removal (SAME BUSINESS LOGIC)
-            WorkTimeTable updatedEntry = processTimeOffRemoval(entryContext);
+            // ✅ UPDATED: Process removal (now returns OperationResult)
+            OperationResult removalResult = processTimeOffRemoval(entryContext);
+            if (!removalResult.isSuccess()) {
+                return removalResult; // Early return on failure
+            }
+
+            // Extract the updated entry from the result
+            WorkTimeTable updatedEntry = removalResult.getEntryData();
 
             // PRESERVED: Handle holiday balance restoration (SAME BUSINESS LOGIC)
             HolidayBalanceResult balanceResult = handleHolidayBalanceRestoration(
                     entryContext.getOldTimeOffType(), entryContext.isAdminOperation());
 
-            // NEW: Save using accessor instead of deprecated context methods
+            // NEW: Save and invalidate cache
             saveAndInvalidateCache(entryContext);
 
             // PRESERVED: Create success result (SAME LOGIC)
@@ -198,16 +206,41 @@ public class RemoveTimeOffCommand extends WorktimeOperationCommand<WorkTimeTable
     /**
      * PRESERVED: Process the actual time off removal (SAME BUSINESS LOGIC)
      */
-    private WorkTimeTable processTimeOffRemoval(EntryContext entryContext) {
+    private OperationResult processTimeOffRemoval(EntryContext entryContext) {
         LoggerUtil.info(this.getClass(), String.format("Removing %s time off from %s on %s",
                 entryContext.getOldTimeOffType(), username, date));
 
-        // PRESERVED: Remove time off using builder (SAME BUSINESS LOGIC)
-        WorkTimeTable updatedEntry = WorktimeEntityBuilder.removeTimeOff(entryContext.getEntry());
+        try {
+            // PRESERVED: Remove time off using builder (SAME BUSINESS LOGIC)
+            WorkTimeTable updatedEntry = WorktimeEntityBuilder.removeTimeOff(entryContext.getEntry());
 
-        replaceEntry(entryContext.getEntries(), updatedEntry);
+            // ✅ NEW: Use StatusAssignmentEngine to set correct status
+            StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
+                    updatedEntry,
+                    context.getCurrentUser().getRole(),
+                    getOperationType()
+            );
 
-        return updatedEntry;
+            if (!statusResult.isSuccess()) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Status assignment failed: %s", statusResult.getMessage()));
+                return OperationResult.failure("Cannot remove time off: " + statusResult.getMessage(), getOperationType());
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Status assigned: %s → %s", statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+
+            // Update the entry in the context
+            replaceEntry(entryContext.getEntries(), updatedEntry);
+
+            // Return success with the updated entry
+            return OperationResult.success("Time off removal processed successfully", getOperationType(), updatedEntry);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error processing time off removal: %s", e.getMessage()), e);
+            return OperationResult.failure("Failed to process time off removal: " + e.getMessage(), getOperationType());
+        }
     }
 
     /**

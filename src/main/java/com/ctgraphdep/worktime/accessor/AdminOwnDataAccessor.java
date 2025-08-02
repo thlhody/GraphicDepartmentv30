@@ -1,7 +1,7 @@
 package com.ctgraphdep.worktime.accessor;
 
 import com.ctgraphdep.fileOperations.data.WorktimeDataService;
-import com.ctgraphdep.merge.constants.MergingStatusConstants;
+import com.ctgraphdep.worktime.util.OptimizedStatusUpdateUtil;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.TimeOffTracker;
@@ -46,29 +46,27 @@ public class AdminOwnDataAccessor implements WorktimeDataAccessor {
     }
 
     @Override
-    public void writeWorktimeWithStatus(String username, List<WorkTimeTable> entries,
-                                        int year, int month, String userRole) {
+    public void writeWorktimeWithStatus(String username, List<WorkTimeTable> entries, int year, int month, String userRole) {
         try {
             LoggerUtil.info(this.getClass(), String.format(
-                    "Admin writing %d worktime entries with status management: %d/%d (role: %s)",
+                    "OPTIMIZED admin writing %d worktime entries with intelligent status management: %d/%d (role: %s)",
                     entries.size(), year, month, userRole));
 
-            // ADMIN STATUS MANAGEMENT: All admin file operations get ADMIN_INPUT status
-            List<WorkTimeTable> processedEntries = new ArrayList<>();
-            for (WorkTimeTable entry : entries) {
-                WorkTimeTable processedEntry = cloneEntry(entry);
-
-                // Admin operations always set ADMIN_INPUT status
-                processedEntry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
-
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Set ADMIN_INPUT status for user %d on %s",
-                        processedEntry.getUserId(), processedEntry.getWorkDate()));
-
-                processedEntries.add(processedEntry);
+            // OPTIMIZATION: Load existing entries ONCE for comparison
+            List<WorkTimeTable> existingEntries = worktimeDataService.readAdminLocalReadOnly(year, month);
+            if (existingEntries == null) {
+                existingEntries = new ArrayList<>();
             }
 
+            // OPTIMIZATION: Use new optimized status update utility
+            OptimizedStatusUpdateUtil.StatusUpdateResult result = OptimizedStatusUpdateUtil.updateChangedEntriesOnly(
+                    entries,
+                    existingEntries,
+                    String.format("admin-write-%s-%d/%d", username, year, month)
+            );
+
             // Sort entries for consistency
+            List<WorkTimeTable> processedEntries = result.getProcessedEntries();
             processedEntries.sort(Comparator.comparing(WorkTimeTable::getWorkDate)
                     .thenComparingInt(WorkTimeTable::getUserId));
 
@@ -76,8 +74,8 @@ public class AdminOwnDataAccessor implements WorktimeDataAccessor {
             worktimeDataService.writeAdminLocalWithSyncAndBackup(processedEntries, year, month);
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully wrote %d admin worktime entries with ADMIN_INPUT status to %d/%d",
-                    processedEntries.size(), year, month));
+                    "Successfully wrote %d admin worktime entries to %d/%d. %s",
+                    processedEntries.size(), year, month, result.getPerformanceSummary()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
@@ -90,32 +88,42 @@ public class AdminOwnDataAccessor implements WorktimeDataAccessor {
     public void writeWorktimeEntryWithStatus(String username, WorkTimeTable entry, String userRole) {
         try {
             LoggerUtil.debug(this.getClass(), String.format(
-                    "Admin writing single worktime entry with status: user %d on %s (role: %s)",
+                    "OPTIMIZED admin writing single worktime entry with status: user %d on %s (role: %s)",
                     entry.getUserId(), entry.getWorkDate(), userRole));
 
             LocalDate date = entry.getWorkDate();
             int year = date.getYear();
             int month = date.getMonthValue();
 
-            // Load existing entries
+            // OPTIMIZATION: Load existing entries for the month
             List<WorkTimeTable> existingEntries = readWorktime(username, year, month);
 
-            // Remove existing entry for same user/date if any
-            existingEntries.removeIf(existing ->
-                    existing.getUserId().equals(entry.getUserId()) &&
-                            existing.getWorkDate().equals(date));
+            // Create single-entry list for processing
+            List<WorkTimeTable> singleEntryList = new ArrayList<>();
+            singleEntryList.add(entry);
 
-            // Add new entry with admin status
-            WorkTimeTable processedEntry = cloneEntry(entry);
-            processedEntry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
+            // Use optimized status update utility
+            OptimizedStatusUpdateUtil.StatusUpdateResult result = OptimizedStatusUpdateUtil.updateChangedEntriesOnly(
+                    singleEntryList,
+                    existingEntries,
+                    String.format("admin-single-write-%d-%s", entry.getUserId(), date)
+            );
+
+            // Get the processed entry
+            WorkTimeTable processedEntry = result.getProcessedEntries().get(0);
+
+            // Replace entry in existing list
+            existingEntries.removeIf(existing ->
+                    existing.getUserId().equals(processedEntry.getUserId()) &&
+                            existing.getWorkDate().equals(date));
             existingEntries.add(processedEntry);
 
             // Write updated entries
             writeWorktimeWithStatus(username, existingEntries, year, month, userRole);
 
             LoggerUtil.debug(this.getClass(), String.format(
-                    "Successfully wrote single admin entry with ADMIN_INPUT status for user %d on %s",
-                    entry.getUserId(), date));
+                    "Successfully wrote single admin entry for user %d on %s. %s",
+                    entry.getUserId(), date, result.getPerformanceSummary()));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
@@ -148,28 +156,6 @@ public class AdminOwnDataAccessor implements WorktimeDataAccessor {
     @Override
     public boolean supportsWrite() {
         return true;
-    }
-
-    /**
-     * Clone entry to avoid modifying the original
-     */
-    private WorkTimeTable cloneEntry(WorkTimeTable original) {
-        WorkTimeTable clone = new WorkTimeTable();
-
-        // Copy all fields
-        clone.setUserId(original.getUserId());
-        clone.setWorkDate(original.getWorkDate());
-        clone.setDayStartTime(original.getDayStartTime());
-        clone.setDayEndTime(original.getDayEndTime());
-        clone.setTotalWorkedMinutes(original.getTotalWorkedMinutes());
-        clone.setTotalOvertimeMinutes(original.getTotalOvertimeMinutes());
-        clone.setTotalTemporaryStopMinutes(original.getTotalTemporaryStopMinutes());
-        clone.setTemporaryStopCount(original.getTemporaryStopCount());
-        clone.setLunchBreakDeducted(original.isLunchBreakDeducted());
-        clone.setTimeOffType(original.getTimeOffType());
-        clone.setAdminSync(original.getAdminSync()); // Will be overridden with admin status
-
-        return clone;
     }
 }
 

@@ -145,11 +145,6 @@ public class SessionEntityBuilder {
             return this;
         }
 
-        public SessionUpdateBuilder lastActivity(LocalDateTime time) {
-            session.setLastActivity(time);
-            return this;
-        }
-
         public WorkUsersSessionsStates build() {
             return session;
         }

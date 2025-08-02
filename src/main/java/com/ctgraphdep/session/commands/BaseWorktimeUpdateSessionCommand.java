@@ -1,12 +1,15 @@
 package com.ctgraphdep.session.commands;
 
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.model.DayType;
 import com.ctgraphdep.session.util.SessionSpecialDayDetector;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * Abstract base class for session commands that update worktime entries.
@@ -99,6 +102,102 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
         } catch (Exception e) {
             error(String.format("Failed to update worktime entry for %s: %s", getCommandDescription(), e.getMessage()), e);
         }
+    }
+
+    /**
+     * RESOLUTION WORKFLOW: Session-independent logic for resolving historical worktime entries
+     * This method works directly with worktime entries without requiring active sessions
+     * Used for resolving historical entries where sessions are no longer available (24+ hours old)
+     */
+    protected final void resolveWorktimeEntryDirectly(LocalDate entryDate, LocalDateTime endTime, SessionContext context) {
+        try {
+            debug(String.format("Resolving worktime entry directly for date: %s (%s)", entryDate, getCommandDescription()));
+
+            // Step 1: Find the existing worktime entry (no session needed)
+            WorkTimeTable entry = context.findSessionEntry(username, userId, entryDate);
+            if (entry == null) {
+                warn(String.format("Could not find worktime entry for resolution: %s", getCommandDescription()));
+                return;
+            }
+
+            // Step 2: Validate entry needs resolution
+            if (!MergingStatusConstants.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+                info(String.format("Entry for %s is already resolved (status: %s)", entryDate, entry.getAdminSync()));
+                return;
+            }
+
+            // Step 3: Set end time and calculate work minutes
+            entry.setDayEndTime(endTime);
+            int rawWorkMinutes = context.calculateRawWorkMinutesForEntry(entry, endTime);
+            entry.setTotalWorkedMinutes(rawWorkMinutes);
+
+            // Step 4: Detect day type for special day logic (same as session-based workflow)
+            DayType dayType = SessionSpecialDayDetector.detectDayType(entryDate, username, userId, context);
+            info(String.format("Detected day type: %s for %s", dayType, getCommandDescription()));
+
+            // Step 5: Apply special day logic if needed (create minimal session for API compatibility)
+            if (dayType.requiresSpecialOvertimeLogic()) {
+                info(String.format("Applying special day logic for %s on %s day", getCommandDescription(), dayType));
+
+                // Create minimal session object for special day logic API compatibility
+                WorkUsersSessionsStates tempSession = getWorkUsersSessionsStates(entry);
+                // Note: LunchBreakDeducted is calculated from worktime, not session
+
+                // Apply special day logic using correct method signature
+                entry = SessionSpecialDayDetector.applySpecialDayLogic(entry, tempSession, dayType);
+
+                info(String.format("Special day logic applied for %s: timeOffType=%s, regularMinutes=%d, overtimeMinutes=%d",
+                        getCommandDescription(),
+                        entry.getTimeOffType(),
+                        entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
+                        entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0));
+            } else {
+                debug(String.format("Regular day - no special logic needed for %s", getCommandDescription()));
+            }
+
+            // Step 6: Apply command-specific resolution customizations
+            applyResolutionCustomizations(entry, endTime, context);
+            debug(String.format("Applied resolution customizations for %s", getCommandDescription()));
+
+            // Step 7: Mark as resolved
+            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
+
+            // Step 8: Save the resolved entry
+            context.saveSessionWorktime(username, entry, entryDate.getYear(), entryDate.getMonthValue());
+
+            info(String.format("Successfully resolved worktime entry for %s: date=%s, timeOffType=%s, totalMinutes=%d, overtimeMinutes=%d",
+                    getCommandDescription(), entryDate, entry.getTimeOffType(),
+                    entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
+                    entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0));
+
+        } catch (Exception e) {
+            error(String.format("Failed to resolve worktime entry for %s: %s", getCommandDescription(), e.getMessage()), e);
+        }
+    }
+
+    private @NotNull WorkUsersSessionsStates getWorkUsersSessionsStates(WorkTimeTable entry) {
+        WorkUsersSessionsStates tempSession = new WorkUsersSessionsStates();
+        tempSession.setUsername(username);
+        tempSession.setUserId(userId);
+        tempSession.setDayStartTime(entry.getDayStartTime());
+        tempSession.setDayEndTime(entry.getDayEndTime());
+        tempSession.setTotalWorkedMinutes(entry.getTotalWorkedMinutes());
+        tempSession.setTotalOvertimeMinutes(entry.getTotalOvertimeMinutes());
+        tempSession.setTotalTemporaryStopMinutes(entry.getTotalTemporaryStopMinutes());
+        tempSession.setTemporaryStopCount(entry.getTemporaryStopCount());
+        return tempSession;
+    }
+
+    /**
+     * Apply command-specific customizations during resolution
+     * Default implementation does nothing - subclasses can override for specific resolution logic
+     * @param entry The worktime entry being resolved
+     * @param endTime The resolution end time
+     * @param context The session context
+     */
+    protected void applyResolutionCustomizations(WorkTimeTable entry, LocalDateTime endTime, SessionContext context) {
+        // Default: no additional customizations
+        // Subclasses can override for command-specific resolution logic
     }
 
     // ========================================================================
