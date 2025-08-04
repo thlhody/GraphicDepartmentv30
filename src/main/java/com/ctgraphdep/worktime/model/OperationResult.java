@@ -125,11 +125,9 @@ public class OperationResult {
         public static final String ADD_TIME_OFF = "ADD_TIME_OFF";
         public static final String REMOVE_TIME_OFF = "REMOVE_TIME_OFF";
         public static final String REMOVE_FIELD = "REMOVE_FIELD";
-        public static final String REMOVE_ENTRY = "REMOVE_ENTRY";
 
         // Admin operations
         public static final String ADMIN_UPDATE = "ADMIN_UPDATE";
-        public static final String ADMIN_DELETE = "ADMIN_DELETE";
         public static final String ADD_NATIONAL_HOLIDAY = "ADD_NATIONAL_HOLIDAY";
         public static final String FINALIZE_WORKTIME = "FINALIZE_WORKTIME";
 
@@ -137,7 +135,6 @@ public class OperationResult {
         public static final String CONSOLIDATE_WORKTIME = "CONSOLIDATE_WORKTIME";
         public static final String LOAD_USER_WORKTIME = "LOAD_USER_WORKTIME";
 
-        public static final String DELETE_ENTRY = "DELETE_ENTRY";
         public static final String RESET_SPECIAL_DAY = "RESET_SPECIAL_DAY";
     }
 

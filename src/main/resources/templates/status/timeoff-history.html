@@ -19,7 +19,17 @@
                 </div>
             </div>
 
-            <a class="btn btn-outline-primary" th:href="@{/status}">
+            <!-- Back button for admin -->
+            <a th:if="${param.from != null and param.from[0] == 'admin'}"
+               class="btn btn-outline-primary"
+               th:href="@{/admin/holidays}">
+                <i class="bi bi-arrow-left"></i> Back to Admin
+            </a>
+
+            <!-- Back button for regular status page -->
+            <a th:if="${param.from == null or param.from[0] != 'admin'}"
+               class="btn btn-outline-primary"
+               th:href="@{/status}">
                 <i class="bi bi-arrow-left"></i> Back to Status
             </a>
         </div>

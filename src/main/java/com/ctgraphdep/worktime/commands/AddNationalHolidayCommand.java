@@ -7,8 +7,8 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
-import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
-import com.ctgraphdep.worktime.util.StatusAssignmentResult;
+import com.ctgraphdep.merge.status.StatusAssignmentEngine;
+import com.ctgraphdep.merge.status.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -171,13 +171,6 @@ public class AddNationalHolidayCommand extends WorktimeOperationCommand<List<Wor
                 LoggerUtil.debug(this.getClass(), String.format(
                         "Transformed CM entry to SN (no balance change) for user %s", user.getUsername()));
             }
-            case "DELETED" -> {
-                // Deleted → SN entry
-                transformedEntry = createSimpleNationalHolidayEntry(user.getUserId(), date);
-                addOrReplaceEntry(adminEntries, transformedEntry);
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Replaced deleted entry with SN for user %s", user.getUsername()));
-            }
             default -> {
                 // SN or other → keep as SN (already national holiday)
                 transformedEntry = existingEntry;
@@ -289,9 +282,6 @@ public class AddNationalHolidayCommand extends WorktimeOperationCommand<List<Wor
     // Determine original entry type for logging
     private String determineOriginalEntryType(WorkTimeTable entry) {
         if (entry.getTimeOffType() != null) {
-            if (MergingStatusConstants.DELETE.equals(entry.getAdminSync())) {
-                return "DELETED";
-            }
             return entry.getTimeOffType(); // CO, CM, SN, W
         } else if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
             return "WORK";

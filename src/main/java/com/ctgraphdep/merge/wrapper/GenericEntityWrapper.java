@@ -83,7 +83,6 @@ public class GenericEntityWrapper<T> implements UniversalMergeEngine.UniversalMe
                 MergingStatusConstants.TEAM_INPUT.equals(status) ||
                 MergingStatusConstants.ADMIN_FINAL.equals(status) ||
                 MergingStatusConstants.TEAM_FINAL.equals(status) ||
-                MergingStatusConstants.DELETE.equals(status) ||
                 MergingStatusConstants.isTimestampedEditStatus(status);
     }
 }

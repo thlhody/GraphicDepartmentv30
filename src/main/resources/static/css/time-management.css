@@ -779,29 +779,410 @@ ENHANCED CARD HEADER STYLES
     border: 1px solid #0d6efd;
     border-radius: 0.25rem;
 }
+/* ========================================================================
+   RECYCLEBIN TIME-OFF DELETION STYLES
+   Add these styles to time-management.css
+   ======================================================================== */
 
+/* Base deletable timeoff cell styling */
 .deletable-timeoff {
     position: relative;
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
+    cursor: pointer;
 }
 
 .deletable-timeoff:hover {
-    background-color: rgba(220, 53, 69, 0.1);
+    background-color: rgba(220, 53, 69, 0.08);
 }
 
-.delete-icon {
+/* RED X DELETE BUTTON - Shows on hover */
+.timeoff-delete-btn {
     position: absolute;
     top: 2px;
     right: 2px;
-    color: #dc3545;
-    font-size: 0.8rem;
-}
-
-#timeOffDeleteModal .modal-content {
+    background: #dc3545;
+    color: white;
     border: none;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+.timeoff-delete-btn:hover {
+    background: #bb2d3b;
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(220, 53, 69, 0.4);
+}
+
+.timeoff-delete-btn:active {
+    transform: scale(0.95);
+}
+
+.timeoff-delete-btn i {
+    font-weight: bold;
+}
+
+/* RECYCLEBIN CONFIRMATION BUTTON - Shows in confirmation state */
+.timeoff-recyclebin-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    animation: recyclebinPulse 2s ease-in-out infinite;
+}
+
+.timeoff-recyclebin-btn:hover {
+    background: #5c636a;
+    transform: scale(1.15);
+    box-shadow: 0 3px 8px rgba(108, 117, 125, 0.5);
+    animation: none; /* Stop pulsing on hover */
+}
+
+.timeoff-recyclebin-btn:active {
+    transform: scale(0.95);
+}
+
+.timeoff-recyclebin-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Recyclebin pulse animation */
+@keyframes recyclebinPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.8;
+    }
+}
+
+/* CONFIRMATION STATE STYLING */
+.deletable-timeoff.confirmation-state {
+    background-color: rgba(220, 53, 69, 0.15) !important;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    animation: confirmationBlink 3s ease-in-out;
+}
+
+/* Confirmation state blink animation */
+@keyframes confirmationBlink {
+    0%, 100% {
+        border-color: rgba(220, 53, 69, 0.3);
+    }
+    25%, 75% {
+        border-color: rgba(220, 53, 69, 0.6);
+    }
+    50% {
+        border-color: rgba(220, 53, 69, 0.9);
+    }
+}
+
+/* PROTECTION STYLES - Ensure SN/W cells never show buttons */
+.timeoff-cell[data-timeoff-type="SN"],
+.timeoff-cell[data-timeoff-type="W"] {
+    cursor: default !important;
+}
+
+.timeoff-cell[data-timeoff-type="SN"]:hover,
+.timeoff-cell[data-timeoff-type="W"]:hover {
+    background-color: transparent !important;
+}
+
+.timeoff-cell[data-timeoff-type="SN"] .timeoff-delete-btn,
+.timeoff-cell[data-timeoff-type="W"] .timeoff-delete-btn,
+.timeoff-cell[data-timeoff-type="SN"] .timeoff-recyclebin-btn,
+.timeoff-cell[data-timeoff-type="W"] .timeoff-recyclebin-btn {
+    display: none !important;
+}
+
+/* VISUAL FEEDBACK FOR DIFFERENT STATES */
+
+/* CO deletion styling */
+.timeoff-cell[data-timeoff-type="CO"] .timeoff-delete-btn {
+    background: #dc3545; /* Red for CO */
+}
+
+.timeoff-cell[data-timeoff-type="CO"]:hover {
+    background-color: rgba(220, 53, 69, 0.08);
+}
+
+.timeoff-cell[data-timeoff-type="CO"].confirmation-state {
+    background-color: rgba(220, 53, 69, 0.15) !important;
+}
+
+/* CM deletion styling */
+.timeoff-cell[data-timeoff-type="CM"] .timeoff-delete-btn {
+    background: #fd7e14; /* Orange for CM */
+}
+
+.timeoff-cell[data-timeoff-type="CM"]:hover {
+    background-color: rgba(253, 126, 20, 0.08);
+}
+
+.timeoff-cell[data-timeoff-type="CM"].confirmation-state {
+    background-color: rgba(253, 126, 20, 0.15) !important;
+    border-color: rgba(253, 126, 20, 0.3);
+}
+
+/* LOADING STATE STYLES */
+.timeoff-recyclebin-btn .spinner-border-sm {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-width: 0.1em;
+}
+
+/* SUCCESS/ERROR FEEDBACK ANIMATIONS */
+.timeoff-cell.removal-success {
+    animation: removalSuccess 1.5s ease-out;
+}
+
+.timeoff-cell.removal-error {
+    animation: removalError 1s ease-out;
+}
+
+@keyframes removalSuccess {
+    0% {
+        background-color: rgba(25, 135, 84, 0.3);
+        transform: scale(1);
+    }
+    50% {
+        background-color: rgba(25, 135, 84, 0.1);
+        transform: scale(1.02);
+    }
+    100% {
+        background-color: transparent;
+        transform: scale(1);
+    }
+}
+
+@keyframes removalError {
+    0%, 100% {
+        background-color: transparent;
+        transform: translateX(0);
+    }
+    25% {
+        background-color: rgba(220, 53, 69, 0.2);
+        transform: translateX(-2px);
+    }
+    75% {
+        background-color: rgba(220, 53, 69, 0.2);
+        transform: translateX(2px);
+    }
+}
+
+/* ACCESSIBILITY IMPROVEMENTS */
+.timeoff-delete-btn:focus,
+.timeoff-recyclebin-btn:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .timeoff-delete-btn {
+        border: 2px solid #fff;
+    }
+
+    .timeoff-recyclebin-btn {
+        border: 2px solid #fff;
+    }
+
+    .confirmation-state {
+        border: 2px solid #000 !important;
+    }
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 768px) {
+    .timeoff-delete-btn,
+    .timeoff-recyclebin-btn {
+        width: 18px;
+        height: 18px;
+        font-size: 0.6rem;
+        top: 1px;
+        right: 1px;
+    }
+
+    .timeoff-delete-btn:hover,
+    .timeoff-recyclebin-btn:hover {
+        transform: scale(1.05); /* Less dramatic scaling on mobile */
+    }
+}
+
+@media (max-width: 480px) {
+    .timeoff-delete-btn,
+    .timeoff-recyclebin-btn {
+        width: 16px;
+        height: 16px;
+        font-size: 0.55rem;
+    }
+}
+
+/* PRINT STYLES - Hide buttons when printing */
+@media print {
+    .timeoff-delete-btn,
+    .timeoff-recyclebin-btn {
+        display: none !important;
+    }
+
+    .confirmation-state {
+        background-color: transparent !important;
+        border: none !important;
+        animation: none !important;
+    }
+}
+
+/* TOOLTIP ENHANCEMENTS */
+.timeoff-delete-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #212529;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 0.25rem;
+    pointer-events: none;
+}
+
+.timeoff-recyclebin-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #212529;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 0.25rem;
+    pointer-events: none;
+}
+
+/* ENHANCED VISUAL HIERARCHY */
+
+/* Make sure recyclebin is more prominent than delete button */
+.timeoff-recyclebin-btn {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.timeoff-recyclebin-btn:hover {
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Subtle shadow for depth */
+.deletable-timeoff.confirmation-state {
+    box-shadow: inset 0 0 0 1px rgba(220, 53, 69, 0.2),
+    0 2px 4px rgba(220, 53, 69, 0.1);
+}
+
+/* INTERACTION FEEDBACK */
+
+/* Smooth transitions for all interactive elements */
+.deletable-timeoff,
+.timeoff-delete-btn,
+.timeoff-recyclebin-btn {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent text selection during interactions */
+.deletable-timeoff {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* DARK MODE SUPPORT */
+@media (prefers-color-scheme: dark) {
+    .timeoff-delete-btn {
+        background: #dc3545;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .timeoff-recyclebin-btn {
+        background: #6c757d;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .confirmation-state {
+        background-color: rgba(220, 53, 69, 0.2) !important;
+        border-color: rgba(220, 53, 69, 0.4);
+    }
+}
+
+/* REDUCED MOTION SUPPORT */
+@media (prefers-reduced-motion: reduce) {
+    .timeoff-delete-btn,
+    .timeoff-recyclebin-btn,
+    .confirmation-state {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .timeoff-delete-btn:hover,
+    .timeoff-recyclebin-btn:hover {
+        transform: none !important;
+    }
+}
+
+/* FINAL CLEANUP STYLES */
+
+/* Ensure buttons don't interfere with cell content */
+.timeoff-delete-btn,
+.timeoff-recyclebin-btn {
+    pointer-events: auto !important; /* Force buttons to be clickable */
+}
+
+/* Only prevent pointer events on text content, not the entire cell */
+.deletable-timeoff .cell-value span {
+    pointer-events: none; /* Prevent cell content from blocking button clicks */
+}
+
+/* Allow the cell itself to receive events for hover detection */
+.deletable-timeoff {
+    pointer-events: auto !important;
+}
+
+/* Ensure proper z-index stacking */
+.timeoff-delete-btn {
+    z-index: 15;
+}
+
+.timeoff-recyclebin-btn {
+    z-index: 20; /* Higher than delete button */
+}
 /* ========================================================================
    LOADING AND ANIMATION STYLES
    ======================================================================== */

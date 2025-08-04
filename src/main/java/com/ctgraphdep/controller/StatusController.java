@@ -418,8 +418,7 @@ public class StatusController extends BaseController {
 
             // Validate period
             try {
-                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory()
-                        .createValidatePeriodCommand(currentYear, currentMonth, 24);
+                ValidatePeriodCommand validateCommand = getTimeValidationService().getValidationFactory().createValidatePeriodCommand(currentYear, currentMonth, 24);
                 getTimeValidationService().execute(validateCommand);
             } catch (IllegalArgumentException e) {
                 String userMessage = "The selected period is not valid. You can only view periods up to 24 months in the future.";
@@ -432,7 +431,8 @@ public class StatusController extends BaseController {
             // Check permissions
             boolean canViewOtherUser = !targetUser.getUsername().equals(currentUser.getUsername()) &&
                     !currentUser.hasRole(SecurityConstants.ROLE_ADMIN) &&
-                    !currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER);
+                    !currentUser.hasRole(SecurityConstants.ROLE_TEAM_LEADER) &&
+                    !currentUser.hasRole(SecurityConstants.ROLE_TL_CHECKING);
 
             if (canViewOtherUser) {
                 redirectAttributes.addFlashAttribute("errorMessage", "You don't have permission to view other users' worktime data");

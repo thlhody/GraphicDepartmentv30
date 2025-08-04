@@ -135,21 +135,21 @@ public class ValidateUserEditDateCommand extends BaseTimeValidationCommand<Valid
         if (dateMonth.equals(previousMonth)) {
             // Only last 7 days of previous month are editable
             LocalDate lastDayOfPrevMonth = previousMonth.atEndOfMonth();
-            LocalDate cutoffDate = lastDayOfPrevMonth.minusDays(6); // Last 7 days inclusive
+            LocalDate cutoffDate = lastDayOfPrevMonth.minusMonths(1);
 
             if (date.isBefore(cutoffDate)) {
                 return ValidationResult.invalid(String.format(
-                        "Can only edit last 7 days of previous month (%s to %s). Date %s is too old",
+                        "Can only edit only one previous month(%s to %s). Date %s is too old",
                         cutoffDate, lastDayOfPrevMonth, date));
             }
 
-            debug(String.format("Valid past date within last 7 days of previous month: %s", date));
+            debug(String.format("Valid past date within last 1 previous month: %s", date));
             return ValidationResult.valid();
         }
 
         // Date is in some other month - too old
         return ValidationResult.invalid(String.format(
-                "Can only edit dates from current month (%s) or last 7 days of previous month (%s). Date %s is from %s",
+                "Can only edit dates from current month (%s) or past month (%s). Date %s is from %s",
                 currentMonth, previousMonth, date, dateMonth));
     }
 

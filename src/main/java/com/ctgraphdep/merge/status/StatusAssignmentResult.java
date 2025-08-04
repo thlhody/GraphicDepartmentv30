@@ -1,4 +1,4 @@
-package com.ctgraphdep.worktime.util;
+package com.ctgraphdep.merge.status;
 
 import lombok.Getter;
 

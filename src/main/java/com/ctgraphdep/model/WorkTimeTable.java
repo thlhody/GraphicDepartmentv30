@@ -1,7 +1,6 @@
 package com.ctgraphdep.model;
 
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
-import com.ctgraphdep.merge.engine.UniversalMergeEngine;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import lombok.*;
@@ -81,25 +80,24 @@ public class WorkTimeTable {
                 MergingStatusConstants.ADMIN_INPUT.equals(status) ||
                 MergingStatusConstants.ADMIN_FINAL.equals(status) ||
                 MergingStatusConstants.TEAM_FINAL.equals(status) ||
-                MergingStatusConstants.DELETE.equals(status) ||
                 MergingStatusConstants.isTimestampedEditStatus(status);
     }
 
     /**
-     * Convert old SyncStatusMerge enum values for file cleanup
-     * All old enum values become USER_INPUT except special cases
+     * Convert old/unknown statuses to USER_INPUT, preserve valid new format statuses
      */
     private String convertOldStatusForCleanup(String oldStatus) {
-        return switch (oldStatus) {
-            // Special case: ADMIN_BLANK becomes DELETE
-            case "ADMIN_BLANK" -> MergingStatusConstants.DELETE;
+        if (oldStatus == null) {
+            return MergingStatusConstants.USER_INPUT;
+        }
 
-            // All other old enum values become USER_INPUT for cleanup
-            case "USER_DONE", "ADMIN_CHECK", "ADMIN_EDITED", "USER_EDITED" -> MergingStatusConstants.USER_INPUT;
+        // Preserve valid new format statuses
+        if (isNewFormatStatus(oldStatus)) {
+            return oldStatus;
+        }
 
-            // Unknown values also become USER_INPUT
-            default -> MergingStatusConstants.USER_INPUT;
-        };
+        // Convert old/unknown statuses to USER_INPUT
+        return MergingStatusConstants.USER_INPUT;
     }
 
     // Standard getter - ensure never null

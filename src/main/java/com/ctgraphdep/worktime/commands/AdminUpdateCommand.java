@@ -1,14 +1,13 @@
 package com.ctgraphdep.worktime.commands;
 
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
-import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
-import com.ctgraphdep.worktime.util.StatusAssignmentResult;
+import com.ctgraphdep.merge.status.StatusAssignmentEngine;
+import com.ctgraphdep.merge.status.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
@@ -146,18 +145,29 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
 
     // Process admin update using StatusAssignmentEngine and WorktimeEntityBuilder methods
     private AdminUpdateResult processAdminUpdate(List<WorkTimeTable> adminEntries, Integer userId, LocalDate date, String value) {
-        if (value == null || value.trim().isEmpty() || "BLANK".equalsIgnoreCase(value.trim()) || "REMOVE".equalsIgnoreCase(value.trim()) || MergingStatusConstants.DELETE.equalsIgnoreCase(value.trim())) {
-            // Remove entry
-            boolean removed = removeEntryByDate(adminEntries, userId, date);
-            String message;
-            if (removed) {
-                message = String.format("Admin removed entry for user %d on %s", userId, date);
-                LoggerUtil.debug(this.getClass(), String.format("Removed admin entry: userId=%d, date=%s", userId, date));
-            } else {
-                message = String.format("No admin entry found to remove for user %d on %s", userId, date);
-                LoggerUtil.debug(this.getClass(), String.format("No entry to remove: userId=%d, date=%s", userId, date));
+        if (value == null || value.trim().isEmpty() || "BLANK".equalsIgnoreCase(value.trim()) || "REMOVE".equalsIgnoreCase(value.trim())) {
+            // Find or create entry to reset
+            WorkTimeTable entryToReset = findExistingEntry(adminEntries, userId, date);
+
+            if (entryToReset == null) {
+                // Create empty entry for reset
+                entryToReset = WorktimeEntityBuilder.createEmptyEntry(userId, date);
+                adminEntries.add(entryToReset);
             }
-            return new AdminUpdateResult(message, null);
+
+            // Reset to empty state
+            WorktimeEntityBuilder.resetEntryToEmpty(entryToReset);
+
+            // Assign admin edit status
+            assignStatusToEntry(entryToReset);
+
+            // Replace in list
+            addOrReplaceEntry(adminEntries, entryToReset);
+
+            String message = String.format("Admin reset entry to empty for user %d on %s", userId, date);
+            LoggerUtil.debug(this.getClass(), String.format("Reset admin entry: userId=%d, date=%s", userId, date));
+
+            return new AdminUpdateResult(message, entryToReset);
         }
 
         String trimmedValue = value.trim().toUpperCase();
@@ -309,11 +319,10 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
                 .orElse(null);
     }
 
-    // Remove entry by date and user ID - UTILITY METHOD
-    private boolean removeEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
-        return entries.removeIf(entry ->
-                userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()));
-    }
+//    // Remove entry by date and user ID - UTILITY METHOD
+//    private boolean removeEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
+//        return entries.removeIf(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()));
+//    }
 
     // Add or replace entry in list - UTILITY METHOD
     private void addOrReplaceEntry(List<WorkTimeTable> entries, WorkTimeTable updatedEntry) {
@@ -397,9 +406,7 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
 
     // Determine the operation type for logging
     private String determineOperation(String value) {
-        if (value == null || value.trim().isEmpty() || "BLANK".equalsIgnoreCase(value.trim()) ||
-                "DELETE".equalsIgnoreCase(value.trim()) ||
-                "REMOVE".equalsIgnoreCase(value.trim())) {
+        if (value == null || value.trim().isEmpty()) {
             return "entry removal";
         }
 

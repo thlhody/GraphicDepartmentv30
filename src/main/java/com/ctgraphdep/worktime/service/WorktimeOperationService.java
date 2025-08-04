@@ -1,6 +1,7 @@
 package com.ctgraphdep.worktime.service;
 
 import com.ctgraphdep.config.SecurityConstants;
+import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.commands.*;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
@@ -289,11 +290,16 @@ public class WorktimeOperationService {
     // DATA LOADING OPERATIONS (UNCHANGED PUBLIC API)
     // ========================================================================
 
-    // Load user worktime with merge processing using accessor pattern
+    /**
+     * Load user worktime with intelligent routing:
+     * - User accessing own data: Cache-first (fast session data)
+     * - Admin accessing any user: Network/consolidated files (authoritative data)
+     */
     public List<WorkTimeTable> loadUserWorktime(String username, int year, int month) {
         userLock.readLock().lock();
         try {
-            LoggerUtil.debug(this.getClass(), String.format("Loading worktime for %s - %d/%d using accessor pattern", username, year, month));
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Loading worktime for %s - %d/%d with intelligent routing", username, year, month));
 
             Integer userId = context.getUserId(username);
             if (userId == null) {
@@ -301,47 +307,154 @@ public class WorktimeOperationService {
                 return new ArrayList<>();
             }
 
-            // NEW: Use UserOwnDataAccessor for the user's own data
+            String currentUsername = context.getCurrentUsername();
+            boolean isCurrentUser = username.equals(currentUsername);
+            boolean isAdmin = context.isCurrentUserAdmin();
+
+            if (isCurrentUser && !isAdmin) {
+                // USER ACCESSING OWN DATA: Use cache service (fast session)
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "User %s accessing own data - using CACHE service", username));
+
+                return context.getWorktimeCacheService().getMonthEntriesWithFallback(
+                        username, userId, year, month);
+
+            } else if (isAdmin) {
+                // ADMIN ACCESSING ANY DATA: Use network/admin consolidated files
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Admin accessing %s data - using NETWORK/ADMIN files", username));
+
+                return loadUserWorkTimeFromNetwork(username, year, month);
+
+            } else {
+                // UNAUTHORIZED ACCESS: Fall back to old merge logic for safety
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Non-admin user %s accessing %s data - using merge fallback", currentUsername, username));
+
+                return loadUserWorktimeWithMergeFallback(username, userId, year, month);
+            }
+
+        } finally {
+            userLock.readLock().unlock();
+        }
+    }
+
+    // Load user time-off tracker for admin operations (network access)
+    // Admin can view all users' time-off requests from tracker files
+    @PreAuthorize("hasRole('ADMIN')")
+    public TimeOffTracker loadUserTimeOffTracker(String username, Integer userId, int year) {
+        adminLock.lock();
+        try {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Loading time-off tracker for admin: user %s, year %d", username, year));
+
+            // Admin reads time-off tracker from network files
+            return context.getTimeOffDataService().readTrackerFromNetworkReadOnly(context.getCurrentUsername(), userId,  year);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error loading time-off tracker for %s - %d: %s", username, year, e.getMessage()), e);
+            return null;
+        } finally {
+            adminLock.unlock();
+        }
+    }
+
+    // Load user worktime from network files (admin operations)
+    // Used when admin needs to see authoritative network data
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<WorkTimeTable> loadUserWorkTimeFromNetwork(String username, int year, int month) {
+        adminLock.lock();
+        try {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Loading worktime from network for admin: user %s - %d/%d", username, year, month));
+
+            Integer userId = context.getUserId(username);
+            if (userId == null) {
+                LoggerUtil.warn(this.getClass(), String.format("User not found: %s", username));
+                return new ArrayList<>();
+            }
+
+            // Option 1: Check admin consolidated file first (fastest for admin)
+            List<WorkTimeTable> adminEntries = context.loadAdminWorktime(year, month);
+
+            // Filter for specific user
+            List<WorkTimeTable> userEntriesFromAdmin = adminEntries.stream()
+                    .filter(entry -> userId.equals(entry.getUserId()))
+                    .collect(Collectors.toList());
+
+            if (!userEntriesFromAdmin.isEmpty()) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Found %d entries for user %s in admin consolidated file",
+                        userEntriesFromAdmin.size(), username));
+                return userEntriesFromAdmin;
+            }
+
+            // Option 2: Fallback to user's network file
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "No admin entries found, reading user %s network file", username));
+
+            List<WorkTimeTable> networkEntries = context.getWorktimeDataService().readUserFromNetworkOnly(context.getCurrentUsername(), year, month);
+
+            return networkEntries != null ? networkEntries : new ArrayList<>();
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error loading worktime from network for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            return new ArrayList<>();
+        } finally {
+            adminLock.unlock();
+        }
+    }
+
+    // Fallback merge logic for edge cases (preserved from original)
+    private List<WorkTimeTable> loadUserWorktimeWithMergeFallback(String username, Integer userId, int year, int month) {
+        try {
+            // Use original merge logic as fallback
             WorktimeDataAccessor userAccessor = context.getDataAccessor(username);
             List<WorkTimeTable> userEntries = userAccessor.readWorktime(username, year, month);
             if (userEntries == null) {
                 userEntries = new ArrayList<>();
             }
 
-            // Load admin entries for this user using AdminOwnDataAccessor
+            // Load admin entries for this user
             WorktimeDataAccessor adminAccessor = context.getDataAccessor("admin");
             List<WorkTimeTable> allAdminEntries = adminAccessor.readWorktime("admin", year, month);
 
             // Filter admin entries for this specific user
             List<WorkTimeTable> adminEntries = allAdminEntries != null ?
-                    allAdminEntries.stream().filter(entry -> userId.equals(entry.getUserId())).collect(Collectors.toList()) :
+                    allAdminEntries.stream()
+                            .filter(entry -> userId.equals(entry.getUserId()))
+                            .collect(Collectors.toList()) :
                     new ArrayList<>();
 
             // Merge if admin entries exist for this user
             if (!adminEntries.isEmpty()) {
-                List<WorkTimeTable> mergedEntries = worktimeMergeService.mergeEntries(
-                        userEntries, adminEntries, userId);
+                List<WorkTimeTable> mergedEntries = worktimeMergeService.mergeEntries(userEntries, adminEntries, userId);
 
                 // Save merged result back using user accessor
                 try {
                     userAccessor.writeWorktimeWithStatus(username, mergedEntries, year, month, getCurrentUserRole());
-                    LoggerUtil.debug(this.getClass(), String.format("Saved merged worktime for %s - %d/%d: %d entries",
-                            username, year, month, mergedEntries.size()));
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Saved merged worktime for %s - %d/%d: %d entries", username, year, month, mergedEntries.size()));
                 } catch (UnsupportedOperationException e) {
-                    LoggerUtil.warn(this.getClass(), String.format("Cannot save merged worktime for %s (read-only accessor): %s",
-                            username, e.getMessage()));
+                    LoggerUtil.warn(this.getClass(), String.format(
+                            "Cannot save merged worktime for %s (read-only accessor): %s", username, e.getMessage()));
                 }
 
                 return mergedEntries;
             }
 
-            LoggerUtil.debug(this.getClass(), String.format("Loaded user worktime for %s - %d/%d: %d entries (no admin entries to merge)",
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Loaded user worktime for %s - %d/%d: %d entries (no admin entries to merge)",
                     username, year, month, userEntries.size()));
 
             return userEntries;
 
-        } finally {
-            userLock.readLock().unlock();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error in merge fallback for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            return new ArrayList<>();
         }
     }
 

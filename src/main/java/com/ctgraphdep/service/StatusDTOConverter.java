@@ -37,11 +37,6 @@ public class StatusDTOConverter {
                 return GeneralDataStatusDTO.createUnknown();
             }
 
-            // Handle DELETE status (not displayable)
-            if (MergingStatusConstants.DELETE.equals(rawStatus)) {
-                return GeneralDataStatusDTO.createNonDisplayable(rawStatus);
-            }
-
             // Determine ownership
             boolean isOwnedByCurrentUser = currentUserId != null && currentUserId.equals(entryUserId);
 

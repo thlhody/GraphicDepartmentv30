@@ -40,23 +40,6 @@ public class WorkTimeEntryUtil {
     }
 
     /**
-     * Reset work-related fields for a time-off entry.
-     */
-    public static void resetWorkFields(WorkTimeTable entry) {
-        if (entry == null) {
-            return;
-        }
-
-        entry.setDayStartTime(null);
-        entry.setDayEndTime(null);
-        entry.setTemporaryStopCount(0);
-        entry.setLunchBreakDeducted(false);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-    }
-
-    /**
      * Checks if a date is a weekend
      */
     public static boolean isDateWeekend(LocalDate date) {
@@ -78,22 +61,10 @@ public class WorkTimeEntryUtil {
     }
 
     /**
-     * Sorts worktime entries by date
-     */
-    public static List<WorkTimeTable> sortEntriesByDate(List<WorkTimeTable> entries) {
-        return entries.stream().sorted(Comparator.comparing(WorkTimeTable::getWorkDate)).collect(Collectors.toList());
-    }
-
-    /**
      * Checks if an entry is displayable (not ADMIN_BLANK)
      */
     public static boolean isEntryDisplayable(WorkTimeTable entry) {
         if (entry == null) return false;
-
-        // Never display ADMIN_BLANK entries
-        if (MergingStatusConstants.DELETE.equals(entry.getAdminSync())) {
-            return false;
-        }
 
         // Display USER_IN_PROCESS entries with partial info
         if (MergingStatusConstants.USER_IN_PROCESS.equals(entry.getAdminSync())) {
@@ -104,10 +75,4 @@ public class WorkTimeEntryUtil {
         return entry.getAdminSync() != null;
     }
 
-    /**
-     * Creates a map key for worktime entries
-     */
-    public static String createEntryKey(Integer userId, LocalDate date) {
-        return userId + "_" + date.toString();
-    }
 }

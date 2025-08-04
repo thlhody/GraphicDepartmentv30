@@ -1,7 +1,3 @@
-// ============================================================================
-// UNIVERSAL MERGE LOGIC - Fixed with Admin-Wins Conflict Resolution
-// ============================================================================
-
 package com.ctgraphdep.merge.engine;
 
 import com.ctgraphdep.merge.enums.EntityType;
@@ -32,24 +28,19 @@ public enum UniversalMergeEngine {
                 if (isFinalState(entry1) && isFinalState(entry2)) {
                     // Both final - ADMIN_FINAL beats TEAM_FINAL
                     String status1 = getStatusString(entry1);
-                    String status2 = getStatusString(entry2);
 
                     if (MergingStatusConstants.ADMIN_FINAL.equals(status1)) {
-                        LoggerUtil.debug(UniversalMergeEngine.class,
-                                "Final state rule: ADMIN_FINAL beats TEAM_FINAL");
+                        LoggerUtil.debug(UniversalMergeEngine.class, "Final state rule: ADMIN_FINAL beats TEAM_FINAL");
                         return entry1;
                     } else {
-                        LoggerUtil.debug(UniversalMergeEngine.class,
-                                "Final state rule: keeping TEAM_FINAL");
+                        LoggerUtil.debug(UniversalMergeEngine.class, "Final state rule: keeping TEAM_FINAL");
                         return entry2;
                     }
                 } else if (isFinalState(entry1)) {
-                    LoggerUtil.debug(UniversalMergeEngine.class,
-                            String.format("Final state rule: entry1 is final (%s)", getStatusString(entry1)));
+                    LoggerUtil.debug(UniversalMergeEngine.class, String.format("Final state rule: entry1 is final (%s)", getStatusString(entry1)));
                     return entry1;
                 } else {
-                    LoggerUtil.debug(UniversalMergeEngine.class,
-                            String.format("Final state rule: entry2 is final (%s)", getStatusString(entry2)));
+                    LoggerUtil.debug(UniversalMergeEngine.class, String.format("Final state rule: entry2 is final (%s)", getStatusString(entry2)));
                     return entry2;
                 }
             }
@@ -163,19 +154,6 @@ public enum UniversalMergeEngine {
     ),
 
     // ========================================================================
-    // DELETE HANDLING RULES
-    // ========================================================================
-
-    DELETE_RULE(
-            (entry1, entry2, entityType) -> isDeleteStatus(entry1) || isDeleteStatus(entry2),
-            (entry1, entry2, entityType) -> {
-                LoggerUtil.debug(UniversalMergeEngine.class,
-                        "Delete rule: entry marked for deletion");
-                return null; // Returning null removes the entry
-            }
-    ),
-
-    // ========================================================================
     // FALLBACK RULES
     // ========================================================================
 
@@ -266,11 +244,6 @@ public enum UniversalMergeEngine {
     private static boolean isBaseInput(UniversalMergeableEntity entry) {
         if (entry == null) return false;
         return MergingStatusConstants.isBaseInputStatus(entry.getUniversalStatus());
-    }
-
-    private static boolean isDeleteStatus(UniversalMergeableEntity entry) {
-        if (entry == null) return false;
-        return MergingStatusConstants.DELETE.equals(entry.getUniversalStatus());
     }
 
     private static long extractTimestamp(UniversalMergeableEntity entry) {

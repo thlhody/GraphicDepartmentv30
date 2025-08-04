@@ -1,4 +1,4 @@
-package com.ctgraphdep.worktime.util;
+package com.ctgraphdep.merge.status;
 
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
@@ -51,7 +51,7 @@ public class StatusAssignmentEngine {
         LoggerUtil.debug(LOGGER_CLASS, String.format("assignStatus() - User: %s, Operation: %s, CurrentStatus: %s", userRole, operationType, currentStatus));
 
         // Check protection rules first
-        ProtectionResult protection = checkProtectionRules(currentStatus, userRole, operationType);
+        ProtectionResult protection = checkProtectionRules(currentStatus, userRole);
         if (protection.isProtected()) {
             LoggerUtil.info(LOGGER_CLASS, String.format("Status protected: %s - %s", currentStatus, protection.getReason()));
             return StatusAssignmentResult.protectedStatus(currentStatus, protection.getReason());
@@ -73,7 +73,7 @@ public class StatusAssignmentEngine {
     // ========================================================================
 
     // Checks if the current status is protected from changes
-    private static ProtectionResult checkProtectionRules(String currentStatus, String userRole, String operationType) {
+    private static ProtectionResult checkProtectionRules(String currentStatus, String userRole) {
         if (currentStatus == null) {
             return ProtectionResult.allowed();
         }
@@ -113,12 +113,6 @@ public class StatusAssignmentEngine {
         if (isConsolidationOperation(operationType)) {
             LoggerUtil.debug(LOGGER_CLASS, String.format("Consolidation operation detected: preserving existing status '%s'", currentStatus));
             return currentStatus; // Keep whatever status the merge engine decided
-        }
-
-
-        // Handle DELETE operations - always return DELETE status
-        if (isDeleteOperation(operationType)) {
-            return MergingStatusConstants.DELETE;
         }
 
         // Handle RESET operations - return role-based EDITED status
@@ -207,11 +201,6 @@ public class StatusAssignmentEngine {
             return SecurityConstants.ROLE_USER; // Default to user role
         }
         return userRole.trim().toUpperCase();
-    }
-
-    // Check if operation type should result in DELETE status
-    private static boolean isDeleteOperation(String operationType) {
-        return OperationResult.OperationType.DELETE_ENTRY.equals(operationType);
     }
 
     // Check if operation type should result in EDIT status (for special day resets)

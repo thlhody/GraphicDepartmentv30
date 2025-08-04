@@ -170,10 +170,10 @@ public class TimeValidationService {
             var timeValues = execute(getTimeCommand);
             LocalDate today = timeValues.getCurrentDate();
 
-            // 1. Check if date is too far in the past (allow up to 7 days back)
-            LocalDate earliestAllowed = today.minusDays(7);
+
+            LocalDate earliestAllowed = today.minusMonths(1);
             if (date.isBefore(earliestAllowed)) {
-                return ValidationResult.invalid(String.format("Cannot request time off for dates more than 7 days in the past. Date: %s", date));
+                return ValidationResult.invalid(String.format("Cannot request time off for dates more than 1 month in the past. Date: %s", date));
             }
 
             // 2. Check if date is too far in the future (6 months limit)
@@ -194,7 +194,7 @@ public class TimeValidationService {
      * COMPREHENSIVE validation for user field updates.
      * Moved from UserTimeManagementController.validateUserFieldUpdate()
      */
-    public ValidationResult validateUserFieldUpdate(LocalDate date, String field, String value, User currentUser) {
+    public ValidationResult validateUserFieldUpdate(LocalDate date, String field, String value, User currentUser, String existingTimeOffType) {
         try {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Validating user field update: date=%s, field=%s, value=%s, user=%s",
@@ -206,7 +206,6 @@ public class TimeValidationService {
             }
 
             // 2. DATE VALIDATION using existing command
-            String existingTimeOffType = getExistingTimeOffType(date, currentUser);
             ValidateUserEditDateCommand dateCommand = validationFactory.createValidateUserEditDateCommand(
                     date, field, existingTimeOffType, false); // false = not admin
 
@@ -219,16 +218,56 @@ public class TimeValidationService {
                 return ValidationResult.invalid("Date validation failed: " + e.getMessage());
             }
 
-            // 3. FIELD-SPECIFIC VALIDATION
+            // 3. FIELD-SPECIFIC VALIDATION - FIXED FOR TIME OFF REMOVAL
             return switch (field.toLowerCase()) {
                 case "starttime", "endtime" -> validateTimeFieldFormat(value);
-                case "timeoff" -> validateTimeOffField(value, date);
-                case "tempstop" -> validateTempStopField(value);  // ← ADD THIS LINE
+                case "timeoff" -> {
+                    // TIME OFF FIELD VALIDATION - Handle both addition and removal
+                    if (value == null || value.trim().isEmpty()) {
+                        // TIME OFF REMOVAL - Use different date range validation
+                        yield validateTimeOffRemovalDateRange(date);
+                    } else {
+                        // TIME OFF ADDITION - Use existing validation
+                        yield validateTimeOffField(value, date);
+                    }
+                }
+                case "tempstop" -> validateTempStopField(value);
                 default -> ValidationResult.invalid("Unknown field type: " + field);
             };
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "User field validation error: " + e.getMessage(), e);
             return ValidationResult.invalid("Validation failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * NEW: Validate time off removal date range (previous month + current + future)
+     */
+    private ValidationResult validateTimeOffRemovalDateRange(LocalDate date) {
+        try {
+            // Get current date using standard time
+            var getTimeCommand = validationFactory.createGetStandardTimeValuesCommand();
+            var timeValues = execute(getTimeCommand);
+            LocalDate today = timeValues.getCurrentDate();
+
+            // Calculate earliest allowed date (first day of previous month)
+            LocalDate earliestAllowed = today.withDayOfMonth(1).minusMonths(1);
+
+            if (date.isBefore(earliestAllowed)) {
+                // Calculate which month the date is in for better error message
+                String dateMonth = date.getMonth().toString() + " " + date.getYear();
+                String earliestMonth = earliestAllowed.getMonth().toString() + " " + earliestAllowed.getYear();
+
+                return ValidationResult.invalid(String.format(
+                        "Cannot remove time off from %s. You can only remove time off from %s onwards (previous month + current + future).",
+                        dateMonth, earliestMonth));
+            }
+
+            return ValidationResult.valid();
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error in time off removal date validation for %s: %s", date, e.getMessage()));
+            return ValidationResult.invalid("Date validation failed: " + e.getMessage());
         }
     }
 
@@ -271,92 +310,6 @@ public class TimeValidationService {
             }
         }
         return ValidationResult.valid();
-    }
-
-    /**
-     * Validate and parse date range for time off requests
-     * Moved from UserTimeManagementController.validateAndParseDateRange()
-     */
-    public ValidationResult validateTimeOffRequest(String startDate, String endDate, String timeOffType, boolean isSingleDay) {
-        try {
-            LoggerUtil.info(this.getClass(), String.format(
-                    "=== VALIDATION START === StartDate: %s, EndDate: %s, Type: %s, SingleDay: %s",
-                    startDate, endDate, timeOffType, isSingleDay));
-
-            // 1. VALIDATE TIME OFF TYPE
-            LoggerUtil.debug(this.getClass(), "Step 1: Validating time off type...");
-            ValidationResult typeResult = validateTimeOffRequestType(timeOffType);
-            if (typeResult.isInvalid()) {
-                LoggerUtil.warn(this.getClass(), "Type validation failed: " + typeResult.getErrorMessage());
-                return typeResult;
-            }
-            LoggerUtil.debug(this.getClass(), "Step 1: Time off type validation passed");
-
-            // 2. PARSE DATES
-            LoggerUtil.debug(this.getClass(), "Step 2: Parsing dates...");
-            LocalDate start;
-            LocalDate end;
-            try {
-                start = LocalDate.parse(startDate);
-                end = isSingleDay ? start : LocalDate.parse(endDate);
-                LoggerUtil.debug(this.getClass(), String.format("Step 2: Dates parsed - start: %s, end: %s", start, end));
-            } catch (DateTimeParseException e) {
-                LoggerUtil.error(this.getClass(), "Date parsing failed: " + e.getMessage());
-                return ValidationResult.invalid("Invalid date format: " + e.getMessage());
-            }
-
-            // 3. BUSINESS RULE VALIDATION
-            LoggerUtil.debug(this.getClass(), "Step 3: Business rule validation...");
-            if (start.isAfter(end)) {
-                LoggerUtil.warn(this.getClass(), "Start date is after end date");
-                return ValidationResult.invalid("Start date cannot be after end date");
-            }
-
-            if (start.until(end).getDays() > 30) {
-                LoggerUtil.warn(this.getClass(), "Date range too large: " + start.until(end).getDays() + " days");
-                return ValidationResult.invalid("Date range too large (maximum 30 days allowed)");
-            }
-            LoggerUtil.debug(this.getClass(), "Step 3: Business rules passed");
-
-            // 4. VALIDATE INDIVIDUAL DATES
-            LoggerUtil.debug(this.getClass(), "Step 4: Validating individual dates...");
-            List<LocalDate> validDates = new ArrayList<>();
-            LocalDate current = start;
-
-            while (!current.isAfter(end)) {
-                LoggerUtil.debug(this.getClass(), String.format("Step 4: Checking date %s (weekday: %d)",
-                        current, current.getDayOfWeek().getValue()));
-
-                // Skip weekends
-                if (current.getDayOfWeek().getValue() < 6) {
-                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Validating weekday %s", current));
-                    ValidationResult dateResult = validateTimeOffRequestDate(current);
-                    if (dateResult.isInvalid()) {
-                        LoggerUtil.warn(this.getClass(), String.format("Date validation failed for %s: %s",
-                                current, dateResult.getErrorMessage()));
-                        return ValidationResult.invalid(String.format("Date %s: %s", current, dateResult.getErrorMessage()));
-                    }
-                    validDates.add(current);
-                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Date %s validated successfully", current));
-                } else {
-                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Skipping weekend %s", current));
-                }
-                current = current.plusDays(1);
-            }
-
-            if (validDates.isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "No valid weekdays found in date range");
-                return ValidationResult.invalid("No valid weekdays found in the selected date range");
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("=== VALIDATION SUCCESS === %d valid dates found: %s",
-                    validDates.size(), validDates));
-            return ValidationResult.valid();
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Time off request validation error: " + e.getMessage(), e);
-            return ValidationResult.invalid("Validation failed: " + e.getMessage());
-        }
     }
 
     /**
@@ -541,69 +494,5 @@ public class TimeValidationService {
         }
 
         return ValidationResult.valid();
-    }
-
-    /**
-     * Validate individual date for time off request
-     * Moved from UserTimeManagementController.validateTimeOffRequestDate()
-     */
-    private ValidationResult validateTimeOffRequestDate(LocalDate date) {
-        try {
-            LoggerUtil.debug(this.getClass(), String.format("Validating individual date: %s", date));
-
-            // Use existing date validation command
-            LoggerUtil.debug(this.getClass(), String.format("Creating ValidateUserEditDateCommand for %s", date));
-            ValidateUserEditDateCommand command = validationFactory.createValidateUserEditDateCommand(date, "timeOff", null, false);
-
-            LoggerUtil.debug(this.getClass(), "Executing ValidateUserEditDateCommand...");
-            ValidateUserEditDateCommand.ValidationResult result = execute(command);
-
-            LoggerUtil.debug(this.getClass(), String.format("ValidateUserEditDateCommand result: valid=%s, reason=%s",
-                    result.isValid(), result.getReason()));
-
-            if (result.isInvalid()) {
-                LoggerUtil.warn(this.getClass(), String.format("Date command validation failed for %s: %s",
-                        date, result.getReason()));
-                return ValidationResult.invalid(result.getReason());
-            }
-
-            // Weekend validation using existing command
-            LoggerUtil.debug(this.getClass(), String.format("Checking weekend for %s (weekday: %d)",
-                    date, date.getDayOfWeek().getValue()));
-
-            if (date.getDayOfWeek().getValue() >= 6) {
-                LoggerUtil.debug(this.getClass(), String.format("Date %s is weekend, checking holiday validation", date));
-                ValidateHolidayDateCommand holidayCommand = validationFactory.createValidateHolidayDateCommand(date);
-                try {
-                    execute(holidayCommand);
-                    LoggerUtil.debug(this.getClass(), String.format("Holiday command passed for weekend %s", date));
-                } catch (IllegalArgumentException e) {
-                    if (e.getMessage().contains("weekends")) {
-                        LoggerUtil.warn(this.getClass(), String.format("Weekend validation failed for %s", date));
-                        return ValidationResult.invalid("Cannot request time off on weekends");
-                    }
-                    LoggerUtil.warn(this.getClass(), String.format("Holiday validation failed for %s: %s", date, e.getMessage()));
-                    throw e; // Re-throw if not weekend-related
-                }
-            }
-
-            LoggerUtil.debug(this.getClass(), String.format("Individual date validation passed for %s", date));
-            return ValidationResult.valid();
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error validating date %s: %s", date, e.getMessage()), e);
-            return ValidationResult.invalid("Date validation failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Helper to get existing time off type for a date and user
-     * TODO: This needs to be implemented to check existing worktime data
-     */
-    private String getExistingTimeOffType(LocalDate date, User user) {
-        // TODO: Implement logic to check existing time off type from worktime data
-        LoggerUtil.info(this.getClass(), user.getUsername()+" "+date);
-        // For now, return null (no existing time off)
-        return null;
     }
 }

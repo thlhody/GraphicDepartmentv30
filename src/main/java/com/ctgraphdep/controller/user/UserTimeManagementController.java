@@ -143,7 +143,9 @@ public class UserTimeManagementController extends BaseController {
             }
 
             // 3. VALIDATION CALL
-            ValidationResult validationResult = getTimeValidationService().validateUserFieldUpdate(workDate, field, value, currentUser);
+            String existingTimeOffType = getExistingTimeOffTypeForDate(workDate, currentUser);
+
+            ValidationResult validationResult = getTimeValidationService().validateUserFieldUpdate(workDate, field, value, currentUser,existingTimeOffType);
             if (validationResult.isInvalid()) {
                 return createErrorResponse(validationResult.getErrorMessage(), HttpStatus.BAD_REQUEST);
             }
@@ -177,7 +179,8 @@ public class UserTimeManagementController extends BaseController {
             LocalDate workDate = LocalDate.parse(date);
 
             // SINGLE VALIDATION CALL - All permission checking replaced with 1 line!
-            ValidationResult validationResult = getTimeValidationService().validateUserFieldUpdate(workDate, field, null, currentUser);
+            String existingTimeOffType = getExistingTimeOffTypeForDate(workDate, currentUser);
+            ValidationResult validationResult = getTimeValidationService().validateUserFieldUpdate(workDate, field, null, currentUser,existingTimeOffType);
 
             response.put("canEdit", validationResult.isValid());
             if (validationResult.isInvalid()) {
@@ -407,7 +410,8 @@ public class UserTimeManagementController extends BaseController {
     private ResponseEntity<Map<String, Object>> createErrorResponse(String message, HttpStatus status) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", false);
-        response.put("message", message);
+        response.put("message", message);  // Frontend reads this field
+        response.put("error", message);    // Fallback field name
         return ResponseEntity.status(status).body(response);
     }
 
@@ -423,5 +427,25 @@ public class UserTimeManagementController extends BaseController {
         sanitized.setSchedule(user.getSchedule());
         sanitized.setPaidHolidayDays(user.getPaidHolidayDays());
         return sanitized;
+    }
+    // Add this method to UserTimeManagementController
+    private String getExistingTimeOffTypeForDate(LocalDate date, User user) {
+        try {
+            // Load worktime data for the month containing this date
+            List<WorkTimeTable> entries = worktimeOperationService.loadUserWorktime(user.getUsername(), date.getYear(), date.getMonthValue());
+
+            // Find entry for the specific date and user
+            return entries.stream()
+                    .filter(entry -> entry.getUserId().equals(user.getUserId()) &&
+                            entry.getWorkDate().equals(date))
+                    .map(WorkTimeTable::getTimeOffType)
+                    .findFirst()
+                    .orElse(null); // null means no time off exists for this date
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format(
+                    "Error getting existing time off type for %s on %s: %s",
+                    user.getUsername(), date, e.getMessage()));
+            return null; // Safe fallback - assume no existing time off
+        }
     }
 }

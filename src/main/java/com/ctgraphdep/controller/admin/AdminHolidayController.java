@@ -2,10 +2,8 @@ package com.ctgraphdep.controller.admin;
 
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
+import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.PaidHolidayEntryDTO;
-import com.ctgraphdep.model.User;
-import com.ctgraphdep.model.WorkTimeTable;
-import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -190,24 +188,15 @@ public class AdminHolidayController extends BaseController {
             String username = user.getUsername();
 
             LoggerUtil.info(this.getClass(), String.format(
-                    "Loading time off history for user %s (ID: %d)", username, userId));
+                    "Admin redirecting to time-off history for user %s (ID: %d)", username, userId));
 
-            // REFACTORED: Load time off history using available methods
-            // Note: The command system doesn't have a specific command for history loading
-            // since this is a display operation. We could extend it or use existing services.
-            List<WorkTimeTable> timeOffs = loadUserTimeOffHistory(username, userId);
-
-            model.addAttribute("user", user);
-            model.addAttribute("timeOffs", timeOffs);
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully loaded %d time off entries for user %s", timeOffs.size(), username));
-
-            return "admin/holiday-history";
+            // REDIRECT to StatusController's time-off history page with admin source parameter
+            // This uses the same logic and displays the same data as status controller
+            return "redirect:/status/timeoff-history?userId=" + userId + "&from=admin";
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error viewing holiday history: " + e.getMessage(), e);
-            redirectAttributes.addFlashAttribute("errorMessage", "Error loading holiday history");
+            LoggerUtil.error(this.getClass(), "Error redirecting to time-off history: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "Error loading time-off history");
             return "redirect:/admin/holidays";
         }
     }
@@ -249,40 +238,6 @@ public class AdminHolidayController extends BaseController {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
                     "Error loading holiday list from cache: %s", e.getMessage()), e);
-            return List.of(); // Return empty list on error
-        }
-    }
-
-    /**
-     * Load user time off history
-     * This functionality could be added to the command system in the future,
-     * but for now we implement a simple version
-     */
-    private List<WorkTimeTable> loadUserTimeOffHistory(String username, Integer userId) {
-        try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Loading time off history for user %s", username));
-
-            // For now, load recent worktime data and filter time off entries
-            // This could be enhanced by adding a specific command for history loading
-            int currentYear = java.time.LocalDate.now().getYear();
-            List<WorkTimeTable> currentYearData = worktimeOperationService.loadUserWorktime(username, currentYear, 12);
-
-            // Filter only time off entries
-            List<WorkTimeTable> timeOffEntries = currentYearData.stream()
-                    .filter(entry -> entry.getTimeOffType() != null)
-                    .filter(entry -> entry.getUserId().equals(userId))
-                    .sorted((e1, e2) -> e2.getWorkDate().compareTo(e1.getWorkDate())) // Newest first
-                    .collect(Collectors.toList());
-
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Found %d time off entries for user %s", timeOffEntries.size(), username));
-
-            return timeOffEntries;
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading time off history for user %s: %s", username, e.getMessage()), e);
             return List.of(); // Return empty list on error
         }
     }

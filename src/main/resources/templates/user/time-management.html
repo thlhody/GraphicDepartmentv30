@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=18795}">
     <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=18785}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=18798}">
     <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=18781}">
 </head>
 <body>
@@ -434,21 +434,21 @@
                                         </span>
                                     </td>
 
-                                    <!-- Work Time Column - ENHANCED FOR SN DAYS (PROCESSED REGULAR TIME) -->
+                                    <!-- Work Time Column - FIXED FOR SPECIAL DAYS -->
                                     <td class="text-center small">
-                                        <!-- For ALL special days with work, show 0 work time (all time is overtime) -->
-                                        <span th:if="${(record.timeOffType == 'SN' || record.timeOffType == 'CO' || record.timeOffType == 'CM' || record.timeOffType == 'W') && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
-                                              class="text-muted small"
-                                              title="No regular work time on special days - all time is overtime">0:00</span>
+                                        <!-- For ALL special days (SN/CO/CM/W), always show dash - no regular work time -->
+                                        <span th:if="${record.timeOffType == 'SN' || record.timeOffType == 'CO' || record.timeOffType == 'CM' || record.timeOffType == 'W'}"
+                                              class="text-muted"
+                                              title="No regular work time on special days - all time is overtime">-</span>
 
-                                        <!-- For regular days, show formatted work time (processed up to schedule) -->
-                                        <span th:if="${record.timeOffType != 'SN' && record.formattedWorkTime != null}"
+                                        <!-- For regular days ONLY (no special day types), show formatted work time -->
+                                        <span th:if="${record.timeOffType == null && record.formattedWorkTime != null}"
                                               class="text-primary fw-medium"
                                               th:text="${record.formattedWorkTime}"
                                               th:title="'Regular work time (up to schedule): ' + ${record.formattedWorkTime} + ${record.lunchBreakDeducted ? ' (lunch break deducted)' : ''}">--:--</span>
 
-                                        <!-- No work time -->
-                                        <span th:unless="${(record.timeOffType == 'SN' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0) || (record.timeOffType != 'SN' && record.formattedWorkTime != null)}">-</span>
+                                        <!-- No work time for regular days without work -->
+                                        <span th:unless="${(record.timeOffType == 'SN' || record.timeOffType == 'CO' || record.timeOffType == 'CM' || record.timeOffType == 'W') || (record.timeOffType == null && record.formattedWorkTime != null)}">-</span>
                                     </td>
 
                                     <!-- Overtime Column - ENHANCED TO HIGHLIGHT SN OVERTIME -->
@@ -784,41 +784,6 @@
         </div>
     </div>
 
-    <!-- Time Off Delete Confirmation Modal -->
-    <div class="modal fade" id="timeOffDeleteModal" tabindex="-1" data-bs-backdrop="static">
-        <div class="modal-dialog modal-sm">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h6 class="modal-title">
-                        <i class="bi bi-trash me-2"></i>Remove Time Off
-                    </h6>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body text-center py-4">
-                    <div class="mb-3">
-                        <i class="bi bi-question-circle-fill text-warning" style="font-size: 3rem;"></i>
-                    </div>
-                    <h6 id="deleteModalTitle">Remove Vacation Day?</h6>
-                    <p id="deleteModalMessage" class="text-muted mb-0">
-                        This will remove your vacation request for <strong id="deleteModalDate"></strong>
-                    </p>
-                    <div id="deleteModalBalanceInfo" class="alert alert-info mt-3 d-none">
-                        <i class="bi bi-info-circle me-1"></i>
-                        <span>Your vacation balance will be restored (+1 day)</span>
-                    </div>
-                </div>
-                <div class="modal-footer justify-content-center">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x me-1"></i>Cancel
-                    </button>
-                    <button type="button" class="btn btn-danger" id="confirmDeleteTimeOff">
-                        <i class="bi bi-trash me-1"></i>Remove
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay d-none">
         <div class="spinner-border text-primary" role="status">
@@ -830,19 +795,25 @@
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
     <!-- Toast alerts (existing) -->
-    <script th:src="@{/js/toast-alerts.js?v=18815}"></script>
+    <script th:src="@{/js/toast-alerts.js?v=18825}"></script>
 
-    <!-- Time Input Module - Load before time-management.js -->
-    <script th:src="@{/js/time-input.js?v=18815}"></script>
+    <!-- Core utilities first -->
+    <script th:src="@{/js/tm/utilities-module.js?v=18830}"></script>
+    <script th:src="@{/js/tm/time-input-module.js?v=18829}"></script>
 
-    <!-- NEW: Holiday Export Utils - Load BEFORE holiday-request-modal.js -->
-    <script th:src="@{/js/holiday-export-utils.js?v=18833}"></script>
+    <!-- Feature modules -->
+    <script th:src="@{/js/tm/status-display-module.js?v=18829}"></script>
+    <script th:src="@{/js/tm/work-time-display-module.js?v=18829}"></script>
+    <script th:src="@{/js/tm/inline-editing-module.js?v=18829}"></script>
+    <script th:src="@{/js/tm/timeoff-management-module.js?v=18839}"></script>
+    <script th:src="@{/js/tm/period-navigation-module.js?v=18829}"></script>
 
-    <!-- Main time management script -->
-    <script th:src="@{/js/time-management.js?v=18829}"></script>
+    <!-- Core coordinator last -->
+    <script th:src="@{/js/time-management-core.js?v=18829}"></script>
 
-    <!-- Holiday modal script - Now uses HolidayExportUtils -->
-    <script th:src="@{/js/holiday-request-modal.js?v=18815}"></script>
+    <!-- Keep your existing scripts -->
+    <script th:src="@{/js/holiday-export-utils.js?v=18835}"></script>
+    <script th:src="@{/js/holiday-request-modal.js?v=18835}"></script>
 </th:block>
 </body>
 </html>

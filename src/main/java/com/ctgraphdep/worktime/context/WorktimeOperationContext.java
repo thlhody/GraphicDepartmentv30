@@ -375,9 +375,15 @@ public class WorktimeOperationContext {
     }
 
     // Remove time off request from tracker (balance-neutral)
-    public void removeTimeOffFromTracker(String username, Integer userId, LocalDate date, int year) {
-        timeOffCacheService.removeTimeOffFromCacheWithoutBalanceUpdate(username, userId, year, date);
+    public boolean removeTimeOffFromTracker(String username, Integer userId, LocalDate date, int year) {
+        return timeOffCacheService.removeTimeOffFromCacheWithoutBalanceUpdate(username, userId, year, date);
     }
+
+    public boolean loadUserTrackerSession(String username, Integer userId, int year){
+        return timeOffCacheService.loadUserSession(username,userId,year);
+    }
+
+
 
     // ========================================================================
     // ADMIN WORKTIME OPERATIONS
@@ -497,4 +503,5 @@ public class WorktimeOperationContext {
             return Optional.empty();
         }
     }
+
 }

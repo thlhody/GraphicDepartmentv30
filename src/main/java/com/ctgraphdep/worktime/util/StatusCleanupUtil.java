@@ -66,40 +66,23 @@ public class StatusCleanupUtil {
     }
 
     /**
-     * Convert old enum-based status to new string-based status.
-     * Handles all known old SyncStatusMerge enum values.
+     * Convert old/unknown statuses to USER_INPUT, preserve valid new format statuses
      * @param oldStatus The old status (possibly enum-based)
      * @return New string-based status constant
      */
     private static String convertOldStatusToNew(String oldStatus) {
-        if (oldStatus == null || oldStatus.trim().isEmpty()) {
+        if (oldStatus == null) {
             return MergingStatusConstants.USER_INPUT;
         }
 
-        // If already new format, keep as-is
+        // Preserve valid new format statuses
         if (isNewFormatStatus(oldStatus)) {
             return oldStatus;
         }
 
-        // Convert old enum values to new format
-        return switch (oldStatus.trim()) {
-            // Special case: ADMIN_BLANK becomes DELETE
-            case "ADMIN_BLANK" -> MergingStatusConstants.DELETE;
-
-            // Common old enum values become USER_INPUT
-            case "USER_DONE", "ADMIN_CHECK", "ADMIN_EDITED", "USER_EDITED" ->
-                    MergingStatusConstants.USER_INPUT;
-
-            // Handle any other old enum values that might exist
-            case "SYNC_PENDING", "SYNC_COMPLETE", "SYNC_ERROR" ->
-                    MergingStatusConstants.USER_INPUT;
-
-            // Unknown values also become USER_INPUT
-            default -> {
-                LoggerUtil.warn(StatusCleanupUtil.class, String.format("Unknown old status format: '%s' - converting to USER_INPUT", oldStatus));
-                yield MergingStatusConstants.USER_INPUT;
-            }
-        };
+        // Convert ALL old/unknown statuses to USER_INPUT (including old ADMIN_BLANK, DELETE, etc.)
+        LoggerUtil.debug(StatusCleanupUtil.class, String.format("Converting old status '%s' to USER_INPUT", oldStatus));
+        return MergingStatusConstants.USER_INPUT;
     }
 
     /**
@@ -117,7 +100,6 @@ public class StatusCleanupUtil {
                 MergingStatusConstants.TEAM_INPUT.equals(status) ||
                 MergingStatusConstants.ADMIN_FINAL.equals(status) ||
                 MergingStatusConstants.TEAM_FINAL.equals(status) ||
-                MergingStatusConstants.DELETE.equals(status) ||
                 MergingStatusConstants.isTimestampedEditStatus(status);
     }
 

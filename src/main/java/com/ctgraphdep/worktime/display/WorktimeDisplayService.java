@@ -219,12 +219,12 @@ public class WorktimeDisplayService {
         }
 
         // Regular time off (SN without work, CO, CM)
-        if (entry.getTimeOffType() != null && !MergingStatusConstants.DELETE.equals(entry.getTimeOffType())) {
+        if (entry.getTimeOffType() != null) {
             return WorkTimeDisplayDTO.createFromTimeOffEntry(entry, isWeekend, statusInfo);
         }
 
         // Regular work entry
-        if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0 && !MergingStatusConstants.DELETE.equals(entry.getAdminSync())) {
+        if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
 
             int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8; // Default to 8 hours
             return WorkTimeDisplayDTO.createFromWorkEntry(entry, userSchedule, isWeekend, statusInfo);
@@ -889,9 +889,6 @@ public class WorktimeDisplayService {
             case MergingStatusConstants.USER_IN_PROCESS -> {
                 return "In Progress";
             }
-            case MergingStatusConstants.DELETE -> {
-                return "Admin Blank";
-            }
             case MergingStatusConstants.ADMIN_FINAL -> {
                 return "Admin Final";
             }
@@ -927,9 +924,6 @@ public class WorktimeDisplayService {
             }
             case MergingStatusConstants.USER_IN_PROCESS-> {
                 return "text-info";
-            }
-            case MergingStatusConstants.DELETE -> {
-                return "text-secondary";
             }
             case MergingStatusConstants.ADMIN_FINAL -> {
                 return "text-danger";

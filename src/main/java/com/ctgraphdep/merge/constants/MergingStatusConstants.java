@@ -29,9 +29,6 @@ public class MergingStatusConstants {
     /** User is actively working on entry (protected from external changes) */
     public static final String USER_IN_PROCESS = "USER_IN_PROCESS";
 
-    /** Entry marked for deletion */
-    public static final String DELETE = "DELETE";
-
     // ========================================================================
     // FINAL STATUSES (Immutable)
     // ========================================================================

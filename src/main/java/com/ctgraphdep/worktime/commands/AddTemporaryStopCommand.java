@@ -5,8 +5,8 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
-import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
-import com.ctgraphdep.worktime.util.StatusAssignmentResult;
+import com.ctgraphdep.merge.status.StatusAssignmentEngine;
+import com.ctgraphdep.merge.status.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 

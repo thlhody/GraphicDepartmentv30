@@ -224,6 +224,38 @@ public class WorktimeEntityBuilder {
         entry.setLunchBreakDeducted(false);
     }
 
+    // NEW METHOD - ADD THIS
+    public static void resetEntryToEmpty(WorkTimeTable entry) {
+        // Reset all work-related fields but preserve identity
+        entry.setDayStartTime(null);
+        entry.setDayEndTime(null);
+        entry.setTimeOffType(null);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setLunchBreakDeducted(false);
+    }
+
+    // Create empty entry for admin reset operations
+    public static WorkTimeTable createEmptyEntry(Integer userId, LocalDate date) {
+        WorkTimeTable entry = new WorkTimeTable();
+        entry.setUserId(userId);
+        entry.setWorkDate(date);
+
+        // All other fields will be null/0/false by default
+        entry.setDayStartTime(null);
+        entry.setDayEndTime(null);
+        entry.setTimeOffType(null);
+        entry.setTemporaryStopCount(0);
+        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTotalWorkedMinutes(0);
+        entry.setTotalOvertimeMinutes(0);
+        entry.setLunchBreakDeducted(false);
+
+        return entry;
+    }
+
     // Recalculate work time based on start/end times and entry type
     public static void recalculateWorkTime(WorkTimeTable entry, int userScheduleHours) {
         if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {

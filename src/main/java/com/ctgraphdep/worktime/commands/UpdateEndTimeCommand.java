@@ -5,8 +5,8 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import com.ctgraphdep.worktime.model.OperationResult;
-import com.ctgraphdep.worktime.util.StatusAssignmentEngine;
-import com.ctgraphdep.worktime.util.StatusAssignmentResult;
+import com.ctgraphdep.merge.status.StatusAssignmentEngine;
+import com.ctgraphdep.merge.status.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 
@@ -109,16 +109,16 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
         int month = date.getMonthValue();
 
         try {
-            // NEW: Use UserOwnDataAccessor for user's own data
+            // Use UserOwnDataAccessor for user's own data
             WorktimeDataAccessor accessor = context.getDataAccessor(username);
 
-            // NEW: Load user entries using accessor
+            // Load user entries using accessor
             List<WorkTimeTable> entries = accessor.readWorktime(username, year, month);
             if (entries == null) {
                 entries = new java.util.ArrayList<>();
             }
 
-            // PRESERVED: Find existing entry
+            // Find existing entry
             Optional<WorkTimeTable> entryOpt = findEntryByDate(entries, userId, date);
             if (entryOpt.isEmpty()) {
                 throw new IllegalArgumentException("No worktime entry found for date: " + date);
@@ -126,24 +126,24 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
 
             WorkTimeTable entry = entryOpt.get();
 
-            // PRESERVED: Store original timeOffType to preserve it
+            // Store original timeOffType to preserve it
             String originalTimeOffType = entry.getTimeOffType();
             boolean isSpecialDay = WorktimeEntityBuilder.hasSpecialDayTimeOffType(entry);
 
             LoggerUtil.info(this.getClass(), String.format("Found entry for %s: timeOffType=%s, isSpecialDay=%s", date, originalTimeOffType, isSpecialDay));
 
-            // PRESERVED: Parse and set new end time
+            // Parse and set new end time
             LocalDateTime endTime = parseEndTime(newEndTime);
             entry.setDayEndTime(endTime);
 
-            // PRESERVED: Apply appropriate calculation based on day type
+            // Apply appropriate calculation based on day type
             if (isSpecialDay) {
                 applySpecialDayCalculation(entry, originalTimeOffType);
             } else {
                 applyRegularDayCalculation(entry);
             }
 
-            // PRESERVED: Ensure timeOffType is preserved
+            // Ensure timeOffType is preserved
             entry.setTimeOffType(originalTimeOffType);
 
             LoggerUtil.info(this.getClass(), String.format("Updated end time for %s: start=%s, end=%s, timeOffType=%s, regular=%d, overtime=%d, lunch=%s", date,
@@ -154,25 +154,11 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
                     entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0,
                     entry.isLunchBreakDeducted()));
 
-            // Determine operation type based on timeOffType presence
-            String dynamicOperationType;
-            if (entry.getTimeOffType() != null && !entry.getTimeOffType().trim().isEmpty()) {
-                // Has timeOffType → field modification on special day
-                dynamicOperationType = getOperationType(); // Uses original operation type
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "TimeOffType '%s' exists - treating as field modification", entry.getTimeOffType()));
-            } else {
-                // No timeOffType → work entry being removed
-                dynamicOperationType = "DELETE_ENTRY";
-                LoggerUtil.debug(this.getClass(),
-                        "No timeOffType - treating as entry removal");
-            }
-
-            // Use dynamic operation type for status assignment
+            // FIXED: Always use UPDATE_END_TIME operation type, regardless of timeOffType
             StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
                     entry,
                     context.getCurrentUser().getRole(),
-                    dynamicOperationType
+                    getOperationType()  // Always UPDATE_END_TIME
             );
 
             if (!statusResult.isSuccess()) {
@@ -184,13 +170,13 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
             LoggerUtil.info(this.getClass(), String.format(
                     "Status assigned: %s → %s", statusResult.getOriginalStatus(), statusResult.getNewStatus()));
 
-            // PRESERVED: Replace entry in list
+            // Replace entry in list
             replaceEntry(entries, entry);
 
-            // NEW: Save using accessor
+            // Save using accessor
             accessor.writeWorktimeWithStatus(username, entries, year, month, context.getCurrentUser().getRole());
 
-            // PRESERVED: Create success message
+            // Create success message
             String message = String.format("End time updated to %s", endTime != null ? endTime.toLocalTime() : "null");
 
             if (isSpecialDay) {
@@ -198,9 +184,10 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
                 message += String.format(" (%s day: %d overtime hours)", originalTimeOffType, overtimeHours);
             }
 
-            // PRESERVED: Create side effects tracking
+            // Create side effects tracking
             OperationResult.OperationSideEffects sideEffects = OperationResult.OperationSideEffects.builder()
-                    .fileUpdated(createFilePathId(username, year, month)).build();
+                    .fileUpdated(createFilePathId(username, year, month))
+                    .build();
 
             LoggerUtil.info(this.getClass(), String.format("Successfully updated end time for %s on %s: %s", username, date, message));
 
