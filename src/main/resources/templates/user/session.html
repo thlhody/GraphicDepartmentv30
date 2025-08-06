@@ -105,6 +105,11 @@
                title="Refresh session data">
                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh
             </a>
+            <!-- Worktime Button -->
+            <a th:href="@{/user/time-management}" class="btn btn-outline-info" data-bs-toggle="tooltip"
+               title="Go to Time Management page">
+                <i class="bi bi-table me-2"></i>Time Management
+            </a>
         </div>
 
         <!-- Session Information Card -->
@@ -396,10 +401,10 @@
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
         <!-- Resume confirmation script -->
-        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18783}"></script>
+        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18784}"></script>
 
         <!-- Main script for resolution handling and clock -->
-        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=187911}" defer></script>
+        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=187912}" defer></script>
 
         <!-- Always load the session enhancement script -->
         <script th:src="@{/js/session-enhanced.js?v=187911}" defer></script>

@@ -131,7 +131,7 @@ public class WorktimeDisplayService {
     }
 
     // ========================================================================
-    // ADMIN DISPLAY METHODS (EXISTING, ENHANCED)
+    // ADMIN DISPLAY METHODS
     // ========================================================================
 
     // Prepare day headers for admin display
@@ -371,7 +371,7 @@ public class WorktimeDisplayService {
     // PRIVATE HELPER METHODS
     // ========================================================================
 
-    // Prepare month summary with proper SN overtime inclusion
+    // Prepare month summary with proper Special Day overtime inclusion
     public WorkTimeSummaryDTO prepareMonthSummary(User user, int year, int month) {
         validateInput(user, year, month);
 

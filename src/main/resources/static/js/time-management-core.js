@@ -123,14 +123,22 @@ const TimeManagementCore = {
     // ========================================================================
 
     /**
-     * Handle server-side messages with toast system
+     * ENHANCED: Handle server-side messages with toast system AND holiday modal integration
      */
     handleServerMessages() {
+        console.log('🔍 Checking server messages and holiday modal triggers...');
+
         // Check for success messages and provide additional feedback
         const successAlert = document.querySelector('.alert-success');
         if (successAlert) {
             // Hide the original alert since toast system handles it
             successAlert.style.display = 'none';
+
+            // Show success toast
+            if (window.showToast) {
+                const message = successAlert.textContent.trim();
+                window.showToast('Success', message, 'success');
+            }
 
             setTimeout(() => {
                 console.log('🔄 Auto-refreshing page after successful operation...');
@@ -142,7 +150,110 @@ const TimeManagementCore = {
         const errorAlert = document.querySelector('.alert-danger');
         if (errorAlert) {
             errorAlert.style.display = 'none';
+
+            if (window.showToast) {
+                const message = errorAlert.textContent.trim();
+                window.showToast('Error', message, 'error');
+            }
         }
+
+        // NEW: Check for holiday modal trigger from server
+        this.checkForHolidayModalTrigger();
+    },
+
+    /**
+     * NEW: Check if server indicated we should open holiday modal after time-off submission
+     */
+    checkForHolidayModalTrigger() {
+        const holidayDataElement = document.getElementById('timeOffResultData');
+        if (!holidayDataElement) {
+            console.log('📄 No holiday modal trigger data found');
+            return;
+        }
+
+        try {
+            const holidayData = JSON.parse(holidayDataElement.textContent);
+            console.log('📊 Holiday modal data:', holidayData);
+
+            // Check if we should auto-open holiday modal
+            if (holidayData.openHolidayModal === 'true') {
+                console.log('🎯 Holiday modal trigger detected!');
+
+                // Ensure holiday modal functions are available
+                if (typeof window.openHolidayModal !== 'function') {
+                    console.error('❌ Holiday modal function not available');
+                    return;
+                }
+
+                // Show success toast first (if we have a message)
+                if (holidayData.successMessage && window.showToast) {
+                    window.showToast('Time Off Added', holidayData.successMessage, 'success', {
+                        duration: 2000
+                    });
+                }
+
+                // Schedule holiday modal opening after success message
+                setTimeout(() => {
+                    console.log('🚀 Opening holiday modal with dates:', {
+                        start: holidayData.holidayStartDate,
+                        end: holidayData.holidayEndDate
+                    });
+
+                    // Extract user data (reuse existing function if available)
+                    const userData = this.extractCurrentUserData();
+
+                    // Open the holiday modal
+                    window.openHolidayModal(
+                        holidayData.holidayStartDate,
+                        holidayData.holidayEndDate,
+                        userData
+                    );
+
+                    console.log('✅ Holiday modal opened successfully');
+
+                }, 1500); // 1.5 second delay to let user see the success message
+            }
+
+        } catch (error) {
+            console.error('❌ Error processing holiday modal trigger data:', error);
+        }
+    },
+
+    /**
+     * NEW: Extract current user data for holiday modal
+     */
+    extractCurrentUserData() {
+        const userData = {};
+
+        // Method 1: Try to get name from user badge (most reliable)
+        const userBadgeSpan = document.querySelector('.badge .bi-person + span');
+        if (userBadgeSpan && userBadgeSpan.textContent.trim()) {
+            userData.name = userBadgeSpan.textContent.trim();
+            console.log('👤 Found username from badge:', userData.name);
+        }
+
+        // Method 2: Try page title or header if badge method failed
+        if (!userData.name) {
+            const pageHeaders = document.querySelectorAll('h1, h2, h3, .header-title');
+            pageHeaders.forEach(header => {
+                const text = header.textContent;
+                if (text.includes('Time Management') && text.includes('-')) {
+                    const parts = text.split('-');
+                    if (parts.length > 1) {
+                        userData.name = parts[1].trim();
+                        console.log('👤 Found username from header:', userData.name);
+                    }
+                }
+            });
+        }
+
+        // Fallback name for safety
+        if (!userData.name) {
+            userData.name = 'User';
+            console.log('👤 Using fallback username');
+        }
+
+        return userData;
     },
 
     // ========================================================================

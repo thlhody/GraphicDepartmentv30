@@ -236,23 +236,6 @@ function getFormData() {
 // ========================================================================
 
 /**
- * Export to PDF using utility
- */
-function exportToPDF() {
-    if (!window.HolidayExportUtils) {
-        console.error('HolidayExportUtils not found. Make sure holiday-export-utils.js is loaded.');
-        alert('Export utilities not loaded. Please refresh the page.');
-        return;
-    }
-
-    window.HolidayExportUtils.exportToPDF(
-        getFormData,
-        selectedHolidayType,
-        selectedRecovery
-    );
-}
-
-/**
  * Export to Image using utility
  */
 function exportToImage(format) {
@@ -325,23 +308,15 @@ function validateFormBasic() {
 }
 
 // ========================================================================
-// INTEGRATION FUNCTIONS
+// HOLIDAY REQUEST INTEGRATION
 // ========================================================================
 
-/**
- * Demo function to test the modal
- */
-function testModal() {
-    openHolidayModal('2025-08-10', '2025-08-20', {
-        name: 'Popescu Ion'
-    });
-}
 
 /**
  * FIXED: Test function for integration with time management page
  * Uses name attributes to avoid ID conflicts
  */
-function testHolidayModal() {
+function openHolidayRequestFromForm() {
     // Extract user data from current page
     const userData = extractUserDataFromCurrentPage();
 

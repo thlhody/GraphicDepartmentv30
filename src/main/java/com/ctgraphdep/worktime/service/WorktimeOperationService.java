@@ -40,7 +40,7 @@ public class WorktimeOperationService {
     }
 
     // ========================================================================
-    // USER OPERATIONS - Time Field Updates (REFACTORED)
+    // USER OPERATIONS - Time Field Updates
     // ========================================================================
 
     // Update start time - let command handle everything
@@ -78,7 +78,7 @@ public class WorktimeOperationService {
     }
 
     // ========================================================================
-    // USER OPERATIONS - Time Off Management (REFACTORED)
+    // USER OPERATIONS - Time Off Management
     // ========================================================================
 
     // Add time off - factory method
@@ -115,7 +115,7 @@ public class WorktimeOperationService {
     }
 
     // ========================================================================
-    // USER OPERATIONS - Temporary Stop Updates (REFACTORED)
+    // USER OPERATIONS - Temporary Stop Updates
     // ========================================================================
 
     // Update temporary stop - factory method
@@ -151,7 +151,7 @@ public class WorktimeOperationService {
     }
 
     // ========================================================================
-    // ADMIN OPERATIONS (REFACTORED)
+    // ADMIN OPERATIONS
     // ========================================================================
 
     // Admin add time off - factory method
@@ -168,7 +168,6 @@ public class WorktimeOperationService {
             adminLock.unlock();
         }
     }
-
 
     // Add national holiday - let command handle everything
     @PreAuthorize("hasRole('ADMIN')")
@@ -225,117 +224,6 @@ public class WorktimeOperationService {
             return OperationResult.failure(errorMsg, OperationResult.OperationType.FINALIZE_WORKTIME);
         } finally {
             adminLock.unlock();
-        }
-    }
-
-    // Direct finalization logic for WorkTimeTable entries
-    private FinalizationStats performDirectFinalization(List<WorkTimeTable> entries, Integer targetUserId) {
-        FinalizationStats stats = new FinalizationStats();
-
-        for (WorkTimeTable entry : entries) {
-            // Apply user filter if specified
-            if (targetUserId != null && !targetUserId.equals(entry.getUserId())) {
-                continue; // Skip entries for other users
-            }
-
-            stats.totalProcessed++;
-
-            String currentStatus = entry.getAdminSync();
-
-            // Skip if already finalized
-            if (MergingStatusConstants.isFinalStatus(currentStatus)) {
-                stats.skippedAlreadyFinal++;
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Skipping already final entry for user %d on %s: %s",
-                        entry.getUserId(), entry.getWorkDate(), currentStatus));
-                continue;
-            }
-
-            // Check if entry can be modified (not USER_IN_PROCESS)
-            if (MergingStatusConstants.USER_IN_PROCESS.equals(currentStatus)) {
-                stats.skippedNotModifiable++;
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Skipping in-process entry for user %d on %s: %s",
-                        entry.getUserId(), entry.getWorkDate(), currentStatus));
-                continue;
-            }
-
-            // Finalize the entry
-            entry.setAdminSync(MergingStatusConstants.ADMIN_FINAL);
-            stats.totalFinalized++;
-
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Finalized entry for user %d on %s: %s → %s",
-                    entry.getUserId(), entry.getWorkDate(), currentStatus, MergingStatusConstants.ADMIN_FINAL));
-        }
-
-        return stats;
-    }
-
-    // Simple stats tracking class for finalization results
-    private static class FinalizationStats {
-        int totalProcessed = 0;
-        int totalFinalized = 0;
-        int skippedAlreadyFinal = 0;
-        int skippedNotModifiable = 0;
-
-        @Override
-        public String toString() {
-            return String.format("FinalizationStats[processed=%d, finalized=%d, skippedFinal=%d, skippedNotModifiable=%d]",
-                    totalProcessed, totalFinalized, skippedAlreadyFinal, skippedNotModifiable);
-        }
-    }
-
-    // ========================================================================
-    // DATA LOADING OPERATIONS (UNCHANGED PUBLIC API)
-    // ========================================================================
-
-    /**
-     * Load user worktime with intelligent routing:
-     * - User accessing own data: Cache-first (fast session data)
-     * - Admin accessing any user: Network/consolidated files (authoritative data)
-     */
-    public List<WorkTimeTable> loadUserWorktime(String username, int year, int month) {
-        userLock.readLock().lock();
-        try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Loading worktime for %s - %d/%d with intelligent routing", username, year, month));
-
-            Integer userId = context.getUserId(username);
-            if (userId == null) {
-                LoggerUtil.warn(this.getClass(), String.format("User not found: %s", username));
-                return new ArrayList<>();
-            }
-
-            String currentUsername = context.getCurrentUsername();
-            boolean isCurrentUser = username.equals(currentUsername);
-            boolean isAdmin = context.isCurrentUserAdmin();
-
-            if (isCurrentUser && !isAdmin) {
-                // USER ACCESSING OWN DATA: Use cache service (fast session)
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "User %s accessing own data - using CACHE service", username));
-
-                return context.getWorktimeCacheService().getMonthEntriesWithFallback(
-                        username, userId, year, month);
-
-            } else if (isAdmin) {
-                // ADMIN ACCESSING ANY DATA: Use network/admin consolidated files
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Admin accessing %s data - using NETWORK/ADMIN files", username));
-
-                return loadUserWorkTimeFromNetwork(username, year, month);
-
-            } else {
-                // UNAUTHORIZED ACCESS: Fall back to old merge logic for safety
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "Non-admin user %s accessing %s data - using merge fallback", currentUsername, username));
-
-                return loadUserWorktimeWithMergeFallback(username, userId, year, month);
-            }
-
-        } finally {
-            userLock.readLock().unlock();
         }
     }
 
@@ -407,6 +295,125 @@ public class WorktimeOperationService {
         }
     }
 
+    // Load admin worktime entries
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<WorkTimeTable> loadAdminWorktime(int year, int month) {
+        return context.loadAdminWorktime(year, month);
+    }
+
+    // Save admin worktime entries
+    @PreAuthorize("hasRole('ADMIN')")
+    public void saveAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
+        context.saveAdminWorktime(entries, year, month);
+    }
+
+    // Direct finalization logic for WorkTimeTable entries
+    private FinalizationStats performDirectFinalization(List<WorkTimeTable> entries, Integer targetUserId) {
+        FinalizationStats stats = new FinalizationStats();
+
+        for (WorkTimeTable entry : entries) {
+            // Apply user filter if specified
+            if (targetUserId != null && !targetUserId.equals(entry.getUserId())) {
+                continue; // Skip entries for other users
+            }
+
+            stats.totalProcessed++;
+
+            String currentStatus = entry.getAdminSync();
+
+            // Skip if already finalized
+            if (MergingStatusConstants.isFinalStatus(currentStatus)) {
+                stats.skippedAlreadyFinal++;
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Skipping already final entry for user %d on %s: %s",
+                        entry.getUserId(), entry.getWorkDate(), currentStatus));
+                continue;
+            }
+
+            // Check if entry can be modified (not USER_IN_PROCESS)
+            if (MergingStatusConstants.USER_IN_PROCESS.equals(currentStatus)) {
+                stats.skippedNotModifiable++;
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Skipping in-process entry for user %d on %s: %s",
+                        entry.getUserId(), entry.getWorkDate(), currentStatus));
+                continue;
+            }
+
+            // Finalize the entry
+            entry.setAdminSync(MergingStatusConstants.ADMIN_FINAL);
+            stats.totalFinalized++;
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Finalized entry for user %d on %s: %s → %s",
+                    entry.getUserId(), entry.getWorkDate(), currentStatus, MergingStatusConstants.ADMIN_FINAL));
+        }
+
+        return stats;
+    }
+
+    // Simple stats tracking class for finalization results
+    private static class FinalizationStats {
+        int totalProcessed = 0;
+        int totalFinalized = 0;
+        int skippedAlreadyFinal = 0;
+        int skippedNotModifiable = 0;
+
+        @Override
+        public String toString() {
+            return String.format("FinalizationStats[processed=%d, finalized=%d, skippedFinal=%d, skippedNotModifiable=%d]",
+                    totalProcessed, totalFinalized, skippedAlreadyFinal, skippedNotModifiable);
+        }
+    }
+
+    // ========================================================================
+    // DATA LOADING OPERATIONS (UNCHANGED PUBLIC API)
+    // ========================================================================
+
+    // Load user worktime with intelligent routing:
+    public List<WorkTimeTable> loadUserWorktime(String username, int year, int month) {
+        userLock.readLock().lock();
+        try {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Loading worktime for %s - %d/%d with intelligent routing", username, year, month));
+
+            Integer userId = context.getUserId(username);
+            if (userId == null) {
+                LoggerUtil.warn(this.getClass(), String.format("User not found: %s", username));
+                return new ArrayList<>();
+            }
+
+            String currentUsername = context.getCurrentUsername();
+            boolean isCurrentUser = username.equals(currentUsername);
+            boolean isAdmin = context.isCurrentUserAdmin();
+
+            if (isCurrentUser && !isAdmin) {
+                // USER ACCESSING OWN DATA: Use cache service (fast session)
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "User %s accessing own data - using CACHE service", username));
+
+                return context.getWorktimeCacheService().getMonthEntriesWithFallback(
+                        username, userId, year, month);
+
+            } else if (isAdmin) {
+                // ADMIN ACCESSING ANY DATA: Use network/admin consolidated files
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Admin accessing %s data - using NETWORK/ADMIN files", username));
+
+                return loadUserWorkTimeFromNetwork(username, year, month);
+
+            } else {
+                // UNAUTHORIZED ACCESS: Fall back to old merge logic for safety
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Non-admin user %s accessing %s data - using merge fallback", currentUsername, username));
+
+                return loadUserWorktimeWithMergeFallback(username, userId, year, month);
+            }
+
+        } finally {
+            userLock.readLock().unlock();
+        }
+    }
+
     // Fallback merge logic for edge cases (preserved from original)
     private List<WorkTimeTable> loadUserWorktimeWithMergeFallback(String username, Integer userId, int year, int month) {
         try {
@@ -458,20 +465,8 @@ public class WorktimeOperationService {
         }
     }
 
-    // Load admin worktime entries
-    @PreAuthorize("hasRole('ADMIN')")
-    public List<WorkTimeTable> loadAdminWorktime(int year, int month) {
-        return context.loadAdminWorktime(year, month);
-    }
-
-    // Save admin worktime entries
-    @PreAuthorize("hasRole('ADMIN')")
-    public void saveAdminWorktime(List<WorkTimeTable> entries, int year, int month) {
-        context.saveAdminWorktime(entries, year, month);
-    }
-
     // ========================================================================
-    // CONSOLIDATION OPERATIONS (REFACTORED)
+    // CONSOLIDATION OPERATIONS
     // ========================================================================
 
     // Consolidate worktime with proper status handling
@@ -524,26 +519,6 @@ public class WorktimeOperationService {
         }
     }
 
-    // ========================================================================
-    // QUERY OPERATIONS
-    // ========================================================================
-
-    // Get holiday balance for user
-    public Integer getHolidayBalance(String username) {
-        // If requesting own balance, use context cache
-        if (username.equals(context.getCurrentUsername())) {
-            return context.getCurrentHolidayBalance();
-        }
-
-        Optional<User> user = context.getUser(username);
-        return user.map(User::getPaidHolidayDays).orElse(0);
-    }
-
-    // ========================================================================
-    // CONVENIENCE METHODS FOR BACKWARD COMPATIBILITY
-    // ========================================================================
-
-    // FIXED: Check worked days count for a user in a specific month using accessor pattern
     @PreAuthorize("hasRole('ADMIN')")
     public int getWorkedDays(Integer userId, int year, int month) {
         try {
@@ -567,14 +542,12 @@ public class WorktimeOperationService {
                     .filter(entry -> entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0)
                     .count();
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "User %d (%s) worked %d days in %d/%d", userId, username, workedDays, month, year));
+            LoggerUtil.debug(this.getClass(), String.format("User %d (%s) worked %d days in %d/%d", userId, username, workedDays, month, year));
 
             return (int) workedDays;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting worked days for user %d in %d/%d: %s", userId, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error getting worked days for user %d in %d/%d: %s", userId, year, month, e.getMessage()));
             return 0;
         }
     }
@@ -588,32 +561,25 @@ public class WorktimeOperationService {
             // Filter out USER_IN_PROCESS entries for admin display
             List<WorkTimeTable> viewableEntries = allEntries.stream()
                     .filter(entry -> !MergingStatusConstants.USER_IN_PROCESS.equals(entry.getAdminSync()))
-                    .collect(java.util.stream.Collectors.toList());
+                    .collect(Collectors.toList());
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Filtered %d admin entries to %d viewable entries for %d/%d",
+            LoggerUtil.debug(this.getClass(), String.format("Filtered %d admin entries to %d viewable entries for %d/%d",
                     allEntries.size(), viewableEntries.size(), month, year));
 
             return viewableEntries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting viewable entries for %d/%d: %s", year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error getting viewable entries for %d/%d: %s", year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
-
-    // ========================================================================
-    // ADMIN OPERATIONS - Special Day Work & Regular Updates (NEW)
-    // ========================================================================
 
     // Handle regular admin updates
     @PreAuthorize("hasRole('ADMIN')")
     public OperationResult processAdminUpdate(Integer userId, LocalDate date, String value) {
         adminLock.lock();
         try {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Executing admin regular update for user %d on %s", userId, date));
+            LoggerUtil.debug(this.getClass(), String.format("Executing admin regular update for user %d on %s", userId, date));
 
             AdminUpdateCommand command = AdminUpdateCommand.forUpdate(context, userId, date, value);
             return command.execute();
@@ -621,5 +587,16 @@ public class WorktimeOperationService {
         } finally {
             adminLock.unlock();
         }
+    }
+
+    // Get holiday balance for user
+    public Integer getHolidayBalance(String username) {
+        // If requesting own balance, use context cache
+        if (username.equals(context.getCurrentUsername())) {
+            return context.getCurrentHolidayBalance();
+        }
+
+        Optional<User> user = context.getUser(username);
+        return user.map(User::getPaidHolidayDays).orElse(0);
     }
 }

@@ -91,11 +91,8 @@ public class AdminHolidayController extends BaseController {
     }
 
     @PostMapping("/update")
-    public String updateHolidays(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam Integer userId,
-            @RequestParam Integer days,
-            RedirectAttributes redirectAttributes) {
+    public String updateHolidays(@AuthenticationPrincipal UserDetails userDetails, @RequestParam Integer userId,
+            @RequestParam Integer days, RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess utility method
         String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
@@ -163,11 +160,8 @@ public class AdminHolidayController extends BaseController {
     }
 
     @GetMapping("/history/{userId}")
-    public String viewUserHistory(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable Integer userId,
-            Model model,
-            RedirectAttributes redirectAttributes) {
+    public String viewUserHistory(@AuthenticationPrincipal UserDetails userDetails, @PathVariable Integer userId,
+            Model model, RedirectAttributes redirectAttributes) {
 
         // Use checkUserAccess utility method
         String accessCheck = checkUserAccess(userDetails, SecurityConstants.ROLE_ADMIN);
@@ -216,28 +210,24 @@ public class AdminHolidayController extends BaseController {
             // Get all users from cache as User objects
             List<User> users = allUsersCacheService.getAllUsersAsUserObjects();
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Retrieved %d users from cache", users.size()));
+            LoggerUtil.debug(this.getClass(), String.format("Retrieved %d users from cache", users.size()));
 
             // Convert to DTOs, filtering out admin users
             List<PaidHolidayEntryDTO> entries = users.stream()
                     .filter(user -> !user.isAdmin())
                     .map(user -> {
-                        LoggerUtil.debug(this.getClass(), String.format(
-                                "Processing user %s (ID: %d) - holidayDays: %s",
+                        LoggerUtil.debug(this.getClass(), String.format("Processing user %s (ID: %d) - holidayDays: %s",
                                 user.getUsername(), user.getUserId(), user.getPaidHolidayDays()));
                         return PaidHolidayEntryDTO.fromUser(user);
                     })
                     .collect(Collectors.toList());
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully converted %d users to holiday entries", entries.size()));
+            LoggerUtil.info(this.getClass(), String.format("Successfully converted %d users to holiday entries", entries.size()));
 
             return entries;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading holiday list from cache: %s", e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error loading holiday list from cache: %s", e.getMessage()), e);
             return List.of(); // Return empty list on error
         }
     }

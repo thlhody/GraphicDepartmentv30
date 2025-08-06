@@ -257,6 +257,11 @@ public class UserTimeManagementController extends BaseController {
                     message += String.format(" Holiday balance: %d → %d", result.getSideEffects().getOldHolidayBalance(), result.getSideEffects().getNewHolidayBalance());
                 }
                 redirectAttributes.addFlashAttribute("successMessage", message);
+                // NEW: Add flag to open holiday modal
+                redirectAttributes.addFlashAttribute("openHolidayModal", true);
+                redirectAttributes.addFlashAttribute("holidayStartDate", startDate);
+                redirectAttributes.addFlashAttribute("holidayEndDate", endDate);
+
                 LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully: %s", result.getMessage()));
             } else {
                 redirectAttributes.addFlashAttribute("error", result.getMessage());

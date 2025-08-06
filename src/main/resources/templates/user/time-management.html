@@ -3,9 +3,9 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=18785}">
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=18798}">
-    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187840}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=187940}">
+    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=187840}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -139,19 +139,19 @@
                                     <input type="date" name="endDate" id="endDate" class="form-control form-control-sm" required>
                                 </div>
 
-                                <!-- Line 5: Submit button -->
+                                <!-- Line 5: Submit button and Holiday Request -->
                                 <div class="col-12">
-                                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100 mb-2" >
                                         <i class="bi bi-plus-circle me-1"></i>Add Time Off
                                     </button>
                                 </div>
-                                <!-- NEW: Test Holiday Modal Button -->
+
+                                <!-- Holiday Request Button -->
                                 <div class="col-12 mt-2">
-                                    <button type="button" class="btn btn-outline-info btn-sm w-100" onclick="testHolidayModal()">
-                                        <i class="bi bi-file-text me-1"></i>Test Holiday Request Form
+                                    <button type="button" class="btn btn-outline-info btn-sm w-100" onclick="openHolidayRequestFromForm()">
+                                        <i class="bi bi-file-text me-1"></i>Holiday Request
                                     </button>
                                 </div>
-
                             </div>
                         </form>
                     </div>
@@ -163,6 +163,7 @@
                 <div class="card shadow-sm">
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
                             <!-- Left Side: Title and Entry Count -->
                             <div class="d-flex align-items-center gap-3">
                                 <h5 class="card-title mb-0">
@@ -176,6 +177,15 @@
 
                             <!-- Right Side: Period Selection and Actions -->
                             <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                                <!-- Session button -->
+                                <a th:href="@{/user/session}" class="btn btn-outline-primary btn-sm" data-bs-toggle="tooltip"
+                                   title="Go to Session Management page">
+                                    <i class="bi bi-play-circle me-1"></i>Session
+                                </a>
+
+                                <!-- Divider -->
+                                <div class="vr"></div>
                                 <!-- Period Selection Form -->
                                 <form th:action="@{/user/time-management}" method="get" class="d-flex align-items-center gap-2">
                                     <!-- Year Selection -->
@@ -190,7 +200,6 @@
                                             </option>
                                         </select>
                                     </div>
-
                                     <!-- Month Selection -->
                                     <div class="form-group mb-0">
                                         <label for="monthSelect" class="form-label small mb-1">Month</label>
@@ -203,7 +212,6 @@
                                             </option>
                                         </select>
                                     </div>
-
                                     <!-- Load Period Button -->
                                     <div class="form-group mb-0 align-self-end">
                                         <button type="submit" class="btn btn-primary btn-sm">
@@ -211,7 +219,6 @@
                                         </button>
                                     </div>
                                 </form>
-
                                 <!-- Divider -->
                                 <div class="vr"></div>
 
@@ -434,7 +441,7 @@
                                         </span>
                                     </td>
 
-                                    <!-- Work Time Column - FIXED FOR SPECIAL DAYS -->
+                                    <!-- Work Time Column -->
                                     <td class="text-center small">
                                         <!-- For ALL special days (SN/CO/CM/W), always show dash - no regular work time -->
                                         <span th:if="${record.timeOffType == 'SN' || record.timeOffType == 'CO' || record.timeOffType == 'CM' || record.timeOffType == 'W'}"
@@ -451,7 +458,7 @@
                                         <span th:unless="${(record.timeOffType == 'SN' || record.timeOffType == 'CO' || record.timeOffType == 'CM' || record.timeOffType == 'W') || (record.timeOffType == null && record.formattedWorkTime != null)}">-</span>
                                     </td>
 
-                                    <!-- Overtime Column - ENHANCED TO HIGHLIGHT SN OVERTIME -->
+                                    <!-- Overtime Column -->
                                     <td class="text-center small">
                                         <!-- SN overtime: Yellow badge -->
                                         <span th:if="${record.timeOffType == 'SN' && record.formattedOvertimeTime != null}"
@@ -769,9 +776,6 @@
             <div class="export-section">
                 <div style="margin-bottom: 10px; font-weight: 600;">Exportă cererea:</div>
                 <div class="export-buttons">
-                    <button class="export-btn" onclick="exportToPDF()">
-                        <i class="bi bi-file-pdf me-1"></i>PDF
-                    </button>
                     <button class="export-btn" onclick="exportToImage('jpg')">
                         <i class="bi bi-image me-1"></i>JPG
                     </button>
@@ -795,25 +799,34 @@
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
     <!-- Toast alerts (existing) -->
-    <script th:src="@{/js/toast-alerts.js?v=18825}"></script>
+    <script th:src="@{/js/toast-alerts.js?v=18840}"></script>
 
     <!-- Core utilities first -->
-    <script th:src="@{/js/tm/utilities-module.js?v=18830}"></script>
-    <script th:src="@{/js/tm/time-input-module.js?v=18829}"></script>
+    <script th:src="@{/js/tm/utilities-module.js?v=18840}"></script>
+    <script th:src="@{/js/tm/time-input-module.js?v=18840}"></script>
 
     <!-- Feature modules -->
-    <script th:src="@{/js/tm/status-display-module.js?v=18829}"></script>
-    <script th:src="@{/js/tm/work-time-display-module.js?v=18829}"></script>
-    <script th:src="@{/js/tm/inline-editing-module.js?v=18829}"></script>
-    <script th:src="@{/js/tm/timeoff-management-module.js?v=18839}"></script>
-    <script th:src="@{/js/tm/period-navigation-module.js?v=18829}"></script>
-
-    <!-- Core coordinator last -->
-    <script th:src="@{/js/time-management-core.js?v=18829}"></script>
+    <script th:src="@{/js/tm/status-display-module.js?v=18840}"></script>
+    <script th:src="@{/js/tm/work-time-display-module.js?v=18840}"></script>
+    <script th:src="@{/js/tm/inline-editing-module.js?v=18840}"></script>
+    <script th:src="@{/js/tm/timeoff-management-module.js?v=18840}"></script>
+    <script th:src="@{/js/tm/period-navigation-module.js?v=18840}"></script>
 
     <!-- Keep your existing scripts -->
-    <script th:src="@{/js/holiday-export-utils.js?v=18835}"></script>
-    <script th:src="@{/js/holiday-request-modal.js?v=18835}"></script>
+    <script th:src="@{/js/holiday-export-utils.js?v=18840}"></script>
+    <script th:src="@{/js/holiday-request-modal.js?v=18840}"></script>
+    <!-- Add this script block to pass server data to JavaScript -->
+    <script type="application/json" id="timeOffResultData">
+        {
+            "openHolidayModal": "[[${openHolidayModal ?: false}]]",
+            "holidayStartDate": "[[${holidayStartDate ?: ''}]]",
+            "holidayEndDate": "[[${holidayEndDate ?: ''}]]",
+            "successMessage": "[[${successMessage ?: ''}]]"
+        }
+    </script>
+
+    <!-- Core coordinator last -->
+    <script th:src="@{/js/time-management-core.js?v=18840}"></script>
 </th:block>
 </body>
 </html>
