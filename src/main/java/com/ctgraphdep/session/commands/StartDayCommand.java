@@ -4,6 +4,7 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.session.util.SessionSpecialDayDetector;
 import com.ctgraphdep.validation.commands.ValidateSessionForStartCommand;
@@ -27,7 +28,7 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
         info(String.format("Executing StartDayCommand with special day detection for user %s", username));
 
         // Clear monitoring first to prevent conflicts
-        context.getSessionMonitorService().clearMonitoring(username);
+        manageMonitoringState(context, CommandConstants.CLEAR, username);
 
         // Get current session
         WorkUsersSessionsStates currentSession = context.getCurrentSession(username, userId);
@@ -52,7 +53,7 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
         updateWorktimeEntryWithSpecialDayLogic(newSession, context);
 
         // Start session monitoring
-        context.getSessionMonitorService().startEnhancedMonitoring(username);
+        manageMonitoringState(context, CommandConstants.START, username);
 
         info(String.format("Successfully started session for user %s", username));
         return newSession;
@@ -70,7 +71,7 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
 
     @Override
     protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("start day");
+        logCustomization(CommandConstants.START_DAY);
 
         // Preserve existing timeOffType if it exists (critical for SN/CO/CM preservation)
         String existingTimeOffType = entry.getTimeOffType();
@@ -89,15 +90,14 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
 
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("post-special-day start day");
+        logCustomization(CommandConstants.SPECIAL_START_DAY);
 
         // For start day, we mainly need to ensure timeOffType is set correctly for special days
         // The special day logic should have already set it, but let's verify
         LocalDate workDate = session.getDayStartTime().toLocalDate();
 
         // If this is a weekend and no timeOffType is set, ensure it gets set to "W"
-        if (SessionSpecialDayDetector.isWeekend(workDate) &&
-                (entry.getTimeOffType() == null || entry.getTimeOffType().trim().isEmpty())) {
+        if (SessionSpecialDayDetector.isWeekend(workDate) && (entry.getTimeOffType() == null || entry.getTimeOffType().trim().isEmpty())) {
             entry.setTimeOffType(WorkCode.WEEKEND_CODE);
             info(String.format("Set weekend timeOffType: %s", WorkCode.WEEKEND_CODE));
         }
@@ -105,7 +105,7 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
 
     @Override
     protected String getCommandDescription() {
-        return "start day";
+        return CommandConstants.START_DAY;
     }
 
     // ========================================================================
@@ -113,7 +113,7 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
     // ========================================================================
 
     private void resetSessionBeforeStart(SessionContext context) {
-        context.getSessionMonitorService().clearMonitoring(username);
+        manageMonitoringState(context, CommandConstants.CLEAR, username);
 
         // Create fresh offline session
         WorkUsersSessionsStates freshSession = SessionEntityBuilder.createSession(username, userId);

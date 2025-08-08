@@ -7,6 +7,7 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.model.DayType;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.util.SessionSpecialDayDetector;
@@ -46,10 +47,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
             // Get and validate session
             WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
 
-            if (session == null) {
-                warn("Session is null, cannot end");
-                return null;
-            }
+            validateSessionExists(session, CommandConstants.END_SESSION);
 
             // Use explicit end time if provided, otherwise use standardized current time
             LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : today;
@@ -67,21 +65,17 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
             // Process end session operation using calculation command
             session = processEndSession(session, endTime, ctx, effectiveFinalMinutes);
 
+            // ENHANCED: Update worktime entry with special day detection using abstract base class
+            updateWorktimeEntryWithSpecialDayLogic(session, ctx);
+
             // Save the updated session
             SaveSessionCommand saveCommand = ctx.getCommandFactory().createSaveSessionCommand(session);
             ctx.executeCommand(saveCommand);
 
-            // Update session status
-            ctx.getSessionStatusService().updateSessionStatus(username, userId, WorkCode.WORK_OFFLINE, endTime);
-
-            // ENHANCED: Update worktime entry with special day detection using abstract base class
-            updateWorktimeEntryWithSpecialDayLogic(session, ctx);
-
             // Clean up monitoring
-            cleanupMonitoring(ctx);
+            manageMonitoringState(context, CommandConstants.DEACTIVATE, username);
 
-            info(String.format("Successfully ended session for user %s with %d minutes",
-                    username, effectiveFinalMinutes != null ? effectiveFinalMinutes : 0));
+            info(String.format("Successfully ended session for user %s with %d minutes", username, effectiveFinalMinutes != null ? effectiveFinalMinutes : 0));
 
             return session;
         });
@@ -99,13 +93,12 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
 
     @Override
     protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("end day");
+        logCustomization(CommandConstants.END_DAY);
 
         // Set final end time - this is critical for end day
         LocalDateTime endTime = explicitEndTime;
         if (endTime == null) {
             // Get standardized current time using correct pattern
-
             endTime = getStandardCurrentTime(context);
         }
 
@@ -119,7 +112,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
 
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("post-special-day end day");
+        logCustomization(CommandConstants.SPECIAL_END_DAY);
 
         // Re-apply final sync status (may have been modified by special day logic)
         entry.setAdminSync(MergingStatusConstants.USER_INPUT); // Final state, not in-process
@@ -138,7 +131,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
 
     @Override
     protected String getCommandDescription() {
-        return "end day";
+        return CommandConstants.END_DAY;
     }
 
     // ========================================================================
@@ -168,8 +161,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
     private void applyRegularDayOvertimeLogic(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context, LocalDate workDate) {
 
         try {
-            Integer userSchedule = context.getUserService().getUserById(session.getUserId())
-                    .map(User::getSchedule).orElse(WorkCode.INTERVAL_HOURS_C);
+            Integer userSchedule = context.getUserService().getUserById(session.getUserId()).map(User::getSchedule).orElse(WorkCode.INTERVAL_HOURS_C);
 
             WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
             WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
@@ -186,13 +178,5 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
         }
     }
 
-    private void cleanupMonitoring(SessionContext context) {
-        context.getSessionMonitorService().stopMonitoring(username);
-        context.getSessionMonitorService().deactivateHourlyMonitoring(username);
-        try {
-            context.getSessionMonitorService().clearMonitoring(username);
-        } catch (Exception e) {
-            warn(String.format("Error clearing monitoring: %s", e.getMessage()));
-        }
-    }
+
 }

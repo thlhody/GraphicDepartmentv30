@@ -4,6 +4,7 @@ import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -63,7 +64,7 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
 
     @Override
     protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("resolve work time entry");
+        logCustomization(CommandConstants.SPECIAL_WORKTIME_COMMAND);
 
         // Set resolved end time
         LocalDateTime endTime = explicitEndTime;
@@ -85,7 +86,7 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
 
     @Override
     protected String getCommandDescription() {
-        return "resolve work time entry";
+        return CommandConstants.WORKTIME_COMMAND;
     }
 
     //Override to apply resolution-specific customizations

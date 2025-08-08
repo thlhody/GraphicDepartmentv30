@@ -5,6 +5,7 @@ import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 
 import java.time.LocalDate;
@@ -27,8 +28,10 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
             // Get the current session
             WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
 
+            validateSessionExists(session, CommandConstants.SESSION_RESUME);
+
             // Validate that the session needs resuming
-            if (session == null || !session.getWorkdayCompleted()) {
+            if (!session.getWorkdayCompleted()) {
                 warn("Session does not need resuming or is not completed");
                 return session;
             }
@@ -44,7 +47,7 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
             updateWorktimeEntryWithSpecialDayLogic(session, ctx);
 
             // Start monitoring
-            ctx.getSessionMonitorService().startEnhancedMonitoring(username);
+            manageMonitoringState(context, CommandConstants.START, username);
 
             info(String.format("Resumed previous session for user %s", username));
             return session;
@@ -63,7 +66,7 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
 
     @Override
     protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("resume previous session");
+        logCustomization(CommandConstants.RESUME_PREVIOUS_SESSION);
 
         // Resume previous session specific customizations
         entry.setDayEndTime(null); // Reset end time since we're resuming
@@ -75,7 +78,7 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
 
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("post-special-day resume previous session");
+        logCustomization(CommandConstants.SPECIAL_RESUME_PREVIOUS_SESSION);
 
         // Re-apply resume customizations that might have been modified by special day logic
         entry.setDayEndTime(null); // Critical - we're resuming
@@ -86,7 +89,7 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
 
     @Override
     protected String getCommandDescription() {
-        return "resume previous session";
+        return CommandConstants.RESUME_PREVIOUS_SESSION;
     }
 
     // ========================================================================

@@ -4,6 +4,7 @@ import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.query.IsInTempStopMonitoringQuery;
 import com.ctgraphdep.session.util.SessionValidator;
 
@@ -59,7 +60,7 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
             updateWorktimeEntryWithSpecialDayLogic(session, ctx);
 
             // Explicitly pause schedule monitoring when entering temp stop
-            ctx.getSessionMonitorService().pauseScheduleMonitoring(username);
+            manageMonitoringState(context, CommandConstants.PAUSE, username);
 
             info(String.format("Temporary stop started for user %s", username));
             return session;
@@ -78,7 +79,7 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
 
     @Override
     protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("start temporary stop");
+        logCustomization(CommandConstants.START_TEMP_STOP_COMMAND);
 
         // Apply temp stop specific fields
         entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
@@ -89,7 +90,7 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
 
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("post-special-day start temporary stop");
+        logCustomization(CommandConstants.SPECIAL_START_TEMP_STOP_COMMAND);
 
         // Re-apply temp stop customizations that might have been modified by special day logic
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
@@ -99,6 +100,6 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
 
     @Override
     protected String getCommandDescription() {
-        return "start temporary stop";
+        return CommandConstants.START_TEMP_STOP_COMMAND;
     }
 }

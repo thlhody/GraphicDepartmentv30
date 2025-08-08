@@ -204,7 +204,7 @@ public class SessionMonitorService {
         }
     }
 
-    // FIXED: Syncs active session to file for network visibility. This ensures other instances can see the current user's activity
+    // Syncs active session to file for network visibility. This ensures other instances can see the current user's activity
     private void syncActiveSessionToFile() {
         try {
             // Use original user context for background sync
@@ -361,7 +361,7 @@ public class SessionMonitorService {
                 return;
             }
 
-            // ✅ FIXED: Update calculations in cache-only mode and read back the updated session
+            // Update calculations in cache-only mode and read back the updated session
             boolean updateSuccess = sessionCacheService.updateSessionCalculationsWithWriteThrough(session, true); // true = cache-only mode
             if (updateSuccess) {
                 // Read the updated session from cache

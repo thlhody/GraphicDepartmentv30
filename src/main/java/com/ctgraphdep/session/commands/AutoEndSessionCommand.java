@@ -5,6 +5,7 @@ import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
 
 import java.time.LocalDate;
@@ -32,10 +33,10 @@ public class AutoEndSessionCommand extends BaseWorktimeUpdateSessionCommand<Bool
 
             // Stop all monitoring activity to avoid conflicts
             info(String.format("Stopping all monitoring for user %s before end session", username));
-            ctx.getSessionMonitorService().stopMonitoring(username);
+            manageMonitoringState(context, CommandConstants.STOP, username);
 
             try {
-                ctx.getSessionMonitorService().clearMonitoring(username);
+                manageMonitoringState(context, CommandConstants.CLEAR, username);
             } catch (Exception e) {
                 warn(String.format("Non-critical error clearing monitoring: %s", e.getMessage()));
             }
@@ -57,17 +58,6 @@ public class AutoEndSessionCommand extends BaseWorktimeUpdateSessionCommand<Bool
                     warn("No active session to end automatically");
                     return false;
                 }
-
-                // Update the session with calculations to the scheduled end time
-                UpdateSessionCalculationsCommand updateCommand = ctx.getCommandFactory().createUpdateSessionCalculationsCommand(session, endTime);
-                session = ctx.executeCommand(updateCommand);
-
-                // Save the updated session to file before ending
-                SaveSessionCommand saveCommand = ctx.getCommandFactory().createSaveSessionCommand(session);
-                ctx.executeCommand(saveCommand);
-
-                // ENHANCED: Apply special day logic to worktime entry if needed
-                updateWorktimeEntryWithSpecialDayLogic(session, ctx);
 
                 // Create end day command to properly close the session
                 EndDayCommand endDayCommand = ctx.getCommandFactory().createEndDayCommand(username, userId, null, endTime);
@@ -94,7 +84,7 @@ public class AutoEndSessionCommand extends BaseWorktimeUpdateSessionCommand<Bool
 
     @Override
     protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("auto end session");
+        logCustomization(CommandConstants.AUTO_END_SESSION);
 
         // Set auto-end time
         entry.setDayEndTime(endTime);
@@ -103,7 +93,7 @@ public class AutoEndSessionCommand extends BaseWorktimeUpdateSessionCommand<Bool
 
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("post-special-day auto end session");
+        logCustomization(CommandConstants.SPECIAL_AUTO_END_SESSION);
 
         // Re-apply auto-end sync status
         entry.setAdminSync(MergingStatusConstants.USER_INPUT);
@@ -111,7 +101,7 @@ public class AutoEndSessionCommand extends BaseWorktimeUpdateSessionCommand<Bool
 
     @Override
     protected String getCommandDescription() {
-        return "auto end session";
+        return CommandConstants.AUTO_END_SESSION;
     }
 
     // ========================================================================

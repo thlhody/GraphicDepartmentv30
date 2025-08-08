@@ -3,8 +3,6 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 
-import java.time.LocalDateTime;
-
 public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
 
     private final WorkUsersSessionsStates session;
@@ -22,14 +20,13 @@ public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStat
             String username = session.getUsername();
 
             if (session.getLastActivity() == null) {
-                session.setLastActivity(LocalDateTime.now());
+                session.setLastActivity(getStandardCurrentTime(context));
             }
 
             // Single call handles cache + file write + status update coordination
             boolean success = ctx.getSessionCacheService().writeSessionWithWriteThrough(session);
-            if (!success) {
-                throw new RuntimeException("Failed to save session for user: " + username);
-            }
+
+            validateCondition(success, "Session cannot be null");
 
             // Status service update (if needed separately)
             ctx.getSessionStatusService().updateSessionStatus(session);

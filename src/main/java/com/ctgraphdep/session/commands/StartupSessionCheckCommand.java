@@ -49,6 +49,7 @@ public class StartupSessionCheckCommand extends BaseSessionCommand<Void> {
             // Get current session for the user
             WorkUsersSessionsStates session = ctx.getCurrentSession(localUser.getUsername(), localUser.getUserId());
 
+
             if (session == null) {
                 info("No active session found during startup check");
                 return null;

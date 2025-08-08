@@ -68,7 +68,7 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             LoggerUtil.error(this.getClass(), "Error in WorkScheduleQuery: " + e.getMessage(), e);
             // Return default values as fallback
             return new ScheduleInfo(
-                    date != null ? date : LocalDate.now(),
+                    date != null ? date : context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand().execute().getCurrentDate(), // now
                     false,
                     WorkCode.INTERVAL_HOURS_C,
                     WorkCode.INTERVAL_HOURS_C * WorkCode.HOUR_DURATION,

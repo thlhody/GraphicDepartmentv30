@@ -2,6 +2,7 @@ package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.commands.UpdateSessionActivityCommand;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.query.IsInTempStopMonitoringQuery;
 
 // Command to continue a temporary stop
@@ -29,7 +30,7 @@ public class ContinueTempStopCommand extends BaseNotificationCommand<Boolean> {
                 debug(String.format("User %s not in temp stop monitoring mode, activating", username));
 
                 // Use pauseScheduleMonitoring which sets up the temp stop tracking
-                ctx.getSessionMonitorService().pauseScheduleMonitoring(username);
+                manageMonitoringState(context, CommandConstants.PAUSE, username);
 
                 // Record temp stop notification explicitly if needed
                 ctx.getSessionMonitorService().recordTempStopNotification(username, ctx.getValidationService()

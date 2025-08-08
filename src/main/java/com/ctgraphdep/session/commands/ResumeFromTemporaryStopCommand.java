@@ -5,6 +5,7 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.util.SessionValidator;
 
@@ -72,7 +73,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
 
     @Override
     protected void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("resume from temporary stop");
+        logCustomization(CommandConstants.RESUME_TEMP_STOP_COMMAND);
 
         // Apply resume-specific customizations (critical for resuming temporary stops)
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
@@ -83,7 +84,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
 
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
-        logCustomization("post-special-day resume from temporary stop");
+        logCustomization(CommandConstants.SPECIAL_RESUME_TEMP_STOP_COMMAND);
 
         // Re-apply resume customizations that might have been modified by special day logic
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
@@ -93,7 +94,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
 
     @Override
     protected String getCommandDescription() {
-        return "resume from temporary stop";
+        return CommandConstants.RESUME_TEMP_STOP_COMMAND;
     }
 
     // ========================================================================
@@ -125,8 +126,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
     private boolean isScheduleCompleted(WorkUsersSessionsStates session, SessionContext context) {
         try {
             LocalDate workDate = session.getDayStartTime().toLocalDate();
-            Integer userSchedule = context.getUserService().getUserById(session.getUserId())
-                    .map(User::getSchedule).orElse(8);
+            Integer userSchedule = context.getUserService().getUserById(session.getUserId()).map(User::getSchedule).orElse(8);
 
             WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
             WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);

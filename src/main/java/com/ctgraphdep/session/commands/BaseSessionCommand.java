@@ -1,7 +1,9 @@
 package com.ctgraphdep.session.commands;
 
+import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
@@ -177,6 +179,36 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
 
     protected void error(String message, Exception e) {
         LoggerUtil.error(this.getClass(), message, e);
+    }
+
+    // Could create a helper method in BaseSessionCommand:
+    protected void manageMonitoringState(SessionContext context, String operation, String username) {
+        switch(operation) {
+            case CommandConstants.START -> context.getSessionMonitorService().startEnhancedMonitoring(username);
+            case CommandConstants.ACTIVATE_HOURLY -> context.getSessionMonitorService().activateHourlyMonitoring(username, getStandardCurrentTime(context));
+            case CommandConstants.PAUSE ->context.getSessionMonitorService().pauseScheduleMonitoring(username);
+            case CommandConstants.STOP -> context.getSessionMonitorService().stopMonitoring(username);
+            case CommandConstants.CLEAR -> context.getSessionMonitorService().clearMonitoring(username);
+            case CommandConstants.DEACTIVATE -> cleanupMonitoring(context,username);
+        }
+    }
+
+    private void cleanupMonitoring(SessionContext context, String username) {
+        context.getSessionMonitorService().stopMonitoring(username);
+        context.getSessionMonitorService().deactivateHourlyMonitoring(username);
+        try {
+            context.getSessionMonitorService().clearMonitoring(username);
+        } catch (Exception e) {
+            warn(String.format("Error clearing monitoring: %s", e.getMessage()));
+        }
+    }
+
+    // Could add to BaseSessionCommand:
+    protected void validateSessionExists(WorkUsersSessionsStates session, String operation) {
+        if (session == null) {
+            warn(String.format("Session is null, cannot %s", operation));
+            throw new IllegalStateException("No active session for " + operation);
+        }
     }
 
     @FunctionalInterface

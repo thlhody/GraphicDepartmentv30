@@ -5,6 +5,7 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.session.NavigationContext;
 import com.ctgraphdep.model.User;
+import com.ctgraphdep.session.config.CommandConstants;
 
 // Query to determine navigation context for user session page
 public class NavigationContextQuery implements SessionQuery<NavigationContext> {
@@ -32,28 +33,29 @@ public class NavigationContextQuery implements SessionQuery<NavigationContext> {
         // Set dashboard URL and team leader flag based on role
         switch (normalizedRole) {
             case SecurityConstants.ROLE_ADMIN:
-                dashboardUrl = "/admin";
+                dashboardUrl = SecurityConstants.ADMIN_URL;
                 break;
             case SecurityConstants.ROLE_TEAM_LEADER:
-                dashboardUrl = "/team-lead";
+                dashboardUrl = SecurityConstants.TEAM_LEAD_URL;
                 isTeamLeaderView = true;
                 break;
             case SecurityConstants.ROLE_TL_CHECKING:
-                dashboardUrl = "/team-checking";
+                dashboardUrl = SecurityConstants.TL_CHECKING_URL;
                 isTeamLeaderView = true;
                 break;
             case SecurityConstants.ROLE_USER_CHECKING:
-                dashboardUrl = "/user-checking";
+                dashboardUrl = SecurityConstants.USER_CHECKING_URL;
                 break;
             case SecurityConstants.ROLE_CHECKING:
-                dashboardUrl = "/checking";
+                dashboardUrl = SecurityConstants.CHECKING_URL;
                 break;
             case SecurityConstants.ROLE_USER:
-                dashboardUrl = "/user";
+                dashboardUrl = SecurityConstants.USER_URL;
+
                 break;
             default:
                 // Default to user dashboard if role not recognized
-                dashboardUrl = "/user";
+                dashboardUrl = SecurityConstants.USER_URL;
         }
 
         return new NavigationContext(completedSessionToday, isTeamLeaderView, dashboardUrl);

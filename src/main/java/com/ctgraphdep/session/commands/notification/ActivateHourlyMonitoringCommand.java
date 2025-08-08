@@ -3,6 +3,7 @@ package com.ctgraphdep.session.commands.notification;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
+import com.ctgraphdep.session.config.CommandConstants;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
 
 // Command to activate hourly monitoring for a user
@@ -26,7 +27,7 @@ public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boo
             }
 
             // Use the service method instead of direct map manipulation
-            ctx.getSessionMonitorService().activateHourlyMonitoring(username, getStandardCurrentTime(context));
+            manageMonitoringState(context, CommandConstants.ACTIVATE_HOURLY, username);
 
             info(String.format("Successfully activated hourly monitoring for user %s", username));
 

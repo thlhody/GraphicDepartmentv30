@@ -24,6 +24,14 @@ public final class SecurityConstants {
 
     public static final String ADMIN_SIMPLE = "admin";
 
+    //dashboard url's
+    public static final String ADMIN_URL = "/admin";
+    public static final String TEAM_LEAD_URL = "/team-lead";
+    public static final String TL_CHECKING_URL = "/team-checking";
+    public static final String USER_CHECKING_URL= "/user-checking";
+    public static final String CHECKING_URL = "/checking";
+    public static final String USER_URL = "/user";
+
     private SecurityConstants() {
         throw new UnsupportedOperationException("Security class cannot be instantiated");
     }
