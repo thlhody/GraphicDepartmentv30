@@ -54,22 +54,6 @@ public class SessionStatusService {
         }
     }
 
-    /**
-     * Get the number of online users
-     * Now delegates to ReadFileNameStatusService
-     */
-    public int getOnlineUserCount() {
-        return readFileNameStatusService.getOnlineUserCount();
-    }
-
-    /**
-     * Get the number of active users (online or temporary stop)
-     * Now delegates to ReadFileNameStatusService
-     */
-    public int getActiveUserCount() {
-        return readFileNameStatusService.getActiveUserCount();
-    }
-
     // Helper method to determine status string from work code
     private String determineStatus(String workCode) {
         if (workCode == null) {

@@ -2,9 +2,7 @@ package com.ctgraphdep.session.commands.notification;
 
 import com.ctgraphdep.session.SessionContext;
 
-/**
- * Command to show a test notification dialog
- */
+// Command to show a test notification dialog
 public class ShowTestNotificationCommand extends BaseNotificationCommand<Boolean> {
 
     public ShowTestNotificationCommand() {

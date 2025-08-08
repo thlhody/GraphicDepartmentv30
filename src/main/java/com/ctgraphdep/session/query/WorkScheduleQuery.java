@@ -12,21 +12,13 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-/**
- * Query to determine schedule-related information including weekend status,
- * work durations, and schedule-specific calculations.
- */
+// Query to determine schedule-related information including weekend status, work durations, and schedule-specific calculations.
 public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.ScheduleInfo> {
 
     private final LocalDate date;
     private final Integer userSchedule;
 
-    /**
-     * Creates a query for a specific date with specified user schedule
-     *
-     * @param date The date to check
-     * @param userSchedule The user's schedule in hours
-     */
+    // Creates a query for a specific date with specified user schedule
     public WorkScheduleQuery(LocalDate date, Integer userSchedule) {
         this.date = date;
         this.userSchedule = userSchedule;
@@ -88,17 +80,13 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
         }
     }
 
-    /**
-     * Checks if a date is a weekend (Saturday or Sunday)
-     */
+    // Checks if a date is a weekend (Saturday or Sunday)
     private boolean isWeekend(LocalDate date) {
         DayOfWeek day = date.getDayOfWeek();
         return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
     }
 
-    /**
-     * Normalizes schedule hours (defaults to 8 if invalid)
-     */
+    // Normalizes schedule hours (defaults to 8 if invalid)
     private int normalizeSchedule(Integer schedule) {
         if (schedule == null || schedule <= 0) {
             return WorkCode.INTERVAL_HOURS_C; // Default to 8 hours
@@ -106,9 +94,7 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
         return schedule;
     }
 
-    /**
-     * Calculates the full day duration in minutes, accounting for lunch break
-     */
+    // Calculates the full day duration in minutes, accounting for lunch break
     private int calculateFullDayDuration(int schedule) {
         // For 8-hour schedule: 8.5 hours (510 minutes)
         // For others: schedule hours + lunch break if applicable
@@ -119,9 +105,7 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
         }
     }
 
-    /**
-     * Calculates the expected end time based on schedule
-     */
+    // Calculates the expected end time based on schedule
     private LocalTime calculateExpectedEndTime(int schedule, boolean isWeekend) {
         // Weekend special case (end at 1 PM)
         if (isWeekend) {
@@ -137,16 +121,12 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
         return LocalTime.of(9 + schedule, 0);
     }
 
-    /**
-     * Checks if a schedule includes a lunch break
-     */
+    // Checks if a schedule includes a lunch break
     private boolean includesLunchBreak(int schedule) {
         return schedule == WorkCode.INTERVAL_HOURS_C;
     }
 
-    /**
-     * Value class to hold schedule information
-     */
+    //Value class to hold schedule information
     @Getter
     public static class ScheduleInfo {
         private final LocalDate date;
@@ -170,17 +150,12 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             this.lunchBreakDuration = lunchBreakDuration;
         }
 
-        /**
-         * Checks if a specific time meets or exceeds the scheduled duration
-         */
+        // Checks if a specific time meets or exceeds the scheduled duration
         public boolean isScheduleCompleted(int workedMinutes) {
             return workedMinutes >= fullDayDuration;
         }
 
-        /**
-         * Calculates overtime minutes if any
-         * Delegates to CalculateWorkHoursUtil for consistency
-         */
+        // Calculates overtime minutes if any Delegates to CalculateWorkHoursUtil for consistency
         public int calculateOvertimeMinutes(int workedMinutes) {
             return CalculateWorkHoursUtil.calculateOvertimeMinutes(workedMinutes, scheduleHours);
         }

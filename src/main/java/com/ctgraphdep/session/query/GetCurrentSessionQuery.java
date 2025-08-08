@@ -4,10 +4,9 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 
-/**
- * Query to get the current session for a user
- */
+//Query to get the current session for a user
 public class GetCurrentSessionQuery implements SessionQuery<WorkUsersSessionsStates> {
+
     private final String username;
     private final Integer userId;
 

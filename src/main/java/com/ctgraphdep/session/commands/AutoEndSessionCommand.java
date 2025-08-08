@@ -11,10 +11,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
-/**
- * REFACTORED AutoEndSessionCommand using BaseWorktimeUpdateSessionCommand
- * Eliminates duplication while preserving all auto-end logic
- */
 public class AutoEndSessionCommand extends BaseWorktimeUpdateSessionCommand<Boolean> {
 
     private final LocalDateTime endTime;

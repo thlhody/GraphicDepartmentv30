@@ -10,10 +10,6 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 
-/**
- * Configuration component that performs session checks when the application starts.
- * Checks for and resets any active sessions from previous days.
- */
 @Configuration
 public class StartupSessionChecker {
 
@@ -29,10 +25,6 @@ public class StartupSessionChecker {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Execute session check when application is ready.
-     * This runs after all beans are initialized.
-     */
     @EventListener(ApplicationReadyEvent.class)
     public void checkSessionsAtStartup() {
         try {

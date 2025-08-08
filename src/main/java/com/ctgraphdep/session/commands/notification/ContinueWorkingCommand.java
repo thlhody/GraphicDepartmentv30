@@ -5,19 +5,12 @@ import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDateTime;
 
-/**
- * Command for continuing work after a notification
- */
+// Command for continuing work after a notification
 public class ContinueWorkingCommand extends BaseNotificationCommand<Boolean> {
+
     private final boolean isHourly;
     private final String username;
 
-    /**
-     * Creates a new command for continuing work
-     *
-     * @param username The username
-     * @param isHourly Whether this is from an hourly notification
-     */
     public ContinueWorkingCommand(String username, boolean isHourly) {
         super(username, null);
         this.username = username;
@@ -29,10 +22,7 @@ public class ContinueWorkingCommand extends BaseNotificationCommand<Boolean> {
         try {
             info(String.format("Handling continue working for user %s (isHourly: %b)", username, isHourly));
 
-            // Get current standardized time
-            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
-            LocalDateTime now = timeValues.getCurrentTime();
+            LocalDateTime now = getStandardCurrentTime(context);
             // IMPORTANT: Cancel any backup tasks before activating hourly monitoring
             // This prevents the backup from showing another notification after transition
             context.getNotificationService().cancelNotificationBackup(username);

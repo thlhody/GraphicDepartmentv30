@@ -6,23 +6,15 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.service.SessionMidnightHandler;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.GetLocalUserQuery;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 
-/**
- * Command that runs at application startup to check for and reset
- * active sessions from previous days that weren't properly closed.
- */
+//Command that runs at application startup to check for and reset active sessions from previous days that weren't properly closed.
 public class StartupSessionCheckCommand extends BaseSessionCommand<Void> {
 
     private final SessionMidnightHandler sessionMidnightHandler;
 
-    /**
-     * Creates a command to check for stale sessions at startup
-     *
-     * @param sessionMidnightHandler Handler for resetting sessions at midnight
-     */
+    //Creates a command to check for stale sessions at startup
     public StartupSessionCheckCommand(SessionMidnightHandler sessionMidnightHandler) {
         validateCondition(sessionMidnightHandler != null, "Session midnight handler cannot be null");
         this.sessionMidnightHandler = sessionMidnightHandler;
@@ -42,7 +34,17 @@ public class StartupSessionCheckCommand extends BaseSessionCommand<Void> {
                 return null;
             }
 
-            debug(String.format("Found local user: %s (ID: %d)", localUser.getUsername(), localUser.getUserId()));
+            String username = localUser.getUsername();
+            Integer userId = localUser.getUserId();
+
+            // Force refresh from file to ensure we have the latest data
+            boolean refreshSuccess = ctx.getSessionCacheService().forceRefreshFromFile(username, userId);
+
+            if (refreshSuccess) {
+                info("Successfully refreshed session from file during startup");
+            } else {
+                warn("Could not refresh session from file - may be first run or file missing");
+            }
 
             // Get current session for the user
             WorkUsersSessionsStates session = ctx.getCurrentSession(localUser.getUsername(), localUser.getUserId());
@@ -52,10 +54,7 @@ public class StartupSessionCheckCommand extends BaseSessionCommand<Void> {
                 return null;
             }
 
-            // Get current date for comparison
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
-            LocalDate today = timeValues.getCurrentDate();
+            LocalDate today = getStandardCurrentDate(context);
             debug("Current date: " + today);
 
             // Check if session is active (online or temporary stop)

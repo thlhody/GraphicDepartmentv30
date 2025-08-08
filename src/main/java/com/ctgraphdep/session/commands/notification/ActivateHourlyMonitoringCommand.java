@@ -4,18 +4,11 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.GetCurrentSessionQuery;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
-/**
- * Command to activate hourly monitoring for a user
- */
+// Command to activate hourly monitoring for a user
 public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boolean> {
 
-    /**
-     * Creates a new command to activate hourly monitoring
-     *
-     * @param username The username
-     */
+
     public ActivateHourlyMonitoringCommand(String username) {
         super(username, null);  // UserID not needed for this command
     }
@@ -25,10 +18,6 @@ public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boo
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Activating hourly monitoring for user %s", username));
 
-            // Get standardized time values using the validation system
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
-
             // IMPROVEMENT: Verify session state before activating hourly monitoring
             boolean canActivate = validateSessionState(ctx);
             if (!canActivate) {
@@ -37,7 +26,7 @@ public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boo
             }
 
             // Use the service method instead of direct map manipulation
-            ctx.getSessionMonitorService().activateHourlyMonitoring(username, timeValues.getCurrentTime());
+            ctx.getSessionMonitorService().activateHourlyMonitoring(username, getStandardCurrentTime(context));
 
             info(String.format("Successfully activated hourly monitoring for user %s", username));
 
@@ -45,13 +34,7 @@ public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boo
         });
     }
 
-    /**
-     * Validates that the session is in an appropriate state for hourly monitoring.
-     * Hourly monitoring should only be active if the user is in WORK_ONLINE status.
-     *
-     * @param context The session context
-     * @return true if session state is valid for hourly monitoring
-     */
+    // Validates that the session is in an appropriate state for hourly monitoring. Hourly monitoring should only be active if the user is in WORK_ONLINE status.
     private boolean validateSessionState(SessionContext context) {
         try {
             // Get the current session

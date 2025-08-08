@@ -93,20 +93,9 @@ public class SessionContext {
         return query.execute(this);
     }
 
-    /**
-     * Gets the current session for a user (now reads from cache)
-     * @param username The username
-     * @param userId The user ID
-     * @return Current session from cache or file
-     */
     public WorkUsersSessionsStates getCurrentSession(String username, Integer userId) {
-        try {
-            // Read from cache instead of direct file access
-            return sessionCacheService.readSession(username, userId);
-        } catch (Exception e) {
-            // Fallback to direct file read if cache fails
-            return sessionDataService.readLocalSessionFile(username, userId);
-        }
+        // SessionCacheService handles all fallback internally
+        return sessionCacheService.readSessionWithFallback(username, userId);
     }
 
     // Fixed Session worktime adapter methods using accessor pattern

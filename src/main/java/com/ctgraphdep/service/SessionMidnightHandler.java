@@ -111,7 +111,7 @@ public class SessionMidnightHandler {
             LoggerUtil.info(this.getClass(), String.format("Cleared all monitoring state for user %s", username));
 
             // STEP 3: Clear session cache for fresh start
-            sessionCacheService.clearUserCache(username);
+            sessionCacheService.clearAllCache();
             LoggerUtil.info(this.getClass(), String.format("Cleared session cache for user %s", username));
 
             // STEP 4: Refresh status cache with updated user data from UserService
@@ -171,11 +171,7 @@ public class SessionMidnightHandler {
         }
     }
 
-    /**
-     * ENHANCED: Resets a user's session to a fresh state.
-     * Now coordinates with both session cache and status cache.
-     * Made public so it can be called from startup commands.
-     */
+    // Resets a user's session to a fresh state.
     public void resetUserSession(User user) {
         try {
             String username = user.getUsername();
@@ -201,10 +197,7 @@ public class SessionMidnightHandler {
         }
     }
 
-    /**
-     * ENHANCED: Resets notification system components.
-     * This ensures a clean notification state after midnight reset.
-     */
+    // Resets notification system components. This ensures a clean notification state after midnight reset.
     private void resetNotificationSystem(String username) {
         try {
             LoggerUtil.info(this.getClass(), "Resetting notification system for user: " + username);
@@ -228,9 +221,6 @@ public class SessionMidnightHandler {
         }
     }
 
-    /**
-     * Creates a fresh session with default offline state
-     */
     private WorkUsersSessionsStates createFreshSession(String username, Integer userId) {
         WorkUsersSessionsStates freshSession = new WorkUsersSessionsStates();
         freshSession.setUserId(userId);
@@ -253,10 +243,7 @@ public class SessionMidnightHandler {
         return freshSession;
     }
 
-    /**
-     * ENHANCED: Manual reset method for emergency use or testing
-     * Now includes login merge cache reset for complete state cleanup
-     */
+    // Manual reset method for emergency use or testing Now includes login merge cache reset for complete state cleanup
     public void performManualReset(String username) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Performing manual reset for user: %s", username));
@@ -269,7 +256,7 @@ public class SessionMidnightHandler {
                 // Perform the same reset process
                 resetUserSession(localUser);
                 monitoringStateService.clearUserState(username);
-                sessionCacheService.clearUserCache(username);
+                sessionCacheService.clearAllCache();
 
                 // NEW - Reset login merge cache for complete state reset
                 String beforeStatus = loginMergeCacheService.getStatus();
@@ -293,13 +280,29 @@ public class SessionMidnightHandler {
         }
     }
 
-    /**
-     * ENHANCED: Emergency cache reset method
-     * Now includes login merge cache reset for complete system cleanup
-     */
+    //Emergency cache reset method Now includes login merge cache reset for complete system cleanup
     public void performEmergencyCacheReset() {
         try {
             LoggerUtil.warn(this.getClass(), "Performing emergency cache reset - clearing all caches");
+
+            GetLocalUserQuery userQuery = commandFactory.createGetLocalUserQuery();
+            User localUser = commandService.executeQuery(userQuery);
+
+            if (localUser != null) {
+                String username = localUser.getUsername();
+                Integer userId = localUser.getUserId();
+
+                // Try to force refresh from file before clearing everything
+                try {
+                    boolean fileRefreshSuccess = sessionCacheService.forceRefreshFromFile(username, userId);
+                    if (fileRefreshSuccess) {
+                        LoggerUtil.info(this.getClass(), "File refresh successful - preserving valid session data");
+                        return; // Don't clear cache if file refresh worked
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), "File refresh failed during emergency reset: " + e.getMessage());
+                }
+            }
 
             // Clear all session cache
             sessionCacheService.clearAllCache();
@@ -318,10 +321,6 @@ public class SessionMidnightHandler {
             LoggerUtil.info(this.getClass(), String.format(
                     "Reset login merge cache: [%s] -> [%s]", beforeStatus, afterStatus));
 
-            // Clear all monitoring state
-            GetLocalUserQuery userQuery = commandFactory.createGetLocalUserQuery();
-            User localUser = commandService.executeQuery(userQuery);
-
             if (localUser != null) {
                 monitoringStateService.clearUserState(localUser.getUsername());
                 LoggerUtil.info(this.getClass(), "Cleared monitoring state");
@@ -335,10 +334,7 @@ public class SessionMidnightHandler {
         }
     }
 
-    /**
-     * ENHANCED: Status check method for health monitoring
-     * Now includes login merge cache status for complete system overview
-     */
+    // Status check method for health monitoring
     public String getMidnightResetStatus() {
         try {
             StringBuilder status = new StringBuilder();

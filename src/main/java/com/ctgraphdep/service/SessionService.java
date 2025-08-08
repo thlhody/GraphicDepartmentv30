@@ -45,6 +45,9 @@ import java.util.stream.Collectors;
  */
 @Service
 public class SessionService {
+
+    @Autowired
+    private SessionCacheService sessionCacheService;
     private final SessionCommandService sessionCommandService;
     private final SessionCommandFactory sessionCommandFactory;
     private final CalculationCommandService calculationService;
@@ -53,9 +56,6 @@ public class SessionService {
     private final SessionMonitorService sessionMonitorService;
     private final WorktimeOperationContext worktimeOperationContext;
     private final MainDefaultUserContextService mainDefaultUserContextService;
-
-    @Autowired
-    private SessionCacheService sessionCacheService;
     // Date formatters
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy :: HH:mm");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
@@ -76,12 +76,7 @@ public class SessionService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Gets the current work session with fully calculated values
-     * @param username The username
-     * @param userId The user ID
-     * @return WorkSessionDTO with all calculated values
-     */
+    // Gets the current work session with fully calculated values
     public WorkSessionDTO getCurrentSession(String username, Integer userId) {
         try {
             LoggerUtil.info(this.getClass(), "Getting current session for user: " + username);
@@ -90,29 +85,10 @@ public class SessionService {
             GetStandardTimeValuesCommand.StandardTimeValues timeValues = getStandardTimeValues();
             LocalDateTime currentTime = timeValues.getCurrentTime();
 
-            // Get current session FROM CACHE (via SessionCacheService)
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+            // Let SessionCacheService handle all fallback logic (including network)
+            WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, userId);
 
-            // Check if local session is empty but network is available
-            boolean localSessionEmpty = (session == null);
-            if (localSessionEmpty && sessionCommandService.getContext().getDataAccessService().isNetworkAvailable()) {
-                try {
-                    // Try to read directly from network
-                    WorkUsersSessionsStates networkSession = sessionCommandService.getContext().getSessionDataService().readNetworkSessionFileReadOnly(username, userId);
-                    if (networkSession != null) {
-                        // Network has a session but local is missing - use network data
-                        LoggerUtil.info(this.getClass(), "Local session missing but found session on network. Restoring data.");
-                        session = networkSession;
-
-                        // Refresh cache with network data (no file write needed)
-                        sessionCacheService.refreshCacheFromFile(username, networkSession);
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.warn(this.getClass(), "Error reading network session: " + e.getMessage());
-                }
-            }
-
-            // Continue with normal flow
+            // Continue with normal flow - no need for manual network checks
             if (session == null) {
                 LoggerUtil.info(this.getClass(), "No session found for user: " + username);
                 return createOfflineSessionDTO(username, currentTime);
@@ -121,10 +97,13 @@ public class SessionService {
             // Get user schedule
             int userSchedule = getUserSchedule();
 
-            // Update calculations if session is active - BUT ONLY IN CACHE
+            // Update calculations using cache service if session is active
             if (isActiveSession(session)) {
+
+                UpdateSessionCalculationsCommand updateCommand = sessionCommandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, currentTime);
+                session = sessionCommandService.executeCommand(updateCommand);
+
                 LoggerUtil.debug(this.getClass(), "Updating calculations for active session (cache only)");
-                session = updateSessionCalculationsInCacheOnly(session, currentTime);
             }
 
             // Create and return the DTO
@@ -136,33 +115,7 @@ public class SessionService {
         }
     }
 
-    /**
-     * Updates session calculations and stores ONLY in cache (no file write)
-     * Used by SessionService for display purposes
-     */
-    private WorkUsersSessionsStates updateSessionCalculationsInCacheOnly(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        try {
-            // Create command for calculations in CACHE-ONLY mode
-            UpdateSessionCalculationsCommand updateCommand = sessionCommandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, currentTime);
-
-            // Execute command - this will update calculations and cache, but NOT write to file
-            WorkUsersSessionsStates calculatedSession = sessionCommandService.executeCommand(updateCommand);
-
-            LoggerUtil.debug(this.getClass(), "Updated session calculations in cache-only mode for user: " + session.getUsername());
-
-            return calculatedSession;
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error updating session calculations in cache: " + e.getMessage(), e);
-            return session; // Return original session if update fails
-        }
-    }
-
-    /**
-     * Gets unresolved work time entries with recommended end times
-     * @param username The username
-     * @return List of resolution DTOs
-     */
+    // Gets unresolved work time entries with recommended end times
     public List<ResolutionCalculationDTO> getUnresolvedWorkTimeEntries(String username) {
         try {
             LoggerUtil.info(this.getClass(), "Getting unresolved work time entries for user: " + username);
@@ -181,10 +134,7 @@ public class SessionService {
         }
     }
 
-    /**
-     * Calculates work time for given end time (used for resolution and end time scheduler)
-     * *** REMOVED automatic session updates - this is now read-only ***
-     */
+    // Calculates work time for given end time (used for resolution and end time scheduler)
     public EndTimeCalculationDTO calculateEndTimeWork(String username, Integer userId, int endHour, int endMinute) {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Calculating end time work for user %s at %02d:%02d", username, endHour, endMinute));
@@ -200,7 +150,7 @@ public class SessionService {
             int userSchedule = getUserSchedule();
 
             // Get current session FROM CACHE
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+            WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, userId);
             if (session == null || session.getDayStartTime() == null) {
                 return createErrorEndTimeDTO("No active session");
             }
@@ -247,14 +197,7 @@ public class SessionService {
         }
     }
 
-    /**
-     * Calculates resolution values for a specific work date and end time
-     * @param username The username
-     * @param workDate The work date
-     * @param endHour End hour (0-23)
-     * @param endMinute End minute (0-59)
-     * @return DTO with calculated values
-     */
+    // Calculates resolution values for a specific work date and end time
     public ResolutionCalculationDTO calculateResolutionValues(String username, LocalDate workDate, int endHour, int endMinute) {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Calculating resolution values for user %s, date %s at %02d:%02d", username, workDate, endHour, endMinute));
@@ -317,18 +260,13 @@ public class SessionService {
 
     // Helper methods for retrieving data
 
-    /**
-     * Gets unresolved worktime entries using the query
-     */
+    // Gets unresolved worktime entries using the query
     private List<WorkTimeTable> getUnresolvedEntries(String username) {
         UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username);
         return sessionCommandService.executeQuery(unresolvedQuery);
     }
 
-    /**
-     * Finds a specific worktime entry for a date
-     *    // Use getDataAccessor(username).readWorktime() instead
-     */
+    // Finds a specific worktime entry for a date
     private WorkTimeTable findEntryForDate(String username, LocalDate date) {
         try {
             List<WorkTimeTable> entries = worktimeOperationContext.getDataAccessor(username).readWorktime(username,date.getYear(), date.getMonthValue());
@@ -342,9 +280,7 @@ public class SessionService {
         }
     }
 
-    /**
-     * Gets the user's schedule (hours)
-     */
+    // Gets the user's schedule (hours)
     private int getUserSchedule() {
         User currentUser = mainDefaultUserContextService.getCurrentUser();
         if (currentUser != null && currentUser.getSchedule() != null) {
@@ -354,17 +290,13 @@ public class SessionService {
         return 8; // Default fallback
     }
 
-    /**
-     * Checks if session is active (online or temporary stop)
-     */
+    // Checks if session is active (online or temporary stop)
     private boolean isActiveSession(WorkUsersSessionsStates session) {
         IsActiveSessionCommand command = timeValidationService.getValidationFactory().createIsActiveSessionCommand(session);
         return timeValidationService.execute(command);
     }
 
-    /**
-     * Gets standardized time values
-     */
+    // Gets standardized time values
     private GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues() {
         GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
         return timeValidationService.execute(timeCommand);
@@ -372,9 +304,7 @@ public class SessionService {
 
     // DTO creation methods
 
-    /**
-     * Creates a WorkSessionDTO for an offline session
-     */
+    // Creates a WorkSessionDTO for an offline session
     private WorkSessionDTO createOfflineSessionDTO(String username, LocalDateTime currentTime) {
         WorkSessionDTO dto = new WorkSessionDTO();
 
@@ -412,9 +342,7 @@ public class SessionService {
         return dto;
     }
 
-    /**
-     * Creates a complete WorkSessionDTO from a session
-     */
+    // Creates a complete WorkSessionDTO from a session
     private WorkSessionDTO createSessionDTO(WorkUsersSessionsStates session, int userSchedule, LocalDateTime currentTime) {
         WorkSessionDTO dto = new WorkSessionDTO();
 
@@ -495,9 +423,7 @@ public class SessionService {
         return dto;
     }
 
-    /**
-     * Creates a basic ResolutionDTO with calculated values
-     */
+    // Creates a basic ResolutionDTO with calculated values
     private ResolutionCalculationDTO createResolutionDTO(WorkTimeTable entry, int userSchedule) {
         ResolutionCalculationDTO dto = new ResolutionCalculationDTO();
 
@@ -522,9 +448,7 @@ public class SessionService {
         return dto;
     }
 
-    /**
-     * Creates a detailed ResolutionDTO with all calculation results
-     */
+    // Creates a detailed ResolutionDTO with all calculation results
     private ResolutionCalculationDTO createDetailedResolutionDTO(WorkTimeTable entry, LocalDateTime endTime, int totalElapsedMinutes,
             int breakMinutes, WorkTimeCalculationResultDTO result, int rawMinutes, LocalDateTime recommendedEndTime) {
 
@@ -565,9 +489,7 @@ public class SessionService {
         return dto;
     }
 
-    /**
-     * Creates a EndTimeCalculationDTO for the end time scheduler
-     */
+    // Creates a EndTimeCalculationDTO for the end time scheduler
     private EndTimeCalculationDTO createEndTimeCalculationDTO(int totalElapsedMinutes, int breakMinutes, boolean lunchDeducted, int lunchBreakMinutes,
             int netWorkMinutes, int overtimeMinutes, int rawMinutes, int finalMinutes) {
 
@@ -592,9 +514,7 @@ public class SessionService {
         return dto;
     }
 
-    /**
-     * Creates an error EndTimeCalculationDTO
-     */
+    // Creates an error EndTimeCalculationDTO
     private EndTimeCalculationDTO createErrorEndTimeDTO(String errorMessage) {
         EndTimeCalculationDTO dto = new EndTimeCalculationDTO();
         dto.setSuccess(false);
@@ -602,9 +522,7 @@ public class SessionService {
         return dto;
     }
 
-    /**
-     * Creates an error ResolutionCalculationDTO
-     */
+    // Creates an error ResolutionCalculationDTO
     private ResolutionCalculationDTO createErrorResolutionDTO(String errorMessage) {
         ResolutionCalculationDTO dto = new ResolutionCalculationDTO();
         dto.setSuccess(false);
@@ -614,9 +532,7 @@ public class SessionService {
 
     // Utility methods
 
-    /**
-     * Creates a deep copy of a session
-     */
+    // Creates a deep copy of a session
     private WorkUsersSessionsStates cloneSession(WorkUsersSessionsStates original) {
         WorkUsersSessionsStates clone = new WorkUsersSessionsStates();
 
@@ -654,37 +570,27 @@ public class SessionService {
         return clone;
     }
 
-    /**
-     * Formats minutes as HH:MM
-     */
+    // Formats minutes as HH:MM
     private String formatMinutes(Integer minutes) {
         return minutes != null ? CalculateWorkHoursUtil.minutesToHHmm(minutes) : "00:00";
     }
 
-    /**
-     * Formats datetime as dd/MM/yyyy :: HH:mm
-     */
+    // Formats datetime as dd/MM/yyyy :: HH:mm
     private String formatDateTime(LocalDateTime dateTime) {
         return dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : "--/--/---- :: --:--";
     }
 
-    /**
-     * Formats time as HH:mm
-     */
+    // Formats time as HH:mm
     private String formatTime(LocalDateTime dateTime) {
         return dateTime != null ? dateTime.format(TIME_FORMATTER) : "--:--";
     }
 
-    /**
-     * Formats date as EEEE, dd MMM yyyy
-     */
+    // Formats date as EEEE, dd MMM yyyy
     private String formatDate(LocalDate date) {
         return date != null ? date.format(DATE_FORMATTER) : "------";
     }
 
-    /**
-     * Gets a user-friendly formatted status string
-     */
+    // Gets a user-friendly formatted status string
     private String getFormattedStatus(String status) {
         if (status == null) return "Offline";
 

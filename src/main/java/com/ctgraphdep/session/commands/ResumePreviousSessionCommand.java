@@ -6,19 +6,10 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-// ============================================================================
-// 1. REFACTORED ResumePreviousSessionCommand
-// ============================================================================
-
-/**
- * REFACTORED ResumePreviousSessionCommand using BaseWorktimeUpdateSessionCommand
- * Eliminates duplication while preserving all resume previous session logic
- */
 public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
 
     public ResumePreviousSessionCommand(String username, Integer userId) {
@@ -30,10 +21,7 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Executing ResumePreviousSessionCommand for user %s", username));
 
-            // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
-            LocalDateTime resumeTime = timeValues.getCurrentTime();
+            LocalDateTime resumeTime = getStandardCurrentTime(context);
             debug(String.format("Resume time: %s", resumeTime));
 
             // Get the current session
@@ -64,7 +52,7 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
     }
 
     // ========================================================================
-    // ABSTRACT METHOD IMPLEMENTATIONS - ResumePreviousSessionCommand specific logic
+    // ABSTRACT METHOD IMPLEMENTATIONS
     // ========================================================================
 
     @Override

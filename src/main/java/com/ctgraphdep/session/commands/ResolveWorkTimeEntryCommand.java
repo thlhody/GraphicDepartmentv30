@@ -4,15 +4,10 @@ import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * REFACTORED ResolveWorkTimeEntryCommand using BaseWorktimeUpdateSessionCommand
- * Eliminates duplication while preserving all resolution logic
- */
 public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionCommand<Boolean> {
 
     private final LocalDate entryDate;
@@ -31,24 +26,21 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
             info(String.format("Resolving work time entry for user %s on %s", username, entryDate));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
-            LocalDate today = timeValues.getCurrentDate();
+            LocalDate todayDate = getStandardCurrentDate(context);
 
-            // FIXED LOGIC: Check if we're trying to resolve today's active session
-            if (entryDate.equals(today)) {
+            // Check if we're trying to resolve today's active session
+            if (entryDate.equals(todayDate)) {
                 WorkUsersSessionsStates currentSession = ctx.getCurrentSession(username, userId);
 
                 // If there's an active session for today, don't allow resolution
-                if (currentSession != null && currentSession.getDayStartTime() != null &&
-                        currentSession.getDayStartTime().toLocalDate().equals(today)) {
+                if (currentSession != null && currentSession.getDayStartTime() != null && currentSession.getDayStartTime().toLocalDate().equals(todayDate)) {
                     warn(String.format("Cannot resolve active session for current day (%s)", entryDate));
                     return false;
                 }
             }
 
             // Determine end time for resolution
-            LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
+            LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : getStandardCurrentTime(context);
 
             // Use the base class session-independent resolution method
             resolveWorktimeEntryDirectly(entryDate, endTime, ctx);
@@ -58,7 +50,6 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
 
         }, false);
     }
-
 
     // ========================================================================
     // ABSTRACT METHOD IMPLEMENTATIONS - ResolveWorkTimeEntryCommand specific logic
@@ -77,10 +68,7 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
         // Set resolved end time
         LocalDateTime endTime = explicitEndTime;
         if (endTime == null) {
-            // Get standardized current time using correct pattern
-            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
-            endTime = timeValues.getCurrentTime();
+            endTime = getStandardCurrentTime(context);
         }
 
         entry.setDayEndTime(endTime);
@@ -99,9 +87,8 @@ public class ResolveWorkTimeEntryCommand extends BaseWorktimeUpdateSessionComman
     protected String getCommandDescription() {
         return "resolve work time entry";
     }
-    /**
-     * Override to apply resolution-specific customizations
-     */
+
+    //Override to apply resolution-specific customizations
     @Override
     protected void applyResolutionCustomizations(WorkTimeTable entry, LocalDateTime endTime, SessionContext context) {
         logCustomization("resolution-specific customizations");

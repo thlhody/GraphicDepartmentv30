@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
 /**
- * ENHANCED: Service responsible for monitoring active user sessions and status synchronization.
+ * Service responsible for monitoring active user sessions and status synchronization.
  * Now includes both session monitoring and status cache management.
  * Key responsibilities:
  * 1. Monitor active sessions and trigger notifications
@@ -134,9 +134,7 @@ public class SessionMonitorService {
         });
     }
 
-    /**
-     * Delayed initialization to ensure system tray is ready
-     */
+    // Delayed initialization to ensure system tray is ready
     private void delayedInitialization() {
         try {
             LoggerUtil.info(this.getClass(), "Starting delayed initialization of session monitoring...");
@@ -161,9 +159,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * ENHANCED: Checks if session is active (online or temporary stop)
-     */
+    // Checks if session is active (online or temporary stop)
     private boolean isActiveSession(WorkUsersSessionsStates session) {
         if (session == null) {
             return false;
@@ -171,9 +167,7 @@ public class SessionMonitorService {
         return WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) || WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus());
     }
 
-    /**
-     * Starts the scheduled sync task for file operations and status cache
-     */
+    // Starts the scheduled sync task for file operations and status cache
     private void startScheduledSync() {
         // Cancel any existing sync task
         if (syncTask != null && !syncTask.isCancelled()) {
@@ -185,10 +179,7 @@ public class SessionMonitorService {
         LoggerUtil.info(this.getClass(), String.format("Scheduled sync task to run every %d minutes", syncInterval / 60000));
     }
 
-    /**
-     * Performs periodic sync operations (every 30 minutes)
-     * Handles file writing and status cache synchronization
-     */
+    // Performs periodic sync operations (every 30 minutes) Handles file writing and status cache synchronization
     private void performPeriodicSync() {
         try {
             LoggerUtil.debug(this.getClass(), "Performing periodic sync operations");
@@ -213,11 +204,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * FIXED: Syncs active session to file for network visibility
-     * This ensures other instances can see the current user's activity
-     * Now uses original user context for background sync operations
-     */
+    // FIXED: Syncs active session to file for network visibility. This ensures other instances can see the current user's activity
     private void syncActiveSessionToFile() {
         try {
             // Use original user context for background sync
@@ -249,7 +236,7 @@ public class SessionMonitorService {
             pendingFileSyncs.remove(username);
 
             // Get session using original user's credentials
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+            WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, userId);
 
             if (session == null) {
                 LoggerUtil.debug(this.getClass(), "No session found in cache for sync: " + username);
@@ -264,8 +251,7 @@ public class SessionMonitorService {
 
                 try {
                     // Update calculations before writing to file (final calculation)
-                    UpdateSessionCalculationsCommand updateCommand = commandFactory
-                            .createUpdateSessionCalculationsCommand(session, getStandardTimeValues().getCurrentTime());
+                    UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, getStandardTimeValues().getCurrentTime());
                     session = commandService.executeCommand(updateCommand);
 
                     // Write to file for network sync
@@ -291,9 +277,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Starts the scheduled monitoring of user sessions
-     */
+    // Starts the scheduled monitoring of user sessions
     private void startScheduledMonitoring() {
         // Cancel any existing task
         if (monitoringTask != null && !monitoringTask.isCancelled()) {
@@ -309,9 +293,7 @@ public class SessionMonitorService {
         LoggerUtil.info(this.getClass(), String.format("Scheduled monitoring task to start in %d minutes and %d seconds", initialDelay.toMinutes(), initialDelay.toSecondsPart()));
     }
 
-    /**
-     * Runs the monitoring task and reschedules for the next check
-     */
+    // Runs the monitoring task and reschedules for the next check
     private void runAndRescheduleMonitoring() {
         if (isMonitoringInProgress) {
             LoggerUtil.warn(this.getClass(), "Previous monitoring task still in progress, skipping this execution");
@@ -349,11 +331,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Main method for checking active user sessions and triggering notifications
-     * Now focuses only on monitoring, not file I/O
-     * Uses original user for session monitoring instead of elevated admin
-     */
+    // Main method for checking active user sessions and triggering notifications. Now focuses only on monitoring, not file I/O
     public void checkActiveSessions() {
         LoggerUtil.debug(this.getClass(), "Checking active sessions on thread: " + Thread.currentThread().getName());
         if (!isInitialized) {
@@ -374,21 +352,24 @@ public class SessionMonitorService {
             LoggerUtil.debug(this.getClass(), String.format("Monitoring sessions for original user: %s (elevated: %s)",
                     username, mainDefaultUserContextService.isElevated() ? "yes" : "no"));
 
-            // Get current session from cache (now using original user)
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, originalUser.getUserId());
+            // Get current session using enhanced cache service
+            WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, originalUser.getUserId());
 
-            // Skip if session is null or not active
-            if (!isActiveSession(session)) {
+            // Use cache service for active session check
+            if (!sessionCacheService.hasActiveSession(username, originalUser.getUserId())) {
                 LoggerUtil.debug(this.getClass(), String.format("No active session found for user: %s", username));
                 return;
             }
 
-            // OPTIMIZATION: Update calculations in cache only (no file write)
-            UpdateSessionCalculationsCommand updateCommand = commandFactory.createUpdateSessionCalculationsCacheOnlyCommand(session, getStandardTimeValues().getCurrentTime());
-            session = commandService.executeCommand(updateCommand);
-
-            // Update calculated values in cache
-            sessionCacheService.updateCalculatedValues(username, session);
+            // ✅ FIXED: Update calculations in cache-only mode and read back the updated session
+            boolean updateSuccess = sessionCacheService.updateSessionCalculationsWithWriteThrough(session, true); // true = cache-only mode
+            if (updateSuccess) {
+                // Read the updated session from cache
+                session = sessionCacheService.readSessionWithFallback(username, originalUser.getUserId());
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("Failed to update session calculations for user: %s", username));
+                // Continue with existing session data
+            }
 
             // Check monitoring based on CURRENT MONITORING MODE
             String monitoringMode = monitoringStateService.getMonitoringMode(username);
@@ -408,11 +389,7 @@ public class SessionMonitorService {
         }
     }
 
-
-    /**
-     * Shows start day reminder with improved stale session detection
-     * Now uses original user context consistently
-     */
+    // Shows start day reminder with improved stale session detection, Now uses original user context consistently
     public void checkStartDayReminder() {
         if (!isInitialized) {
             return;
@@ -450,7 +427,7 @@ public class SessionMonitorService {
             }
 
             // Use original user's credentials for session lookup
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+            WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, userId);
 
             // KEY ENHANCEMENT: Stale session detection and reset
             if (session != null && session.getDayStartTime() != null) {
@@ -459,22 +436,18 @@ public class SessionMonitorService {
 
                 // If the session is active and from a previous day, reset it
                 if (isActive && !sessionDate.equals(today)) {
-                    LoggerUtil.warn(this.getClass(), String.format(
-                            "Found stale active session from %s for user %s - resetting during morning check",
-                            sessionDate, username));
+                    LoggerUtil.warn(this.getClass(), String.format("Found stale active session from %s for user %s - resetting during morning check", sessionDate, username));
 
                     // Use original user's credentials for reset
                     resetStaleSession(username, userId);
 
                     // Get the fresh session
-                    session = sessionCacheService.readSession(username, userId);
+                    session = sessionCacheService.readSessionWithFallback(username, userId);
 
-                    LoggerUtil.info(this.getClass(), String.format(
-                            "Reset stale session for user %s during morning check", username));
+                    LoggerUtil.info(this.getClass(), String.format("Reset stale session for user %s during morning check", username));
 
                     // Record in health monitor
-                    healthMonitor.recordTaskWarning("session-midnight-handler",
-                            "Stale session detected and reset during morning check");
+                    healthMonitor.recordTaskWarning("session-midnight-handler", "Stale session detected and reset during morning check");
                 }
             }
 
@@ -531,9 +504,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Resets a stale session by creating a fresh one
-     */
+    // Resets a stale session by creating a fresh one
     private void resetStaleSession(String username, Integer userId) {
         try {
             // Create fresh session
@@ -550,9 +521,6 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Creates a fresh session
-     */
     private WorkUsersSessionsStates createFreshSession(String username, Integer userId) {
         WorkUsersSessionsStates freshSession = new WorkUsersSessionsStates();
         freshSession.setUserId(userId);
@@ -575,9 +543,7 @@ public class SessionMonitorService {
         return freshSession;
     }
 
-    /**
-     * Checks if temporary stop duration exceeds limits and shows warnings
-     */
+    // Checks if temporary stop duration exceeds limits and shows warnings
     private void checkTempStopDuration(WorkUsersSessionsStates session) {
         String username = session.getUsername();
         LocalDateTime tempStopStart = session.getLastTemporaryStopTime();
@@ -604,9 +570,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Checks if scheduled work time is complete and shows warning
-     */
+    // Checks if scheduled work time is complete and shows warning
     private void checkScheduleCompletion(WorkUsersSessionsStates session, User user) {
         LocalDate sessionDate = session.getDayStartTime().toLocalDate();
         LocalDate today = getStandardTimeValues().getCurrentDate();
@@ -650,9 +614,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Shows hourly warnings for users continuing to work after schedule completion
-     */
+    // Shows hourly warnings for users continuing to work after schedule completion
     public void checkHourlyWarning(WorkUsersSessionsStates session) {
         String username = session.getUsername();
         LocalDateTime now = getStandardTimeValues().getCurrentTime();
@@ -687,9 +649,7 @@ public class SessionMonitorService {
 
     // ===== UTILITY METHODS =====
 
-    /**
-     * Calculates time to the next monitoring check based on configured interval
-     */
+    // Calculates time to the next monitoring check based on configured interval
     private Duration calculateTimeToNextCheck() {
         LocalDateTime now = getStandardTimeValues().getCurrentTime();
         LocalDateTime nextCheck;
@@ -726,9 +686,7 @@ public class SessionMonitorService {
         return Duration.between(now, nextCheck);
     }
 
-    /**
-     * Checks if session has activity today
-     */
+    // Checks if session has activity today
     private boolean hasActiveSessionToday(WorkUsersSessionsStates session) {
         if (session == null || session.getDayStartTime() == null) {
             return false;
@@ -745,9 +703,7 @@ public class SessionMonitorService {
         return validationService.execute(timeCommand);
     }
 
-    /**
-     * Displays a test notification to verify system functioning
-     */
+    // Displays a test notification to verify system functioning
     private void showTestNotification() {
         try {
             // Create and execute the test notification command
@@ -758,46 +714,36 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Clears monitoring state for a user
-     */
+    //Clears monitoring state for a user
     public void clearMonitoring(String username) {
         monitoringStateService.clearUserState(username);
         clearUserSessionCache(username);
         LoggerUtil.info(this.getClass(), String.format("Cleared monitoring for user %s", username));
     }
 
-    /**
-     * Stops monitoring for a user session
-     */
+    // Stops monitoring for a user session
     public void stopMonitoring(String username) {
         monitoringStateService.stopMonitoring(username);
         LoggerUtil.info(this.getClass(), "Stopped monitoring for user: " + username);
     }
 
-    /**
-     * Clear user cache (called during session reset/midnight)
-     */
+    // Clear user cache (called during session reset/midnight)
     public void clearUserSessionCache(String username) {
         try {
-            sessionCacheService.clearUserCache(username);
+            sessionCacheService.invalidateUserSession(username);
             LoggerUtil.info(this.getClass(), "Cleared session cache for user: " + username);
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error clearing session cache for user " + username + ": " + e.getMessage(), e);
         }
     }
 
-    /**
-     * Activates hourly monitoring for continuing work after schedule completion
-     */
+    //Activates hourly monitoring for continuing work after schedule completion
     public void activateHourlyMonitoring(String username, LocalDateTime timestamp) {
         monitoringStateService.transitionToHourlyMonitoring(username, timestamp);
         LoggerUtil.info(this.getClass(), "Activated hourly monitoring for user: " + username);
     }
 
-    /**
-     * Explicitly pauses schedule completion monitoring when a user enters temporary stop.
-     */
+    // Explicitly pauses schedule completion monitoring when a user enters temporary stop.
     public void pauseScheduleMonitoring(String username) {
         try {
             LocalDateTime now = getStandardTimeValues().getCurrentTime();
@@ -808,9 +754,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Resumes regular schedule completion monitoring after temporary stop ends.
-     */
+    // Resumes regular schedule completion monitoring after temporary stop ends.
     public void resumeScheduleMonitoring(String username) {
         try {
             monitoringStateService.resumeFromTempStop(username, false);
@@ -820,16 +764,12 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Determines if a user is currently in temporary stop monitoring mode.
-     */
+    // Determines if a user is currently in temporary stop monitoring mode.
     public boolean isInTempStopMonitoring(String username) {
         return monitoringStateService.isInTempStopMonitoring(username);
     }
 
-    /**
-     * Activates hourly monitoring with more explicit state management.
-     */
+    // Activates hourly monitoring with more explicit state management.
     public boolean activateExplicitHourlyMonitoring(String username, LocalDateTime timestamp) {
         try {
             monitoringStateService.transitionToHourlyMonitoring(username, timestamp);
@@ -841,9 +781,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Deactivates hourly monitoring.
-     */
+    // Deactivates hourly monitoring.
     public void deactivateHourlyMonitoring(String username) {
         try {
             monitoringStateService.stopMonitoring(username);
@@ -853,9 +791,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Enhanced version of startMonitoring that explicitly handles all monitoring states.
-     */
+    // Enhanced version of startMonitoring that explicitly handles all monitoring states.
     public void startEnhancedMonitoring(String username) {
         try {
             monitoringStateService.startScheduleMonitoring(username);
@@ -865,9 +801,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Records that a temporary stop notification has been shown to a user.
-     */
+    // Records that a temporary stop notification has been shown to a user.
     public void recordTempStopNotification(String username, LocalDateTime timestamp) {
         try {
             monitoringStateService.recordTempStopNotification(username, timestamp);
@@ -883,9 +817,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Schedules an automatic end time for a user's session with proper monitoring coordination
-     */
+    // Schedules an automatic end time for a user's session with proper monitoring coordination
     public boolean scheduleAutomaticEnd(String username, Integer userId, LocalDateTime endTime) {
         try {
             LoggerUtil.info(this.getClass(), String.format("Scheduling automatic end for user %s at %s", username, endTime));
@@ -929,28 +861,21 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Cancels a scheduled end time for a user
-     */
+    // Cancels a scheduled end time for a user
     public boolean cancelScheduledEnd(String username) {
         return monitoringStateService.cancelScheduledEnd(username);
     }
 
-    /**
-     * Gets the scheduled end time for a user if any
-     */
+    //Gets the scheduled end time for a user if any
     public LocalDateTime getScheduledEndTime(String username) {
         return monitoringStateService.getScheduledEndTime(username);
     }
-
 
     // ========================================================================
     // FILE OPERATION COORDINATION METHODS
     // ========================================================================
 
-    /**
-     * Check if it's safe to write to file (avoid conflicts with session commands).
-     */
+    // Check if it's safe to write to file (avoid conflicts with session commands).
     private boolean canWriteToFile(String username) {
         // Check if there's an ongoing file operation by session commands
         if (activeFileOperations.contains(username)) {
@@ -974,9 +899,7 @@ public class SessionMonitorService {
         return canWrite;
     }
 
-    /**
-     * Record file write timestamp for coordination.
-     */
+    // Record file write timestamp for coordination.
     private void recordFileWrite(String username) {
         lastFileWrites.put(username, System.currentTimeMillis());
 
@@ -986,17 +909,13 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Mark file operation as active (called by session commands).
-     */
+    // Mark file operation as active (called by session commands).
     public void markFileOperationActive(String username) {
         activeFileOperations.add(username);
         LoggerUtil.debug(this.getClass(), "Marked file operation active for user: " + username);
     }
 
-    /**
-     * Mark file operation as complete (called by session commands).
-     */
+    // Mark file operation as complete (called by session commands).
     public void markFileOperationComplete(String username) {
         activeFileOperations.remove(username);
         LoggerUtil.debug(this.getClass(), "Marked file operation complete for user: " + username);
@@ -1008,9 +927,7 @@ public class SessionMonitorService {
         }
     }
 
-    /**
-     * Schedule immediate sync for user with pending needs.
-     */
+    // Schedule immediate sync for user with pending needs.
     private void scheduleImmediateSync(String username) {
         // Schedule sync with small delay to ensure command completion
         taskScheduler.schedule(() -> {
@@ -1026,9 +943,7 @@ public class SessionMonitorService {
         }, Instant.now().plusMillis(2000)); // 2-second delay
     }
 
-    /**
-     * Cleanup old file write records to prevent memory leaks.
-     */
+    // Cleanup old file write records to prevent memory leaks.
     private void cleanupOldFileWrites() {
         long cutoff = System.currentTimeMillis() - (MIN_FILE_WRITE_INTERVAL_MS * 10);
         int initialSize = lastFileWrites.size();

@@ -8,17 +8,10 @@ import lombok.Getter;
 
 import java.time.LocalDate;
 
-/**
- * Comprehensive query to check various session-related statuses and conditions
- */
+// Comprehensive query to check various session-related statuses and conditions
 public class SessionStatusQuery extends BaseUserSessionQuery<SessionStatusQuery.SessionStatus> {
 
-    /**
-     * Creates a new query for checking session status
-     *
-     * @param username The username
-     * @param userId The user ID
-     */
+    // Creates a new query for checking session status
     public SessionStatusQuery(String username, Integer userId) {
         super(username, userId);
     }
@@ -33,10 +26,7 @@ public class SessionStatusQuery extends BaseUserSessionQuery<SessionStatusQuery.
             GetCurrentSessionQuery sessionQuery = ctx.getCommandFactory().createGetCurrentSessionQuery(username, userId);
             WorkUsersSessionsStates session = ctx.executeQuery(sessionQuery);
 
-            // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
-            LocalDate today = timeValues.getCurrentDate();
+            LocalDate today = getStandardCurrentDate(context);
 
             // Check for unresolved worktime entries
             UnresolvedWorkTimeQuery unresolvedQuery = new UnresolvedWorkTimeQuery(username);
@@ -62,9 +52,7 @@ public class SessionStatusQuery extends BaseUserSessionQuery<SessionStatusQuery.
         }, new SessionStatus(null, false, false, false, false));
     }
 
-    /**
-     * Comprehensive session status information
-     */
+    //Comprehensive session status information
     @Getter
     public static class SessionStatus {
         private final WorkUsersSessionsStates session;

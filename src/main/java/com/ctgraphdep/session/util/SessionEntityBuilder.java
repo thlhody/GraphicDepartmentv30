@@ -10,12 +10,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.function.Consumer;
 
-/**
- * FIXED Builder class for creating and updating session and worktime entities
- * CRITICAL FIX: Removed automatic timeOffType null assignment
- * The timeOffType is now managed by session commands with special day detection
- */
+// Builder class for creating and updating session and worktime entities
 public class SessionEntityBuilder {
+
     // Create a new session with default values
     public static WorkUsersSessionsStates createSession(String username, Integer userId) {
         return createSession(username, userId, LocalDateTime.now().minusMinutes(WorkCode.BUFFER_MINUTES));
@@ -42,11 +39,7 @@ public class SessionEntityBuilder {
         return session;
     }
 
-    /**
-     * FIXED: Create a worktime entry from a session
-     * CRITICAL FIX: Removed automatic timeOffType null assignment
-     * The timeOffType should be managed by session commands based on day type detection
-     */
+    // Create a worktime entry from a session
     public static WorkTimeTable createWorktimeEntryFromSession(WorkUsersSessionsStates session) {
         WorkTimeTable entry = new WorkTimeTable();
         entry.setUserId(session.getUserId());
@@ -59,11 +52,8 @@ public class SessionEntityBuilder {
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
         entry.setLunchBreakDeducted(session.getLunchBreakDeducted() != null ? session.getLunchBreakDeducted() : false);
         entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
-
         // CRITICAL FIX: DO NOT automatically set timeOffType to null
         // Let the session commands handle timeOffType based on day type detection
-        // OLD CODE: entry.setTimeOffType(null); // REMOVED - This was the root cause!
-        // NEW CODE: timeOffType is left as null by default, session commands will set it appropriately
 
         return entry;
     }
@@ -75,78 +65,73 @@ public class SessionEntityBuilder {
         return builder.build();
     }
 
-    public static class SessionUpdateBuilder {
-        private final WorkUsersSessionsStates session;
-
-        private SessionUpdateBuilder(WorkUsersSessionsStates session) {
-            this.session = session;
-        }
+    public record SessionUpdateBuilder(WorkUsersSessionsStates session) {
 
         public SessionUpdateBuilder status(String status) {
-            session.setSessionStatus(status);
-            return this;
-        }
-
-        public SessionUpdateBuilder dayEndTime(LocalDateTime time) {
-            session.setDayEndTime(time);
-            return this;
-        }
-
-        public SessionUpdateBuilder currentStartTime(LocalDateTime time) {
-            session.setCurrentStartTime(time);
-            return this;
-        }
-
-        public SessionUpdateBuilder totalWorkedMinutes(int minutes) {
-            session.setTotalWorkedMinutes(minutes);
-            return this;
-        }
-
-        public SessionUpdateBuilder finalWorkedMinutes(int minutes) {
-            session.setFinalWorkedMinutes(minutes);
-            return this;
-        }
-
-        public SessionUpdateBuilder totalOvertimeMinutes(int minutes) {
-            session.setTotalOvertimeMinutes(minutes);
-            return this;
-        }
-
-        public SessionUpdateBuilder lunchBreakDeducted(boolean deducted) {
-            session.setLunchBreakDeducted(deducted);
-            return this;
-        }
-
-        public SessionUpdateBuilder workdayCompleted(boolean completed) {
-            session.setWorkdayCompleted(completed);
-            return this;
-        }
-
-        public SessionUpdateBuilder temporaryStopCount(int count) {
-            session.setTemporaryStopCount(count);
-            return this;
-        }
-
-        public SessionUpdateBuilder totalTemporaryStopMinutes(int minutes) {
-            session.setTotalTemporaryStopMinutes(minutes);
-            return this;
-        }
-
-        public SessionUpdateBuilder lastTemporaryStopTime(LocalDateTime time) {
-            session.setLastTemporaryStopTime(time);
-            return this;
-        }
-
-        public SessionUpdateBuilder addTemporaryStop(TemporaryStop tempStop) {
-            if (session.getTemporaryStops() == null) {
-                session.setTemporaryStops(new ArrayList<>());
+                session.setSessionStatus(status);
+                return this;
             }
-            session.getTemporaryStops().add(tempStop);
-            return this;
-        }
 
-        public WorkUsersSessionsStates build() {
-            return session;
+            public SessionUpdateBuilder dayEndTime(LocalDateTime time) {
+                session.setDayEndTime(time);
+                return this;
+            }
+
+            public SessionUpdateBuilder currentStartTime(LocalDateTime time) {
+                session.setCurrentStartTime(time);
+                return this;
+            }
+
+            public SessionUpdateBuilder totalWorkedMinutes(int minutes) {
+                session.setTotalWorkedMinutes(minutes);
+                return this;
+            }
+
+            public SessionUpdateBuilder finalWorkedMinutes(int minutes) {
+                session.setFinalWorkedMinutes(minutes);
+                return this;
+            }
+
+            public SessionUpdateBuilder totalOvertimeMinutes(int minutes) {
+                session.setTotalOvertimeMinutes(minutes);
+                return this;
+            }
+
+            public SessionUpdateBuilder lunchBreakDeducted(boolean deducted) {
+                session.setLunchBreakDeducted(deducted);
+                return this;
+            }
+
+            public SessionUpdateBuilder workdayCompleted(boolean completed) {
+                session.setWorkdayCompleted(completed);
+                return this;
+            }
+
+            public SessionUpdateBuilder temporaryStopCount(int count) {
+                session.setTemporaryStopCount(count);
+                return this;
+            }
+
+            public SessionUpdateBuilder totalTemporaryStopMinutes(int minutes) {
+                session.setTotalTemporaryStopMinutes(minutes);
+                return this;
+            }
+
+            public SessionUpdateBuilder lastTemporaryStopTime(LocalDateTime time) {
+                session.setLastTemporaryStopTime(time);
+                return this;
+            }
+
+            public SessionUpdateBuilder addTemporaryStop(TemporaryStop tempStop) {
+                if (session.getTemporaryStops() == null) {
+                    session.setTemporaryStops(new ArrayList<>());
+                }
+                session.getTemporaryStops().add(tempStop);
+                return this;
+            }
+
+            public WorkUsersSessionsStates build() {
+                return session;
+            }
         }
-    }
 }

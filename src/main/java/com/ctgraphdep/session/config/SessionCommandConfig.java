@@ -34,8 +34,17 @@ public class SessionCommandConfig {
             DataAccessService dataAccessService,
             WorktimeOperationContext worktimeOperationContext) {
 
-        return new SessionContext(userService, mainDefaultUserContextService, sessionStatusService, sessionMonitorService,
-                folderStatus, commandFactory,validationService,notificationService,sessionService,
-                sessionDataService,dataAccessService,worktimeOperationContext);
+        return new SessionContext(userService,
+                mainDefaultUserContextService,
+                sessionStatusService,
+                sessionMonitorService,
+                folderStatus,
+                commandFactory,
+                validationService,
+                notificationService,
+                sessionService,
+                sessionDataService,
+                dataAccessService,
+                worktimeOperationContext);
     }
 }

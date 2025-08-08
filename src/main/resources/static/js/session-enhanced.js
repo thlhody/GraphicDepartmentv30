@@ -1,7 +1,3 @@
-/**
- * Enhanced Session Management UI
- * Provides interactive features for the work session page with toast notifications
- */
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize tooltips
     initTooltips();
@@ -24,9 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("Session page initialized with toast notifications");
 });
 
-/**
- * Initialize Bootstrap tooltips
- */
+// Initialize Bootstrap tooltips
 function initTooltips() {
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -34,9 +28,7 @@ function initTooltips() {
     });
 }
 
-/**
- * Initialize and update the live clock
- */
+// Initialize and update the live clock
 function initLiveClock() {
     // Real-time clock update
     function updateClock() {
@@ -59,9 +51,7 @@ function initLiveClock() {
     updateClock(); // Initial call
 }
 
-/**
- * Check if a form was previously submitted and page reloaded
- */
+// Check if a form was previously submitted and page reloaded
 function checkFormSubmission() {
     if (localStorage.getItem('formSubmitted') === 'true') {
         // Clear the flag
@@ -78,9 +68,7 @@ function checkFormSubmission() {
     }
 }
 
-/**
- * Initialize toast notifications based on URL parameters and flash messages
- */
+// Initialize toast notifications based on URL parameters and flash messages
 function initToastNotifications() {
     // Get session page data from the script tag
     const sessionDataElement = document.getElementById('sessionPageData');
@@ -127,9 +115,7 @@ function initToastNotifications() {
     }
 }
 
-/**
- * Initializes the end time scheduler functionality with calculations
- */
+// Initializes the end time scheduler functionality with calculations
 function initEndTimeScheduler() {
     const useRecommendedBtn = document.getElementById('useRecommendedTime');
     const endHourInput = document.getElementById('endHour');
@@ -230,10 +216,7 @@ function initEndTimeScheduler() {
     calculateEndTimeWorkTime();
 }
 
-/**
- * Calculates work time based on the end time inputs
- * by fetching current session data from the server
- */
+// Calculates work time based on the end time inputs by fetching current session data from the server
 function calculateEndTimeWorkTime() {
     const endHourInput = document.getElementById('endHour');
     const endMinuteInput = document.getElementById('endMinute');
@@ -342,9 +325,7 @@ function calculateEndTimeWorkTime() {
     });
 }
 
-/**
- * Sets up a direct timer to refresh the page at the scheduled end time
- */
+// Sets up a direct timer to refresh the page at the scheduled end time
 function initEndTimeChecker() {
     // Don't continue if we're not on the session page
     if (!document.getElementById('endHour')) return;
@@ -385,11 +366,7 @@ function initEndTimeChecker() {
     }, timeUntilEnd + 500); // Add 500ms to ensure we're past the time
 }
 
-/**
- * Helper function to format minutes as HH:MM
- * @param {number} minutes - Minutes to format
- * @returns {string} - Formatted time string
- */
+// Helper function to format minutes as HH:MM
 window.formatMinutes = function(minutes) {
     if (minutes === undefined || minutes === null) return "00:00";
     const hours = Math.floor(minutes / 60);

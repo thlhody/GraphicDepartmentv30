@@ -8,10 +8,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-/**
- * Query that checks for unresolved worktime entries based solely on the worktime file.
- * This is completely decoupled from session state.
- */
+// Query that checks for unresolved worktime entries based solely on the worktime file.
 public class WorktimeResolutionQuery implements SessionQuery<WorktimeResolutionQuery.ResolutionStatus> {
     private final String username;
 
@@ -29,24 +26,18 @@ public class WorktimeResolutionQuery implements SessionQuery<WorktimeResolutionQ
             boolean needsResolution = !unresolvedEntries.isEmpty();
 
             if (needsResolution) {
-                LoggerUtil.info(this.getClass(),
-                        String.format("User %s has %d unresolved worktime entries",
-                                username, unresolvedEntries.size()));
+                LoggerUtil.info(this.getClass(), String.format("User %s has %d unresolved worktime entries", username, unresolvedEntries.size()));
             }
 
             return new ResolutionStatus(needsResolution, unresolvedEntries);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    String.format("Error checking worktime resolution for user %s: %s",
-                            username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error checking worktime resolution for user %s: %s", username, e.getMessage()));
             return new ResolutionStatus(false, List.of());
         }
     }
 
-    /**
-     * Simple class representing the resolution status based solely on worktime entries
-     */
+    // Simple class representing the resolution status based solely on worktime entries
     @Getter
     public static class ResolutionStatus {
         private final boolean needsResolution;

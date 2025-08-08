@@ -2,6 +2,7 @@ package com.ctgraphdep.service.cache;
 
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
+import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -10,8 +11,14 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Thread-safe cache entry for session data.
- * Separates static values (from commands) and dynamic values (from calculations).
+ * ENHANCED SessionCacheEntry - Thread-safe cache entry for session data.
+ * Enhancements:
+ * - Better separation of static vs dynamic values
+ * - Enhanced metadata tracking (source, version, health)
+ * - Support for write-through pattern validation
+ * - Comprehensive cache age and health monitoring
+ * - Thread-safe operations using ReentrantReadWriteLock
+ * - Memory optimization and cleanup methods
  */
 @Data
 public class SessionCacheEntry {
@@ -19,7 +26,7 @@ public class SessionCacheEntry {
     // Thread safety
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
-    // === STATIC VALUES (Set by commands, never change until midnight) ===
+    // === STATIC VALUES (Set by commands, stable during day) ===
     private Integer userId;
     private String username;
     private String sessionStatus;
@@ -30,7 +37,7 @@ public class SessionCacheEntry {
     private List<TemporaryStop> temporaryStops;
     private Boolean workdayCompleted;
 
-    // === DYNAMIC VALUES (Calculated by SessionMonitor) ===
+    // === DYNAMIC VALUES (Calculated frequently by SessionMonitor) ===
     private Integer totalWorkedMinutes;
     private Integer finalWorkedMinutes;
     private Integer totalOvertimeMinutes;
@@ -39,10 +46,14 @@ public class SessionCacheEntry {
     private LocalDateTime lastTemporaryStopTime;
     private LocalDateTime lastActivity;
 
-    // === CACHE METADATA ===
+    // === ENHANCED CACHE METADATA ===
     private long lastFileRead;
     private long lastCalculationUpdate;
+    private long lastFileWrite;
     private boolean initialized;
+    private String dataSource; // "file", "network", "default", etc.
+    private long cacheVersion; // For optimistic concurrency
+    private boolean dirty; // Indicates unsaved changes
 
     /**
      * Default constructor
@@ -50,13 +61,13 @@ public class SessionCacheEntry {
     public SessionCacheEntry() {
         this.temporaryStops = new ArrayList<>();
         this.initialized = false;
+        this.dirty = false;
+        this.cacheVersion = 0;
+        this.dataSource = "unknown";
     }
 
-    /**
-     * Initialize cache from file data (thread-safe)
-     * @param session Session data from file
-     */
-    public void initializeFromFile(WorkUsersSessionsStates session) {
+    // ENHANCED: Initialize cache from file data with metadata tracking
+    public void initializeFromFile(WorkUsersSessionsStates session, String source) {
         lock.writeLock().lock();
         try {
             if (session == null) {
@@ -87,22 +98,27 @@ public class SessionCacheEntry {
             this.lastTemporaryStopTime = session.getLastTemporaryStopTime();
             this.lastActivity = session.getLastActivity();
 
-            // Update metadata
-            this.lastFileRead = System.currentTimeMillis();
-            this.lastCalculationUpdate = System.currentTimeMillis();
+            // Update enhanced metadata
+            long currentTime = System.currentTimeMillis();
+            this.lastFileRead = currentTime;
+            this.lastCalculationUpdate = currentTime;
+            this.dataSource = source != null ? source : "unknown";
+            this.cacheVersion++;
             this.initialized = true;
+            this.dirty = false;
 
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    /**
-     * Update only calculated values (thread-safe)
-     * Called by SessionMonitorService
-     * @param session Session with updated calculations
-     */
-    public void updateCalculatedValues(WorkUsersSessionsStates session) {
+    // Legacy compatibility method
+    public void initializeFromFile(WorkUsersSessionsStates session) {
+        initializeFromFile(session, "file");
+    }
+
+    //Update only calculated values with source tracking. Called by SessionMonitorService for dynamic updates
+    public void updateCalculatedValues(WorkUsersSessionsStates session, String source) {
         lock.writeLock().lock();
         try {
             if (session == null || !initialized) {
@@ -118,18 +134,22 @@ public class SessionCacheEntry {
             this.lastTemporaryStopTime = session.getLastTemporaryStopTime();
             this.lastActivity = session.getLastActivity();
 
-            // Update calculation timestamp
+            // Update metadata
             this.lastCalculationUpdate = System.currentTimeMillis();
+            if ("monitor".equals(source)) {
+                LoggerUtil.info(this.getClass(),"Monitoring update");
+                // Monitor updates don't make cache dirty (they're just calculations)
+                // File writes only happen through commands
+            } else {
+                this.dirty = true; // Mark as dirty for non-monitor updates
+            }
 
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    /**
-     * Get complete session object combining static and dynamic values (thread-safe)
-     * @return Complete WorkUsersSessionsStates object
-     */
+    //Get complete session object combining static and dynamic values
     public WorkUsersSessionsStates toCombinedSession() {
         lock.readLock().lock();
         try {
@@ -169,10 +189,7 @@ public class SessionCacheEntry {
         }
     }
 
-    /**
-     * Check if cache is initialized and valid
-     * @return true if cache has valid data
-     */
+    // Check if cache is initialized and valid
     public boolean isValid() {
         lock.readLock().lock();
         try {
@@ -182,13 +199,29 @@ public class SessionCacheEntry {
         }
     }
 
-    /**
-     * Clear cache (for midnight reset)
-     */
+    //Check if cache is healthy (not too old)
+    public boolean isHealthy() {
+        lock.readLock().lock();
+        try {
+            if (!isValid()) {
+                return false;
+            }
+
+            // Check if cache is too old (older than 1 hour is considered unhealthy)
+            long cacheAge = getCacheAge();
+            long maxAge = 60 * 60 * 1000; // 1 hour in milliseconds
+
+            return cacheAge < maxAge;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    //Clear cache (for midnight reset)
     public void clear() {
         lock.writeLock().lock();
         try {
-            // Resets all values
+            // Reset all values
             this.userId = null;
             this.username = null;
             this.sessionStatus = null;
@@ -210,17 +243,18 @@ public class SessionCacheEntry {
             // Reset metadata
             this.lastFileRead = 0;
             this.lastCalculationUpdate = 0;
+            this.lastFileWrite = 0;
             this.initialized = false;
+            this.dirty = false;
+            this.cacheVersion = 0;
+            this.dataSource = "unknown";
 
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    /**
-     * Get cache age in milliseconds
-     * @return Age since last file read
-     */
+    // Get cache age in milliseconds
     public long getCacheAge() {
         lock.readLock().lock();
         try {
@@ -230,10 +264,7 @@ public class SessionCacheEntry {
         }
     }
 
-    /**
-     * Get calculation age in milliseconds
-     * @return Age since last calculation update
-     */
+    //Get calculation age in milliseconds
     public long getCalculationAge() {
         lock.readLock().lock();
         try {
@@ -242,4 +273,92 @@ public class SessionCacheEntry {
             lock.readLock().unlock();
         }
     }
+
+    // Get diagnostic information about cache entry
+    public String getDiagnosticInfo() {
+        lock.readLock().lock();
+        try {
+            if (!initialized) {
+                return "SessionCacheEntry{uninitialized}";
+            }
+
+            return String.format(
+                    "SessionCacheEntry{user=%s, status=%s, source=%s, version=%d, " +
+                            "cacheAge=%dms, calcAge=%dms, dirty=%s, healthy=%s}",
+                    username, sessionStatus, dataSource, cacheVersion,
+                    getCacheAge(), getCalculationAge(), dirty, isHealthy()
+            );
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    // Override toString for better logging
+    @Override
+    public String toString() {
+        return getDiagnosticInfo();
+    }
+
+    //Check if cache has unsaved changes
+    public boolean isDirty() {
+        lock.readLock().lock();
+        try {
+            return dirty;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    //Mark cache as clean (after successful file write)
+    public void markClean(long writeTimestamp) {
+        lock.writeLock().lock();
+        try {
+            this.dirty = false;
+            this.lastFileWrite = writeTimestamp;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    //Get time since last file write
+    public long getTimeSinceLastWrite() {
+        lock.readLock().lock();
+        try {
+            return lastFileWrite > 0 ? System.currentTimeMillis() - lastFileWrite : Long.MAX_VALUE;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    //Get cache version for optimistic concurrency
+    public long getCacheVersion() {
+        lock.readLock().lock();
+        try {
+            return cacheVersion;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    //Get data source information
+    public String getDataSource() {
+        lock.readLock().lock();
+        try {
+            return dataSource;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    //Check if session is currently active (online or temp stop)
+    public boolean isActiveSession() {
+        lock.readLock().lock();
+        try {
+            return initialized && ("WORK_ONLINE".equals(sessionStatus) || "WORK_TEMPORARY_STOP".equals(sessionStatus));
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+
 }

@@ -8,6 +8,7 @@ import com.ctgraphdep.session.SessionQuery;
 import java.util.List;
 
 public class GetUnresolvedEntriesQuery implements SessionQuery<List<ResolutionCalculationDTO>> {
+
     private final String username;
 
     public GetUnresolvedEntriesQuery(String username) {

@@ -6,18 +6,12 @@ import com.ctgraphdep.service.SessionService;
 import com.ctgraphdep.session.SessionContext;
 import org.springframework.ui.Model;
 
-/**
- * Command to prepare view model for session page using the SessionService
- */
+// Command to prepare view model for session page using the SessionService
 public class PrepareSessionViewModelCommand extends BaseSessionCommand<Void> {
     private final Model model;
     private final User user;
 
-    /**
-     * Creates a command to prepare the session view model
-     * @param model The Spring UI model
-     * @param user The user
-     */
+    // Creates a command to prepare the session view model
     public PrepareSessionViewModelCommand(Model model, User user) {
         validateCondition(model != null, "Model cannot be null");
         validateCondition(user != null, "User cannot be null");
@@ -52,9 +46,7 @@ public class PrepareSessionViewModelCommand extends BaseSessionCommand<Void> {
         });
     }
 
-    /**
-     * Maps the WorkSessionDTO fields to individual model attributes for backward compatibility
-     */
+    // Maps the WorkSessionDTO fields to individual model attributes for backward compatibility
     private void mapDtoToModelAttributes(Model model, WorkSessionDTO dto) {
         // Basic session information
         model.addAttribute("sessionStatus", dto.getFormattedStatus());

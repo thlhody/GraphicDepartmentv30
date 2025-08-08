@@ -23,8 +23,6 @@ import java.time.LocalDateTime;
  * 5. Apply special day logic if needed
  * 6. Apply post-special-day customizations (re-apply fields that may have been modified)
  * 7. Save the updated entry
- *
- * @param <T> The command result type
  */
 public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCommand<T> {
 
@@ -38,10 +36,8 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
         this.userId = userId;
     }
 
-    /**
-     * MAIN WORKFLOW: Common logic for updating worktime entries with special day detection
-     * This method orchestrates the entire workflow while delegating command-specific logic to subclasses
-     */
+    // Common logic for updating worktime entries with special day detection
+    // This method orchestrates the entire workflow while delegating command-specific logic to subclasses
     protected final void updateWorktimeEntryWithSpecialDayLogic(WorkUsersSessionsStates session, SessionContext context) {
         try {
             // Step 1: Validate session and extract work date
@@ -79,9 +75,7 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
                 entry = SessionSpecialDayDetector.applySpecialDayLogic(entry, session, dayType);
 
                 info(String.format("Special day logic applied for %s: timeOffType=%s, regularMinutes=%d, overtimeMinutes=%d",
-                        getCommandDescription(),
-                        entry.getTimeOffType(),
-                        entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
+                        getCommandDescription(), entry.getTimeOffType(), entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
                         entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0));
             } else {
                 debug(String.format("Regular day - no special logic needed for %s", getCommandDescription()));
@@ -95,8 +89,7 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
             context.saveSessionWorktime(username, entry, workDate.getYear(), workDate.getMonthValue());
 
             info(String.format("Successfully updated worktime entry for %s: date=%s, timeOffType=%s, totalMinutes=%d, overtimeMinutes=%d",
-                    getCommandDescription(), workDate, entry.getTimeOffType(),
-                    entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
+                    getCommandDescription(), workDate, entry.getTimeOffType(), entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
                     entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0));
 
         } catch (Exception e) {
@@ -104,11 +97,9 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
         }
     }
 
-    /**
-     * RESOLUTION WORKFLOW: Session-independent logic for resolving historical worktime entries
-     * This method works directly with worktime entries without requiring active sessions
-     * Used for resolving historical entries where sessions are no longer available (24+ hours old)
-     */
+    // RESOLUTION WORKFLOW: Session-independent logic for resolving historical worktime entries
+    // This method works directly with worktime entries without requiring active sessions
+    // Used for resolving historical entries where sessions are no longer available (24+ hours old)
     protected final void resolveWorktimeEntryDirectly(LocalDate entryDate, LocalDateTime endTime, SessionContext context) {
         try {
             debug(String.format("Resolving worktime entry directly for date: %s (%s)", entryDate, getCommandDescription()));
@@ -147,9 +138,7 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
                 entry = SessionSpecialDayDetector.applySpecialDayLogic(entry, tempSession, dayType);
 
                 info(String.format("Special day logic applied for %s: timeOffType=%s, regularMinutes=%d, overtimeMinutes=%d",
-                        getCommandDescription(),
-                        entry.getTimeOffType(),
-                        entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
+                        getCommandDescription(), entry.getTimeOffType(), entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
                         entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0));
             } else {
                 debug(String.format("Regular day - no special logic needed for %s", getCommandDescription()));
@@ -166,8 +155,7 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
             context.saveSessionWorktime(username, entry, entryDate.getYear(), entryDate.getMonthValue());
 
             info(String.format("Successfully resolved worktime entry for %s: date=%s, timeOffType=%s, totalMinutes=%d, overtimeMinutes=%d",
-                    getCommandDescription(), entryDate, entry.getTimeOffType(),
-                    entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
+                    getCommandDescription(), entryDate, entry.getTimeOffType(), entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,
                     entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0));
 
         } catch (Exception e) {
@@ -188,13 +176,8 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
         return tempSession;
     }
 
-    /**
-     * Apply command-specific customizations during resolution
-     * Default implementation does nothing - subclasses can override for specific resolution logic
-     * @param entry The worktime entry being resolved
-     * @param endTime The resolution end time
-     * @param context The session context
-     */
+    // Apply command-specific customizations during resolution
+    // Default implementation does nothing - subclasses can override for specific resolution logic
     protected void applyResolutionCustomizations(WorkTimeTable entry, LocalDateTime endTime, SessionContext context) {
         // Default: no additional customizations
         // Subclasses can override for command-specific resolution logic
@@ -204,62 +187,24 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
     // ABSTRACT METHODS - Command-specific implementations
     // ========================================================================
 
-    /**
-     * Find existing entry or create new entry based on command requirements.
-     * Examples:
-     * - StartDayCommand: Find existing or create new
-     * - EndDayCommand: Find existing or create new
-     * - TempStopCommands: Find existing only (warn if not found)
-     * - ResumeCommands: Find existing only (warn if not found)
-     * @param workDate The work date for the entry
-     * @param session The current session
-     * @param context The session context
-     * @return The worktime entry to update, or null if not found/created
-     */
+    // Find existing entry or create new entry based on command requirements.
     protected abstract WorkTimeTable findOrCreateEntry(LocalDate workDate, WorkUsersSessionsStates session, SessionContext context);
 
-    /**
-     * Apply command-specific customizations to the worktime entry.
-     * This happens BEFORE special day logic is applied.
-     * Examples:
-     * - StartDayCommand: Set initial values, preserve existing timeOffType
-     * - EndDayCommand: Set final end time, mark as completed
-     * - TempStopCommands: Update temp stop counts and minutes
-     * - ResumeCommands: Update resume-specific fields
-     * @param entry The worktime entry to customize
-     * @param session The current session
-     * @param context The session context
-     */
+    //Apply command-specific customizations to the worktime entry.
     protected abstract void applyCommandSpecificCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context);
 
-    /**
-     * Apply post-special-day customizations to the worktime entry.
-     * This happens AFTER special day logic is applied.
-     * Used to re-apply command-specific fields that might have been modified by special day logic.
-     * Examples:
-     * - TempStopCommands: Re-apply temp stop fields and sync status
-     * - ResumeCommands: Re-apply resume-specific fields
-     * - EndDayCommand: Re-apply final sync status
-     * @param entry The worktime entry to customize
-     * @param session The current session
-     * @param context The session context
-     */
+    // Apply post-special-day customizations to the worktime entry.This happens AFTER special day logic is applied.
+    // Used to re-apply command-specific fields that might have been modified by special day logic.
     protected abstract void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context);
 
-    /**
-     * Get a description of this command for logging purposes
-     * Examples: "start day", "end day", "temp stop", "resume from temp stop", etc.
-     * @return A human-readable description of the command
-     */
+    // Get a description of this command for logging purposes
     protected abstract String getCommandDescription();
 
     // ========================================================================
     // HELPER METHODS for common patterns
     // ========================================================================
 
-    /**
-     * Helper method to find existing entry with proper error handling
-     */
+    // Helper method to find existing entry with proper error handling
     protected final WorkTimeTable findExistingEntry(LocalDate workDate, SessionContext context) {
         WorkTimeTable entry = context.findSessionEntry(username, userId, workDate);
         if (entry == null) {
@@ -268,9 +213,7 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
         return entry;
     }
 
-    /**
-     * Helper method to find existing entry or create new one
-     */
+    // Helper method to find existing entry or create new one
     protected final WorkTimeTable findOrCreateNewEntry(LocalDate workDate, WorkUsersSessionsStates session, SessionContext context) {
         WorkTimeTable entry = context.findSessionEntry(username, userId, workDate);
 
@@ -284,9 +227,7 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
         return entry;
     }
 
-    /**
-     * Helper method to log command-specific customizations
-     */
+    // Helper method to log command-specific customizations
     protected final void logCustomization(String customization) {
         debug(String.format("Applying %s customization for %s", customization, getCommandDescription()));
     }

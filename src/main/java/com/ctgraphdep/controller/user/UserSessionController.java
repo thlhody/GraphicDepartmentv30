@@ -37,10 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Controller for handling user session operations through the command pattern.
- * All session operations go through the SessionCommandService to ensure consistent handling.
- */
 @Controller
 @RequestMapping({"/user/session"})
 @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_TEAM_LEADER', 'ROLE_USER_CHECKING', 'ROLE_CHECKING', 'ROLE_TL_CHECKING')")
@@ -76,8 +72,8 @@ public class UserSessionController extends BaseController {
             NavigationContextQuery navQuery = commandFactory.createNavigationContextQuery(currentUser);
             NavigationContext navContext = commandService.executeQuery(navQuery);
 
-            model.addAttribute("dashboardUrl", navContext.getDashboardUrl());
-            model.addAttribute("completedSessionToday", navContext.isCompletedSessionToday());
+            model.addAttribute("dashboardUrl", navContext.dashboardUrl());
+            model.addAttribute("completedSessionToday", navContext.completedSessionToday());
             model.addAttribute("isTeamLeaderView", navContext.isTeamLeaderView());
 
             // Check for unresolved work time entries using a query
@@ -281,14 +277,9 @@ public class UserSessionController extends BaseController {
         }
     }
 
-    /**
-     * Resolves an unfinished work time entry - Refactored to use SessionService
-     */
     @PostMapping("/resolve-worktime")
-    public String resolveWorkTimeEntry(@AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam("entryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate entryDate,
-            @RequestParam("endHour") int endHour, @RequestParam("endMinute") int endMinute,
-            RedirectAttributes redirectAttributes) {
+    public String resolveWorkTimeEntry(@AuthenticationPrincipal UserDetails userDetails, @RequestParam("entryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate entryDate,
+            @RequestParam("endHour") int endHour, @RequestParam("endMinute") int endMinute, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(),
@@ -343,9 +334,7 @@ public class UserSessionController extends BaseController {
 
     @PostMapping("/calculate-resolution")
     @ResponseBody
-    public ResolutionCalculationDTO calculateResolution(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody Map<String, Object> requestData) {
+    public ResolutionCalculationDTO calculateResolution(@AuthenticationPrincipal UserDetails userDetails, @RequestBody Map<String, Object> requestData) {
 
         // Get current user
         User currentUser = getUser(userDetails);
@@ -369,15 +358,9 @@ public class UserSessionController extends BaseController {
                 endMinute);
     }
 
-    /**
-     * Schedules an automatic end time for the current session
-     */
     @PostMapping("/schedule-end")
-    public String scheduleEndSession(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(value = "endHour") int endHour,
-            @RequestParam(value = "endMinute") int endMinute,
-            RedirectAttributes redirectAttributes) {
+    public String scheduleEndSession(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(value = "endHour") int endHour,
+            @RequestParam(value = "endMinute") int endMinute, RedirectAttributes redirectAttributes) {
 
         try {
             LoggerUtil.info(this.getClass(), String.format("Scheduling end session at %02d:%02d", endHour, endMinute));
@@ -423,25 +406,24 @@ public class UserSessionController extends BaseController {
         }
     }
 
-    /**
-     * Cancels a scheduled end time
-     */
     @PostMapping("/cancel-scheduled-end")
     public String cancelScheduledEnd(@AuthenticationPrincipal UserDetails userDetails, RedirectAttributes redirectAttributes) {
-
         try {
             LoggerUtil.info(this.getClass(), "Cancelling scheduled end session");
 
-            // Get the current user
             User currentUser = getUser(userDetails);
-            if (currentUser == null) {
-                redirectAttributes.addFlashAttribute("errorMessage", "Authentication required");
-                return "redirect:/login";
-            }
-
-            // Get the session monitor service and cancel the scheduled end
             SessionMonitorService monitorService = commandService.getContext().getSessionMonitorService();
+
+            // DEBUG: Check scheduled time BEFORE cancel
+            LocalDateTime beforeCancel = monitorService.getScheduledEndTime(currentUser.getUsername());
+            LoggerUtil.info(this.getClass(), String.format("Scheduled time BEFORE cancel: %s", beforeCancel));
+
             boolean success = monitorService.cancelScheduledEnd(currentUser.getUsername());
+
+            // DEBUG: Check scheduled time AFTER cancel
+            LocalDateTime afterCancel = monitorService.getScheduledEndTime(currentUser.getUsername());
+            LoggerUtil.info(this.getClass(), String.format("Scheduled time AFTER cancel: %s", afterCancel));
+            LoggerUtil.info(this.getClass(), String.format("Cancel operation result: %s", success));
 
             if (success) {
                 redirectAttributes.addFlashAttribute("successMessage", "Scheduled end time cancelled");
@@ -457,9 +439,6 @@ public class UserSessionController extends BaseController {
         }
     }
 
-    /**
-     * Gets the recommended end time based on the user's schedule - Refactored to use SessionService
-     */
     @GetMapping("/recommended-end-time")
     @ResponseBody
     public Map<String, Object> getRecommendedEndTime(@AuthenticationPrincipal UserDetails userDetails) {
@@ -490,14 +469,9 @@ public class UserSessionController extends BaseController {
         }
     }
 
-    /**
-     * Calculates work time based on proposed end time - Refactored to use SessionService
-     */
     @PostMapping("/calculate-end-time")
     @ResponseBody
-    public EndTimeCalculationDTO calculateEndTime(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody Map<String, Integer> endTimeData) {
+    public EndTimeCalculationDTO calculateEndTime(@AuthenticationPrincipal UserDetails userDetails, @RequestBody Map<String, Integer> endTimeData) {
 
         try {
             // Get the current user

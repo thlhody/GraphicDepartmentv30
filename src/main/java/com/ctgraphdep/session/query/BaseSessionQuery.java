@@ -3,22 +3,15 @@ package com.ctgraphdep.session.query;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
-/**
- * Base class for session queries that provides common validation
- * and execution patterns.
- *
- * @param <T> The query result type
- */
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+// Base class for session queries that provides common validation and execution patterns.
 public abstract class BaseSessionQuery<T> implements SessionQuery<T> {
 
-    /**
-     * Executes the query with standard error handling and logging.
-     *
-     * @param context The session context
-     * @param queryLogic The query execution logic
-     * @return The query result
-     */
+    // Executes the query with standard error handling and logging.
     protected T executeWithErrorHandling(SessionContext context, QueryExecution<T> queryLogic) {
         try {
             return queryLogic.execute(context);
@@ -28,15 +21,7 @@ public abstract class BaseSessionQuery<T> implements SessionQuery<T> {
         }
     }
 
-    /**
-     * Executes the query with standard error handling and logging,
-     * returning a default value on error.
-     *
-     * @param context The session context
-     * @param queryLogic The query execution logic
-     * @param defaultValue The default value to return on error
-     * @return The query result or default value on error
-     */
+    //Executes the query with standard error handling and logging, returning a default value on error.
     protected T executeWithDefault(SessionContext context, QueryExecution<T> queryLogic, T defaultValue) {
         try {
             return queryLogic.execute(context);
@@ -46,61 +31,34 @@ public abstract class BaseSessionQuery<T> implements SessionQuery<T> {
         }
     }
 
-    /**
-     * Validates that a username is not null or empty.
-     *
-     * @param username The username to validate
-     * @throws RuntimeException if username is null or empty
-     */
+    // Validates that a username is not null or empty.
     protected void validateUsername(String username) {
         if (username == null || username.trim().isEmpty()) {
             logAndThrow("Username cannot be null or empty");
         }
     }
 
-    /**
-     * Logs an error message and throws a RuntimeException.
-     *
-     * @param message The error message
-     * @throws RuntimeException with the specified message
-     */
+    // Logs an error message and throws a RuntimeException.
     protected void logAndThrow(String message) {
         LoggerUtil.logAndThrow(this.getClass(), message, new IllegalArgumentException(message));
     }
 
-    /**
-     * Logs a debug message.
-     *
-     * @param message The message to log
-     */
+    // Logs a debug message.
     protected void debug(String message) {
         LoggerUtil.debug(this.getClass(), message);
     }
 
-    /**
-     * Logs an info message.
-     *
-     * @param message The message to log
-     */
+    // Logs an info message.
     protected void info(String message) {
         LoggerUtil.info(this.getClass(), message);
     }
 
-    /**
-     * Logs a warning message.
-     *
-     * @param message The message to log
-     */
+    // Logs a warning message.
     protected void warn(String message) {
         LoggerUtil.warn(this.getClass(), message);
     }
 
-    /**
-     * Logs an error message.
-     *
-     * @param message The message to log
-     * @param e The exception that caused the error
-     */
+    // Logs an error message.
     protected void error(String message, Exception e) {
         LoggerUtil.error(this.getClass(), message, e);
     }
@@ -109,12 +67,25 @@ public abstract class BaseSessionQuery<T> implements SessionQuery<T> {
         LoggerUtil.error(this.getClass(), message);
     }
 
+    // Gets standardized time values using the validation service
+    protected GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues(SessionContext context) {
+        GetStandardTimeValuesCommand timeCommand = context.getValidationService()
+                .getValidationFactory()
+                .createGetStandardTimeValuesCommand();
+        return context.getValidationService().execute(timeCommand);
+    }
 
-    /**
-     * Functional interface for query execution logic.
-     *
-     * @param <R> The query result type
-     */
+    // Gets the current standardized date
+    protected LocalDate getStandardCurrentDate(SessionContext context) {
+        return getStandardTimeValues(context).getCurrentDate();
+    }
+
+    // Gets the current standardized time
+    protected LocalDateTime getStandardCurrentTime(SessionContext context) {
+        return getStandardTimeValues(context).getCurrentTime();
+    }
+
+    // Functional interface for query execution logic.
     @FunctionalInterface
     protected interface QueryExecution<R> {
         R execute(SessionContext context);

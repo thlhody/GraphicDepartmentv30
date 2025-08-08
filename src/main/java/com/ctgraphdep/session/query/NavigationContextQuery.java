@@ -6,9 +6,7 @@ import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.session.NavigationContext;
 import com.ctgraphdep.model.User;
 
-/**
- * Query to determine navigation context for user session page
- */
+// Query to determine navigation context for user session page
 public class NavigationContextQuery implements SessionQuery<NavigationContext> {
     private final User user;
 

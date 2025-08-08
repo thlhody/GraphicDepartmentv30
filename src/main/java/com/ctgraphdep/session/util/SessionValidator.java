@@ -4,14 +4,10 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
 
-/**
- * Utility class for validating session states
- */
+// Utility class for validating session states
 public class SessionValidator {
 
-    /**
-     * Validates that a session is in online state
-     */
+    // Validates that a session is in online state
     public static boolean isInOnlineState(WorkUsersSessionsStates session, Class<?> loggerClass) {
         if (session == null || !WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
             LoggerUtil.warn(loggerClass, String.format("Invalid session state: %s - expecting Online", session != null ? session.getSessionStatus() : "null"));
@@ -20,9 +16,7 @@ public class SessionValidator {
         return true;
     }
 
-    /**
-     * Validates that a session is in temporary stop state
-     */
+    // Validates that a session is in temporary stop state
     public static boolean isInTemporaryStopState(WorkUsersSessionsStates session, Class<?> loggerClass) {
         if (session == null || !WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
             LoggerUtil.warn(loggerClass, String.format("Invalid session state: %s - expecting Temporary Stop", session != null ? session.getSessionStatus() : "null"));
@@ -31,9 +25,7 @@ public class SessionValidator {
         return true;
     }
 
-    /**
-     * Validates that a session exists and is not null
-     */
+    //Validates that a session exists and is not null
     public static boolean exists(WorkUsersSessionsStates session, Class<?> loggerClass) {
         if (session == null) {
             LoggerUtil.warn(loggerClass, "Session is null");
@@ -42,9 +34,7 @@ public class SessionValidator {
         return true;
     }
 
-    /**
-     * Validates that a session is completed and can be resumed
-     */
+    // Validates that a session is completed and can be resumed
     public static boolean isCompletedSession(WorkUsersSessionsStates session, Class<?> loggerClass) {
         if (session == null ||
                 !WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) ||

@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
  * instead of deprecated WorktimeManagementService
  */
 public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>> {
+
     private final String username;
 
     public UnresolvedWorkTimeQuery(String username) {

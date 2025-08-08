@@ -3,15 +3,14 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.session.SessionCommand;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Enhanced base class for session commands with built-in deduplication support.
- * Prevents rapid execution of the same command by the same user.
- * @param <T> The command result type
- */
+// Enhanced base class for session commands with built-in deduplication support.
 public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
 
     // ========================================================================
@@ -24,9 +23,7 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     // Default cooldown period (can be overridden by specific commands)
     private static final long DEFAULT_COMMAND_COOLDOWN_MS = 2000; // 2 seconds
 
-    /**
-     * Execute command with custom cooldown period.
-     */
+    // Execute command with custom cooldown period.
     protected T executeWithDeduplication(SessionContext context, String username, CommandExecution<T> commandLogic, T defaultValue, long cooldownMs) {
 
         String commandKey = getCommandKey(username);
@@ -51,9 +48,7 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
         }
     }
 
-    /**
-     * Standard error handling execution - FIXED to wrap checked exceptions
-     */
+    // Standard error handling execution - FIXED to wrap checked exceptions
     protected T executeWithErrorHandling(SessionContext context, CommandExecution<T> commandLogic) {
         try {
             return commandLogic.execute(context);
@@ -68,9 +63,7 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
         }
     }
 
-    /**
-     * Error handling with default value (existing method).
-     */
+    // Error handling with default value (existing method).
     protected T executeWithDefault(SessionContext context, CommandExecution<T> commandLogic, T defaultValue) {
         try {
             return commandLogic.execute(context);
@@ -89,16 +82,12 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     // DEDUPLICATION HELPER METHODS
     // ========================================================================
 
-    /**
-     * Generate unique command key for deduplication.
-     */
+    // Generate unique command key for deduplication.
     private String getCommandKey(String username) {
         return username + ":" + this.getClass().getSimpleName();
     }
 
-    /**
-     * Check if command can be executed (not already running).
-     */
+    // Check if command can be executed (not already running).
     private boolean canExecuteCommand(String commandKey, long cooldownMs) {
         Long lastExecution = activeCommands.get(commandKey);
         if (lastExecution == null) {
@@ -109,16 +98,12 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
         return timeSinceLastExecution >= cooldownMs;
     }
 
-    /**
-     * Register command execution start.
-     */
+    // Register command execution start.
     private void registerCommandExecution(String commandKey) {
         activeCommands.put(commandKey, System.currentTimeMillis());
     }
 
-    /**
-     * Cleanup command execution record.
-     */
+    // Cleanup command execution record.
     private void cleanupCommandExecution(String commandKey) {
         activeCommands.remove(commandKey);
 
@@ -128,9 +113,7 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
         }
     }
 
-    /**
-     * Cleanup old command records.
-     */
+    // Cleanup old command records.
     private static void cleanupOldCommands() {
         long cutoff = System.currentTimeMillis() - (DEFAULT_COMMAND_COOLDOWN_MS * 5); // 10 seconds ago
         activeCommands.entrySet().removeIf(entry -> entry.getValue() < cutoff);
@@ -139,6 +122,24 @@ public abstract class BaseSessionCommand<T> implements SessionCommand<T> {
     // ========================================================================
     // EXISTING VALIDATION AND UTILITY METHODS
     // ========================================================================
+
+    // Gets standardized time values using the validation service
+    protected GetStandardTimeValuesCommand.StandardTimeValues getStandardTimeValues(SessionContext context) {
+        GetStandardTimeValuesCommand timeCommand = context.getValidationService()
+                .getValidationFactory()
+                .createGetStandardTimeValuesCommand();
+        return context.getValidationService().execute(timeCommand);
+    }
+
+    // Gets the current standardized date
+    protected LocalDate getStandardCurrentDate(SessionContext context) {
+        return getStandardTimeValues(context).getCurrentDate();
+    }
+
+    // Gets the current standardized time
+    protected LocalDateTime getStandardCurrentTime(SessionContext context) {
+        return getStandardTimeValues(context).getCurrentTime();
+    }
 
     protected void validateUsername(String username) {
         if (username == null || username.trim().isEmpty()) {

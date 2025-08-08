@@ -6,16 +6,10 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.session.util.SessionSpecialDayDetector;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.commands.ValidateSessionForStartCommand;
 
 import java.time.LocalDate;
 
-/**
- * REFACTORED StartDayCommand using BaseWorktimeUpdateSessionCommand
- * Eliminates duplication while preserving all original functionality
- * Handles weekend detection and timeOffType preservation
- */
 public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
 
     private static final long START_COMMAND_COOLDOWN_MS = 3000; // 3 seconds
@@ -35,10 +29,6 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
         // Clear monitoring first to prevent conflicts
         context.getSessionMonitorService().clearMonitoring(username);
 
-        // Get standardized time values
-        GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-        GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
-
         // Get current session
         WorkUsersSessionsStates currentSession = context.getCurrentSession(username, userId);
 
@@ -52,7 +42,7 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
         }
 
         // Create new session with standardized start time
-        WorkUsersSessionsStates newSession = SessionEntityBuilder.createSession(username, userId, timeValues.getStartTime());
+        WorkUsersSessionsStates newSession = SessionEntityBuilder.createSession(username, userId, getStandardCurrentTime(context));
 
         // Save session using command factory
         SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(newSession);
@@ -136,23 +126,3 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
         info(String.format("Reset session for user %s before starting new one", username));
     }
 }
-
-/**
- * REFACTORING BENEFITS:
- * ✅ ELIMINATED DUPLICATION: No more repeated special day detection logic
- * ✅ PRESERVED FUNCTIONALITY: All original start day logic maintained
- * ✅ ENHANCED CAPABILITIES: Automatic special day detection and weekend handling
- * ✅ CLEAN SEPARATION: Command-specific logic clearly separated from common logic
- * ✅ EXTENSIBLE: Easy to add new special day types or modify logic
- * WHAT'S PRESERVED:
- * - Session validation and reset logic
- * - Monitoring start/stop
- * - Standardized time values
- * - Deduplication cooldown
- * - All original error handling
- * WHAT'S ENHANCED:
- * - Automatic weekend detection → creates "W" entries
- * - Existing SN/CO/CM preservation
- * - Special day overtime logic integration
- * - Consistent logging and error handling
- */

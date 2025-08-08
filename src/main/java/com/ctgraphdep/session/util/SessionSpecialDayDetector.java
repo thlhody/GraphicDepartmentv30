@@ -9,16 +9,10 @@ import com.ctgraphdep.utils.LoggerUtil;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 
-/**
- * Utility class for detecting special day types in session commands
- * and applying appropriate special day overtime logic.
- */
+// Utility class for detecting special day types in session commands and applying appropriate special day overtime logic.
 public class SessionSpecialDayDetector {
 
-    /**
-     * Detect the day type for a given work date
-     * Priority: Existing timeOffType > Weekend > Regular Day
-     */
+    // Detect the day type for a given work date Priority: Existing timeOffType > Weekend > Regular Day
     public static DayType detectDayType(LocalDate workDate, String username, Integer userId, SessionContext context) {
         try {
             LoggerUtil.debug(SessionSpecialDayDetector.class, String.format("Detecting day type for %s (user: %s)", workDate, username));
@@ -47,18 +41,13 @@ public class SessionSpecialDayDetector {
         }
     }
 
-    /**
-     * Check if a date is a weekend (Saturday or Sunday)
-     */
+    // Check if a date is a weekend (Saturday or Sunday)
     public static boolean isWeekend(LocalDate date) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         return dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY;
     }
 
-    /**
-     * Apply special day logic to a worktime entry if needed
-     * This method integrates with the existing SpecialDayOvertimeProcessor
-     */
+    // Apply special day logic to a worktime entry if needed
     public static WorkTimeTable applySpecialDayLogic(WorkTimeTable entry, WorkUsersSessionsStates session, DayType dayType) {
         try {
             if (dayType == null || !dayType.requiresSpecialOvertimeLogic()) {
@@ -85,9 +74,7 @@ public class SessionSpecialDayDetector {
         }
     }
 
-    /**
-     * Calculate total session minutes including temp stops for special day logic
-     */
+    // Calculate total session minutes including temp stops for special day logic
     private static int calculateTotalSessionMinutes(WorkUsersSessionsStates session) {
         int totalMinutes = 0;
 
@@ -108,10 +95,7 @@ public class SessionSpecialDayDetector {
         return totalMinutes;
     }
 
-    /**
-     * Update worktime entry with special day logic integrated into session commands
-     * This is the main method that session commands should call
-     */
+    // Update worktime entry with special day logic integrated into session commands
     public static void updateWorktimeEntryWithSpecialDayLogic(WorkUsersSessionsStates session, String username, Integer userId, SessionContext context) {
         try {
             if (session == null || session.getDayStartTime() == null) {
@@ -155,9 +139,7 @@ public class SessionSpecialDayDetector {
         }
     }
 
-    /**
-     * Helper method to check if a day type needs special processing
-     */
+    // Helper method to check if a day type needs special processing
     public static boolean needsSpecialProcessing(DayType dayType) {
         return dayType != null && dayType.requiresSpecialOvertimeLogic();
     }

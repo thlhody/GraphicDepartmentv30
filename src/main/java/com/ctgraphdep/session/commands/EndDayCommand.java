@@ -10,17 +10,11 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.model.DayType;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.util.SessionSpecialDayDetector;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.config.WorkCode;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * REFACTORED EndDayCommand using BaseWorktimeUpdateSessionCommand
- * Eliminates duplication while preserving all original functionality
- * Handles final special day overtime calculation and regular day logic
- */
 public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
 
     private final Integer finalMinutes;
@@ -45,12 +39,9 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
 
     public WorkUsersSessionsStates executeEndDayLogic(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
-            info(String.format("Executing EndDayCommand with special day detection for user %s with %d minutes",
-                    username, finalMinutes != null ? finalMinutes : 0));
+            info(String.format("Executing EndDayCommand with special day detection for user %s with %d minutes", username, finalMinutes != null ? finalMinutes : 0));
 
-            // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
+            LocalDateTime today = getStandardCurrentTime(ctx);
 
             // Get and validate session
             WorkUsersSessionsStates session = ctx.getCurrentSession(username, userId);
@@ -61,7 +52,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
             }
 
             // Use explicit end time if provided, otherwise use standardized current time
-            LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : timeValues.getCurrentTime();
+            LocalDateTime endTime = explicitEndTime != null ? explicitEndTime : today;
 
             // If user is in temporary stop, close the last temp stop
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
@@ -114,9 +105,8 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
         LocalDateTime endTime = explicitEndTime;
         if (endTime == null) {
             // Get standardized current time using correct pattern
-            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
-            endTime = timeValues.getCurrentTime();
+
+            endTime = getStandardCurrentTime(context);
         }
 
         entry.setDayEndTime(endTime);
@@ -126,6 +116,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
 
         debug(String.format("Set end time to %s and marked as completed", endTime));
     }
+
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
         logCustomization("post-special-day end day");
@@ -173,16 +164,12 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
         return context.calculateEndDayValues(session, endTime, effectiveFinalMinutes);
     }
 
-    /**
-     * Apply regular day overtime logic using schedule information
-     * This is only called for non-special days
-     */
-    private void applyRegularDayOvertimeLogic(WorkTimeTable entry, WorkUsersSessionsStates session,
-                                              SessionContext context, LocalDate workDate) {
+    // Apply regular day overtime logic using schedule information. This is only called for non-special days
+    private void applyRegularDayOvertimeLogic(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context, LocalDate workDate) {
+
         try {
             Integer userSchedule = context.getUserService().getUserById(session.getUserId())
-                    .map(User::getSchedule)
-                    .orElse(WorkCode.INTERVAL_HOURS_C);
+                    .map(User::getSchedule).orElse(WorkCode.INTERVAL_HOURS_C);
 
             WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
             WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
@@ -209,23 +196,3 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
         }
     }
 }
-
-/**
- * REFACTORING BENEFITS:
- * ✅ ELIMINATED DUPLICATION: No more repeated worktime update logic
- * ✅ PRESERVED FUNCTIONALITY: All original end day logic maintained
- * ✅ ENHANCED CAPABILITIES: Automatic special day overtime calculation
- * ✅ CLEAN SEPARATION: End-specific logic vs common worktime logic
- * ✅ DUAL MODE: Special day logic OR regular overtime calculation
- * WHAT'S PRESERVED:
- * - Temp stop closure logic
- * - Final minutes calculation with fallback
- * - Session calculation processing
- * - Monitoring cleanup
- * - All original error handling
- * WHAT'S ENHANCED:
- * - Automatic special day detection
- * - Proper SN/CO/CM/W overtime calculation
- * - Regular day overtime calculation preservation
- * - Consistent final state management
- */

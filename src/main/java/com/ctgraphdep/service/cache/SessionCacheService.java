@@ -1,19 +1,32 @@
 package com.ctgraphdep.service.cache;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
-import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Thread-safe session cache service.
- * Manages in-memory session data to reduce file I/O operations.
+ * Single Source of Truth for Session Data.
+ * Architecture:
+ * - Primary data access layer for ALL session operations
+ * - Write Strategy: Cache first → File second (always writes to file)
+ * - Read Strategy: Cache → File/Local → Network → Default (create new session)
+ * - Cache refresh on every write to maintain file=cache consistency
+ * - Supports single user per application instance
+ * - Daily reset at midnight via SessionMidnightHandler
+ * Key Features:
+ * - Comprehensive fallback strategy for maximum reliability
+ * - Write-through pattern ensures data persistence
+ * - Thread-safe operations using ReentrantReadWriteLock
+ * - Automatic cache refresh after writes
+ * - Emergency session creation when all sources fail
+ * - Integration with status service for consistency
  */
 @Service
 public class SessionCacheService {
@@ -21,11 +34,9 @@ public class SessionCacheService {
     private final SessionDataService sessionDataService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
 
-    // Thread-safe cache - username as key
-    private final ConcurrentHashMap<String, SessionCacheEntry> sessionCache = new ConcurrentHashMap<>();
-
-    // Global cache lock for operations that affect multiple entries
-    private final ReentrantReadWriteLock globalLock = new ReentrantReadWriteLock();
+    // Thread-safe cache entry - single user per instance
+    private final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
+    private volatile SessionCacheEntry currentSessionEntry;
 
     @Autowired
     public SessionCacheService(SessionDataService sessionDataService, MainDefaultUserContextService mainDefaultUserContextService) {
@@ -34,190 +45,445 @@ public class SessionCacheService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    @PostConstruct
-    public void initializeCache() {
-        try {
-            LoggerUtil.info(this.getClass(), "Initializing session cache...");
+    // ========================================================================
+    // PRIMARY READ OPERATIONS WITH COMPREHENSIVE FALLBACK
+    // ========================================================================
 
-            // Try to find current active user and initialize cache
-            String activeUser = mainDefaultUserContextService.getCurrentUsername();
-            if (activeUser != null) {
-                LoggerUtil.info(this.getClass(), "Found active user: " + activeUser + ", initializing cache");
-                initializeCacheForUser(activeUser);
+    // Primary method for reading session data with comprehensive fallback. Read Strategy: Cache → File/Local → Network → Default (create new)
+    public WorkUsersSessionsStates readSessionWithFallback(String username, Integer userId) {
+        try {
+            LoggerUtil.debug(this.getClass(), String.format("Reading session with fallback for user: %s", username));
+
+            // Validate this is for current user
+            if (isNotCurrentUser(username)) {
+                LoggerUtil.warn(this.getClass(), String.format("Session read rejected for non-current user: %s (current: %s)", username, getCurrentUsername()));
+                return createDefaultSession(username, userId);
+            }
+
+            // Step 1: Try cache first (fastest)
+            WorkUsersSessionsStates cachedSession = readFromCacheOnly(username);
+            if (cachedSession != null) {
+                LoggerUtil.debug(this.getClass(), String.format("Cache hit for user: %s", username));
+                return cachedSession;
+            }
+
+            // Step 2: Cache miss - try file/local
+            LoggerUtil.info(this.getClass(), String.format("Cache miss for user: %s, trying file", username));
+            WorkUsersSessionsStates fileSession = readFromFileWithFallback(username, userId);
+            if (fileSession != null) {
+                // Refresh cache with file data
+                refreshCacheFromSession(fileSession);
+                LoggerUtil.info(this.getClass(), String.format("File read successful, cache refreshed for user: %s", username));
+                return fileSession;
+            }
+
+            // Step 3: File failed - try network
+            LoggerUtil.warn(this.getClass(), String.format("File read failed for user: %s, trying network", username));
+            WorkUsersSessionsStates networkSession = readFromNetworkWithFallback(username, userId);
+            if (networkSession != null) {
+                // Write network data to local file and refresh cache
+                boolean fileSaved = writeSessionToFile(networkSession);
+                if (fileSaved) {
+                    refreshCacheFromSession(networkSession);
+                    LoggerUtil.info(this.getClass(), String.format("Network read successful, saved to file and cache for user: %s", username));
+                    return networkSession;
+                }
+                // Even if file save failed, at least refresh cache with network data
+                refreshCacheFromSession(networkSession);
+                LoggerUtil.warn(this.getClass(), String.format("Network read successful but file save failed for user: %s", username));
+                return networkSession;
+            }
+
+            // Step 4: All sources failed - create default session
+            LoggerUtil.error(this.getClass(), String.format("ALL data sources failed for user: %s, creating default session", username));
+            WorkUsersSessionsStates defaultSession = createDefaultSession(username, userId);
+
+            // Try to save default session to establish file
+            boolean defaultSaved = writeSessionToFile(defaultSession);
+            refreshCacheFromSession(defaultSession);
+            if (defaultSaved) {
+                LoggerUtil.info(this.getClass(), String.format("Default session created and saved for user: %s", username));
             } else {
-                LoggerUtil.info(this.getClass(), "No active user found, cache will be initialized on first access");
+                // Even if file save failed, cache the default session
+                LoggerUtil.warn(this.getClass(), String.format("Default session created but file save failed for user: %s", username));
             }
+
+            return defaultSession;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error during cache initialization: " + e.getMessage(), e);
-        }
-    }
+            LoggerUtil.error(this.getClass(), String.format("Critical error in readSessionWithFallback for user %s: %s",
+                    username, e.getMessage()), e);
 
-    /**
-     * Read session from cache (primary method for all reads)
-     * Falls back to file if cache miss
-     * @param username The username
-     * @param userId The user ID
-     * @return Session data from cache or file
-     */
-    public WorkUsersSessionsStates readSession(String username, Integer userId) {
-        try {
-            // Try cache first
-            SessionCacheEntry cacheEntry = sessionCache.get(username);
-
-            if (cacheEntry != null && cacheEntry.isValid()) {
-                LoggerUtil.debug(this.getClass(), "Cache hit for user: " + username);
-                return cacheEntry.toCombinedSession();
-            }
-
-            // Cache miss - read from file and populate cache
-            LoggerUtil.debug(this.getClass(), "Cache miss for user: " + username + ", reading from file");
-            WorkUsersSessionsStates sessionFromFile = sessionDataService.readLocalSessionFile(username, userId);
-
-            if (sessionFromFile != null) {
-                refreshCacheFromFile(username, sessionFromFile);
-                LoggerUtil.debug(this.getClass(), "Populated cache for user: " + username);
-                return sessionFromFile;
-            }
-
-            LoggerUtil.debug(this.getClass(), "No session found for user: " + username);
-            return null;
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error reading session for user " + username + ": " + e.getMessage(), e);
-            // Fallback to direct file read on error
+            // Ultimate emergency fallback
+            WorkUsersSessionsStates emergencySession = createDefaultSession(username, userId);
             try {
-                return sessionDataService.readLocalSessionFile(username, userId);
-            } catch (Exception fe) {
-                LoggerUtil.error(this.getClass(), "Fallback file read also failed: " + fe.getMessage(), fe);
-                return null;
+                refreshCacheFromSession(emergencySession);
+            } catch (Exception cacheError) {
+                LoggerUtil.error(this.getClass(), "Even emergency cache refresh failed", cacheError);
             }
+            return emergencySession;
         }
     }
 
-    /**
-     * Refresh cache from file data (called after commands write to file)
-     * @param username The username
-     * @param sessionData Updated session data from file
-     */
-    public void refreshCacheFromFile(String username, WorkUsersSessionsStates sessionData) {
+    // Check if user has an active session (online or temporary stop)
+    public boolean hasActiveSession(String username, Integer userId) {
         try {
-            if (sessionData == null) {
-                LoggerUtil.warn(this.getClass(), "Cannot refresh cache with null session data for user: " + username);
-                return;
-            }
-
-            SessionCacheEntry cacheEntry = sessionCache.computeIfAbsent(username, k -> new SessionCacheEntry());
-            cacheEntry.initializeFromFile(sessionData);
-
-            LoggerUtil.debug(this.getClass(), "Refreshed cache from file for user: " + username);
-
+            WorkUsersSessionsStates session = readSessionWithFallback(username, userId);
+            return session != null &&
+                    (WorkCode.WORK_ONLINE.equals(session.getSessionStatus()) ||
+                            WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus()));
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error refreshing cache for user " + username + ": " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), String.format("Error checking active session for %s: %s",
+                    username, e.getMessage()), e);
+            return false;
         }
     }
 
-    /**
-     * Update only calculated values in cache (called by SessionMonitorService)
-     * Does NOT write to file
-     * @param username The username
-     * @param calculatedSession Session with updated calculations
-     */
-    public void updateCalculatedValues(String username, WorkUsersSessionsStates calculatedSession) {
+    // ========================================================================
+    // PRIMARY WRITE OPERATIONS WITH WRITE-THROUGH PATTERN
+    // ========================================================================
+
+    // Primary method for writing session data with write-through pattern.  Write Strategy: Cache first → File second (always writes to file)
+    // Cache is refreshed after every write to maintain consistency
+    public boolean writeSessionWithWriteThrough(WorkUsersSessionsStates session) {
+        if (session == null) {
+            LoggerUtil.warn(this.getClass(), "Cannot write null session");
+            return false;
+        }
+
+        String username = session.getUsername();
+
         try {
-            if (calculatedSession == null) {
-                LoggerUtil.warn(this.getClass(), "Cannot update cache with null calculated session for user: " + username);
-                return;
+            LoggerUtil.info(this.getClass(), String.format("Writing session with write-through for user: %s", username));
+
+            // Validate this is for current user
+            if (isNotCurrentUser(username)) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Session write rejected for non-current user: %s", username));
+                return false;
             }
 
-            SessionCacheEntry cacheEntry = sessionCache.get(username);
-            if (cacheEntry != null && cacheEntry.isValid()) {
-                cacheEntry.updateCalculatedValues(calculatedSession);
-                LoggerUtil.debug(this.getClass(), "Updated calculated values in cache for user: " + username);
+            boolean cacheSuccess = false;
+            boolean fileSuccess = false;
+
+            // Step 1: Write to cache first
+            try {
+                refreshCacheFromSession(session);
+                cacheSuccess = true;
+                LoggerUtil.debug(this.getClass(), String.format("Cache write successful for user: %s", username));
+            } catch (Exception cacheError) {
+                LoggerUtil.error(this.getClass(), String.format("Cache write failed for user %s: %s",
+                        username, cacheError.getMessage()), cacheError);
+            }
+
+            // Step 2: Write to file (always attempt, regardless of cache result)
+            try {
+                fileSuccess = writeSessionToFile(session);
+                if (fileSuccess) {
+                    LoggerUtil.debug(this.getClass(), String.format("File write successful for user: %s", username));
+                } else {
+                    LoggerUtil.warn(this.getClass(), String.format("File write failed for user: %s", username));
+                }
+            } catch (Exception fileError) {
+                LoggerUtil.error(this.getClass(), String.format("File write error for user %s: %s",
+                        username, fileError.getMessage()), fileError);
+            }
+
+            // Step 3: Refresh cache from file to ensure consistency (if file write succeeded)
+            if (fileSuccess && !cacheSuccess) {
+                try {
+                    WorkUsersSessionsStates fileSession = readFromFileWithFallback(username, session.getUserId());
+                    if (fileSession != null) {
+                        refreshCacheFromSession(fileSession);
+                        LoggerUtil.info(this.getClass(), String.format("Cache refreshed from file after write for user: %s", username));
+                        cacheSuccess = true;
+                    }
+                } catch (Exception refreshError) {
+                    LoggerUtil.warn(this.getClass(), String.format("Cache refresh from file failed for user %s: %s",
+                            username, refreshError.getMessage()));
+                }
+            }
+
+            // Return success if either cache or file succeeded (preferably both)
+            boolean overallSuccess = cacheSuccess || fileSuccess;
+
+            if (overallSuccess) {
+                if (cacheSuccess && fileSuccess) {
+                    LoggerUtil.info(this.getClass(), String.format("Session write-through fully successful for user: %s", username));
+                } else if (cacheSuccess) {
+                    LoggerUtil.warn(this.getClass(), String.format("Session write-through partial success (cache only) for user: %s", username));
+                } else {
+                    LoggerUtil.warn(this.getClass(), String.format("Session write-through partial success (file only) for user: %s", username));
+                }
             } else {
-                LoggerUtil.warn(this.getClass(), "No valid cache entry found for user: " + username + " when updating calculated values");
+                LoggerUtil.error(this.getClass(), String.format("Session write-through completely failed for user: %s", username));
             }
 
+            return overallSuccess;
+
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error updating calculated values for user " + username + ": " + e.getMessage(), e);
+            LoggerUtil.error(this.getClass(), String.format("Critical error in writeSessionWithWriteThrough for user %s: %s",
+                    username, e.getMessage()), e);
+            return false;
         }
     }
 
-    /**
-     * Clear cache for specific user (midnight reset)
-     * @param username The username
-     */
-    public void clearUserCache(String username) {
-        globalLock.writeLock().lock();
+    // Update session calculations with optional cache-only mode
+    public boolean updateSessionCalculationsWithWriteThrough(WorkUsersSessionsStates session, boolean cacheOnly) {
+        if (session == null) {
+            LoggerUtil.warn(this.getClass(), "Cannot update calculations for null session");
+            return false;
+        }
+
+        String username = session.getUsername();
+
         try {
-            SessionCacheEntry cacheEntry = sessionCache.get(username);
-            if (cacheEntry != null) {
-                cacheEntry.clear();
-                LoggerUtil.info(this.getClass(), "Cleared cache for user: " + username);
+            LoggerUtil.debug(this.getClass(), String.format("Updating session calculations for %s (cache-only: %b)", username, cacheOnly));
+
+            if (cacheOnly) {
+                // Cache-only mode: just update calculated values
+                refreshCacheFromSession(session);
+                LoggerUtil.debug(this.getClass(), String.format("Session calculations updated in cache-only mode for user: %s", username));
+                return true;
+            } else {
+                // Normal mode: full write-through
+                return writeSessionWithWriteThrough(session);
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error updating session calculations for %s: %s", username, e.getMessage()), e);
+            return false;
+        }
+    }
+
+    // ========================================================================
+    // CACHE MANAGEMENT OPERATIONS
+    // ========================================================================
+
+    // Force refresh cache from file
+    public boolean forceRefreshFromFile(String username, Integer userId) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format("Force refreshing cache from file for user: %s", username));
+
+            // Clear current cache
+            invalidateUserSession(username);
+
+            // Read from file and refresh cache
+            WorkUsersSessionsStates fileSession = readFromFileWithFallback(username, userId);
+            if (fileSession != null) {
+                refreshCacheFromSession(fileSession);
+                LoggerUtil.info(this.getClass(), String.format("Cache force refresh successful for user: %s", username));
+                return true;
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("Cache force refresh failed - no file data for user: %s", username));
+                return false;
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error force refreshing cache for %s: %s",
+                    username, e.getMessage()), e);
+            return false;
+        }
+    }
+
+    // Invalidate user session cache
+    public void invalidateUserSession(String username) {
+        cacheLock.writeLock().lock();
+        try {
+            if (currentSessionEntry != null && username.equals(currentSessionEntry.getUsername())) {
+                currentSessionEntry.clear();
+                currentSessionEntry = null;
+                LoggerUtil.info(this.getClass(), String.format("Invalidated session cache for user: %s", username));
             }
         } finally {
-            globalLock.writeLock().unlock();
+            cacheLock.writeLock().unlock();
         }
     }
 
-    /**
-     * Clear entire cache (full reset)
-     */
+    // Clear entire cache (for midnight reset)
     public void clearAllCache() {
-        globalLock.writeLock().lock();
+        cacheLock.writeLock().lock();
         try {
-            sessionCache.clear();
+            if (currentSessionEntry != null) {
+                currentSessionEntry.clear();
+                currentSessionEntry = null;
+            }
             LoggerUtil.info(this.getClass(), "Cleared entire session cache");
         } finally {
-            globalLock.writeLock().unlock();
+            cacheLock.writeLock().unlock();
         }
     }
 
-    /**
-     * Get cache statistics for monitoring
-     * @return Cache status information
-     */
+    // Check if session cache is healthy
+    public boolean isSessionCacheHealthy(String username) {
+        cacheLock.readLock().lock();
+        try {
+            return currentSessionEntry != null &&
+                    currentSessionEntry.isValid() &&
+                    username.equals(currentSessionEntry.getUsername());
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+
+    // ========================================================================
+    // PRIVATE HELPER METHODS
+    // ========================================================================
+
+    //Read from cache only (no fallback)
+    private WorkUsersSessionsStates readFromCacheOnly(String username) {
+        cacheLock.readLock().lock();
+        try {
+            if (currentSessionEntry != null &&
+                    currentSessionEntry.isValid() &&
+                    username.equals(currentSessionEntry.getUsername())) {
+
+                return currentSessionEntry.toCombinedSession();
+            }
+            return null;
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+
+    // Read from file with fallback to network
+    private WorkUsersSessionsStates readFromFileWithFallback(String username, Integer userId) {
+        try {
+            // Try local file first
+            WorkUsersSessionsStates session = sessionDataService.readLocalSessionFile(username, userId);
+            if (session != null) {
+                LoggerUtil.debug(this.getClass(), String.format("Local file read successful for user: %s", username));
+                return session;
+            }
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Local file read failed for user %s: %s",
+                    username, e.getMessage()));
+        }
+
+        try {
+            // Fallback to local read-only
+            WorkUsersSessionsStates session = sessionDataService.readLocalSessionFileReadOnly(username, userId);
+            if (session != null) {
+                LoggerUtil.debug(this.getClass(), String.format("Local read-only successful for user: %s", username));
+                return session;
+            }
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Local read-only failed for user %s: %s",
+                    username, e.getMessage()));
+        }
+
+        LoggerUtil.debug(this.getClass(), String.format("All file read attempts failed for user: %s", username));
+        return null;
+    }
+
+    //Read from network - let SessionDataService handle all network logic internally
+    private WorkUsersSessionsStates readFromNetworkWithFallback(String username, Integer userId) {
+        try {
+            // SessionDataService handles network availability checking internally
+            WorkUsersSessionsStates session = sessionDataService.readNetworkSessionFileReadOnly(username, userId);
+            if (session != null) {
+                LoggerUtil.debug(this.getClass(), String.format("Network read successful for user: %s", username));
+                return session;
+            }
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Network read failed for user %s: %s",
+                    username, e.getMessage()));
+        }
+
+        LoggerUtil.debug(this.getClass(), String.format("Network read returned null for user: %s", username));
+        return null;
+    }
+
+    // Write session to file
+    private boolean writeSessionToFile(WorkUsersSessionsStates session) {
+        try {
+            sessionDataService.writeLocalSessionFile(session);
+            return true;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("File write failed for user %s: %s",
+                    session.getUsername(), e.getMessage()), e);
+            return false;
+        }
+    }
+
+    // Refresh cache from session data
+    private void refreshCacheFromSession(WorkUsersSessionsStates session) {
+        cacheLock.writeLock().lock();
+        try {
+            if (currentSessionEntry == null) {
+                currentSessionEntry = new SessionCacheEntry();
+            }
+            currentSessionEntry.initializeFromFile(session);
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
+    }
+
+    // Create default session when all sources fail
+    private WorkUsersSessionsStates createDefaultSession(String username, Integer userId) {
+        WorkUsersSessionsStates defaultSession = new WorkUsersSessionsStates();
+        defaultSession.setUserId(userId);
+        defaultSession.setUsername(username);
+        defaultSession.setSessionStatus(WorkCode.WORK_OFFLINE);
+        defaultSession.setDayStartTime(null);
+        defaultSession.setDayEndTime(null);
+        defaultSession.setCurrentStartTime(null);
+        defaultSession.setTotalWorkedMinutes(0);
+        defaultSession.setFinalWorkedMinutes(0);
+        defaultSession.setTotalOvertimeMinutes(0);
+        defaultSession.setLunchBreakDeducted(false);
+        defaultSession.setWorkdayCompleted(false);
+        defaultSession.setTemporaryStopCount(0);
+        defaultSession.setTotalTemporaryStopMinutes(0);
+        defaultSession.setTemporaryStops(new ArrayList<>());
+        defaultSession.setLastTemporaryStopTime(null);
+        defaultSession.setLastActivity(LocalDateTime.now());
+
+        LoggerUtil.info(this.getClass(), String.format("Created default session for user: %s", username));
+        return defaultSession;
+    }
+
+    // Check if username is current user
+    private boolean isNotCurrentUser(String username) {
+        try {
+            String currentUsername = getCurrentUsername();
+            return username == null || !username.equals(currentUsername);
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Error checking current user: %s", e.getMessage()));
+            return true;
+        }
+    }
+
+    // Get current username
+    private String getCurrentUsername() {
+        return mainDefaultUserContextService.getCurrentUsername();
+    }
+
+    // ========================================================================
+    // DIAGNOSTIC AND MONITORING METHODS
+    // ========================================================================
+
+    // Get cache status for monitoring
     public String getCacheStatus() {
-        globalLock.readLock().lock();
+        cacheLock.readLock().lock();
         try {
             StringBuilder status = new StringBuilder();
-            status.append("Session Cache Status:\n");
-            status.append("Total cached users: ").append(sessionCache.size()).append("\n");
+            status.append("SessionCache Status:\n");
 
-            sessionCache.forEach((username, entry) -> status.append("User: ").append(username)
-                    .append(", Valid: ").append(entry.isValid())
-                    .append(", Age: ").append(entry.getCacheAge()).append("ms")
-                    .append(", Calc Age: ").append(entry.getCalculationAge()).append("ms\n"));
+            if (currentSessionEntry != null && currentSessionEntry.isValid()) {
+                status.append("Cache Entry: Valid\n");
+                status.append("User: ").append(currentSessionEntry.getUsername()).append("\n");
+                status.append("Status: ").append(currentSessionEntry.getSessionStatus()).append("\n");
+                status.append("Age: ").append(currentSessionEntry.getCacheAge()).append("ms\n");
+                status.append("Last Update: ").append(currentSessionEntry.getLastCalculationUpdate()).append("ms ago\n");
+            } else {
+                status.append("Cache Entry: Invalid or Empty\n");
+            }
 
             return status.toString();
         } finally {
-            globalLock.readLock().unlock();
+            cacheLock.readLock().unlock();
         }
     }
 
-    /**
-     * Initialize cache for specific user
-     * @param username The username to initialize cache for
-     */
-    private void initializeCacheForUser(String username) {
-        try {
-            // Get userId from user context instead of scanning files
-            User currentUser = mainDefaultUserContextService.getCurrentUser();
-            if (currentUser != null && currentUser.getUsername().equals(username)) {
-                Integer userId = currentUser.getUserId();
-
-                WorkUsersSessionsStates session = sessionDataService.readLocalSessionFile(username, userId);
-                if (session != null) {
-                    refreshCacheFromFile(username, session);
-                    LoggerUtil.info(this.getClass(), "Initialized cache for user: " + username);
-                } else {
-                    LoggerUtil.info(this.getClass(), "No session file found for user: " + username);
-                }
-            } else {
-                LoggerUtil.warn(this.getClass(), "Cannot initialize cache: user context mismatch for " + username);
-            }
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error initializing cache for user " + username + ": " + e.getMessage(), e);
-        }
-    }
 }

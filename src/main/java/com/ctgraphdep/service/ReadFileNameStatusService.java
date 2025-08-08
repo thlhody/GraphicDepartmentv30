@@ -26,7 +26,7 @@ import java.util.*;
 import java.nio.file.Path;
 
 /**
- * REFACTORED service for managing user status information via network flag files.
+ * Service for managing user status information via network flag files.
  * Now uses SessionDataService for all status and flag operations instead of DataAccessService.
  * Delegates cache operations to AllUsersCacheService and session reads to SessionCacheService.
  * Responsibilities:
@@ -76,9 +76,7 @@ public class ReadFileNameStatusService {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * Simplified initialization - AllUsersCacheService handles most of the work
-     */
+    //AllUsersCacheService handles most of the work
     @Scheduled(initialDelay = 5000, fixedDelay = Long.MAX_VALUE)
     public void initialize() {
         try {
@@ -93,17 +91,12 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * Gets the current user - always available from MainDefaultUserContextService
-     */
+    // Gets the current user - always available from MainDefaultUserContextService
     private User getCurrentUser() {
         return mainDefaultUserContextService.getCurrentUser();
     }
 
-    /**
-     * REFACTORED: Updates the current user's status based on their session file.
-     * Now uses SessionCacheService instead of direct file access.
-     */
+    //Updates the current user's status based on their session file.
     private void updateCurrentUserStatusFromSession() {
         User user = getCurrentUser();
         if (user == null) {
@@ -116,7 +109,7 @@ public class ReadFileNameStatusService {
 
         try {
             // Use SessionCacheService to read session
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+            WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, userId);
 
             // Fallback to direct file read if needed
             if (session == null) {
@@ -139,7 +132,7 @@ public class ReadFileNameStatusService {
                 timestamp = getStandardCurrentTime();
             }
 
-            // ✅ ALWAYS create network flag since this is THE local user
+            // ALWAYS create network flag since this is THE local user
             updateUserStatus(username, userId, status, timestamp);
 
             LoggerUtil.info(this.getClass(),
@@ -151,9 +144,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * SIMPLIFIED: Delegates to AllUsersCacheService
-     */
+    // Delegates to AllUsersCacheService
     public List<UserStatusDTO> getAllUserStatuses() {
         try {
             // Simple read from cache - no file operations or cache validation
@@ -164,10 +155,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * REFACTORED: Updates user's status by creating flag and updating cache.
-     * Now uses SessionDataService for flag operations.
-     */
+    //Updates user's status by creating flag and updating cache. Now uses SessionDataService for flag operations.
     public void updateUserStatus(String username, Integer userId, String status, LocalDateTime timestamp) {
         try {
             // 1. Update cache in memory
@@ -184,9 +172,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * REFACTORED: Internal method to create a network flag file using SessionDataService
-     */
+    //Internal method to create a network flag file using SessionDataService
     private void createNetworkStatusFlagInternal(String username, String status, LocalDateTime timestamp) {
         // Convert status to code for flag filename
         String statusCode = getStatusCode(status);
@@ -200,35 +186,19 @@ public class ReadFileNameStatusService {
         LoggerUtil.debug(this.getClass(), String.format("Created network status flag for user %s with status %s", username, status));
     }
 
-    /**
-     * SIMPLIFIED: Delegates to AllUsersCacheService
-     */
+    // Delegates to AllUsersCacheService
     public int getStatusCount(String status) {
         return (int) allUsersCacheService.getAllUserStatuses().stream()
                 .filter(dto -> status.equals(dto.getStatus()))
                 .count();
     }
 
-    /**
-     * SIMPLIFIED: Delegates to AllUsersCacheService
-     */
+    //Delegates to AllUsersCacheService
     public int getOnlineUserCount() {
         return getStatusCount(WorkCode.WORK_ONLINE);
     }
 
-    /**
-     * SIMPLIFIED: Delegates to AllUsersCacheService
-     */
-    public int getActiveUserCount() {
-        return (int) allUsersCacheService.getAllUserStatuses().stream()
-                .filter(dto -> WorkCode.WORK_ONLINE.equals(dto.getStatus()) ||
-                        WorkCode.WORK_TEMPORARY_STOP.equals(dto.getStatus()))
-                .count();
-    }
-
-    /**
-     * SIMPLIFIED: Triggers immediate network flag sync
-     */
+    // Triggers immediate network flag sync
     public void invalidateCache() {
         try {
             allUsersCacheService.syncFromNetworkFlags();
@@ -238,10 +208,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * REFACTORED: Periodically updates the current user's timestamp based on session.
-     * Now uses SessionCacheService with fallback to SessionDataService.
-     */
+    //Periodically updates the current user's timestamp based on session. Now uses SessionCacheService with fallback to SessionDataService.
     @Scheduled(fixedRateString = "${app.status.time.update.interval:1200000}")
     public void updateCurrentUserTimestamp() {
         User user = getCurrentUser();
@@ -255,7 +222,7 @@ public class ReadFileNameStatusService {
 
         try {
             // Read session from cache
-            WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+            WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, userId);
 
             // Fallback to file read
             if (session == null) {
@@ -279,10 +246,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * Scheduled task to check for pending status updates that are old
-     * and clean them up if they're over 24 hours old
-     */
+    // Scheduled task to check for pending status updates that are old and clean them up if they're over 24 hours old
     @Scheduled(fixedRate = 3600000) // Run hourly
     public void cleanPendingStatusUpdates() {
         synchronized (pendingStatusUpdates) {
@@ -303,10 +267,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * REFACTORED: Cleans up stale status flag files on the network using SessionDataService.
-     * Prevents directory clutter by removing old offline status flags.
-     */
+    //Cleans up stale status flag files on the network using SessionDataService.
     @Scheduled(fixedRate = 3600000)
     public void cleanupStaleFlags() {
         try {
@@ -351,11 +312,9 @@ public class ReadFileNameStatusService {
         }
     }
 
-    // ===== HELPER METHODS - Keep existing flag parsing and date/time conversion methods =====
+    // ===== HELPER METHODS =====
 
-    /**
-     * Parses a flag filename to extract user, date, time, and status information.
-     */
+    // Parses a flag filename to extract user, date, time, and status information.
     private FlagInfo parseFlagFilename(String filename) {
         // Remove .flag extension
         filename = filename.replace(FileTypeConstants.FLAG_EXTENSION, "");
@@ -384,9 +343,7 @@ public class ReadFileNameStatusService {
         return null;
     }
 
-    /**
-     * Converts a date to a code for flag filenames.
-     */
+    // Converts a date to a code for flag filenames.
     private String getDateCode(LocalDate date) {
         LocalDate today = LocalDate.now();
 
@@ -402,9 +359,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * Converts a date code from a flag filename to a LocalDate.
-     */
+    // Converts a date code from a flag filename to a LocalDate.
     private LocalDate getDateFromCode(String code) {
         LocalDate today = LocalDate.now();
 
@@ -428,9 +383,7 @@ public class ReadFileNameStatusService {
         }
     }
 
-    /**
-     * Converts a time code from a flag filename to a LocalTime.
-     */
+    // Converts a time code from a flag filename to a LocalTime.
     private LocalTime getTimeFromCode(String code) {
         if (code.startsWith("T") && code.length() == 5) {
             try {
@@ -444,9 +397,7 @@ public class ReadFileNameStatusService {
         return LocalTime.NOON;
     }
 
-    /**
-     * Converts a status to a code for flag filenames.
-     */
+    // Converts a status to a code for flag filenames.
     private String getStatusCode(String status) {
         if (status == null) return "OF";
 
@@ -457,9 +408,7 @@ public class ReadFileNameStatusService {
         };
     }
 
-    /**
-     * Converts a status code from a flag filename to a full status.
-     */
+    // Converts a status code from a flag filename to a full status.
     private String getStatusFromCode(String code) {
         return switch (code) {
             case "ON" -> WorkCode.WORK_ONLINE;

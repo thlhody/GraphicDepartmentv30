@@ -7,18 +7,10 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.WorkScheduleQuery;
 import com.ctgraphdep.session.util.SessionValidator;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-// ============================================================================
-// 2. REFACTORED ResumeFromTemporaryStopCommand
-// ============================================================================
 
-/**
- * REFACTORED ResumeFromTemporaryStopCommand using BaseWorktimeUpdateSessionCommand
- * Eliminates duplication while preserving all resume specific logic
- */
 public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
 
     private static final long RESUME_COOLDOWN_MS = 1500; // 1.5 seconds
@@ -37,9 +29,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
             info(String.format("Resuming work for user %s after temporary stop", username));
 
             // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
-            LocalDateTime resumeTime = timeValues.getCurrentTime();
+            LocalDateTime resumeTime = getStandardCurrentTime(context);
             debug(String.format("Resume time: %s", resumeTime));
 
             // Get the current session
@@ -71,7 +61,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
     }
 
     // ========================================================================
-    // ABSTRACT METHOD IMPLEMENTATIONS - ResumeFromTemporaryStopCommand specific logic
+    // ABSTRACT METHOD IMPLEMENTATIONS
     // ========================================================================
 
     @Override

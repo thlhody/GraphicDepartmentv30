@@ -75,10 +75,7 @@ public class MonitoringStateService {
     // State Transition Methods
     //=============================================
 
-    /**
-     * Starts schedule completion monitoring for a user's session.
-     * Called when a user starts a new work day or resumes from temporary stop.
-     */
+    // Starts schedule completion monitoring for a user's session. Called when a user starts a new work day or resumes from temporary stop.
     public synchronized void startScheduleMonitoring(String username) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -91,10 +88,7 @@ public class MonitoringStateService {
         logStateTransition(username, oldMode, MonitoringMode.SCHEDULE);
     }
 
-    /**
-     * Transitions to hourly overtime monitoring.
-     * Called when a user continues working after schedule completion.
-     */
+    // Transitions to hourly overtime monitoring.Called when a user continues working after schedule completion.
     public synchronized void transitionToHourlyMonitoring(String username, LocalDateTime timestamp) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -108,10 +102,7 @@ public class MonitoringStateService {
         logStateTransition(username, oldMode, MonitoringMode.HOURLY);
     }
 
-    /**
-     * Starts temporary stop monitoring.
-     * Called when a user starts a temporary stop.
-     */
+    // Starts temporary stop monitoring.Called when a user starts a temporary stop.
     public synchronized void startTempStopMonitoring(String username, LocalDateTime tempStopStart) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -123,11 +114,7 @@ public class MonitoringStateService {
         logStateTransition(username, oldMode, MonitoringMode.TEMP_STOP);
     }
 
-    /**
-     * Resume from temporary stop based on schedule completion status.
-     * If schedule is completed, transitions to hourly monitoring, otherwise
-     * transitions back to schedule monitoring.
-     */
+    // Resume from temporary stop based on schedule completion status.If schedule is completed, transitions to hourly monitoring, otherwise transitions back to schedule monitoring.
     public synchronized void resumeFromTempStop(String username, boolean scheduleCompleted) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -152,10 +139,7 @@ public class MonitoringStateService {
         state.setLastTempStopNotification(null);
     }
 
-    /**
-     * Stops all monitoring for a user.
-     * Called when a session ends or at midnight reset.
-     */
+    // Stops all monitoring for a user. Called when a session ends or at midnight reset.
     public synchronized void stopMonitoring(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         if (state != null) {
@@ -177,57 +161,43 @@ public class MonitoringStateService {
     // State Query Methods
     //=============================================
 
-    /**
-     * Checks if user is in schedule completion monitoring mode.
-     */
+    // Checks if user is in schedule completion monitoring mode.
     public boolean isInScheduleMonitoring(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null && MonitoringMode.SCHEDULE.equals(state.getMonitoringMode());
     }
 
-    /**
-     * Checks if user is in hourly overtime monitoring mode.
-     */
+    // Checks if user is in hourly overtime monitoring mode.
     public boolean isInHourlyMonitoring(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null && MonitoringMode.HOURLY.equals(state.getMonitoringMode());
     }
 
-    /**
-     * Checks if user is in temporary stop monitoring mode.
-     */
+    // Checks if user is in temporary stop monitoring mode.
     public boolean isInTempStopMonitoring(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null && MonitoringMode.TEMP_STOP.equals(state.getMonitoringMode());
     }
 
-    /**
-     * Gets the monitoring mode for a user.
-     */
+    // Gets the monitoring mode for a user.
     public String getMonitoringMode(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null ? state.getMonitoringMode() : MonitoringMode.NONE;
     }
 
-    /**
-     * Checks if schedule completion notification has been shown.
-     */
+    // Checks if schedule completion notification has been shown.
     public boolean wasScheduleNotificationShown(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null && state.isScheduleNotificationShown();
     }
 
-    /**
-     * Checks if user has continued working after schedule completion.
-     */
+    // Checks if user has continued working after schedule completion.
     public boolean hasContinuedAfterSchedule(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null && state.isContinuedAfterSchedule();
     }
 
-    /**
-     * Checks if an hourly notification is due.
-     */
+    // Checks if an hourly notification is due.
     public boolean isHourlyNotificationDue(String username, LocalDateTime currentTime) {
         MonitoringState state = userMonitoringStates.get(username);
 
@@ -246,9 +216,7 @@ public class MonitoringStateService {
         return currentTime.isAfter(nextHourlyTime);
     }
 
-    /**
-     * Checks if a temporary stop notification is due.
-     */
+    // Checks if a temporary stop notification is due.
     public boolean isTempStopNotificationDue(String username, int minutesSinceTempStop, LocalDateTime currentTime) {
         MonitoringState state = userMonitoringStates.get(username);
 
@@ -267,9 +235,7 @@ public class MonitoringStateService {
                 (minutesSinceTempStop % WorkCode.HOURLY_INTERVAL <= 5);
     }
 
-    /**
-     * Checks if a start day check was already done today.
-     */
+    // Checks if a start day check was already done today.
     public boolean wasStartDayCheckedToday(String username, LocalDate today) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null &&
@@ -277,9 +243,7 @@ public class MonitoringStateService {
                 state.getLastStartDayCheck().equals(today);
     }
 
-    /**
-     * Checks if a notification can be shown based on rate limiting.
-     */
+    // Checks if a notification can be shown based on rate limiting.
     public boolean canShowNotification(String username, String notificationType, int intervalMinutes) {
         String key = getNotificationKey(username, notificationType);
         LocalDateTime lastTime = lastNotificationTimes.get(key);
@@ -301,9 +265,7 @@ public class MonitoringStateService {
     // Recording Methods
     //=============================================
 
-    /**
-     * Records that a schedule notification was shown.
-     */
+    // Records that a schedule notification was shown.
     public void markScheduleNotificationShown(String username) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -321,9 +283,7 @@ public class MonitoringStateService {
                 String.format("Marked schedule notification shown for user %s", username));
     }
 
-    /**
-     * Records an hourly notification timestamp.
-     */
+    // Records an hourly notification timestamp.
     public void recordHourlyNotification(String username, LocalDateTime timestamp) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -333,9 +293,7 @@ public class MonitoringStateService {
                 String.format("Recorded hourly notification for user %s at %s", username, timestamp));
     }
 
-    /**
-     * Records a temporary stop notification timestamp.
-     */
+    // Records a temporary stop notification timestamp.
     public void recordTempStopNotification(String username, LocalDateTime timestamp) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -345,9 +303,7 @@ public class MonitoringStateService {
                 String.format("Recorded temp stop notification for user %s at %s", username, timestamp));
     }
 
-    /**
-     * Records that start day was checked on a specific date.
-     */
+    // Records that start day was checked on a specific date.
     public void recordStartDayCheck(String username, LocalDate date) {
         ensureStateExists(username);
         MonitoringState state = userMonitoringStates.get(username);
@@ -357,9 +313,7 @@ public class MonitoringStateService {
                 String.format("Recorded start day check for user %s on %s", username, date));
     }
 
-    /**
-     * Records the time a notification was shown (for rate limiting)
-     */
+    // Records the time a notification was shown (for rate limiting)
     public void recordNotificationTime(String username, String notificationType) {
         String key = getNotificationKey(username, notificationType);
         lastNotificationTimes.put(key, LocalDateTime.now());
@@ -368,13 +322,7 @@ public class MonitoringStateService {
                 String.format("Recorded notification time for %s - %s", username, notificationType));
     }
 
-    /**
-     * Increments and returns the notification count for a specific user and type
-     * @param username The username
-     * @param notificationType The type of notification
-     * @param maxCount Maximum count allowed
-     * @return The updated count after increment
-     */
+    // Increments and returns the notification count for a specific user and type
     public int incrementNotificationCount(String username, String notificationType, int maxCount) {
         // Initialize the map structure if it doesn't exist
         ensureNotificationCountMap(username);
@@ -397,9 +345,7 @@ public class MonitoringStateService {
         return currentCount;
     }
 
-    /**
-     * Gets the notification count for a specific user and type.
-     */
+    // Gets the notification count for a specific user and type.
     public int getNotificationCount(String username, String notificationType) {
         if (!notificationCountMap.containsKey(username)) {
             return 0;
@@ -412,13 +358,7 @@ public class MonitoringStateService {
     // End Time Scheduling Methods
     //=============================================
 
-    /**
-     * Schedules an automatic end time for a user's session.
-     * @param username The username
-     * @param endTime The scheduled end time
-     * @param endAction The action to execute at end time
-     * @return true if scheduling was successful
-     */
+    // Schedules an automatic end time for a user's session.
     public boolean scheduleAutomaticEnd(String username, LocalDateTime endTime, Runnable endAction) {
         try {
             // Cancel any existing scheduled task
@@ -484,13 +424,7 @@ public class MonitoringStateService {
         }
     }
 
-    /**
-     * Temporarily pauses monitoring operations for a brief period.
-     * This is useful during critical operations like scheduled session end.
-     *
-     * @param username The username
-     * @param pauseMs How long to pause monitoring for in milliseconds
-     */
+    // Temporarily pauses monitoring operations for a brief period. This is useful during critical operations like scheduled session end.
     public synchronized void pauseMonitoringBriefly(String username, long pauseMs) {
         try {
             // Save current monitoring state
@@ -534,42 +468,54 @@ public class MonitoringStateService {
         }
     }
 
-    /**
-     * Cancels a scheduled end time for a user.
-     *
-     * @param username The username
-     * @return true if cancellation was successful or nothing was scheduled
-     */
+    // Cancels a scheduled end time for a user.
     public boolean cancelScheduledEnd(String username) {
         try {
             // Get the scheduled task
             ScheduledFuture<?> task = scheduledEndTasks.remove(username);
 
-            // Cancel if it exists
-            if (task != null && !task.isDone() && !task.isCancelled()) {
-                task.cancel(false);
+            boolean successful;
+
+            if (task == null) {
+                // No task was scheduled - consider this successful
+                successful = true;
                 LoggerUtil.info(this.getClass(),
-                        String.format("Cancelled scheduled end for user %s", username));
+                        String.format("No scheduled end task found for user %s (never scheduled or already completed)",
+                                username));
+            } else if (task.isDone()) {
+                // Task already completed - consider this successful
+                successful = true;
+                LoggerUtil.info(this.getClass(),
+                        String.format("Scheduled end task for user %s already completed", username));
+            } else if (task.isCancelled()) {
+                // Task already cancelled - consider this successful
+                successful = true;
+                LoggerUtil.info(this.getClass(),
+                        String.format("Scheduled end task for user %s was already cancelled", username));
+            } else {
+                // Try to cancel the task
+                successful = task.cancel(false);
+                LoggerUtil.info(this.getClass(),
+                        String.format("Attempted to cancel scheduled end for user %s: %s",
+                                username, successful ? "SUCCESS" : "FAILED"));
             }
 
-            // Remove the scheduled time
+            // Always remove the scheduled time from state
             MonitoringState state = userMonitoringStates.get(username);
             if (state != null) {
                 state.setScheduledEndTime(null);
             }
+
+            return successful;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
                     String.format("Error cancelling scheduled end for user %s: %s",
                             username, e.getMessage()), e);
+            return false;
         }
-        return false;
     }
 
-    /**
-     * Gets the scheduled end time for a user if any.
-     * @param username The username
-     * @return The scheduled end time or null if none
-     */
+    // Gets the scheduled end time for a user if any.
     public LocalDateTime getScheduledEndTime(String username) {
         MonitoringState state = userMonitoringStates.get(username);
         return state != null ? state.getScheduledEndTime() : null;
@@ -579,10 +525,7 @@ public class MonitoringStateService {
     // Maintenance Methods
     //=============================================
 
-    /**
-     * Clears all monitoring state for a user.
-     * Comprehensive method that ensures all state is properly reset.
-     */
+    // Clears all monitoring state for a user. Comprehensive method that ensures all state is properly reset.
     public synchronized void clearUserState(String username) {
         // Clear main monitoring state
         userMonitoringStates.remove(username);
@@ -599,9 +542,7 @@ public class MonitoringStateService {
         LoggerUtil.info(this.getClass(), String.format("Cleared all monitoring state for user %s", username));
     }
 
-    /**
-     * Periodic state verification to detect and log inconsistencies.
-     */
+    // Periodic state verification to detect and log inconsistencies.
     @Scheduled(fixedRate = 300000) // Every 5 minutes
     public void verifyConsistentState() {
         LoggerUtil.debug(this.getClass(), "Performing monitoring state verification");
@@ -628,9 +569,7 @@ public class MonitoringStateService {
         });
     }
 
-    /**
-     * Checks for and logs state inconsistencies.
-     */
+    // Checks for and logs state inconsistencies.
     private void checkStateConsistency(String username, MonitoringState state) {
         // Check hourly monitoring consistency
         if (MonitoringMode.HOURLY.equals(state.getMonitoringMode())) {
@@ -665,30 +604,22 @@ public class MonitoringStateService {
     // Helper Methods
     //=============================================
 
-    /**
-     * Ensures that a monitoring state exists for a user.
-     */
+    // Ensures that a monitoring state exists for a user.
     private void ensureStateExists(String username) {
         userMonitoringStates.computeIfAbsent(username, k -> new MonitoringState());
     }
 
-    /**
-     * Ensures that a notification count map exists for a user.
-     */
+    // Ensures that a notification count map exists for a user.
     private void ensureNotificationCountMap(String username) {
         notificationCountMap.computeIfAbsent(username, k -> new ConcurrentHashMap<>());
     }
 
-    /**
-     * Gets a unique key for a notification based on username and type.
-     */
+    // Gets a unique key for a notification based on username and type.
     private String getNotificationKey(String username, String notificationType) {
         return username + "_" + notificationType;
     }
 
-    /**
-     * Logs a state transition for a user.
-     */
+    // Logs a state transition for a user.
     private void logStateTransition(String username, String fromState, String toState) {
         if (!fromState.equals(toState)) {
             LoggerUtil.info(this.getClass(), String.format(

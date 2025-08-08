@@ -2,45 +2,26 @@ package com.ctgraphdep.session.model;
 
 import com.ctgraphdep.config.WorkCode;
 
-/**
- * Enum representing different types of work days for overtime calculation logic
- */
+// Enum representing different types of work days for overtime calculation logic
 public enum DayType {
-    /**
-     * Regular work day - normal overtime rules apply
-     */
+
+    // Regular work day - normal overtime rules apply
     REGULAR_DAY,
-
-    /**
-     * National Holiday (SN) - all work time becomes overtime, rounded down to full hours
-     */
+    // National Holiday (SN) - all work time becomes overtime, rounded down to full hours
     NATIONAL_HOLIDAY,
-
-    /**
-     * Time Off (CO) - all work time becomes overtime, rounded down to full hours
-     */
+    // Time Off (CO) - all work time becomes overtime, rounded down to full hours
     TIME_OFF,
-
-    /**
-     * Medical Leave (CM) - all work time becomes overtime, rounded down to full hours
-     */
+    // Medical Leave (CM) - all work time becomes overtime, rounded down to full hours
     MEDICAL_LEAVE,
-
-    /**
-     * Weekend (W) - all work time becomes overtime, rounded down to full hours
-     */
+    // Weekend (W) - all work time becomes overtime, rounded down to full hours
     WEEKEND;
 
-    /**
-     * Check if this day type requires special overtime logic
-     */
+    // Check if this day type requires special overtime logic
     public boolean requiresSpecialOvertimeLogic() {
         return this != REGULAR_DAY;
     }
 
-    /**
-     * Get the corresponding time off code for this day type
-     */
+    // Get the corresponding time off code for this day type
     public String getTimeOffCode() {
         return switch (this) {
             case NATIONAL_HOLIDAY -> WorkCode.NATIONAL_HOLIDAY_CODE;
@@ -51,9 +32,7 @@ public enum DayType {
         };
     }
 
-    /**
-     * Create DayType from time off code
-     */
+    // Create DayType from time off code
     public static DayType fromTimeOffCode(String timeOffCode) {
         if (timeOffCode == null || timeOffCode.trim().isEmpty()) {
             return REGULAR_DAY;
@@ -68,9 +47,7 @@ public enum DayType {
         };
     }
 
-    /**
-     * Get human-readable description
-     */
+    //Get human-readable description
     public String getDescription() {
         return switch (this) {
             case REGULAR_DAY -> WorkCode.REGULAR_WORK_DAY;

@@ -5,12 +5,7 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 
-/**
- * REFACTORED query to get the local user using cache-based architecture.
- * Now uses UserService (cache-based) instead of DataAccessService for better performance.
- * This query is used throughout the session system to get the current/local user
- * for a single-user application environment.
- */
+// This query is used throughout the session system to get the current/local user for a single-user application environment.
 public class GetLocalUserQuery implements SessionQuery<User> {
 
     @Override

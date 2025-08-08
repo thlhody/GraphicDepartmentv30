@@ -3,17 +3,13 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 
-/**
- * Command to persist a session
- */
+import java.time.LocalDateTime;
+
 public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStates> {
+
     private final WorkUsersSessionsStates session;
 
-    /**
-     * Creates a command to save a session
-     *
-     * @param session The session to save
-     */
+    // Creates a command to save a session
     public SaveSessionCommand(WorkUsersSessionsStates session) {
         validateCondition(session != null, "Session cannot be null");
         validateCondition(session != null && session.getUsername() != null, "Session username cannot be null");
@@ -24,15 +20,19 @@ public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStat
     public WorkUsersSessionsStates execute(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
             String username = session.getUsername();
-            debug(String.format("Saving session for user %s", username));
 
-            ctx.getSessionDataService().writeLocalSessionFile(session);
-            ctx.getSessionCacheService().refreshCacheFromFile(username, session);
-            // Also update the user's status in the centralized status system
-            // This ensures that the status is always in sync with the session file
+            if (session.getLastActivity() == null) {
+                session.setLastActivity(LocalDateTime.now());
+            }
+
+            // Single call handles cache + file write + status update coordination
+            boolean success = ctx.getSessionCacheService().writeSessionWithWriteThrough(session);
+            if (!success) {
+                throw new RuntimeException("Failed to save session for user: " + username);
+            }
+
+            // Status service update (if needed separately)
             ctx.getSessionStatusService().updateSessionStatus(session);
-
-            info(String.format("Saved session for user %s with status %s", username, session.getSessionStatus()));
 
             return session;
         });

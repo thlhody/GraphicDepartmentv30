@@ -110,11 +110,7 @@ public class NotificationCheckerService {
         }).start();
     }
 
-    /**
-     * Main check method that runs every 2 minutes
-     * This is more frequent than the session monitor (which runs every 5/30 minutes)
-     * and allows notifications to be shown more promptly
-     */
+    //Main check method that runs every 2 minutes. This is more frequent than the session monitor (which runs every 5/30 minutes and allows notifications to be shown more promptly
     @Scheduled(fixedRate = 120000)
     public void checkForNotifications() {
         if (!isInitialized) {
@@ -156,10 +152,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Checks if it's currently working hours and logs appropriate messages
-     * @return true if it's working hours on a weekday, false otherwise
-     */
+    // Checks if it's currently working hours and logs appropriate messages
     private boolean isCurrentlyWorkingHours() {
         IsWeekdayCommand weekdayCommand = timeValidationService.getValidationFactory().createIsWeekdayCommand();
         IsWorkingHoursCommand workingHoursCommand = timeValidationService.getValidationFactory().createIsWorkingHoursCommand();
@@ -177,10 +170,7 @@ public class NotificationCheckerService {
         return false;
     }
 
-    /**
-     * Logs detailed information about why notification checks are being skipped
-     * @param isWeekday whether today is a weekday
-     */
+    // Logs detailed information about why notification checks are being skipped
     private void logNonWorkingHoursReason(boolean isWeekday) {
         GetStandardTimeValuesCommand timeCommand = timeValidationService.getValidationFactory().createGetStandardTimeValuesCommand();
         GetStandardTimeValuesCommand.StandardTimeValues timeValues = timeValidationService.execute(timeCommand);
@@ -199,11 +189,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Calculates the next Monday morning at work start time
-     * @param currentTime the current time
-     * @return LocalDateTime for next Monday at work start hour
-     */
+    // Calculates the next Monday morning at work start time
     private LocalDateTime calculateNextMondayMorning(LocalDateTime currentTime) {
         int daysUntilMonday = 8 - currentTime.getDayOfWeek().getValue(); // Monday is 1, so 8-day = days until next Monday
         if (daysUntilMonday > 7) {
@@ -216,11 +202,7 @@ public class NotificationCheckerService {
                 .withSecond(0);
     }
 
-    /**
-     * Calculates the next working hours start time
-     * @param currentTime the current time
-     * @return LocalDateTime for next working hours start
-     */
+    // Calculates the next working hours start time
     private LocalDateTime calculateNextWorkingHours(LocalDateTime currentTime) {
         if (currentTime.getHour() < WorkCode.WORK_START_HOUR) {
             // Before start of day - wait until work start hour today
@@ -244,7 +226,7 @@ public class NotificationCheckerService {
 
     private WorkUsersSessionsStates getSessionWithFallback(String username, Integer userId) {
         // Try cache first
-        WorkUsersSessionsStates session = sessionCacheService.readSession(username, userId);
+        WorkUsersSessionsStates session = sessionCacheService.readSessionWithFallback(username, userId);
 
         if (session == null) {
             LoggerUtil.debug(this.getClass(), String.format("Cache miss for user %s, trying file fallback", username));
@@ -253,11 +235,6 @@ public class NotificationCheckerService {
                 // Fallback to read-only file access
                 session = sessionDataService.readLocalSessionFileReadOnly(username, userId);
 
-                if (session != null) {
-                    LoggerUtil.info(this.getClass(), String.format("File fallback successful for user %s", username));
-                    // Refresh cache for next time
-                    sessionCacheService.refreshCacheFromFile(username, session);
-                }
             } catch (Exception e) {
                 LoggerUtil.warn(this.getClass(), String.format("File fallback failed for user %s: %s", username, e.getMessage()));
             }
@@ -275,9 +252,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Checks if worktime resolution reminder should be shown
-     */
+    // Checks if worktime resolution reminder should be shown
     private void checkForResolutionReminder(String username, Integer userId) {
         try {
             // Check for unresolved worktime entries
@@ -306,9 +281,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Checks if a start day reminder should be shown
-     */
+    // Checks if a start day reminder should be shown
     private void checkForStartDayReminder(String username, Integer userId) {
         try {
 
@@ -341,9 +314,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Checks if schedule completion notification should be shown
-     */
+    // Checks if schedule completion notification should be shown
     private void checkScheduleCompletion(WorkUsersSessionsStates session, User user) {
         // Check if notification has already been shown
         if (monitorService.wasScheduleNotificationShownToday(session.getUsername())) {
@@ -367,9 +338,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Checks if hourly warning should be shown
-     */
+    // Checks if hourly warning should be shown
     private void checkHourlyWarning(WorkUsersSessionsStates session) {
         String username = session.getUsername();
 
@@ -393,9 +362,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Checks if temporary stop duration warning should be shown
-     */
+    // Checks if temporary stop duration warning should be shown
     private void checkTempStopDuration(WorkUsersSessionsStates session) {
         String username = session.getUsername();
         LocalDateTime tempStopStart = session.getLastTemporaryStopTime();
@@ -422,9 +389,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Gets the currently active user from local users file
-     */
+    // Gets the currently active user from local users file
     private User getCurrentActiveUser() {
         try {
             // Get current user from MainDefaultUserContextService (cache-based)
@@ -455,10 +420,7 @@ public class NotificationCheckerService {
         }
     }
 
-    /**
-     * Resets the service state (for health monitor recovery)
-     */
-
+    // Resets the service state (for health monitor recovery)
     private void resetService() {
         try {
             LoggerUtil.info(this.getClass(), "Resetting notification checker service");

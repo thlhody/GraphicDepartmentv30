@@ -6,19 +6,10 @@ import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.IsInTempStopMonitoringQuery;
 import com.ctgraphdep.session.util.SessionValidator;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-// ============================================================================
-// 1. REFACTORED StartTemporaryStopCommand
-// ============================================================================
-
-/**
- * REFACTORED StartTemporaryStopCommand using BaseWorktimeUpdateSessionCommand
- * Eliminates duplication while preserving all temp stop specific logic
- */
 public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
 
     private static final long TEMP_STOP_COOLDOWN_MS = 1500; // 1.5 seconds
@@ -53,10 +44,7 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
                 return session;
             }
 
-            // Get standardized time values
-            GetStandardTimeValuesCommand timeCommand = ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = ctx.getValidationService().execute(timeCommand);
-            LocalDateTime stopTime = timeValues.getCurrentTime();
+            LocalDateTime stopTime = getStandardCurrentTime(context);
             debug(String.format("Temporary stop time: %s", stopTime));
 
             // Process temporary stop using the calculation command
@@ -114,25 +102,3 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
         return "start temporary stop";
     }
 }
-
-
-
-/**
- * REFACTORING BENEFITS FOR TEMP STOP COMMANDS:
- * ✅ ELIMINATED DUPLICATION: No more repeated worktime update logic
- * ✅ PRESERVED FUNCTIONALITY: All original temp stop logic maintained
- * ✅ ENHANCED CAPABILITIES: Automatic special day detection and processing
- * ✅ CLEAN SEPARATION: Temp stop logic vs common worktime logic
- * ✅ CONSISTENT PATTERN: Same structure as other commands
- * WHAT'S PRESERVED:
- * - Temp stop validation and state checking
- * - Critical temp stop field updates
- * - Resume monitoring management
- * - Schedule completion checking
- * - All original error handling
- * WHAT'S ENHANCED:
- * - Special day detection for temp stops
- * - Proper SN/CO/CM/W handling during temp stops
- * - Consistent logging and field management
- * - Automatic re-application of temp stop fields after special day logic
- */

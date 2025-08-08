@@ -67,22 +67,13 @@ public class SessionCommandFactory {
     // Work Session Calculations Commands
     //========
 
-    /**
-     * Creates a command to update session calculations (with file write)
-     * @param session The session to update
-     * @param explicitEndTime Optional explicit end time
-     * @return UpdateSessionCalculationsCommand that will save to file
-     */
+    // Creates a command to update session calculations (with file write)
     public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCommand(WorkUsersSessionsStates session, LocalDateTime explicitEndTime) {
         return new UpdateSessionCalculationsCommand(session, explicitEndTime, false); // File write mode
     }
 
-    /**
-     * Creates a command to update session calculations in cache only (no file write)
-     * @param session The session to update
-     * @param explicitEndTime Optional explicit end time
-     * @return UpdateSessionCalculationsCommand that will only update cache
-     */
+    // Creates a command to update session calculations in cache only (no file write)
+
     public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCacheOnlyCommand(WorkUsersSessionsStates session, LocalDateTime explicitEndTime) {
         return new UpdateSessionCalculationsCommand(session, explicitEndTime, true); // Cache-only mode
     }
@@ -155,6 +146,7 @@ public class SessionCommandFactory {
     public WorktimeResolutionQuery createWorktimeResolutionQuery(String username) {
         return new WorktimeResolutionQuery(username);
     }
+
     public SessionStatusQuery createSessionStatusQuery(String username, Integer userId){
         return new SessionStatusQuery(username, userId);
     }
@@ -162,12 +154,8 @@ public class SessionCommandFactory {
     public GetUnresolvedEntriesQuery createGetUnresolvedEntriesQuery(String username) {
         return new GetUnresolvedEntriesQuery(username);
     }
-    /**
-     * Creates a query to check if a user is in temporary stop monitoring mode
-     *
-     * @param username The username to check
-     * @return A query that returns true if the user is in temporary stop monitoring
-     */
+
+    // Creates a query to check if a user is in temporary stop monitoring mode
     public IsInTempStopMonitoringQuery createIsInTempStopMonitoringQuery(String username) {
         return new IsInTempStopMonitoringQuery(username);
     }
