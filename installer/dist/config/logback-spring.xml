@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- LOG for production -->
 <configuration>
     <property name="LOGS" value="${app.home}/logs" />
     <property name="MAIN_LOG" value="cttt.log" />

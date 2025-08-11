@@ -4,10 +4,10 @@
 param (
     [Parameter(Mandatory=$true)]
     [string]$InstallDir,
-    
+
     [Parameter()]
     [string]$NetworkPath,
-    
+
     [Parameter()]
     [string]$Version
 )
@@ -15,8 +15,10 @@ param (
 # Script Variables
 $configPath = Join-Path $InstallDir "config"
 $logFolder = Join-Path $InstallDir "logs"
-$masterLogFile = "$logFolder\cttt-setup.log"
 $scriptPath = Join-Path $InstallDir "scripts"
+
+# Import log manager module
+$logManagerScript = Join-Path $scriptPath "log-manager.ps1"
 
 # Log Levels and Colors
 $LogLevels = @{
@@ -26,55 +28,60 @@ $LogLevels = @{
     SUCCESS = @{ Color = 'Green';   Prefix = 'SUCCESS' }
 }
 
+# Store all log content for the rotating log
+$installLogContent = @()
+
 # Functions
 function Write-Log {
     param(
         [Parameter(Mandatory=$true)]
         [string]$Message,
-        
+
         [Parameter()]
         [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS')]
         [string]$Level = 'INFO'
     )
-    
+
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logInfo = $LogLevels[$Level]
     $logMessage = "$timestamp [$($logInfo.Prefix)] $Message"
-    
+
     Write-Host $logMessage -ForegroundColor $logInfo.Color
-    Add-Content -Path $masterLogFile -Value $logMessage
+
+    # Also store for rotating log
+    $script:installLogContent += $logMessage
 }
 
 function Update-ApplicationProperties {
     param (
         [Parameter(Mandatory=$true)]
         [string]$InstallDir,
-        
+
         [Parameter(Mandatory=$true)]
         [string]$NetworkPath,
-        
+
         [Parameter()]
         [string]$Version
     )
 
     Write-Log "Updating application properties..." -Level INFO
-    
+
     try {
         $configFile = Join-Path $configPath "application.properties"
-        
+
         if (-not (Test-Path $configFile)) {
             Write-Log "Configuration file not found: $configFile" -Level ERROR
             return $false
         }
-        
+
         # Read all lines to preserve format
         $lines = Get-Content -Path $configFile -Encoding UTF8
-        
+
         # Convert paths for Java
         $javaInstallDir = $InstallDir.Replace("\", "/")
         # Network path needs double backslashes for Java properties file
         $javaNetworkPath = $NetworkPath.Replace("\", "\\")
-        
+
         # Update paths while preserving other properties
         $updatedLines = $lines | ForEach-Object {
             if ($_ -match '^app\.home=') {
@@ -94,24 +101,24 @@ function Update-ApplicationProperties {
                 $_
             }
         }
-        
+
         # Verify critical paths remain unchanged
         $requiredPaths = @(
             'app.local=${user.home}',
             'logging.file.path=${app.home}/logs'
         )
-        
+
         foreach ($path in $requiredPaths) {
             if ($updatedLines -notcontains $path) {
                 Write-Log "Critical path missing or modified: $path" -Level ERROR
                 return $false
             }
         }
-        
+
         # Save with UTF8 encoding without BOM
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllLines($configFile, $updatedLines, $utf8NoBom)
-        
+
         Write-Log "Successfully updated application properties" -Level SUCCESS
         return $true
     }
@@ -120,9 +127,10 @@ function Update-ApplicationProperties {
         return $false
     }
 }
+
 function Initialize-Environment {
     Write-Log "Initializing CTTT environment..." -Level INFO
-    
+
     try {
         # Create required directories
         @($logFolder, $configPath) | ForEach-Object {
@@ -131,19 +139,31 @@ function Initialize-Environment {
                 Write-Log "Created directory: $_" -Level INFO
             }
         }
-        
-        # Clean up old log file
-        if (Test-Path $masterLogFile) {
-            Move-Item -Path $masterLogFile -Destination "$masterLogFile.$(Get-Date -Format 'yyyyMMddHHmmss').bak" -Force
+
+        # ENHANCED: Clean up old timestamped logs if log-manager module exists
+        if (Test-Path $logManagerScript) {
+            try {
+                . $logManagerScript
+                Write-Log "Performing one-time cleanup of old timestamped logs..." -Level INFO
+                Initialize-LogCleanup -InstallDir $InstallDir
+                Write-Log "Log cleanup completed" -Level SUCCESS
+            }
+            catch {
+                Write-Log "Warning: Could not perform log cleanup: $_" -Level WARN
+                # Continue with installation even if cleanup fails
+            }
         }
-        
+        else {
+            Write-Log "Log manager module not found, skipping cleanup" -Level WARN
+        }
+
         # Verify admin rights
         $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
         $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
         if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
             throw "This script must be run as Administrator"
         }
-        
+
         Write-Log "Environment initialized successfully" -Level SUCCESS
         return $true
     }
@@ -155,11 +175,11 @@ function Initialize-Environment {
 
 function Test-PrerequisitesAsync {
     Write-Log "Verifying prerequisites..." -Level INFO
-    
+
     $jobs = @(
         @{
             Name = "NetworkPath"
-            Job = Start-Job -ScriptBlock { 
+            Job = Start-Job -ScriptBlock {
                 param($path)
                 if ($path) { Test-Path $path } else { $true }
             } -ArgumentList $NetworkPath
@@ -184,83 +204,85 @@ function Test-PrerequisitesAsync {
             } -ArgumentList $InstallDir
         }
     )
-    
+
     $results = @{}
     foreach ($item in $jobs) {
         $result = Wait-Job $item.Job -Timeout 30 | Receive-Job
         $results[$item.Name] = $result
         Remove-Job $item.Job -Force
-        
+
         Write-Log "$($item.Name) check completed: $result" -Level INFO
     }
-    
+
     return $results.Values -notcontains $false
 }
+
 function Install-Components {
     param (
         [Parameter(Mandatory=$true)]
         [string]$InstallDir,
-        
+
         [Parameter(Mandatory=$true)]
         [string]$NetworkPath,
-        
+
         [Parameter(Mandatory=$true)]
         [array]$Components,
-        
+
         [Parameter()]
         [string]$Version
     )
-    
+
     Write-Log "Installing CTTT components..." -Level INFO
-    
+
     # First update application properties
     $success = Update-ApplicationProperties -InstallDir $InstallDir -NetworkPath $NetworkPath -Version $Version
     if (-not $success) {
         return $false
     }
-    
+
     foreach ($component in $Components) {
         $scriptFile = Join-Path $scriptPath $component.Name
         if (-not (Test-Path $scriptFile)) {
             Write-Log "Component script not found: $($component.Name)" -Level ERROR
             return $false
         }
-        
+
         Write-Log "Installing component: $($component.Name)" -Level INFO
-        
+
         $arguments = @(
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
             "-File", "`"$scriptFile`"",
             "-InstallDir", "`"$InstallDir`""
         )
-        
+
         if ($component.Args) {
             $arguments += $component.Args.Split(" ")
         }
-        
+
         $process = Start-Process powershell -ArgumentList $arguments -Wait -PassThru -NoNewWindow
         if ($process.ExitCode -ne 0) {
             Write-Log "Component installation failed: $($component.Name)" -Level ERROR
             return $false
         }
-        
+
         Write-Log "Component installed successfully: $($component.Name)" -Level SUCCESS
     }
-    
+
     return $true
 }
+
 function NewStartupShortcut {
     param (
         [Parameter(Mandatory=$true)]
         [string]$InstallDir
     )
-    
+
     Write-Log "Setting up desktop shortcut and startup integration..." -Level INFO
-    
+
     # Define the path to the integration script
     $integrationScript = Join-Path $scriptPath "cttt-NewStartupShortcut.ps1"
-    
+
     # First ensure the script exists in scripts directory
     if (-not (Test-Path $integrationScript)) {
         # Create the scripts directory if needed
@@ -268,7 +290,7 @@ function NewStartupShortcut {
             New-Item -ItemType Directory -Path $scriptPath -Force | Out-Null
             Write-Log "Created scripts directory: $scriptPath" -Level INFO
         }
-        
+
         # Copy the integration script content to the scripts directory
         $integrationScriptContent = Get-Content -Path (Join-Path $InstallDir "cttt-NewStartupShortcut.ps1") -ErrorAction SilentlyContinue
         if ($integrationScriptContent) {
@@ -280,7 +302,7 @@ function NewStartupShortcut {
             return $false
         }
     }
-    
+
     # Now run the integration script
     $arguments = @(
         "-NoProfile",
@@ -290,14 +312,14 @@ function NewStartupShortcut {
         "-CreateDesktopShortcut",
         "-ConfigureStartup"
     )
-    
+
     try {
         $process = Start-Process powershell -ArgumentList $arguments -Wait -PassThru -NoNewWindow
         if ($process.ExitCode -ne 0) {
             Write-Log "Integration setup failed with exit code: $($process.ExitCode)" -Level ERROR
             return $false
         }
-        
+
         Write-Log "Desktop shortcut and startup integration completed successfully" -Level SUCCESS
         return $true
     }
@@ -306,10 +328,11 @@ function NewStartupShortcut {
         return $false
     }
 }
+
 function Start-CTTTApplication {
     try {
         $startAppScript = Join-Path $InstallDir "start-app.ps1"
-        
+
         $arguments = @(
             "-WindowStyle", "Hidden",
             "-NoProfile",
@@ -317,19 +340,19 @@ function Start-CTTTApplication {
             "-File", "`"$startAppScript`"",
             "-InstallDir", "`"$InstallDir`""
         )
-        
+
         # Start process without waiting
         Start-Process powershell -ArgumentList $arguments -WindowStyle Hidden
-        
+
         # Give the app more time to start
         Write-Log "Waiting for application to initialize..." -Level INFO
         Start-Sleep -Seconds 15  # Increased wait time
-        
+
         # Use WMI to find the Java process instead of Get-Process
-        $javaProcesses = Get-WmiObject Win32_Process | Where-Object { 
-            $_.CommandLine -like "*ctgraphdep-web.jar*" 
+        $javaProcesses = Get-WmiObject Win32_Process | Where-Object {
+            $_.CommandLine -like "*ctgraphdep-web.jar*"
         }
-        
+
         if ($javaProcesses) {
             $processId = $javaProcesses[0].ProcessId  # Changed from $pid to $processId
             Write-Log "Application started successfully with PID: $processId" -Level SUCCESS
@@ -348,6 +371,37 @@ function Start-CTTTApplication {
     }
 }
 
+function Save-InstallationLog {
+    # ENHANCED: Save installation log using rotating log system
+    if (Test-Path $logManagerScript) {
+        try {
+            . $logManagerScript
+            $logContent = $installLogContent -join "`n"
+            Write-Log "Saving installation log to rotating log system..." -Level INFO
+            Reset-InstallLog -InstallDir $InstallDir -LogContent $logContent
+            Write-Log "Installation log saved successfully" -Level SUCCESS
+        }
+        catch {
+            Write-Log "Warning: Could not save to rotating log: $_" -Level WARN
+            # Master log file still exists as fallback
+        }
+    }
+}
+
+# ENHANCED: Add new function to log-manager.ps1 for installation logs
+function Reset-InstallLog {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$InstallDir,
+
+        [Parameter(Mandatory=$true)]
+        [string]$LogContent
+    )
+
+    $logPath = Join-Path $InstallDir "logs\install.log"
+    Write-RotatingLog -LogPath $logPath -LogName "INSTALL" -NewLogContent $LogContent
+}
+
 # Main execution
 $success = Initialize-Environment
 if ($success) {
@@ -356,21 +410,24 @@ if ($success) {
         $components = @(
             @{Name="configure-port.ps1"; Args=""},
             @{Name="create-ssl.ps1"; Args="-Hostname 'CTTT'"}, # Simplified, since we don't need CommonName anymore
-            @{Name="create-hosts.ps1"; Args=""}, 
+            @{Name="create-hosts.ps1"; Args=""},
             @{Name="test-network.ps1"; Args=if($NetworkPath){"-NetworkPath `"$NetworkPath`""} else {""}}
         )
-        
+
         $success = Install-Components -InstallDir $InstallDir -NetworkPath $NetworkPath -Components $components -Version $Version
         if ($success) {
             # Setup integration (desktop shortcut and startup notification) with our unified script
             $success = NewStartupShortcut -InstallDir $InstallDir
-            
+
             if ($success) {
                 $success = Start-CTTTApplication
             }
         }
     }
 }
+
+# ENHANCED: Save installation log using new system
+Save-InstallationLog
 
 # Exit with appropriate status
 $exitCode = if ($success) { 0 } else { 1 }

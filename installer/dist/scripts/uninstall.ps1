@@ -28,8 +28,18 @@ param (
     [switch]$KeepLogs,
     
     [Parameter()]
-    [switch]$Purge
+    [switch]$Purge,
+
+    [Parameter()]
+    [switch]$Reinstall
 )
+
+if ($Reinstall) {
+    $Force = $true
+    $Purge = $true 
+    $KeepLogs = $false
+    Write-UninstallLog "Reinstall mode: forcing complete cleanup" -Level "INFO"
+}
 
 # Automatically apply Force parameter if running from uninstaller
 if ($MyInvocation.Line -like "*unins000.exe*") {
@@ -68,7 +78,7 @@ trap {
 # Initialize essential variables
 $ErrorActionPreference = "Stop"
 $Host.UI.RawUI.WindowTitle = "CTTT Uninstaller"
-$tempLogFile = "$env:TEMP\cttt_uninstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$tempLogFile = Join-Path $env:LOCALAPPDATA "Temp\cttt-setup-uninstall.log"
 $shortcutLocations = @(
     [Environment]::GetFolderPath('Desktop'),
     [Environment]::GetFolderPath('StartMenu'),
@@ -428,91 +438,90 @@ function Remove-InstallationDirectory {
         return $true
     }
     
-    # Handle logs directory based on KeepLogs parameter
-    $logsDir = Join-Path $InstallDir "logs"
-    if ((Test-Path $logsDir) -and $KeepLogs) {
-        Write-UninstallLog "Preserving logs directory as requested" -Level "INFO"
+    # For reinstall mode, be extra aggressive with removal
+    if ($Reinstall) {
+        Write-UninstallLog "Reinstall mode: using aggressive removal approach" -Level "INFO"
         
         try {
-            # Rename logs directory temporarily
-            $tempLogsDir = "$env:TEMP\CTTT_logs_backup_$(Get-Date -Format 'yyyyMMddHHmmss')"
-            Move-Item -Path $logsDir -Destination $tempLogsDir -Force
-            Write-UninstallLog "Temporarily moved logs to: $tempLogsDir" -Level "INFO"
+            # Take ownership of all files and folders
+            Write-UninstallLog "Taking ownership of installation directory..." -Level "INFO"
+            cmd.exe /c "takeown /f `"$InstallDir`" /r /d y" 2>&1 | Out-Null
             
-            # Now try to remove the rest of the installation directory
-            try {
-                cmd.exe /c "rd /s /q `"$InstallDir`"" | Out-Null
+            # Grant full permissions to administrators
+            Write-UninstallLog "Granting full permissions..." -Level "INFO"
+            cmd.exe /c "icacls `"$InstallDir`" /grant administrators:F /t" 2>&1 | Out-Null
+            
+            # Force remove everything using command line
+            Write-UninstallLog "Force removing all files and directories..." -Level "INFO"
+            cmd.exe /c "rd /s /q `"$InstallDir`"" 2>&1 | Out-Null
+            
+            # Verify complete removal
+            if (Test-Path $InstallDir) {
+                Write-UninstallLog "Directory still exists after aggressive removal, trying PowerShell method..." -Level "WARN"
                 
-                # Create installation directory again to restore logs
-                if (-not (Test-Path $InstallDir)) {
-                    New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-                    Move-Item -Path $tempLogsDir -Destination $logsDir -Force
-                    Write-UninstallLog "Logs directory restored to original location" -Level "SUCCESS"
+                # Try PowerShell removal as fallback
+                Remove-Item -Path $InstallDir -Force -Recurse -ErrorAction Continue
+                
+                # Final verification
+                if (Test-Path $InstallDir) {
+                    Write-UninstallLog "Failed to completely remove installation directory" -Level "ERROR"
+                    return $false
+                } else {
+                    Write-UninstallLog "Installation directory removed successfully with PowerShell fallback" -Level "SUCCESS"
+                    return $true
                 }
-                else {
-                    Write-UninstallLog "Failed to remove installation directory while preserving logs" -Level "ERROR"
-                    # Move logs back to original location if directory still exists
-                    if (Test-Path $tempLogsDir) {
-                        Move-Item -Path $tempLogsDir -Destination $logsDir -Force
-                    }
-                }
-            }
-            catch {
-                Write-UninstallLog "Error during directory removal: $_" -Level "ERROR"
-                # Restore logs directory
-                if (Test-Path $tempLogsDir) {
-                    Move-Item -Path $tempLogsDir -Destination $logsDir -Force
-                }
+            } else {
+                Write-UninstallLog "Installation directory removed successfully with aggressive approach" -Level "SUCCESS"
+                return $true
             }
         }
         catch {
-            Write-UninstallLog "Error handling logs directory: $_" -Level "ERROR"
-        }
-    }
-    else {
-        # If not keeping logs or logs don't exist, just remove everything
-        try {
-            # First attempt with PowerShell
-            Remove-Item -Path $InstallDir -Force -Recurse -ErrorAction Stop
-            Write-UninstallLog "Installation directory removed successfully" -Level "SUCCESS"
-        }
-        catch {
-            Write-UninstallLog "PowerShell removal failed, trying cmd.exe approach..." -Level "WARN"
-            
-            try {
-                # Second attempt with cmd.exe
-                $result = cmd.exe /c "rd /s /q `"$InstallDir`"" 2>&1
-                Write-UninstallLog "Command result: $result" -Level "DEBUG"
-                
-                # Check if directory was actually removed
-                if (-not (Test-Path $InstallDir)) {
-                    Write-UninstallLog "Installation directory removed successfully with cmd.exe" -Level "SUCCESS"
-                }
-                else {
-                    Write-UninstallLog "Basic cmd.exe removal failed, trying more aggressive approach" -Level "WARN"
-                    
-                    # If still failing, try the aggressive approach with takeown
-                    cmd.exe /c "takeown /f `"$InstallDir`" /r /d y" | Out-Null
-                    cmd.exe /c "icacls `"$InstallDir`" /grant administrators:F /t" | Out-Null
-                    cmd.exe /c "rd /s /q `"$InstallDir`"" | Out-Null
-                    
-                    if (-not (Test-Path $InstallDir)) {
-                        Write-UninstallLog "Installation directory removed successfully with aggressive approach" -Level "SUCCESS"
-                    }
-                    else {
-                        Write-UninstallLog "Failed to remove installation directory" -Level "ERROR"
-                        return $false
-                    }
-                }
-            }
-            catch {
-                Write-UninstallLog "Command-line removal failed: $_" -Level "ERROR"
-                return $false
-            }
+            Write-UninstallLog "Error during aggressive removal: $_" -Level "ERROR"
+            return $false
         }
     }
     
-    return $true
+    # Standard removal process (no log preservation)
+    try {
+        Write-UninstallLog "Attempting standard PowerShell removal..." -Level "INFO"
+        Remove-Item -Path $InstallDir -Force -Recurse -ErrorAction Stop
+        Write-UninstallLog "Installation directory removed successfully" -Level "SUCCESS"
+        return $true
+    }
+    catch {
+        Write-UninstallLog "PowerShell removal failed, trying command line approach..." -Level "WARN"
+        
+        try {
+            # Second attempt with cmd.exe
+            $result = cmd.exe /c "rd /s /q `"$InstallDir`"" 2>&1
+            Write-UninstallLog "Command result: $result" -Level "DEBUG"
+            
+            # Check if directory was actually removed
+            if (-not (Test-Path $InstallDir)) {
+                Write-UninstallLog "Installation directory removed successfully with cmd.exe" -Level "SUCCESS"
+                return $true
+            } else {
+                Write-UninstallLog "Standard cmd.exe removal failed, trying aggressive approach..." -Level "WARN"
+                
+                # Take ownership and try again
+                cmd.exe /c "takeown /f `"$InstallDir`" /r /d y" 2>&1 | Out-Null
+                cmd.exe /c "icacls `"$InstallDir`" /grant administrators:F /t" 2>&1 | Out-Null
+                cmd.exe /c "rd /s /q `"$InstallDir`"" 2>&1 | Out-Null
+                
+                if (-not (Test-Path $InstallDir)) {
+                    Write-UninstallLog "Installation directory removed successfully with aggressive approach" -Level "SUCCESS"
+                    return $true
+                } else {
+                    Write-UninstallLog "Failed to remove installation directory with all methods" -Level "ERROR"
+                    return $false
+                }
+            }
+        }
+        catch {
+            Write-UninstallLog "Command-line removal failed: $_" -Level "ERROR"
+            return $false
+        }
+    }
 }
 
 # ===== Main Uninstallation Process =====
@@ -629,17 +638,9 @@ function Start-Uninstallation {
             Write-UninstallLog "Uninstallation completed successfully" -Level "SUCCESS"
             $success = $true
         }
-        
-        # Copy log to desktop for future reference
-        try {
-            $desktopPath = [Environment]::GetFolderPath('Desktop')
-            $desktopLogFile = Join-Path $desktopPath "CTTT_Uninstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-            Copy-Item -Path $tempLogFile -Destination $desktopLogFile -Force
-            Write-UninstallLog "Log file saved to desktop: $desktopLogFile" -Level "INFO"
-        }
-        catch {
-            Write-UninstallLog "Failed to save log file to desktop: $_" -Level "WARN"
-        }
+
+        # Save log to temp directory (Inno Setup style location)
+        Write-UninstallLog "Uninstall log saved to: $tempLogFile" -Level "INFO"
         
         return $success
     }

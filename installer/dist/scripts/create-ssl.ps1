@@ -5,7 +5,7 @@
 param (
     [Parameter(Mandatory=$true)]
     [string]$InstallDir,
-   
+
     [Parameter()]
     [string]$Hostname = "CTTT",
 
@@ -19,27 +19,31 @@ $configPath = Join-Path $InstallDir "config"
 $sslDir = Join-Path $configPath "ssl"
 $certPath = Join-Path $sslDir "cttt.p12"
 $passwordPath = Join-Path $sslDir "password.key"
-$logPath = Join-Path $InstallDir "logs"
-$logFile = Join-Path $logPath "ssl_config_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$scriptPath = Join-Path $InstallDir "scripts"
+
+# Import log manager module
+$logManagerScript = Join-Path $scriptPath "log-manager.ps1"
+
+# Store all log content for the consolidated ps-install.log
+$createSslLogContent = @()
 
 function Write-Log {
     param(
         [Parameter(Mandatory=$true)]
         [string]$Message,
-       
+
         [Parameter()]
         [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS')]
         [string]$Level = 'INFO'
     )
-   
+
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "$timestamp [$Level] $Message"
-   
-    if (-not (Test-Path $logPath)) {
-        New-Item -ItemType Directory -Path $logPath -Force | Out-Null
-    }
-   
-    Add-Content -Path $logFile -Value $logMessage
+    $logMessage = "$timestamp [$Level] [CREATE_SSL] $Message"
+
+    # Store for consolidated log
+    $script:createSslLogContent += $logMessage
+
+    # Also write to console for immediate feedback
     Write-Host $logMessage -ForegroundColor $(switch ($Level) {
         'ERROR' { 'Red' }
         'WARN'  { 'Yellow' }
@@ -50,7 +54,7 @@ function Write-Log {
 
 function Initialize-SslDirectory {
     Write-Log "Initializing SSL environment..." -Level INFO
-   
+
     try {
         # Create SSL directory if it doesn't exist
         if (-not (Test-Path $sslDir)) {
@@ -61,21 +65,21 @@ function Initialize-SslDirectory {
         # Set directory permissions to SYSTEM and Administrators only
         $acl = Get-Acl $sslDir
         $acl.SetAccessRuleProtection($true, $false)
-        
+
         # Add SYSTEM full control
         $systemRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            "NT AUTHORITY\SYSTEM", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow"
+        "NT AUTHORITY\SYSTEM", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow"
         )
         $acl.AddAccessRule($systemRule)
-        
+
         # Add Administrators full control
         $adminRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            "BUILTIN\Administrators", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow"
+        "BUILTIN\Administrators", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow"
         )
         $acl.AddAccessRule($adminRule)
-        
+
         Set-Acl -Path $sslDir -AclObject $acl
-        
+
         Write-Log "SSL directory permissions set" -Level SUCCESS
         return $true
     }
@@ -91,36 +95,36 @@ function New-SecureSslPassword {
         $length = 32
         $nonAlphaChars = 5
         $password = [System.Web.Security.Membership]::GeneratePassword($length, $nonAlphaChars)
-        
+
         # Convert to secure string
         $securePassword = ConvertTo-SecureString -String $password -Force -AsPlainText
-        
+
         # Encrypt password using DPAPI at machine level
         $encryptedPassword = [System.Security.Cryptography.ProtectedData]::Protect(
-            [System.Text.Encoding]::UTF8.GetBytes($password),
-            $null,
-            [System.Security.Cryptography.DataProtectionScope]::LocalMachine
+                [System.Text.Encoding]::UTF8.GetBytes($password),
+                $null,
+                [System.Security.Cryptography.DataProtectionScope]::LocalMachine
         )
-        
+
         # Save encrypted password
         [System.IO.File]::WriteAllBytes($passwordPath, $encryptedPassword)
-        
+
         # Set file permissions
         $acl = Get-Acl $passwordPath
         $acl.SetAccessRuleProtection($true, $false)
-        
+
         $systemRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            "NT AUTHORITY\SYSTEM", "Read", "Allow"
+        "NT AUTHORITY\SYSTEM", "Read", "Allow"
         )
         $acl.AddAccessRule($systemRule)
-        
+
         $adminRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            "BUILTIN\Administrators", "Read", "Allow"
+        "BUILTIN\Administrators", "Read", "Allow"
         )
         $acl.AddAccessRule($adminRule)
-        
+
         Set-Acl -Path $passwordPath -AclObject $acl
-        
+
         Write-Log "SSL password generated and secured" -Level SUCCESS
         return $securePassword
     }
@@ -135,9 +139,9 @@ function New-SslCertificate {
         [Parameter(Mandatory=$true)]
         [System.Security.SecureString]$SecurePassword
     )
-    
+
     Write-Log "Generating new SSL certificate..." -Level INFO
-    
+
     try {
         # Create certificate with only CTTT and localhost as DNS names
         $cert = New-SelfSignedCertificate `
@@ -166,19 +170,19 @@ function New-SslCertificate {
         # Set certificate file permissions
         $acl = Get-Acl $certPath
         $acl.SetAccessRuleProtection($true, $false)
-        
+
         $systemRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            "NT AUTHORITY\SYSTEM", "Read", "Allow"
+        "NT AUTHORITY\SYSTEM", "Read", "Allow"
         )
         $acl.AddAccessRule($systemRule)
-        
+
         $adminRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            "BUILTIN\Administrators", "Read", "Allow"
+        "BUILTIN\Administrators", "Read", "Allow"
         )
         $acl.AddAccessRule($adminRule)
-        
+
         Set-Acl -Path $certPath -AclObject $acl
-        
+
         Write-Log "Certificate permissions set" -Level SUCCESS
         return $true
     }
@@ -190,14 +194,14 @@ function New-SslCertificate {
 
 function Update-SslConfiguration {
     Write-Log "Updating SSL configuration..." -Level INFO
-   
+
     try {
         $configFile = Join-Path $configPath "application.properties"
         $content = Get-Content -Path $configFile -Raw -Encoding UTF8
-       
+
         # Remove any existing SSL configuration
         $content = $content -replace "(?ms)# SSL Configuration\s*\r?\n(server\.ssl\..*\r?\n)*\r?\n?", ""
-       
+
         # Add new SSL configuration
         $sslConfig = @"
 
@@ -210,7 +214,7 @@ server.ssl.ciphers=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_ECDHE_RSA_W
 server.ssl.enabled-protocols=TLSv1.2,TLSv1.3
 "@
         $content = $content + $sslConfig
-       
+
         Set-Content -Path $configFile -Value $content -Force -Encoding UTF8
         Write-Log "SSL configuration updated successfully" -Level SUCCESS
         return $true
@@ -221,13 +225,67 @@ server.ssl.enabled-protocols=TLSv1.2,TLSv1.3
     }
 }
 
+function Save-CreateSslLog {
+    # Save create SSL log using consolidated logging system
+    if (Test-Path $logManagerScript) {
+        try {
+            . $logManagerScript
+            $logContent = $createSslLogContent -join "`n"
+            Write-Log "Saving create SSL log to consolidated ps-install.log..." -Level INFO
+            Reset-CreateSslLog -InstallDir $InstallDir -LogContent $logContent
+            Write-Log "Create SSL log saved successfully" -Level SUCCESS
+        }
+        catch {
+            Write-Log "Warning: Could not save to consolidated log: $_" -Level WARN
+            # Continue anyway - we still have console output
+        }
+    }
+    else {
+        Write-Log "Log manager module not found, skipping consolidated logging" -Level WARN
+    }
+}
+
+function Initialize-LogCleanup {
+    # Clean up old SSL configuration logs if log-manager exists
+    if (Test-Path $logManagerScript) {
+        try {
+            . $logManagerScript
+            Write-Log "Performing cleanup of old SSL configuration logs..." -Level INFO
+
+            # Clean up old SSL config logs specifically
+            $logsDir = Join-Path $InstallDir "logs"
+            if (Test-Path $logsDir) {
+                $oldSslLogs = Get-ChildItem -Path $logsDir -Filter "ssl_config_*.log" -ErrorAction SilentlyContinue
+                if ($oldSslLogs) {
+                    foreach ($log in $oldSslLogs) {
+                        Remove-Item -Path $log.FullName -Force
+                        Write-Log "Removed old SSL config log: $($log.Name)" -Level INFO
+                    }
+                    Write-Log "Cleaned up $($oldSslLogs.Count) old SSL configuration logs" -Level SUCCESS
+                }
+                else {
+                    Write-Log "No old SSL configuration logs found to clean up" -Level INFO
+                }
+            }
+        }
+        catch {
+            Write-Log "Warning: Could not perform SSL config log cleanup: $_" -Level WARN
+        }
+    }
+}
+
 # Main execution
 Write-Log "Starting SSL configuration process..." -Level INFO
 Write-Log "Installation directory: $InstallDir" -Level INFO
+Write-Log "Hostname: $Hostname" -Level INFO
+Write-Log "Common Name: $CommonName" -Level INFO
 
 # Load required assemblies
 Add-Type -AssemblyName System.Web
 Add-Type -AssemblyName System.Security
+
+# Clean up old logs first
+Initialize-LogCleanup
 
 try {
     $success = Initialize-SslDirectory
@@ -239,7 +297,13 @@ try {
                 $success = Update-SslConfiguration
             }
         }
+        else {
+            $success = $false
+        }
     }
+
+    # Save create SSL log using consolidated system
+    Save-CreateSslLog
 
     if ($success) {
         Write-Log "SSL configuration completed successfully" -Level SUCCESS
@@ -252,5 +316,10 @@ try {
 }
 catch {
     Write-Log "Unhandled exception during SSL configuration: $_" -Level ERROR
+    Write-Log "Stack trace: $($_.ScriptStackTrace)" -Level ERROR
+
+    # Save create SSL log even on exception
+    Save-CreateSslLog
+
     exit 1
 }

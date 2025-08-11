@@ -18,7 +18,7 @@ param (
 
 # Script Variables
 $logPath = Join-Path $InstallDir "logs"
-$logFile = Join-Path $logPath "update_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$logFile = Join-Path $logPath "update_temp.log"
 $backupDir = Join-Path $InstallDir "backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 $jarPath = Join-Path $InstallDir "ctgraphdep-web.jar"
 $configPath = Join-Path $InstallDir "config"
@@ -26,6 +26,13 @@ $configFile = Join-Path $configPath "application.properties"
 $updateDir = Join-Path $InstallDir "update"
 $updateJarPath = Join-Path $updateDir "ctgraphdep-web.jar"
 $updateConfigPath = Join-Path $updateDir "config\application.properties"
+$scriptPath = Join-Path $InstallDir "scripts"
+
+# Import log manager module
+$logManagerScript = Join-Path $scriptPath "log-manager.ps1"
+
+# Store all log content for the rotating log
+$updateLogContent = @()
 
 function Write-Log {
     param(
@@ -46,21 +53,22 @@ function Write-Log {
             New-Item -ItemType Directory -Path $logPath -Force | Out-Null
         }
         catch {
-            # If we can't create the log directory, try to use temp
-            $logFile = "$env:TEMP\cttt_update_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+            # If we can't create the log directory, continue without file logging
         }
     }
 
-    Add-Content -Path $logFile -Value $logMessage
+    # Only write to console and collect for rotating log
     Write-Host $logMessage -ForegroundColor $(switch ($Level) {
-            'ERROR' { 'Red' }
-            'WARN' { 'Yellow' }
-            'SUCCESS' { 'Green' }
-            'DEBUG' { 'Cyan' }
-            default { 'White' }
-        })
-}
+        'ERROR' { 'Red' }
+        'WARN' { 'Yellow' }
+        'SUCCESS' { 'Green' }
+        'DEBUG' { 'Cyan' }
+        default { 'White' }
+    })
 
+    # Store for rotating log
+    $script:updateLogContent += $logMessage
+}
 function Test-UpdateFiles {
     Write-Log "Validating update files..." -Level INFO
 
@@ -91,7 +99,6 @@ function Test-UpdateFiles {
         return $false
     }
 }
-
 function Backup-ExistingFiles {
     Write-Log "Creating backup of existing files..." -Level INFO
 
@@ -207,7 +214,6 @@ function Stop-ExistingProcesses {
         return $false
     }
 }
-
 function Update-Files {
     Write-Log "Updating application files..." -Level INFO
 
@@ -336,7 +342,7 @@ function Update-Files {
                         if ($currentProperties.ContainsKey($prop) -and -not [string]::IsNullOrWhiteSpace($currentProperties[$prop])) {
                             $pattern = "(?m)^$([regex]::Escape($prop))=.*$"
                             $replacement = "$prop=$($currentProperties[$prop])"
-                            
+
                             # Check if property exists in new config
                             if ($updatedConfig -match $pattern) {
                                 # Replace it
@@ -372,7 +378,7 @@ function Update-Files {
                     if (-not ($updatedConfig -match "server\.ssl\.enabled=")) {
                         # Get SSL config from current file
                         $currentConfig = Get-Content -Path $configFile -Raw
-                        
+
                         # Check if SSL is enabled in current config
                         if ($currentConfig -match "server\.ssl\.enabled=true") {
                             # Extract all SSL-related lines
@@ -382,7 +388,7 @@ function Update-Files {
                                     $sslConfigLines += $line
                                 }
                             }
-                            
+
                             if ($sslConfigLines.Count -gt 0) {
                                 # Add SSL config block with header
                                 $updatedConfig += "`n`n# SSL Configuration`n"
@@ -434,18 +440,6 @@ function Update-Files {
             return $false
         }
 
-        # STEP 3: Clean up temporary update files
-        try {
-            if (Test-Path $updateDir) {
-                Remove-Item -Path $updateDir -Recurse -Force
-                Write-Log "Cleaned up temporary update files" -Level SUCCESS
-            }
-        }
-        catch {
-            Write-Log "Failed to clean up temporary files: $_" -Level WARN
-            # Not critical, continue anyway
-        }
-
         Write-Log "Application files updated successfully" -Level SUCCESS
         return $true
     }
@@ -455,7 +449,6 @@ function Update-Files {
         return $false
     }
 }
-
 function Start-UpdatedApplication {
     Write-Log "Starting updated application..." -Level INFO
 
@@ -490,6 +483,152 @@ function Start-UpdatedApplication {
         return $false
     }
 }
+function Remove-UnnecessaryFiles {
+    <#
+    .SYNOPSIS
+    Removes unnecessary files including old backups and temporary update files
+    
+    .DESCRIPTION
+    - Removes the update directory (temporary staging files)
+    - Keeps only the LATEST backup in backup subdirectory, removes all others
+    - Simple and efficient cleanup
+    #>
+    
+    Write-Log "Cleaning up unnecessary files..." -Level INFO
+    
+    try {
+        $cleanupSuccess = $true
+        
+        # 1. Clean up temporary update files
+        if (Test-Path $updateDir) {
+            try {
+                Remove-Item -Path $updateDir -Recurse -Force
+                Write-Log "Removed temporary update directory: $updateDir" -Level SUCCESS
+            }
+            catch {
+                Write-Log "Failed to remove update directory: $_" -Level WARN
+                $cleanupSuccess = $false
+            }
+        }
+        
+        # 2. Simple backup management - keep only the latest backup
+        Write-Log "Managing backup folders - keeping only latest backup..." -Level INFO
+        
+        # Ensure backup subdirectory exists
+        $backupSubDir = Join-Path $InstallDir "backup"
+        if (-not (Test-Path $backupSubDir)) {
+            New-Item -ItemType Directory -Path $backupSubDir -Force | Out-Null
+            Write-Log "Created backup subdirectory: $backupSubDir" -Level INFO
+        }
+        
+        # Move current backup from main directory to backup subdirectory first
+        $mainBackupFolders = Get-ChildItem -Path $InstallDir -Directory -ErrorAction SilentlyContinue | 
+            Where-Object { $_.Name -like 'backup_*' -and $_.Name -match '\d{8}_\d{6}' }
+        
+        foreach ($folder in $mainBackupFolders) {
+            try {
+                $destinationPath = Join-Path $backupSubDir $folder.Name
+                if (-not (Test-Path $destinationPath)) {
+                    Move-Item -Path $folder.FullName -Destination $destinationPath -Force
+                    Write-Log "Moved backup to subdirectory: $($folder.Name)" -Level INFO
+                }
+                else {
+                    # Remove duplicate from main directory
+                    Remove-Item -Path $folder.FullName -Recurse -Force
+                    Write-Log "Removed duplicate backup from main directory: $($folder.Name)" -Level INFO
+                }
+            }
+            catch {
+                Write-Log "Failed to move backup folder $($folder.Name): $_" -Level WARN
+                $cleanupSuccess = $false
+            }
+        }
+        
+        # Now clean up old backups in backup subdirectory - keep only the latest
+        $allBackupFolders = Get-ChildItem -Path $backupSubDir -Directory -ErrorAction SilentlyContinue | 
+            Where-Object { $_.Name -like 'backup_*' -and $_.Name -match '\d{8}_\d{6}' } | 
+            Sort-Object Name -Descending
+        
+        Write-Log "Found $($allBackupFolders.Count) total backup folders in backup subdirectory" -Level INFO
+        
+        if ($allBackupFolders.Count -gt 1) {
+            # Keep the newest (first after sorting descending), remove all others
+            $latestBackup = $allBackupFolders[0]
+            $oldBackups = $allBackupFolders | Select-Object -Skip 1
+            
+            Write-Log "Keeping latest backup: $($latestBackup.Name)" -Level INFO
+            Write-Log "Removing $($oldBackups.Count) old backup folders to save space..." -Level INFO
+            
+            foreach ($oldBackup in $oldBackups) {
+                try {
+                    Write-Log "Removing old backup: $($oldBackup.Name)" -Level INFO
+                    Remove-Item -Path $oldBackup.FullName -Recurse -Force
+                    Write-Log "Successfully removed old backup: $($oldBackup.Name)" -Level SUCCESS
+                }
+                catch {
+                    Write-Log "Failed to remove old backup $($oldBackup.Name): $_" -Level WARN
+                    $cleanupSuccess = $false
+                }
+            }
+            
+            Write-Log "Backup cleanup completed - kept only latest backup: $($latestBackup.Name)" -Level SUCCESS
+        }
+        else {
+            Write-Log "Only one or no backup folders found - no cleanup needed" -Level INFO
+        }
+        
+        if ($cleanupSuccess) {
+            Write-Log "File cleanup completed successfully" -Level SUCCESS
+        }
+        else {
+            Write-Log "File cleanup completed with some warnings" -Level WARN
+        }
+        
+        return $true  # Always return true - cleanup issues shouldn't fail the update
+    }
+    catch {
+        Write-Log "Critical error during file cleanup: $_" -Level ERROR
+        Write-Log "Stack trace: $($_.ScriptStackTrace)" -Level DEBUG
+        return $true  # Still return true - cleanup issues shouldn't fail the update
+    }
+}
+function Initialize-UpdateLogCleanup {
+    # Clean up old timestamped update logs if log-manager exists
+    if (Test-Path $logManagerScript) {
+        try {
+            . $logManagerScript
+            Write-Log "Performing cleanup of old timestamped update logs..." -Level INFO
+
+            # Clean up old timestamped update logs specifically
+            if (Test-Path $logPath) {
+                $oldUpdateLogs = Get-ChildItem -Path $logPath -Filter "update_*.log" -ErrorAction SilentlyContinue | 
+                    Where-Object { $_.Name -ne "update.log" }  # Keep the rotating log
+                
+                if ($oldUpdateLogs) {
+                    foreach ($log in $oldUpdateLogs) {
+                        try {
+                            Remove-Item -Path $log.FullName -Force
+                            Write-Log "Removed old timestamped update log: $($log.Name)" -Level INFO
+                        }
+                        catch {
+                            Write-Log "Warning: Could not remove old update log $($log.Name): $_" -Level WARN
+                        }
+                    }
+                    Write-Log "Cleaned up $($oldUpdateLogs.Count) old timestamped update logs" -Level SUCCESS
+                }
+                else {
+                    Write-Log "No old timestamped update logs found to clean up" -Level INFO
+                }
+            }
+        }
+        catch {
+            Write-Log "Warning: Could not perform update log cleanup: $_" -Level WARN
+        }
+    }
+}
+
+# Initialize update log cleanup
+Initialize-UpdateLogCleanup
 
 # Main execution
 Write-Log "Starting CTTT update process..." -Level INFO
@@ -501,8 +640,7 @@ if ($Force) { Write-Log "Force mode enabled" -Level WARN }
 $success = $true
 
 # Execute update steps
-$updateSteps = @(
-    [PSCustomObject]@{
+$updateSteps = @([PSCustomObject]@{
         Name     = "Validate Update Files"
         Function = ${function:Test-UpdateFiles}
     },
@@ -540,14 +678,21 @@ foreach ($step in $updateSteps) {
     }
 }
 
+# Always perform cleanup at the end (regardless of success/failure)
+Write-Log "Performing final cleanup..." -Level INFO
+Remove-UnnecessaryFiles | Out-Null
+
+# Save update log using rotating system
+Save-UpdateLog
+
 # Exit with appropriate status
 if ($success) {
     Write-Log "Update completed successfully" -Level SUCCESS
-    Write-Log "Backup of previous version saved at: $backupDir" -Level INFO
+    Write-Log "Backup of previous version saved in backup subdirectory" -Level INFO
     exit 0
 }
 else {
     Write-Log "Update failed - check logs for details" -Level ERROR
-    Write-Log "You can restore the backup from: $backupDir" -Level INFO
+    Write-Log "You can restore the backup from backup subdirectory" -Level INFO
     exit 1
 }

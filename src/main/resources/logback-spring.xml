@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- LOG for development -->
 <configuration>
     <property name="LOGS" value="./logs" />
 
@@ -23,6 +24,7 @@
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
                 <maxFileSize>10MB</maxFileSize>
             </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>10</maxHistory>
         </rollingPolicy>
     </appender>
 

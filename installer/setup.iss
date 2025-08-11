@@ -1,6 +1,6 @@
 ; Original app definitions preserved
 #define MyAppName "Creative Time And Task Tracking"
-#define MyAppVersion "7.1.1"
+#define MyAppVersion "7.1.3"
 #define MyAppPublisher "THLHody"
 #define MyAppURL ""
 #define MyAppExeName "CTTT.url"
@@ -81,13 +81,13 @@ PreparingUninstall=Preparing to uninstall. Removing installation...
 const
   WM_VSCROLL = $0115;
   SB_BOTTOM = 7;
-  WM_CLOSE = $0010; 
-  
+  WM_CLOSE = $0010;
+
   // Installation types
   INSTALL_TYPE_NEW = 0;
   INSTALL_TYPE_UPDATE = 1;
   INSTALL_TYPE_UNINSTALL = 2;
-  
+
 var
   NetworkPathPage: TInputQueryWizardPage;
   ProgressMemo: TNewMemo;
@@ -98,15 +98,15 @@ var
   SetupTypePage: TWizardPage;
   InstallType: Integer;
   RadioNew, RadioUpdate, RadioUninstall: TNewRadioButton;
-  
+
   UninstallMode: Boolean;
   UninstallSuccessful: Boolean;
   UninstallCompleted: Boolean;
   SkipInstallation: Boolean;
-  UpdateScriptRun: Boolean; 
-  
+  UpdateScriptRun: Boolean;
+
 { ----------------------------------------------------------------
-  2. Utility Functions 
+  2. Utility Functions
 ---------------------------------------------------------------- }
 function IsUninstallSelected(): Boolean;
 begin
@@ -150,7 +150,7 @@ var
   IsInstallPresent: Boolean;
 begin
   // Create the page
-  Page := CreateCustomPage(wpWelcome, 
+  Page := CreateCustomPage(wpWelcome,
     CustomMessage('SetupTypePrompt'),
     CustomMessage('SetupTypeDesc'));
 
@@ -195,7 +195,7 @@ begin
     Enabled := IsInstallPresent; // Only enable if installation exists
     OnClick := @SetupTypeRadioClick;
   end;
-  
+
   // Set initial installation type based on detection
   if IsInstallPresent then
     InstallType := INSTALL_TYPE_UPDATE
@@ -251,23 +251,23 @@ begin
       LogDir := ExpandConstant('{app}\logs')
     else
       LogDir := ExpandConstant('{tmp}\logs');
-      
+
     BackupLogDir := ExpandConstant('{tmp}\CTTT_backup_logs');
-      
+
     if LogFile = '' then
       LogFile := LogDir + '\setup_' + GetDateTimeString('yyyymmdd_hhnnss', '_', '') + '.log';
-    
+
     if Length(Message) = 0 then
       Exit;
-      
+
     TimeStr := GetDateTimeString('yyyy-mm-dd hh:nn:ss', #32, #32);
     FullMessage := TimeStr + Message + #13#10;
-    
+
     try
       // Try primary log location
       if not DirExists(LogDir) then
         ForceDirectories(LogDir);
-      
+
       if FileExists(LogFile) then
         SaveStringToFile(LogFile, FullMessage, True)
       else
@@ -277,14 +277,14 @@ begin
       try
         if not DirExists(BackupLogDir) then
           ForceDirectories(BackupLogDir);
-          
+
         LogFile := BackupLogDir + '\setup_backup_' + GetDateTimeString('yyyymmdd_hhnnss', '_', '') + '.log';
         SaveStringToFile(LogFile, FullMessage, True);
       except
         // If both fail, just update the UI
       end;
     end;
-    
+
     // Update progress display with styled text
     if ProgressMemo <> nil then
     begin
@@ -301,9 +301,9 @@ var
   LogPath: string;
   LogContents: TStringList;
 begin
-  LogPath := ExpandConstant('{app}\logs\cttt-setup.log');
+  LogPath := ExpandConstant('{app}\logs\ps-install.log');
   LogContents := TStringList.Create;
-  
+
   try
     if FileExists(LogPath) then
       LogContents.LoadFromFile(LogPath)
@@ -312,7 +312,7 @@ begin
   except
     LogContents.Add('Error reading installation log.');
   end;
-  
+
   Result := LogContents;
 end;
 
@@ -343,7 +343,7 @@ begin
     CustomMessage('InstallationProgress'),
     '',  // Description can be empty
     ''); // Status message can be empty
-  
+
   // Create styled progress label
   ProgressLabel := TNewStaticText.Create(WizardForm);
   with ProgressLabel do
@@ -384,12 +384,12 @@ begin
     CustomMessage('NetworkPathPrompt'),
     CustomMessage('NetworkPathDesc'),
     '');
-    
+
   with NetworkPathPage do
   begin
     Add(CustomMessage('NetworkPathLabel'), False);
     Values[0] := ExpandConstant('{#MyDefaultNetworkPath}');
-    
+
     // Style the input box
     Edits[0].Width := WizardForm.InnerNotebook.Width - ScaleX(32);
     Edits[0].Font.Name := 'Segoe UI';
@@ -409,7 +409,7 @@ begin
     else
       ProgressLabel.Caption := CustomMessage('InstallationProgress');
     ProgressMemo.Clear;
-    
+
     if IsUninstallSelected then
       WriteLog('Starting uninstallation...')
     else
@@ -436,7 +436,7 @@ begin
         ProgressLabel.Caption := Format(CustomMessage('UninstallationProgress') + ' (%d%%)',[(CurProgress * 100) div MaxProgress])
       else
         ProgressLabel.Caption := Format(CustomMessage('InstallationProgress') + ' (%d%%)',[(CurProgress * 100) div MaxProgress]);
-      
+
       if IsUninstallSelected then
         WriteLog(Format('Uninstallation progress: %d%%', [(CurProgress * 100) div MaxProgress]))
       else
@@ -450,16 +450,16 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  
+
   // Skip network path page for updates and uninstalls
-  if ((InstallType = INSTALL_TYPE_UPDATE) or (InstallType = INSTALL_TYPE_UNINSTALL)) and 
+  if ((InstallType = INSTALL_TYPE_UPDATE) or (InstallType = INSTALL_TYPE_UNINSTALL)) and
      (PageID = NetworkPathPage.ID) then
     Result := True;
-    
+
   // Skip directory page for uninstall
   if (InstallType = INSTALL_TYPE_UNINSTALL) and (PageID = wpSelectDir) then
     Result := True;
-  
+
   // If uninstallation is completed, skip all pages except Finished
   if UninstallCompleted then
   begin
@@ -502,7 +502,7 @@ var
   LineContent: string;
 begin
   AppPort := ''; // Initialize to empty
-  
+
   if LoadStringsFromFile(ExpandConstant('{app}\config\application.properties'), Lines) then
   begin
     for I := 0 to GetArrayLength(Lines) - 1 do
@@ -523,31 +523,31 @@ var
   ResultCode: Integer;
 begin
   Result := False;
-  
+
  if UninstallMode then
     InstallDir := ExpandConstant('{app}')  // Use {app} during standalone uninstall
-  else 
+  else
     InstallDir := WizardDirValue;  // Use wizard directory during installer uninstall option
-  
+
   UninstallScript := InstallDir + '\scripts\uninstall.ps1';
   if not FileExists(UninstallScript) then
     UninstallScript := InstallDir + '\uninstall.ps1';
 
   if not FileExists(UninstallScript) then
   begin
-    MsgBox('Uninstall script could not be found at:' + #13#10 + 
+    MsgBox('Uninstall script could not be found at:' + #13#10 +
            UninstallScript, mbError, MB_OK);
     Exit;
   end;
 
   Params := '-InstallDir "' + InstallDir + '" -Force -Purge';
 
-  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), 
-          '-NoProfile -ExecutionPolicy Bypass -File "' + UninstallScript + '" ' + Params, 
+  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+          '-NoProfile -ExecutionPolicy Bypass -File "' + UninstallScript + '" ' + Params,
           '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
   begin
     Result := (ResultCode = 0);
-    
+
     if not Result then
     begin
       MsgBox('Uninstall script failed with exit code: ' + IntToStr(ResultCode), mbError, MB_OK);
@@ -574,7 +574,7 @@ begin
   SkipInstallation := False;
   UpdateScriptRun := False;
   CreateSetupTypePage;
-  
+
   // Customize directory page
   with WizardForm.DirEdit do
   begin
@@ -582,18 +582,18 @@ begin
     Font.Size := 9;
     Width := WizardForm.InnerNotebook.Width - ScaleX(32);
   end;
-  
+
   // Style directory browse button
   with WizardForm.DirBrowseButton do
   begin
     Font.Name := 'Segoe UI';
     Font.Size := 9;
   end;
-  
+
   // Create enhanced UI components
   CreateEnhancedNetworkPathPage;
   CreateEnhancedProgressUI;
-  
+
   // Style buttons
   WizardForm.NextButton.Font.Style := [fsBold];
   WizardForm.CancelButton.Font.Style := [];
@@ -605,7 +605,7 @@ begin
   begin
     UninstallMode := True;
     UninstallCompleted := ExecuteUninstallation();
-    
+
     if not UninstallCompleted then
     begin
       Abort;
@@ -631,21 +631,21 @@ var
 begin
   try
     case CurStep of
-      ssInstall: 
+      ssInstall:
         begin
           if UninstallCompleted then
           begin
             // Skip actual installation for uninstall mode
             Exit;
           end;
-          
+
           if IsUninstallSelected then
             WriteLog('Starting uninstallation process...')
           else
             WriteLog('Starting installation process...');
-            
+
           ShowProgressPage;
-          
+
           if IsUninstallSelected then
             WriteLog('Beginning uninstallation...')
           else
@@ -655,14 +655,14 @@ begin
         begin
           // Close any open PowerShell windows
           Exec('taskkill', '/F /IM powershell.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-          
+
           if UninstallCompleted then
           begin
             WriteLog('Uninstallation completed successfully');
             HideProgressPage;
             if ProgressLabel <> nil then
               ProgressLabel.Caption := CustomMessage('UninstallationComplete');
-            
+
             // Update the finished page text in advance
             with WizardForm.FinishedLabel do
             begin
@@ -721,7 +721,7 @@ begin
         Caption := 'Uninstallation has been completed successfully. The application has been removed from your computer.';
         Font.Style := [fsBold];
       end;
-      
+
       // Automatically close after a short delay
       WizardForm.NextButton.Enabled := True;
       WizardForm.CancelButton.Enabled := False;
@@ -735,14 +735,14 @@ var
   ConfirmMessage: string;
 begin
   Result := True;
-  
+
   // Special handling for uninstall finish page
   if (CurPageID = wpFinished) and (UninstallMode or UninstallCompleted) then
   begin
     // Allow normal exit on finish page
     Exit;
   end;
-  
+
   if CurPageID = SetupTypePage.ID then
   begin
     if InstallType = INSTALL_TYPE_UPDATE then
@@ -753,7 +753,7 @@ begin
         Result := False;
         Exit;
       end;
-      
+
       if MsgBox(CustomMessage('UpdateConfirm'), mbConfirmation, MB_YESNO) = IDNO then
       begin
         Result := False;
@@ -768,63 +768,63 @@ begin
         Result := False;
         Exit;
       end;
-      
+
       // Enhanced uninstall warning message
       ConfirmMessage := 'This will completely remove the application and its configuration ' +
-                      'from your computer.' + #13#10 + #13#10 + 
+                      'from your computer.' + #13#10 + #13#10 +
                       'This process is irreversible and all custom settings will be lost.' + #13#10 + #13#10 +
                       'Do you want to continue with the uninstallation?';
-      
+
       if MsgBox(ConfirmMessage, mbConfirmation, MB_YESNO) = IDNO then
       begin
         Result := False;
         Exit;
       end;
-      
+
       // Execute uninstallation when user confirms
       if ProgressPage <> nil then
       begin
         ProgressPage.Caption := CustomMessage('UninstallationProgress');
         ProgressPage.Description := CustomMessage('UninstallationProgress');
       end;
-      
+
       if ProgressLabel <> nil then
         ProgressLabel.Caption := CustomMessage('UninstallationProgress');
-      
+
       if ProgressMemo <> nil then
         ProgressMemo.Clear;
-        
+
       WizardForm.NextButton.Enabled := False;
       WizardForm.BackButton.Enabled := False;
-      
+
       WriteLog('Starting uninstallation...');
-      
+
       // Execute uninstallation
       if ExecuteUninstallation() then
       begin
         WriteLog('Uninstallation completed successfully');
         if ProgressLabel <> nil then
           ProgressLabel.Caption := CustomMessage('UninstallationComplete');
-        
+
         // Set flags to indicate uninstall is done
         UninstallMode := True;
         UninstallCompleted := True;
         UninstallSuccessful := True;
         SkipInstallation := True;
-        
+
         // Re-enable the Next button to continue to finish page
         WizardForm.NextButton.Enabled := True;
         WizardForm.NextButton.Caption := 'Finish';
         WizardForm.BackButton.Enabled := False;
-        
+
         Result := True;  // Continue to next page
       end
       else
       begin
         WriteLog('Uninstallation failed');
-        MsgBox('The uninstallation process encountered errors. Please check the logs for details.', 
+        MsgBox('The uninstallation process encountered errors. Please check the logs for details.',
                mbError, MB_OK);
-               
+
         // Re-enable buttons on failure
         WizardForm.NextButton.Enabled := True;
         WizardForm.BackButton.Enabled := True;
@@ -837,23 +837,23 @@ begin
   begin
     if not DirExists(ExtractFilePath(WizardForm.DirEdit.Text)) then
     begin
-      MsgBox('The selected parent directory does not exist. Please select a valid installation path.', 
+      MsgBox('The selected parent directory does not exist. Please select a valid installation path.',
              mbError, MB_OK);
       Result := False;
       Exit;
     end;
-      
-    if Length(WizardForm.DirEdit.Text) > 100 then 
+
+    if Length(WizardForm.DirEdit.Text) > 100 then
     begin
-      MsgBox('The selected path is too long. Please choose a shorter installation path.', 
+      MsgBox('The selected path is too long. Please choose a shorter installation path.',
              mbError, MB_OK);
       Result := False;
       Exit;
     end;
-  end 
-  else if CurPageID = NetworkPathPage.ID then 
+  end
+  else if CurPageID = NetworkPathPage.ID then
   begin
-    if not ValidateNetworkPath(NetworkPathPage.Values[0]) then 
+    if not ValidateNetworkPath(NetworkPathPage.Values[0]) then
     begin
       MsgBox('Please enter a valid network path.', mbError, MB_OK);
       Result := False;
@@ -870,20 +870,20 @@ var
   ResultCode: Integer;
 begin
   Result := '';
-  
+
   // If uninstallation was completed, then no error but don't install
   if UninstallCompleted then
   begin
     SkipInstallation := True;
     Exit;
   end;
-  
+
   // For Update mode, ensure the update directory exists and stop running application
   if IsUpdateSelected and not SkipInstallation then
   begin
     // Show progress in the prepare to install screen
     WizardForm.StatusLabel.Caption := 'Preparing for update...';
-    
+
     // Ensure update directories exist
     if not DirExists(ExpandConstant('{app}\update')) then
     begin
@@ -893,7 +893,7 @@ begin
         Exit;
       end;
     end;
-    
+
     if not DirExists(ExpandConstant('{app}\update\config')) then
     begin
       if not ForceDirectories(ExpandConstant('{app}\update\config')) then
@@ -902,13 +902,13 @@ begin
         Exit;
       end;
     end;
-    
+
     // Stop the running application before update
     WizardForm.StatusLabel.Caption := 'Stopping running application...';
     WizardForm.ProgressGauge.Style := npbstMarquee;
-    
+
     WriteLog('Stopping any running CTTT instances before update...');
-    
+
     // Execute a PowerShell command to stop CTTT processes
     if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
        '-NoProfile -ExecutionPolicy Bypass -Command "Get-Process -Name java | Where-Object {$_.CommandLine -like ''*ctgraphdep-web.jar*''} | Stop-Process -Force; Start-Sleep -Seconds 2"',
