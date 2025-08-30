@@ -479,6 +479,7 @@ public class WorktimeDisplayService {
         int cmDays = 0;
         int totalRegularMinutes = 0;
         int totalOvertimeMinutes = 0;
+        int totalDiscardedMinutes = 0;
 
         LoggerUtil.debug(this.getClass(), String.format(
                 "Calculating month summary for %d/%d: %d total work days", month, year, totalWorkDays));
@@ -504,9 +505,17 @@ public class WorktimeDisplayService {
 
                 // Use default schedule
                 int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
+                int discardedForEntry = CalculateWorkHoursUtil.calculateDiscardedMinutes(entry.getTotalWorkedMinutes(), userSchedule);
+
                 WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
                 totalRegularMinutes += result.getProcessedMinutes();
                 totalOvertimeMinutes += result.getOvertimeMinutes();
+                totalDiscardedMinutes += discardedForEntry;
+
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Regular work entry %s: %d raw minutes, %d processed, %d overtime, %d discarded",
+                        entry.getWorkDate(), entry.getTotalWorkedMinutes(),
+                        result.getProcessedMinutes(), result.getOvertimeMinutes(), discardedForEntry));
             }
 
             // ENHANCED: Handle ALL special day types with overtime work
@@ -534,6 +543,8 @@ public class WorktimeDisplayService {
                 .cmDays(cmDays)
                 .totalRegularMinutes(totalRegularMinutes)
                 .totalOvertimeMinutes(totalOvertimeMinutes) // Now includes ALL special day overtime
+                .totalMinutes(totalRegularMinutes + totalOvertimeMinutes)  // ADD THIS LINE
+                .discardedMinutes(totalDiscardedMinutes)  // ADD THIS LINE - THE KEY FIX!
                 .build();
     }
 

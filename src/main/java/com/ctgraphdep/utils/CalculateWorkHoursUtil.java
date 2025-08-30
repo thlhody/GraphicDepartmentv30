@@ -95,7 +95,7 @@ public class CalculateWorkHoursUtil {
         // Adjust minutes based on lunch break
         int adjustedMinutes = calculateAdjustedMinutes(inputMinutes, schedule);
 
-        adjustedMinutes = (adjustedMinutes / WorkCode.HOUR_DURATION) * WorkCode.HOUR_DURATION;
+        //adjustedMinutes = (adjustedMinutes / WorkCode.HOUR_DURATION) * WorkCode.HOUR_DURATION;
         // Calculate final values
         int processedMinutes = calculateProcessedMinutes(adjustedMinutes, schedule);
         int overtimeMinutes = calculateOvertimeMinutes(adjustedMinutes, schedule);

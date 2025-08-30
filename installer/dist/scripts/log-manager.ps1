@@ -349,6 +349,23 @@ function Reset-TestNetworkLog {
     Write-ConsolidatedInstallLog -LogPath $logPath -LogName "TEST_NETWORK" -NewLogContent $LogContent
 }
 
+function Reset-ReinstallLog {
+    <#
+    .SYNOPSIS
+    Manages reinstall log rotation
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$InstallDir,
+
+        [Parameter(Mandatory=$true)]
+        [string]$LogContent
+    )
+
+    $logPath = Join-Path $InstallDir "logs\reinstall.log"
+    Write-RotatingLog -LogPath $logPath -LogName "REINSTALL" -NewLogContent $LogContent
+}
+
 function Initialize-LogCleanup {
     <#
     .SYNOPSIS

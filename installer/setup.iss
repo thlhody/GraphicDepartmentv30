@@ -1,6 +1,6 @@
 ; Original app definitions preserved
 #define MyAppName "Creative Time And Task Tracking"
-#define MyAppVersion "7.1.3"
+#define MyAppVersion "7.1.4"
 #define MyAppPublisher "THLHody"
 #define MyAppURL ""
 #define MyAppExeName "CTTT.url"
@@ -60,15 +60,19 @@ SetupTypePrompt=Installation Type
 SetupTypeDesc=Choose the type of installation to perform
 NewInstallLabel=New Installation
 UpdateLabel=Update Existing Installation
+ReinstallLabel=Reinstall Application (Complete Refresh)
 UninstallLabel=Uninstall Application
 UpdateNotFound=No existing installation found at the selected location. Please verify the installation directory.
 UpdateConfirm=This will update your existing CTTT installation. Continue?
+ReinstallConfirm=This will completely uninstall and reinstall the application. All settings will be reset. Continue?
 UninstallConfirm=This will completely remove the application from your computer. All configuration files will be removed. Continue?
 NetworkPathPrompt=Network Configuration
 NetworkPathLabel=Network Path:
 NetworkPathDesc=Please specify the network path where CTTT data will be stored:
 InstallationProgress=Installation Progress
 InstallationComplete=Installation Completed Successfully
+ReinstallationProgress=Reinstallation Progress
+ReinstallationComplete=Reinstallation Completed Successfully
 UninstallationProgress=Uninstallation Progress
 UninstallationComplete=Uninstallation Completed Successfully
 AppURLs=The application can be accessed at:%n%n    http://localhost:%s%n    http://CTTT:%s
@@ -76,7 +80,7 @@ PreparingUninstall=Preparing to uninstall. Removing installation...
 
 [Code]
 { ----------------------------------------------------------------
-  1. Constants and Variables
+                1. Constants and Variables
 ---------------------------------------------------------------- }
 const
   WM_VSCROLL = $0115;
@@ -87,6 +91,7 @@ const
   INSTALL_TYPE_NEW = 0;
   INSTALL_TYPE_UPDATE = 1;
   INSTALL_TYPE_UNINSTALL = 2;
+  INSTALL_TYPE_REINSTALL = 3;
 
 var
   NetworkPathPage: TInputQueryWizardPage;
@@ -97,17 +102,19 @@ var
   ProgressPage: TOutputMsgWizardPage;
   SetupTypePage: TWizardPage;
   InstallType: Integer;
-  RadioNew, RadioUpdate, RadioUninstall: TNewRadioButton;
+  RadioNew, RadioUpdate, RadioUninstall, RadioReinstall: TNewRadioButton;
 
   UninstallMode: Boolean;
   UninstallSuccessful: Boolean;
   UninstallCompleted: Boolean;
   SkipInstallation: Boolean;
   UpdateScriptRun: Boolean;
+  ReinstallMode: Boolean;
 
 { ----------------------------------------------------------------
-  2. Utility Functions
+                    2. Utility Functions
 ---------------------------------------------------------------- }
+
 function IsUninstallSelected(): Boolean;
 begin
   Result := UninstallMode or (InstallType = INSTALL_TYPE_UNINSTALL);
@@ -121,6 +128,11 @@ end;
 function IsNewInstallSelected(): Boolean;
 begin
   Result := (InstallType = INSTALL_TYPE_NEW);
+end;
+
+function IsReinstallSelected(): Boolean;
+begin
+  Result := (InstallType = INSTALL_TYPE_REINSTALL);
 end;
 
 function IsInstallationPresent(const Path: string): Boolean;
@@ -141,7 +153,9 @@ begin
   else if TNewRadioButton(Sender) = RadioUpdate then
     InstallType := INSTALL_TYPE_UPDATE
   else if TNewRadioButton(Sender) = RadioUninstall then
-    InstallType := INSTALL_TYPE_UNINSTALL;
+    InstallType := INSTALL_TYPE_UNINSTALL
+  else if TNewRadioButton(Sender) = RadioReinstall then  // NEW HANDLER
+    InstallType := INSTALL_TYPE_REINSTALL;
 end;
 
 procedure CreateSetupTypePage;
@@ -149,15 +163,13 @@ var
   Page: TWizardPage;
   IsInstallPresent: Boolean;
 begin
-  // Create the page
   Page := CreateCustomPage(wpWelcome,
     CustomMessage('SetupTypePrompt'),
     CustomMessage('SetupTypeDesc'));
 
-  // Check if installation is present at default location
   IsInstallPresent := IsInstallationPresent(ExpandConstant('{#MyDefaultInstallDir}'));
 
-  // Create radio buttons
+  // New Install Radio Button
   RadioNew := TNewRadioButton.Create(Page);
   with RadioNew do
   begin
@@ -166,11 +178,12 @@ begin
     Left := ScaleX(8);
     Top := ScaleY(8);
     Width := Page.SurfaceWidth - ScaleX(16);
-    Checked := not IsInstallPresent; // Select New Install by default if no installation present
-    Enabled := not IsInstallPresent; // Only enable if installation doesn't exist
+    Checked := not IsInstallPresent;
+    Enabled := not IsInstallPresent;
     OnClick := @SetupTypeRadioClick;
   end;
 
+  // Update Radio Button
   RadioUpdate := TNewRadioButton.Create(Page);
   with RadioUpdate do
   begin
@@ -179,30 +192,42 @@ begin
     Left := ScaleX(8);
     Top := RadioNew.Top + RadioNew.Height + ScaleY(4);
     Width := Page.SurfaceWidth - ScaleX(16);
-    Enabled := IsInstallPresent; // Only enable if installation exists
-    Checked := IsInstallPresent; // Select Update by default if installation present
+    Enabled := IsInstallPresent;
+    Checked := IsInstallPresent;
     OnClick := @SetupTypeRadioClick;
   end;
 
+  // NEW: Reinstall Radio Button
+  RadioReinstall := TNewRadioButton.Create(Page);
+  with RadioReinstall do
+  begin
+    Parent := Page.Surface;
+    Caption := 'Reinstall Application (Complete Refresh)';  // You can add this to CustomMessages
+    Left := ScaleX(8);
+    Top := RadioUpdate.Top + RadioUpdate.Height + ScaleY(4);
+    Width := Page.SurfaceWidth - ScaleX(16);
+    Enabled := IsInstallPresent;  // Only available if installation exists
+    OnClick := @SetupTypeRadioClick;
+  end;
+
+  // Uninstall Radio Button - ADJUST POSITION
   RadioUninstall := TNewRadioButton.Create(Page);
   with RadioUninstall do
   begin
     Parent := Page.Surface;
     Caption := CustomMessage('UninstallLabel');
     Left := ScaleX(8);
-    Top := RadioUpdate.Top + RadioUpdate.Height + ScaleY(4);
+    Top := RadioReinstall.Top + RadioReinstall.Height + ScaleY(4);  // MOVED DOWN
     Width := Page.SurfaceWidth - ScaleX(16);
-    Enabled := IsInstallPresent; // Only enable if installation exists
+    Enabled := IsInstallPresent;
     OnClick := @SetupTypeRadioClick;
   end;
 
-  // Set initial installation type based on detection
   if IsInstallPresent then
     InstallType := INSTALL_TYPE_UPDATE
   else
     InstallType := INSTALL_TYPE_NEW;
 
-  // Store the page reference
   SetupTypePage := Page;
 end;
 
@@ -224,6 +249,24 @@ begin
   end;
 end;
 
+{ ----------------------------------------------------------------
+                     Get Network Path
+---------------------------------------------------------------- }
+
+function GetNetworkPath(Param: string): string;
+begin
+  Result := NetworkPathPage.Values[0];
+end;
+
+function VerifyInstallation: Boolean;
+begin
+  Result := DirExists(ExpandConstant('{app}')) and
+            FileExists(ExpandConstant('{app}\ctgraphdep-web.jar')) and
+            DirExists(ExpandConstant('{app}\config'));
+  if not Result then
+    MsgBox('Installation verification failed. Some components are missing.', mbError, MB_OK);
+end;
+
 function CloseButtonClick(): Boolean;
 begin
   // Always allow closing during uninstall
@@ -237,7 +280,6 @@ begin
     Result := False;
   end;
 end;
-
 
 procedure WriteLog(const Message: string);
 var
@@ -334,8 +376,47 @@ begin
 end;
 
 { ----------------------------------------------------------------
-  3. UI Component Creation
+                 Reinstall Execution Function
 ---------------------------------------------------------------- }
+
+function ExecuteReinstallation(): Boolean;
+var
+  ReinstallScript, InstallDir, Params: string;
+  ResultCode: Integer;
+begin
+  Result := False;
+  InstallDir := WizardDirValue;
+
+  // Use the static reinstall script from the scripts folder
+  ReinstallScript := InstallDir + '\scripts\reinstall.ps1';
+
+  if not FileExists(ReinstallScript) then
+  begin
+    WriteLog('Reinstall script not found at: ' + ReinstallScript);
+    MsgBox('Reinstall script could not be found at:' + #13#10 + ReinstallScript, mbError, MB_OK);
+    Exit;
+  end;
+
+  WriteLog('Executing reinstall script: ' + ReinstallScript);
+
+  Params := '-InstallDir "' + InstallDir + '" -NetworkPath "' + GetNetworkPath('') + '" -Version "' + ExpandConstant('{#MyAppVersion}') + '"';
+
+  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+          '-NoProfile -ExecutionPolicy Bypass -File "' + ReinstallScript + '" ' + Params,
+          '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result := (ResultCode = 0);
+    if not Result then
+      MsgBox('Reinstall script failed with exit code: ' + IntToStr(ResultCode), mbError, MB_OK);
+  end
+  else
+    MsgBox('Failed to execute reinstall script.', mbError, MB_OK);
+end;
+
+{ ----------------------------------------------------------------
+                3. UI Component Creation
+---------------------------------------------------------------- }
+
 procedure CreateEnhancedProgressUI;
 begin
   // Create a proper progress page
@@ -479,21 +560,8 @@ begin
 end;
 
 { ----------------------------------------------------------------
-  4. Business Logic
+                     4. Business Logic
 ---------------------------------------------------------------- }
-function GetNetworkPath(Param: string): string;
-begin
-  Result := NetworkPathPage.Values[0];
-end;
-
-function VerifyInstallation: Boolean;
-begin
-  Result := DirExists(ExpandConstant('{app}')) and
-            FileExists(ExpandConstant('{app}\ctgraphdep-web.jar')) and
-            DirExists(ExpandConstant('{app}\config'));
-  if not Result then
-    MsgBox('Installation verification failed. Some components are missing.', mbError, MB_OK);
-end;
 
 procedure LoadAppPort();
 var
@@ -560,8 +628,9 @@ begin
 end;
 
 { ----------------------------------------------------------------
-  5. Event Handlers
+                        5. Event Handlers
 ---------------------------------------------------------------- }
+
 procedure InitializeWizard;
 begin
   // Style the wizard form
@@ -729,19 +798,18 @@ begin
   end;
 end;
 
-// Enhanced NextButtonClick with network path validation and uninstall execution
+{ ----------------------------------------------------------------
+                    Next Button Click
+---------------------------------------------------------------- }
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   ConfirmMessage: string;
 begin
   Result := True;
 
-  // Special handling for uninstall finish page
   if (CurPageID = wpFinished) and (UninstallMode or UninstallCompleted) then
-  begin
-    // Allow normal exit on finish page
     Exit;
-  end;
 
   if CurPageID = SetupTypePage.ID then
   begin
@@ -753,7 +821,6 @@ begin
         Result := False;
         Exit;
       end;
-
       if MsgBox(CustomMessage('UpdateConfirm'), mbConfirmation, MB_YESNO) = IDNO then
       begin
         Result := False;
@@ -769,7 +836,6 @@ begin
         Exit;
       end;
 
-      // Enhanced uninstall warning message
       ConfirmMessage := 'This will completely remove the application and its configuration ' +
                       'from your computer.' + #13#10 + #13#10 +
                       'This process is irreversible and all custom settings will be lost.' + #13#10 + #13#10 +
@@ -781,7 +847,6 @@ begin
         Exit;
       end;
 
-      // Execute uninstallation when user confirms
       if ProgressPage <> nil then
       begin
         ProgressPage.Caption := CustomMessage('UninstallationProgress');
@@ -790,63 +855,114 @@ begin
 
       if ProgressLabel <> nil then
         ProgressLabel.Caption := CustomMessage('UninstallationProgress');
-
       if ProgressMemo <> nil then
         ProgressMemo.Clear;
 
       WizardForm.NextButton.Enabled := False;
       WizardForm.BackButton.Enabled := False;
-
       WriteLog('Starting uninstallation...');
 
-      // Execute uninstallation
       if ExecuteUninstallation() then
       begin
         WriteLog('Uninstallation completed successfully');
         if ProgressLabel <> nil then
           ProgressLabel.Caption := CustomMessage('UninstallationComplete');
 
-        // Set flags to indicate uninstall is done
         UninstallMode := True;
         UninstallCompleted := True;
         UninstallSuccessful := True;
         SkipInstallation := True;
 
-        // Re-enable the Next button to continue to finish page
         WizardForm.NextButton.Enabled := True;
         WizardForm.NextButton.Caption := 'Finish';
         WizardForm.BackButton.Enabled := False;
-
-        Result := True;  // Continue to next page
+        Result := True;
       end
       else
       begin
         WriteLog('Uninstallation failed');
-        MsgBox('The uninstallation process encountered errors. Please check the logs for details.',
-               mbError, MB_OK);
-
-        // Re-enable buttons on failure
+        MsgBox('The uninstallation process encountered errors. Please check the logs for details.', mbError, MB_OK);
         WizardForm.NextButton.Enabled := True;
         WizardForm.BackButton.Enabled := True;
         Result := False;
         Exit;
       end;
-    end;
-  end
+    end
+    // NEW: Handle Reinstall
+    else if InstallType = INSTALL_TYPE_REINSTALL then
+    begin
+      if not IsInstallationPresent(WizardDirValue) then
+      begin
+        MsgBox('No existing installation found. Please use New Installation instead.', mbError, MB_OK);
+        Result := False;
+        Exit;
+      end;
+
+      ConfirmMessage := 'This will completely uninstall the current application and install a fresh copy.' + #13#10 + #13#10 +
+                       'All custom settings and logs will be removed and replaced with defaults.' + #13#10 + #13#10 +
+                       'Do you want to continue with the reinstallation?';
+
+      if MsgBox(ConfirmMessage, mbConfirmation, MB_YESNO) = IDNO then
+      begin
+        Result := False;
+        Exit;
+      end;
+
+      // NEW: Execute reinstall immediately here, not in [Run] section
+      WriteLog('Starting immediate reinstall execution...');
+
+      if ProgressPage <> nil then
+      begin
+        ProgressPage.Caption := CustomMessage('ReinstallationProgress');
+        ProgressPage.Description := CustomMessage('ReinstallationProgress');
+      end;
+
+      if ProgressLabel <> nil then
+        ProgressLabel.Caption := CustomMessage('ReinstallationProgress');
+      if ProgressMemo <> nil then
+        ProgressMemo.Clear;
+
+      WizardForm.NextButton.Enabled := False;
+      WizardForm.BackButton.Enabled := False;
+
+      // Execute the reinstall process
+      if ExecuteReinstallation() then
+      begin
+        WriteLog('Reinstallation completed successfully');
+        if ProgressLabel <> nil then
+          ProgressLabel.Caption := CustomMessage('ReinstallationComplete');
+
+        // Mark installation as complete to skip normal install
+        ReinstallMode := True;
+        SkipInstallation := True;
+
+        WizardForm.NextButton.Enabled := True;
+        WizardForm.NextButton.Caption := 'Finish';
+        WizardForm.BackButton.Enabled := False;
+        Result := True;
+      end
+      else
+      begin
+        WriteLog('Reinstallation failed');
+        MsgBox('The reinstallation process encountered errors. Please check the logs for details.', mbError, MB_OK);
+        WizardForm.NextButton.Enabled := True;
+        WizardForm.BackButton.Enabled := True;
+        Result := False;
+        Exit;
+      end;
+    end; // MISSING END WAS HERE - ADDED IT
+  end  // MISSING END WAS HERE - ADDED IT
   else if CurPageID = wpSelectDir then
   begin
     if not DirExists(ExtractFilePath(WizardForm.DirEdit.Text)) then
     begin
-      MsgBox('The selected parent directory does not exist. Please select a valid installation path.',
-             mbError, MB_OK);
+      MsgBox('The selected parent directory does not exist. Please select a valid installation path.', mbError, MB_OK);
       Result := False;
       Exit;
     end;
-
     if Length(WizardForm.DirEdit.Text) > 100 then
     begin
-      MsgBox('The selected path is too long. Please choose a shorter installation path.',
-             mbError, MB_OK);
+      MsgBox('The selected path is too long. Please choose a shorter installation path.', mbError, MB_OK);
       Result := False;
       Exit;
     end;
@@ -863,8 +979,9 @@ begin
 end;
 
 { ----------------------------------------------------------------
-  6. Installation logic
+                   6. Installation logic
 ---------------------------------------------------------------- }
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
@@ -925,17 +1042,23 @@ begin
 end;
 
 [Files]
-; Main application files - only for new install and update
-Source: "dist\bin\ctgraphdep-web.jar"; DestDir: "{app}"; Flags: ignoreversion; Check: IsNewInstallSelected and not ShouldSkipInstallation
+; Main application files - EXCLUDE REINSTALL from new install
+Source: "dist\bin\ctgraphdep-web.jar"; DestDir: "{app}"; Flags: ignoreversion; Check: IsNewInstallSelected and not ShouldSkipInstallation and not IsReinstallSelected
 Source: "dist\bin\ctgraphdep-web.jar"; DestDir: "{app}\update"; Flags: ignoreversion; Check: IsUpdateSelected and not ShouldSkipInstallation
 
-; Configuration files - only for new install
-Source: "dist\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsNewInstallSelected and not ShouldSkipInstallation
+; Configuration files - EXCLUDE REINSTALL from new install
+Source: "dist\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsNewInstallSelected and not ShouldSkipInstallation and not IsReinstallSelected
 Source: "dist\config\*"; DestDir: "{app}\update\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsUpdateSelected and not ShouldSkipInstallation
-Source: "graphics\ct3logoicon.ico"; DestDir: "{app}\graphics"; Flags: ignoreversion; Check: not IsUninstallSelected and not ShouldSkipInstallation
+Source: "graphics\ct3logoicon.ico"; DestDir: "{app}\graphics"; Flags: ignoreversion; Check: not IsUninstallSelected and not ShouldSkipInstallation and not IsReinstallSelected
 
-; Scripts - only for new install and update
-Source: "dist\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not IsUninstallSelected and not ShouldSkipInstallation
+; Scripts - EXCLUDE REINSTALL from normal copy, but copy for reinstall to temp
+Source: "dist\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not IsUninstallSelected and not ShouldSkipInstallation and not IsReinstallSelected
+
+; For REINSTALL: Copy all files to TEMP directory for the reinstall script to use
+Source: "dist\bin\ctgraphdep-web.jar"; DestDir: "{tmp}\reinstall_files"; Flags: ignoreversion; Check: IsReinstallSelected
+Source: "dist\config\*"; DestDir: "{tmp}\reinstall_files\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsReinstallSelected
+Source: "dist\scripts\*"; DestDir: "{tmp}\reinstall_files\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsReinstallSelected
+Source: "graphics\ct3logoicon.ico"; DestDir: "{tmp}\reinstall_files\graphics"; Flags: ignoreversion; Check: IsReinstallSelected
 
 ; Copy essential scripts to root directory for direct access - only for new install and update
 Source: "dist\scripts\start-app.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: not IsUninstallSelected and not ShouldSkipInstallation
@@ -943,6 +1066,7 @@ Source: "dist\scripts\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion; Ch
 Source: "dist\scripts\uninstall.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion; Check: not ShouldSkipInstallation
 Source: "dist\scripts\install.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: not IsUninstallSelected and not ShouldSkipInstallation
 Source: "dist\scripts\update.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: not IsUninstallSelected and not ShouldSkipInstallation
+Source: "dist\scripts\reinstall.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: not IsUninstallSelected and not ShouldSkipInstallation
 
 [Dirs]
 Name: "{app}"; Permissions: users-modify authusers-modify; Check: not IsUninstallSelected and not ShouldSkipInstallation
@@ -965,7 +1089,7 @@ Filename: "powershell.exe"; \
   StatusMsg: "Updating CTTT..."; \
   Flags: runhidden waituntilterminated runascurrentuser; \
   Check: IsUpdateSelected and not ShouldSkipInstallation;
-  
+
 ; UNINSTALL: Run uninstall.ps1 script directly
 Filename: "powershell.exe"; \
   Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\uninstall.ps1"" -InstallDir ""{app}"" -Force -Purge"; \

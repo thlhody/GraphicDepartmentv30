@@ -1,4 +1,4 @@
-// utility-main.js - Complete Enhanced Main Coordinator
+// utility-core.js - Complete Enhanced Main Coordinator
 $(document).ready(function() {
     console.log('🚀 Main Utility Coordinator loaded');
 

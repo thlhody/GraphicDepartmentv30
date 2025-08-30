@@ -403,8 +403,7 @@ public class WorktimeOperationService {
 
             } else {
                 // UNAUTHORIZED ACCESS: Fall back to old merge logic for safety
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "Non-admin user %s accessing %s data - using merge fallback", currentUsername, username));
+                LoggerUtil.warn(this.getClass(), String.format("Non-admin user %s accessing %s data - using merge fallback", currentUsername, username));
 
                 return loadUserWorktimeWithMergeFallback(username, userId, year, month);
             }
@@ -425,8 +424,8 @@ public class WorktimeOperationService {
             }
 
             // Load admin entries for this user
-            WorktimeDataAccessor adminAccessor = context.getDataAccessor("admin");
-            List<WorkTimeTable> allAdminEntries = adminAccessor.readWorktime("admin", year, month);
+            WorktimeDataAccessor adminAccessor = context.getDataAccessor(SecurityConstants.ADMIN_SIMPLE);
+            List<WorkTimeTable> allAdminEntries = adminAccessor.readWorktime(SecurityConstants.ADMIN_SIMPLE, year, month);
 
             // Filter admin entries for this specific user
             List<WorkTimeTable> adminEntries = allAdminEntries != null ?

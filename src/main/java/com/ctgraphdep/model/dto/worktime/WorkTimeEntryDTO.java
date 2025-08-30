@@ -236,16 +236,14 @@ public class WorkTimeEntryDTO {
 
         // ENHANCED: Handle all special day types with work time
         if (entry.getTimeOffType() != null && isSpecialDayTypeStatic(entry.getTimeOffType())) {
-            handleSpecialDayConversion(entry, builder);
+            handleSpecialDayConversion(entry, builder);  // Pass userSchedule
         } else if (entry.getTimeOffType() != null) {
-            handleRegularTimeOffConversion(entry, builder);
+            handleRegularTimeOffConversion(builder);  // Pass userSchedule
         } else {
             handleRegularWorkDayConversion(entry, builder, userSchedule);
         }
-
         return builder.build();
     }
-
     /**
      * ENHANCED: Handle all special day types (SN/CO/CM/W) with work time
      */
@@ -258,18 +256,24 @@ public class WorkTimeEntryDTO {
 
         if (hasWorkTime) {
             // Special day WITH work time
-            builder.totalWorkedMinutes(0); // Always 0 for special days
+            builder.totalWorkedMinutes(0);
             builder.formattedWorkTime("0:00");
             builder.totalOvertimeMinutes(entry.getTotalOvertimeMinutes());
             builder.formattedOvertimeTime(CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalOvertimeMinutes()));
             builder.hasSpecialDayWork(true);
 
+            // Set raw and scheduled for special day with work
+            builder.rawWorkedMinutes(entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0);
+            builder.formattedRawTime(entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0 ?
+                    CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalWorkedMinutes()) : "-");
+            builder.formattedScheduledTime("-");  // No scheduled time for special days
+
             // Set appropriate CSS class for special day with work
             String cssClass = switch (entry.getTimeOffType()) {
-                case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-warning text-dark"; // Yellow for SN
-                case WorkCode.TIME_OFF_CODE -> "bg-info text-white"; // Blue for CO
-                case WorkCode.MEDICAL_LEAVE_CODE -> "bg-orange text-white"; // Orange for CM
-                case WorkCode.WEEKEND_CODE -> "bg-secondary text-white"; // Gray for W
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-warning text-dark";
+                case WorkCode.TIME_OFF_CODE -> "bg-info text-white";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "bg-orange text-white";
+                case WorkCode.WEEKEND_CODE -> "bg-secondary text-white";
                 default -> "bg-primary text-white";
             };
             builder.timeOffClass(cssClass);
@@ -281,12 +285,17 @@ public class WorkTimeEntryDTO {
             builder.formattedOvertimeTime(null);
             builder.hasSpecialDayWork(false);
 
+            // No raw or scheduled time for pure time off
+            builder.rawWorkedMinutes(null);
+            builder.formattedRawTime(null);  // This will show as "-" in the UI
+            builder.formattedScheduledTime(null);  // This will show as "-" in the UI
+
             // Set appropriate CSS class for regular time off
             String cssClass = switch (entry.getTimeOffType()) {
-                case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-success"; // Green for SN
-                case WorkCode.TIME_OFF_CODE -> "bg-info"; // Blue for CO
-                case WorkCode.MEDICAL_LEAVE_CODE -> "bg-warning"; // Orange for CM
-                case WorkCode.WEEKEND_CODE -> "bg-secondary"; // Gray for W
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-success";
+                case WorkCode.TIME_OFF_CODE -> "bg-info";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "bg-warning";
+                case WorkCode.WEEKEND_CODE -> "bg-secondary";
                 default -> "bg-secondary";
             };
             builder.timeOffClass(cssClass);
@@ -299,7 +308,7 @@ public class WorkTimeEntryDTO {
     /**
      * Handle regular time off conversion (non-special days)
      */
-    private static void handleRegularTimeOffConversion(WorkTimeTable entry, WorkTimeEntryDTOBuilder builder) {
+    private static void handleRegularTimeOffConversion(WorkTimeEntryDTOBuilder builder) {
         // Set time off CSS class for non-special time off types
         builder.timeOffClass("bg-secondary");
 
@@ -310,6 +319,11 @@ public class WorkTimeEntryDTO {
         builder.formattedOvertimeTime(null);
         builder.discardedMinutes(0);
         builder.hasSpecialDayWork(false);
+
+        // No raw or scheduled time for time off
+        builder.rawWorkedMinutes(null);
+        builder.formattedRawTime(null);
+        builder.formattedScheduledTime(null);
     }
 
     /**
@@ -337,6 +351,13 @@ public class WorkTimeEntryDTO {
             int discardedMinutes = CalculateWorkHoursUtil.calculateDiscardedMinutes(rawWorkedMinutes, userSchedule);
             builder.discardedMinutes(discardedMinutes);
 
+            // Set raw and scheduled time for regular work days
+            builder.rawWorkedMinutes(rawWorkedMinutes);
+            builder.formattedRawTime(CalculateWorkHoursUtil.minutesToHHmm(rawWorkedMinutes));
+
+            int scheduleMinutes = userSchedule * 60;
+            builder.formattedScheduledTime(CalculateWorkHoursUtil.minutesToHHmm(scheduleMinutes));
+
         } else {
             // No work time
             builder.totalWorkedMinutes(0);
@@ -344,8 +365,13 @@ public class WorkTimeEntryDTO {
             builder.totalOvertimeMinutes(0);
             builder.formattedOvertimeTime(null);
             builder.hasSpecialDayWork(false);
-        }
+            builder.discardedMinutes(0);
 
+            // No raw or scheduled time when no work
+            builder.rawWorkedMinutes(null);
+            builder.formattedRawTime(null);
+            builder.formattedScheduledTime(null);
+        }
     }
 
     /**

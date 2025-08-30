@@ -132,28 +132,26 @@ public class WorktimeOperationContext {
     // USER CONTEXT MANAGEMENT
     // ========================================================================
 
-    // Get current authenticated username with context awareness
     public String getCurrentUsername() {
+        User originalUser = mainDefaultUserContextCache.getOriginalUser();
         // Background threads use original user
         if (isBackgroundThread()) {
-            User originalUser = mainDefaultUserContextCache.getOriginalUser();
             return originalUser != null ? originalUser.getUsername() : null;
         }
 
-        // Web threads use SecurityContext
+        // Web threads use SecurityContext with MainDefaultUserContextCache fallback
         try {
             return SecurityContextHolder.getContext().getAuthentication().getName();
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), "Web operation without active SecurityContext");
-            return null;
+            LoggerUtil.warn(this.getClass(), "Web operation without active SecurityContext - falling back to cache");
+            // FIXED: Fall back to MainDefaultUserContextCache instead of returning null
+            return originalUser != null ? originalUser.getUsername() : null;
         }
     }
 
     // Get current user object with context awareness
     public User getCurrentUser() {
-        return isBackgroundThread()
-                ? mainDefaultUserContextCache.getOriginalUser()
-                : mainDefaultUserContextCache.getCurrentUser();
+        return isBackgroundThread() ? mainDefaultUserContextCache.getOriginalUser() : mainDefaultUserContextCache.getCurrentUser();
     }
 
     // Check if current user has admin privileges
@@ -209,8 +207,7 @@ public class WorktimeOperationContext {
     // Validate holiday date
     public void validateHolidayDate(LocalDate date) {
         try {
-            var validateCommand = timeValidationService.getValidationFactory()
-                    .createValidateHolidayDateCommand(date);
+            var validateCommand = timeValidationService.getValidationFactory().createValidateHolidayDateCommand(date);
             timeValidationService.execute(validateCommand);
         } catch (IllegalArgumentException e) {
             throw e;

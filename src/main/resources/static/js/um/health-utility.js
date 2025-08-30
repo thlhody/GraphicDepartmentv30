@@ -451,7 +451,7 @@ $(document).ready(function() {
     }
 
     // ========================================================================
-    // GLOBAL FUNCTIONS (for utility-main.js integration)
+    // GLOBAL FUNCTIONS (for utility-core.js integration)
     // ========================================================================
 
     // Expose health functions globally
