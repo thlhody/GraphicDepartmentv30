@@ -20,10 +20,9 @@ public class ContinueTempStopCommand extends BaseNotificationCommand<Boolean> {
             // Update the session if needed (e.g., refresh last activity timestamp)
             UpdateSessionActivityCommand updateCommand = ctx.getCommandFactory().createUpdateSessionActivityCommand(username, userId);
             ctx.executeCommand(updateCommand);
+            // Check if already in temporary stop monitoring mode
+            boolean inTempStopMonitoring = ctx.getSessionMonitorService().isInTempStopMonitoring(username);
 
-            // NEW: Check if already in temporary stop monitoring mode
-            IsInTempStopMonitoringQuery isInTempStopQuery = ctx.getCommandFactory().createIsInTempStopMonitoringQuery(username);
-            boolean inTempStopMonitoring = ctx.executeQuery(isInTempStopQuery);
 
             if (!inTempStopMonitoring) {
                 // If somehow not in temp stop monitoring, explicitly activate it
@@ -33,9 +32,7 @@ public class ContinueTempStopCommand extends BaseNotificationCommand<Boolean> {
                 manageMonitoringState(context, CommandConstants.PAUSE, username);
 
                 // Record temp stop notification explicitly if needed
-                ctx.getSessionMonitorService().recordTempStopNotification(username, ctx.getValidationService()
-                        .execute(ctx.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand())
-                        .getCurrentTime());
+                ctx.getSessionMonitorService().recordTempStopNotification(username, ctx.getCurrentStandardTime());
             } else {
                 debug(String.format("User %s already in temp stop monitoring mode, continuing", username));
             }

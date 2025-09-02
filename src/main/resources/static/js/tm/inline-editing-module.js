@@ -238,6 +238,17 @@ const InlineEditingModule = {
         const field = cell.getAttribute('data-field');
         console.log('Starting edit for cell:', field);
 
+        // CAPTURE CURRENT MONTH INFO BEFORE ANYTHING ELSE CAN CHANGE IT
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentYear = urlParams.get('year') || new Date().getFullYear();
+        const currentMonth = urlParams.get('month') || (new Date().getMonth() + 1);
+
+        // Store it on the cell so we can use it later
+        cell.setAttribute('data-edit-year', currentYear);
+        cell.setAttribute('data-edit-month', currentMonth);
+
+        console.log('📅 Captured month info for edit:', currentYear, currentMonth);
+
         // Force cleanup of any existing editors in this cell
         this.cleanupExistingEditors(cell);
 
@@ -682,10 +693,20 @@ const InlineEditingModule = {
             this.showSuccessMessage(field);
         }
 
-        // Schedule page refresh after successful update
         setTimeout(() => {
-            console.log('🔄 Auto-refreshing page after successful field update...');
-            window.location.reload();
+            const yearSelect = document.getElementById('yearSelect');
+            const monthSelect = document.getElementById('monthSelect');
+
+            const currentYear = yearSelect ? yearSelect.value : new Date().getFullYear();
+            const currentMonth = monthSelect ? monthSelect.value : (new Date().getMonth() + 1);
+
+            // Store scroll position in session storage
+            sessionStorage.setItem('timeManagementScrollPosition', window.scrollY.toString());
+
+            const refreshUrl = `/user/time-management?year=${currentYear}&month=${currentMonth}`;
+
+            console.log('🔄 Refresh with stored scroll position:', window.scrollY);
+            window.location.href = refreshUrl;
         }, 1500);
     },
 

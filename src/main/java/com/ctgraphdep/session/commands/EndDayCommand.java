@@ -1,7 +1,5 @@
 package com.ctgraphdep.session.commands;
 
-import com.ctgraphdep.calculations.commands.UpdateLastTemporaryStopCommand;
-import com.ctgraphdep.calculations.queries.CalculateRawWorkMinutesQuery;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -54,16 +52,19 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
 
             // If user is in temporary stop, close the last temp stop
             if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                debug("Session is in temporary stop state, updating last temporary stop");
-                UpdateLastTemporaryStopCommand updateTempStopCommand = new UpdateLastTemporaryStopCommand(session, endTime);
-                session = ctx.getCalculationService().executeCommand(updateTempStopCommand);
+                debug("Session is in temporary stop state, processing resume from temp stop");
+                // UPDATED: Use CalculationService directly instead of command
+                context.getCalculationService().processResumeFromTempStop(session, endTime);
             }
 
             // Calculate final worked minutes
             Integer effectiveFinalMinutes = calculateEffectiveFinalMinutes(session, endTime, ctx);
 
-            // Process end session operation using calculation command
-            session = processEndSession(session, endTime, ctx, effectiveFinalMinutes);
+            // Get user schedule for proper end day processing
+            int userSchedule = getUserSchedule(ctx);
+
+            // Process end session operation using CalculationService
+            session = processEndSession(session, endTime, ctx, effectiveFinalMinutes, userSchedule);
 
             // ENHANCED: Update worktime entry with special day detection using abstract base class
             updateWorktimeEntryWithSpecialDayLogic(session, ctx);
@@ -135,15 +136,19 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
     }
 
     // ========================================================================
-    // PRESERVED ORIGINAL HELPER METHODS
+    // UPDATED HELPER METHODS - Using CalculationService instead of command pattern
     // ========================================================================
 
+    /**
+     * Calculate effective final minutes using CalculationService
+     * UPDATED: Uses direct service call instead of command pattern
+     */
     private Integer calculateEffectiveFinalMinutes(WorkUsersSessionsStates session, LocalDateTime endTime, SessionContext context) {
         Integer effectiveFinalMinutes = finalMinutes;
         if (effectiveFinalMinutes == null) {
             try {
-                CalculateRawWorkMinutesQuery calculateQuery = context.getCalculationFactory().createCalculateRawWorkMinutesQuery(session, endTime);
-                effectiveFinalMinutes = context.getCalculationService().executeQuery(calculateQuery);
+                // UPDATED: Direct call to CalculationService instead of command pattern
+                effectiveFinalMinutes = context.calculateRawWorkMinutes(session, endTime);
                 debug(String.format("Calculated final minutes: %d", effectiveFinalMinutes));
             } catch (Exception e) {
                 warn(String.format("Error calculating final minutes, using session value: %s", e.getMessage()));
@@ -153,15 +158,37 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
         return effectiveFinalMinutes;
     }
 
-    private WorkUsersSessionsStates processEndSession(WorkUsersSessionsStates session, LocalDateTime endTime, SessionContext context, Integer effectiveFinalMinutes) {
-        return context.calculateEndDayValues(session, endTime, effectiveFinalMinutes);
+    /**
+     * Process end session using CalculationService
+     * UPDATED: Passes user schedule to the calculation service
+     */
+    private WorkUsersSessionsStates processEndSession(WorkUsersSessionsStates session, LocalDateTime endTime, SessionContext context, Integer effectiveFinalMinutes, int userSchedule) {
+        // UPDATED: Pass user schedule to calculateEndDayValues
+        return context.calculateEndDayValues(session, endTime, effectiveFinalMinutes, userSchedule);
     }
 
-    // Apply regular day overtime logic using schedule information. This is only called for non-special days
-    private void applyRegularDayOvertimeLogic(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context, LocalDate workDate) {
-
+    /**
+     * Get user schedule for this command
+     * PRESERVED: Same logic as original EndDayCommand
+     */
+    private int getUserSchedule(SessionContext context) {
         try {
-            Integer userSchedule = context.getUserService().getUserById(session.getUserId()).map(User::getSchedule).orElse(WorkCode.INTERVAL_HOURS_C);
+            return context.getUserService().getUserById(userId).map(User::getSchedule).orElse(WorkCode.INTERVAL_HOURS_C);
+        } catch (Exception e) {
+            warn(String.format("Error getting user schedule for %s, using default 8 hours: %s", username, e.getMessage()));
+            return WorkCode.INTERVAL_HOURS_C;
+        }
+    }
+
+    /**
+     * Apply regular day overtime logic using schedule information
+     * PRESERVED: Same logic but updated to use direct query execution
+     */
+    private void applyRegularDayOvertimeLogic(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context, LocalDate workDate) {
+        try {
+            Integer userSchedule = context.getUserService().getUserById(session.getUserId())
+                    .map(User::getSchedule)
+                    .orElse(WorkCode.INTERVAL_HOURS_C);
 
             WorkScheduleQuery query = context.getCommandFactory().createWorkScheduleQuery(workDate, userSchedule);
             WorkScheduleQuery.ScheduleInfo scheduleInfo = context.executeQuery(query);
@@ -177,6 +204,4 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
             warn(String.format("Error calculating regular day overtime: %s", e.getMessage()));
         }
     }
-
-
 }

@@ -1,8 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.calculations.CalculationCommandFactory;
-import com.ctgraphdep.calculations.CalculationCommandService;
-import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
@@ -53,13 +50,14 @@ import java.util.concurrent.ScheduledFuture;
  */
 @Service
 public class SessionMonitorService {
+
+    @Autowired
+    private CalculationService calculationService;
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
     private final TaskScheduler taskScheduler;
     private final TimeValidationService validationService;
     private final TimeValidationFactory validationFactory;
-    private final CalculationCommandFactory calculationFactory;
-    private final CalculationCommandService calculationService;
     private final NotificationService notificationService;
     private final MonitoringStateService monitoringStateService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
@@ -94,16 +92,15 @@ public class SessionMonitorService {
     private volatile boolean isInitialized = false;
 
     public SessionMonitorService(SessionCommandService commandService, SessionCommandFactory commandFactory, @Qualifier("sessionMonitorScheduler") TaskScheduler taskScheduler,
-            TimeValidationService validationService, TimeValidationFactory validationFactory, CalculationCommandFactory calculationFactory, CalculationCommandService calculationService,
-            NotificationService notificationService, MonitoringStateService monitoringStateService, MainDefaultUserContextService mainDefaultUserContextService) {
+            TimeValidationService validationService, TimeValidationFactory validationFactory, NotificationService notificationService, MonitoringStateService monitoringStateService,
+                                 MainDefaultUserContextService mainDefaultUserContextService) {
 
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.taskScheduler = taskScheduler;
         this.validationService = validationService;
         this.validationFactory = validationFactory;
-        this.calculationFactory = calculationFactory;
-        this.calculationService = calculationService;
+
         this.notificationService = notificationService;
         this.monitoringStateService = monitoringStateService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
@@ -557,8 +554,7 @@ public class SessionMonitorService {
                 return;
             }
 
-            CalculateMinutesBetweenQuery minutesQuery = calculationFactory.createCalculateMinutesBetweenQuery(tempStopStart, now);
-            int minutesSinceTempStop = calculationService.executeQuery(minutesQuery);
+            int minutesSinceTempStop = calculationService.calculateMinutesBetween(tempStopStart, now);
 
             // Use MonitoringStateService to check if notification is due
             if (monitoringStateService.isTempStopNotificationDue(username, minutesSinceTempStop, now) &&

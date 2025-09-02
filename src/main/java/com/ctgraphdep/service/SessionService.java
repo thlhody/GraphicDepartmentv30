@@ -1,11 +1,5 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.calculations.CalculationCommandFactory;
-import com.ctgraphdep.calculations.CalculationCommandService;
-import com.ctgraphdep.calculations.queries.CalculateRawWorkMinutesForEntryQuery;
-import com.ctgraphdep.calculations.queries.CalculateRawWorkMinutesQuery;
-import com.ctgraphdep.calculations.queries.CalculateRecommendedEndTimeQuery;
-import com.ctgraphdep.calculations.queries.CalculateWorkTimeQuery;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.User;
@@ -34,7 +28,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -48,10 +41,10 @@ public class SessionService {
 
     @Autowired
     private SessionCacheService sessionCacheService;
+    @Autowired
+    private CalculationService calculationService;
     private final SessionCommandService sessionCommandService;
     private final SessionCommandFactory sessionCommandFactory;
-    private final CalculationCommandService calculationService;
-    private final CalculationCommandFactory calculationFactory;
     private final TimeValidationService timeValidationService;
     private final SessionMonitorService sessionMonitorService;
     private final WorktimeOperationContext worktimeOperationContext;
@@ -62,13 +55,10 @@ public class SessionService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("EEEE, dd MMM yyyy");
 
     @Autowired
-    public SessionService(SessionCommandService sessionCommandService, SessionCommandFactory sessionCommandFactory, CalculationCommandService calculationService,
-                          CalculationCommandFactory calculationFactory, TimeValidationService timeValidationService, SessionMonitorService sessionMonitorService,
+    public SessionService(SessionCommandService sessionCommandService, SessionCommandFactory sessionCommandFactory, TimeValidationService timeValidationService, SessionMonitorService sessionMonitorService,
                           WorktimeOperationContext worktimeOperationContext, MainDefaultUserContextService mainDefaultUserContextService) {
         this.sessionCommandService = sessionCommandService;
         this.sessionCommandFactory = sessionCommandFactory;
-        this.calculationService = calculationService;
-        this.calculationFactory = calculationFactory;
         this.timeValidationService = timeValidationService;
         this.sessionMonitorService = sessionMonitorService;
         this.worktimeOperationContext = worktimeOperationContext;
@@ -166,18 +156,16 @@ public class SessionService {
             // Clone session to avoid modifying actual session
             WorkUsersSessionsStates tempSession = cloneSession(session);
 
-            // Calculate raw minutes using calculation service
-            CalculateRawWorkMinutesQuery rawMinutesQuery = calculationFactory.createCalculateRawWorkMinutesQuery(tempSession, proposedEndTime);
-            int rawMinutes = calculationService.executeQuery(rawMinutesQuery);
+            // Calculate raw minutes using calculation service (DIRECT CALL)
+            int rawMinutes = calculationService.calculateRawWorkMinutes(tempSession, proposedEndTime);
 
-            // Calculate processed work time
-            CalculateWorkTimeQuery workTimeQuery = calculationFactory.createCalculateWorkTimeQuery(rawMinutes, userSchedule);
-            WorkTimeCalculationResultDTO result = calculationService.executeQuery(workTimeQuery);
+            // Calculate processed work time (DIRECT CALL)
+            WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(rawMinutes, userSchedule);
 
-            // Calculate total elapsed minutes
-            int totalElapsedMinutes = (int) ChronoUnit.MINUTES.between(session.getDayStartTime(), proposedEndTime);
+            // Calculate total elapsed minutes (DIRECT CALL - using utility method)
+            int totalElapsedMinutes = calculationService.calculateMinutesBetween(session.getDayStartTime(), proposedEndTime);
 
-            // Get break minutes
+            // Get break minutes from session
             int breakMinutes = session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0;
 
             // Create and return the result DTO
@@ -224,23 +212,20 @@ public class SessionService {
                 return createErrorResolutionDTO("End time must be after start time");
             }
 
-            // Calculate raw work minutes
-            CalculateRawWorkMinutesForEntryQuery rawMinutesQuery = calculationFactory.createCalculateRawWorkMinutesForEntryQuery(entry, endTime);
-            int rawMinutes = calculationService.executeQuery(rawMinutesQuery);
+            // Calculate raw work minutes (DIRECT CALL)
+            int rawMinutes = calculationService.calculateRawWorkMinutesForEntry(entry, endTime);
 
-            // Calculate processed work time
-            CalculateWorkTimeQuery workTimeQuery = calculationFactory.createCalculateWorkTimeQuery(rawMinutes, userSchedule);
-            WorkTimeCalculationResultDTO result = calculationService.executeQuery(workTimeQuery);
+            // Calculate processed work time (DIRECT CALL)
+            WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(rawMinutes, userSchedule);
 
-            // Calculate total elapsed minutes
-            int totalElapsedMinutes = (int) ChronoUnit.MINUTES.between(entry.getDayStartTime(), endTime);
+            // Calculate total elapsed minutes (DIRECT CALL)
+            int totalElapsedMinutes = calculationService.calculateMinutesBetween(entry.getDayStartTime(), endTime);
 
-            // Get break minutes
+            // Get break minutes from entry
             int breakMinutes = entry.getTotalTemporaryStopMinutes() != null ? entry.getTotalTemporaryStopMinutes() : 0;
 
-            // Calculate recommended end time
-            CalculateRecommendedEndTimeQuery recommendedEndTimeQuery = calculationFactory.createCalculateRecommendedEndTimeQuery(entry, userSchedule);
-            LocalDateTime recommendedEndTime = calculationService.executeQuery(recommendedEndTimeQuery);
+            // Calculate recommended end time (DIRECT CALL)
+            LocalDateTime recommendedEndTime = calculationService.calculateRecommendedEndTime(entry, userSchedule);
 
             // Create and return the DTO
             return createDetailedResolutionDTO(
@@ -367,8 +352,7 @@ public class SessionService {
             tempEntry.setTemporaryStopCount(session.getTemporaryStopCount());
             tempEntry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
 
-            CalculateRecommendedEndTimeQuery endTimeQuery = calculationFactory.createCalculateRecommendedEndTimeQuery(tempEntry, userSchedule);
-            LocalDateTime estimatedEndTime = calculationService.executeQuery(endTimeQuery);
+            LocalDateTime estimatedEndTime = calculationService.calculateRecommendedEndTime(tempEntry, userSchedule);
 
             dto.setEstimatedEndTime(estimatedEndTime);
             dto.setFormattedEstimatedEndTime(formatDateTime(estimatedEndTime));
@@ -439,8 +423,7 @@ public class SessionService {
         dto.setFormattedBreakTime(formatMinutes(breakMinutes));
 
         // Calculate recommended end time
-        CalculateRecommendedEndTimeQuery endTimeQuery = calculationFactory.createCalculateRecommendedEndTimeQuery(entry, userSchedule);
-        LocalDateTime recommendedEndTime = calculationService.executeQuery(endTimeQuery);
+        LocalDateTime recommendedEndTime = calculationService.calculateRecommendedEndTime(entry, userSchedule);
 
         dto.setRecommendedEndTime(recommendedEndTime);
         dto.setFormattedRecommendedEndTime(formatTime(recommendedEndTime));

@@ -3,7 +3,6 @@ package com.ctgraphdep.session.query;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import lombok.Getter;
 
 import java.time.LocalDate;

@@ -23,6 +23,8 @@ const TimeManagementCore = {
      * Initialize the complete time management system
      */
     initialize() {
+        console.log('🔍 DEBUG: Current URL when page loads:', window.location.href);
+        console.log('🔍 DEBUG: URL parameters:', new URLSearchParams(window.location.search).toString());
         // Prevent multiple initializations
         if (this.state.isInitialized) {
             console.warn('Time Management already initialized, skipping...');
@@ -53,6 +55,19 @@ const TimeManagementCore = {
         this.logInitializationPerformance();
 
         console.log('✅ Time Management System fully initialized');
+
+        // Add this to the end of TimeManagementCore.initialize()
+        const savedScrollPosition = sessionStorage.getItem('timeManagementScrollPosition');
+        if (savedScrollPosition) {
+            const scrollY = parseInt(savedScrollPosition);
+            console.log('📜 Restoring scroll position:', scrollY);
+
+            // Wait for page to fully load, then scroll
+            setTimeout(() => {
+                window.scrollTo(0, scrollY);
+                sessionStorage.removeItem('timeManagementScrollPosition');
+            }, 100);
+        }
     },
 
     /**
@@ -139,10 +154,12 @@ const TimeManagementCore = {
                 const message = successAlert.textContent.trim();
                 window.showToast('Success', message, 'success');
             }
-
+            window.addEventListener('beforeunload', function(e) {
+                console.log('🔍 DEBUG: Page is being unloaded/refreshed. Current URL:', window.location.href);
+            });
             setTimeout(() => {
                 console.log('🔄 Auto-refreshing page after successful operation...');
-                window.location.href = window.location.pathname;
+                window.location.reload();
             }, 3000); // 3 second delay
         }
 
@@ -403,6 +420,7 @@ const TimeManagementCore = {
      * @returns {Object} Debug information
      */
     getDebugInfo() {
+
         return {
             system: this.getSystemStatus(),
             modules: {
@@ -414,6 +432,7 @@ const TimeManagementCore = {
                 TimeOffManagementModule: !!window.TimeOffManagementModule,
                 PeriodNavigationModule: !!window.PeriodNavigationModule
             },
+
             editing: window.InlineEditingModule?.getCurrentState() || null,
             url: window.location.href,
             userAgent: navigator.userAgent,

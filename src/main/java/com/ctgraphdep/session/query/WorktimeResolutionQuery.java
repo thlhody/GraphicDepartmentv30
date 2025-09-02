@@ -10,6 +10,7 @@ import java.util.List;
 
 // Query that checks for unresolved worktime entries based solely on the worktime file.
 public class WorktimeResolutionQuery implements SessionQuery<WorktimeResolutionQuery.ResolutionStatus> {
+
     private final String username;
 
     public WorktimeResolutionQuery(String username) {

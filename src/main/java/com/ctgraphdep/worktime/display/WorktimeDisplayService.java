@@ -14,7 +14,7 @@ import com.ctgraphdep.service.cache.WorktimeCacheService;
 import com.ctgraphdep.worktime.service.WorktimeOperationService;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.utils.WorkTimeEntryUtil;
+import com.ctgraphdep.worktime.util.WorkTimeEntryUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;

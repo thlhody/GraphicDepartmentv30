@@ -49,12 +49,16 @@ public class WorkCode {
     public static final Integer ON_FOR_TWELVE_HOURS = twelve_hours;   // Auto-timer set for 12 hours
     public static final Integer ON_FOR_TEN_SECONDS = 10000; // 10 seconds in milliseconds
 
-
     public static Integer MAX_TEMP_STOP_HOURS = 15;                 // 24 - MAX_WORK_HOURS
 
     // Constants for timing start notice
     public static final int WORK_START_HOUR = 5;  // 5:00 AM
     public static final int WORK_END_HOUR = 17;   // 5:00 PM
+
+    // Constants for default end/start worktime
+    public static final int DEFAULT_START_HOUR = 9;
+    public static final int DEFAULT_END_HOUR = 17;
+    public static final int DEFAULT_ZERO = 0;
 
     //date format
     public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");

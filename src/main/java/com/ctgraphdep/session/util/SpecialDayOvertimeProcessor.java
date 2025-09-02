@@ -102,31 +102,4 @@ public class SpecialDayOvertimeProcessor {
         LoggerUtil.debug(SpecialDayOvertimeProcessor.class, String.format("Set timeOffType to: %s", expectedTimeOffCode));
     }
 
-    // Check if a DayType requires special overtime processing
-    public static boolean requiresSpecialProcessing(DayType dayType) {
-        return dayType != null && dayType.requiresSpecialOvertimeLogic();
-    }
-
-    // Calculate discarded minutes for special days (partial hours not counted)
-    public static int calculateDiscardedMinutes(int totalMinutes, DayType dayType) {
-        if (!requiresSpecialProcessing(dayType)) {
-            return 0; // Regular days don't discard partial hours
-        }
-
-        return totalMinutes % 60; // Minutes that don't make a full hour
-    }
-
-    // Get display format for frontend (e.g., "SN3", "CO4", "W2")
-    public static String getDisplayFormat(WorkTimeTable entry) {
-        if (entry == null || entry.getTimeOffType() == null || entry.getTotalOvertimeMinutes() == null) {
-            return null;
-        }
-
-        if (entry.getTotalOvertimeMinutes() <= 0) {
-            return entry.getTimeOffType(); // Just "SN", "CO", etc.
-        }
-
-        int overtimeHours = entry.getTotalOvertimeMinutes() / 60;
-        return entry.getTimeOffType() + overtimeHours; // "SN3", "CO4", etc.
-    }
 }

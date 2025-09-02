@@ -57,9 +57,9 @@ public class WorktimeEntityBuilder {
         entry.setTotalWorkedMinutes(totalMinutes);
         entry.setLunchBreakDeducted(hours > WorkCode.INTERVAL_HOURS_A && hours < WorkCode.INTERVAL_HOURS_B);
         entry.setTimeOffType(null);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalOvertimeMinutes(WorkCode.DEFAULT_ZERO);
 
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Created admin work hours entry for user %d on %s: %d hours", userId, date, hours));
 
@@ -86,8 +86,8 @@ public class WorktimeEntityBuilder {
 
     // Remove temporary stop (reset to 0)
     public static WorkTimeTable removeTemporaryStop(WorkTimeTable entry, Integer userSchedule) {
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
 
         // Recalculate work time if both start and end times exist
         recalculateWorkTime(entry, userSchedule);
@@ -110,14 +110,14 @@ public class WorktimeEntityBuilder {
         entry.setTimeOffType(timeOffType);
 
         // Calculate start and end times based on work hours
-        LocalDateTime startTime = date.atTime(8, 0); // Default 08:00 start
+        LocalDateTime startTime = date.atTime(8, WorkCode.DEFAULT_ZERO); // Default 08:00 start
         int totalMinutes = (int) Math.round(workHours * 60);
         LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
 
         entry.setDayStartTime(startTime);
         entry.setDayEndTime(endTime);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
 
         // Apply special day calculation logic
         applySpecialDayWorkTimeCalculation(entry, timeOffType);
@@ -137,7 +137,7 @@ public class WorktimeEntityBuilder {
         entry.setTimeOffType(timeOffType);
 
         // Calculate new work times
-        LocalDateTime startTime = entry.getWorkDate().atTime(8, 0); // Default 08:00 start
+        LocalDateTime startTime = entry.getWorkDate().atTime(8, WorkCode.DEFAULT_ZERO); // Default 08:00 start
         int totalMinutes = (int) Math.round(workHours * 60);
         LocalDateTime endTime = startTime.plusMinutes(totalMinutes);
 
@@ -145,8 +145,8 @@ public class WorktimeEntityBuilder {
         entry.setDayEndTime(endTime);
 
         // Clear any existing temporary stops (fresh calculation)
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
 
         // Apply special day calculation logic
         applySpecialDayWorkTimeCalculation(entry, timeOffType);
@@ -160,7 +160,10 @@ public class WorktimeEntityBuilder {
     // Apply special day work time calculation
     private static void applySpecialDayWorkTimeCalculation(WorkTimeTable entry, String timeOffType) {
         if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
-            LoggerUtil.warn(WorktimeEntityBuilder.class, "Cannot calculate special day work time: missing start or end time");
+            LoggerUtil.info(WorktimeEntityBuilder.class, "Cannot calculate special day work time: missing start or end time");
+            entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
+            entry.setTotalOvertimeMinutes(WorkCode.DEFAULT_ZERO);
+            entry.setLunchBreakDeducted(false);
             return;
         }
 
@@ -169,11 +172,11 @@ public class WorktimeEntityBuilder {
         int totalElapsedMinutes = (int) elapsed.toMinutes();
 
         // Apply temp stop deduction (should be 0 for fresh admin entries)
-        int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ? entry.getTotalTemporaryStopMinutes() : 0;
-        int netWorkMinutes = Math.max(0, totalElapsedMinutes - tempStopMinutes);
+        int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ? entry.getTotalTemporaryStopMinutes() : WorkCode.DEFAULT_ZERO;
+        int netWorkMinutes = Math.max(WorkCode.DEFAULT_ZERO, totalElapsedMinutes - tempStopMinutes);
 
         // Special day business rules: All work becomes overtime, full hours only
-        entry.setTotalWorkedMinutes(0);  // No regular work on special days
+        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);  // No regular work on special days
         entry.setLunchBreakDeducted(false);  // No lunch break on special days
 
         // Convert to full hours only (discard partial hours)
@@ -217,10 +220,10 @@ public class WorktimeEntityBuilder {
     private static void resetWorkFields(WorkTimeTable entry) {
         entry.setDayStartTime(null);
         entry.setDayEndTime(null);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
+        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalOvertimeMinutes(WorkCode.DEFAULT_ZERO);
         entry.setLunchBreakDeducted(false);
     }
 
@@ -230,10 +233,10 @@ public class WorktimeEntityBuilder {
         entry.setDayStartTime(null);
         entry.setDayEndTime(null);
         entry.setTimeOffType(null);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalOvertimeMinutes(WorkCode.DEFAULT_ZERO);
         entry.setLunchBreakDeducted(false);
     }
 
@@ -247,10 +250,10 @@ public class WorktimeEntityBuilder {
         entry.setDayStartTime(null);
         entry.setDayEndTime(null);
         entry.setTimeOffType(null);
-        entry.setTemporaryStopCount(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalOvertimeMinutes(WorkCode.DEFAULT_ZERO);
         entry.setLunchBreakDeducted(false);
 
         return entry;
@@ -280,11 +283,11 @@ public class WorktimeEntityBuilder {
     private static void recalculateSNWorkTime(WorkTimeTable entry, int totalElapsedMinutes) {
         // Account for temporary stops
         int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ?
-                entry.getTotalTemporaryStopMinutes() : 0;
-        int netWorkMinutes = Math.max(0, totalElapsedMinutes - tempStopMinutes);
+                entry.getTotalTemporaryStopMinutes() : WorkCode.DEFAULT_ZERO;
+        int netWorkMinutes = Math.max(WorkCode.DEFAULT_ZERO, totalElapsedMinutes - tempStopMinutes);
 
         // SN business rules:
-        entry.setTotalWorkedMinutes(0);  // No regular work on holidays
+        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);  // No regular work on holidays
         entry.setLunchBreakDeducted(false);  // No lunch break on holidays
 
         // Convert to full hours only (discard partial hours)
@@ -301,8 +304,8 @@ public class WorktimeEntityBuilder {
     private static void recalculateRegularWorkTime(WorkTimeTable entry, int totalElapsedMinutes, int userScheduleHours) {
         // 1. Calculate net work minutes (elapsed - temp stops)
         int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ?
-                entry.getTotalTemporaryStopMinutes() : 0;
-        int netWorkMinutes = Math.max(0, totalElapsedMinutes - tempStopMinutes);
+                entry.getTotalTemporaryStopMinutes() : WorkCode.DEFAULT_ZERO;
+        int netWorkMinutes = Math.max(WorkCode.DEFAULT_ZERO, totalElapsedMinutes - tempStopMinutes);
 
         // 2. USE PROVEN CALCULATION LOGIC from CalculateWorkHoursUtil
         WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(netWorkMinutes, userScheduleHours);

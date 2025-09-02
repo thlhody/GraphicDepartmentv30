@@ -19,7 +19,7 @@ public class ActivateHourlyMonitoringCommand extends BaseNotificationCommand<Boo
         return executeWithErrorHandling(context, ctx -> {
             info(String.format("Activating hourly monitoring for user %s", username));
 
-            // IMPROVEMENT: Verify session state before activating hourly monitoring
+            // Verify session state before activating hourly monitoring
             boolean canActivate = validateSessionState(ctx);
             if (!canActivate) {
                 warn(String.format("Cannot activate hourly monitoring for user %s - invalid session state", username));

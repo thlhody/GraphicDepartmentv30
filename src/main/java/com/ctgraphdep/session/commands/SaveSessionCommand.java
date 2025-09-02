@@ -17,7 +17,6 @@ public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStat
     @Override
     public WorkUsersSessionsStates execute(SessionContext context) {
         return executeWithErrorHandling(context, ctx -> {
-            String username = session.getUsername();
 
             if (session.getLastActivity() == null) {
                 session.setLastActivity(getStandardCurrentTime(context));

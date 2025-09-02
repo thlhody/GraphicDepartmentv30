@@ -29,11 +29,9 @@ public class UnresolvedWorkTimeQuery implements SessionQuery<List<WorkTimeTable>
     @Override
     public List<WorkTimeTable> execute(SessionContext context) {
         try {
-            // Get standardized time values using the new validation system
-            GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-            GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
 
-            LocalDate currentDate = timeValues.getCurrentDate();
+
+            LocalDate currentDate = context.getCurrentStandardDate();
             LocalDate previousMonth = currentDate.minusMonths(1);
 
             List<WorkTimeTable> unresolvedEntries = new ArrayList<>();

@@ -403,12 +403,16 @@ public class UserTimeManagementController extends BaseController {
     private String getRedirectUrl(String startDate) {
         try {
             LocalDate date = LocalDate.parse(startDate);
-            return String.format("redirect:/user/time-management?year=%d&month=%d", date.getYear(), date.getMonthValue());
+            return String.format("redirect:/user/time-management?year=%d&month=%d",
+                    date.getYear(), date.getMonthValue());
         } catch (Exception e) {
-            return "redirect:/user/time-management";
+            // IMPROVED: Try to preserve current URL parameters instead of losing them
+            LoggerUtil.warn(this.getClass(), "Failed to parse startDate: " + startDate + ", using current month");
+            LocalDate now = getStandardCurrentDate();
+            return String.format("redirect:/user/time-management?year=%d&month=%d",
+                    now.getYear(), now.getMonthValue());
         }
     }
-
     /**
      * Create error response helper
      */

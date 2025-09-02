@@ -1,8 +1,5 @@
 package com.ctgraphdep.session;
 
-import com.ctgraphdep.calculations.CalculationCommandFactory;
-import com.ctgraphdep.calculations.CalculationContext;
-import com.ctgraphdep.calculations.CalculationCommandService;
 import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
@@ -16,6 +13,7 @@ import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
@@ -25,6 +23,7 @@ import org.springframework.context.annotation.Lazy;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -46,22 +45,16 @@ public class SessionContext {
 
     @Autowired
     private SessionCacheService sessionCacheService;
+    @Autowired
+    private CalculationService calculationService;
     private final WorktimeOperationContext worktimeOperationContext;
-    // Calculation dependencies
-    private final CalculationCommandFactory calculationFactory;
-    private final CalculationContext calculationContext;
-    private final CalculationCommandService calculationService;
 
     // Constructor with dependency injection
     public SessionContext(
-            UserService userService, MainDefaultUserContextService mainDefaultUserContextService,
-            SessionStatusService sessionStatusService,
+            UserService userService, MainDefaultUserContextService mainDefaultUserContextService, SessionStatusService sessionStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
-            FolderStatus folderStatus,
-            SessionCommandFactory commandFactory,
-            TimeValidationService validationService,
-            NotificationService notificationService,
-            SessionService sessionService,
+            FolderStatus folderStatus, SessionCommandFactory commandFactory, TimeValidationService validationService,
+            NotificationService notificationService, SessionService sessionService,
             SessionDataService sessionDataService, DataAccessService dataAccessService, WorktimeOperationContext worktimeOperationContext) {
 
         this.userService = userService;
@@ -76,11 +69,6 @@ public class SessionContext {
         this.sessionDataService = sessionDataService;
         this.dataAccessService = dataAccessService;
         this.worktimeOperationContext = worktimeOperationContext;
-
-        // Initialize calculation components
-        this.calculationFactory = new CalculationCommandFactory();
-        this.calculationContext = new CalculationContext(this, calculationFactory);
-        this.calculationService = new CalculationCommandService(calculationContext);
     }
 
     // Execute command
@@ -98,19 +86,13 @@ public class SessionContext {
         return sessionCacheService.readSessionWithFallback(username, userId);
     }
 
-    // Fixed Session worktime adapter methods using accessor pattern
-
-    /**
-     * Load session worktime using data accessor pattern
-     */
+    // Load session worktime using data accessor pattern
     public List<WorkTimeTable> loadSessionWorktime(String username, int year, int month) {
         WorktimeDataAccessor accessor = worktimeOperationContext.getDataAccessor(username);
         return accessor.readWorktime(username, year, month);
     }
 
-    /**
-     * Save session worktime using data accessor pattern
-     */
+    // Save session worktime using data accessor pattern
     public void saveSessionWorktime(String username, WorkTimeTable entry, int year, int month) {
         WorktimeDataAccessor accessor = worktimeOperationContext.getDataAccessor(username);
 
@@ -133,9 +115,7 @@ public class SessionContext {
         }
     }
 
-    /**
-     * Find session entry using data accessor pattern
-     */
+    // Find session entry using data accessor pattern
     public WorkTimeTable findSessionEntry(String username, Integer userId, LocalDate date) {
         int year = date.getYear();
         int month = date.getMonthValue();
@@ -155,9 +135,7 @@ public class SessionContext {
     // UTILITY METHODS - Implement the missing logic directly
     // ========================================================================
 
-    /**
-     * Add or replace entry in list by date and user ID
-     */
+    // Add or replace entry in list by date and user ID
     private void addOrReplaceEntry(List<WorkTimeTable> entries, WorkTimeTable newEntry) {
         // Remove existing entry for same date and user
         entries.removeIf(entry ->
@@ -173,9 +151,7 @@ public class SessionContext {
                 .thenComparing(WorkTimeTable::getUserId));
     }
 
-    /**
-     * Find entry in list by date and user ID
-     */
+    // Find entry in list by date and user ID
     private WorkTimeTable findEntryByDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
         return entries.stream()
                 .filter(entry -> userId.equals(entry.getUserId()) && date.equals(entry.getWorkDate()))
@@ -204,47 +180,122 @@ public class SessionContext {
 
     // Calculate work time using CalculationService
     public WorkTimeCalculationResultDTO calculateWorkTime(int minutes, int schedule) {
-        var query = calculationFactory.createCalculateWorkTimeQuery(minutes, schedule);
-        return calculationService.executeQuery(query);
+        return calculationService.calculateWorkTime(minutes, schedule);
     }
 
     // Update session calculations using CalculationService
     public WorkUsersSessionsStates updateSessionCalculations(WorkUsersSessionsStates session, LocalDateTime currentTime, int userSchedule) {
-        var command = calculationFactory.createSessionCalculationRouterCommand(session, currentTime, userSchedule);
-        return calculationService.executeCommand(command);
+        return calculationService.updateSessionCalculations(session, currentTime, userSchedule);
     }
 
     public int calculateRawWorkMinutesForEntry(WorkTimeTable entry, LocalDateTime endTime){
-        var query = calculationFactory.createCalculateRawWorkMinutesForEntryQuery(entry, endTime);
-        return calculationService.executeQuery(query);
+        return calculationService.calculateRawWorkMinutesForEntry(entry, endTime);
     }
 
     // Calculate total temporary stop minutes using CalculationService
     public int calculateTotalTempStopMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        var query = calculationFactory.createCalculateTotalTempStopMinutesQuery(session, currentTime);
-        return calculationService.executeQuery(query);
+        return calculationService.calculateTotalTempStopMinutes(session, currentTime);
     }
 
     // Add break as temporary stop using CalculationService
     public void addBreakAsTempStop(WorkUsersSessionsStates session, LocalDateTime startTime, LocalDateTime endTime) {
-        var command = calculationFactory.createAddBreakAsTempStopCommand(session, startTime, endTime);
-        calculationService.executeCommand(command);
+        calculationService.addBreakAsTempStop(session, startTime, endTime);
+
     }
 
     // Process resuming from temporary stop using CalculationService
     public void processResumeFromTempStop(WorkUsersSessionsStates session, LocalDateTime resumeTime) {
-        var command = calculationFactory.createProcessResumeFromTempStopCommand(session, resumeTime);
-        calculationService.executeCommand(command);
+        calculationService.processResumeFromTempStop(session, resumeTime);
     }
 
     // Calculate end day values using CalculationService
-    public WorkUsersSessionsStates calculateEndDayValues(WorkUsersSessionsStates session, LocalDateTime endTime, Integer finalMinutes) {
-        var command = calculationFactory.createCalculateEndDayValuesCommand(session, endTime, finalMinutes);
-        return calculationService.executeCommand(command);
+    public WorkUsersSessionsStates calculateEndDayValues(WorkUsersSessionsStates session, LocalDateTime endTime, Integer finalMinutes, int userSchedule) {
+        return calculationService.calculateEndDayValues(session, endTime, finalMinutes, userSchedule);
+
+    }
+
+    // Calculate raw work minutes for session using CalculationService
+    public int calculateRawWorkMinutes(WorkUsersSessionsStates session, LocalDateTime endTime) {
+        return calculationService.calculateRawWorkMinutes(session, endTime);
     }
 
     public WorkUsersSessionsStates processTemporaryStop(WorkUsersSessionsStates session, LocalDateTime stopTime) {
-        var command = calculationFactory.createProcessTemporaryStopCommand(session, stopTime);
-        return calculationService.executeCommand(command);
+        return calculationService.processTemporaryStop(session, stopTime);
+    }
+
+    /**
+     * Check if a date is a weekend (Saturday or Sunday).
+     * Delegates to CalculationService for consistency with the service layer pattern.
+     */
+    public boolean isWeekend(LocalDate date) {
+        return calculationService.isWeekend(date);
+    }
+
+    /**
+     * Normalizes schedule hours (defaults to 8 if invalid).
+     * Delegates to CalculationService for centralized schedule validation.
+     */
+    public int normalizeSchedule(Integer schedule) {
+        return calculationService.normalizeSchedule(schedule);
+    }
+
+    /**
+     * Calculates the full day duration in minutes, accounting for lunch break.
+     * Delegates to CalculationService for centralized schedule calculations.
+     */
+    public int calculateFullDayDuration(int schedule) {
+        return calculationService.calculateFullDayDuration(schedule);
+    }
+
+    /**
+     * Calculates the expected end time based on schedule and weekend status.
+     * Delegates to CalculationService for centralized time calculations.
+     */
+    public LocalTime calculateExpectedEndTime(int schedule, boolean isWeekend) {
+        return calculationService.calculateExpectedEndTime(schedule, isWeekend);
+    }
+
+    /**
+     * Checks if a schedule includes a lunch break.
+     * Delegates to CalculationService for centralized lunch break logic.
+     */
+    public boolean includesLunchBreak(int schedule) {
+        return calculationService.includesLunchBreak(schedule);
+    }
+
+    // ========================================================================
+// TIME AND DATE CONVENIENCE METHODS
+// ========================================================================
+
+    /**
+     * Gets the current standardized date using the validation service.
+     * Convenience method to avoid repetitive validation service calls throughout the codebase.
+     */
+    public LocalDate getCurrentStandardDate() {
+        try {
+            GetStandardTimeValuesCommand timeCommand = validationService.getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+            return timeValues.getCurrentDate();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting current standard date: " + e.getMessage(), e);
+            // Fallback to system date if validation service fails
+            return LocalDate.now();
+        }
+    }
+
+    /**
+     * Gets the current standardized time using the validation service.
+     * Convenience method to avoid repetitive validation service calls throughout the codebase.
+     */
+    public LocalDateTime getCurrentStandardTime() {
+        try {
+            GetStandardTimeValuesCommand timeCommand = validationService.getValidationFactory().createGetStandardTimeValuesCommand();
+            GetStandardTimeValuesCommand.StandardTimeValues timeValues = validationService.execute(timeCommand);
+            return timeValues.getCurrentTime();
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting current standard time: " + e.getMessage(), e);
+            // Fallback to system time if validation service fails
+            return LocalDateTime.now();
+        }
     }
 }

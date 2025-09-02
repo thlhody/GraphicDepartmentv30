@@ -1,14 +1,12 @@
 package com.ctgraphdep.notification.service;
 
-import com.ctgraphdep.calculations.CalculationCommandFactory;
-import com.ctgraphdep.calculations.CalculationCommandService;
-import com.ctgraphdep.calculations.queries.CalculateMinutesBetweenQuery;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
+import com.ctgraphdep.service.CalculationService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.cache.SessionCacheService;
@@ -23,6 +21,7 @@ import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.validation.commands.IsWeekdayCommand;
 import com.ctgraphdep.validation.commands.IsWorkingHoursCommand;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -38,10 +37,10 @@ import java.util.List;
 @Service
 public class NotificationCheckerService {
 
+    @Autowired
+    private CalculationService calculationService;
     private final NotificationService notificationService;
     private final NotificationMonitorService monitorService;
-    private final CalculationCommandService calculationService;
-    private final CalculationCommandFactory calculationFactory;
     private final SessionCommandService sessionCommandService;
     private final SessionCommandFactory sessionCommandFactory;
     private final TimeValidationService timeValidationService;
@@ -55,20 +54,14 @@ public class NotificationCheckerService {
     private volatile boolean isInitialized = false;
 
     public NotificationCheckerService(
-            NotificationService notificationService,
-            NotificationMonitorService monitorService,
-            CalculationCommandService calculationService,
-            CalculationCommandFactory calculationFactory,
-            @Lazy SessionCommandService sessionCommandService,
-            @Lazy SessionCommandFactory sessionCommandFactory,
-            TimeValidationService timeValidationService,
-            SchedulerHealthMonitor healthMonitor,
-            SessionCacheService sessionCacheService, MainDefaultUserContextService mainDefaultUserContextService, UserService userService, SessionDataService sessionDataService) {
+            NotificationService notificationService, NotificationMonitorService monitorService,
+            @Lazy SessionCommandService sessionCommandService, @Lazy SessionCommandFactory sessionCommandFactory,
+            TimeValidationService timeValidationService, SchedulerHealthMonitor healthMonitor,
+            SessionCacheService sessionCacheService, MainDefaultUserContextService mainDefaultUserContextService,
+            UserService userService, SessionDataService sessionDataService) {
 
         this.notificationService = notificationService;
         this.monitorService = monitorService;
-        this.calculationService = calculationService;
-        this.calculationFactory = calculationFactory;
         this.sessionCommandService = sessionCommandService;
         this.sessionCommandFactory = sessionCommandFactory;
         this.timeValidationService = timeValidationService;
@@ -373,8 +366,7 @@ public class NotificationCheckerService {
 
         try {
             // Calculate temporary stop duration
-            CalculateMinutesBetweenQuery minutesQuery = calculationFactory.createCalculateMinutesBetweenQuery(tempStopStart, getStandardCurrentTime());
-            int minutesSinceTempStop = calculationService.executeQuery(minutesQuery);
+            int minutesSinceTempStop = calculationService.calculateMinutesBetween(tempStopStart, getStandardCurrentTime());
 
             // Check if temporary stop notification should be shown
             if (monitorService.isTempStopNotificationDue(username, minutesSinceTempStop, getStandardCurrentTime())) {

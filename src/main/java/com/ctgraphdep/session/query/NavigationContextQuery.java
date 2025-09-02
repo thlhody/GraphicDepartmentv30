@@ -5,7 +5,6 @@ import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.session.NavigationContext;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.session.config.CommandConstants;
 
 // Query to determine navigation context for user session page
 public class NavigationContextQuery implements SessionQuery<NavigationContext> {
@@ -28,7 +27,7 @@ public class NavigationContextQuery implements SessionQuery<NavigationContext> {
         boolean isTeamLeaderView = false;
 
         // Normalize the role by removing any ROLE_ prefix
-        String normalizedRole = user.getRole().replace("ROLE_", "");
+        String normalizedRole = user.getRole().replace(SecurityConstants.ROLE_ROLE, "");
 
         // Set dashboard URL and team leader flag based on role
         switch (normalizedRole) {

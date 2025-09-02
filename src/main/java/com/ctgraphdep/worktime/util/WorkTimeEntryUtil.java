@@ -1,14 +1,12 @@
-package com.ctgraphdep.utils;
+package com.ctgraphdep.worktime.util;
 
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
+import com.ctgraphdep.utils.LoggerUtil;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Utility class for common WorkTimeTable operations.

@@ -13,6 +13,7 @@ public final class SecurityConstants {
     public static final String ROLE_USER = "USER";
     public static final String ROLE_CHECKING = "CHECKING";
     public static final String ROLE_USER_CHECKING = "USER_CHECKING";
+    public static final String ROLE_ROLE = "ROLE_";
 
     // Full role names with ROLE_ prefix (as stored in Spring Security)
     public static final String SPRING_ROLE_ADMIN = "ROLE_ADMIN";

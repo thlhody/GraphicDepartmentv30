@@ -67,11 +67,6 @@ public class SessionCommandFactory {
     // Work Session Calculations Commands
     //========
 
-    // Creates a command to update session calculations (with file write)
-    public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCommand(WorkUsersSessionsStates session, LocalDateTime explicitEndTime) {
-        return new UpdateSessionCalculationsCommand(session, explicitEndTime, false); // File write mode
-    }
-
     // Creates a command to update session calculations in cache only (no file write)
 
     public UpdateSessionCalculationsCommand createUpdateSessionCalculationsCacheOnlyCommand(WorkUsersSessionsStates session, LocalDateTime explicitEndTime) {
@@ -104,11 +99,6 @@ public class SessionCommandFactory {
     // Creates a command to track notification display
     public TrackNotificationDisplayCommand createTrackNotificationDisplayCommand(String username, Integer userId, boolean isTempStop) {
         return new TrackNotificationDisplayCommand(username, userId, isTempStop);
-    }
-
-    // Creates a command to activate hourly monitoring for a user
-    public ActivateHourlyMonitoringCommand createActivateHourlyMonitoringCommand(String username) {
-        return new ActivateHourlyMonitoringCommand(username);
     }
 
     //========

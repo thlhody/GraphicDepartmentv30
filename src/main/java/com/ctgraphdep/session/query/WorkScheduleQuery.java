@@ -3,12 +3,10 @@ package com.ctgraphdep.session.query;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
+import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import lombok.Getter;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -30,100 +28,45 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             // Get standardized time values if date is null
             LocalDate dateToUse = date;
             if (dateToUse == null) {
-                // Get standardized time values using the new validation system
-                GetStandardTimeValuesCommand timeCommand = context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand();
-                GetStandardTimeValuesCommand.StandardTimeValues timeValues = context.getValidationService().execute(timeCommand);
-                dateToUse = timeValues.getCurrentDate();
+                dateToUse = context.getCurrentStandardDate();
             }
 
-            // Calculate if it's a weekend
-            boolean isWeekend = isWeekend(dateToUse);
+            boolean isWeekend = context.isWeekend(dateToUse);
 
             // Normalize schedule (if null or invalid, default to 8 hours)
-            int normalizedSchedule = normalizeSchedule(userSchedule);
+            int normalizedSchedule = context.normalizeSchedule(userSchedule);
 
             // Calculate schedule durations
             int scheduledMinutes = normalizedSchedule * WorkCode.HOUR_DURATION;
-            int fullDayDuration = calculateFullDayDuration(normalizedSchedule);
+            int fullDayDuration = context.calculateFullDayDuration(normalizedSchedule);
 
             // Calculate expected end time
-            LocalTime expectedEndTime = calculateExpectedEndTime(normalizedSchedule, isWeekend);
+            LocalTime expectedEndTime = context.calculateExpectedEndTime(normalizedSchedule, isWeekend);
 
             // Calculate lunch break info
-            boolean includesLunchBreak = includesLunchBreak(normalizedSchedule);
-            int lunchBreakDuration = includesLunchBreak ? WorkCode.HALF_HOUR_DURATION : 0;
+            boolean includesLunchBreak = context.includesLunchBreak(normalizedSchedule);
+            int lunchBreakDuration = includesLunchBreak ? WorkCode.HALF_HOUR_DURATION : WorkCode.DEFAULT_ZERO;
 
-            return new ScheduleInfo(
-                    dateToUse,
-                    isWeekend,
-                    normalizedSchedule,
-                    scheduledMinutes,
-                    fullDayDuration,
-                    expectedEndTime,
-                    includesLunchBreak,
-                    lunchBreakDuration
-            );
+            // Pass SessionContext to ScheduleInfo for proper calculation service access
+            return new ScheduleInfo(dateToUse, isWeekend, normalizedSchedule,
+                    scheduledMinutes, fullDayDuration, expectedEndTime,
+                    includesLunchBreak, lunchBreakDuration, context);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error in WorkScheduleQuery: " + e.getMessage(), e);
             // Return default values as fallback
             return new ScheduleInfo(
-                    date != null ? date : context.getValidationService().getValidationFactory().createGetStandardTimeValuesCommand().execute().getCurrentDate(), // now
+                    date != null ? date : context.getCurrentStandardDate(),
                     false,
                     WorkCode.INTERVAL_HOURS_C,
                     WorkCode.INTERVAL_HOURS_C * WorkCode.HOUR_DURATION,
                     (WorkCode.INTERVAL_HOURS_C * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION,
-                    LocalTime.of(17, 0),
+                    LocalTime.of(WorkCode.DEFAULT_END_HOUR, WorkCode.DEFAULT_ZERO),
                     true,
-                    WorkCode.HALF_HOUR_DURATION
+                    WorkCode.HALF_HOUR_DURATION,
+                    context
             );
         }
-    }
-
-    // Checks if a date is a weekend (Saturday or Sunday)
-    private boolean isWeekend(LocalDate date) {
-        DayOfWeek day = date.getDayOfWeek();
-        return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
-    }
-
-    // Normalizes schedule hours (defaults to 8 if invalid)
-    private int normalizeSchedule(Integer schedule) {
-        if (schedule == null || schedule <= 0) {
-            return WorkCode.INTERVAL_HOURS_C; // Default to 8 hours
-        }
-        return schedule;
-    }
-
-    // Calculates the full day duration in minutes, accounting for lunch break
-    private int calculateFullDayDuration(int schedule) {
-        // For 8-hour schedule: 8.5 hours (510 minutes)
-        // For others: schedule hours + lunch break if applicable
-        if (schedule == WorkCode.INTERVAL_HOURS_C) {
-            return (schedule * WorkCode.HOUR_DURATION) + WorkCode.HALF_HOUR_DURATION;
-        } else {
-            return schedule * WorkCode.HOUR_DURATION;
-        }
-    }
-
-    // Calculates the expected end time based on schedule
-    private LocalTime calculateExpectedEndTime(int schedule, boolean isWeekend) {
-        // Weekend special case (end at 1 PM)
-        if (isWeekend) {
-            return LocalTime.of(13, 0);
-        }
-
-        // For 8-hour schedule, default end time is 17:00 (5 PM)
-        if (schedule == WorkCode.INTERVAL_HOURS_C) {
-            return LocalTime.of(17, 0);
-        }
-
-        // For custom schedules, assume start at 9 and add schedule hours
-        return LocalTime.of(9 + schedule, 0);
-    }
-
-    // Checks if a schedule includes a lunch break
-    private boolean includesLunchBreak(int schedule) {
-        return schedule == WorkCode.INTERVAL_HOURS_C;
     }
 
     //Value class to hold schedule information
@@ -137,9 +80,10 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
         private final LocalTime expectedEndTime;
         private final boolean includesLunchBreak;
         private final int lunchBreakDuration;
+        private final SessionContext context;
 
-        public ScheduleInfo(LocalDate date, boolean isWeekend, int scheduleHours, int scheduledMinutes,
-                int fullDayDuration, LocalTime expectedEndTime, boolean includesLunchBreak, int lunchBreakDuration) {
+        public ScheduleInfo(LocalDate date, boolean isWeekend, int scheduleHours, int scheduledMinutes, int fullDayDuration, LocalTime expectedEndTime,
+                            boolean includesLunchBreak, int lunchBreakDuration, SessionContext context) {
             this.date = date;
             this.isWeekend = isWeekend;
             this.scheduleHours = scheduleHours;
@@ -148,6 +92,7 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             this.expectedEndTime = expectedEndTime;
             this.includesLunchBreak = includesLunchBreak;
             this.lunchBreakDuration = lunchBreakDuration;
+            this.context = context; // Store context for calculations
         }
 
         // Checks if a specific time meets or exceeds the scheduled duration
@@ -155,9 +100,16 @@ public class WorkScheduleQuery implements SessionQuery<WorkScheduleQuery.Schedul
             return workedMinutes >= fullDayDuration;
         }
 
-        // Calculates overtime minutes if any Delegates to CalculateWorkHoursUtil for consistency
+        // Calculate overtime minutes using SessionContext instead of direct utility
         public int calculateOvertimeMinutes(int workedMinutes) {
-            return CalculateWorkHoursUtil.calculateOvertimeMinutes(workedMinutes, scheduleHours);
+            try {
+                // Use SessionContext to access CalculationService properly
+                WorkTimeCalculationResultDTO result = context.calculateWorkTime(workedMinutes, scheduleHours);
+                return result.getOvertimeMinutes();
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error calculating overtime minutes: " + e.getMessage(), e);
+                return WorkCode.DEFAULT_ZERO; // Safe fallback
+            }
         }
     }
 }
