@@ -738,7 +738,7 @@ public class UtilityController extends BaseController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            User currentUser = mainDefaultUserContextService.getCurrentUser();
+            User currentUser = mainDefaultUserContextService.getOriginalUser();
             String currentUsername = mainDefaultUserContextService.getCurrentUsername();
             boolean isHealthy = mainDefaultUserContextService.isCacheHealthy();
             boolean hasRealUser = mainDefaultUserContextService.hasRealUser();

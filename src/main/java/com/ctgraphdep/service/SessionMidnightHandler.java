@@ -19,6 +19,8 @@ import com.ctgraphdep.session.commands.SaveSessionCommand;
 import com.ctgraphdep.session.query.GetLocalUserQuery;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -35,8 +37,11 @@ import java.util.List;
  * 5. Clear session cache for fresh start
  * 6. NEW - Reset daily login count for merge optimization
  */
+
 @Component
 public class SessionMidnightHandler {
+
+    private final SessionRegistry sessionRegistry;
     private final SessionCommandService commandService;
     private final SessionCommandFactory commandFactory;
     private final SchedulerHealthMonitor healthMonitor;
@@ -46,21 +51,17 @@ public class SessionMidnightHandler {
     private final AllUsersCacheService allUsersCacheService;
     private final SessionCacheService sessionCacheService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
-    private final LoginMergeCacheService loginMergeCacheService; // NEW DEPENDENCY
+    private final LoginMergeCacheService loginMergeCacheService;
     private final BackupService backupService;           // For clearSyncedBackupFilesCache()
     private final BackupEventListener backupEventListener;
 
     public SessionMidnightHandler(
-            SessionCommandService commandService,
-            SessionCommandFactory commandFactory,
-            SchedulerHealthMonitor healthMonitor,
-            NotificationService notificationService,
-            NotificationBackupService notificationBackupService,
-            MonitoringStateService monitoringStateService,
-            AllUsersCacheService allUsersCacheService,
-            SessionCacheService sessionCacheService,
-            MainDefaultUserContextService mainDefaultUserContextService,
-            LoginMergeCacheService loginMergeCacheService, BackupService backupService, BackupEventListener backupEventListener) { // NEW PARAMETER
+            SessionRegistry sessionRegistry, SessionCommandService commandService, SessionCommandFactory commandFactory,
+            SchedulerHealthMonitor healthMonitor, NotificationService notificationService, NotificationBackupService notificationBackupService,
+            MonitoringStateService monitoringStateService, AllUsersCacheService allUsersCacheService, SessionCacheService sessionCacheService,
+            MainDefaultUserContextService mainDefaultUserContextService, LoginMergeCacheService loginMergeCacheService, BackupService backupService,
+            BackupEventListener backupEventListener) {
+        this.sessionRegistry = sessionRegistry;
         this.commandService = commandService;
         this.commandFactory = commandFactory;
         this.healthMonitor = healthMonitor;
@@ -76,16 +77,17 @@ public class SessionMidnightHandler {
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-    /**
-     * ENHANCED: The cron expression follows the pattern: second minute hour day-of-month month day-of-week
-     * So 0 59 23 * * * means:
-     * 0 - at the 0th second
-     * 59 - at the 59th minute
-     * 23 - at the 23rd hour (11 PM)
-     * * - any day of the month
-     * * - any month
-     * * - any day of the week
-     */
+/**
+ "0 0 19 * * *"
+  │ │ │  │ │ │
+  │ │ │  │ │ └── day of week (any)
+  │ │ │  │ └──── month (any)
+  │ │ │  └────── day of month (any)
+  │ │ └──────── hour (19 = 7 PM)
+  │ └────────── minute (0)
+  └──────────── second (0)
+ */
+
     @Scheduled(cron = "0 59 23 * * *")
     public void resetLocalUserSession() {
         try {
@@ -151,14 +153,20 @@ public class SessionMidnightHandler {
                 // Don't fail the entire midnight reset for this
             }
 
+            // STEP 9: Invalidate browser sessions for daily reset (preserves Remember Me)
+            try {
+                invalidateAllBrowserSessions();
+                LoggerUtil.info(this.getClass(), "Invalidated all browser sessions - users will need to login tomorrow");
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), "Error invalidating browser sessions: " + e.getMessage());
+                // Don't fail the entire midnight reset for this
+            }
 
-            // STEP 9: Reset notification system
+            // STEP 10: Reset notification system
             resetNotificationSystem(username);
 
-            // STEP 10: Cancel backup task explicitly
+            // STEP 11: Cancel backup task explicitly
             notificationBackupService.cancelBackupTask(username);
-
-
 
             LoggerUtil.info(this.getClass(), "Completed comprehensive midnight reset for user " + username);
             LoggerUtil.info(this.getClass(), loginMergeCacheService.getPerformanceBenefit());
@@ -334,6 +342,54 @@ public class SessionMidnightHandler {
         }
     }
 
+    /**
+     * NEW: Invalidate all active browser sessions at midnight.
+     * This forces users to login again the next day while preserving Remember Me cookies.
+     * Since there's only one user per PC, this effectively logs out the single user.
+     */
+    private void invalidateAllBrowserSessions() {
+        try {
+            // Get all active browser sessions
+            List<Object> allPrincipals = sessionRegistry.getAllPrincipals();
+
+            if (allPrincipals.isEmpty()) {
+                LoggerUtil.info(this.getClass(), "No active browser sessions found to invalidate");
+                return;
+            }
+
+            int invalidatedCount = 0;
+
+            for (Object principal : allPrincipals) {
+                try {
+                    // Get all sessions for this principal (user)
+                    List<SessionInformation> sessions = sessionRegistry.getAllSessions(principal, false);
+
+                    for (SessionInformation sessionInfo : sessions) {
+                        if (!sessionInfo.isExpired()) {
+                            // Expire the session (this invalidates it)
+                            sessionInfo.expireNow();
+                            invalidatedCount++;
+
+                            LoggerUtil.debug(this.getClass(), String.format(
+                                    "Expired browser session: %s for user: %s",
+                                    sessionInfo.getSessionId(), principal.toString()));
+                        }
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.warn(this.getClass(), String.format(
+                            "Error invalidating sessions for principal %s: %s", principal, e.getMessage()));
+                }
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Midnight session invalidation completed: %d sessions expired, Remember Me cookies preserved",
+                    invalidatedCount));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error during browser session invalidation: " + e.getMessage(), e);
+        }
+    }
+
     // Status check method for health monitoring
     public String getMidnightResetStatus() {
         try {
@@ -375,74 +431,4 @@ public class SessionMidnightHandler {
         }
     }
 
-    // ========================================================================
-    // NEW - LOGIN MERGE CACHE MANAGEMENT METHODS
-    // ========================================================================
-
-    /**
-     * NEW: Force full merge on next login (for admin emergency use)
-     * Resets login count to 0, so next login will trigger slow merge
-     */
-    public void forceFullMergeOnNextLogin() {
-        try {
-            String beforeStatus = loginMergeCacheService.getStatus();
-            loginMergeCacheService.forceFullMergeOnNextLogin();
-            String afterStatus = loginMergeCacheService.getStatus();
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Forced full merge on next login: [%s] -> [%s]", beforeStatus, afterStatus));
-            LoggerUtil.info(this.getClass(), "Next login will perform full data merge regardless of time");
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error forcing full merge: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * NEW: Get login optimization status for monitoring
-     * Returns current state of login merge optimization
-     */
-    public String getLoginOptimizationStatus() {
-        try {
-            StringBuilder status = new StringBuilder();
-            status.append("Login Optimization Status:\n");
-            status.append("Current State: ").append(loginMergeCacheService.getStatus()).append("\n");
-            status.append("Performance: ").append(loginMergeCacheService.getPerformanceBenefit()).append("\n");
-            status.append("Ready for First Login: ").append(loginMergeCacheService.isInInitialState() ? "Yes" : "No").append("\n");
-
-            if (!loginMergeCacheService.isInInitialState()) {
-                status.append("Today's Login Strategy: Fast Cache Refresh\n");
-                status.append("Performance Gain: ~70% faster than full merge\n");
-            } else {
-                status.append("Next Login Strategy: Full Merge\n");
-                status.append("Reason: First login of the day or system reset\n");
-            }
-
-            return status.toString();
-
-        } catch (Exception e) {
-            return "Error getting login optimization status: " + e.getMessage();
-        }
-    }
-
-    /**
-     * NEW: Manual trigger for login optimization reset (for testing)
-     * Useful for testing the optimization without waiting for midnight
-     */
-    public void manuallyResetLoginOptimization() {
-        try {
-            LoggerUtil.info(this.getClass(), "Manually resetting login optimization for testing");
-
-            String beforeStatus = loginMergeCacheService.getStatus();
-            loginMergeCacheService.resetDailyLoginCount();
-            String afterStatus = loginMergeCacheService.getStatus();
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Manual login optimization reset: [%s] -> [%s]", beforeStatus, afterStatus));
-            LoggerUtil.info(this.getClass(), "Next login will trigger full merge for testing");
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error during manual login optimization reset: " + e.getMessage(), e);
-        }
-    }
 }

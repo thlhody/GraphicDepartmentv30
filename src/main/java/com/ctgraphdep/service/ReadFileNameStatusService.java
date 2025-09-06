@@ -92,13 +92,13 @@ public class ReadFileNameStatusService {
     }
 
     // Gets the current user - always available from MainDefaultUserContextService
-    private User getCurrentUser() {
-        return mainDefaultUserContextService.getCurrentUser();
+    private User getCurrentOriginalUser() {
+        return mainDefaultUserContextService.getOriginalUser();
     }
 
     //Updates the current user's status based on their session file.
     private void updateCurrentUserStatusFromSession() {
-        User user = getCurrentUser();
+        User user = getCurrentOriginalUser();
         if (user == null) {
             LoggerUtil.warn(this.getClass(), "No current user available");
             return;
@@ -211,7 +211,7 @@ public class ReadFileNameStatusService {
     //Periodically updates the current user's timestamp based on session. Now uses SessionCacheService with fallback to SessionDataService.
     @Scheduled(fixedRateString = "${app.status.time.update.interval:1200000}")
     public void updateCurrentUserTimestamp() {
-        User user = getCurrentUser();
+        User user = getCurrentOriginalUser();
         if (user == null) {
             LoggerUtil.debug(this.getClass(), "No current user, skipping timestamp update");
             return;

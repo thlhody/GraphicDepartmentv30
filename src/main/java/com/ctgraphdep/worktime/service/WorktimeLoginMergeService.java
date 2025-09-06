@@ -419,7 +419,7 @@ public class WorktimeLoginMergeService {
 
     private Integer getUserIdFromUsername(String username) {
         try {
-            User currentUser = mainDefaultUserContextCache.getCurrentUser();
+            User currentUser = mainDefaultUserContextCache.getOriginalUser();
 
             if (currentUser != null && username.equals(currentUser.getUsername())) {
                 return currentUser.getUserId();

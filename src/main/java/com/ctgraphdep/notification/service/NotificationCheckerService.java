@@ -381,17 +381,20 @@ public class NotificationCheckerService {
         }
     }
 
-    // Gets the currently active user from local users file
+    // Gets the currently active user from local users file - FIXED for original user
     private User getCurrentActiveUser() {
         try {
-            // Get current user from MainDefaultUserContextService (cache-based)
-            User currentUser = mainDefaultUserContextService.getCurrentUser();
+            // FIXED: Always get original user for background notifications
+            // Background notification threads should never use elevated admin
+            User currentUser = mainDefaultUserContextService.getOriginalUser();
+
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Background notification thread %s using original user: %s",
+                    Thread.currentThread().getName(),
+                    currentUser != null ? currentUser.getUsername() : "null"));
 
             // Check if we got a real user (not system user)
             if (currentUser != null && !"system".equals(currentUser.getUsername())) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Got current active user from MainDefaultUserContextService: %s (ID: %d)",
-                        currentUser.getUsername(), currentUser.getUserId()));
                 return currentUser;
             }
 

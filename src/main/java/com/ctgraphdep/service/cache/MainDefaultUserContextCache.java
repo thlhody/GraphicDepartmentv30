@@ -140,31 +140,33 @@ public class MainDefaultUserContextCache {
 
         cacheLock.readLock().lock();
         try {
+            // NEW: Background threads should NEVER get elevated admin
+            if (isBackgroundThread()) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Access #%d: Background thread %s requesting original user only",
+                        accessId, Thread.currentThread().getName()));
+                return getOriginalUserInternal();
+            }
             // Check for admin elevation first
             ElevationEntry elevation = elevationEntry.get();
             if (elevation != null && elevation.isValid()) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Access #%d: Returning elevated admin user: %s", accessId, elevation.adminUser.getUsername()));
+                LoggerUtil.debug(this.getClass(), String.format("Access #%d: Returning elevated admin user: %s", accessId, elevation.adminUser.getUsername()));
                 return elevation.adminUser;
             }
 
             // No elevation - return original user logic
             CacheEntry entry = cacheEntry.get();
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Access #%d: getCurrentUser() on thread %s, entry: %s",
-                    accessId, Thread.currentThread().getName(), entry));
+            LoggerUtil.debug(this.getClass(), String.format("Access #%d: getCurrentUser() on thread %s, entry: %s", accessId, Thread.currentThread().getName(), entry));
 
             // Check if we have a valid, non-expired entry
             if (entry != null && entry.isValid() && entry.isFresh()) {
-                LoggerUtil.debug(this.getClass(), String.format("Cache hit for user: %s (access #%d)",
-                        entry.user.getUsername(), accessId));
+                LoggerUtil.debug(this.getClass(), String.format("Cache hit for user: %s (access #%d)", entry.user.getUsername(), accessId));
                 return entry.user;
             }
 
             // Cache miss or expired - need to refresh
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Cache miss/expired (access #%d): entry=%s, triggering refresh", accessId, entry));
+            LoggerUtil.info(this.getClass(), String.format("Cache miss/expired (access #%d): entry=%s, triggering refresh", accessId, entry));
 
         } finally {
             cacheLock.readLock().unlock();
@@ -179,6 +181,34 @@ public class MainDefaultUserContextCache {
         // Final fallback - return system user
         LoggerUtil.warn(this.getClass(), String.format(
                 "Returning system user as fallback (access #%d)", accessId));
+        return createSystemUser();
+    }
+
+    // NEW: Add thread detection method
+    private boolean isBackgroundThread() {
+        String threadName = Thread.currentThread().getName();
+        return threadName.startsWith("GeneralTask-") ||
+                threadName.startsWith("SessionMonitor-") ||
+                threadName.startsWith("backup-event-") ||
+                threadName.startsWith("stalled-notification-") ||
+                threadName.startsWith("pool-") ||  // For notification event handlers
+                threadName.startsWith("ForkJoinPool");
+    }
+
+    // NEW: Internal method for background threads
+    private User getOriginalUserInternal() {
+        CacheEntry entry = cacheEntry.get();
+
+        if (entry != null && entry.isValid() && entry.isFresh()) {
+            return entry.user;
+        }
+
+        // Try to refresh cache if original user is missing/expired
+        User refreshedUser = attemptCacheRefresh("background-thread-request");
+        if (refreshedUser != null && !SYSTEM_USERNAME.equals(refreshedUser.getUsername())) {
+            return refreshedUser;
+        }
+
         return createSystemUser();
     }
 
@@ -214,10 +244,21 @@ public class MainDefaultUserContextCache {
     }
 
     /**
-     * Gets the current username - ENHANCED to consider elevation
+     * Gets the current username - ENHANCED to consider elevation AND thread context
      * @return Current username (never null)
      */
     public String getCurrentUsername() {
+        // NEW: Background threads get original user only
+        if (isBackgroundThread()) {
+            User originalUser = getOriginalUserInternal();
+            String username = originalUser != null ? originalUser.getUsername() : SYSTEM_USERNAME;
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Background thread %s getting original username: %s",
+                    Thread.currentThread().getName(), username));
+            return username;
+        }
+
+        // Web threads: existing elevation-aware logic
         User user = getCurrentUser();
         return user != null ? user.getUsername() : SYSTEM_USERNAME;
     }

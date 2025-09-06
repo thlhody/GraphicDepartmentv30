@@ -1,5 +1,6 @@
 package com.ctgraphdep.service.cache;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.WorktimeDataService;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -7,6 +8,7 @@ import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -58,13 +60,11 @@ public class WorktimeCacheService {
         try {
             String monthKey = createMonthKey(username, year, month);
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Loading worktime session for %s - %d/%d", username, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Loading worktime session for %s - %d/%d", username, year, month));
 
             // Validate this is for current user's own data
             if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService should only be used for current user's own data. Requested: %s, Current: %s",
+                LoggerUtil.warn(this.getClass(), String.format("WorktimeCacheService should only be used for current user's own data. Requested: %s, Current: %s",
                         username, mainDefaultUserContextCache.getCurrentUsername()));
                 return false;
             }
@@ -72,8 +72,7 @@ public class WorktimeCacheService {
             // Check if already loaded and valid
             WorktimeCacheEntry existingEntry = userMonthSessions.get(monthKey);
             if (existingEntry != null && existingEntry.isValid() && !existingEntry.isExpired()) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Session already loaded and valid for %s - %d/%d", username, year, month));
+                LoggerUtil.debug(this.getClass(), String.format("Session already loaded and valid for %s - %d/%d", username, year, month));
                 return true;
             }
 
@@ -86,15 +85,13 @@ public class WorktimeCacheService {
 
             userMonthSessions.put(monthKey, cacheEntry);
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Successfully loaded worktime session for %s - %d/%d with %d entries",
+            LoggerUtil.info(this.getClass(), String.format("Successfully loaded worktime session for %s - %d/%d with %d entries",
                     username, year, month, entries.size()));
 
             return true;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error loading worktime session for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error loading worktime session for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
             return false;
         }
     }
@@ -144,7 +141,7 @@ public class WorktimeCacheService {
             boolean sessionLoaded = loadUserMonthSession(username, userId, year, month);
             if (sessionLoaded) {
                 cachedData = getMonthEntriesFromCache(username, year, month);
-                // ✅ FIXED: If session loaded successfully, trust the cache data (even if empty)
+                // If session loaded successfully, trust the cache data (even if empty)
                 LoggerUtil.info(this.getClass(), String.format("Cache populated successfully for %s - %d/%d (%d entries)",
                         username, year, month, cachedData.size()));
                 return cachedData;
@@ -156,16 +153,14 @@ public class WorktimeCacheService {
             return loadEntriesWithFallback(username, year, month);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error getting worktime data for %s - %d/%d: %s",
-                    username, year, month, e.getMessage()), e);
+            LoggerUtil.error(this.getClass(), String.format("Error getting worktime data for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
 
             // Ultimate fallback - try direct file read one more time
             try {
-                String currentUsername = mainDefaultUserContextCache.getCurrentUsername();
+                String currentUsername = mainDefaultUserContextCache.getOriginalUser().getUsername();
                 return worktimeDataService.readUserLocalReadOnly(username, year, month, currentUsername);
             } catch (Exception fallbackError) {
-                LoggerUtil.error(this.getClass(), String.format("Emergency fallback also failed for %s - %d/%d: %s",
-                        username, year, month, fallbackError.getMessage()));
+                LoggerUtil.error(this.getClass(), String.format("Emergency fallback also failed for %s - %d/%d: %s", username, year, month, fallbackError.getMessage()));
                 return new ArrayList<>();
             }
         }
@@ -205,12 +200,9 @@ public class WorktimeCacheService {
                 return false;
             }
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Saving month entries with write-through for %s - %d/%d (%d entries)",
-                    username, year, month, entries.size()));
+            LoggerUtil.info(this.getClass(), String.format("Saving month entries with write-through for %s - %d/%d (%d entries)", username, year, month, entries.size()));
 
             boolean fileSuccess = false;
-            boolean cacheSuccess = false;
 
             try {
                 // Step 1: Write to file first (most critical)
@@ -224,14 +216,11 @@ public class WorktimeCacheService {
 
                 if (cacheEntry != null && cacheEntry.isValid()) {
                     cacheEntry.updateEntries(entries);
-                    cacheSuccess = true;
                     LoggerUtil.debug(this.getClass(), String.format("Cache update successful for %s - %d/%d", username, year, month));
                 } else {
                     // Cache not loaded - create new session
                     boolean sessionCreated = loadUserMonthSession(username, userId, year, month);
-                    cacheSuccess = sessionCreated;
-                    LoggerUtil.debug(this.getClass(), String.format("Cache session created for %s - %d/%d: %s",
-                            username, year, month, sessionCreated));
+                    LoggerUtil.debug(this.getClass(), String.format("Cache session created for %s - %d/%d: %s", username, year, month, sessionCreated));
                 }
 
                 return true;
@@ -247,8 +236,7 @@ public class WorktimeCacheService {
                 } else {
                     // File succeeded, cache failed - invalidate cache for safety
                     invalidateUserMonthSession(username, year, month);
-                    LoggerUtil.warn(this.getClass(), String.format(
-                            "File saved but cache update failed for %s - %d/%d - cache invalidated for safety", username, year, month));
+                    LoggerUtil.warn(this.getClass(), String.format("File saved but cache update failed for %s - %d/%d - cache invalidated for safety", username, year, month));
                     return true; // File write succeeded, which is what matters most
                 }
             }
@@ -545,12 +533,10 @@ public class WorktimeCacheService {
 
             if (removed != null) {
                 removed.clear();
-                LoggerUtil.info(this.getClass(), String.format(
-                        "Invalidated worktime session for %s - %d/%d", username, year, month));
+                LoggerUtil.info(this.getClass(), String.format("Invalidated worktime session for %s - %d/%d", username, year, month));
             }
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error invalidating session for %s - %d/%d: %s",
-                    username, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error invalidating session for %s - %d/%d: %s", username, year, month, e.getMessage()));
         } finally {
             globalLock.writeLock().unlock();
         }
@@ -626,19 +612,17 @@ public class WorktimeCacheService {
      * Load entries with comprehensive fallback strategy
      */
     private List<WorkTimeTable> loadEntriesWithFallback(String username, int year, int month) {
-        String currentUsername = mainDefaultUserContextCache.getCurrentUsername();
+        String currentUsername = mainDefaultUserContextCache.getOriginalUser().getUsername();
 
         try {
             // Primary: Read user local file
             List<WorkTimeTable> entries = worktimeDataService.readUserLocalReadOnly(username, year, month, currentUsername);
             if (entries != null) {
-                LoggerUtil.debug(this.getClass(), String.format("Loaded %d entries from file for %s - %d/%d",
-                        entries.size(), username, year, month));
+                LoggerUtil.debug(this.getClass(), String.format("Loaded %d entries from file for %s - %d/%d", entries.size(), username, year, month));
                 return entries;
             }
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format("Primary file read failed for %s - %d/%d: %s",
-                    username, year, month, e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Primary file read failed for %s - %d/%d: %s", username, year, month, e.getMessage()));
         }
 
         try {
@@ -649,13 +633,11 @@ public class WorktimeCacheService {
                 return entries;
             }
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format("Fallback file read also failed for %s - %d/%d: %s",
-                    username, year, month, e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Fallback file read also failed for %s - %d/%d: %s", username, year, month, e.getMessage()));
         }
 
         // Ultimate fallback: Return empty list
-        LoggerUtil.warn(this.getClass(), String.format("All read attempts failed for %s - %d/%d, returning empty list",
-                username, year, month));
+        LoggerUtil.warn(this.getClass(), String.format("All read attempts failed for %s - %d/%d, returning empty list", username, year, month));
         return new ArrayList<>();
     }
 
@@ -674,8 +656,7 @@ public class WorktimeCacheService {
             return new ArrayList<>();
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting entries from cache for %s - %d/%d: %s", username, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error getting entries from cache for %s - %d/%d: %s", username, year, month, e.getMessage()));
             return new ArrayList<>();
         }
     }
@@ -693,7 +674,7 @@ public class WorktimeCacheService {
      */
     private boolean isNonCurrentUserData(String username) {
         try {
-            String currentUsername = mainDefaultUserContextCache.getCurrentUsername();
+            String currentUsername = mainDefaultUserContextCache.getOriginalUser().getUsername();
             return !username.equals(currentUsername);  // Returns true when it's NOT current user
         } catch (Exception e) {
             LoggerUtil.warn(this.getClass(), String.format("Error checking current user context: %s", e.getMessage()));
@@ -705,9 +686,7 @@ public class WorktimeCacheService {
      * Find existing entry or create new one for date
      */
     private WorkTimeTable findOrCreateEntryForDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
-        Optional<WorkTimeTable> existingEntry = entries.stream()
-                .filter(e -> e.getUserId().equals(userId) && e.getWorkDate().equals(date))
-                .findFirst();
+        Optional<WorkTimeTable> existingEntry = entries.stream().filter(e -> e.getUserId().equals(userId) && e.getWorkDate().equals(date)).findFirst();
 
         if (existingEntry.isPresent()) {
             return existingEntry.get();
@@ -730,10 +709,10 @@ public class WorktimeCacheService {
     private void clearWorkFields(WorkTimeTable entry) {
         entry.setDayStartTime(null);
         entry.setDayEndTime(null);
-        entry.setTotalWorkedMinutes(0);
-        entry.setTotalOvertimeMinutes(0);
-        entry.setTotalTemporaryStopMinutes(0);
-        entry.setTemporaryStopCount(0);
+        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalOvertimeMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
+        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
         entry.setLunchBreakDeducted(false);
     }
 
@@ -742,14 +721,14 @@ public class WorktimeCacheService {
      */
     private void recalculateWorkTime(WorkTimeTable entry) {
         if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
-            entry.setTotalWorkedMinutes(0);
+            entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
             entry.setLunchBreakDeducted(false);
             return;
         }
 
         // Calculate total minutes
-        long minutes = java.time.Duration.between(entry.getDayStartTime(), entry.getDayEndTime()).toMinutes();
-        int totalMinutes = Math.max(0, (int) minutes);
+        long minutes = Duration.between(entry.getDayStartTime(), entry.getDayEndTime()).toMinutes();
+        int totalMinutes = Math.max(WorkCode.DEFAULT_ZERO, (int) minutes);
 
         entry.setTotalWorkedMinutes(totalMinutes);
 
@@ -757,8 +736,7 @@ public class WorktimeCacheService {
         boolean lunchBreak = totalMinutes > (6 * 60);
         entry.setLunchBreakDeducted(lunchBreak);
 
-        LoggerUtil.debug(this.getClass(), String.format(
-                "Recalculated work time: %d minutes, lunch break: %s", totalMinutes, lunchBreak));
+        LoggerUtil.debug(this.getClass(), String.format("Recalculated work time: %d minutes, lunch break: %s", totalMinutes, lunchBreak));
     }
 
     /**
@@ -769,13 +747,12 @@ public class WorktimeCacheService {
         recalculateWorkTime(entry);
 
         // Subtract temporary stops from total worked time
-        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > 0) {
-            int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
-            int adjustedMinutes = Math.max(0, workedMinutes - entry.getTotalTemporaryStopMinutes());
+        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > WorkCode.DEFAULT_ZERO) {
+            int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : WorkCode.DEFAULT_ZERO;
+            int adjustedMinutes = Math.max(WorkCode.DEFAULT_ZERO, workedMinutes - entry.getTotalTemporaryStopMinutes());
             entry.setTotalWorkedMinutes(adjustedMinutes);
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Adjusted work time with temp stops: %d - %d = %d minutes",
+            LoggerUtil.debug(this.getClass(), String.format("Adjusted work time with temp stops: %d - %d = %d minutes",
                     workedMinutes, entry.getTotalTemporaryStopMinutes(), adjustedMinutes));
         }
     }
@@ -788,10 +765,8 @@ public class WorktimeCacheService {
         try {
             String keepKey = createMonthKey(username, keepYear, keepMonth);
 
-            List<String> userKeysToRemove = userMonthSessions.keySet().stream()
-                    .filter(key -> key.startsWith(username + "-"))
-                    .filter(key -> !key.equals(keepKey))
-                    .toList();
+            List<String> userKeysToRemove = userMonthSessions.keySet().stream().filter(key -> key.startsWith(username + "-"))
+                    .filter(key -> !key.equals(keepKey)).toList();
 
             for (String key : userKeysToRemove) {
                 try {
@@ -805,14 +780,11 @@ public class WorktimeCacheService {
             }
 
             if (!userKeysToRemove.isEmpty()) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Invalidated %d other month sessions for user %s to save memory",
-                        userKeysToRemove.size(), username));
+                LoggerUtil.debug(this.getClass(), String.format("Invalidated %d other month sessions for user %s to save memory", userKeysToRemove.size(), username));
             }
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error invalidating other months for %s: %s",
-                    username, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format("Error invalidating other months for %s: %s", username, e.getMessage()));
         } finally {
             globalLock.writeLock().unlock();
         }
@@ -925,27 +897,4 @@ public class WorktimeCacheService {
         }
     }
 
-    // ========================================================================
-    // LEGACY COMPATIBILITY METHODS (For backward compatibility)
-    // ========================================================================
-
-    /**
-     * Get month entries (legacy method - now uses fallback)
-     * @deprecated Use getMonthEntriesWithFallback() instead
-     */
-    @Deprecated
-    public List<WorkTimeTable> getMonthEntries(String username, int year, int month) {
-        // Redirect to fallback method for safety
-        Integer userId = mainDefaultUserContextCache.getCurrentUser().getUserId();
-        return getMonthEntriesWithFallback(username, userId, year, month);
-    }
-
-    /**
-     * Get specific entry for date (legacy method - now uses fallback)
-     * @deprecated Use getEntryForDateWithFallback() instead
-     */
-    @Deprecated
-    public Optional<WorkTimeTable> getEntryForDate(String username, Integer userId, int year, int month, LocalDate date) {
-        return getEntryForDateWithFallback(username, userId, year, month, date);
-    }
 }

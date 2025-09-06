@@ -267,7 +267,7 @@ public class SessionService {
 
     // Gets the user's schedule (hours)
     private int getUserSchedule() {
-        User currentUser = mainDefaultUserContextService.getCurrentUser();
+        User currentUser = mainDefaultUserContextService.getOriginalUser();
         if (currentUser != null && currentUser.getSchedule() != null) {
             return currentUser.getSchedule();
         }

@@ -4,28 +4,39 @@
 <head>
     <title>Work Session Management</title>
     <link rel="stylesheet" th:href="@{/css/session.css?v=18789}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
-    <link rel="stylesheet" th:href="@{/css/resolution.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/resolution.css?v=18785}">
 </head>
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
-        <!-- Unresolved Entries Persistent Notification - Styled as prominent banner -->
+
+        <!-- Unresolved Entries Persistent Notification - Styled as prominent toast-->
         <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}"
-             class="alert alert-warning alert-dismissible fade show mb-4 border-warning border-2" role="alert">
-            <div class="d-flex">
-                <div class="alert-icon me-3">
-                    <i class="bi bi-exclamation-triangle-fill fs-4"></i>
-                </div>
-                <div class="flex-grow-1">
-                    <div class="alert-heading h5 mb-1 text-warning-emphasis">Action Required</div>
-                    <div class="alert-text">You have unresolved work sessions that need your attention.
-                        <a href="#workTimeResolutionContainer" class="alert-link fw-bold js-scroll-to-resolution">Resolve them
-                            now</a> to ensure your hours are tracked correctly.
+             class="unresolved-floating-card" id="unresolvedCard">
+            <div class="floating-card-content">
+                <!-- Header row with icon and title -->
+                <div class="card-header-row">
+                    <div class="card-icon">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
                     </div>
+                    <h6 class="card-title">Action Required</h6>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+
+                <!-- Message text - continuous line -->
+                <p class="card-message">You have <strong th:text="${unresolvedEntries.size()}">1</strong> unresolved work session(s) that need your attention.</p>
+
+                <!-- Action buttons row -->
+                <div class="card-actions">
+                    <button class="btn-resolve" onclick="scrollToResolution()">
+                        <i class="bi bi-arrow-down"></i>
+                        Resolve Now
+                    </button>
+                    <button class="btn-dismiss" onclick="dismissCard()">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
             </div>
+            <div class="progress-bar"></div>
         </div>
 
         <!-- Header Section with Badge -->
@@ -404,10 +415,10 @@
         <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18784}"></script>
 
         <!-- Main script for resolution handling and clock -->
-        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=187912}" defer></script>
+        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=187913}" defer></script>
 
         <!-- Always load the session enhancement script -->
-        <script th:src="@{/js/session-enhanced.js?v=187911}" defer></script>
+        <script th:src="@{/js/session-enhanced.js?v=187914}" defer></script>
     </th:block>
 </div>
 </body>

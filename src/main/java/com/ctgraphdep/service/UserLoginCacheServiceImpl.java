@@ -156,7 +156,7 @@ public class UserLoginCacheServiceImpl implements UserLoginCacheService {
             LoggerUtil.debug(this.getClass(), String.format("Refreshing worktime cache from LOCAL files for: %s", username));
 
             // Get current user data for userId
-            User currentUser = mainDefaultUserContextService.getCurrentUser();
+            User currentUser = mainDefaultUserContextService.getOriginalUser();
             if (currentUser == null) {
                 LoggerUtil.warn(this.getClass(), "Cannot refresh worktime cache - no current user context");
                 return;
@@ -183,7 +183,7 @@ public class UserLoginCacheServiceImpl implements UserLoginCacheService {
             LoggerUtil.debug(this.getClass(), String.format("Refreshing register cache from LOCAL files for: %s", username));
 
             // Get current user data for userId
-            User currentUser = mainDefaultUserContextService.getCurrentUser();
+            User currentUser = mainDefaultUserContextService.getOriginalUser();
             if (currentUser == null) {
                 LoggerUtil.warn(this.getClass(), "Cannot refresh register cache - no current user context");
                 return;

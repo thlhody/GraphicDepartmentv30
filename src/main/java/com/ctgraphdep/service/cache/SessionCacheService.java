@@ -2,6 +2,7 @@ package com.ctgraphdep.service.cache;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
+import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -454,9 +455,30 @@ public class SessionCacheService {
         }
     }
 
-    // Get current username
+    // Get current username - FIXED for background thread context
     private String getCurrentUsername() {
+        // NEW: For background threads, always use original user
+        String threadName = Thread.currentThread().getName();
+        if (isBackgroundThread(threadName)) {
+            User originalUser = mainDefaultUserContextService.getOriginalUser();
+            String username = originalUser != null ? originalUser.getUsername() : "system";
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Background thread %s using original username: %s", threadName, username));
+            return username;
+        }
+
+        // Web threads: use elevation-aware method
         return mainDefaultUserContextService.getCurrentUsername();
+    }
+
+    // NEW: Add thread detection method
+    private boolean isBackgroundThread(String threadName) {
+        return threadName.startsWith("GeneralTask-") ||
+                threadName.startsWith("SessionMonitor-") ||
+                threadName.startsWith("backup-event-") ||
+                threadName.startsWith("stalled-notification-") ||
+                threadName.startsWith("pool-") ||
+                threadName.startsWith("ForkJoinPool");
     }
 
     // ========================================================================

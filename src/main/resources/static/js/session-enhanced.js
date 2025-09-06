@@ -17,6 +17,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle URL parameters and flash messages with toast notifications
     initToastNotifications();
 
+    // Initialize floating card if it exists
+    initializeFloatingCard();
+
     console.log("Session page initialized with toast notifications");
 });
 
@@ -365,6 +368,119 @@ function initEndTimeChecker() {
         }, 3000);
     }, timeUntilEnd + 500); // Add 500ms to ensure we're past the time
 }
+
+/**
+ * Scroll to the resolution container smoothly
+ */
+function scrollToResolution() {
+    const resolutionContainer = document.getElementById('workTimeResolutionContainer');
+    if (resolutionContainer) {
+        resolutionContainer.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        // Add a subtle highlight effect
+        resolutionContainer.classList.add('highlight-container');
+        setTimeout(() => {
+            resolutionContainer.classList.remove('highlight-container');
+        }, 2000);
+
+        // Show a toast notification
+        if (window.showToast) {
+            window.showToast('Navigation', 'Scrolled to unresolved entries section', 'info', {
+                duration: 2000
+            });
+        }
+    } else {
+        console.warn('Resolution container not found');
+        if (window.showToast) {
+            window.showToast('Error', 'Could not find resolution section', 'error');
+        }
+    }
+}
+
+/**
+ * Dismiss the floating card with animation - Updated for left slide
+ */
+function dismissCard() {
+    const card = document.getElementById('unresolvedCard');
+    if (card) {
+        // Add slide-out animation to the left
+        card.style.animation = 'slideOutLeft 0.5s ease-in forwards';
+
+        // Remove from DOM after animation
+        setTimeout(() => {
+            card.remove();
+        }, 500);
+
+        // Store dismissal in session storage to prevent showing again
+        sessionStorage.setItem('unresolvedCardDismissed', 'true');
+
+        // Show toast notification
+        if (window.showToast) {
+            window.showToast('Dismissed', 'Reminder dismissed. You can still resolve entries below.', 'info', {
+                duration: 3000
+            });
+        }
+    }
+}
+
+/**
+ * Auto-dismiss the card after the progress bar completes (15 seconds)
+ */
+function initializeFloatingCard() {
+    const card = document.getElementById('unresolvedCard');
+    if (card) {
+        // Check if card was previously dismissed
+        const wasDismissed = sessionStorage.getItem('unresolvedCardDismissed');
+        if (wasDismissed === 'true') {
+            card.remove();
+            return;
+        }
+
+        // Auto-dismiss after 15 seconds (when progress bar completes)
+        setTimeout(() => {
+            if (card && card.parentNode) {
+                dismissCard();
+            }
+        }, 15000);
+
+        // Add hover events to pause/resume progress bar
+        const progressBar = card.querySelector('.progress-bar');
+        if (progressBar) {
+            card.addEventListener('mouseenter', () => {
+                progressBar.style.animationPlayState = 'paused';
+            });
+
+            card.addEventListener('mouseleave', () => {
+                progressBar.style.animationPlayState = 'running';
+            });
+        }
+    }
+}
+
+// Add these styles for the highlight effect
+const highlightStyles = `
+<style>
+.highlight-container {
+    animation: highlightPulse 2s ease-in-out;
+}
+
+@keyframes highlightPulse {
+    0%, 100% {
+        background-color: transparent;
+        box-shadow: none;
+    }
+    50% {
+        background-color: rgba(255, 193, 7, 0.1);
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.3);
+    }
+}
+</style>
+`;
+
+document.head.insertAdjacentHTML('beforeend', highlightStyles);
 
 // Helper function to format minutes as HH:MM
 window.formatMinutes = function(minutes) {

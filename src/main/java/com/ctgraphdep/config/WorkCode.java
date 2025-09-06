@@ -53,7 +53,7 @@ public class WorkCode {
 
     // Constants for timing start notice
     public static final int WORK_START_HOUR = 5;  // 5:00 AM
-    public static final int WORK_END_HOUR = 17;   // 5:00 PM
+    public static final int WORK_END_HOUR = 23;   // 5:00 PM
 
     // Constants for default end/start worktime
     public static final int DEFAULT_START_HOUR = 9;

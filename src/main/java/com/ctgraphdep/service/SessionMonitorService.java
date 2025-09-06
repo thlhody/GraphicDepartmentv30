@@ -345,6 +345,15 @@ public class SessionMonitorService {
             }
 
             String username = originalUser.getUsername();
+            // NEW: Add warning if we detect context confusion
+            User currentContextUser = mainDefaultUserContextService.getCurrentUser();
+            if (currentContextUser != null && !username.equals(currentContextUser.getUsername())) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                        "Context mismatch detected in background thread: original=%s, current=%s - using original for monitoring",
+                        username, currentContextUser.getUsername()));
+            }
+
+            LoggerUtil.debug(this.getClass(), String.format("Monitoring sessions for original user: %s", username));
 
             LoggerUtil.debug(this.getClass(), String.format("Monitoring sessions for original user: %s (elevated: %s)",
                     username, mainDefaultUserContextService.isElevated() ? "yes" : "no"));

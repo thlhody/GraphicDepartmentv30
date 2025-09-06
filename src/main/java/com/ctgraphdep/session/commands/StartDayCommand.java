@@ -10,6 +10,7 @@ import com.ctgraphdep.session.util.SessionSpecialDayDetector;
 import com.ctgraphdep.validation.commands.ValidateSessionForStartCommand;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSessionsStates> {
 
@@ -42,8 +43,11 @@ public class StartDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersS
             resetSessionBeforeStart(context);
         }
 
+        LocalDateTime currentTime = getStandardCurrentTime(context);
+        LocalDateTime startTimeWithBuffer = currentTime.minusMinutes(WorkCode.BUFFER_MINUTES);
+
         // Create new session with standardized start time
-        WorkUsersSessionsStates newSession = SessionEntityBuilder.createSession(username, userId, getStandardCurrentTime(context));
+        WorkUsersSessionsStates newSession = SessionEntityBuilder.createSession(username, userId, startTimeWithBuffer);
 
         // Save session using command factory
         SaveSessionCommand saveCommand = context.getCommandFactory().createSaveSessionCommand(newSession);
