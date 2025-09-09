@@ -5,260 +5,255 @@
     <title>Work Session Management</title>
     <link rel="stylesheet" th:href="@{/css/session.css?v=18789}">
     <link rel="stylesheet" th:href="@{/css/resolution.css?v=18785}">
+    <!-- Add time management CSS for embedded section -->
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187840}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=187940}">
+    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=187840}">
 </head>
 <body>
 <div layout:fragment="content">
-    <div class="container py-4">
 
-        <!-- Unresolved Entries Persistent Notification - Styled as prominent toast-->
-        <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}"
-             class="unresolved-floating-card" id="unresolvedCard">
-            <div class="floating-card-content">
-                <!-- Header row with icon and title -->
-                <div class="card-header-row">
-                    <div class="card-icon">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
+    <!-- TAB 1: SESSION MANAGEMENT (Always Visible) -->
+    <div class="session-tab">
+        <div class="container py-4">
+
+            <!-- Unresolved Entries Persistent Notification -->
+            <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}"
+                 class="unresolved-floating-card" id="unresolvedCard">
+                <div class="floating-card-content">
+                    <div class="card-header-row">
+                        <div class="card-icon">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                        <h6 class="card-title">Action Required</h6>
                     </div>
-                    <h6 class="card-title">Action Required</h6>
+                    <p class="card-message">You have <strong th:text="${unresolvedEntries.size()}">1</strong> unresolved work session(s) that need your attention.</p>
+                    <div class="card-actions">
+                        <button class="btn-resolve" onclick="scrollToUnresolved()">
+                            <i class="bi bi-arrow-down"></i>
+                            Resolve Now
+                        </button>
+                        <button class="btn-dismiss" onclick="dismissCard()">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
                 </div>
-
-                <!-- Message text - continuous line -->
-                <p class="card-message">You have <strong th:text="${unresolvedEntries.size()}">1</strong> unresolved work session(s) that need your attention.</p>
-
-                <!-- Action buttons row -->
-                <div class="card-actions">
-                    <button class="btn-resolve" onclick="scrollToResolution()">
-                        <i class="bi bi-arrow-down"></i>
-                        Resolve Now
-                    </button>
-                    <button class="btn-dismiss" onclick="dismissCard()">
-                        <i class="bi bi-x"></i>
-                    </button>
-                </div>
+                <div class="progress-bar"></div>
             </div>
-            <div class="progress-bar"></div>
-        </div>
 
-        <!-- Header Section with Badge -->
-        <div class="page-header d-flex justify-content-between align-items-center mb-4">
-            <div class="d-flex align-items-center gap-3">
-                <h1 class="header-title">Work Session Management</h1>
-                <div th:with="statusClass=${
-                    sessionStatus == 'Online' ? 'bg-success status-active' :
-                    sessionStatus == 'Offline' ? 'bg-secondary' :
-                    'bg-warning status-active'}"
-                     th:classappend="${statusClass}"
-                     class="badge rounded-pill px-3 py-2 text-white">
-                    <i class="bi me-1" th:classappend="${
-                        sessionStatus == 'Online' ? 'bi-broadcast-pin' :
-                        sessionStatus == 'Offline' ? 'bi-dash-circle' :
-                        'bi-pause-circle'}"></i>
-                    <span th:text="${sessionStatus}">Offline</span>
+            <!-- Header Section with Badge -->
+            <div class="page-header d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex align-items-center gap-3">
+                    <h1 class="header-title">Work Session Management</h1>
+                    <div th:with="statusClass=${
+                        sessionStatus == 'Online' ? 'bg-success status-active' :
+                        sessionStatus == 'Offline' ? 'bg-secondary' :
+                        sessionStatus == 'Temp Stop' ? 'bg-warning' : 'bg-secondary'
+                    }" class="badge rounded-pill" th:classappend="${statusClass}">
+                        <i class="bi bi-circle-fill me-1" th:classappend="${sessionStatus == 'Online' ? 'status-online' : ''}"></i>
+                        <span th:text="${sessionStatus}">Status</span>
+                    </div>
                 </div>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-person me-2"></i>
+                    <span th:text="${user?.name ?: 'User'}">User</span>
+                </div>
+                <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
+                    <i class="bi bi-grid me-2"></i>Dashboard
+                </a>
             </div>
-            <a class="btn btn-outline-primary" th:href="${dashboardUrl}">
-                <i class="bi bi-grid me-2"></i>Dashboard
-            </a>
-        </div>
 
-        <!-- Action Controls - Enhanced with tooltips -->
-        <div class="session-controls d-flex mb-4">
-            <!-- Start Button -->
-            <form th:action="@{/user/session/start}" method="post">
-                <button type="submit"
-                        class="btn btn-success"
-                        th:disabled="${sessionStatus != 'Offline' || completedSessionToday}"
-                        data-bs-toggle="tooltip"
-                        th:title="${sessionStatus != 'Offline' ? 'Session already active' :
-                                    completedSessionToday ? 'You already completed a session today' :
-                                    'Start a new work session'}">
-                    <i class="bi bi-play-circle me-2"></i>Start Work
-                </button>
-            </form>
-            <!-- Resume Button -->
-            <form th:action="@{/user/session/resume-previous}" method="post">
-                <button type="submit"
-                        class="btn btn-info"
-                        th:disabled="${!completedSessionToday}"
-                        data-bs-toggle="tooltip"
-                        th:title="${!completedSessionToday ? 'No completed session available to resume' : 'Resume your previous work session'}">
-                    <i class="bi bi-arrow-counterclockwise me-2"></i>Resume Work
-                </button>
-            </form>
-            <!-- Pause/Resume Button -->
-            <form th:action="@{/user/session/temp-stop}" method="post">
-                <button type="submit"
-                        class="btn"
-                        th:classappend="${sessionStatus == 'Temporary Stop' ? 'btn-info' : 'btn-warning'}"
-                        th:disabled="${sessionStatus == 'Offline'}"
-                        th:with="isTemporaryStop=${sessionStatus == 'Temporary Stop'}"
-                        data-bs-toggle="tooltip"
-                        th:title="${sessionStatus == 'Offline' ? 'No active session to pause' :
-                                  isTemporaryStop ? 'Resume your paused session' :
-                                  'Pause your current session'}">
-                    <i class="bi"
-                       th:classappend="${isTemporaryStop ? 'bi-play-circle' : 'bi-pause-circle'}"></i>
-                    <span th:text="${isTemporaryStop ? 'Resume' : 'Temporary Stop'}">Temporary Stop</span>
-                </button>
-            </form>
-            <!-- End Button -->
-            <form th:action="@{/user/session/end}" method="post">
-                <button type="submit"
-                        class="btn btn-danger"
-                        th:disabled="${sessionStatus == 'Offline'}"
-                        data-bs-toggle="tooltip"
-                        th:title="${sessionStatus == 'Offline' ? 'No active session to end' : 'End your current work session'}">
-                    <i class="bi bi-stop-circle me-2"></i>End Work
-                </button>
-            </form>
-            <!-- Refresh Button -->
-            <a th:href="@{/user/session}" class="btn btn-outline-secondary" data-bs-toggle="tooltip"
-               title="Refresh session data">
-                <i class="bi bi-arrow-clockwise me-2"></i>Refresh
-            </a>
-            <!-- Worktime Button -->
-            <a th:href="@{/user/time-management}" class="btn btn-outline-info" data-bs-toggle="tooltip"
-               title="Go to Time Management page">
-                <i class="bi bi-table me-2"></i>Time Management
-            </a>
-        </div>
+            <!-- Action Controls - Responsive Flex Layout -->
+            <div class="session-controls d-flex flex-wrap gap-2 mb-4">
+                <!-- Start Button -->
+                <form th:action="@{/user/session/start}" method="post" class="flex-fill">
+                    <button type="submit" class="btn btn-success w-100"
+                            th:disabled="${sessionStatus != 'Offline' || completedSessionToday}">
+                        <i class="bi bi-play-circle me-2"></i>Start Work
+                    </button>
+                </form>
 
-        <!-- Session Information Card -->
-        <div class="card mb-4 session-info-card">
-            <div class="card-body">
-                <!-- Current Time Display -->
-                <div class="mb-4 p-3 bg-light rounded text-center time-container">
-                    <h6 class="text-muted mb-1">Current Time</h6>
-                    <div id="live-clock" class="time-display" th:text="${currentDateTime}">--:--</div>
+                <!-- Resume Button -->
+                <form th:action="@{/user/session/resume-previous}" method="post" class="flex-fill">
+                    <button type="submit" class="btn btn-info w-100"
+                            th:disabled="${!completedSessionToday}">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>Resume Work
+                    </button>
+                </form>
+
+                <!-- Temp Stop/Resume Button -->
+                <form th:action="@{/user/session/temp-stop}" method="post" class="flex-fill">
+                    <button type="submit" class="btn w-100"
+                            th:classappend="${sessionStatus == 'Temp Stop' ? 'btn-info' : 'btn-warning'}"
+                            th:disabled="${sessionStatus == 'Offline'}">
+                        <span th:text="${sessionStatus == 'Temp Stop' ? 'Resume' : 'Temporary Stop'}">Tempoaray Stop</span>
+                    </button>
+                </form>
+
+                <!-- End Button -->
+                <form th:action="@{/user/session/end}" method="post" class="flex-fill">
+                    <button type="submit" class="btn btn-danger w-100"
+                            th:disabled="${sessionStatus == 'Offline'}">
+                        <i class="bi bi-stop-fill me-2"></i>End Work Day
+                    </button>
+                </form>
+
+                <!-- Refresh Button -->
+                <a th:href="@{/user/session}" class="btn btn-outline-secondary flex-fill">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                </a>
+            </div>
+
+            <!-- Main Session Info Card -->
+            <div class="card session-info-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>Current Session Information
+                    </h5>
+                    <div class="badge bg-light text-dark">
+                        <i class="bi bi-calendar3 me-1"></i>
+                        <span th:text="${#temporals.format(currentDate, 'EEEE, MMMM d, yyyy')}">Today</span>
+                    </div>
                 </div>
-
-                <!-- Session Stats Grid - Enhanced with icons -->
-                <div class="row g-4">
-                    <!-- Start Time -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-primary ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-calendar-event me-2"></i>Started At</h6>
-                            <div class="h5 mb-0" th:text="${dayStartTime}">--:--</div>
-                        </div>
+                <div class="card-body">
+                    <!-- Live Clock -->
+                    <div class="clock-container text-center">
+                        <h6 class="text-muted mb-1">Current Time</h6>
+                        <div id="live-clock" class="time-display" th:text="${currentDateTime}">--:--</div>
                     </div>
 
-                    <!-- Raw Work Time -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-success ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-stopwatch me-2"></i>Total Work (Raw)</h6>
-                            <div class="h5 mb-0" th:text="${totalWorkRaw}">00:00</div>
-                        </div>
-                    </div>
-
-                    <!-- Actual Work Time -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-info ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-clock-history me-2"></i>Actual Work Time</h6>
-                            <div class="h5 mb-0" th:text="${actualWorkTime}">00:00</div>
-                        </div>
-                    </div>
-
-                    <!-- Break Information -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-warning ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-cup-hot me-2"></i>Breaks</h6>
-                            <div class="h5 mb-0">
-                                <span th:text="${temporaryStopCount ?: 0}">0</span>
-                                <small class="text-muted">stops</small>
-                                (<span th:text="${totalTemporaryStopTime}">00:00</span>)
+                    <!-- Session Stats Grid -->
+                    <div class="row g-4">
+                        <!-- Start Time -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-primary ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-calendar-event me-2"></i>Started At</h6>
+                                <div class="h5 mb-0" th:text="${dayStartTime}">--:--</div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Overtime -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-danger ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-alarm me-2"></i>Overtime</h6>
-                            <div class="h5 mb-0" th:text="${overtime}">00:00</div>
-                        </div>
-                    </div>
-
-                    <!-- Lunch Break -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-secondary ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-egg-fried me-2"></i>Lunch Break</h6>
-                            <div class="h5 mb-0">
-                                <i th:if="${lunchBreakStatus}" class="bi bi-check-circle-fill text-success me-1"></i>
-                                <i th:unless="${lunchBreakStatus}" class="bi bi-x-circle-fill text-danger me-1"></i>
-                                <span th:text="${lunchBreakStatus ? 'Deducted' : 'Not deducted'}">Not deducted</span>
+                        <!-- Raw Work Time -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-success ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-stopwatch me-2"></i>Total Work (Raw)</h6>
+                                <div class="h5 mb-0" th:text="${totalWorkRaw}">00:00</div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Discarded minutes -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-warning ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-hourglass-split me-2"></i>Discarded Minutes</h6>
-                            <div class="h5 mb-0">
-                                <span th:text="${discardedMinutes ?: 0}">0</span>
-                                <small class="text-muted">minutes</small>
+                        <!-- Actual Work Time -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-info ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-clock-history me-2"></i>Actual Work Time</h6>
+                                <div class="h5 mb-0" th:text="${actualWorkTime}">00:00</div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Auto End Time Scheduler -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-purple ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-alarm me-2"></i>End Time Scheduler</h6>
-
-                            <!-- Show current scheduled end time if exists -->
-                            <div th:if="${scheduledEndTime != null}" class="mb-2">
-                                <span class="badge bg-success" data-scheduled-end="${scheduledEndTime}">Scheduled: <span th:text="${scheduledEndTime}">17:00</span></span>
-                                <form th:action="@{/user/session/cancel-scheduled-end}" method="post" class="d-inline">
-                                    <button type="submit" class="btn btn-link btn-sm p-0 text-danger">
-                                        <i class="bi bi-x-circle"></i>
-                                    </button>
-                                </form>
+                        <!-- Break Information -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-warning ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-cup-hot me-2"></i>Breaks</h6>
+                                <div class="h5 mb-0">
+                                    <span th:text="${temporaryStopCount ?: 0}">0</span>
+                                    <small class="text-muted">stops</small>
+                                    (<span th:text="${totalTemporaryStopTime}">00:00</span>)
+                                </div>
                             </div>
+                        </div>
 
-                            <!-- End time scheduler form -->
-                            <form th:action="@{/user/session/schedule-end}" method="post" class="row g-2 align-items-center">
-                                <div class="col-6">
-                                    <div class="input-group input-group-sm">
-                                        <label for="endHour"></label><input type="number" name="endHour" id="endHour" min="0" max="23" class="form-control" placeholder="HH">
-                                        <span class="input-group-text">:</span>
-                                        <label for="endMinute"></label><input type="number" name="endMinute" id="endMinute" min="0" max="59" class="form-control" placeholder="MM">
+                        <!-- Overtime -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-danger ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-alarm me-2"></i>Overtime</h6>
+                                <div class="h5 mb-0" th:text="${overtime}">00:00</div>
+                            </div>
+                        </div>
+
+                        <!-- Lunch Break -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-secondary ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-egg-fried me-2"></i>Lunch Break</h6>
+                                <div class="h5 mb-0">
+                                    <i th:if="${lunchBreakStatus}" class="bi bi-check-circle-fill text-success me-1"></i>
+                                    <i th:unless="${lunchBreakStatus}" class="bi bi-x-circle-fill text-danger me-1"></i>
+                                    <span th:text="${lunchBreakStatus ? 'Deducted' : 'Not deducted'}">Not deducted</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Discarded minutes -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-warning ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-hourglass-split me-2"></i>Discarded Minutes</h6>
+                                <div class="h5 mb-0">
+                                    <span th:text="${discardedMinutes ?: 0}">0</span>
+                                    <small class="text-muted">minutes</small>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Auto End Time Scheduler -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-purple ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-alarm me-2"></i>End Time Scheduler</h6>
+
+                                <!-- Show current scheduled end time if exists -->
+                                <div th:if="${scheduledEndTime != null}" class="mb-2">
+                                    <span class="badge bg-success" data-scheduled-end="${scheduledEndTime}">
+                                        Scheduled: <span th:text="${scheduledEndTime}">17:00</span>
+                                    </span>
+                                    <form th:action="@{/user/session/cancel-scheduled-end}" method="post" class="d-inline">
+                                        <button type="submit" class="btn btn-link btn-sm p-0 text-danger">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- End time scheduler form -->
+                                <form th:action="@{/user/session/schedule-end}" method="post" class="row g-2 align-items-center">
+                                    <div class="col-6">
+                                        <div class="input-group input-group-sm">
+                                            <label for="endHour"></label><input type="number" name="endHour" id="endHour" min="0" max="23" class="form-control" placeholder="HH">
+                                            <span class="input-group-text">:</span>
+                                            <label for="endMinute"></label><input type="number" name="endMinute" id="endMinute" min="0" max="59" class="form-control" placeholder="MM">
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="col-6">
-                                    <button type="submit" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-clock-history me-1"></i>Schedule
-                                    </button>
-                                </div>
-                            </form>
+                                    <div class="col-6">
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-clock-history me-1"></i>Schedule
+                                        </button>
+                                    </div>
+                                </form>
 
-                            <div class="mt-1">
-                                <a href="#" id="useRecommendedTime" class="badge bg-light text-primary">Use recommended time</a>
+                                <div class="mt-1">
+                                    <a href="#" id="useRecommendedTime" class="badge bg-light text-primary">Use recommended time</a>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <!-- Calculation Preview -->
-                    <div class="col-md-4">
-                        <div class="stat-container border-start border-4 border-info ps-3">
-                            <h6 class="text-muted mb-1"><i class="bi bi-calculator me-2"></i>End Time Calculation</h6>
-                            <div id="endTimeCalculationPreview" class="calculation-preview-container">
-                                <div class="text-muted small">Select end time to see calculation</div>
+
+                        <!-- Calculation Preview (separate section) -->
+                        <div class="col-md-4">
+                            <div class="stat-container border-start border-4 border-info ps-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-calculator me-2"></i>End Time Calculation</h6>
+                                <div id="endTimeCalculationPreview" class="calculation-preview-container">
+                                    <div class="text-muted small">Select end time to see calculation</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Worktime Resolution Container - Enhanced with better UX -->
-        <div class="resolution-container mb-4" th:if="${hasUnresolvedEntries}" id="workTimeResolutionContainer">
+    <!-- TAB 2: UNRESOLVED SESSIONS (Conditional - only when hasUnresolvedEntries) -->
+    <div th:if="${hasUnresolvedEntries}" class="unresolved-tab mt-4" id="unresolvedTab">
+        <div class="container">
             <div class="card border-warning border-2 shadow">
                 <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
                         Unresolved Work Sessions
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" id="closeResolutionBtn"
+                    <button type="button" class="btn-close btn-close-white" onclick="hideUnresolvedTab()"
                             aria-label="Close"></button>
                 </div>
                 <div class="card-body">
@@ -270,96 +265,100 @@
                     </div>
 
                     <!-- Each unresolved entry gets its own form -->
-                    <div th:each="entry, stat : ${unresolvedEntries != null ? unresolvedEntries : new java.util.ArrayList()}"
-                         class="mb-4 pb-3 border-bottom resolution-form-container">
-                        <form th:action="@{/user/session/resolve-worktime}" method="post"
-                              class="row g-3 resolution-form">
-                            <input type="hidden" name="entryDate" th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
-
-                            <div class="col-md-6">
-                                <h6 class="mb-2">Session from <span
-                                        th:text="${entry.formattedWorkDate}">Monday, 10 Mar 2025</span>
+                    <div th:each="entry, stat : ${unresolvedEntries != null ? unresolvedEntries : {}}"
+                         class="resolution-entry mb-4" th:data-entry-date="${entry.workDate}">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-calendar-date me-2"></i>
+                                    Session from <span th:text="${#temporals.format(entry.workDate, 'EEEE, MMMM d, yyyy')}">Date</span>
                                 </h6>
-
-                                <div class="d-flex flex-wrap gap-3 mb-3 info-items">
-                                    <div class="info-item">
-                                        <strong><i
-                                                class="bi bi-play-circle-fill text-success me-1"></i>Started:</strong>
-                                        <span th:text="${entry.formattedStartTime}">08:30</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>Started:</strong> <span th:text="${entry.startTime}">Start time</span></p>
+                                        <p><strong>Status:</strong> <span class="badge bg-warning">Needs Resolution</span></p>
                                     </div>
+                                    <div class="col-md-6">
+                                        <form th:action="@{/user/session/resolve-worktime}" method="post" class="resolution-form">
+                                            <input type="hidden" name="entryDate" th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
 
-                                    <div class="info-item" th:if="${entry.breakMinutes != null && entry.breakMinutes > 0}">
-                                        <strong><i
-                                                class="bi bi-pause-circle-fill text-warning me-1"></i>Breaks:</strong>
-                                        <span th:text="${entry.formattedBreakTime}">00:30</span>
-                                    </div>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <label class="form-label small">End Hour</label>
+                                                    <label>
+                                                        <select name="endHour" class="form-select hour-select" onchange="calculateWorkTime(this.closest('form'))" required>
+                                                            <option value="">Hour</option>
+                                                            <option th:each="hour : ${#numbers.sequence(7, 23)}"
+                                                                    th:value="${hour}"
+                                                                    th:text="${hour}">Hour</option>
+                                                        </select>
+                                                    </label>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small">End Minute</label>
+                                                    <label>
+                                                        <select name="endMinute" class="form-select minute-select" onchange="calculateWorkTime(this.closest('form'))" required>
+                                                            <option value="">Minute</option>
+                                                            <option th:each="minute : ${#numbers.sequence(0, 59, 5)}"
+                                                                    th:value="${minute}"
+                                                                    th:text="${#strings.toString(minute).length() == 1 ? '0' + minute : minute}">Minute</option>
+                                                        </select>
+                                                    </label>
+                                                </div>
+                                            </div>
 
-                                    <div class="info-item recommendation">
-                                        <strong><i class="bi bi-lightbulb-fill text-info me-1"></i>Recommended end:</strong>
-                                        <span th:text="${entry.formattedRecommendedEndTime}">17:00</span>
-                                    </div>
-                                </div>
+                                            <div class="calculation-result mt-2" style="display: block;">
+                                                <div class="calculation-panel">
+                                                    <h6 class="calculation-title">
+                                                        <i class="bi bi-calculator me-2"></i>
+                                                        Calculation Details
+                                                    </h6>
+                                                    <div class="calculation-text">Select an end time to see calculation details.</div>
+                                                </div>
+                                            </div>
 
-                                <div class="d-flex time-selectors">
-                                    <div class="form-group me-2">
-                                        <label th:for="'endHourSelect-' + ${stat.index}" class="form-label">End
-                                            Hour</label>
-                                        <select th:id="'endHourSelect-' + ${stat.index}" name="endHour"
-                                                class="form-select hour-select" required
-                                                aria-label="End hour selection">
-                                            <option value="" disabled selected>Hour</option>
-                                            <option th:each="hour : ${#numbers.sequence(0, 23)}"
-                                                    th:value="${hour}"
-                                                    th:text="${hour < 10 ? '0' + hour : hour}"
-                                                    th:selected="${recommendedEndTimes != null && recommendedEndTimes.get(entry.workDate) != null && hour == recommendedEndTimes.get(entry.workDate).getHour()}">
-                                                08
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label th:for="'endMinuteSelect-' + ${stat.index}" class="form-label">End
-                                            Minute</label>
-                                        <select th:id="'endMinuteSelect-' + ${stat.index}" name="endMinute"
-                                                class="form-select minute-select" required
-                                                aria-label="End minute selection">
-                                            <option value="" disabled selected>Minute</option>
-                                            <option th:each="minute : ${#numbers.sequence(0, 59, 15)}"
-                                                    th:value="${minute}"
-                                                    th:text="${minute < 10 ? '0' + minute : minute}"
-                                                    th:selected="${entry.recommendedEndTime != null && minute == entry.recommendedEndTime.minute}">
-                                                30
-                                            </option>
-                                        </select>
+                                            <button type="submit" class="btn btn-success btn-sm mt-2 w-100">
+                                                <i class="bi bi-check-circle me-1"></i>Resolve Entry
+                                            </button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="col-md-6">
-                                <div class="d-flex align-items-end h-100">
-                                    <button type="submit" class="btn btn-primary resolve-btn">
-                                        <i class="bi bi-check-circle me-2"></i>Resolve
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="col-12 mt-3 calculation-result" style="display: block;">
-                                <div class="calculation-panel">
-                                    <h6 class="calculation-title">
-                                        <i class="bi bi-calculator me-2"></i>
-                                        Calculation Details
-                                    </h6>
-                                    <div class="calculation-text">Select an end time to see calculation details.</div>
-                                </div>
-                            </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Resume Confirmation Modal - Enhanced with better UX -->
+    <!-- TAB 3: TIME MANAGEMENT (Always present, starts EXPANDED by default) -->
+    <div class="time-management-tab mt-4" id="timeManagementTab">
+        <div class="container">
+            <div class="card">
+                <div class="card-header" onclick="toggleTimeManagement()" style="cursor: pointer;">
+                    <h5 class="mb-0">
+                        <i class="bi bi-table me-2"></i>Time Management
+                        <small class="text-muted ms-2" id="tmCurrentPeriod">Loading...</small>
+                        <!-- Start with chevron-up since we're expanded by default -->
+                        <i class="bi bi-chevron-up float-end" id="tmToggleIcon"></i>
+                    </h5>
+                </div>
+                <!-- START EXPANDED - NO d-none class -->
+                <div class="card-body" id="timeManagementContent">
+                    <div class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading time management data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resume Confirmation Modal -->
     <div class="modal fade" id="resumeConfirmationModal" tabindex="-1" aria-labelledby="resumeConfirmationModalLabel"
          aria-hidden="true">
         <div class="modal-dialog">
@@ -394,7 +393,7 @@
         </div>
     </div>
 
-    <!-- Hidden data for JavaScript to access server-side variables -->
+    <!-- Hidden data for JavaScript -->
     <script type="application/json" id="sessionPageData">
         {
             "urlParams": {
@@ -409,16 +408,43 @@
         }
     </script>
 
-    <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
+        <!-- Toast alerts system -->
+        <script th:src="@{/js/toast-alerts.js?v=18841}"></script>
+
         <!-- Resume confirmation script -->
-        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18784}"></script>
+        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=18785}"></script>
 
         <!-- Main script for resolution handling and clock -->
-        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=187913}" defer></script>
+        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=187914}" defer></script>
 
         <!-- Always load the session enhancement script -->
-        <script th:src="@{/js/session-enhanced.js?v=187914}" defer></script>
+        <script th:src="@{/js/session-enhanced.js?v=187915}" defer></script>
+
+        <!-- ========================================= -->
+        <!-- TIME MANAGEMENT MODULES (for embedded fragment) -->
+        <!-- ========================================= -->
+
+        <!-- Core utilities first -->
+        <script th:src="@{/js/tm/utilities-module.js?v=18841}"></script>
+        <script th:src="@{/js/tm/time-input-module.js?v=18841}"></script>
+
+        <!-- Feature modules -->
+        <script th:src="@{/js/tm/status-display-module.js?v=18841}"></script>
+        <script th:src="@{/js/tm/work-time-display-module.js?v=18841}"></script>
+        <script th:src="@{/js/tm/inline-editing-module.js?v=18851}"></script>
+        <script th:src="@{/js/tm/timeoff-management-module.js?v=18841}"></script>
+        <script th:src="@{/js/tm/period-navigation-module.js?v=18841}"></script>
+
+        <!-- Holiday request functionality -->
+        <script th:src="@{/js/tm/holiday-export-utils.js?v=18841}"></script>
+        <script th:src="@{/js/tm/holiday-request-modal.js?v=18841}"></script>
+
+        <!-- Time Management Core coordinator -->
+        <script th:src="@{/js/time-management-core.js?v=18851}"></script>
+
+        <!-- Time Management Integration Script (load last) -->
+        <script th:src="@{/js/session-time-management-integration.js?v=188008}" defer></script>
     </th:block>
 </div>
 </body>

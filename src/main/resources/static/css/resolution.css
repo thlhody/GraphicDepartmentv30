@@ -336,6 +336,88 @@
     }
 }
 
+/* Resolution Section Styles */
+.resolution-container-expanded {
+    z-index: 10;
+    position: relative;
+}
+
+.resolution-banner-minimized {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-left: 4px solid #ffc107;
+}
+
+.resolution-banner-minimized:hover {
+    background-color: #fff3cd;
+    border-color: #ff8c00;
+}
+
+/* Worktime Table States */
+.worktime-blocked {
+    pointer-events: none;
+    opacity: 0.6;
+    position: relative;
+    transition: opacity 0.3s ease;
+}
+
+.worktime-blocked::after {
+    content: "⚠️ Resolve unresolved work sessions to interact with this table";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 193, 7, 0.95);
+    color: #212529;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 5;
+    border: 2px solid #ffc107;
+}
+
+.worktime-interactive {
+    pointer-events: auto;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+/* Resolution state transitions */
+.resolution-section {
+    transition: all 0.4s ease-in-out;
+}
+
+.resolution-section.expanding {
+    animation: slideDown 0.4s ease-out;
+}
+
+.resolution-section.collapsing {
+    animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        max-height: 0;
+        opacity: 0;
+    }
+    to {
+        max-height: 500px;
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        max-height: 500px;
+        opacity: 1;
+    }
+    to {
+        max-height: 0;
+        opacity: 0;
+    }
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .time-selectors {

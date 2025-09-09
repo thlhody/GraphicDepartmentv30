@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Time Management Fragment</title>
+</head>
+<body>
+
+<!-- Time Management Fragment Template -->
+<!-- File: /templates/fragments/time-management-fragment.html -->
+<th:block th:fragment="content">
+    <!-- Error Display -->
+    <div th:if="${error}" class="alert alert-danger m-3">
+        <h6><i class="bi bi-exclamation-triangle me-2"></i>Error Loading Time Management</h6>
+        <p th:text="${error}">Error message</p>
+    </div>
+
+    <!-- Main Content (only show if no error) -->
+    <div th:unless="${error}" class="container py-4">
+
+        <!-- Main Content Row -->
+        <div class="row g-4">
+
+            <!-- Left Panel: Month Summary + Time Off Form -->
+            <div class="col-lg-3">
+                <!-- Month Summary Card -->
+                <div class="summary-card card">
+                    <div class="card-header py-2">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-calendar3 me-2"></i>Month Overview
+                        </h6>
+                    </div>
+                    <div class="card-body compact-summary">
+
+                        <!-- Work Days Section -->
+                        <div class="summary-section mb-3">
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-light rounded mb-1">
+                                <span class="small">Work Days</span>
+                                <span class="badge bg-primary small" th:text="${monthSummary?.daysWorked ?: 0}">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Time Totals Section -->
+                        <div class="summary-section mb-3">
+                            <h6 class="section-title">Time Totals</h6>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-success bg-opacity-10 rounded mb-1">
+                                <span class="small">Regular Time</span>
+                                <span class="badge bg-success small"
+                                      th:text="${monthSummary?.totalRegularMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(monthSummary.totalRegularMinutes) : '00:00'}">00:00</span>
+                            </div>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-warning bg-opacity-10 rounded mb-1">
+                                <span class="small">Overtime</span>
+                                <span class="badge bg-warning text-dark small"
+                                      th:text="${monthSummary?.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(monthSummary.totalOvertimeMinutes) : '00:00'}">00:00</span>
+                            </div>
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-info bg-opacity-10 rounded">
+                                <span class="small fw-medium">Total Time</span>
+                                <span class="badge bg-info small"
+                                      th:text="${(monthSummary?.totalRegularMinutes ?: 0) + (monthSummary?.totalOvertimeMinutes ?: 0) > 0 ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm((monthSummary?.totalRegularMinutes ?: 0) + (monthSummary?.totalOvertimeMinutes ?: 0)) : '00:00'}">00:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Time Off Section -->
+                        <div class="summary-section mb-3">
+                            <h6 class="section-title">Time Off</h6>
+                            <div class="summary-item-mini d-flex justify-content-between align-items-center py-1 px-2 bg-light rounded mb-1">
+                                <span class="small">Holidays (SN)</span>
+                                <span class="badge bg-success small" th:text="${monthSummary?.snDays ?: 0}">0</span>
+                            </div>
+                            <div class="summary-item-mini d-flex justify-content-between align-items-center py-1 px-2 bg-light rounded mb-1">
+                                <span class="small">Vacation (CO)</span>
+                                <span class="badge bg-info small" th:text="${monthSummary?.coDays ?: 0}">0</span>
+                            </div>
+                            <div class="summary-item-mini d-flex justify-content-between align-items-center py-1 px-2 bg-light rounded">
+                                <span class="small">Medical (CM)</span>
+                                <span class="badge bg-warning text-dark small"
+                                      th:text="${monthSummary?.cmDays ?: 0}">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Holiday Balance -->
+                        <div class="summary-section">
+                            <div class="summary-item-compact d-flex justify-content-between align-items-center py-2 px-3 bg-primary bg-opacity-10 rounded">
+                                <span class="small">Available Vacation</span>
+                                <span class="badge bg-primary small"
+                                      th:text="${monthSummary?.availablePaidDays ?: 0}">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Time Off Request Form -->
+                <div class="timeoff-card card mt-3">
+                    <div class="card-header py-2">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-calendar-plus me-2"></i>Request Time Off
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="timeoffForm" th:action="@{/user/time-management/time-off/add}" method="post">
+                            <div class="row g-2">
+
+                                <!-- Single Day Request checkbox -->
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input type="checkbox" id="singleDayRequest" class="form-check-input">
+                                        <label class="form-check-label small" for="singleDayRequest">Single Day
+                                            Request</label>
+                                    </div>
+                                </div>
+
+                                <input type="hidden" name="singleDay" id="singleDayValue" value="false">
+
+                                <!-- Type field -->
+                                <div class="col-12">
+                                    <label for="timeOffType" class="form-label small">Type</label>
+                                    <select name="timeOffType" id="timeOffType" class="form-select form-control-sm"
+                                            required>
+                                        <option value="CO">Vacation (CO)</option>
+                                        <option value="CM">Medical (CM)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Start Date -->
+                                <div class="col-12">
+                                    <label for="startDate" class="form-label small">Start Date</label>
+                                    <input type="date" name="startDate" id="startDate"
+                                           class="form-control form-control-sm" required>
+                                </div>
+
+                                <!-- End Date -->
+                                <div class="col-12" id="endDateContainer">
+                                    <label for="endDate" class="form-label small">End Date</label>
+                                    <input type="date" name="endDate" id="endDate" class="form-control form-control-sm"
+                                           required>
+                                </div>
+
+                                <!-- Submit button -->
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">
+                                        <i class="bi bi-plus-circle me-1"></i>Add Time Off
+                                    </button>
+                                </div>
+
+                                <!-- Holiday Request Button -->
+                                <div class="col-12 mt-2">
+                                    <button type="button" class="btn btn-outline-info btn-sm w-100"
+                                            onclick="openHolidayRequestFromForm()">
+                                        <i class="bi bi-file-text me-1"></i>Holiday Request
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Panel: Work Time Records -->
+            <div class="col-lg-9">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+                            <!-- Left Side: Title and Entry Count -->
+                            <div class="d-flex align-items-center gap-3">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-table me-2"></i>Work Time Records
+                                </h5>
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Total entries: <span th:text="${monthSummary?.entries?.size() ?: 0}">0</span>
+                                </small>
+                            </div>
+
+                            <!-- Right Side: Period Selection and Actions -->
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                                <!-- Period Selection Form -->
+                                <form th:action="@{/user/time-management}" method="get"
+                                      class="d-flex align-items-center gap-2">
+                                    <!-- Year Selection -->
+                                    <div class="form-group mb-0">
+                                        <label for="yearSelect" class="form-label small mb-1">Year</label>
+                                        <select id="yearSelect" name="year" class="form-select form-select-sm"
+                                                style="min-width: 80px;">
+                                            <option th:each="y : ${#numbers.sequence(2020, 2030)}"
+                                                    th:value="${y}"
+                                                    th:text="${y}"
+                                                    th:selected="${y == currentYear}">
+                                                2025
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <!-- Month Selection -->
+                                    <div class="form-group mb-0">
+                                        <label for="monthSelect" class="form-label small mb-1">Month</label>
+                                        <select id="monthSelect" name="month" class="form-select form-select-sm"
+                                                style="min-width: 100px;">
+                                            <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                                    th:value="${m}"
+                                                    th:text="${T(java.time.Month).of(m)}"
+                                                    th:selected="${m == currentMonth}">
+                                                February
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <!-- Load Period Button -->
+                                    <div class="form-group mb-0 align-self-end">
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Load
+                                        </button>
+                                    </div>
+                                </form>
+                                <!-- Divider -->
+                                <div class="vr"></div>
+
+                                <!-- Export Button -->
+                                <a th:href="@{/user/time-management/export(year=${currentYear}, month=${currentMonth})}"
+                                   class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-file-excel me-1"></i>Export
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Work Time Table -->
+                    <div class="table-responsive">
+                        <div class="table-container">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-light sticky-top">
+                                <tr>
+                                    <th class="date-cell" title="Current date">Date</th>
+                                    <th class="timeoff-cell"
+                                        title="Time off Type SN-National Holiday, CO-Vacation, CM-Medical Leave, W-Working weekend.">
+                                        Time Off
+                                    </th>
+                                    <th class="time-cell" title="First start time of the current day.">Start Time</th>
+                                    <th class="temp-stop-cell"
+                                        title="Temporary stops represent how much time was not worked.">Temp Stops
+                                    </th>
+                                    <th class="time-cell" title="End time of the current day.">End Time</th>
+                                    <th class="time-cell"
+                                        title="This represents the time before processing, it includes all time from (Start-End)-TempStop.">
+                                        Raw Time
+                                    </th>
+                                    <th class="text-center"
+                                        title="Lunch break deduction (30 minutes for 8-hour schedule).">Lunch
+                                    </th>
+                                    <th class="time-cell"
+                                        title="Actual Work based on schedule, it is capped at Users Schedule.">Work Time
+                                    </th>
+                                    <th class="time-cell"
+                                        title="Overtime is anything that is worked over the user schedule but only counts full hours.">
+                                        Overtime
+                                    </th>
+                                    <th class="time-cell"
+                                        title="Discarded minutes represent all the minutes that do not count to Work Time/Overtime/Lunch Break.">
+                                        Discarded
+                                    </th>
+                                    <th class="text-center" title="This shows when the field is editable or not.">
+                                        Status
+                                    </th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="record : ${monthSummary?.entries ?: {}}"
+                                    class="worktime-entry"
+                                    th:classappend="(${#temporals.format(record.workDate, 'yyyy-MM-dd') == #temporals.format(#temporals.createNow(), 'yyyy-MM-dd')} ? 'current-day ' : '') +
+                                               (${record.workDate.isAfter(#temporals.createNow().toLocalDate())} ? 'future-day ' : '') +
+                                               (${record.timeOffType == 'SN' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'sn-work-entry ' : '') +
+                                               (${record.timeOffType == 'CO' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'co-work-entry ' : '') +
+                                               (${record.timeOffType == 'CM' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'cm-work-entry ' : '') +
+                                               (${record.timeOffType == 'W' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'w-work-entry' : '')"
+                                    th:attr="data-date=${record.workDate},
+                                         data-overtime-minutes=${record.totalOvertimeMinutes},
+                                         data-status-role=${record.statusInfo?.roleName},
+                                         data-status-action=${record.statusInfo?.actionType},
+                                         data-status-description=${record.statusInfo?.fullDescription},
+                                         data-status-modifiable=${record.statusInfo?.isModifiable},
+                                         data-status-final=${record.statusInfo?.isFinal}">
+
+                                    <!-- Date Column -->
+                                    <td class="date-cell fw-medium">
+                                        <div class="d-flex align-items-center">
+                                            <span th:text="${#temporals.format(record.workDate, 'MMM dd')}">Jan 01</span>
+                                            <small class="text-muted ms-1"
+                                                   th:text="${#temporals.format(record.workDate, 'E')}">Mon</small>
+                                        </div>
+                                    </td>
+
+                                    <!-- Time Off Column -->
+                                    <td class="text-center timeoff-cell"
+                                        th:classappend="${(record.timeOffType == 'CO' || record.timeOffType == 'CM') ? 'deletable-timeoff' : ''}"
+                                        th:attr="data-timeoff-type=${record.timeOffType},
+                                             data-date=${record.workDate},
+                                             data-has-overtime=${record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0},
+                                             data-deletable=${record.timeOffType == 'CO' || record.timeOffType == 'CM'}">
+
+                                        <div class="cell-value">
+                                            <!-- SN with overtime work -->
+                                            <span th:if="${record.timeOffType == 'SN' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="sn-work-display small fw-bold"
+                                                  th:title="'National Holiday with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work'"
+                                                  th:text="'SN' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '') : '0'}">SN4</span>
+
+                                            <!-- CO with overtime work -->
+                                            <span th:if="${record.timeOffType == 'CO' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="co-work-display small fw-bold"
+                                                  th:title="'Time Off Day with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work'"
+                                                  th:text="'CO' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '') : '0'}">CO6</span>
+
+                                            <!-- CM with overtime work -->
+                                            <span th:if="${record.timeOffType == 'CM' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="cm-work-display small fw-bold"
+                                                  th:title="'Medical Leave with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work'"
+                                                  th:text="'CM' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '') : '0'}">CM4</span>
+
+                                            <!-- W with overtime work -->
+                                            <span th:if="${record.timeOffType == 'W' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="w-work-display small fw-bold"
+                                                  th:title="'Weekend with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work'"
+                                                  th:text="'W' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '') : '0'}">W8</span>
+
+                                            <!-- Regular time off without work -->
+                                            <span th:if="${record.timeOffType == 'SN' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="holiday small" title="National Holiday (Free Day)"
+                                                  th:text="${record.timeOffType}">SN</span>
+                                            <span th:if="${record.timeOffType == 'CO' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="vacation small" title="Vacation Day"
+                                                  th:text="${record.timeOffType}">CO</span>
+                                            <span th:if="${record.timeOffType == 'CM' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="medical small" title="Medical Leave"
+                                                  th:text="${record.timeOffType}">CM</span>
+                                            <span th:if="${record.timeOffType == 'W' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
+                                                  class="weekend small" title="Weekend Day"
+                                                  th:text="${record.timeOffType}">W</span>
+
+                                            <!-- No time off -->
+                                            <span th:unless="${record.timeOffType}">-</span>
+                                        </div>
+                                    </td>
+
+                                    <!-- Start Time Column -->
+                                    <td class="time-cell text-center editable-cell"
+                                        data-field="startTime"
+                                        th:attr="data-original=${record.formattedStartTime}"
+                                        ondblclick="handleCellDoubleClick(this)">
+                                        <div class="cell-value">
+                                        <span th:if="${record.timeOffType == 'SN' && record.formattedStartTime != null}"
+                                              class="text-warning"
+                                              th:title="'Working on national holiday - all time counts as overtime'"
+                                              th:text="${record.formattedStartTime}">08:00</span>
+                                            <span th:if="${record.timeOffType != 'SN' && record.formattedStartTime != null}"
+                                                  th:text="${record.formattedStartTime}">08:00</span>
+                                            <span th:unless="${record.formattedStartTime != null}">-</span>
+                                        </div>
+                                        <i class="bi bi-pencil edit-icon"></i>
+                                    </td>
+
+                                    <!-- Temporary Stops Column -->
+                                    <td class="temp-stop-cell text-center editable-cell"
+                                        data-field="tempStop"
+                                        th:attr="data-original=${record.totalTemporaryStopMinutes != null ? record.totalTemporaryStopMinutes : 0}"
+                                        ondblclick="handleCellDoubleClick(this)">
+                                        <div class="cell-value">
+                                        <span th:if="${record.totalTemporaryStopMinutes != null && record.totalTemporaryStopMinutes > 0}"
+                                              class="text-info fw-medium temp-stop-display"
+                                              th:text="${record.totalTemporaryStopMinutes + 'm'}"
+                                              title="Double-click to edit temporary stop time">120m</span>
+                                            <span th:unless="${record.totalTemporaryStopMinutes != null && record.totalTemporaryStopMinutes > 0}"
+                                                  class="text-muted temp-stop-display"
+                                                  title="Double-click to add temporary stop time">-</span>
+                                        </div>
+                                        <i class="bi bi-pencil edit-icon d-none"></i>
+                                    </td>
+
+                                    <!-- End Time Column -->
+                                    <td class="time-cell text-center editable-cell"
+                                        data-field="endTime"
+                                        th:attr="data-original=${record.formattedEndTime}"
+                                        ondblclick="handleCellDoubleClick(this)">
+                                        <div class="cell-value">
+                                        <span th:if="${record.timeOffType == 'SN' && record.formattedEndTime != null}"
+                                              class="text-warning"
+                                              th:title="'Working on national holiday - all time counts as overtime'"
+                                              th:text="${record.formattedEndTime}">17:00</span>
+                                            <span th:if="${record.timeOffType != 'SN' && record.formattedEndTime != null}"
+                                                  th:text="${record.formattedEndTime}">17:00</span>
+                                            <span th:unless="${record.formattedEndTime != null}">-</span>
+                                        </div>
+                                        <i class="bi bi-pencil edit-icon"></i>
+                                    </td>
+
+                                    <!-- Raw Time Column -->
+                                    <td class="text-center small">
+                                    <span th:if="${record.dayStartTime != null && record.dayEndTime != null}"
+                                          class="text-info fw-medium"
+                                          th:with="startTime=${record.dayStartTime}, endTime=${record.dayEndTime},
+                                                   tempStops=${record.totalTemporaryStopMinutes ?: 0},
+                                                   elapsedMinutes=${T(java.time.Duration).between(startTime, endTime).toMinutes()},
+                                                   rawMinutes=${elapsedMinutes - tempStops}"
+                                          th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(rawMinutes)}"
+                                          th:title="'Raw work time: ' + ${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(elapsedMinutes)} + ' total - ' + ${tempStops} + 'm temp stops'">8:00</span>
+                                        <span th:unless="${record.dayStartTime != null && record.dayEndTime != null}">-</span>
+                                    </td>
+
+                                    <!-- Lunch Break Column -->
+                                    <td class="text-center">
+                                    <span th:if="${record.timeOffType == null && record.dayEndTime != null && record.lunchBreakApplied}"
+                                          class="text-success" title="Lunch break: 30 minutes deducted from work time">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                    </span>
+                                        <span th:if="${record.timeOffType == null && record.dayEndTime != null && !record.lunchBreakApplied}"
+                                              class="text-muted"
+                                              title="No lunch break required (short workday)">-</span>
+                                        <span th:if="${record.timeOffType != null || record.dayEndTime == null}"
+                                              class="text-muted">-</span>
+                                    </td>
+
+                                    <!-- Work Time Column -->
+                                    <td class="text-center small">
+                                    <span th:if="${record.timeOffType == 'SN' || record.timeOffType == 'CO' || record.timeOffType == 'CM' || record.timeOffType == 'W'}"
+                                          class="text-muted"
+                                          title="No regular work time on special days - all time is overtime">-</span>
+                                        <span th:if="${record.timeOffType == null && record.formattedWorkTime != null}"
+                                              class="text-primary fw-medium"
+                                              th:text="${record.formattedWorkTime}"
+                                              th:title="'Regular work time (up to schedule): ' + ${record.formattedWorkTime} + ${record.lunchBreakDeducted ? ' (lunch break deducted)' : ''}">--:--</span>
+                                        <span th:unless="${(record.timeOffType == 'SN' || record.timeOffType == 'CO' || record.timeOffType == 'CM' || record.timeOffType == 'W') || (record.timeOffType == null && record.formattedWorkTime != null)}">-</span>
+                                    </td>
+
+                                    <!-- Overtime Column -->
+                                    <td class="text-center small">
+                                    <span th:if="${record.timeOffType == 'SN' && record.formattedOvertimeTime != null}"
+                                          class="badge bg-warning text-dark rounded-pill overtime-display small sn-overtime"
+                                          th:title="'Holiday overtime work: ' + ${record.formattedOvertimeTime}"
+                                          th:text="${record.formattedOvertimeTime}">--:--</span>
+                                        <span th:if="${record.timeOffType == 'CO' && record.formattedOvertimeTime != null}"
+                                              class="badge bg-info text-white rounded-pill overtime-display small co-overtime"
+                                              th:title="'Time Off overtime work: ' + ${record.formattedOvertimeTime}"
+                                              th:text="${record.formattedOvertimeTime}">--:--</span>
+                                        <span th:if="${record.timeOffType == 'CM' && record.formattedOvertimeTime != null}"
+                                              class="badge bg-warning text-white rounded-pill overtime-display small cm-overtime"
+                                              th:title="'Medical Leave overtime work: ' + ${record.formattedOvertimeTime}"
+                                              th:text="${record.formattedOvertimeTime}">--:--</span>
+                                        <span th:if="${record.timeOffType == 'W' && record.formattedOvertimeTime != null}"
+                                              class="badge bg-secondary text-white rounded-pill overtime-display small w-overtime"
+                                              th:title="'Weekend overtime work: ' + ${record.formattedOvertimeTime}"
+                                              th:text="${record.formattedOvertimeTime}">--:--</span>
+                                        <span th:if="${(record.timeOffType == null || (record.timeOffType != 'SN' && record.timeOffType != 'CO' && record.timeOffType != 'CM' && record.timeOffType != 'W')) && record.formattedOvertimeTime != null}"
+                                              class="badge bg-success rounded-pill overtime-display small"
+                                              th:title="'Overtime work: ' + ${record.formattedOvertimeTime} + ' (beyond schedule)'"
+                                              th:text="${record.formattedOvertimeTime}">--:--</span>
+                                        <span th:unless="${record.formattedOvertimeTime != null}">-</span>
+                                    </td>
+
+                                    <!-- Discarded Minutes Column -->
+                                    <td class="text-center small">
+                                    <span th:if="${record.discardedMinutes != null && record.discardedMinutes > 0}"
+                                          class="text-warning fw-medium"
+                                          th:text="${record.discardedMinutes + 'm'}"
+                                          th:title="'Discarded minutes: ' + ${record.discardedMinutes} + 'm (partial hour not counted)'">0</span>
+                                        <span th:unless="${record.discardedMinutes != null && record.discardedMinutes > 0}">-</span>
+                                    </td>
+
+                                    <!-- Entry Status Indicator -->
+                                    <td class="text-center status-cell">
+                                        <div class="status-indicator"
+                                             th:if="${record.statusInfo}"
+                                             th:classappend="${record.statusInfo.cssClass}"
+                                             th:attr="data-bs-toggle='tooltip',
+                                                  data-bs-placement='top',
+                                                  data-bs-html='true',
+                                                  title=${record.statusInfo.fullDescription}"
+                                             onclick="showStatusDetails(this, event)">
+
+                                            <!-- Status Icon -->
+                                            <i th:class="${record.statusInfo.iconClass + ' status-icon'}"></i>
+
+                                            <!-- Status Badge -->
+                                            <span th:class="${'badge ' + record.statusInfo.badgeClass + ' status-badge small'}"
+                                                  th:text="${record.statusInfo.shortDisplay}">
+                                            UI
+                                        </span>
+
+                                            <!-- Modifiable Indicator -->
+                                            <div class="modifiable-indicator" th:if="${record.statusInfo.isModifiable}">
+                                                <i class="bi bi-pencil-fill edit-allowed-icon"></i>
+                                            </div>
+                                            <div class="locked-indicator" th:unless="${record.statusInfo.isModifiable}">
+                                                <i class="bi bi-lock-fill edit-locked-icon"></i>
+                                            </div>
+                                        </div>
+
+                                        <!-- Fallback for missing status info -->
+                                        <div class="status-indicator text-muted" th:unless="${record.statusInfo}">
+                                            <i class="bi bi-question-circle"></i>
+                                            <span class="badge bg-secondary small">?</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Table Footer with Legend -->
+                    <div class="card-footer bg-light py-2">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <small class="text-muted">
+                                    <strong>Legend:</strong>
+                                    <span class="holiday me-2">SN</span> Holiday •
+                                    <span class="sn-work-display me-2">SN4</span> Holiday+Work •
+                                    <span class="vacation me-2">CO</span> Vacation •
+                                    <span class="co-work-display me-2">CO6</span> Vacation+Work •
+                                    <span class="medical me-2">CM</span> Medical •
+                                    <span class="cm-work-display me-2">CM4</span> Medical+Work •
+                                    <span class="weekend me-2">W</span> Weekend •
+                                    <span class="w-work-display me-2">W8</span> Weekend+Work
+                                </small>
+                                <br>
+                                <small class="text-muted">
+                                    <strong>Time Calculation:</strong>
+                                    <span class="text-info">Raw Time</span> = Start-End minus temp stops •
+                                    <span class="text-primary">Work Time</span> = Processed regular hours (up to
+                                    schedule) •
+                                    <span class="text-warning">Discarded</span> = Partial hour not counted
+                                </small>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <small class="text-muted">
+                                    <strong>Editing:</strong> Double-click Start/End Time and Temp Stops to edit.
+                                    Times use 24-hour format (HH:mm). Temp stops use minutes (0-720).
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Details Modal -->
+    <div class="modal fade" id="statusDetailsModal" tabindex="-1" data-bs-focus="false">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title">
+                        <i class="bi bi-info-circle me-2"></i>Entry Status Details
+                    </h6>
+                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <div id="statusDetailsContent">
+                        <!-- Dynamic content will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Holiday Request Modal -->
+    <div class="holiday-modal-overlay" id="holidayModal">
+        <div class="holiday-modal">
+            <!-- Modal Header -->
+            <div class="holiday-modal-header">
+                <h5 class="holiday-modal-title">
+                    <i class="bi bi-file-text me-2"></i>Cerere de Concediu
+                </h5>
+                <button class="holiday-modal-close" onclick="closeHolidayModal()">&times;</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="holiday-modal-body">
+                <form class="holiday-form" id="holidayRequestForm">
+
+                    <!-- Header with Logo -->
+                    <div class="form-header">
+                        <div class="logo-container">
+                            <div class="logo-placeholder">
+                                <img th:src="@{/images/cerere_concediu_logo.png}" alt="Company Logo"
+                                     style="max-width: 100%; max-height: 100%; object-fit: contain;" id="companyLogo">
+                                <div id="logoFallback"
+                                     style="display: none; align-items: center; justify-content: center; font-size: 10px; color: #6c757d;">
+                                    LOGO
+                                </div>
+                            </div>
+                            <div class="header-line"></div>
+                        </div>
+                        <div class="form-title">Cerere de concediu</div>
+                    </div>
+
+                    <!-- Fix Personal Information with proper labels -->
+                    <div class="form-row">
+                        <label for="employeeName" class="form-label subsemnatul">Subsemnatul(a)</label>
+                        <input type="text" class="form-input" id="employeeName" placeholder="Nume și prenume..."
+                               required>
+                    </div>
+
+                    <div class="form-row">
+                        <label for="jobPosition" class="form-label">angajat/a la societatea dvs. pe postul</label>
+                        <input type="text" class="form-input" id="jobPosition" value="REFERENT"
+                               style="min-width: 300px;">
+                    </div>
+
+                    <div class="form-row">
+                        <label for="workplace" class="form-label">loc de muncă</label>
+                        <input type="text" class="form-input" id="workplace" value="Dep. Grafica"
+                               style="min-width: 200px;">
+                        <span class="form-label">va rog să-mi aprobați</span>
+                    </div>
+
+                    <!-- Holiday Period - Single Line -->
+                    <div class="form-row period-row">
+                        <span class="form-label">zile de concediu*, în perioada</span>
+                        <label for="holidayStartDate" class="visually-hidden">Data de început</label>
+                        <input type="text" class="form-input period-input" id="holidayStartDate" readonly
+                               aria-label="Data de început a concediului">
+                        <span class="form-label">-</span>
+                        <label for="holidayEndDate" class="visually-hidden">Data de sfârșit</label>
+                        <input type="text" class="form-input period-input" id="holidayEndDate" readonly
+                               aria-label="Data de sfârșit a concediului">
+                    </div>
+
+                    <!-- Reprezentând line -->
+                    <div class="form-row">
+                        <span class="form-label">reprezentând**.</span>
+                    </div>
+
+                    <!-- Holiday Types with Square Checkboxes -->
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <span class="checkbox-label">1. Concediu de odihnă</span>
+                            <div class="custom-checkbox" data-value="odihna" onclick="selectHolidayType('odihna')">
+                                <span class="checkbox-mark"></span>
+                            </div>
+                        </div>
+
+                        <div class="checkbox-item">
+                            <span class="checkbox-label">2. Concediu pentru evenimente speciale ***</span>
+                            <div class="custom-checkbox" data-value="special" onclick="selectHolidayType('special')">
+                                <span class="checkbox-mark"></span>
+                            </div>
+                        </div>
+
+                        <div id="specialEventNote"
+                             style="margin-left: 25px; font-size: 12px; color: #6c757d; display: none;">
+                            (la întoarcerea din concediu se vor anexa actele doveditoare)
+                        </div>
+
+                        <div id="specialEventReason" style="margin-left: 25px; display: none;">
+                            <label for="motivSpecial">Motivul:</label>
+                            <textarea class="reason-field" id="motivSpecial"
+                                      placeholder="Specificați motivul..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Special Events Info -->
+                    <div class="special-events">
+                        <div class="special-events-title">*** Conf. Regulamentului Intern pentru:</div>
+                        <ul class="special-events-list">
+                            <li>- căsătoria salariatului: 5 zile</li>
+                            <li>- căsătoria unui copil: 2 zile</li>
+                            <li>- nașterea unui copil: 5 zile</li>
+                            <li>- decesul soțului, copilului, frați, părinți, socri: 3 zile</li>
+                            <li>- decesul bunicilor: 1 zi</li>
+                        </ul>
+                    </div>
+
+                    <!-- Unpaid Leave -->
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <span class="checkbox-label">3. Concediu fără plată / Învoire</span>
+                            <div class="custom-checkbox" data-value="fara_plata"
+                                 onclick="selectHolidayType('fara_plata')">
+                                <span class="checkbox-mark"></span>
+                            </div>
+                        </div>
+
+                        <div id="unpaidLeaveOptions" style="margin-left: 25px; display: none;">
+                            <div style="margin-bottom: 15px;">
+                                <label for="motivFaraPlata">Motivul:</label>
+                                <textarea class="reason-field" id="motivFaraPlata"
+                                          placeholder="(se va specifica: rezolvarea unor probleme personale)"></textarea>
+                            </div>
+
+                            <!-- Inline options with Aprobat -->
+                            <div class="unpaid-leave-inline">
+                                <div class="recovery-options">
+                                    <div class="custom-checkbox-small" id="cuRecuperareBox"
+                                         onclick="toggleRecovery('cu')">
+                                        <span class="checkbox-mark"></span>
+                                    </div>
+                                    <span class="recovery-label">cu recuperare</span>
+
+                                    <div class="custom-checkbox-small" id="faraRecuperareBox"
+                                         onclick="toggleRecovery('fara')">
+                                        <span class="checkbox-mark"></span>
+                                    </div>
+                                    <span class="recovery-label">fără recuperare</span>
+                                </div>
+
+                                <div class="aprobat-inline">
+                                    <span>Aprobat</span>
+                                    <div class="aprobat-line"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Signatures Section - Redesigned -->
+                    <div class="signature-section">
+                        <!-- Left Side: Employee -->
+                        <div class="signature-group-left">
+                            <div class="signature-labels">
+                                <div>Semnătura,</div>
+                                <div>Angajat,</div>
+                            </div>
+                            <div class="signature-upload" onclick="document.getElementById('signatureFile').click()">
+                                <input type="file" id="signatureFile" accept="image/*">
+                                <div id="signatureText">Click pentru semnătură</div>
+                                <img id="signaturePreview" class="signature-preview hidden" alt="">
+                            </div>
+                            <div class="sef-compartiment">Șef compartiment,</div>
+                        </div>
+
+                        <!-- Right Side: Director -->
+                        <div class="signature-group-right">
+                            <div class="director-section">
+                                <div class="director-approval"></div>
+                                <div class="director-label">Director,</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="form-footer">
+                        MB30.01/29.01.04
+                    </div>
+
+                </form>
+            </div>
+
+            <!-- Export Section -->
+            <div class="export-section">
+                <div style="margin-bottom: 10px; font-weight: 600;">Exportă cererea:</div>
+                <div class="export-buttons">
+                    <button class="export-btn" onclick="exportToImage('jpg')">
+                        <i class="bi bi-image me-1"></i>JPG
+                    </button>
+                    <button class="export-btn" onclick="exportToImage('png')">
+                        <i class="bi bi-image me-1"></i>PNG
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</th:block>
+</body>
+</html>

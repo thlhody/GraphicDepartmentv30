@@ -47,8 +47,8 @@ public class UserSessionController extends BaseController {
     private final SessionService sessionService;
 
     @Autowired
-    public UserSessionController(SessionCommandService commandService, SessionCommandFactory commandFactory,
-            FolderStatus folderStatus, TimeValidationService timeValidationService, SessionService sessionService) {
+    public UserSessionController(SessionCommandService commandService, SessionCommandFactory commandFactory, FolderStatus folderStatus,
+                                 TimeValidationService timeValidationService, SessionService sessionService) {
         super(commandService.getContext().getUserService(), folderStatus, timeValidationService);
         this.commandService = commandService;
         this.commandFactory = commandFactory;
@@ -75,6 +75,7 @@ public class UserSessionController extends BaseController {
             model.addAttribute("dashboardUrl", navContext.dashboardUrl());
             model.addAttribute("completedSessionToday", navContext.completedSessionToday());
             model.addAttribute("isTeamLeaderView", navContext.isTeamLeaderView());
+            model.addAttribute("currentUser", sanitizeUserData(currentUser));
 
             // Check for unresolved work time entries using a query
             if (!skipResolutionCheck) {
@@ -499,5 +500,17 @@ public class UserSessionController extends BaseController {
             errorDTO.setMessage("Error calculating work time: " + e.getMessage());
             return errorDTO;
         }
+    }
+
+    // Sanitize user data for display
+    private User sanitizeUserData(User user) {
+        User sanitized = new User();
+        sanitized.setUserId(user.getUserId());
+        sanitized.setName(user.getName());
+        sanitized.setUsername(user.getUsername());
+        sanitized.setEmployeeId(user.getEmployeeId());
+        sanitized.setSchedule(user.getSchedule());
+        sanitized.setPaidHolidayDays(user.getPaidHolidayDays());
+        return sanitized;
     }
 }

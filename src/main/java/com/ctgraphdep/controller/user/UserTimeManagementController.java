@@ -277,6 +277,73 @@ public class UserTimeManagementController extends BaseController {
         }
     }
 
+
+    /**
+     * Get time management content fragment for embedded display
+     * This endpoint returns just the content without the layout wrapper
+     */
+    @GetMapping("/fragment")
+    public String getTimeManagementFragment(@AuthenticationPrincipal UserDetails userDetails,
+                                            @RequestParam(required = false) Integer year,
+                                            @RequestParam(required = false) Integer month,
+                                            Model model) {
+
+        try {
+            LoggerUtil.info(this.getClass(), "Loading time management fragment at " + getStandardCurrentDateTime());
+
+            // Get user and add common model attributes
+            User currentUser = prepareUserAndCommonModelAttributes(userDetails, model);
+            if (currentUser == null) {
+                model.addAttribute("error", "Authentication required");
+                return "fragments/time-management-fragment";
+            }
+
+            // Determine year and month (preserve URL parameters)
+            int selectedYear = determineYear(year);
+            int selectedMonth = determineMonth(month);
+
+            try {
+                var validateCommand = getTimeValidationService().getValidationFactory()
+                        .createValidatePeriodCommand(selectedYear, selectedMonth, 24);
+                getTimeValidationService().execute(validateCommand);
+            } catch (IllegalArgumentException e) {
+                model.addAttribute("error", "The selected period is not valid. You can only view periods up to 24 months in the future.");
+                return "fragments/time-management-fragment";
+            }
+
+            // Load combined page data using existing service
+            Map<String, Object> combinedData = worktimeDisplayService.prepareCombinedDisplayData(
+                    currentUser, selectedYear, selectedMonth);
+
+            // Add all data to model
+            model.addAllAttributes(combinedData);
+            model.addAttribute("user", sanitizeUserData(currentUser));
+            model.addAttribute("currentYear", selectedYear);
+            model.addAttribute("currentMonth", selectedMonth);
+
+            // Add date constraints for time off requests
+            LocalDate today = getStandardCurrentDate();
+            model.addAttribute("today", today.toString());
+            model.addAttribute("minDate", today.minusDays(7).toString());
+            model.addAttribute("maxDate", today.plusMonths(6).toString());
+
+            // Add current system time
+            model.addAttribute("currentSystemTime", getStandardCurrentDateTime().format(
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully loaded time management fragment for %s - %d/%d",
+                    currentUser.getUsername(), selectedYear, selectedMonth));
+
+            return "user/fragments/time-management-fragment";
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error loading time management fragment: " + e.getMessage(), e);
+            model.addAttribute("error", "Error loading time management data: " + e.getMessage());
+            return "user/fragments/time-management-fragment";
+        }
+    }
+
     // ========================================================================
     // EXCEL EXPORT ENDPOINT (UNCHANGED)
     // ========================================================================
@@ -322,9 +389,7 @@ public class UserTimeManagementController extends BaseController {
     //  CLEAN HELPER METHODS
     // ========================================================================
 
-    /**
-     * Execute field update using appropriate command (business logic only)
-     */
+    // Execute field update using appropriate command (business logic only)
     private OperationResult executeFieldUpdate(User currentUser, LocalDate workDate, String field, String value) {
         String username = currentUser.getUsername();
         Integer userId = currentUser.getUserId();
@@ -366,9 +431,7 @@ public class UserTimeManagementController extends BaseController {
         };
     }
 
-    /**
-     * Process update result and create appropriate response
-     */
+    // Process update result and create appropriate response
     private ResponseEntity<Map<String, Object>> processUpdateResult(OperationResult result, String field, String date, String value) {
         Map<String, Object> response = new HashMap<>();
 
@@ -397,9 +460,7 @@ public class UserTimeManagementController extends BaseController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Get redirect URL with month preservation
-     */
+    // Get redirect URL with month preservation
     private String getRedirectUrl(String startDate) {
         try {
             LocalDate date = LocalDate.parse(startDate);
@@ -413,9 +474,8 @@ public class UserTimeManagementController extends BaseController {
                     now.getYear(), now.getMonthValue());
         }
     }
-    /**
-     * Create error response helper
-     */
+
+    // Create error response helper
     private ResponseEntity<Map<String, Object>> createErrorResponse(String message, HttpStatus status) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", false);
@@ -424,9 +484,7 @@ public class UserTimeManagementController extends BaseController {
         return ResponseEntity.status(status).body(response);
     }
 
-    /**
-     * Sanitize user data for display
-     */
+    // Sanitize user data for display
     private User sanitizeUserData(User user) {
         User sanitized = new User();
         sanitized.setUserId(user.getUserId());
@@ -437,6 +495,7 @@ public class UserTimeManagementController extends BaseController {
         sanitized.setPaidHolidayDays(user.getPaidHolidayDays());
         return sanitized;
     }
+
     // Add this method to UserTimeManagementController
     private String getExistingTimeOffTypeForDate(LocalDate date, User user) {
         try {

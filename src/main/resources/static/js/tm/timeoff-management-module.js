@@ -20,9 +20,15 @@ const TimeOffManagementModule = {
     // ========================================================================
 
     /**
-     * Initialize time off management functionality
-     */
+   * Initialize time off management functionality
+   */
     initialize() {
+        // Prevent double initialization
+        if (this.state.isInitialized) {
+            console.log('⚠️ TimeOffManagementModule already initialized, skipping...');
+            return;
+        }
+
         console.log('Initializing Time Off Management Module with recyclebin approach...');
 
         this.initializeTimeOffForm();
