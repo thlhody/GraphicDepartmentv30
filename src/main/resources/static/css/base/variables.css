@@ -1,0 +1,327 @@
+/**
+ * CSS Design Tokens - variables.css
+ * Central design system for the Time Management Application
+ * Based on analysis of existing CSS patterns
+ */
+
+:root {
+/* ========================================================================
+   COLOR SYSTEM - Time Off Types (Business Logic Colors)
+   ======================================================================== */
+
+/* National Holiday (SN) - Red System */
+    --color-sn-primary: #dc3545;        /* Main SN color */
+    --color-sn-hover: #bb2d3b;          /* SN hover state */
+    --color-sn-border: #b02a37;         /* SN borders */
+    --color-sn-light: rgba(220, 53, 69, 0.1);   /* SN background tint */
+    --color-sn-overlay: rgba(220, 53, 69, 0.05); /* SN row background */
+
+    /* Vacation/Time Off (CO) - Cyan System */
+    --color-co-primary: #0dcaf0;        /* Main CO color */
+    --color-co-hover: #31d2f2;          /* CO hover state */
+    --color-co-border: #3dd5f3;         /* CO borders */
+    --color-co-light: rgba(13, 202, 240, 0.1);  /* CO background tint */
+    --color-co-overlay: rgba(13, 202, 240, 0.05); /* CO row background */
+
+    /* Medical Leave (CM) - Orange System */
+    --color-cm-primary: #fd7e14;        /* Main CM color */
+    --color-cm-hover: #fd8e3a;          /* CM hover state */
+    --color-cm-border: #fd8c3a;         /* CM borders */
+    --color-cm-light: rgba(253, 126, 20, 0.1);  /* CM background tint */
+    --color-cm-overlay: rgba(253, 126, 20, 0.05); /* CM row background */
+
+    /* Weekend Work (W) - Gray System */
+    --color-w-primary: #6c757d;         /* Main W color */
+    --color-w-hover: #7c838a;           /* W hover state */
+    --color-w-border: #5c636a;          /* W borders */
+    --color-w-light: rgba(108, 117, 125, 0.1);  /* W background tint */
+    --color-w-overlay: rgba(108, 117, 125, 0.05); /* W row background */
+
+    /* ========================================================================
+       BOOTSTRAP-COMPATIBLE COLOR SYSTEM
+       ======================================================================== */
+
+    /* Primary Colors (Blue system) */
+    --color-primary: #0d6efd;
+    --color-primary-hover: #0b5ed7;
+    --color-primary-light: rgba(13, 110, 253, 0.1);
+
+    /* Semantic Colors */
+    --color-success: #198754;
+    --color-success-hover: #146c43;
+    --color-success-light: rgba(25, 135, 84, 0.1);
+
+    --color-warning: #ffc107;
+    --color-warning-hover: #ffcd39;
+    --color-warning-light: rgba(255, 193, 7, 0.1);
+
+    --color-danger: #dc3545;
+    --color-danger-hover: #bb2d3b;
+    --color-danger-light: rgba(220, 53, 69, 0.1);
+
+    --color-info: #0dcaf0;
+    --color-info-hover: #31d2f2;
+    --color-info-light: rgba(13, 202, 240, 0.1);
+
+    --color-secondary: #6c757d;
+    --color-secondary-hover: #5c636a;
+    --color-secondary-light: rgba(108, 117, 125, 0.1);
+
+    /* Neutral Colors */
+    --color-light: #f8f9fa;
+    --color-muted: #6c757d;
+    --color-dark: #212529;
+    --color-white: #ffffff;
+    --color-black: #000000;
+
+    /* ========================================================================
+       SPACING SYSTEM (Based on Bootstrap 5)
+       ======================================================================== */
+
+    --spacing-0: 0;
+    --spacing-1: 0.25rem;    /* 4px */
+    --spacing-2: 0.5rem;     /* 8px */
+    --spacing-3: 0.75rem;    /* 12px */
+    --spacing-4: 1rem;       /* 16px */
+    --spacing-5: 1.25rem;    /* 20px */
+    --spacing-6: 1.5rem;     /* 24px */
+    --spacing-8: 2rem;       /* 32px */
+    --spacing-10: 2.5rem;    /* 40px */
+    --spacing-12: 3rem;      /* 48px */
+
+    /* Component-specific spacing */
+    --spacing-card-padding: var(--spacing-4);
+    --spacing-form-gap: var(--spacing-3);
+    --spacing-button-padding: 0.375rem 0.75rem;
+    --spacing-input-padding: 0.375rem 0.75rem;
+
+    /* ========================================================================
+       BORDER SYSTEM
+       ======================================================================== */
+
+    --border-width-thin: 1px;
+    --border-width-medium: 2px;
+    --border-width-thick: 3px;
+    --border-width-accent: 4px;  /* For left borders on cards */
+
+    --border-radius-xs: 0.25rem;
+    --border-radius-sm: 0.375rem;
+    --border-radius-md: 0.5rem;
+    --border-radius-lg: 0.75rem;
+    --border-radius-xl: 1rem;
+    --border-radius-pill: 50rem;  /* For pill-shaped elements */
+    --border-radius-circle: 50%;  /* For circular elements */
+
+    /* Border colors */
+    --border-color-light: #dee2e6;
+    --border-color-medium: #ced4da;
+    --border-color-dark: #adb5bd;
+
+    /* ========================================================================
+       SHADOW SYSTEM
+       ======================================================================== */
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+    --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.25);
+
+    /* Specialized shadows */
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-card-hover: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-floating: 0 10px 30px rgba(0, 0, 0, 0.3);
+    --shadow-modal: 0 10px 30px rgba(0, 0, 0, 0.3);
+
+    /* Time-off specific shadows */
+    --shadow-sn: 0 4px 8px rgba(220, 53, 69, 0.2);
+    --shadow-co: 0 4px 12px rgba(13, 202, 240, 0.3);
+    --shadow-cm: 0 2px 4px rgba(253, 126, 20, 0.3);
+    --shadow-w: 0 2px 4px rgba(108, 117, 125, 0.3);
+
+    /* ========================================================================
+       TRANSITION & ANIMATION SYSTEM
+       ======================================================================== */
+
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-smooth: 0.3s ease;
+    --transition-slow: 0.4s ease;
+    --transition-slower: 0.5s ease;
+
+    /* Specific transitions */
+    --transition-all: all var(--transition-base);
+    --transition-transform: transform var(--transition-base);
+    --transition-opacity: opacity var(--transition-base);
+    --transition-background: background-color var(--transition-base);
+    --transition-border: border-color var(--transition-base);
+    --transition-shadow: box-shadow var(--transition-base);
+
+    /* Cubic bezier transitions for more natural feel */
+    --transition-bounce: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-elastic: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    /* ========================================================================
+       TYPOGRAPHY SYSTEM
+       ======================================================================== */
+
+    /* Font families */
+    --font-family-primary: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-family-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    --font-family-form: 'Times New Roman', serif; /* For holiday forms */
+
+    /* Font sizes */
+    --font-size-xs: 0.65rem;    /* 10.4px */
+    --font-size-sm: 0.75rem;    /* 12px */
+    --font-size-base: 0.875rem; /* 14px */
+    --font-size-md: 1rem;       /* 16px */
+    --font-size-lg: 1.125rem;   /* 18px */
+    --font-size-xl: 1.25rem;    /* 20px */
+    --font-size-2xl: 1.5rem;    /* 24px */
+    --font-size-3xl: 1.75rem;   /* 28px */
+
+    /* Font weights */
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    /* Line heights */
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.4;
+    --line-height-relaxed: 1.6;
+
+    /* ========================================================================
+       LAYOUT & SIZING SYSTEM
+       ======================================================================== */
+
+    /* Container widths */
+    --container-sm: 576px;
+    --container-md: 768px;
+    --container-lg: 992px;
+    --container-xl: 1200px;
+    --container-2xl: 1400px;
+
+    /* Component heights */
+    --height-navbar: 56px;
+    --height-input: 38px;
+    --height-button-sm: 31px;
+    --height-button: 38px;
+    --height-button-lg: 48px;
+
+    /* Z-index scale */
+    --z-dropdown: 1000;
+    --z-sticky: 1020;
+    --z-fixed: 1030;
+    --z-backdrop: 1040;
+    --z-offcanvas: 1050;
+    --z-modal: 1055;
+    --z-popover: 1070;
+    --z-tooltip: 1080;
+    --z-toast: 9999;
+    --z-floating-card: 1050;
+
+    /* ========================================================================
+       COMPONENT-SPECIFIC TOKENS
+       ======================================================================== */
+
+    /* Table specific */
+    --table-cell-padding: 0.5rem 0.25rem;
+    --table-header-bg: var(--color-light);
+    --table-border-color: var(--border-color-light);
+    --table-hover-bg: rgba(13, 110, 253, 0.05);
+
+    /* Card specific */
+    --card-border-radius: var(--border-radius-sm);
+    --card-shadow: var(--shadow-card);
+    --card-shadow-hover: var(--shadow-card-hover);
+    --card-header-bg: transparent;
+    --card-body-padding: var(--spacing-4);
+
+    /* Button specific */
+    --button-border-radius: var(--border-radius-sm);
+    --button-font-weight: var(--font-weight-medium);
+    --button-transition: var(--transition-all);
+
+    /* Form specific */
+    --input-border-radius: var(--border-radius-sm);
+    --input-border-color: #dee2e6;
+    --input-focus-border-color: var(--color-primary);
+    --input-focus-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+
+    /* Badge specific */
+    --badge-border-radius: var(--border-radius-sm);
+    --badge-font-size: var(--font-size-xs);
+    --badge-font-weight: var(--font-weight-medium);
+    --badge-padding: 0.25rem 0.5rem;
+
+    /* Modal specific */
+    --modal-border-radius: var(--border-radius-md);
+    --modal-shadow: var(--shadow-modal);
+    --modal-backdrop: rgba(0, 0, 0, 0.7);
+
+    /* ========================================================================
+       BREAKPOINT SYSTEM
+       ======================================================================== */
+
+    --breakpoint-xs: 0;
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1200px;
+    --breakpoint-2xl: 1400px;
+
+    /* ========================================================================
+       BUSINESS LOGIC CONSTANTS
+       ======================================================================== */
+
+    /* Work time related */
+    --work-day-standard-hours: 8;
+    --lunch-break-minutes: 30;
+    --overtime-threshold-minutes: 480; /* 8 hours */
+    --max-temp-stop-hours: 15;
+
+    /* Animation durations for business processes */
+    --animation-field-update: 1.5s;
+    --animation-highlight-pulse: 1s;
+    --animation-toast-duration: 5s;
+    --animation-floating-card-progress: 15s;
+}
+
+/* ========================================================================
+   DARK MODE SUPPORT (Optional - for future use)
+   ======================================================================== */
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-light: #212529;
+        --color-dark: #f8f9fa;
+        --border-color-light: #495057;
+        --border-color-medium: #6c757d;
+        --table-header-bg: #343a40;
+        --card-header-bg: #343a40;
+    }
+}
+
+/* ========================================================================
+   PRINT MODE OVERRIDES
+   ======================================================================== */
+
+@media print {
+    :root {
+        /* Remove shadows for print */
+        --shadow-card: none;
+        --shadow-card-hover: none;
+        --shadow-floating: none;
+
+        /* Adjust colors for print */
+        --color-primary: #000000;
+        --color-secondary: #666666;
+
+        /* Remove transitions for print */
+        --transition-all: none;
+        --transition-base: none;
+    }
+}

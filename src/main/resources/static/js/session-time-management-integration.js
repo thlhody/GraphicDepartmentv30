@@ -180,6 +180,16 @@ function initializeEmbeddedTimeManagement() {
             setupEmbeddedInlineEditing();
         }
 
+        if (window.setupSignatureHandler) {
+            window.setupSignatureHandler();
+        }
+        if (window.setupModalHandlers) {
+            window.setupModalHandlers();
+        }
+        if (window.setupCheckboxHandlers) {
+            window.setupCheckboxHandlers();
+        }
+
         console.log('✅ Embedded time management modules initialized');
 
     } catch (error) {

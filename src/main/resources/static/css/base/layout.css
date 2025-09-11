@@ -1,0 +1,936 @@
+/**
+ * Layout System - layout.css
+ * Base layout utilities, grid systems, and positioning for OOP CSS architecture
+ * Uses design tokens from variables.css
+ */
+
+/* ========================================================================
+   BASE LAYOUT STRUCTURE
+   ======================================================================== */
+
+html {
+    box-sizing: border-box;
+    height: 100%;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-light);
+    padding-top: var(--height-navbar);
+}
+
+/* Main content area */
+main {
+    flex: 1 0 auto;
+    padding-top: var(--spacing-4);
+}
+
+/* ========================================================================
+   CONTAINER SYSTEM
+   ======================================================================== */
+
+.container {
+    width: 100%;
+    padding-right: var(--spacing-3);
+    padding-left: var(--spacing-3);
+    margin-right: auto;
+    margin-left: auto;
+}
+
+@media (min-width: 576px) {
+    .container {
+        max-width: var(--container-sm);
+        padding-right: var(--spacing-4);
+        padding-left: var(--spacing-4);
+    }
+}
+
+@media (min-width: 768px) {
+    .container {
+        max-width: var(--container-md);
+    }
+}
+
+@media (min-width: 992px) {
+    .container {
+        max-width: var(--container-lg);
+    }
+}
+
+@media (min-width: 1200px) {
+    .container {
+        max-width: var(--container-xl);
+    }
+}
+
+@media (min-width: 1400px) {
+    .container {
+        max-width: var(--container-2xl);
+    }
+}
+
+/* Fluid container */
+.container-fluid {
+    width: 100%;
+    padding-right: var(--spacing-3);
+    padding-left: var(--spacing-3);
+    margin-right: auto;
+    margin-left: auto;
+}
+
+/* ========================================================================
+   FLEXBOX UTILITIES
+   ======================================================================== */
+
+/* Display */
+.d-flex {
+    display: flex;
+}
+
+.d-inline-flex {
+    display: inline-flex;
+}
+
+/* Direction */
+.flex-row {
+    flex-direction: row;
+}
+
+.flex-row-reverse {
+    flex-direction: row-reverse;
+}
+
+.flex-column {
+    flex-direction: column;
+}
+
+.flex-column-reverse {
+    flex-direction: column-reverse;
+}
+
+/* Wrap */
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+.flex-nowrap {
+    flex-wrap: nowrap;
+}
+
+.flex-wrap-reverse {
+    flex-wrap: wrap-reverse;
+}
+
+/* Justify content */
+.justify-content-start {
+    justify-content: flex-start;
+}
+
+.justify-content-end {
+    justify-content: flex-end;
+}
+
+.justify-content-center {
+    justify-content: center;
+}
+
+.justify-content-between {
+    justify-content: space-between;
+}
+
+.justify-content-around {
+    justify-content: space-around;
+}
+
+.justify-content-evenly {
+    justify-content: space-evenly;
+}
+
+/* Align items */
+.align-items-start {
+    align-items: flex-start;
+}
+
+.align-items-end {
+    align-items: flex-end;
+}
+
+.align-items-center {
+    align-items: center;
+}
+
+.align-items-baseline {
+    align-items: baseline;
+}
+
+.align-items-stretch {
+    align-items: stretch;
+}
+
+/* Align content */
+.align-content-start {
+    align-content: flex-start;
+}
+
+.align-content-end {
+    align-content: flex-end;
+}
+
+.align-content-center {
+    align-content: center;
+}
+
+.align-content-between {
+    align-content: space-between;
+}
+
+.align-content-around {
+    align-content: space-around;
+}
+
+.align-content-stretch {
+    align-content: stretch;
+}
+
+/* Flex grow/shrink */
+.flex-fill {
+    flex: 1 1 auto;
+}
+
+.flex-grow-0 {
+    flex-grow: 0;
+}
+
+.flex-grow-1 {
+    flex-grow: 1;
+}
+
+.flex-shrink-0 {
+    flex-shrink: 0;
+}
+
+.flex-shrink-1 {
+    flex-shrink: 1;
+}
+
+/* ========================================================================
+   GRID SYSTEM (Bootstrap-compatible)
+   ======================================================================== */
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-right: calc(-1 * var(--spacing-3));
+    margin-left: calc(-1 * var(--spacing-3));
+}
+
+.row > * {
+    padding-right: var(--spacing-3);
+    padding-left: var(--spacing-3);
+}
+
+/* Column base */
+.col {
+    flex: 1 0 0%;
+}
+
+/* Specific column widths */
+.col-1 {
+    flex: 0 0 auto;
+    width: 8.33333333%;
+}
+
+.col-2 {
+    flex: 0 0 auto;
+    width: 16.66666667%;
+}
+
+.col-3 {
+    flex: 0 0 auto;
+    width: 25%;
+}
+
+.col-4 {
+    flex: 0 0 auto;
+    width: 33.33333333%;
+}
+
+.col-6 {
+    flex: 0 0 auto;
+    width: 50%;
+}
+
+.col-8 {
+    flex: 0 0 auto;
+    width: 66.66666667%;
+}
+
+.col-9 {
+    flex: 0 0 auto;
+    width: 75%;
+}
+
+.col-12 {
+    flex: 0 0 auto;
+    width: 100%;
+}
+
+/* Medium breakpoint columns */
+@media (min-width: 768px) {
+    .col-md-1 {
+        flex: 0 0 auto;
+        width: 8.33333333%;
+    }
+
+    .col-md-2 {
+        flex: 0 0 auto;
+        width: 16.66666667%;
+    }
+
+    .col-md-3 {
+        flex: 0 0 auto;
+        width: 25%;
+    }
+
+    .col-md-4 {
+        flex: 0 0 auto;
+        width: 33.33333333%;
+    }
+
+    .col-md-6 {
+        flex: 0 0 auto;
+        width: 50%;
+    }
+
+    .col-md-8 {
+        flex: 0 0 auto;
+        width: 66.66666667%;
+    }
+
+    .col-md-9 {
+        flex: 0 0 auto;
+        width: 75%;
+    }
+
+    .col-md-12 {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+}
+
+/* Large breakpoint columns */
+@media (min-width: 992px) {
+    .col-lg-1 {
+        flex: 0 0 auto;
+        width: 8.33333333%;
+    }
+
+    .col-lg-2 {
+        flex: 0 0 auto;
+        width: 16.66666667%;
+    }
+
+    .col-lg-3 {
+        flex: 0 0 auto;
+        width: 25%;
+    }
+
+    .col-lg-4 {
+        flex: 0 0 auto;
+        width: 33.33333333%;
+    }
+
+    .col-lg-6 {
+        flex: 0 0 auto;
+        width: 50%;
+    }
+
+    .col-lg-8 {
+        flex: 0 0 auto;
+        width: 66.66666667%;
+    }
+
+    .col-lg-9 {
+        flex: 0 0 auto;
+        width: 75%;
+    }
+
+    .col-lg-12 {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+}
+
+/* ========================================================================
+   GAP UTILITIES
+   ======================================================================== */
+
+.gap-0 {
+    gap: 0;
+}
+
+.gap-1 {
+    gap: var(--spacing-1);
+}
+
+.gap-2 {
+    gap: var(--spacing-2);
+}
+
+.gap-3 {
+    gap: var(--spacing-3);
+}
+
+.gap-4 {
+    gap: var(--spacing-4);
+}
+
+.gap-5 {
+    gap: var(--spacing-5);
+}
+
+.row-gap-0 {
+    row-gap: 0;
+}
+
+.row-gap-1 {
+    row-gap: var(--spacing-1);
+}
+
+.row-gap-2 {
+    row-gap: var(--spacing-2);
+}
+
+.row-gap-3 {
+    row-gap: var(--spacing-3);
+}
+
+.column-gap-0 {
+    column-gap: 0;
+}
+
+.column-gap-1 {
+    column-gap: var(--spacing-1);
+}
+
+.column-gap-2 {
+    column-gap: var(--spacing-2);
+}
+
+.column-gap-3 {
+    column-gap: var(--spacing-3);
+}
+
+/* Bootstrap-style gap classes */
+.g-0 {
+    gap: 0;
+}
+
+.g-1 {
+    gap: var(--spacing-1);
+}
+
+.g-2 {
+    gap: var(--spacing-2);
+}
+
+.g-3 {
+    gap: var(--spacing-3);
+}
+
+.g-4 {
+    gap: var(--spacing-4);
+}
+
+.g-5 {
+    gap: var(--spacing-5);
+}
+
+/* ========================================================================
+   POSITIONING UTILITIES
+   ======================================================================== */
+
+.position-static {
+    position: static;
+}
+
+.position-relative {
+    position: relative;
+}
+
+.position-absolute {
+    position: absolute;
+}
+
+.position-fixed {
+    position: fixed;
+}
+
+.position-sticky {
+    position: sticky;
+}
+
+/* Top/Right/Bottom/Left */
+.top-0 {
+    top: 0;
+}
+
+.top-50 {
+    top: 50%;
+}
+
+.top-100 {
+    top: 100%;
+}
+
+.bottom-0 {
+    bottom: 0;
+}
+
+.bottom-50 {
+    bottom: 50%;
+}
+
+.bottom-100 {
+    bottom: 100%;
+}
+
+.start-0 {
+    left: 0;
+}
+
+.start-50 {
+    left: 50%;
+}
+
+.start-100 {
+    left: 100%;
+}
+
+.end-0 {
+    right: 0;
+}
+
+.end-50 {
+    right: 50%;
+}
+
+.end-100 {
+    right: 100%;
+}
+
+/* Transform utilities for centering */
+.translate-middle {
+    transform: translate(-50%, -50%);
+}
+
+.translate-middle-x {
+    transform: translateX(-50%);
+}
+
+.translate-middle-y {
+    transform: translateY(-50%);
+}
+
+/* ========================================================================
+   Z-INDEX UTILITIES
+   ======================================================================== */
+
+.z-0 {
+    z-index: 0;
+}
+
+.z-1 {
+    z-index: 1;
+}
+
+.z-2 {
+    z-index: 2;
+}
+
+.z-3 {
+    z-index: 3;
+}
+
+.z-dropdown {
+    z-index: var(--z-dropdown);
+}
+
+.z-sticky {
+    z-index: var(--z-sticky);
+}
+
+.z-fixed {
+    z-index: var(--z-fixed);
+}
+
+.z-modal {
+    z-index: var(--z-modal);
+}
+
+.z-toast {
+    z-index: var(--z-toast);
+}
+
+/* ========================================================================
+   DISPLAY UTILITIES
+   ======================================================================== */
+
+.d-none {
+    display: none;
+}
+
+.d-inline {
+    display: inline;
+}
+
+.d-inline-block {
+    display: inline-block;
+}
+
+.d-block {
+    display: block;
+}
+
+.d-table {
+    display: table;
+}
+
+.d-table-row {
+    display: table-row;
+}
+
+.d-table-cell {
+    display: table-cell;
+}
+
+.d-grid {
+    display: grid;
+}
+
+/* Responsive display utilities */
+@media (max-width: 575.98px) {
+    .d-sm-none {
+        display: none;
+    }
+
+    .d-sm-block {
+        display: block;
+    }
+
+    .d-sm-flex {
+        display: flex;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .d-md-none {
+        display: none;
+    }
+
+    .d-md-block {
+        display: block;
+    }
+
+    .d-md-flex {
+        display: flex;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .d-lg-none {
+        display: none;
+    }
+
+    .d-lg-block {
+        display: block;
+    }
+
+    .d-lg-flex {
+        display: flex;
+    }
+}
+
+/* ========================================================================
+   VISIBILITY UTILITIES
+   ======================================================================== */
+
+.visible {
+    visibility: visible;
+}
+
+.invisible {
+    visibility: hidden;
+}
+
+/* ========================================================================
+   OVERFLOW UTILITIES
+   ======================================================================== */
+
+.overflow-auto {
+    overflow: auto;
+}
+
+.overflow-hidden {
+    overflow: hidden;
+}
+
+.overflow-visible {
+    overflow: visible;
+}
+
+.overflow-scroll {
+    overflow: scroll;
+}
+
+.overflow-x-auto {
+    overflow-x: auto;
+}
+
+.overflow-x-hidden {
+    overflow-x: hidden;
+}
+
+.overflow-x-scroll {
+    overflow-x: scroll;
+}
+
+.overflow-y-auto {
+    overflow-y: auto;
+}
+
+.overflow-y-hidden {
+    overflow-y: hidden;
+}
+
+.overflow-y-scroll {
+    overflow-y: scroll;
+}
+
+/* ========================================================================
+   APPLICATION-SPECIFIC LAYOUTS
+   ======================================================================== */
+
+/* Page header layout */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-6);
+    gap: var(--spacing-4);
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-3);
+    }
+}
+
+/* Session controls layout */
+.session-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-6);
+}
+
+@media (max-width: 768px) {
+    .session-controls {
+        flex-direction: column;
+    }
+
+    .session-controls form {
+        width: 100%;
+    }
+}
+
+/* Time selectors layout (resolution forms) */
+.time-selectors {
+    display: flex;
+    align-items: end;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .time-selectors {
+        flex-direction: column;
+        gap: var(--spacing-4);
+    }
+
+    .time-selectors .form-group {
+        width: 100%;
+        margin-right: 0 !important;
+    }
+}
+
+/* Info items layout (calculation displays) */
+.info-items {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .info-items {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-2);
+    }
+}
+
+/* Card header with controls */
+.card-header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-3);
+}
+
+@media (max-width: 992px) {
+    .card-header-controls {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* Table responsive wrapper */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ========================================================================
+   STICKY POSITIONING
+   ======================================================================== */
+
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+}
+
+/* Table header sticky */
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    background-color: var(--table-header-bg);
+}
+
+/* ========================================================================
+   ASPECT RATIOS
+   ======================================================================== */
+
+.ratio {
+    position: relative;
+    width: 100%;
+}
+
+.ratio::before {
+    display: block;
+    padding-top: var(--aspect-ratio);
+    content: "";
+}
+
+.ratio > * {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Common aspect ratios */
+.ratio-1x1 {
+    --aspect-ratio: 100%;
+}
+
+.ratio-4x3 {
+    --aspect-ratio: calc(3 / 4 * 100%);
+}
+
+.ratio-16x9 {
+    --aspect-ratio: calc(9 / 16 * 100%);
+}
+
+.ratio-21x9 {
+    --aspect-ratio: calc(9 / 21 * 100%);
+}
+
+/* ========================================================================
+   RESPONSIVE UTILITIES
+   ======================================================================== */
+
+/* Show/hide based on screen size */
+@media (max-width: 575.98px) {
+    .d-xs-none {
+        display: none !important;
+    }
+}
+
+@media (min-width: 576px) {
+    .d-sm-block {
+        display: block !important;
+    }
+
+    .d-sm-inline {
+        display: inline !important;
+    }
+
+    .d-sm-inline-block {
+        display: inline-block !important;
+    }
+
+    .d-sm-flex {
+        display: flex !important;
+    }
+}
+
+@media (min-width: 768px) {
+    .d-md-block {
+        display: block !important;
+    }
+
+    .d-md-inline {
+        display: inline !important;
+    }
+
+    .d-md-inline-block {
+        display: inline-block !important;
+    }
+
+    .d-md-flex {
+        display: flex !important;
+    }
+}
+
+@media (min-width: 992px) {
+    .d-lg-block {
+        display: block !important;
+    }
+
+    .d-lg-inline {
+        display: inline !important;
+    }
+
+    .d-lg-inline-block {
+        display: inline-block !important;
+    }
+
+    .d-lg-flex {
+        display: flex !important;
+    }
+}

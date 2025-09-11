@@ -15,6 +15,7 @@ public enum PrintPrepTypes {
     FLEX("FLEX"),
     BRODERIE("BRODERIE"),
     FILM("FILM"),
+    LAYOUT("LAYOUT"),
     OTHER("OTHER");
 
     private final String value;

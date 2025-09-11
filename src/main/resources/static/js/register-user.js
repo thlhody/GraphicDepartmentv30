@@ -9,6 +9,7 @@ const ACTION_TYPE_VALUES = {
     'PROBA S SPIZED': 2.0,
     'PROBA CULOARE': 2.5,
     'CARTELA CULORI': 2.5,
+    'CHECKING': 3.0,
     'DESIGN': 2.5,
     'DESIGN 3D': 3.0,
     'PATTERN PREP': 2.5,
@@ -31,6 +32,7 @@ const COMPLEXITY_PRINT_PREPS = {
 const NEUTRAL_PRINT_PREPS = {
     'DIGITAL': 0.0,
     'GPT': 0.0,
+    'LAYOUT':0.0,
     'FILM': 0.0
 };
 
@@ -97,35 +99,6 @@ class RegisterFormHandler {
             selectOnClose: false, // Changed false to prevent auto-selection
             closeOnSelect: false,
 
-            // Custom formatting of selection with first letters
-//            templateSelection: (data, container) => {
-//                // Get all selected items
-//                const selectedItems = $(this.printPrepSelect).select2('data');
-//
-//                if (!selectedItems || selectedItems.length === 0) {
-//                    return $('<span class="select2-placeholder">Select</span>');
-//                }
-//
-//                if (selectedItems.length === 1) {
-//                    // If only 1 item, show it normally but shortened if needed
-//                    const text = data.text.length > 7 ? data.text.substring(0, 7) + '...' : data.text;
-//                    return $(`<span class="select2-single-selection">${text}</span>`);
-//                }
-//
-//                // For multiple selections, show first letters
-//                const initials = selectedItems.map(item => item.text.charAt(0).toUpperCase()).join('');
-//
-//                // Limit to 7 characters plus counter
-//                const displayInitials = initials.length > 7 ? initials.substring(0, 7) + '...' : initials;
-//
-//                return $(`<span class="select2-initials">${displayInitials} <span class="select2-selection__pill-count">${selectedItems.length}</span></span>`);
-//            },
-//
-//            // Clean dropdown formatting
-//            templateResult: (data) => {
-//                if (!data.id) return data.text;
-//                return $(`<span>${data.text}</span>`);
-//            }
             // Custom formatting of selection with first letters
             templateSelection: (data, container) => {
                 // Check if this is the container for the entire selection
@@ -312,6 +285,11 @@ class RegisterFormHandler {
             this.updateComplexityField();
         });
 
+        // Add to setupEventListeners()
+        this.form.querySelector('[name="articleNumbers"]').addEventListener('input', () => {
+            this.updateComplexityField();
+        });
+
         // Copy button handlers
         document.querySelectorAll('.copy-entry').forEach(button => {
             button.addEventListener('click', (e) => {
@@ -346,6 +324,13 @@ class RegisterFormHandler {
         this.updateComplexityField();
     }
 
+    calculateCheckingComplexity(articleCount) {
+        if (articleCount >= 1 && articleCount <= 5) return 3.0;
+        if (articleCount >= 6 && articleCount <= 10) return 3.5;
+        if (articleCount >= 11) return 4.0;
+        return 3.0; // fallback
+    }
+
     calculateComplexity(actionType, printPrepTypes) {
         if (!actionType) return 0;
 
@@ -356,6 +341,14 @@ class RegisterFormHandler {
         if (actionType === 'CAMPION SPIZED') return 2.0;
         if (actionType === 'PROBA S SPIZED') return 2.0;
         if (actionType === 'DESIGN 3D') return 3.0;
+        // Special case for CHECKING action type
+        if (actionType === 'CHECKING') {
+            if (printPrepTypes && printPrepTypes.includes('LAYOUT')) {
+                const articleCount = parseInt(this.form.querySelector('[name="articleNumbers"]')?.value || '1');
+                return this.calculateCheckingComplexity(articleCount);
+            }
+            return 3.0; // default when LAYOUT not selected
+        }
 
         // Fixed value actions
         const fixedValueActions = [

@@ -5,6 +5,19 @@
       <excludeFolder url="file://$MODULE_DIR$/installer/dist/bin" />
       <excludeFolder url="file://$MODULE_DIR$/installer/output" />
       <excludeFolder url="file://$MODULE_DIR$/logs" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/cliui/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/engine.io-client/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/engine.io-parser/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/engine.io/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/localtunnel/node_modules/cliui/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/localtunnel/node_modules/yargs-parser/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/localtunnel/node_modules/yargs/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/mime/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/socket.io-client/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/socket.io-parser/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/y18n/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/yargs-parser/build" />
+      <excludeFolder url="file://$MODULE_DIR$/node_modules/yargs/build" />
     </content>
   </component>
 </module>

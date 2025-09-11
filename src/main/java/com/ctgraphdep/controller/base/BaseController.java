@@ -5,9 +5,11 @@ import com.ctgraphdep.model.dto.SyncFolderStatusDTO;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
+import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -21,6 +23,7 @@ import java.util.Optional;
 
 @ControllerAdvice
 public abstract class BaseController {
+
     private final UserService userService;
     private final FolderStatus folderStatus;
     private final TimeValidationService timeValidationService;

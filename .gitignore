@@ -42,4 +42,5 @@ build/
 
 ### Installer ###
 /installer/dist/bin/
-
+/node_modules/
+/XXX-OLD-BKP/

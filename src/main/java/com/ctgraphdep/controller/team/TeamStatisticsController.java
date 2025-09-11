@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  */
 @Controller
 @RequestMapping("/user/stats")
-@PreAuthorize("hasRole('ROLE_TEAM_LEADER')")
+@PreAuthorize("hasAnyRole('ROLE_TEAM_LEADER', 'ROLE_ADMIN')")
 public class TeamStatisticsController extends BaseController {
 
     private final TeamOperationService teamOperationService;

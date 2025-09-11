@@ -28,6 +28,7 @@ public class DashboardManager {
                         createAdminRegisterCard(),
                         createAdminCheckRegisterCard(),
                         createAdminBonusCard(),
+                        createTeamStatisticsCard(),
                         createAdminStatistics(),
                         createAdminHolidaysCard(),
                         createSettingsCard(SecurityConstants.ROLE_ADMIN),

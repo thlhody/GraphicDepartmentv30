@@ -19,6 +19,7 @@ public enum ActionType {
     DESIGN_3D("DESIGN 3D"),
     PATTERN_PREP("PATTERN PREP"),
     IMPOSTARE("IMPOSTARE"),
+    CHECKING("CHECKING"),
     OTHER("OTHER");
 
     private final String value;
