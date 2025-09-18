@@ -203,7 +203,6 @@ public class CalculationService {
      * Calculates stop duration and updates totals.
      */
     public WorkUsersSessionsStates processResumeFromTempStop(WorkUsersSessionsStates session, LocalDateTime resumeTime) {
-
         try {
             if (session.getLastTemporaryStopTime() != null) {
                 // Calculate duration of the temporary stop
@@ -212,7 +211,7 @@ public class CalculationService {
                 // Update total temporary stop minutes
                 int currentTotal = session.getTotalTemporaryStopMinutes() != null ?
                         session.getTotalTemporaryStopMinutes() : 0;
-                session.setTotalTemporaryStopMinutes(currentTotal + (int) stopMinutes);
+                int newTotal = currentTotal + (int) stopMinutes;
 
                 // Create and add TemporaryStop record
                 TemporaryStop stop = new TemporaryStop();
@@ -220,22 +219,28 @@ public class CalculationService {
                 stop.setEndTime(resumeTime);
                 stop.setDuration((int) stopMinutes);
 
-                // Add to temporary stops list
+                // ✅ FIX: Include totalTemporaryStopMinutes in the builder call
                 SessionEntityBuilder.updateSession(session, builder -> builder
-                        .addTemporaryStop(stop));
+                        .addTemporaryStop(stop)
+                        .totalTemporaryStopMinutes(newTotal));  // <-- ADD THIS LINE
 
                 // Clear temporary stop tracking
                 session.setLastTemporaryStopTime(null);
 
                 LoggerUtil.info(this.getClass(), String.format(
                         "Resumed from temporary stop for %s: duration=%d minutes (total: %d)",
-                        session.getUsername(), stopMinutes, session.getTotalTemporaryStopMinutes()));
+                        session.getUsername(), stopMinutes, newTotal));
             }
+
+            // ✅ FIX: Preserve totalTemporaryStopMinutes in status update
+            int preservedTotal = session.getTotalTemporaryStopMinutes() != null ?
+                    session.getTotalTemporaryStopMinutes() : 0;
 
             // Update session status to online
             SessionEntityBuilder.updateSession(session, builder -> builder
                     .status(WorkCode.WORK_ONLINE)
-                    .currentStartTime(resumeTime));
+                    .currentStartTime(resumeTime)
+                    .totalTemporaryStopMinutes(preservedTotal));  // <-- ADD THIS LINE
 
             return session;
 

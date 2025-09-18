@@ -103,8 +103,7 @@
             </form>
             <!-- End Button -->
             <form th:action="@{/user/session/end}" method="post">
-                <button type="submit"
-                        class="btn btn-danger"
+                <button type="submit" class="btn btn-danger"
                         th:disabled="${sessionStatus == 'Offline'}"
                         data-bs-toggle="tooltip"
                         th:title="${sessionStatus == 'Offline' ? 'No active session to end' : 'End your current work session'}">
