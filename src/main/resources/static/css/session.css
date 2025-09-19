@@ -13,19 +13,41 @@
 }
 
 .session-controls {
-    gap: 1rem;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Make buttons flex to fill available space evenly */
+.session-controls form,
+.session-controls > .btn {
+    flex: 1;
+    display: flex;
+}
+
+.session-controls .btn {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    white-space: nowrap;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.session-controls .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 @media (max-width: 768px) {
     .session-controls {
         flex-direction: column;
+        gap: 0.75rem;
     }
 
-    .session-controls form {
-        width: 100%;
-    }
-
-    .session-controls button {
+    .session-controls form,
+    .session-controls .btn {
         width: 100%;
     }
 }

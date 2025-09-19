@@ -2,6 +2,7 @@ package com.ctgraphdep.session.commands;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
+import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.session.SessionContext;
@@ -104,10 +105,13 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
             debug(String.format("Creating temporary stop from %s to %s", previousEndTime, resumeTime));
 
             // Use the calculation command through context to add a break as temporary stop
-            context.addBreakAsTempStop(session, previousEndTime, resumeTime);
+            session = context.addBreakAsTempStop(session, previousEndTime, resumeTime);
 
-            // Update total temporary stop minutes using the dedicated method
-            int totalStopMinutes = context.calculateTotalTempStopMinutes(session, resumeTime);
+            // Calculate total temporary stop minutes from completed stops (after adding the break)
+            final int totalStopMinutes = session.getTemporaryStops() != null ? 
+                    session.getTemporaryStops().stream()
+                            .mapToInt(TemporaryStop::getDuration)
+                            .sum() : 0;
 
             // Update session state using builder
             SessionEntityBuilder.updateSession(session, builder -> builder

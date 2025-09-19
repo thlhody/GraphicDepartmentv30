@@ -191,7 +191,10 @@ public class UserSessionController extends BaseController {
             ResumePreviousSessionCommand command = commandFactory.createResumePreviousSessionCommand(currentUser.getUsername(), currentUser.getUserId());
             commandService.executeCommand(command);
 
-            return "redirect:/user/session?action=resume";
+            // Add success message for main notification system
+            redirectAttributes.addFlashAttribute("successMessage", "Session resumed successfully! The time between ending and now has been recorded as a break.");
+
+            return "redirect:/user/session";
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error resuming session: " + e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage", "Error resuming session: " + e.getMessage());

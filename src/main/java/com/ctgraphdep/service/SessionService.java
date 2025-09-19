@@ -388,8 +388,11 @@ public class SessionService {
 
         // Temporary stop information
         dto.setTemporaryStopCount(session.getTemporaryStopCount() != null ? session.getTemporaryStopCount() : 0);
-        dto.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0);
-        dto.setFormattedTotalTemporaryStopTime(formatMinutes(session.getTotalTemporaryStopMinutes()));
+        
+        // Use live calculation for temporary stop time to prevent doubling on refresh
+        int liveTemporaryStopMinutes = calculationService.calculateTotalTempStopMinutes(session, currentTime);
+        dto.setTotalTemporaryStopMinutes(liveTemporaryStopMinutes);
+        dto.setFormattedTotalTemporaryStopTime(formatMinutes(liveTemporaryStopMinutes));
         dto.setLastTemporaryStopTime(session.getLastTemporaryStopTime());
         dto.setFormattedLastTemporaryStopTime(formatDateTime(session.getLastTemporaryStopTime()));
 

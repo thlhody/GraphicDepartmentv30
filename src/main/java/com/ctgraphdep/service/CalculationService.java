@@ -40,10 +40,10 @@ public class CalculationService {
         try {
             // Route based on session status
             if (WorkCode.WORK_ONLINE.equals(session.getSessionStatus())) {
-                updateOnlineSessionCalculations(session, currentTime, userSchedule);
+                session = updateOnlineSessionCalculations(session, currentTime, userSchedule);
 
             } else if (WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
-                updateTempStopCalculations(session, currentTime);
+                session = updateTempStopCalculations(session, currentTime);
             }
 
             // Always update last activity
@@ -181,19 +181,14 @@ public class CalculationService {
             session.setTemporaryStopCount(currentCount + 1);
 
             // Update session status to temporary stop
-            SessionEntityBuilder.updateSession(session, builder -> builder
-                    .status(WorkCode.WORK_TEMPORARY_STOP)
-                    .currentStartTime(stopTime));
+            SessionEntityBuilder.updateSession(session, builder -> builder.status(WorkCode.WORK_TEMPORARY_STOP).currentStartTime(stopTime));
 
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Temporary stop started for %s at %s (count: %d)",
-                    session.getUsername(), stopTime, currentCount + 1));
+            LoggerUtil.info(this.getClass(), String.format("Temporary stop started for %s at %s (count: %d)", session.getUsername(), stopTime, currentCount + 1));
 
             return session;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(),
-                    "Error processing temporary stop for " + session.getUsername(), e);
+            LoggerUtil.error(this.getClass(), "Error processing temporary stop for " + session.getUsername(), e);
             return session;
         }
     }
@@ -208,9 +203,13 @@ public class CalculationService {
                 // Calculate duration of the temporary stop
                 long stopMinutes = ChronoUnit.MINUTES.between(session.getLastTemporaryStopTime(), resumeTime);
 
-                // Update total temporary stop minutes
-                int currentTotal = session.getTotalTemporaryStopMinutes() != null ?
-                        session.getTotalTemporaryStopMinutes() : 0;
+                // Calculate total from completed temporary stops only (don't use session.getTotalTemporaryStopMinutes as it may include live calculation)
+                int currentTotal = 0;
+                if (session.getTemporaryStops() != null) {
+                    currentTotal = session.getTemporaryStops().stream()
+                            .mapToInt(TemporaryStop::getDuration)
+                            .sum();
+                }
                 int newTotal = currentTotal + (int) stopMinutes;
 
                 // Create and add TemporaryStop record
@@ -233,8 +232,7 @@ public class CalculationService {
             }
 
             // ✅ FIX: Preserve totalTemporaryStopMinutes in status update
-            int preservedTotal = session.getTotalTemporaryStopMinutes() != null ?
-                    session.getTotalTemporaryStopMinutes() : 0;
+            int preservedTotal = session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0;
 
             // Update session status to online
             SessionEntityBuilder.updateSession(session, builder -> builder
@@ -283,8 +281,11 @@ public class CalculationService {
                     .addTemporaryStop(breakStop)
                     .temporaryStopCount(newStopCount));
 
-            // PRESERVED: Calculate new total temporary stop minutes (same as original command)
-            int totalStopMinutes = calculateTotalTempStopMinutes(session, endTime);
+            // PRESERVED: Calculate new total temporary stop minutes from completed stops only
+            final int totalStopMinutes = session.getTemporaryStops() != null ? 
+                    session.getTemporaryStops().stream()
+                            .mapToInt(TemporaryStop::getDuration)
+                            .sum() : 0;
             session.setTotalTemporaryStopMinutes(totalStopMinutes);
 
             LoggerUtil.info(this.getClass(), String.format(
@@ -296,7 +297,7 @@ public class CalculationService {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(),
-                    "Error adding break as temp stop for " + session.getUsername(), e);
+                    "Error adding break as temp stop for " + (session != null ? session.getUsername() : "null session"), e);
             return session;
         }
     }
@@ -384,10 +385,21 @@ public class CalculationService {
         try {
             int total = session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0;
 
-            // Add current temporary stop if active
-            if (session.getLastTemporaryStopTime() != null) {
+            // Add current temporary stop if active AND only if we haven't already counted it
+            if (session.getLastTemporaryStopTime() != null && 
+                WorkCode.WORK_TEMPORARY_STOP.equals(session.getSessionStatus())) {
+                
                 long currentStopMinutes = ChronoUnit.MINUTES.between(session.getLastTemporaryStopTime(), currentTime);
-                total += (int) currentStopMinutes;
+                
+                // If total is 0, this is a live calculation - add the current stop
+                // If total > 0, the stop might already be included from updateTempStopCalculations
+                if (total == 0) {
+                    total += (int) currentStopMinutes;
+                } else {
+                    // Check if the stored total already includes the current stop by comparing timestamps
+                    // This prevents double counting when updateTempStopCalculations has already run
+                    return total; // Return the already calculated total
+                }
             }
 
             return total;

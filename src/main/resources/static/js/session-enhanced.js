@@ -95,7 +95,7 @@ function initToastNotifications() {
                     window.showToast('Session Paused', 'Session paused - break time is being tracked', 'warning');
                     break;
                 case 'resume':
-                    window.showToast('Session Resumed', 'Session resumed - back to work!', 'success');
+                    // No toast notification for resume - handled by main notification system
                     break;
             }
         }

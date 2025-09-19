@@ -44,7 +44,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
 
             // Process the resume operation using the calculation command
             debug("Processing resume from temporary stop");
-            ctx.processResumeFromTempStop(session, resumeTime);
+            session = ctx.processResumeFromTempStop(session, resumeTime);
 
             // Save the updated session
             SaveSessionCommand saveCommand = ctx.getCommandFactory().createSaveSessionCommand(session);

@@ -198,14 +198,13 @@ public class SessionContext {
     }
 
     // Add break as temporary stop using CalculationService
-    public void addBreakAsTempStop(WorkUsersSessionsStates session, LocalDateTime startTime, LocalDateTime endTime) {
-        calculationService.addBreakAsTempStop(session, startTime, endTime);
-
+    public WorkUsersSessionsStates addBreakAsTempStop(WorkUsersSessionsStates session, LocalDateTime startTime, LocalDateTime endTime) {
+        return calculationService.addBreakAsTempStop(session, startTime, endTime);
     }
 
     // Process resuming from temporary stop using CalculationService
-    public void processResumeFromTempStop(WorkUsersSessionsStates session, LocalDateTime resumeTime) {
-        calculationService.processResumeFromTempStop(session, resumeTime);
+    public WorkUsersSessionsStates processResumeFromTempStop(WorkUsersSessionsStates session, LocalDateTime resumeTime) {
+        return calculationService.processResumeFromTempStop(session, resumeTime);
     }
 
     // Calculate end day values using CalculationService
