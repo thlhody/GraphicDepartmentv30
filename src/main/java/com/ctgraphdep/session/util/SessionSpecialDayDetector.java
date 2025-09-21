@@ -74,21 +74,19 @@ public class SessionSpecialDayDetector {
         }
     }
 
-    // Calculate total session minutes including temp stops for special day logic
+    // Calculate total session minutes for special day logic
     private static int calculateTotalSessionMinutes(WorkUsersSessionsStates session) {
         int totalMinutes = 0;
 
-        // Add worked minutes
+        // Use worked minutes only - temp stops are already excluded from session calculations
         if (session.getTotalWorkedMinutes() != null) {
             totalMinutes += session.getTotalWorkedMinutes();
         }
 
-        // For special days, temp stop time is also counted as work time (overtime)
-        if (session.getTotalTemporaryStopMinutes() != null) {
-            totalMinutes += session.getTotalTemporaryStopMinutes();
-        }
+        // ✅ FIX: Do NOT add temp stop time to work time for special days
+        // Temp stops are breaks, not work time. Session already calculated correct work time.
 
-        LoggerUtil.debug(SessionSpecialDayDetector.class, String.format("Calculated total session minutes: worked=%d, tempStop=%d, total=%d",
+        LoggerUtil.debug(SessionSpecialDayDetector.class, String.format("Calculated total session minutes for special day: worked=%d (tempStop=%d excluded), total=%d",
                         session.getTotalWorkedMinutes() != null ? session.getTotalWorkedMinutes() : 0,
                         session.getTotalTemporaryStopMinutes() != null ? session.getTotalTemporaryStopMinutes() : 0, totalMinutes));
 

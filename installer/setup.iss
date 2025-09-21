@@ -1,6 +1,6 @@
 ; Original app definitions preserved
 #define MyAppName "Creative Time And Task Tracking"
-#define MyAppVersion "7.1.9"
+#define MyAppVersion "7.2.0"
 #define MyAppPublisher "THLHody"
 #define MyAppURL ""
 #define MyAppExeName "CTTT.url"
@@ -376,42 +376,9 @@ begin
 end;
 
 { ----------------------------------------------------------------
-                 Reinstall Execution Function
+                 Reinstall Execution Function - REMOVED
+                 Now handled properly in [Run] section
 ---------------------------------------------------------------- }
-
-function ExecuteReinstallation(): Boolean;
-var
-  ReinstallScript, InstallDir, Params: string;
-  ResultCode: Integer;
-begin
-  Result := False;
-  InstallDir := WizardDirValue;
-
-  // Use the static reinstall script from the scripts folder
-  ReinstallScript := InstallDir + '\scripts\reinstall.ps1';
-
-  if not FileExists(ReinstallScript) then
-  begin
-    WriteLog('Reinstall script not found at: ' + ReinstallScript);
-    MsgBox('Reinstall script could not be found at:' + #13#10 + ReinstallScript, mbError, MB_OK);
-    Exit;
-  end;
-
-  WriteLog('Executing reinstall script: ' + ReinstallScript);
-
-  Params := '-InstallDir "' + InstallDir + '" -NetworkPath "' + GetNetworkPath('') + '" -Version "' + ExpandConstant('{#MyAppVersion}') + '"';
-
-  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-          '-NoProfile -ExecutionPolicy Bypass -File "' + ReinstallScript + '" ' + Params,
-          '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
-  begin
-    Result := (ResultCode = 0);
-    if not Result then
-      MsgBox('Reinstall script failed with exit code: ' + IntToStr(ResultCode), mbError, MB_OK);
-  end
-  else
-    MsgBox('Failed to execute reinstall script.', mbError, MB_OK);
-end;
 
 { ----------------------------------------------------------------
                 3. UI Component Creation
@@ -908,8 +875,8 @@ begin
         Exit;
       end;
 
-      // NEW: Execute reinstall immediately here, not in [Run] section
-      WriteLog('Starting immediate reinstall execution...');
+      // NEW: Set up for reinstall process - we'll handle this in [Run] section
+      WriteLog('Setting up for reinstall process...');
 
       if ProgressPage <> nil then
       begin
@@ -922,34 +889,12 @@ begin
       if ProgressMemo <> nil then
         ProgressMemo.Clear;
 
-      WizardForm.NextButton.Enabled := False;
-      WizardForm.BackButton.Enabled := False;
+      // Mark for reinstall mode but don't skip installation files
+      ReinstallMode := True;
+      SkipInstallation := False; // We need files to be copied to temp
 
-      // Execute the reinstall process
-      if ExecuteReinstallation() then
-      begin
-        WriteLog('Reinstallation completed successfully');
-        if ProgressLabel <> nil then
-          ProgressLabel.Caption := CustomMessage('ReinstallationComplete');
-
-        // Mark installation as complete to skip normal install
-        ReinstallMode := True;
-        SkipInstallation := True;
-
-        WizardForm.NextButton.Enabled := True;
-        WizardForm.NextButton.Caption := 'Finish';
-        WizardForm.BackButton.Enabled := False;
-        Result := True;
-      end
-      else
-      begin
-        WriteLog('Reinstallation failed');
-        MsgBox('The reinstallation process encountered errors. Please check the logs for details.', mbError, MB_OK);
-        WizardForm.NextButton.Enabled := True;
-        WizardForm.BackButton.Enabled := True;
-        Result := False;
-        Exit;
-      end;
+      WriteLog('Reinstall mode configured, proceeding with file extraction...');
+      Result := True;
     end; // MISSING END WAS HERE - ADDED IT
   end  // MISSING END WAS HERE - ADDED IT
   else if CurPageID = wpSelectDir then
@@ -1055,10 +1000,10 @@ Source: "graphics\ct3logoicon.ico"; DestDir: "{app}\graphics"; Flags: ignorevers
 Source: "dist\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not IsUninstallSelected and not ShouldSkipInstallation and not IsReinstallSelected
 
 ; For REINSTALL: Copy all files to TEMP directory for the reinstall script to use
-Source: "dist\bin\ctgraphdep-web.jar"; DestDir: "{tmp}\reinstall_files"; Flags: ignoreversion; Check: IsReinstallSelected
-Source: "dist\config\*"; DestDir: "{tmp}\reinstall_files\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsReinstallSelected
-Source: "dist\scripts\*"; DestDir: "{tmp}\reinstall_files\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsReinstallSelected
-Source: "graphics\ct3logoicon.ico"; DestDir: "{tmp}\reinstall_files\graphics"; Flags: ignoreversion; Check: IsReinstallSelected
+Source: "dist\bin\ctgraphdep-web.jar"; DestDir: "{tmp}\cttt_reinstall_files"; Flags: ignoreversion; Check: IsReinstallSelected
+Source: "dist\config\*"; DestDir: "{tmp}\cttt_reinstall_files\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsReinstallSelected
+Source: "dist\scripts\*"; DestDir: "{tmp}\cttt_reinstall_files\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsReinstallSelected
+Source: "graphics\ct3logoicon.ico"; DestDir: "{tmp}\cttt_reinstall_files\graphics"; Flags: ignoreversion; Check: IsReinstallSelected
 
 ; Copy essential scripts to root directory for direct access - only for new install and update
 Source: "dist\scripts\start-app.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: not IsUninstallSelected and not ShouldSkipInstallation
@@ -1089,6 +1034,13 @@ Filename: "powershell.exe"; \
   StatusMsg: "Updating CTTT..."; \
   Flags: runhidden waituntilterminated runascurrentuser; \
   Check: IsUpdateSelected and not ShouldSkipInstallation;
+
+; REINSTALL: Run the new reinstall process using temp files
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{tmp}\cttt_reinstall_files\scripts\reinstall.ps1"" -InstallDir ""{app}"" -TempFiles ""{tmp}\cttt_reinstall_files"" -NetworkPath ""{code:GetNetworkPath}"" -Version ""{#MyAppVersion}"""; \
+  StatusMsg: "Reinstalling CTTT..."; \
+  Flags: runhidden waituntilterminated runascurrentuser; \
+  Check: IsReinstallSelected and not ShouldSkipInstallation;
 
 ; UNINSTALL: Run uninstall.ps1 script directly
 Filename: "powershell.exe"; \
