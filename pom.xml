@@ -223,6 +223,8 @@
                     <!-- Add this to ensure system tray icon is included in the jar -->
                     <includeSystemScope>true</includeSystemScope>
                     <finalName>ctgraphdep-web</finalName>
+                    <!-- Enable single executable mode -->
+                    <executable>true</executable>
                 </configuration>
             </plugin>
 
