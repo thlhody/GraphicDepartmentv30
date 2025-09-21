@@ -743,7 +743,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
     }
 
     /**
-     * Adds a close button to the top right corner of the notification
+     * Adds a close button to the top left corner of the notification (moved from right for better visibility on laptops)
      */
     private void addCloseButton(JPanel contentPanel, JDialog dialog) {
         // Create close button with × symbol
@@ -761,10 +761,10 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 BorderFactory.createEmptyBorder(2, 2, 2, 2)
         ));
 
-        // Position at top right corner with margin
+        // Position at top left corner with margin (moved from right for better laptop visibility)
         int buttonSize = 28;
         int margin = 12;
-        closeButton.setBounds(NOTIFICATION_WIDTH - buttonSize - margin, margin, buttonSize, buttonSize);
+        closeButton.setBounds(margin, margin, buttonSize, buttonSize);
 
         // Add hover effects
         closeButton.addMouseListener(new java.awt.event.MouseAdapter() {

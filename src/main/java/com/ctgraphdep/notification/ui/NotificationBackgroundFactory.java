@@ -61,7 +61,10 @@ public class NotificationBackgroundFactory {
                 int logoWidth = 40;
                 int logoHeight = 40;
                 Image scaledLogo = logo.getScaledInstance(logoWidth, logoHeight, Image.SCALE_SMOOTH);
-                g2d.drawImage(scaledLogo, 15, 15, null);
+                // Move logo to top-right corner to avoid conflict with close button (now on left)
+                int logoX = WIDTH - logoWidth - 15; // 15px margin from right edge
+                int logoY = 15; // 15px margin from top edge
+                g2d.drawImage(scaledLogo, logoX, logoY, null);
             }
         } catch (IOException e) {
             LoggerUtil.error(NotificationBackgroundFactory.class, "Failed to load program logo", e);

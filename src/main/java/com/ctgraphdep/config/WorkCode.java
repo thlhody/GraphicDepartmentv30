@@ -56,7 +56,7 @@ public class WorkCode {
     public static final int WORK_END_HOUR = 17;   // 5:00 PM
 
     // Constants for default end/start worktime
-    public static final int DEFAULT_START_HOUR = 9;
+    public static final int DEFAULT_W_END_HOUR = 13;
     public static final int DEFAULT_END_HOUR = 17;
     public static final int DEFAULT_ZERO = 0;
 

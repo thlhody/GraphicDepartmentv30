@@ -1,8 +1,11 @@
 package com.ctgraphdep.tray;
 
 import com.ctgraphdep.notification.service.NotificationConfigService;
+import com.ctgraphdep.notification.service.NotificationDisplayService;
+import com.ctgraphdep.notification.service.NotificationCheckerService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
@@ -31,6 +34,8 @@ public class CTTTSystemTray {
     private String serverPort;
 
     private final NotificationConfigService notificationConfigService;
+    private final NotificationDisplayService notificationDisplayService;
+    private final NotificationCheckerService notificationCheckerService;
 
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();
@@ -40,8 +45,12 @@ public class CTTTSystemTray {
 
     private CheckboxMenuItem notificationsMenuItem;
 
-    public CTTTSystemTray(NotificationConfigService notificationConfigService) {
+    public CTTTSystemTray(NotificationConfigService notificationConfigService,
+                          @Lazy NotificationDisplayService notificationDisplayService,
+                          @Lazy NotificationCheckerService notificationCheckerService) {
         this.notificationConfigService = notificationConfigService;
+        this.notificationDisplayService = notificationDisplayService;
+        this.notificationCheckerService = notificationCheckerService;
     }
 
     public synchronized void initialize() {
@@ -139,6 +148,11 @@ public class CTTTSystemTray {
             }
         });
         popup.add(notificationsMenuItem);
+
+        // Refresh Notification item - for fixing broken notification display on laptops
+        MenuItem refreshNotificationItem = new MenuItem("Refresh Notification");
+        refreshNotificationItem.addActionListener(e -> refreshActiveNotification());
+        popup.add(refreshNotificationItem);
 
         popup.addSeparator();
 
@@ -277,6 +291,54 @@ public class CTTTSystemTray {
     public TrayIcon getTrayIcon() {
         synchronized (trayLock) {
             return trayIcon;
+        }
+    }
+
+    /**
+     * Refreshes active notifications by forcing a service reset.
+     * This helps fix broken notification displays on laptops where buttons disappear.
+     * Particularly useful for the start day notification that displays during 05-17:00.
+     */
+    private void refreshActiveNotification() {
+        try {
+            LoggerUtil.info(this.getClass(), "User requested notification refresh via system tray");
+
+
+            // Force notification service reset which will:
+            // 1. Close current broken notifications (but preserve business logic)
+            // 2. Allow notifications to redisplay based on current state
+            // 3. Maintain all timers and notification logic
+            notificationDisplayService.resetService();
+
+            // CRITICAL: Immediately trigger notification check to redisplay start day notification
+            LoggerUtil.info(this.getClass(), "Triggering immediate notification check after refresh");
+
+            // Run the check in a separate thread to avoid blocking the UI
+            new Thread(() -> {
+                try {
+                    // Small delay to ensure reset is complete
+                    Thread.sleep(500);
+                    notificationCheckerService.checkForNotifications();
+                    LoggerUtil.info(this.getClass(), "Immediate notification check completed");
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), "Error during immediate notification check: " + e.getMessage(), e);
+                }
+            }, "NotificationRefreshCheck").start();
+
+            LoggerUtil.info(this.getClass(), "Notification refresh completed");
+
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error refreshing notifications: " + e.getMessage(), e);
+
+            // Show error message to user
+            if (trayIcon != null) {
+                trayIcon.displayMessage(
+                        "Notification Refresh Error",
+                        "Failed to refresh notifications: " + e.getMessage(),
+                        TrayIcon.MessageType.ERROR
+                );
+            }
         }
     }
 }
