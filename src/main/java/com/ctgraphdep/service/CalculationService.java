@@ -268,18 +268,17 @@ public class CalculationService {
             }
 
             // PRESERVED: Create the temporary stop (same as original command)
-            TemporaryStop breakStop = new TemporaryStop();
-            breakStop.setStartTime(startTime);
-            breakStop.setEndTime(endTime);
-            breakStop.setDuration(CalculateWorkHoursUtil.calculateMinutesBetween(startTime, endTime));
+            TemporaryStop temporaryStop = new TemporaryStop();
+            temporaryStop.setStartTime(startTime);
+            temporaryStop.setEndTime(endTime);
+            temporaryStop.setDuration(CalculateWorkHoursUtil.calculateMinutesBetween(startTime, endTime));
 
             // PRESERVED: Calculate new stop count (same as original command)
             int newStopCount = session.getTemporaryStopCount() != null ? session.getTemporaryStopCount() + 1 : 1;
 
             // PRESERVED: Update session using builder (same as original command)
             SessionEntityBuilder.updateSession(session, builder -> builder
-                    .addTemporaryStop(breakStop)
-                    .temporaryStopCount(newStopCount));
+                    .addTemporaryStop(temporaryStop).temporaryStopCount(newStopCount));
 
             // PRESERVED: Calculate new total temporary stop minutes from completed stops only
             final int totalStopMinutes = session.getTemporaryStops() != null ? 
@@ -290,7 +289,7 @@ public class CalculationService {
 
             LoggerUtil.info(this.getClass(), String.format(
                     "Added break as temp stop for %s: %d minutes (%s to %s), total stops: %d, total minutes: %d",
-                    session.getUsername(), breakStop.getDuration(), startTime, endTime,
+                    session.getUsername(), temporaryStop.getDuration(), startTime, endTime,
                     newStopCount, totalStopMinutes));
 
             return session;
@@ -605,7 +604,7 @@ public class CalculationService {
             }
             // For custom schedules, assume start at 9 and add schedule hours
             else {
-                int endHour = 9 + schedule;
+                int endHour = WorkCode.START_HOUR + schedule;
                 // Cap at 23:59 to avoid invalid times
                 if (endHour > 23) {
                     endHour = 23;
@@ -619,7 +618,7 @@ public class CalculationService {
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error calculating expected end time for schedule %d: %s", schedule, e.getMessage()), e);
-            return LocalTime.of(17, 0); // Safe fallback to 5 PM
+            return LocalTime.of(WorkCode.DEFAULT_END_HOUR, WorkCode.DEFAULT_ZERO); // Safe fallback to 5 PM
         }
     }
 

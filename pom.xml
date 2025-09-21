@@ -25,6 +25,8 @@
         <hibernate.validator.version>8.0.1.Final</hibernate.validator.version>
         <jakarta.el.version>4.0.2</jakarta.el.version>
         <jetbrains.annotations.version>24.0.0</jetbrains.annotations.version>
+        <graalvm.version>23.1.0</graalvm.version>
+        <native.maven.plugin.version>0.9.28</native.maven.plugin.version>
     </properties>
 
     <dependencies>
