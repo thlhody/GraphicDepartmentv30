@@ -20,9 +20,25 @@
                     </div>
                 </div>
                 <div class="text-end">
-                    <div class="text-muted header-date"
-                         th:text="${#temporals.format(#temporals.createNow(), 'EEEE, dd MMMM yyyy')}">
-                        Date
+                    <div class="d-flex flex-column align-items-end gap-2">
+                        <!-- OMS Connection Status -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span id="omsStatusIndicator" class="badge bg-secondary">
+                                <i class="fas fa-times-circle me-1"></i>OMS Disconnected
+                            </span>
+                            <button id="omsConnectButton" class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="modal" data-bs-target="#omsConnectionModal">
+                                <i class="fas fa-link me-1"></i>Connect to OMS
+                            </button>
+                            <button id="omsDisconnectButton" class="btn btn-sm btn-outline-danger d-none"
+                                    data-bs-toggle="modal" data-bs-target="#omsDisconnectModal">
+                                <i class="fas fa-unlink me-1"></i>Disconnect OMS
+                            </button>
+                        </div>
+                        <div class="text-muted header-date"
+                             th:text="${#temporals.format(#temporals.createNow(), 'EEEE, dd MMMM yyyy')}">
+                            Date
+                        </div>
                     </div>
                 </div>
             </div>
@@ -76,6 +92,10 @@
             </div>
         </div>
     </div>
+
+    <!-- OMS Connection Modals -->
+    <div th:replace="~{fragments/oms-connection-modal :: oms-connection-modal}"></div>
+    <div th:replace="~{fragments/oms-connection-modal :: oms-disconnect-modal}"></div>
 </div>
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">

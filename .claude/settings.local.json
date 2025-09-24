@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Read(//d/WorkT/Projects Java/SituatieZilnicaAutomation/**)"
     ],
     "deny": [],
     "ask": []

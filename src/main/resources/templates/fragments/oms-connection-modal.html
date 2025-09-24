@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+
+<!-- OMS Connection Modal -->
+<div th:fragment="oms-connection-modal" class="modal fade" id="omsConnectionModal" tabindex="-1" aria-labelledby="omsConnectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="omsConnectionModalLabel">
+                    <i class="fas fa-link me-2"></i>Connect to OMS
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Instructions -->
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>How to connect:</strong>
+                    <ol class="mt-2 mb-0">
+                        <li>Open <a href="https://oms.cottontex.ro" target="_blank">OMS in a new tab</a> and login</li>
+                        <li>Press F12 to open Developer Tools</li>
+                        <li>Go to the Console tab</li>
+                        <li>Type: <code>document.cookie</code> and press Enter</li>
+                        <li>Copy the result and paste it below</li>
+                    </ol>
+                </div>
+
+                <!-- Helper button to copy console command -->
+                <div class="mb-3 text-center">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyTokenExtractionCode()">
+                        <i class="fas fa-copy me-1"></i>Copy Console Command
+                    </button>
+                    <small class="text-muted d-block mt-1">This will copy "document.cookie" to your clipboard</small>
+                </div>
+
+                <!-- OMS Username Input -->
+                <div class="mb-3">
+                    <label for="omsUsername" class="form-label">
+                        <i class="fas fa-user me-1"></i>Your OMS Username
+                    </label>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="omsUsername"
+                        placeholder="Enter your OMS username (e.g., TudorHodineanti)"
+                        value="TudorHodineanti">
+                    <div class="form-text">
+                        The username you used to login to OMS
+                    </div>
+                </div>
+
+                <!-- Token Input -->
+                <div class="mb-3">
+                    <label for="omsToken" class="form-label">
+                        <i class="fas fa-key me-1"></i>OMS Session Token
+                    </label>
+                    <textarea
+                        class="form-control font-monospace"
+                        id="omsToken"
+                        rows="4"
+                        placeholder="Paste your session token (cookies) here..."
+                        style="font-size: 0.85em;"></textarea>
+                    <div class="form-text">
+                        This should look like: <code>sessionid=abc123; auth_token=xyz789; ...</code>
+                    </div>
+                </div>
+
+                <!-- Connection Status Alert -->
+                <div id="omsConnectionAlert" class="alert d-none" role="alert"></div>
+
+                <!-- Connection Test Button (shown after successful connection) -->
+                <div id="connectionTestSection" class="d-none mt-3 p-3 border rounded bg-success-light">
+                    <h6 class="text-success">
+                        <i class="fas fa-check-circle me-1"></i>Connected Successfully!
+                    </h6>
+                    <p class="small text-muted mb-2">Test your connection to make sure it's working:</p>
+                    <div class="d-grid">
+                        <button class="btn btn-sm btn-outline-success" id="testConnectionBtn">
+                            <i class="fas fa-vial me-1"></i>Test Connection
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="connectToOmsBtn">
+                    <span id="connectBtnText">Connect</span>
+                    <span id="connectBtnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- OMS Disconnect Confirmation Modal -->
+<div th:fragment="oms-disconnect-modal" class="modal fade" id="omsDisconnectModal" tabindex="-1" aria-labelledby="omsDisconnectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="omsDisconnectModalLabel">
+                    <i class="fas fa-unlink me-2"></i>Disconnect from OMS
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to disconnect from OMS?</p>
+                <p class="text-muted">This will remove your stored session token, and you'll need to reconnect to view OMS data.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDisconnectBtn">
+                    <span id="disconnectBtnText">Disconnect</span>
+                    <span id="disconnectBtnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</html>
