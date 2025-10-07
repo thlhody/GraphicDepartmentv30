@@ -173,6 +173,7 @@ public abstract class BaseWorktimeUpdateSessionCommand<T> extends BaseSessionCom
         tempSession.setTotalOvertimeMinutes(entry.getTotalOvertimeMinutes());
         tempSession.setTotalTemporaryStopMinutes(entry.getTotalTemporaryStopMinutes());
         tempSession.setTemporaryStopCount(entry.getTemporaryStopCount());
+        tempSession.setTemporaryStops(entry.getTemporaryStops());
         return tempSession;
     }
 

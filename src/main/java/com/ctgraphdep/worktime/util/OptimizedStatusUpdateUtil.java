@@ -99,13 +99,14 @@ public class OptimizedStatusUpdateUtil {
         boolean overtimeChanged = !Objects.equals(newEntry.getTotalOvertimeMinutes(), existingEntry.getTotalOvertimeMinutes());
         boolean tempStopChanged = !Objects.equals(newEntry.getTotalTemporaryStopMinutes(), existingEntry.getTotalTemporaryStopMinutes());
         boolean tempStopCountChanged = !Objects.equals(newEntry.getTemporaryStopCount(), existingEntry.getTemporaryStopCount());
+        boolean tempStopsListChanged = !Objects.equals(newEntry.getTemporaryStops(), existingEntry.getTemporaryStops());
         boolean timeOffChanged = !Objects.equals(newEntry.getTimeOffType(), existingEntry.getTimeOffType());
         boolean startTimeChanged = !Objects.equals(newEntry.getDayStartTime(), existingEntry.getDayStartTime());
         boolean endTimeChanged = !Objects.equals(newEntry.getDayEndTime(), existingEntry.getDayEndTime());
         boolean lunchChanged = newEntry.isLunchBreakDeducted() != existingEntry.isLunchBreakDeducted();
 
         boolean hasChanged = workedMinutesChanged || overtimeChanged || tempStopChanged || tempStopCountChanged ||
-                timeOffChanged || startTimeChanged || endTimeChanged || lunchChanged;
+                tempStopsListChanged || timeOffChanged || startTimeChanged || endTimeChanged || lunchChanged;
 
         if (hasChanged) {
             LoggerUtil.debug(LOGGER_CLASS.getClass(), String.format(
@@ -151,6 +152,7 @@ public class OptimizedStatusUpdateUtil {
         clone.setTotalOvertimeMinutes(original.getTotalOvertimeMinutes());
         clone.setTotalTemporaryStopMinutes(original.getTotalTemporaryStopMinutes());
         clone.setTemporaryStopCount(original.getTemporaryStopCount());
+        clone.setTemporaryStops(original.getTemporaryStops());
         clone.setLunchBreakDeducted(original.isLunchBreakDeducted());
         clone.setTimeOffType(original.getTimeOffType());
         clone.setAdminSync(original.getAdminSync());

@@ -50,6 +50,7 @@ public class SessionEntityBuilder {
         entry.setTotalOvertimeMinutes(session.getTotalOvertimeMinutes() != null ? session.getTotalOvertimeMinutes() : 0);
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+        entry.setTemporaryStops(session.getTemporaryStops());
         entry.setLunchBreakDeducted(session.getLunchBreakDeducted() != null ? session.getLunchBreakDeducted() : false);
         entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
         // CRITICAL FIX: DO NOT automatically set timeOffType to null

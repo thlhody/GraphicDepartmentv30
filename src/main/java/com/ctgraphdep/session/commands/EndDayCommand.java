@@ -181,6 +181,9 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
 
         entry.setDayEndTime(endTime);
 
+        // Transfer temporaryStops data from session to worktime
+        entry.setTemporaryStops(session.getTemporaryStops());
+
         // Mark as completed (this may be modified by special day logic, but we'll re-apply it later)
         entry.setAdminSync(MergingStatusConstants.USER_INPUT); // Final state, not in-process
 
@@ -190,6 +193,9 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
     @Override
     protected void applyPostSpecialDayCustomizations(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
         logCustomization(CommandConstants.SPECIAL_END_DAY);
+
+        // Re-apply temporaryStops data that might have been modified by special day logic
+        entry.setTemporaryStops(session.getTemporaryStops());
 
         // Re-apply final sync status (may have been modified by special day logic)
         entry.setAdminSync(MergingStatusConstants.USER_INPUT); // Final state, not in-process

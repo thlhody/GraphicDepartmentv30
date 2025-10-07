@@ -4,7 +4,7 @@ target/
 !**/src/test/**/target/
 
 ### Claude ####
-.claude/
+/.claude/
 CLAUDE.md
 
 ### old backups ###

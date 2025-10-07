@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Getter
@@ -41,6 +42,9 @@ public class WorkTimeTable {
 
     @JsonProperty("totalTemporaryStopMinutes")
     private Integer totalTemporaryStopMinutes;
+
+    @JsonProperty("temporaryStops")
+    private List<TemporaryStop> temporaryStops;
 
     @JsonProperty("totalOvertimeMinutes")
     private Integer totalOvertimeMinutes;
@@ -106,5 +110,10 @@ public class WorkTimeTable {
             return MergingStatusConstants.USER_INPUT;
         }
         return adminSync;
+    }
+
+    // Getter for temporaryStops - ensure backward compatibility
+    public List<TemporaryStop> getTemporaryStops() {
+        return temporaryStops;
     }
 }

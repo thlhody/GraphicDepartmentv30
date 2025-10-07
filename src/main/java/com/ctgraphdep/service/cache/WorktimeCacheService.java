@@ -1,16 +1,11 @@
 package com.ctgraphdep.service.cache;
 
-import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.WorktimeDataService;
-import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -166,23 +161,6 @@ public class WorktimeCacheService {
         }
     }
 
-    /**
-     * Get specific entry for date with fallback
-     */
-    public Optional<WorkTimeTable> getEntryForDateWithFallback(String username, Integer userId, int year, int month, LocalDate date) {
-        try {
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-            return entries.stream()
-                    .filter(e -> e.getUserId().equals(userId) && e.getWorkDate().equals(date))
-                    .findFirst();
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error getting entry for date from cache for %s on %s: %s", username, date, e.getMessage()));
-            return Optional.empty();
-        }
-    }
-
     // ========================================================================
     // ENHANCED WRITE OPERATIONS WITH WRITE-THROUGH AND FALLBACK
     // ========================================================================
@@ -195,8 +173,7 @@ public class WorktimeCacheService {
         try {
             // Validate this is for current user's own data
             if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
+                LoggerUtil.warn(this.getClass(), String.format("WorktimeCacheService write operation rejected for non-current user: %s", username));
                 return false;
             }
 
@@ -244,276 +221,6 @@ public class WorktimeCacheService {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error in saveMonthEntriesWithWriteThrough for %s - %d/%d: %s",
                     username, year, month, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * NEW: Update single entry with write-through and fallback
-     * Used by individual field update commands
-     */
-    public boolean updateEntryWithWriteThrough(String username, Integer userId, int year, int month, LocalDate date, WorkTimeTable updatedEntry) {
-        try {
-            // Validate this is for current user's own data
-            if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Updating entry with write-through for %s on %s", username, date));
-
-            // Load current entries
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-
-            // Remove existing entry for this date if any
-            entries.removeIf(existing -> existing.getWorkDate().equals(date) && userId.equals(existing.getUserId()));
-
-            // Add updated entry
-            entries.add(updatedEntry);
-
-            // Save with write-through
-            return saveMonthEntriesWithWriteThrough(username, userId, year, month, entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error updating entry for %s on %s: %s",
-                    username, date, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * ENHANCED: Update start time with write-through and fallback
-     */
-    public boolean updateStartTime(String username, Integer userId, int year, int month, LocalDate date, LocalDateTime startTime) {
-        try {
-            // Validate this is for current user's own data
-            if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Updating start time for %s on %s to %s",
-                    username, date, startTime != null ? startTime.toLocalTime() : "null"));
-
-            // Get current entries with fallback
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-
-            // Find or create entry for date
-            WorkTimeTable entry = findOrCreateEntryForDate(entries, userId, date);
-            entry.setDayStartTime(startTime);
-            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-            // Recalculate work time if both start and end exist
-            recalculateWorkTime(entry);
-
-            // Save with write-through
-            return saveMonthEntriesWithWriteThrough(username, userId, year, month, entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error updating start time for %s on %s: %s",
-                    username, date, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * ENHANCED: Update end time with write-through and fallback
-     */
-    public boolean updateEndTime(String username, Integer userId, int year, int month, LocalDate date, LocalDateTime endTime) {
-        try {
-            // Validate this is for current user's own data
-            if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Updating end time for %s on %s to %s",
-                    username, date, endTime != null ? endTime.toLocalTime() : "null"));
-
-            // Get current entries with fallback
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-
-            // Find or create entry for date
-            WorkTimeTable entry = findOrCreateEntryForDate(entries, userId, date);
-            entry.setDayEndTime(endTime);
-            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-            // Recalculate work time if both start and end exist
-            recalculateWorkTime(entry);
-
-            // Save with write-through
-            return saveMonthEntriesWithWriteThrough(username, userId, year, month, entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error updating end time for %s on %s: %s", username, date, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * NEW: Update temporary stop with write-through and fallback
-     */
-    public boolean updateTemporaryStop(String username, Integer userId, int year, int month, LocalDate date, Integer tempStopMinutes) {
-        try {
-            // Validate this is for current user's own data
-            if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Updating temporary stop for %s on %s to %d minutes", username, date, tempStopMinutes));
-
-            // Get current entries with fallback
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-
-            // Find or create entry for date
-            WorkTimeTable entry = findOrCreateEntryForDate(entries, userId, date);
-            entry.setTotalTemporaryStopMinutes(tempStopMinutes);
-            entry.setTemporaryStopCount(tempStopMinutes > 0 ? 1 : 0);
-            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-            // Recalculate work time with temporary stops
-            recalculateWorkTimeWithTempStops(entry);
-
-            // Save with write-through
-            return saveMonthEntriesWithWriteThrough(username, userId, year, month, entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error updating temporary stop for %s on %s: %s",
-                    username, date, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * NEW: Remove temporary stop with write-through and fallback
-     */
-    public boolean removeTemporaryStop(String username, Integer userId, int year, int month, LocalDate date) {
-        try {
-            // Validate this is for current user's own data
-            if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Removing temporary stop for %s on %s", username, date));
-
-            // Get current entries with fallback
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-
-            // Find entry for date
-            Optional<WorkTimeTable> entryOpt = entries.stream()
-                    .filter(e -> e.getUserId().equals(userId) && e.getWorkDate().equals(date))
-                    .findFirst();
-
-            if (entryOpt.isEmpty()) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "No entry found to remove temporary stop for %s on %s", username, date));
-                return false;
-            }
-
-            WorkTimeTable entry = entryOpt.get();
-            entry.setTotalTemporaryStopMinutes(0);
-            entry.setTemporaryStopCount(0);
-            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-            // Recalculate work time without temporary stops
-            recalculateWorkTime(entry);
-
-            // Save with write-through
-            return saveMonthEntriesWithWriteThrough(username, userId, year, month, entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error removing temporary stop for %s on %s: %s",
-                    username, date, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * ENHANCED: Add time off entry with write-through and fallback
-     */
-    public boolean addTimeOffEntry(String username, Integer userId, int year, int month, LocalDate date, String timeOffType) {
-        try {
-            // Validate this is for current user's own data
-            if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Adding time off entry for %s on %s (%s)", username, date, timeOffType));
-
-            // Get current entries with fallback
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-
-            // Find or create entry for date
-            WorkTimeTable entry = findOrCreateEntryForDate(entries, userId, date);
-            entry.setTimeOffType(timeOffType.toUpperCase());
-            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-            // Clear work time when setting time off
-            clearWorkFields(entry);
-
-            // Save with write-through
-            return saveMonthEntriesWithWriteThrough(username, userId, year, month, entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error adding time off entry for %s on %s: %s", username, date, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
-     * ENHANCED: Remove time off entry with write-through and fallback
-     */
-    public boolean removeTimeOffEntry(String username, Integer userId, int year, int month, LocalDate date) {
-        try {
-            // Validate this is for current user's own data
-            if (isNonCurrentUserData(username)) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "WorktimeCacheService write operation rejected for non-current user: %s", username));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Removing time off entry for %s on %s", username, date));
-
-            // Get current entries with fallback
-            List<WorkTimeTable> entries = getMonthEntriesWithFallback(username, userId, year, month);
-
-            // Find entry for date
-            Optional<WorkTimeTable> entryOpt = entries.stream()
-                    .filter(e -> e.getUserId().equals(userId) && e.getWorkDate().equals(date))
-                    .findFirst();
-
-            if (entryOpt.isEmpty()) {
-                LoggerUtil.warn(this.getClass(), String.format(
-                        "No entry found to remove time off for %s on %s", username, date));
-                return false;
-            }
-
-            WorkTimeTable entry = entryOpt.get();
-            entry.setTimeOffType(null);
-            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
-
-            // Save with write-through
-            return saveMonthEntriesWithWriteThrough(username, userId, year, month, entries);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "Error removing time off entry for %s on %s: %s", username, date, e.getMessage()), e);
             return false;
         }
     }
@@ -683,81 +390,6 @@ public class WorktimeCacheService {
     }
 
     /**
-     * Find existing entry or create new one for date
-     */
-    private WorkTimeTable findOrCreateEntryForDate(List<WorkTimeTable> entries, Integer userId, LocalDate date) {
-        Optional<WorkTimeTable> existingEntry = entries.stream().filter(e -> e.getUserId().equals(userId) && e.getWorkDate().equals(date)).findFirst();
-
-        if (existingEntry.isPresent()) {
-            return existingEntry.get();
-        }
-
-        // Create new entry
-        WorkTimeTable newEntry = new WorkTimeTable();
-        newEntry.setUserId(userId);
-        newEntry.setWorkDate(date);
-        newEntry.setAdminSync(MergingStatusConstants.USER_INPUT);
-        clearWorkFields(newEntry);
-
-        entries.add(newEntry);
-        return newEntry;
-    }
-
-    /**
-     * Clear work-related fields for time off entries
-     */
-    private void clearWorkFields(WorkTimeTable entry) {
-        entry.setDayStartTime(null);
-        entry.setDayEndTime(null);
-        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
-        entry.setTotalOvertimeMinutes(WorkCode.DEFAULT_ZERO);
-        entry.setTotalTemporaryStopMinutes(WorkCode.DEFAULT_ZERO);
-        entry.setTemporaryStopCount(WorkCode.DEFAULT_ZERO);
-        entry.setLunchBreakDeducted(false);
-    }
-
-    /**
-     * Recalculate work time based on start and end times
-     */
-    private void recalculateWorkTime(WorkTimeTable entry) {
-        if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
-            entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);
-            entry.setLunchBreakDeducted(false);
-            return;
-        }
-
-        // Calculate total minutes
-        long minutes = Duration.between(entry.getDayStartTime(), entry.getDayEndTime()).toMinutes();
-        int totalMinutes = Math.max(WorkCode.DEFAULT_ZERO, (int) minutes);
-
-        entry.setTotalWorkedMinutes(totalMinutes);
-
-        // Determine lunch break (more than 6 hours)
-        boolean lunchBreak = totalMinutes > (6 * 60);
-        entry.setLunchBreakDeducted(lunchBreak);
-
-        LoggerUtil.debug(this.getClass(), String.format("Recalculated work time: %d minutes, lunch break: %s", totalMinutes, lunchBreak));
-    }
-
-    /**
-     * Recalculate work time including temporary stops
-     */
-    private void recalculateWorkTimeWithTempStops(WorkTimeTable entry) {
-        // First calculate base work time
-        recalculateWorkTime(entry);
-
-        // Subtract temporary stops from total worked time
-        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > WorkCode.DEFAULT_ZERO) {
-            int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : WorkCode.DEFAULT_ZERO;
-            int adjustedMinutes = Math.max(WorkCode.DEFAULT_ZERO, workedMinutes - entry.getTotalTemporaryStopMinutes());
-            entry.setTotalWorkedMinutes(adjustedMinutes);
-
-            LoggerUtil.debug(this.getClass(), String.format("Adjusted work time with temp stops: %d - %d = %d minutes",
-                    workedMinutes, entry.getTotalTemporaryStopMinutes(), adjustedMinutes));
-        }
-    }
-
-    /**
      * Invalidate other months for user to save memory
      */
     private void invalidateUserOtherMonths(String username, int keepYear, int keepMonth) {
@@ -853,7 +485,7 @@ public class WorktimeCacheService {
             for (String sessionKey : userSessions) {
                 WorktimeCacheEntry entry = userMonthSessions.get(sessionKey);
                 if (entry != null) {
-                    status.append(String.format("  - %s: %s\n", sessionKey, entry.toString()));
+                    status.append(String.format("  - %s: %s\n", sessionKey, entry));
                 }
             }
 

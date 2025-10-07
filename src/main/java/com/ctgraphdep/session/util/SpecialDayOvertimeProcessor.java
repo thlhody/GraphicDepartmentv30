@@ -55,6 +55,9 @@ public class SpecialDayOvertimeProcessor {
         // Set/preserve timeOffType
         setTimeOffType(entry, dayType);
 
+        // IMPORTANT: Preserve temporaryStops data - special day logic should not affect temp stop history
+        // temporaryStops field is preserved automatically since we're modifying entry in-place
+
         LoggerUtil.info(SpecialDayOvertimeProcessor.class, String.format("Applied special day logic: timeOffType=%s, regularMinutes=0, overtimeMinutes=%d",
                 entry.getTimeOffType(), entry.getTotalOvertimeMinutes()));
 

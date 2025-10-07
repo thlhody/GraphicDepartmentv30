@@ -28,6 +28,7 @@ public class WorkTimeEntryUtil {
         copy.setDayStartTime(source.getDayStartTime());
         copy.setDayEndTime(source.getDayEndTime());
         copy.setTemporaryStopCount(source.getTemporaryStopCount());
+        copy.setTemporaryStops(source.getTemporaryStops());
         copy.setLunchBreakDeducted(source.isLunchBreakDeducted());
         copy.setTimeOffType(source.getTimeOffType());
         copy.setTotalWorkedMinutes(source.getTotalWorkedMinutes());

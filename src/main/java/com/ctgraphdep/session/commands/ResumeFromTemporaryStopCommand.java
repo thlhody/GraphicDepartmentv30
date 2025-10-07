@@ -79,6 +79,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes()); // Critical for resume
+        entry.setTemporaryStops(session.getTemporaryStops());
         entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS); // Still in process
     }
 
@@ -89,6 +90,7 @@ public class ResumeFromTemporaryStopCommand extends BaseWorktimeUpdateSessionCom
         // Re-apply resume customizations that might have been modified by special day logic
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes()); // Critical
+        entry.setTemporaryStops(session.getTemporaryStops());
         entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
     }
 

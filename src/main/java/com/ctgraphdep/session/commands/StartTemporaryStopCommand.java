@@ -85,6 +85,7 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
         entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+        entry.setTemporaryStops(session.getTemporaryStops());
         entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS); // Still in process
     }
 
@@ -95,6 +96,7 @@ public class StartTemporaryStopCommand extends BaseWorktimeUpdateSessionCommand<
         // Re-apply temp stop customizations that might have been modified by special day logic
         entry.setTemporaryStopCount(session.getTemporaryStopCount());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
+        entry.setTemporaryStops(session.getTemporaryStops());
         entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS);
     }
 
