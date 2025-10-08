@@ -468,7 +468,7 @@ const HolidayExportUtils = {
 
         <!-- L3: Workplace with uniform line - dots at bottom -->
         <div style="margin-bottom: 15px; width: 480px; display: flex; align-items: end; position: relative;">
-            <span style="background: white; padding-right: 5px; z-index: 2; position: relative;">loc de munca</span>
+            <span style="background: white; padding-right: 5px; z-index: 2; position: relative;">loc de muncă</span>
             <div style="flex: 1; height: 1px; border-bottom: 1px dotted #000; margin-bottom: 2px;"></div>
             <span style="background: white; padding: 0 5px; z-index: 2; position: relative; font-weight: bold;">${formData.workplace || ''}</span>
             <div style="flex: 1; height: 1px; border-bottom: 1px dotted #000; margin-bottom: 2px;"></div>
@@ -477,7 +477,7 @@ const HolidayExportUtils = {
 
         <!-- L4: Holiday period with uniform line - dots at bottom -->
         <div style="margin-bottom: 15px; width: 480px; display: flex; align-items: end; position: relative;">
-            <span style="background: white; padding-right: 5px; z-index: 2; position: relative;">zile de concediu*, in perioada</span>
+            <span style="background: white; padding-right: 5px; z-index: 2; position: relative;">zile de concediu*, în perioada</span>
             <div style="flex: 0 0 30px; height: 1px; border-bottom: 1px dotted #000; margin-bottom: 2px;"></div>
             <span style="background: white; padding: 0 3px; z-index: 2; position: relative; font-weight: bold;">${formData.startDate || ''}</span>
             <span style="background: white; padding: 0 3px; z-index: 2; position: relative;"> --- </span>
@@ -486,7 +486,7 @@ const HolidayExportUtils = {
         </div>
 
         <div style="margin-bottom: 15px;">
-            reprezentand**.
+            reprezentând**.
         </div>
 
         <!-- empty line -->
@@ -520,27 +520,27 @@ const HolidayExportUtils = {
 
         <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             -&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            casatoria salariatului:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            căsătoria salariatului:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             5 zile
         </div>
         <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             -&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            casatoria unui copil:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            căsătoria unui copil:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             2 zile
         </div>
         <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             -&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            nasterea unui copil:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            nașterea unui copil:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             10 zile
         </div>
         <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             -&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            decesul sotului, copilului, parinti, socri:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            decesul soțului, copilului, părinți, socri:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             3 zile
         </div>
         <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             -&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            decesul bunicilor, frati, surori:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            decesul bunicilor, frați, surori:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             1 zi
         </div>
 
@@ -548,7 +548,7 @@ const HolidayExportUtils = {
         <div style="margin-bottom: 20px;"></div>
 
         <div style="margin-bottom: 12px;">
-            3. Concediu fara plata / Invoire&nbsp;&nbsp;&nbsp;&nbsp;${checkbox3}
+            3. Concediu fără plată / Învoire&nbsp;&nbsp;&nbsp;&nbsp;${checkbox3}
         </div>
 
         <!-- empty line -->
@@ -561,7 +561,7 @@ const HolidayExportUtils = {
         <div style="margin-bottom: 16px;"></div>
 
         <div style="margin-bottom: 12px;">&nbsp;&nbsp;&nbsp;
-            ${cuRecuperare} cu recuperare&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${faraRecuperare} fara recuperare
+            ${cuRecuperare} cu recuperare&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${faraRecuperare} fără recuperare
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Aprobat _____________
         </div>
 
