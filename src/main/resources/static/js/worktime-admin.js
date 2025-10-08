@@ -526,7 +526,26 @@ function generateEntryInfoHTML(entryData, cell) {
         hasData = true;
     }
 
-    if (entryData.totalTemporaryStopMinutes && parseInt(entryData.totalTemporaryStopMinutes) > 0) {
+    // NEW: Show temporary stops details if available
+    if (entryData.temporaryStops && Array.isArray(entryData.temporaryStops) && entryData.temporaryStops.length > 0) {
+        html += `<small class="text-warning d-block mb-1">
+            <i class="bi bi-pause-circle entry-icon"></i><strong>Temporary Stops:</strong> ${entryData.temporaryStops.length} stops (${entryData.totalTemporaryStopMinutes || 0} min total)
+        </small>`;
+
+        // Add each temporary stop detail
+        entryData.temporaryStops.forEach((stop, index) => {
+            const startTime = stop.startTime ? formatDateTime(stop.startTime) : '--:--';
+            const endTime = stop.endTime ? formatDateTime(stop.endTime) : '--:--';
+            const duration = stop.duration || 0;
+
+            html += `<small class="text-muted d-block ms-3" style="font-size: 0.85em;">
+                <span class="badge bg-warning text-dark me-1" style="font-size: 0.75em;">TS${index + 1}</span>
+                ${startTime} - ${endTime} <span class="badge bg-info" style="font-size: 0.7em;">${duration}min</span>
+            </small>`;
+        });
+        hasData = true;
+    } else if (entryData.totalTemporaryStopMinutes && parseInt(entryData.totalTemporaryStopMinutes) > 0) {
+        // Fallback if we only have the total
         html += `<small class="text-warning">
             <i class="bi bi-pause-circle entry-icon"></i><strong>Temp stops:</strong> ${entryData.totalTemporaryStopMinutes} minutes
         </small>`;
@@ -662,6 +681,44 @@ function formatMinutesToHours(minutes) {
         return `${hours}h`;
     }
     return `${hours}h ${mins}m`;
+}
+
+/**
+ * Format datetime string to HH:mm format
+ * @param {string} dateTimeStr - DateTime string (e.g., "2025-10-07 20:31:41" or ISO format)
+ * @returns {string} Formatted time string (e.g., "20:31")
+ */
+function formatDateTime(dateTimeStr) {
+    if (!dateTimeStr) return '--:--';
+
+    try {
+        // Handle both "YYYY-MM-DD HH:mm:ss" and ISO format
+        let date;
+        if (dateTimeStr.includes('T')) {
+            // ISO format
+            date = new Date(dateTimeStr);
+        } else {
+            // "YYYY-MM-DD HH:mm:ss" format
+            const parts = dateTimeStr.split(' ');
+            if (parts.length === 2) {
+                date = new Date(parts[0] + 'T' + parts[1]);
+            } else {
+                return '--:--';
+            }
+        }
+
+        if (isNaN(date.getTime())) {
+            return '--:--';
+        }
+
+        // Format as HH:mm
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${hours}:${minutes}`;
+    } catch (error) {
+        console.warn('Error formatting datetime:', dateTimeStr, error);
+        return '--:--';
+    }
 }
 
 // ========================================================================

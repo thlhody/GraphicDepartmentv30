@@ -823,6 +823,11 @@ public class WorktimeDisplayService {
             response.put("formattedTempStopTime", CalculateWorkHoursUtil.minutesToHH(entry.getTotalTemporaryStopMinutes()));
         }
 
+        // NEW: Add temporary stops list for detailed breakdown
+        if (entry.getTemporaryStops() != null && !entry.getTemporaryStops().isEmpty()) {
+            response.put("temporaryStops", entry.getTemporaryStops());
+        }
+
         // Lunch break
         response.put("lunchBreakDeducted", entry.isLunchBreakDeducted());
     }

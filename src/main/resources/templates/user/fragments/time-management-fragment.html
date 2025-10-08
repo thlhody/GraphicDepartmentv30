@@ -7,7 +7,6 @@
 <body>
 
 <!-- Time Management Fragment Template -->
-<!-- File: /templates/fragments/time-management-fragment.html -->
 <th:block th:fragment="content">
     <!-- Error Display -->
     <div th:if="${error}" class="alert alert-danger m-3">
@@ -263,8 +262,8 @@
                                 </tr>
                                 </thead>
                                 <tbody>
-                                <tr th:each="record : ${monthSummary?.entries ?: {}}"
-                                    class="worktime-entry"
+                                <th:block th:each="record : ${monthSummary?.entries ?: {}}">
+                                <tr class="worktime-entry"
                                     th:classappend="(${#temporals.format(record.workDate, 'yyyy-MM-dd') == #temporals.format(#temporals.createNow(), 'yyyy-MM-dd')} ? 'current-day ' : '') +
                                                (${record.workDate.isAfter(#temporals.createNow().toLocalDate())} ? 'future-day ' : '') +
                                                (${record.timeOffType == 'SN' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0} ? 'sn-work-entry ' : '') +
@@ -279,12 +278,20 @@
                                          data-status-modifiable=${record.statusInfo?.isModifiable},
                                          data-status-final=${record.statusInfo?.isFinal}">
 
-                                    <!-- Date Column -->
+                                    <!-- Date Column with expand toggle -->
                                     <td class="date-cell fw-medium">
-                                        <div class="d-flex align-items-center">
-                                            <span th:text="${#temporals.format(record.workDate, 'MMM dd')}">Jan 01</span>
-                                            <small class="text-muted ms-1"
-                                                   th:text="${#temporals.format(record.workDate, 'E')}">Mon</small>
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="d-flex align-items-center">
+                                                <span th:text="${#temporals.format(record.workDate, 'MMM dd')}">Jan 01</span>
+                                                <small class="text-muted ms-1"
+                                                       th:text="${#temporals.format(record.workDate, 'E')}">Mon</small>
+                                            </div>
+                                            <!-- Expand arrow for days with work intervals -->
+                                            <i th:if="${record.dayStartTime != null && record.dayEndTime != null}"
+                                               class="bi bi-chevron-down temp-stops-toggle"
+                                               style="cursor: pointer; color: #6c757d; font-size: 0.85rem;"
+                                               th:attr="data-date=${record.workDate}"
+                                               onclick="toggleTempStopsDetails(this)"></i>
                                         </div>
                                     </td>
 
@@ -499,6 +506,78 @@
                                         </div>
                                     </td>
                                 </tr>
+
+                                <!-- Expandable Temporary Stops Detail Row -->
+                                <tr th:if="${record.dayStartTime != null && record.dayEndTime != null}"
+                                    class="temp-stops-detail-row"
+                                    th:attr="data-date=${record.workDate}"
+                                    style="display: none;">
+                                    <td colspan="11" class="p-0">
+                                        <div class="temp-stops-details bg-light p-3"
+                                             style="border-left: 3px solid #0d6efd;">
+                                            <div class="row">
+                                                <!-- Work Intervals Summary -->
+                                                <div class="col-12">
+                                                    <h6 class="mb-3 text-primary">
+                                                        <i class="bi bi-clock-history me-2"></i>Work Day Breakdown
+                                                    </h6>
+
+                                                    <!-- Day Start -->
+                                                    <div class="d-flex align-items-center mb-2">
+                                                        <span class="badge bg-success me-2" style="min-width: 80px;">Day Start</span>
+                                                        <strong th:text="${#temporals.format(record.dayStartTime, 'HH:mm')}">08:00</strong>
+                                                    </div>
+
+                                                    <!-- Temporary Stops List -->
+                                                    <div th:if="${record.temporaryStops != null && !record.temporaryStops.isEmpty()}"
+                                                         class="ms-3 mb-2">
+                                                        <div th:each="stop, iterStat : ${record.temporaryStops}"
+                                                             class="d-flex align-items-center mb-1 small">
+                                                            <span class="badge bg-warning text-dark me-2" style="min-width: 80px;"
+                                                                  th:text="'Temp Stop ' + ${iterStat.index + 1}">Temp Stop 1</span>
+                                                            <span class="text-muted me-2">start:</span>
+                                                            <strong th:text="${#temporals.format(stop.startTime, 'HH:mm')}" class="me-2">20:32</strong>
+                                                            <span class="text-muted me-2">-</span>
+                                                            <span class="text-muted me-2">end:</span>
+                                                            <strong th:text="${#temporals.format(stop.endTime, 'HH:mm')}" class="me-2">21:32</strong>
+                                                            <span class="text-muted me-2">→</span>
+                                                            <span class="badge bg-info"
+                                                                  th:text="${stop.duration != null ? stop.duration + ' min' : '0 min'}">60 min</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- No temporary stops message -->
+                                                    <div th:if="${record.temporaryStops == null || record.temporaryStops.isEmpty()}"
+                                                         class="ms-3 mb-2 text-muted small fst-italic">
+                                                        No temporary stops recorded
+                                                    </div>
+
+                                                    <!-- Day End -->
+                                                    <div class="d-flex align-items-center mt-2">
+                                                        <span class="badge bg-danger me-2" style="min-width: 80px;">Day End</span>
+                                                        <strong th:text="${#temporals.format(record.dayEndTime, 'HH:mm')}">17:00</strong>
+                                                    </div>
+
+                                                    <!-- Final Summary -->
+                                                    <div class="mt-3 pt-2 border-top">
+                                                        <div class="row small">
+                                                            <div class="col-md-6">
+                                                                <strong>Total Duration:</strong>
+                                                                <span th:with="duration=${T(java.time.Duration).between(record.dayStartTime, record.dayEndTime).toMinutes()}"
+                                                                      th:text="${T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHHmm(duration)}">8:00</span>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <strong>Temp Stops:</strong>
+                                                                <span th:text="${record.totalTemporaryStopMinutes != null ? record.totalTemporaryStopMinutes + ' min' : '0 min'}">0 min</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                </th:block>
                                 </tbody>
                             </table>
                         </div>

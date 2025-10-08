@@ -1,6 +1,7 @@
 package com.ctgraphdep.model.dto.worktime;
 
 import com.ctgraphdep.config.WorkCode;
+import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.status.GeneralDataStatusDTO;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
@@ -12,6 +13,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Getter
 @Setter
@@ -31,6 +33,9 @@ public class WorkTimeEntryDTO {
     private Integer temporaryStopCount;
     private Integer totalTemporaryStopMinutes;
     private String formattedTemporaryStop;
+
+    // NEW: List of temporary stops for detailed display
+    private List<TemporaryStop> temporaryStops;
 
     private boolean lunchBreakDeducted;
     private boolean lunchBreakApplied;
@@ -216,6 +221,7 @@ public class WorkTimeEntryDTO {
                 .dayEndTime(entry.getDayEndTime())
                 .temporaryStopCount(entry.getTemporaryStopCount())
                 .totalTemporaryStopMinutes(entry.getTotalTemporaryStopMinutes())
+                .temporaryStops(entry.getTemporaryStops())  // NEW: Include the temporary stops list
                 .lunchBreakDeducted(entry.isLunchBreakDeducted())
                 .timeOffType(entry.getTimeOffType())
                 .statusInfo(statusInfo);

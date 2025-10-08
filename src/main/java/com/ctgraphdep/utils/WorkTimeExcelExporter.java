@@ -250,8 +250,35 @@ public class WorkTimeExcelExporter {
             hasWorkData = true;
         }
 
-        // Add temporary stops
-        if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > 0) {
+        // ENHANCED: Add detailed temporary stops list
+        if (entry.getTemporaryStops() != null && !entry.getTemporaryStops().isEmpty()) {
+            if (hasWorkData) commentText.append("\n");
+            commentText.append("Temporary Stops (").append(entry.getTotalTemporaryStopMinutes()).append(" min total):");
+
+            // Add each temporary stop detail
+            for (int i = 0; i < entry.getTemporaryStops().size(); i++) {
+                var stop = entry.getTemporaryStops().get(i);
+                commentText.append("\n  TS").append(i + 1).append(": ");
+
+                if (stop.getStartTime() != null) {
+                    commentText.append(stop.getStartTime().format(TIME_FORMATTER));
+                } else {
+                    commentText.append("--:--");
+                }
+
+                commentText.append(" - ");
+
+                if (stop.getEndTime() != null) {
+                    commentText.append(stop.getEndTime().format(TIME_FORMATTER));
+                } else {
+                    commentText.append("--:--");
+                }
+
+                commentText.append(" (").append(stop.getDuration() != null ? stop.getDuration() : 0).append(" min)");
+            }
+            hasWorkData = true;
+        } else if (entry.getTotalTemporaryStopMinutes() != null && entry.getTotalTemporaryStopMinutes() > 0) {
+            // Fallback if we only have the total
             if (hasWorkData) commentText.append("\n");
             commentText.append("Temp stops: ").append(entry.getTotalTemporaryStopMinutes()).append(" minutes");
             hasWorkData = true;

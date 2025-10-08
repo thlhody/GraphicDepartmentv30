@@ -449,6 +449,38 @@ const TimeManagementCore = {
 };
 
 // ========================================================================
+// TEMPORARY STOPS DETAILS TOGGLE
+// ========================================================================
+
+/**
+ * Toggle the temporary stops details row for a work day
+ * @param {HTMLElement} toggleIcon - The chevron icon that was clicked
+ */
+function toggleTempStopsDetails(toggleIcon) {
+    const date = toggleIcon.getAttribute('data-date');
+    const detailRow = document.querySelector(`.temp-stops-detail-row[data-date="${date}"]`);
+
+    if (!detailRow) {
+        console.warn('No detail row found for date:', date);
+        return;
+    }
+
+    // Toggle visibility
+    if (detailRow.style.display === 'none' || detailRow.style.display === '') {
+        detailRow.style.display = 'table-row';
+        toggleIcon.classList.remove('bi-chevron-down');
+        toggleIcon.classList.add('bi-chevron-up');
+    } else {
+        detailRow.style.display = 'none';
+        toggleIcon.classList.remove('bi-chevron-up');
+        toggleIcon.classList.add('bi-chevron-down');
+    }
+}
+
+// Make the function globally available
+window.toggleTempStopsDetails = toggleTempStopsDetails;
+
+// ========================================================================
 // DOM READY INITIALIZATION
 // ========================================================================
 
