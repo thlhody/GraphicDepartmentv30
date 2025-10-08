@@ -79,12 +79,26 @@ public enum UniversalMergeEngine {
     ),
 
     // ========================================================================
-    // LEVEL 2: USER PROTECTED RULES (Worktime Only)
+    // LEVEL 2: USER COMPLETION RULES (Worktime Only)
     // ========================================================================
+
+    USER_INPUT_OVERRIDES_IN_PROCESS(
+            (entry1, entry2, entityType) ->
+                    entityType == EntityType.WORKTIME &&
+                    ((isUserInput(entry1) && isUserInProcess(entry2)) ||
+                     (isUserInProcess(entry1) && isUserInput(entry2))),
+            (entry1, entry2, entityType) -> {
+                UniversalMergeableEntity winner = isUserInput(entry1) ? entry1 : entry2;
+                LoggerUtil.debug(UniversalMergeEngine.class,
+                        "User completion rule: USER_INPUT overrides USER_IN_PROCESS (completed work beats in-progress)");
+                return winner;
+            }
+    ),
 
     USER_IN_PROCESS_PROTECTION(
             (entry1, entry2, entityType) ->
-                    entityType == EntityType.WORKTIME && (isUserInProcess(entry1) || isUserInProcess(entry2)),
+                    entityType == EntityType.WORKTIME && (isUserInProcess(entry1) || isUserInProcess(entry2)) &&
+                    !(isUserInput(entry1) || isUserInput(entry2)), // Don't protect if USER_INPUT is present
             (entry1, entry2, entityType) -> {
                 if (isUserInProcess(entry1) && isUserInProcess(entry2)) {
                     LoggerUtil.warn(UniversalMergeEngine.class,
@@ -143,12 +157,12 @@ public enum UniversalMergeEngine {
     PROTECTED_BEATS_BASE(
             (entry1, entry2, entityType) ->
                     entityType == EntityType.WORKTIME &&
-                            ((isUserInProcess(entry1) && isBaseInput(entry2)) ||
-                                    (isBaseInput(entry1) && isUserInProcess(entry2))),
+                            ((isUserInProcess(entry1) && isBaseInput(entry2) && !isUserInput(entry2)) ||
+                                    (isBaseInput(entry1) && !isUserInput(entry1) && isUserInProcess(entry2))),
             (entry1, entry2, entityType) -> {
                 UniversalMergeableEntity winner = isUserInProcess(entry1) ? entry1 : entry2;
                 LoggerUtil.debug(UniversalMergeEngine.class,
-                        "Mixed priority rule: USER_IN_PROCESS beats base input");
+                        "Mixed priority rule: USER_IN_PROCESS beats base input (excluding USER_INPUT)");
                 return winner;
             }
     ),
@@ -239,6 +253,11 @@ public enum UniversalMergeEngine {
     private static boolean isUserInProcess(UniversalMergeableEntity entry) {
         if (entry == null) return false;
         return MergingStatusConstants.USER_IN_PROCESS.equals(entry.getUniversalStatus());
+    }
+
+    private static boolean isUserInput(UniversalMergeableEntity entry) {
+        if (entry == null) return false;
+        return MergingStatusConstants.USER_INPUT.equals(entry.getUniversalStatus());
     }
 
     private static boolean isBaseInput(UniversalMergeableEntity entry) {

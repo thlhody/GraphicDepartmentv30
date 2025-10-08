@@ -92,8 +92,9 @@ public class SyncFilesService {
                 Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
                 LoggerUtil.debug(this.getClass(), "Updated main file on network: " + targetPath);
 
-                // Step 3: If all went well, delete the backup file
-                Files.deleteIfExists(backupPath);
+                // Step 3: If all went well, try to delete the backup file
+                // Use retry logic because Windows may lock the file briefly
+                deleteBackupWithRetry(backupPath);
                 LoggerUtil.info(this.getClass(), "File sync completed successfully");
 
                 // Update sync status with success
@@ -276,10 +277,10 @@ public class SyncFilesService {
                 Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
                 LoggerUtil.debug(this.getClass(), "Updated local file: " + targetPath);
 
-                // If successful, delete the backup
+                // If successful, try to delete the backup with retry logic
                 Path backupPath = backupService.getSimpleBackupPath(targetPath);
                 if (Files.exists(backupPath)) {
-                    Files.deleteIfExists(backupPath);
+                    deleteBackupWithRetry(backupPath);
                 }
 
                 LoggerUtil.info(this.getClass(), "Network to local file sync completed successfully");
@@ -552,6 +553,51 @@ public class SyncFilesService {
         // Use a hashing algorithm like SHA-256
         java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
         return digest.digest(fileContent);
+    }
+
+    /**
+     * Deletes a backup file with retry logic to handle Windows file locking issues
+     * @param backupPath The path to the backup file to delete
+     */
+    private void deleteBackupWithRetry(Path backupPath) {
+        int maxAttempts = 3;
+        long waitTimeMs = 100; // Start with 100ms wait
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                if (Files.deleteIfExists(backupPath)) {
+                    LoggerUtil.debug(this.getClass(), "Successfully deleted backup file: " + backupPath);
+                    return;
+                }
+                // File doesn't exist, which is fine
+                return;
+            } catch (FileSystemException e) {
+                if (attempt < maxAttempts) {
+                    // Windows file locking - wait and retry
+                    LoggerUtil.debug(this.getClass(),
+                        String.format("Backup deletion attempt %d/%d failed, retrying in %dms: %s",
+                            attempt, maxAttempts, waitTimeMs, backupPath));
+                    try {
+                        Thread.sleep(waitTimeMs);
+                        waitTimeMs *= 2; // Exponential backoff
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        LoggerUtil.warn(this.getClass(), "Backup deletion retry interrupted: " + backupPath);
+                        return;
+                    }
+                } else {
+                    // Last attempt failed - log as warning but don't fail the sync
+                    LoggerUtil.warn(this.getClass(),
+                        String.format("Could not delete backup file after %d attempts (file may be locked): %s",
+                            maxAttempts, backupPath));
+                }
+            } catch (IOException e) {
+                // Other IO errors - log and continue
+                LoggerUtil.warn(this.getClass(),
+                    "Error deleting backup file (continuing anyway): " + e.getMessage());
+                return;
+            }
+        }
     }
 
     @PreDestroy
