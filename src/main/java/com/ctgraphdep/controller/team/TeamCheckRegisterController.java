@@ -5,7 +5,7 @@ import com.ctgraphdep.enums.ApprovalStatusType;
 import com.ctgraphdep.enums.CheckType;
 import com.ctgraphdep.enums.CheckingStatus;
 import com.ctgraphdep.model.*;
-import com.ctgraphdep.service.CheckRegisterService;
+import com.ctgraphdep.register.service.CheckRegisterService;
 import com.ctgraphdep.service.CheckValuesService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.WorkScheduleService;

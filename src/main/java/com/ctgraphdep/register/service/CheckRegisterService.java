@@ -1,11 +1,15 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.register.service;
 
+import com.ctgraphdep.checkregister.util.CheckRegisterWrapperFactory;
 import com.ctgraphdep.config.SecurityConstants;
-import com.ctgraphdep.enums.CheckRegisterMergeRule;
 import com.ctgraphdep.enums.CheckingStatus;
+import com.ctgraphdep.merge.engine.UniversalMergeEngine;
+import com.ctgraphdep.merge.enums.EntityType;
+import com.ctgraphdep.merge.wrapper.GenericEntityWrapper;
 import com.ctgraphdep.fileOperations.data.CheckRegisterDataService;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
+import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.cache.RegisterCheckCacheService;
 import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.service.result.ValidationServiceResult;
@@ -951,9 +955,14 @@ public class CheckRegisterService {
     }
 
     /**
-     * Merge user check entries with team lead entries
+     * Merge user check entries with team lead entries using Universal Merge Engine
+     * REFACTORED to use UniversalMergeEngine with timestamp-based conflict resolution
      */
     private List<RegisterCheckEntry> mergeEntries(List<RegisterCheckEntry> userEntries, List<RegisterCheckEntry> teamLeadEntries) {
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Universal merge for check register: %d user entries, %d team lead entries",
+                userEntries.size(), teamLeadEntries.size()));
+
         // Create maps for quick lookup
         Map<Integer, RegisterCheckEntry> teamLeadEntriesMap = teamLeadEntries.stream()
                 .collect(Collectors.toMap(RegisterCheckEntry::getEntryId, entry -> entry, (e1, e2) -> e2));
@@ -966,18 +975,45 @@ public class CheckRegisterService {
         userEntries.forEach(entry -> allEntryIds.add(entry.getEntryId()));
         teamLeadEntries.forEach(entry -> allEntryIds.add(entry.getEntryId()));
 
-        // Apply merge rules to all entries
+        // Apply Universal Merge Engine to all entries
         List<RegisterCheckEntry> mergedEntries = new ArrayList<>();
+        int mergeCount = 0;
+        int deleteCount = 0;
+
         for (Integer entryId : allEntryIds) {
             RegisterCheckEntry userEntry = userEntriesMap.get(entryId);
             RegisterCheckEntry teamLeadEntry = teamLeadEntriesMap.get(entryId);
-            RegisterCheckEntry mergedEntry = CheckRegisterMergeRule.apply(userEntry, teamLeadEntry);
 
-            // Only add non-null entries (null means entry should be removed)
-            if (mergedEntry != null) {
-                mergedEntries.add(mergedEntry);
+            try {
+                // Use GenericEntityWrapper via CheckRegisterWrapperFactory
+                GenericEntityWrapper<RegisterCheckEntry> userWrapper = CheckRegisterWrapperFactory.createWrapperSafe(userEntry);
+                GenericEntityWrapper<RegisterCheckEntry> teamLeadWrapper = CheckRegisterWrapperFactory.createWrapperSafe(teamLeadEntry);
+
+                // Apply Universal Merge Engine
+                GenericEntityWrapper<RegisterCheckEntry> resultWrapper = UniversalMergeEngine.merge(
+                        userWrapper, teamLeadWrapper, EntityType.CHECK_REGISTER);
+
+                RegisterCheckEntry mergedEntry = resultWrapper != null ? resultWrapper.getEntity() : null;
+
+                // Only add non-null entries (null means entry should be removed)
+                if (mergedEntry != null) {
+                    mergedEntries.add(mergedEntry);
+                    mergeCount++;
+                } else {
+                    deleteCount++;
+                    LoggerUtil.debug(this.getClass(), String.format("Entry %d deleted during merge", entryId));
+                }
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format("Error merging entry %d: %s", entryId, e.getMessage()));
+                // Fallback: keep user entry if merge fails
+                if (userEntry != null) {
+                    mergedEntries.add(userEntry);
+                }
             }
         }
+
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Merge statistics: %d merged, %d deleted", mergeCount, deleteCount));
 
         return mergedEntries;
     }

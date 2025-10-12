@@ -3,6 +3,8 @@ package com.ctgraphdep.service;
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.monitoring.NetworkStatusMonitor;
 import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
+import com.ctgraphdep.register.service.CheckRegisterService;
+import com.ctgraphdep.register.service.RegisterMergeService;
 import com.ctgraphdep.worktime.service.WorktimeLoginMergeService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;

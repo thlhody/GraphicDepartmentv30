@@ -5,6 +5,7 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 import com.ctgraphdep.model.dto.RegisterSummaryDTO;
+import com.ctgraphdep.register.service.AdminRegisterService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.enums.ActionType;

@@ -1,6 +1,6 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.register.service;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.service.cache.RegisterCacheService;
@@ -157,7 +157,7 @@ public class UserRegisterService {
                 entry.setEntryId(generateNextEntryId(currentEntries));
 
                 // NEW ENTRY: Always USER_INPUT
-                entry.setAdminSync(SyncStatusMerge.USER_INPUT.name());
+                entry.setAdminSync(MergingStatusConstants.USER_INPUT);
 
                 LoggerUtil.info(this.getClass(), String.format("New entry %d created with USER_INPUT status", entry.getEntryId()));
             } else {
@@ -167,25 +167,22 @@ public class UserRegisterService {
                 if (existingEntry != null) {
                     String currentStatus = existingEntry.getAdminSync();
 
-                    // Step 4: User edits approved entry: USER_DONE → USER_EDITED
-                    // OR: User edits admin-modified entry: ADMIN_EDITED → USER_EDITED
-                    if (SyncStatusMerge.USER_DONE.name().equals(currentStatus) ||
-                            SyncStatusMerge.ADMIN_EDITED.name().equals(currentStatus)) {
-
-                        entry.setAdminSync(SyncStatusMerge.USER_EDITED.name());
+                    // Check if this is an edit (not a new entry)
+                    // When user edits an existing entry, create timestamped USER_EDITED status
+                    if (currentStatus != null && !currentStatus.isEmpty()) {
+                        entry.setAdminSync(MergingStatusConstants.createUserEditedStatus());
                         LoggerUtil.info(this.getClass(), String.format(
-                                "Entry %d status changed: %s → USER_EDITED (user modified approved entry)",
-                                entry.getEntryId(), currentStatus));
-
+                                "Entry %d status changed: %s → %s (user edited existing entry)",
+                                entry.getEntryId(), currentStatus, entry.getAdminSync()));
                     } else {
-                        // Keep existing status for other cases (USER_INPUT, USER_EDITED, etc.)
+                        // Keep existing status for other cases
                         entry.setAdminSync(currentStatus);
                         LoggerUtil.debug(this.getClass(), String.format(
                                 "Entry %d keeping existing status: %s", entry.getEntryId(), currentStatus));
                     }
                 } else {
                     // Entry not found in cache, treat as new
-                    entry.setAdminSync(SyncStatusMerge.USER_INPUT.name());
+                    entry.setAdminSync(MergingStatusConstants.USER_INPUT);
                     warnings.add("Entry " + entry.getEntryId() + " not found in cache, treating as new");
                     LoggerUtil.warn(this.getClass(), String.format(
                             "Entry %d not found in cache, treating as new with USER_INPUT status", entry.getEntryId()));

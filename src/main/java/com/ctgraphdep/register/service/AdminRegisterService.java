@@ -1,10 +1,11 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.register.service;
 
-import com.ctgraphdep.enums.SyncStatusMerge;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.bonus.BonusCalculationResultDTO;
 import com.ctgraphdep.model.dto.RegisterSummaryDTO;
+import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.service.result.ValidationServiceResult;
 import com.ctgraphdep.utils.BonusCalculatorUtil;
@@ -307,7 +308,7 @@ public class AdminRegisterService {
 
                     // IMPORTANT: Preserve the original adminSync status from the client
                     String adminSync = data.get("adminSync") != null ?
-                            data.get("adminSync").toString() : SyncStatusMerge.USER_DONE.name();
+                            data.get("adminSync").toString() : MergingStatusConstants.USER_INPUT;
 
                     RegisterEntry entry = RegisterEntry.builder()
                             .entryId(convertToInteger(data.get("entryId")))
@@ -918,7 +919,15 @@ public class AdminRegisterService {
     }
 
     /**
-     * Resolve all ADMIN_CHECK conflicts by changing them to ADMIN_EDITED
+     * Force admin overwrite: Sets all register entries to ADMIN_FINAL status
+     * This is a nuclear option for resolving any conflicts - admin decision becomes absolute
+     * Use case: When there are synchronization issues or conflicts that need immediate resolution,
+     * admin can force their current version to become the final version, overriding any user/team changes.
+     * @param username Username
+     * @param userId User ID
+     * @param year Year
+     * @param month Month
+     * @return ServiceResult with count of entries marked as ADMIN_FINAL
      */
     public ServiceResult<Integer> confirmAllAdminChanges(String username, Integer userId, Integer year, Integer month) {
         try {
@@ -933,84 +942,94 @@ public class AdminRegisterService {
                 return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
             }
 
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Admin force overwrite initiated for %s - %d/%d (marking all entries as ADMIN_FINAL)",
+                    username, year, month));
+
             // Read current admin entries
             List<RegisterEntry> currentEntries;
             try {
                 currentEntries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
             } catch (Exception e) {
-                LoggerUtil.error(this.getClass(), String.format("Error reading admin entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
+                LoggerUtil.error(this.getClass(), String.format("Error reading admin entries for %s - %d/%d: %s",
+                        username, year, month, e.getMessage()), e);
                 return ServiceResult.systemError("Failed to read current admin entries", "read_entries_failed");
             }
 
             if (currentEntries == null || currentEntries.isEmpty()) {
-                LoggerUtil.info(this.getClass(), String.format("No entries found to confirm for %s - %d/%d", username, year, month));
+                LoggerUtil.info(this.getClass(), String.format("No entries found to mark as ADMIN_FINAL for %s - %d/%d",
+                        username, year, month));
                 return ServiceResult.success(0);
             }
 
-            // Count and resolve ADMIN_CHECK conflicts
-            int resolvedCount = 0;
+            // Mark all entries as ADMIN_FINAL (highest priority - cannot be overridden)
+            int markedCount = 0;
             List<RegisterEntry> updatedEntries = new ArrayList<>();
             List<String> warnings = new ArrayList<>();
 
             for (RegisterEntry entry : currentEntries) {
-                if (SyncStatusMerge.ADMIN_CHECK.name().equals(entry.getAdminSync())) {
-                    try {
-                        // Resolve conflict: ADMIN_CHECK → ADMIN_EDITED (admin's final decision)
-                        RegisterEntry resolvedEntry = RegisterEntry.builder()
-                                .entryId(entry.getEntryId())
-                                .userId(entry.getUserId())
-                                .date(entry.getDate())
-                                .orderId(entry.getOrderId())
-                                .productionId(entry.getProductionId())
-                                .omsId(entry.getOmsId())
-                                .clientName(entry.getClientName())
-                                .actionType(entry.getActionType())
-                                .printPrepTypes(entry.getPrintPrepTypes() != null ? List.copyOf(entry.getPrintPrepTypes()) : null)
-                                .colorsProfile(entry.getColorsProfile())
-                                .articleNumbers(entry.getArticleNumbers())
-                                .graphicComplexity(entry.getGraphicComplexity())
-                                .observations(entry.getObservations())
-                                .adminSync(SyncStatusMerge.ADMIN_EDITED.name()) // ADMIN_CHECK → ADMIN_EDITED
-                                .build();
+                try {
+                    // Create updated entry with ADMIN_FINAL status
+                    RegisterEntry updatedEntry = RegisterEntry.builder()
+                            .entryId(entry.getEntryId())
+                            .userId(entry.getUserId())
+                            .date(entry.getDate())
+                            .orderId(entry.getOrderId())
+                            .productionId(entry.getProductionId())
+                            .omsId(entry.getOmsId())
+                            .clientName(entry.getClientName())
+                            .actionType(entry.getActionType())
+                            .printPrepTypes(entry.getPrintPrepTypes() != null ? List.copyOf(entry.getPrintPrepTypes()) : null)
+                            .colorsProfile(entry.getColorsProfile())
+                            .articleNumbers(entry.getArticleNumbers())
+                            .graphicComplexity(entry.getGraphicComplexity())
+                            .observations(entry.getObservations())
+                            .adminSync(MergingStatusConstants.ADMIN_FINAL) // Force to ADMIN_FINAL
+                            .build();
 
-                        updatedEntries.add(resolvedEntry);
-                        resolvedCount++;
+                    updatedEntries.add(updatedEntry);
+                    markedCount++;
 
-                        LoggerUtil.info(this.getClass(), String.format("Resolved conflict for entry %d: ADMIN_CHECK → ADMIN_EDITED (admin decision)", entry.getEntryId()));
-                    } catch (Exception e) {
-                        warnings.add("Failed to resolve conflict for entry " + entry.getEntryId() + ": " + e.getMessage());
-                        updatedEntries.add(entry); // Keep original if resolution fails
-                        LoggerUtil.warn(this.getClass(), String.format("Error resolving conflict for entry %d: %s", entry.getEntryId(), e.getMessage()));
-                    }
-                } else {
-                    // Keep other entries unchanged
-                    updatedEntries.add(entry);
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Marked entry %d as ADMIN_FINAL (was: %s)", entry.getEntryId(), entry.getAdminSync()));
+                } catch (Exception e) {
+                    warnings.add("Failed to mark entry " + entry.getEntryId() + " as ADMIN_FINAL: " + e.getMessage());
+                    updatedEntries.add(entry); // Keep original if marking fails
+                    LoggerUtil.warn(this.getClass(), String.format("Error marking entry %d as ADMIN_FINAL: %s",
+                            entry.getEntryId(), e.getMessage()));
                 }
             }
 
-            if (resolvedCount > 0) {
+            if (markedCount > 0) {
                 // Save the updated entries
                 try {
                     registerDataService.writeAdminLocalWithSyncAndBackup(username, userId, updatedEntries, year, month);
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Successfully marked %d entries as ADMIN_FINAL for %s - %d/%d (admin force overwrite complete)",
+                            markedCount, username, year, month));
                 } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), String.format("Error saving resolved conflicts for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
-                    return ServiceResult.systemError("Failed to save resolved conflicts", "save_resolved_failed");
+                    LoggerUtil.error(this.getClass(), String.format(
+                            "Error saving entries marked as ADMIN_FINAL for %s - %d/%d: %s",
+                            username, year, month, e.getMessage()), e);
+                    return ServiceResult.systemError("Failed to save entries with ADMIN_FINAL status", "save_failed");
                 }
-
-                LoggerUtil.info(this.getClass(), String.format("Successfully resolved %d ADMIN_CHECK conflicts for %s - %d/%d", resolvedCount, username, year, month));
             } else {
-                LoggerUtil.info(this.getClass(), String.format("No ADMIN_CHECK conflicts found to resolve for %s - %d/%d", username, year, month));
+                LoggerUtil.info(this.getClass(), String.format(
+                        "No entries were successfully marked as ADMIN_FINAL for %s - %d/%d",
+                        username, year, month));
             }
 
             if (!warnings.isEmpty()) {
-                return ServiceResult.successWithWarnings(resolvedCount, warnings);
+                return ServiceResult.successWithWarnings(markedCount, warnings);
             }
 
-            return ServiceResult.success(resolvedCount);
+            return ServiceResult.success(markedCount);
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Unexpected error resolving admin conflicts for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
-            return ServiceResult.systemError("Unexpected error resolving admin conflicts", "resolve_conflicts_system_error");
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Unexpected error in admin force overwrite for %s - %d/%d: %s",
+                    username, year, month, e.getMessage()), e);
+            return ServiceResult.systemError("Unexpected error during admin force overwrite", "force_overwrite_system_error");
         }
     }
 

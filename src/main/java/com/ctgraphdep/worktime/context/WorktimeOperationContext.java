@@ -7,7 +7,7 @@ import com.ctgraphdep.model.*;
 import com.ctgraphdep.model.dto.TeamMemberDTO;
 import com.ctgraphdep.service.cache.*;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.UserRegisterService;
+import com.ctgraphdep.register.service.UserRegisterService;
 import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
