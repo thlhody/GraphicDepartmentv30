@@ -3,7 +3,7 @@ package com.ctgraphdep.session.commands;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.service.SessionMidnightHandler;
+import com.ctgraphdep.session.service.SessionMidnightHandler;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.query.GetLocalUserQuery;
 

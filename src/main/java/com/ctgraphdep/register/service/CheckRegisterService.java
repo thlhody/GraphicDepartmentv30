@@ -1,6 +1,6 @@
 package com.ctgraphdep.register.service;
 
-import com.ctgraphdep.checkregister.util.CheckRegisterWrapperFactory;
+import com.ctgraphdep.register.util.CheckRegisterWrapperFactory;
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.enums.CheckingStatus;
 import com.ctgraphdep.merge.engine.UniversalMergeEngine;

@@ -11,6 +11,8 @@ import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.cache.SessionCacheService;
+import com.ctgraphdep.session.service.SessionMonitorService;
+import com.ctgraphdep.session.service.SessionService;
 import com.ctgraphdep.session.util.SessionEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
@@ -33,7 +35,7 @@ public class SessionContext {
     // Core dependencies
     private final UserService userService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
-    private final SessionStatusService sessionStatusService;
+    private final ReadFileNameStatusService readFileNameStatusService;
     private final SessionMonitorService sessionMonitorService;
     private final FolderStatus folderStatus;
     private final SessionCommandFactory commandFactory;
@@ -51,7 +53,7 @@ public class SessionContext {
 
     // Constructor with dependency injection
     public SessionContext(
-            UserService userService, MainDefaultUserContextService mainDefaultUserContextService, SessionStatusService sessionStatusService,
+            UserService userService, MainDefaultUserContextService mainDefaultUserContextService, ReadFileNameStatusService readFileNameStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
             FolderStatus folderStatus, SessionCommandFactory commandFactory, TimeValidationService validationService,
             NotificationService notificationService, SessionService sessionService,
@@ -59,7 +61,7 @@ public class SessionContext {
 
         this.userService = userService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
-        this.sessionStatusService = sessionStatusService;
+        this.readFileNameStatusService = readFileNameStatusService;
         this.sessionMonitorService = sessionMonitorService;
         this.folderStatus = folderStatus;
         this.commandFactory = commandFactory;

@@ -10,6 +10,7 @@ import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
 import com.ctgraphdep.register.service.CheckRegisterService;
+import com.ctgraphdep.register.service.CheckValuesService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.cache.CheckValuesCacheManager;
 import com.ctgraphdep.service.result.ServiceResult;

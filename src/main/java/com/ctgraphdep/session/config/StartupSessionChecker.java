@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.config;
 
-import com.ctgraphdep.service.SessionMidnightHandler;
+import com.ctgraphdep.session.service.SessionMidnightHandler;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.session.commands.StartupSessionCheckCommand;

@@ -27,8 +27,12 @@ public class SaveSessionCommand extends BaseSessionCommand<WorkUsersSessionsStat
 
             validateCondition(success, "Session cannot be null");
 
-            // Status service update (if needed separately)
-            ctx.getSessionStatusService().updateSessionStatus(session);
+            // Update status directly via ReadFileNameStatusService (no intermediate wrapper)
+            ctx.getReadFileNameStatusService().updateUserStatus(
+                    session.getUsername(),
+                    session.getUserId(),
+                    session.getSessionStatus(),
+                    session.getLastActivity() != null ? session.getLastActivity() : getStandardCurrentTime(context));
 
             return session;
         });

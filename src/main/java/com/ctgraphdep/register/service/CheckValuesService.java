@@ -1,10 +1,11 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.register.service;
 
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.CheckValuesEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
+import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;

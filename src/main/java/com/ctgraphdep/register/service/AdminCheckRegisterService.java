@@ -1,4 +1,4 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.register.service;
 
 public class AdminCheckRegisterService {
 }

@@ -1,6 +1,6 @@
 package com.ctgraphdep.session;
 
-import com.ctgraphdep.service.SessionMidnightHandler;
+import com.ctgraphdep.session.service.SessionMidnightHandler;
 import com.ctgraphdep.session.commands.*;
 import com.ctgraphdep.session.commands.notification.*;
 import com.ctgraphdep.session.query.*;

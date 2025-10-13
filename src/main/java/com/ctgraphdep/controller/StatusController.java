@@ -92,7 +92,11 @@ public class StatusController extends BaseController {
             return "redirect:/login";
         }
 
-        // Get statuses - roles are already included from the cache
+        // ENHANCED: Always sync from network flags to get fresh data from "source of truth"
+        readFileNameStatusService.invalidateCache();
+        LoggerUtil.debug(this.getClass(), "Synced status cache from network flags on page load");
+
+        // Get statuses - now guaranteed to be fresh from network flags
         List<UserStatusDTO> userStatuses = readFileNameStatusService.getAllUserStatuses();
         long onlineCount = readFileNameStatusService.getOnlineUserCount();
 

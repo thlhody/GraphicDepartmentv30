@@ -9,7 +9,7 @@ import com.ctgraphdep.model.UsersCheckValueEntry;
 import com.ctgraphdep.model.dto.DashboardViewModelDTO;
 import com.ctgraphdep.model.dto.dashboard.DashboardMetricsDTO;
 import com.ctgraphdep.service.cache.CheckValuesCacheManager;
-import com.ctgraphdep.service.CheckValuesService;
+import com.ctgraphdep.register.service.CheckValuesService;
 import com.ctgraphdep.service.OnlineMetricsService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;

@@ -7,7 +7,7 @@ import com.ctgraphdep.fileOperations.service.BackupService;
 import com.ctgraphdep.fileOperations.service.BackupUtilityService;
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
 import com.ctgraphdep.service.UserService;
-import com.ctgraphdep.service.SessionMidnightHandler;
+import com.ctgraphdep.session.service.SessionMidnightHandler;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;

@@ -11,29 +11,20 @@ import java.util.List;
 @Service
 public class OnlineMetricsService {
 
-    private final SessionStatusService sessionStatusService;
     private final AllUsersCacheService allUsersCacheService;
     private volatile int lastKnownOnlineCount = 0;
     private volatile int lastKnownActiveCount = 0;
     private volatile long lastUpdateTime = System.currentTimeMillis();
 
-    public OnlineMetricsService(SessionStatusService sessionStatusService, AllUsersCacheService allUsersCacheService) {
-        this.sessionStatusService = sessionStatusService;
+    public OnlineMetricsService(AllUsersCacheService allUsersCacheService) {
         this.allUsersCacheService = allUsersCacheService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
-//    public int getOnlineUserCount() {
-//        return sessionStatusService.getOnlineUserCount();
-//    }
-//
-//    public int getActiveUserCount() {
-//        return sessionStatusService.getActiveUserCount();
-//    }
-
     /**
-     * OPTIMIZED: Get online user count without blocking dashboard
-     * Returns cached value during refresh, fresh data when available
+     * Get online user count without blocking dashboard.
+     * Returns cached value during refresh, fresh data when available.
+     * Counts users with status: Online or Temporary Stop.
      */
     public int getOnlineUserCount() {
         try {
@@ -64,8 +55,9 @@ public class OnlineMetricsService {
     }
 
     /**
-     * OPTIMIZED: Get active user count without blocking dashboard
-     * Returns cached value during refresh, fresh data when available
+     * Get active user count without blocking dashboard.
+     * Returns cached value during refresh, fresh data when available.
+     * Counts all users except those with status: Offline.
      */
     public int getActiveUserCount() {
         try {

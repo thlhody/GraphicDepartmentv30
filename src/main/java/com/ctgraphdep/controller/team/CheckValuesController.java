@@ -4,7 +4,7 @@ import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.CheckValuesEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
-import com.ctgraphdep.service.CheckValuesService;
+import com.ctgraphdep.register.service.CheckValuesService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;

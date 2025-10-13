@@ -5,7 +5,8 @@ import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
-import com.ctgraphdep.service.SessionService;
+import com.ctgraphdep.session.service.SessionMonitorService;
+import com.ctgraphdep.session.service.SessionService;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
 import org.springframework.context.annotation.Bean;
@@ -23,7 +24,7 @@ public class SessionCommandConfig {
     public SessionContext sessionContext(
             UserService userService,
             MainDefaultUserContextService mainDefaultUserContextService,
-            SessionStatusService sessionStatusService,
+            ReadFileNameStatusService readFileNameStatusService,
             @Lazy SessionMonitorService sessionMonitorService,
             FolderStatus folderStatus,
             @Lazy SessionCommandFactory commandFactory,
@@ -36,7 +37,7 @@ public class SessionCommandConfig {
 
         return new SessionContext(userService,
                 mainDefaultUserContextService,
-                sessionStatusService,
+                readFileNameStatusService,
                 sessionMonitorService,
                 folderStatus,
                 commandFactory,

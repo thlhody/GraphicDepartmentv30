@@ -2,7 +2,7 @@
 // CHECK REGISTER WRAPPER FACTORY - Creates GenericEntityWrapper for CheckRegister entities
 // ============================================================================
 
-package com.ctgraphdep.checkregister.util;
+package com.ctgraphdep.register.util;
 
 import com.ctgraphdep.merge.wrapper.GenericEntityWrapper;
 import com.ctgraphdep.model.RegisterCheckEntry;

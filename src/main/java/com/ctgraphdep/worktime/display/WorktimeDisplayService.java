@@ -7,7 +7,6 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.dto.status.GeneralDataStatusDTO;
 import com.ctgraphdep.model.dto.worktime.*;
-import com.ctgraphdep.service.StatusDTOConverter;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.TimeOffCacheService;
 import com.ctgraphdep.service.cache.WorktimeCacheService;

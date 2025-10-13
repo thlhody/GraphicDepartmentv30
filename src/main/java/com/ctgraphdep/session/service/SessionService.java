@@ -1,4 +1,4 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.session.service;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.TemporaryStop;
@@ -9,6 +9,7 @@ import com.ctgraphdep.model.dto.session.EndTimeCalculationDTO;
 import com.ctgraphdep.model.dto.session.ResolutionCalculationDTO;
 import com.ctgraphdep.model.dto.session.WorkSessionDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
+import com.ctgraphdep.service.CalculationService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.session.SessionCommandFactory;
 import com.ctgraphdep.session.SessionCommandService;

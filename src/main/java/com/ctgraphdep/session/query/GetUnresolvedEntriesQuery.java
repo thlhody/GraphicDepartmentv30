@@ -1,7 +1,7 @@
 package com.ctgraphdep.session.query;
 
 import com.ctgraphdep.model.dto.session.ResolutionCalculationDTO;
-import com.ctgraphdep.service.SessionService;
+import com.ctgraphdep.session.service.SessionService;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 

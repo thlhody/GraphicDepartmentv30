@@ -2,7 +2,7 @@ package com.ctgraphdep.session.commands;
 
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.dto.session.WorkSessionDTO;
-import com.ctgraphdep.service.SessionService;
+import com.ctgraphdep.session.service.SessionService;
 import com.ctgraphdep.session.SessionContext;
 import org.springframework.ui.Model;
 
