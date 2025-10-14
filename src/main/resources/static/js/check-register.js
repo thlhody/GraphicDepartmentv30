@@ -51,7 +51,10 @@ class CheckRegisterFormHandler {
         this.filesNumbersInput = document.getElementById('filesNumbersInput');
         this.orderValueInput = document.getElementById('orderValueInput');
         this.approvalStatusSelect = document.getElementById('approvalStatusSelect');
-        this.defaultUrl = '/user/check-register/entry';
+
+        // Set URL dynamically based on team view context
+        const isTeamView = typeof IS_TEAM_VIEW !== 'undefined' && IS_TEAM_VIEW;
+        this.defaultUrl = isTeamView ? '/team/check-register/entry' : '/user/check-register/entry';
     }
 
     initializeForm() {
@@ -285,23 +288,18 @@ class CheckRegisterFormHandler {
 
     populateForm(button) {
 
-        // Get the adminSync status
+        // Get the adminSync status (for debugging purposes)
         const adminSync = button.getAttribute('data-admin-sync');
+        console.log('Edit button clicked with status:', adminSync);
 
-        // In user view (not team view), check if entry can be edited
-        if (typeof IS_TEAM_VIEW === 'undefined' || !IS_TEAM_VIEW) {
-            if (adminSync !== 'CHECKING_INPUT') {
-                // Show a toast alert that this entry cannot be edited
-                window.showToast('Warning', 'This entry cannot be edited because it has been reviewed by a team lead', 'warning');
-                return;
-            }
-        }
+        // Users can now edit ALL entries (including team lead entries)
+        // Tombstone deletion system handles conflict resolution during merge
 
         // Clear the form first
         this.resetForm();
 
         const entryId = button.getAttribute('data-entry-id');
-        this.form.action = `/user/check-register/entry/${entryId}`;
+        this.form.action = `${this.defaultUrl}/${entryId}`;
         this.form.method = 'post';
 
         // Populate all fields
@@ -915,6 +913,104 @@ class SearchHandler {
     }
 }
 
+/**
+ * Initialize click handlers for status badges in team view
+ * Allows team leads to click badges to mark entries as TEAM_FINAL
+ */
+function initializeStatusBadgeClickHandlers() {
+    console.log('initializeStatusBadgeClickHandlers called');
+    const clickableBadges = document.querySelectorAll('.clickable-badge');
+    console.log('Found clickable badges:', clickableBadges.length);
+
+    if (clickableBadges.length === 0) {
+        console.warn('No clickable badges found! Checking all status badges...');
+        const allBadges = document.querySelectorAll('.status-badge');
+        console.log('Total status badges found:', allBadges.length);
+        allBadges.forEach(badge => {
+            console.log('Badge classes:', badge.className);
+            console.log('Badge data-entry-id:', badge.getAttribute('data-entry-id'));
+        });
+    }
+
+    clickableBadges.forEach(badge => {
+        badge.addEventListener('click', function() {
+            const entryId = this.getAttribute('data-entry-id');
+
+            if (!entryId) {
+                console.warn('No entry ID found on badge');
+                return;
+            }
+
+            // Confirm action
+            const confirmed = confirm('Mark this entry as Team Final (TF)?');
+            if (!confirmed) {
+                return;
+            }
+
+            // Get values from server-provided constants (same as mark-all-checked button)
+            // These are passed from Thymeleaf template to JavaScript
+            const username = typeof SELECTED_USER !== 'undefined' ? SELECTED_USER : null;
+            const userId = typeof SELECTED_USER_ID !== 'undefined' ? SELECTED_USER_ID : null;
+            const year = typeof CURRENT_YEAR !== 'undefined' ? CURRENT_YEAR : null;
+            const month = typeof CURRENT_MONTH !== 'undefined' ? CURRENT_MONTH : null;
+
+            // Validate required parameters
+            if (!username || !userId || !year || !month) {
+                console.error('Missing required parameters:', { username, userId, year, month });
+                alert('Missing required parameters. Page context not properly initialized.');
+                return;
+            }
+
+            console.log('Submitting mark-single-entry-final with:', { entryId, username, userId, year, month });
+
+            // Create form and submit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/team/check-register/mark-single-entry-final';
+
+            // Add hidden fields - only add non-null values
+            const fields = {
+                'entryId': entryId,
+                'username': username,
+                'userId': userId,
+                'year': year,
+                'month': month
+            };
+
+            for (const [name, value] of Object.entries(fields)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+        });
+    });
+
+    console.log(`Initialized ${clickableBadges.length} clickable status badges`);
+}
+
+// Add CSS for clickable badges
+const style = document.createElement('style');
+style.textContent = `
+    .clickable-badge {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .clickable-badge:hover {
+        transform: scale(1.1);
+        opacity: 0.9;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .clickable-badge:active {
+        transform: scale(0.95);
+    }
+`;
+document.head.appendChild(style);
+
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
     console.log("Initializing Check Register Handlers...");
@@ -927,6 +1023,10 @@ document.addEventListener('DOMContentLoaded', () => {
     (typeof window.IS_TEAM_VIEW !== 'undefined' ? window.IS_TEAM_VIEW : false);
 
     console.log("Team view status:", isTeamView);
+
+    // Note: Status badge click handlers for team view are initialized
+    // in team-check-register.html template script block, not here
+    // This ensures they're only attached when the register content is actually shown
 
     // Only initialize SearchHandler in user view or if search elements exist
     if (!isTeamView || document.getElementById('searchModal')) {

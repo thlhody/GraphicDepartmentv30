@@ -7,7 +7,7 @@ import java.time.Instant;
  * Provides both base statuses and methods to create timestamped edit statuses.
  * Status Hierarchy:
  * 1. BASE: USER_INPUT, ADMIN_INPUT, USER_IN_PROCESS
- * 2. TIMESTAMPED EDITS: USER_EDITED_[epoch], ADMIN_EDITED_[epoch], TEAM_EDITED_[epoch]
+ * 2. TIMESTMPED EDITS: USER_EDITED_[epoch], ADMIN_EDITED_[epoch], TEAM_EDITED_[epoch]
  * 3. FINAL: ADMIN_FINAL, TEAM_FINAL
  * 4. SPECIAL: DELETE
  */
@@ -51,6 +51,19 @@ public class MergingStatusConstants {
 
     /** Prefix for team leader edit statuses */
     public static final String TEAM_EDITED_PREFIX = "TEAM_EDITED_";
+
+    // ========================================================================
+    // DELETION STATUS PREFIXES (Tombstone-based deletion)
+    // ========================================================================
+
+    /** Prefix for user deletion statuses */
+    public static final String USER_DELETED_PREFIX = "USER_DELETED_";
+
+    /** Prefix for admin deletion statuses */
+    public static final String ADMIN_DELETED_PREFIX = "ADMIN_DELETED_";
+
+    /** Prefix for team leader deletion statuses */
+    public static final String TEAM_DELETED_PREFIX = "TEAM_DELETED_";
 
     // ========================================================================
     // TIMESTAMPED STATUS CREATION METHODS
@@ -105,6 +118,37 @@ public class MergingStatusConstants {
      */
     public static String createTeamEditedStatus(long minutesSinceEpoch) {
         return TEAM_EDITED_PREFIX + minutesSinceEpoch;
+    }
+
+    // ========================================================================
+    // DELETION STATUS CREATION METHODS
+    // ========================================================================
+
+    /**
+     * Create timestamped user deletion status for current time
+     * Format: "USER_DELETED_[minutesSinceEpoch]"
+     */
+    public static String createUserDeletedStatus() {
+        long minutesSinceEpoch = Instant.now().getEpochSecond() / 60;
+        return USER_DELETED_PREFIX + minutesSinceEpoch;
+    }
+
+    /**
+     * Create timestamped admin deletion status for current time
+     * Format: "ADMIN_DELETED_[minutesSinceEpoch]"
+     */
+    public static String createAdminDeletedStatus() {
+        long minutesSinceEpoch = Instant.now().getEpochSecond() / 60;
+        return ADMIN_DELETED_PREFIX + minutesSinceEpoch;
+    }
+
+    /**
+     * Create timestamped team deletion status for current time
+     * Format: "TEAM_DELETED_[minutesSinceEpoch]"
+     */
+    public static String createTeamDeletedStatus() {
+        long minutesSinceEpoch = Instant.now().getEpochSecond() / 60;
+        return TEAM_DELETED_PREFIX + minutesSinceEpoch;
     }
 
     // ========================================================================
@@ -188,5 +232,148 @@ public class MergingStatusConstants {
         if (isAdminEditedStatus(status)) return "ADMIN";
         if (isTeamEditedStatus(status)) return "TEAM";
         return "UNKNOWN";
+    }
+
+    // ========================================================================
+    // DELETION STATUS CHECKING METHODS
+    // ========================================================================
+
+    /**
+     * Check if status is a deletion status
+     */
+    public static boolean isDeletedStatus(String status) {
+        if (status == null) return false;
+        return status.startsWith(USER_DELETED_PREFIX) ||
+                status.startsWith(ADMIN_DELETED_PREFIX) ||
+                status.startsWith(TEAM_DELETED_PREFIX);
+    }
+
+    /**
+     * Check if status is a user deletion
+     */
+    public static boolean isUserDeletedStatus(String status) {
+        return status != null && status.startsWith(USER_DELETED_PREFIX);
+    }
+
+    /**
+     * Check if status is an admin deletion
+     */
+    public static boolean isAdminDeletedStatus(String status) {
+        return status != null && status.startsWith(ADMIN_DELETED_PREFIX);
+    }
+
+    /**
+     * Check if status is a team deletion
+     */
+    public static boolean isTeamDeletedStatus(String status) {
+        return status != null && status.startsWith(TEAM_DELETED_PREFIX);
+    }
+
+    /**
+     * Extract timestamp from deletion status
+     * Returns 0 if not a deletion status or parsing fails
+     */
+    public static long extractDeletionTimestamp(String status) {
+        if (!isDeletedStatus(status)) {
+            return 0L;
+        }
+
+        try {
+            int lastUnderscore = status.lastIndexOf('_');
+            if (lastUnderscore == -1 || lastUnderscore == status.length() - 1) {
+                return 0L;
+            }
+
+            String timestampStr = status.substring(lastUnderscore + 1);
+            return Long.parseLong(timestampStr);
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    // ========================================================================
+    // STATUS DISPLAY UTILITIES
+    // ========================================================================
+
+    /**
+     * Convert full status to compact display format
+     * USER_INPUT → UI
+     * USER_EDITED_12345 → UE
+     * TEAM_EDITED_67890 → TE
+     * ADMIN_FINAL → AF
+     * USER_DELETED_12345 → UD
+     * etc.
+     */
+    public static String toCompactDisplay(String status) {
+        if (status == null) return "??";
+
+        // Base statuses
+        if (USER_INPUT.equals(status)) return "UI";
+        if (TEAM_INPUT.equals(status)) return "TI";
+        if (ADMIN_INPUT.equals(status)) return "AI";
+        if (USER_IN_PROCESS.equals(status)) return "UP";
+
+        // Final statuses
+        if (ADMIN_FINAL.equals(status)) return "AF";
+        if (TEAM_FINAL.equals(status)) return "TF";
+
+        // Timestamped edit statuses
+        if (status.startsWith(USER_EDITED_PREFIX)) return "UE";
+        if (status.startsWith(ADMIN_EDITED_PREFIX)) return "AE";
+        if (status.startsWith(TEAM_EDITED_PREFIX)) return "TE";
+
+        // Deletion statuses
+        if (status.startsWith(USER_DELETED_PREFIX)) return "UD";
+        if (status.startsWith(ADMIN_DELETED_PREFIX)) return "AD";
+        if (status.startsWith(TEAM_DELETED_PREFIX)) return "TD";
+
+        return "??";
+    }
+
+    /**
+     * Get status description for tooltip/title
+     */
+    public static String getStatusDescription(String status) {
+        if (status == null) return "Unknown status";
+
+        // Base statuses
+        if (USER_INPUT.equals(status)) return "User Input";
+        if (TEAM_INPUT.equals(status)) return "Team Input";
+        if (ADMIN_INPUT.equals(status)) return "Admin Input";
+        if (USER_IN_PROCESS.equals(status)) return "User In Process";
+
+        // Final statuses
+        if (ADMIN_FINAL.equals(status)) return "Admin Final (Locked)";
+        if (TEAM_FINAL.equals(status)) return "Team Final";
+
+        // Timestamped edit statuses
+        if (status.startsWith(USER_EDITED_PREFIX)) {
+            long ts = extractTimestamp(status);
+            return "User Edited (timestamp: " + ts + ")";
+        }
+        if (status.startsWith(ADMIN_EDITED_PREFIX)) {
+            long ts = extractTimestamp(status);
+            return "Admin Edited (timestamp: " + ts + ")";
+        }
+        if (status.startsWith(TEAM_EDITED_PREFIX)) {
+            long ts = extractTimestamp(status);
+            return "Team Edited (timestamp: " + ts + ")";
+        }
+
+        // Deletion statuses
+        if (status.startsWith(USER_DELETED_PREFIX)) {
+            long ts = extractDeletionTimestamp(status);
+            return "User Deleted (timestamp: " + ts + ")";
+        }
+        if (status.startsWith(ADMIN_DELETED_PREFIX)) {
+            long ts = extractDeletionTimestamp(status);
+            return "Admin Deleted (timestamp: " + ts + ")";
+        }
+        if (status.startsWith(TEAM_DELETED_PREFIX)) {
+            long ts = extractDeletionTimestamp(status);
+            return "Team Deleted (timestamp: " + ts + ")";
+        }
+
+        return "Unknown: " + status;
     }
 }

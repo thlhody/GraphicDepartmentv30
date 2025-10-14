@@ -4,8 +4,8 @@ import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ApprovalStatusType;
 import com.ctgraphdep.enums.CheckType;
-import com.ctgraphdep.enums.CheckingStatus;
 import com.ctgraphdep.model.FolderStatus;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
@@ -135,10 +135,10 @@ public class CheckRegisterController extends BaseController {
                 List<RegisterCheckEntry> entries = entriesResult.getData();
                 model.addAttribute("entries", entries != null ? entries : new ArrayList<>());
 
-                // Add flag for entries that can be edited (only CHECKING_INPUT entries)
+                // Add flag for entries that can be edited (only USER_INPUT entries)
                 if (entries != null && !entries.isEmpty()) {
                     List<Integer> editableEntryIds = entries.stream()
-                            .filter(entry -> CheckingStatus.CHECKING_INPUT.name().equals(entry.getAdminSync()))
+                            .filter(entry -> MergingStatusConstants.USER_INPUT.equals(entry.getAdminSync()))
                             .map(RegisterCheckEntry::getEntryId)
                             .collect(Collectors.toList());
                     model.addAttribute("editableEntryIds", editableEntryIds);
@@ -358,6 +358,72 @@ public class CheckRegisterController extends BaseController {
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Unexpected error deleting check entry: " + e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage", "An unexpected error occurred while deleting entry");
+        }
+
+        return "redirect:/user/check-register?year=" + year + "&month=" + month;
+    }
+
+    /**
+     * Update from Team Lead - Force cache invalidation and perform merge with team lead register
+     * This endpoint clears the cache for the specified month and triggers a fresh merge with team lead updates
+     */
+    @PostMapping("/update-from-team-lead")
+    public String updateFromTeamLead(@AuthenticationPrincipal UserDetails userDetails,
+                                     @RequestParam Integer year,
+                                     @RequestParam Integer month,
+                                     RedirectAttributes redirectAttributes) {
+
+        try {
+            LoggerUtil.info(this.getClass(), "Update from Team Lead requested at " + getStandardCurrentDateTime());
+
+            // Get the user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                return "redirect:/login";
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Invalidating check register cache and performing merge for %s - %d/%d",
+                    currentUser.getUsername(), year, month));
+
+            // Step 1: Clear the cache for this month to force reload
+            try {
+                checkRegisterService.getRegisterCheckCacheService().clearMonth(currentUser.getUsername(), year, month);
+                LoggerUtil.info(this.getClass(), String.format("Successfully cleared check register cache for %s - %d/%d",
+                        currentUser.getUsername(), year, month));
+            } catch (Exception cacheException) {
+                LoggerUtil.warn(this.getClass(), String.format("Failed to clear cache: %s", cacheException.getMessage()));
+                // Continue anyway - the merge will still work
+            }
+
+            // Step 2: Perform the merge with team lead register
+            ServiceResult<List<RegisterCheckEntry>> mergeResult =
+                    checkRegisterService.loadAndMergeUserLoginEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
+
+            if (mergeResult.isSuccess()) {
+                List<RegisterCheckEntry> mergedEntries = mergeResult.getData();
+                redirectAttributes.addFlashAttribute("successMessage",
+                        String.format("Successfully updated with team lead changes. %d entries processed.", mergedEntries.size()));
+
+                LoggerUtil.info(this.getClass(), String.format("Successfully merged %d entries for %s - %d/%d",
+                        mergedEntries.size(), currentUser.getUsername(), year, month));
+
+                // Handle warnings if any
+                if (mergeResult.hasWarnings()) {
+                    redirectAttributes.addFlashAttribute("infoMessage",
+                            "Update completed with notes: " + String.join(", ", mergeResult.getWarnings()));
+                }
+            } else {
+                // Handle different error types gracefully
+                String errorMessage = handleServiceError(mergeResult, "updating from team lead");
+                redirectAttributes.addFlashAttribute("errorMessage", errorMessage);
+
+                LoggerUtil.error(this.getClass(), String.format("Failed to merge for %s - %d/%d: %s",
+                        currentUser.getUsername(), year, month, mergeResult.getErrorMessage()));
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Unexpected error updating from team lead: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "An unexpected error occurred while updating from team lead");
         }
 
         return "redirect:/user/check-register?year=" + year + "&month=" + month;

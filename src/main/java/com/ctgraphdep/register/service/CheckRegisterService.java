@@ -2,7 +2,7 @@ package com.ctgraphdep.register.service;
 
 import com.ctgraphdep.register.util.CheckRegisterWrapperFactory;
 import com.ctgraphdep.config.SecurityConstants;
-import com.ctgraphdep.enums.CheckingStatus;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.merge.engine.UniversalMergeEngine;
 import com.ctgraphdep.merge.enums.EntityType;
 import com.ctgraphdep.merge.wrapper.GenericEntityWrapper;
@@ -105,6 +105,10 @@ public class CheckRegisterService {
 
             if (result.isSuccess()) {
                 List<RegisterCheckEntry> entries = result.getData();
+
+                // Filter out deleted entries (tombstones)
+                entries = filterDeletedEntries(entries);
+
                 // Ensure entries are sorted with the newest first
                 ServiceResult<Void> sortResult = sortEntriesGracefully(entries);
                 if (sortResult.isFailure()) {
@@ -113,7 +117,8 @@ public class CheckRegisterService {
                     return ServiceResult.successWithWarnings(entries, warnings);
                 }
 
-                LoggerUtil.info(this.getClass(), String.format("Successfully loaded %d entries for %s - %d/%d", entries.size(), username, year, month));
+                LoggerUtil.info(this.getClass(), String.format("Successfully loaded %d entries for %s - %d/%d (tombstones filtered)", entries.size(), username, year, month));
+                return ServiceResult.success(entries);
             }
 
             return result;
@@ -156,6 +161,10 @@ public class CheckRegisterService {
 
             // Step 3: Fix any null IDs and sort entries
             repairNullEntryIds(teamEntries);
+
+            // Step 4: Filter out deleted entries (tombstones)
+            teamEntries = filterDeletedEntries(teamEntries);
+
             ServiceResult<Void> sortResult = sortEntriesGracefully(teamEntries);
 
             List<String> warnings = new ArrayList<>();
@@ -163,7 +172,7 @@ public class CheckRegisterService {
                 warnings.add("Team register loaded but sorting failed: " + sortResult.getErrorMessage());
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Loaded team check register for %s - %d/%d: %d entries", username, year, month, teamEntries.size()));
+            LoggerUtil.info(this.getClass(), String.format("Loaded team check register for %s - %d/%d: %d entries (tombstones filtered)", username, year, month, teamEntries.size()));
 
             if (warnings.isEmpty()) {
                 return ServiceResult.success(teamEntries);
@@ -208,10 +217,10 @@ public class CheckRegisterService {
                 teamEntries = new ArrayList<>();
                 warnings.add("No user entries found - initialized empty team register");
             } else {
-                // Create copies of all entries with status set to CHECKING_INPUT initially
-                teamEntries = userEntries.stream().map(this::copyEntryWithCheckingInput).collect(Collectors.toList());
+                // Create copies of all entries preserving their original status
+                teamEntries = userEntries.stream().map(this::copyEntry).collect(Collectors.toList());
 
-                LoggerUtil.info(this.getClass(), String.format("Initialized team register for %s - %d/%d with %d entries from user register", username, year, month, teamEntries.size()));
+                LoggerUtil.info(this.getClass(), String.format("Initialized team register for %s - %d/%d with %d entries from user register (statuses preserved)", username, year, month, teamEntries.size()));
             }
 
             // Step 4: Fix any null IDs and sort entries
@@ -276,16 +285,19 @@ public class CheckRegisterService {
 
             for (RegisterCheckEntry entry : entries) {
                 try {
-                    // Skip entries already marked as TL_EDITED, TL_BLANK, or ADMIN_DONE
-                    if (shouldSkipEntry(entry)) {
+                    // Only skip ADMIN_FINAL entries (truly immutable)
+                    // Mark ALL other entries (TE, UI, UE, TI, etc.) as TEAM_FINAL
+                    if (MergingStatusConstants.ADMIN_FINAL.equals(entry.getAdminSync())) {
                         updatedEntries.add(entry);
                         skipCount++;
+                        LoggerUtil.debug(this.getClass(), String.format("Skipped entry %d with ADMIN_FINAL status", entry.getEntryId()));
                     } else {
-                        // Mark entry as TL_CHECK_DONE
+                        // Mark entry as TEAM_FINAL (team lead approval)
                         RegisterCheckEntry updated = copyEntry(entry);
-                        updated.setAdminSync(CheckingStatus.TL_CHECK_DONE.name());
+                        updated.setAdminSync(MergingStatusConstants.TEAM_FINAL);
                         updatedEntries.add(updated);
                         successCount++;
+                        LoggerUtil.debug(this.getClass(), String.format("Marked entry %d as TEAM_FINAL (was: %s)", entry.getEntryId(), entry.getAdminSync()));
                     }
                 } catch (Exception e) {
                     LoggerUtil.warn(this.getClass(), String.format("Failed to update entry %d: %s", entry.getEntryId(), e.getMessage()));
@@ -322,6 +334,65 @@ public class CheckRegisterService {
     }
 
     /**
+     * Mark a single entry as TEAM_FINAL
+     * Allows team lead to mark individual entries as checked
+     */
+    public ServiceResult<RegisterCheckEntry> markSingleEntryAsTeamFinal(String username, Integer userId, Integer entryId, int year, int month) {
+        try {
+            // Validate inputs
+            ServiceResult<Void> inputValidation = validateMarkForDeletionInputs(username, userId, entryId, year, month);
+            if (inputValidation.isFailure()) {
+                return ServiceResult.validationError(inputValidation.getErrorMessage(), inputValidation.getErrorCode());
+            }
+
+            // Load existing entries - need to load from file directly to access all including tombstones
+            List<RegisterCheckEntry> entries = checkRegisterDataService.readTeamLeadCheckRegisterLocalReadOnly(username, userId, year, month);
+
+            if (entries == null || entries.isEmpty()) {
+                LoggerUtil.warn(this.getClass(), String.format("No entries found for marking single entry %d for %s", entryId, username));
+                return ServiceResult.businessError("No entries found", "no_entries_found");
+            }
+
+            // Find the entry to mark
+            RegisterCheckEntry entryToMark = entries.stream()
+                    .filter(e -> e.getEntryId().equals(entryId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (entryToMark == null) {
+                LoggerUtil.warn(this.getClass(), String.format("Entry %d not found for marking as TEAM_FINAL for %s", entryId, username));
+                return ServiceResult.businessError("Entry not found", "entry_not_found");
+            }
+
+            // Check if already ADMIN_FINAL (immutable)
+            if (MergingStatusConstants.ADMIN_FINAL.equals(entryToMark.getAdminSync())) {
+                LoggerUtil.info(this.getClass(), String.format("Entry %d is ADMIN_FINAL, cannot be marked as TEAM_FINAL", entryId));
+                return ServiceResult.businessError("Entry is ADMIN_FINAL and cannot be modified", "entry_is_admin_final");
+            }
+
+            // Mark with TEAM_FINAL status
+            String previousStatus = entryToMark.getAdminSync();
+            entryToMark.setAdminSync(MergingStatusConstants.TEAM_FINAL);
+            LoggerUtil.info(this.getClass(), String.format("Marking entry %d as TEAM_FINAL (was: %s)", entryId, previousStatus));
+
+            // Save updated list
+            try {
+                checkRegisterDataService.writeTeamLeadCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
+                LoggerUtil.info(this.getClass(), String.format("Successfully marked entry %d as TEAM_FINAL for %s", entryId, username));
+                return ServiceResult.success(entryToMark);
+
+            } catch (Exception saveException) {
+                LoggerUtil.error(this.getClass(), String.format("Failed to save entry marked as TEAM_FINAL for %s: %s", username, saveException.getMessage()), saveException);
+                return ServiceResult.systemError("Failed to save marked entry", "save_failed");
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error marking entry %d as TEAM_FINAL for %s: %s", entryId, username, e.getMessage()), e);
+            return ServiceResult.systemError("System error occurred while marking entry", "system_error");
+        }
+    }
+
+    /**
      * Update team entry with ServiceResult pattern - ENHANCED
      */
     public ServiceResult<RegisterCheckEntry> updateTeamEntry(String username, Integer userId, RegisterCheckEntry entry, int year, int month) {
@@ -346,8 +417,8 @@ public class CheckRegisterService {
             // Fix any null IDs in existing entries
             repairNullEntryIds(entries);
 
-            // Set status to TL_EDITED for team lead entries
-            entry.setAdminSync(CheckingStatus.TL_EDITED.name());
+            // Set status to TEAM_EDITED_{timestamp} for team lead entries
+            entry.setAdminSync(MergingStatusConstants.createTeamEditedStatus());
 
             // Handle ID assignment for new entries
             if (entry.getEntryId() == null) {
@@ -391,7 +462,9 @@ public class CheckRegisterService {
     }
 
     /**
-     * Mark entry for deletion with ServiceResult pattern - ENHANCED
+     * Mark entry for deletion with ServiceResult pattern - REFACTORED TO USE TOMBSTONE DELETION
+     * Team leads mark entries with TEAM_DELETED_{timestamp} status
+     * Tombstone deletion ensures deletions persist across merges
      */
     public ServiceResult<Void> markEntryForDeletion(String username, Integer userId, Integer entryId, int year, int month) {
         try {
@@ -401,34 +474,35 @@ public class CheckRegisterService {
                 return ServiceResult.validationError(inputValidation.getErrorMessage(), inputValidation.getErrorCode());
             }
 
-            // Load existing entries
-            ServiceResult<List<RegisterCheckEntry>> loadResult = loadTeamCheckRegister(username, userId, year, month);
-            if (loadResult.isFailure()) {
-                return ServiceResult.systemError("Failed to load team register for deletion", "load_failed_for_deletion");
-            }
+            // Load existing entries - note: loadTeamCheckRegister already filters tombstones
+            // So we need to load from file directly to access all entries including tombstones
+            List<RegisterCheckEntry> entries = checkRegisterDataService.readTeamLeadCheckRegisterLocalReadOnly(username, userId, year, month);
 
-            List<RegisterCheckEntry> entries = loadResult.getData();
             if (entries == null || entries.isEmpty()) {
                 LoggerUtil.warn(this.getClass(), String.format("No entries found to mark for deletion for %s", username));
                 return ServiceResult.businessError("No entries found to mark for deletion", "no_entries_found");
             }
 
             // Find the entry to mark
-            RegisterCheckEntry entryToMark = entries.stream().filter(e -> e.getEntryId().equals(entryId)).findFirst().orElse(null);
+            RegisterCheckEntry entryToMark = entries.stream()
+                    .filter(e -> e.getEntryId().equals(entryId))
+                    .findFirst()
+                    .orElse(null);
 
             if (entryToMark == null) {
-                // Create a blank entry with the ID and TL_BLANK status
-                RegisterCheckEntry blankEntry = RegisterCheckEntry.builder().entryId(entryId).adminSync(CheckingStatus.TL_BLANK.name()).date(LocalDate.now()).build();
-                entries.add(blankEntry);
-            } else {
-                // Set existing entry to TL_BLANK
-                entryToMark.setAdminSync(CheckingStatus.TL_BLANK.name());
+                LoggerUtil.warn(this.getClass(), String.format("Entry %d not found for deletion for %s", entryId, username));
+                return ServiceResult.businessError("Entry not found for deletion", "entry_not_found");
             }
 
-            // Save updated list
+            // Mark with TEAM_DELETED_{timestamp} tombstone status
+            entryToMark.setAdminSync(MergingStatusConstants.createTeamDeletedStatus());
+            LoggerUtil.info(this.getClass(), String.format("Marked entry %d with deletion status: %s", entryId, entryToMark.getAdminSync()));
+
+            // Save updated list (including tombstone)
             try {
                 checkRegisterDataService.writeTeamLeadCheckRegisterWithSyncAndBackup(username, userId, entries, year, month);
-                LoggerUtil.info(this.getClass(), String.format("Marked entry %d for deletion in team check register for %s", entryId, username));
+                LoggerUtil.info(this.getClass(), String.format("Marked entry %d for deletion in team check register for %s (tombstone: %s)",
+                        entryId, username, entryToMark.getAdminSync()));
                 return ServiceResult.success();
 
             } catch (Exception saveException) {
@@ -458,9 +532,6 @@ public class CheckRegisterService {
             return ServiceResult.businessError(businessValidation.getErrorMessage(), businessValidation.getErrorCode());
         }
 
-        // Set initial state for new entries
-        entry.setAdminSync(CheckingStatus.CHECKING_INPUT.name());
-
         int year = entry.getDate().getYear();
         int month = entry.getDate().getMonthValue();
 
@@ -469,13 +540,17 @@ public class CheckRegisterService {
             LoggerUtil.debug(this.getClass(), String.format("Ensuring cache is loaded for %s - %d/%d", username, month, year));
             registerCheckCacheService.getMonthEntries(username, userId, year, month);
 
-            // Generate entry ID if needed (new entry)
+            // Determine if this is a new entry or an update, and set appropriate status
             if (entry.getEntryId() == null) {
+                // NEW ENTRY: Generate ID and set USER_INPUT status
                 List<RegisterCheckEntry> currentEntries = registerCheckCacheService.getMonthEntries(username, userId, year, month);
                 entry.setEntryId(generateNextEntryId(currentEntries));
-                LoggerUtil.info(this.getClass(), String.format("New check entry %d created with CHECKING_INPUT status", entry.getEntryId()));
+                entry.setAdminSync(MergingStatusConstants.USER_INPUT);
+                LoggerUtil.info(this.getClass(), String.format("New check entry %d created with USER_INPUT status", entry.getEntryId()));
             } else {
-                LoggerUtil.info(this.getClass(), String.format("Updating existing check entry with ID %d for %s", entry.getEntryId(), username));
+                // EXISTING ENTRY: Set USER_EDITED_{timestamp} status for updates
+                entry.setAdminSync(MergingStatusConstants.createUserEditedStatus());
+                LoggerUtil.info(this.getClass(), String.format("Updating existing check entry %d with USER_EDITED status: %s", entry.getEntryId(), entry.getAdminSync()));
             }
 
             // Add/update entry using cache (which will write-through to file)
@@ -506,8 +581,9 @@ public class CheckRegisterService {
     }
 
     /**
-     * Delete a user check entry - REFACTORED TO USE ServiceResult
-     * User can only delete their own entries and only if they're in CHECKING_INPUT state
+     * Delete a user check entry - REFACTORED TO USE TOMBSTONE DELETION
+     * User can delete their own entries - marks them with USER_DELETED_{timestamp} status
+     * Tombstone deletion ensures deletions persist across merges
      */
     public ServiceResult<Void> deleteUserEntry(String username, Integer userId, Integer entryId, int year, int month) {
         try {
@@ -524,19 +600,20 @@ public class CheckRegisterService {
                 return ServiceResult.businessError("Entry not found for deletion", "entry_not_found");
             }
 
-            // Validate user can delete this entry
-            if (!CheckingStatus.CHECKING_INPUT.name().equals(existingEntry.getAdminSync())) {
-                return ServiceResult.businessError("This entry cannot be deleted because it has been reviewed by a team lead", "entry_not_deletable");
-            }
+            // Users can now delete any entry (including team lead entries)
+            // Mark with USER_DELETED_{timestamp} tombstone status
+            RegisterCheckEntry deletedEntry = copyEntry(existingEntry);
+            deletedEntry.setAdminSync(MergingStatusConstants.createUserDeletedStatus());
 
-            // Delete entry using cache (which will write-through to file)
-            boolean success = registerCheckCacheService.deleteEntry(username, userId, entryId, year, month);
+            // Update entry with deletion status using cache (which will write-through to file)
+            boolean success = registerCheckCacheService.updateEntry(username, userId, deletedEntry);
 
             if (!success) {
-                return ServiceResult.systemError("Failed to delete entry from cache", "cache_delete_failed");
+                return ServiceResult.systemError("Failed to mark entry as deleted in cache", "cache_delete_failed");
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Deleted user check entry %d for %s", entryId, username));
+            LoggerUtil.info(this.getClass(), String.format("Marked user check entry %d for %s as deleted (tombstone: %s)",
+                    entryId, username, deletedEntry.getAdminSync()));
             return ServiceResult.success();
 
         } catch (Exception e) {
@@ -564,6 +641,9 @@ public class CheckRegisterService {
                 entries = new ArrayList<>();
             }
 
+            // Filter out deleted entries (tombstones)
+            entries = filterDeletedEntries(entries);
+
             // Ensure entries are sorted (newest first)
             if (!entries.isEmpty()) {
                 ServiceResult<Void> sortResult = sortEntriesGracefully(entries);
@@ -574,7 +654,7 @@ public class CheckRegisterService {
                 }
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Successfully loaded %d user entries directly for %s - %d/%d",
+            LoggerUtil.info(this.getClass(), String.format("Successfully loaded %d user entries directly for %s - %d/%d (tombstones filtered)",
                     entries.size(), username, year, month));
             return ServiceResult.success(entries);
 
@@ -751,6 +831,28 @@ public class CheckRegisterService {
     // ========================================================================
 
     /**
+     * Filter out deleted entries (tombstones) from the list
+     * Tombstones exist in JSON for merge conflict resolution but should not be displayed or counted
+     */
+    private List<RegisterCheckEntry> filterDeletedEntries(List<RegisterCheckEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return entries;
+        }
+
+        int originalSize = entries.size();
+        List<RegisterCheckEntry> filtered = entries.stream()
+                .filter(entry -> entry.getAdminSync() == null || !MergingStatusConstants.isDeletedStatus(entry.getAdminSync()))
+                .collect(Collectors.toList());
+
+        int deletedCount = originalSize - filtered.size();
+        if (deletedCount > 0) {
+            LoggerUtil.debug(this.getClass(), String.format("Filtered out %d deleted entries (tombstones)", deletedCount));
+        }
+
+        return filtered;
+    }
+
+    /**
      * Load and merge user check entries with team lead entries AT LOGIN
      * This merges team lead decisions into user's check register file
      * Renamed from loadAndMergeUserEntries to be more explicit about login usage
@@ -768,17 +870,21 @@ public class CheckRegisterService {
             // Step 3: Merge entries based on status using merge rules
             List<RegisterCheckEntry> mergedEntries = mergeEntries(userEntries, teamLeadEntries);
 
-            // Step 4: Sort entries before saving (newest first)
-            ServiceResult<Void> sortResult = sortEntriesGracefully(mergedEntries);
+            // Step 4: Filter out deleted entries (tombstones) from the merged result
+            List<RegisterCheckEntry> activeEntries = filterDeletedEntries(mergedEntries);
+
+            // Step 5: Sort entries before saving (newest first)
+            ServiceResult<Void> sortResult = sortEntriesGracefully(mergedEntries); // Sort all including tombstones for file
             List<String> warnings = new ArrayList<>();
             if (sortResult.isFailure()) {
                 warnings.add("Entries merged but sorting failed: " + sortResult.getErrorMessage());
             }
 
-            // Step 5: Write back to file - THIS PREPARES DATA FOR CACHE
+            // Step 6: Write back to file - THIS PREPARES DATA FOR CACHE (includes tombstones for merge resolution)
             try {
                 checkRegisterDataService.writeUserCheckRegisterWithSyncAndBackup(username, userId, mergedEntries, year, month);
-                LoggerUtil.info(this.getClass(), String.format("Successfully merged and saved %d check register entries for %s - %d/%d", mergedEntries.size(), username, year, month));
+                LoggerUtil.info(this.getClass(), String.format("Successfully merged and saved %d check register entries for %s - %d/%d (%d active, %d tombstones)",
+                        mergedEntries.size(), username, year, month, activeEntries.size(), mergedEntries.size() - activeEntries.size()));
 
                 // Clear cache so it loads fresh merged data on next access
                 try {
@@ -789,17 +895,18 @@ public class CheckRegisterService {
                     // Not critical - cache will eventually refresh
                 }
 
+                // Return only active entries (tombstones filtered out)
                 if (warnings.isEmpty()) {
-                    return ServiceResult.success(mergedEntries);
+                    return ServiceResult.success(activeEntries);
                 } else {
-                    return ServiceResult.successWithWarnings(mergedEntries, warnings);
+                    return ServiceResult.successWithWarnings(activeEntries, warnings);
                 }
 
             } catch (Exception saveException) {
                 LoggerUtil.error(this.getClass(), String.format("Failed to save merged entries for %s: %s", username, saveException.getMessage()), saveException);
-                // Return the merged entries even if save failed, but with warning
+                // Return the active entries even if save failed, but with warning
                 warnings.add("Entries merged but save failed: " + saveException.getMessage());
-                return ServiceResult.successWithWarnings(mergedEntries, warnings);
+                return ServiceResult.successWithWarnings(activeEntries, warnings);
             }
 
         } catch (Exception e) {
@@ -844,9 +951,9 @@ public class CheckRegisterService {
     }
 
     /**
-     * Creates a copy of an entry with status set to CHECKING_INPUT
+     * Creates a copy of an entry with status set to USER_INPUT
      */
-    private RegisterCheckEntry copyEntryWithCheckingInput(RegisterCheckEntry original) {
+    private RegisterCheckEntry copyEntryWithUserInput(RegisterCheckEntry original) {
         return RegisterCheckEntry.builder()
                 .entryId(original.getEntryId())
                 .date(original.getDate())
@@ -859,7 +966,7 @@ public class CheckRegisterService {
                 .errorDescription(original.getErrorDescription())
                 .approvalStatus(original.getApprovalStatus())
                 .orderValue(original.getOrderValue())
-                .adminSync(CheckingStatus.CHECKING_INPUT.name())
+                .adminSync(MergingStatusConstants.USER_INPUT)
                 .build();
     }
 
@@ -871,8 +978,9 @@ public class CheckRegisterService {
             return false; // Null status entries should be processed
         }
 
-        return entry.getAdminSync().equals(CheckingStatus.TL_EDITED.name()) || entry.getAdminSync().equals(CheckingStatus.TL_BLANK.name()) ||
-                entry.getAdminSync().equals(CheckingStatus.ADMIN_DONE.name());
+        // Skip entries with team edited status (timestamped), admin final, or team final
+        return MergingStatusConstants.isTeamEditedStatus(entry.getAdminSync()) ||
+                MergingStatusConstants.isFinalStatus(entry.getAdminSync());
     }
 
     /**
@@ -940,9 +1048,9 @@ public class CheckRegisterService {
 
         // Set status based on user type
         if (isTeamLead) {
-            entry.setAdminSync(CheckingStatus.TL_EDITED.name());
+            entry.setAdminSync(MergingStatusConstants.createTeamEditedStatus());
         } else {
-            entry.setAdminSync(CheckingStatus.CHECKING_INPUT.name());
+            entry.setAdminSync(MergingStatusConstants.USER_INPUT);
         }
         return entry;
     }

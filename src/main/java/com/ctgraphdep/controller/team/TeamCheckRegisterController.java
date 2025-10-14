@@ -3,8 +3,8 @@ package com.ctgraphdep.controller.team;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.enums.ApprovalStatusType;
 import com.ctgraphdep.enums.CheckType;
-import com.ctgraphdep.enums.CheckingStatus;
 import com.ctgraphdep.model.*;
+import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.register.service.CheckRegisterService;
 import com.ctgraphdep.register.service.CheckValuesService;
 import com.ctgraphdep.service.UserService;
@@ -54,7 +54,8 @@ public class TeamCheckRegisterController extends BaseController {
      */
     @GetMapping
     public String showTeamCheckRegister(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
-                                        @RequestParam(required = false) String selectedUser, @RequestParam(required = false) Integer selectedUserId, Model model) {
+                                        @RequestParam(required = false) String selectedUser, @RequestParam(required = false) Integer selectedUserId,
+                                        @RequestParam(required = false) Boolean showContent, Model model) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing team check register page at " + getStandardCurrentDateTime());
@@ -95,7 +96,14 @@ public class TeamCheckRegisterController extends BaseController {
             if (selectedUser != null && selectedUserId != null && checkUsersResult.isSuccess()) {
                 LoggerUtil.info(this.getClass(), String.format("Loading check register for selected user %s (ID: %d) for %d/%d", selectedUser, selectedUserId, selectedYear, selectedMonth));
 
-                loadSelectedUserData(selectedUser, selectedUserId, selectedYear, selectedMonth, checkUsersResult.getData(), model);
+                // Check if we should show content (after initialization)
+                if (Boolean.TRUE.equals(showContent)) {
+                    // Load and show the register content
+                    loadSelectedUserDataAfterInit(selectedUser, selectedUserId, selectedYear, selectedMonth, checkUsersResult.getData(), model);
+                } else {
+                    // Show initialize button
+                    loadSelectedUserData(selectedUser, selectedUserId, selectedYear, selectedMonth, checkUsersResult.getData(), model);
+                }
 
                 // Check if entries were loaded
                 Object entries = model.getAttribute("entries");
@@ -121,9 +129,52 @@ public class TeamCheckRegisterController extends BaseController {
 
     /**
      * Helper method to load the selected user's data - UPDATED for ServiceResult
-     * Enhanced to handle case where team register isn't initialized but user has entries
+     * Always requires initialization - team lead must press initialize button to view register
+     * This ensures fresh data is loaded from user register each time
      */
     private void loadSelectedUserData(String username, Integer userId, int selectedYear, int selectedMonth, List<User> checkUsers, Model model) {
+        // Set default values to prevent null booleans
+        model.addAttribute("needsInitialization", true);  // Always require initialization
+        model.addAttribute("showRegisterContent", false); // Never show content on GET
+        model.addAttribute("showMarkAllCheckedButton", false);
+        model.addAttribute("entries", new ArrayList<>());
+
+        User selectedUserObj = checkUsers.stream()
+                .filter(u -> u.getUsername().equals(username) && u.getUserId().equals(userId))
+                .findFirst()
+                .orElse(null);
+
+        if (selectedUserObj != null) {
+            model.addAttribute("selectedUser", selectedUserObj);
+
+            // Check if user has entries to provide helpful message
+            try {
+                ServiceResult<List<RegisterCheckEntry>> userEntriesResult = checkRegisterService.loadUserEntriesDirectly(username, userId, selectedYear, selectedMonth);
+                if (userEntriesResult.isSuccess()) {
+                    List<RegisterCheckEntry> userEntries = userEntriesResult.getData();
+                    if (userEntries == null || userEntries.isEmpty()) {
+                        LoggerUtil.info(this.getClass(), "No user entries found for " + username + " - empty register will be created on initialization");
+                        model.addAttribute("infoMessage", "User has no entries. An empty team register will be created upon initialization.");
+                    } else {
+                        LoggerUtil.info(this.getClass(), String.format("Found %d user entries for %s - will be copied on initialization", userEntries.size(), username));
+                        model.addAttribute("infoMessage", String.format("User has %d entries ready to be initialized.", userEntries.size()));
+                    }
+                } else {
+                    LoggerUtil.error(this.getClass(), "Error checking user entries: " + userEntriesResult.getErrorMessage());
+                    model.addAttribute("warningMessage", "Could not check user entries: " + userEntriesResult.getErrorMessage());
+                }
+            } catch (Exception e) {
+                LoggerUtil.error(this.getClass(), "Error checking user entries: " + e.getMessage());
+                model.addAttribute("warningMessage", "Could not check user entries");
+            }
+        }
+    }
+
+    /**
+     * Helper method to load the selected user's data AFTER initialization
+     * This is called after the initialize button is pressed to show the register content
+     */
+    private void loadSelectedUserDataAfterInit(String username, Integer userId, int selectedYear, int selectedMonth, List<User> checkUsers, Model model) {
         // Set default values to prevent null booleans
         model.addAttribute("needsInitialization", false);
         model.addAttribute("showRegisterContent", false);
@@ -138,7 +189,7 @@ public class TeamCheckRegisterController extends BaseController {
         if (selectedUserObj != null) {
             model.addAttribute("selectedUser", selectedUserObj);
 
-            // First, check if team check register exists using ServiceResult
+            // Load team check register
             ServiceResult<List<RegisterCheckEntry>> teamEntriesResult = checkRegisterService.loadTeamCheckRegister(username, userId, selectedYear, selectedMonth);
 
             if (teamEntriesResult.isFailure()) {
@@ -150,28 +201,12 @@ public class TeamCheckRegisterController extends BaseController {
             }
 
             List<RegisterCheckEntry> teamEntries = teamEntriesResult.getData();
-            boolean isInitialized = teamEntries != null && !teamEntries.isEmpty();
 
-            // Handle warnings from service
-            if (teamEntriesResult.hasWarnings()) {
-                // Check if warning indicates initialization needed
-                String warningsText = String.join(", ", teamEntriesResult.getWarnings());
-                if (warningsText.contains("Initialization required")) {
-                    model.addAttribute("needsInitialization", true);
-                    model.addAttribute("showRegisterContent", false);
-                    model.addAttribute("infoMessage", warningsText);
-                    return;
-                } else {
-                    model.addAttribute("infoMessage", warningsText);
-                }
-            }
-
-            if (isInitialized) {
-                // Register is initialized, show all content
-                model.addAttribute("entries", teamEntries);
-                model.addAttribute("needsInitialization", false);
-                model.addAttribute("showRegisterContent", true);
-                model.addAttribute("showMarkAllCheckedButton", true);
+            // Show content after initialization
+            model.addAttribute("entries", teamEntries);
+            model.addAttribute("needsInitialization", false);
+            model.addAttribute("showRegisterContent", true);
+            model.addAttribute("showMarkAllCheckedButton", true);
 
                 // Load check values directly for the selected user
                 try {
@@ -215,30 +250,6 @@ public class TeamCheckRegisterController extends BaseController {
                     model.addAttribute("targetWorkUnitsPerHour", 4.5);
                     model.addAttribute("standardWorkHours", 160);
                 }
-            } else {
-                // Register needs initialization, only show init button
-                model.addAttribute("needsInitialization", true);
-                model.addAttribute("showRegisterContent", false);
-
-                // Check if user has entries using ServiceResult
-                try {
-                    ServiceResult<List<RegisterCheckEntry>> userEntriesResult = checkRegisterService.loadUserEntriesDirectly(username, userId, selectedYear, selectedMonth);
-                    if (userEntriesResult.isSuccess()) {
-                        List<RegisterCheckEntry> userEntries = userEntriesResult.getData();
-                        if (userEntries == null || userEntries.isEmpty()) {
-                            LoggerUtil.info(this.getClass(), "No user entries found for " + username);
-                        } else {
-                            LoggerUtil.info(this.getClass(), String.format("Found %d user entries for %s, team register can be initialized", userEntries.size(), username));
-                        }
-                    } else {
-                        LoggerUtil.error(this.getClass(), "Error checking user entries: " + userEntriesResult.getErrorMessage());
-                        model.addAttribute("warningMessage", "Could not check user entries: " + userEntriesResult.getErrorMessage());
-                    }
-                } catch (Exception e) {
-                    LoggerUtil.error(this.getClass(), "Error checking user entries: " + e.getMessage());
-                    model.addAttribute("warningMessage", "Could not check user entries");
-                }
-            }
         }
     }
 
@@ -524,8 +535,52 @@ public class TeamCheckRegisterController extends BaseController {
                 .errorDescription(errorDescription)
                 .approvalStatus(approvalStatus)
                 .orderValue(orderValue)
-                .adminSync(CheckingStatus.TL_EDITED.name())
+                .adminSync(MergingStatusConstants.createTeamEditedStatus())
                 .build();
+    }
+
+    /**
+     * Mark a single entry as TEAM_FINAL - NEW ENDPOINT
+     * Allows team lead to click status badge to mark individual entries as checked
+     */
+    @PostMapping("/mark-single-entry-final")
+    public String markSingleEntryAsTeamFinal(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam Integer entryId,
+            @RequestParam String username,
+            @RequestParam(required = false) Integer userId,
+            @RequestParam Integer year,
+            @RequestParam Integer month,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            LoggerUtil.info(this.getClass(), "Marking entry " + entryId + " as TEAM_FINAL for " + username);
+
+            // Resolve userId if not provided
+            ServiceResult<Integer> userIdResult = resolveUserId(username, userId);
+            if (userIdResult.isFailure()) {
+                redirectAttributes.addFlashAttribute("errorMessage", userIdResult.getErrorMessage());
+                return getRedirectUrl(username, userId, year, month);
+            }
+            userId = userIdResult.getData();
+
+            // Mark entry as TEAM_FINAL using ServiceResult pattern
+            ServiceResult<RegisterCheckEntry> result = checkRegisterService.markSingleEntryAsTeamFinal(username, userId, entryId, year, month);
+
+            if (result.isSuccess()) {
+                redirectAttributes.addFlashAttribute("successMessage", "Entry marked as Team Final");
+            } else {
+                // Handle different error types gracefully
+                String errorMessage = handleServiceError(result, "marking entry as Team Final");
+                redirectAttributes.addFlashAttribute("errorMessage", errorMessage);
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Unexpected error marking entry as Team Final: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage", "An unexpected error occurred while marking entry");
+        }
+
+        return getRedirectUrl(username, userId, year, month);
     }
 
     /**
@@ -652,6 +707,7 @@ public class TeamCheckRegisterController extends BaseController {
 
     /**
      * Enhanced helper method to generate the redirect URL with better error handling
+     * After POST operations, adds showContent=true to display the register
      */
     private String getRedirectUrl(String username, Integer userId, Integer year, Integer month) {
         // If userId is null, handle it safely by getting it from the username
@@ -672,7 +728,8 @@ public class TeamCheckRegisterController extends BaseController {
             }
         }
 
-        return String.format("redirect:/team/check-register?year=%d&month=%d&selectedUser=%s&selectedUserId=%d",
+        // After POST operations, add showContent=true to display the register content
+        return String.format("redirect:/team/check-register?year=%d&month=%d&selectedUser=%s&selectedUserId=%d&showContent=true",
                 year, month, username, userId);
     }
 }

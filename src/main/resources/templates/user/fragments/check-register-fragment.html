@@ -124,6 +124,16 @@
                             <i class="bi bi-info-circle me-1 align-items-right"></i>Ctrl+F - Find by OMS ID/Designer/Type/Status
                         </span>
                 </div>
+                <!-- Update from Team Lead button - only shown in user view -->
+                <div th:if="${!isTeamView}">
+                    <form th:action="@{/user/check-register/update-from-team-lead}" method="post" class="d-inline">
+                        <input type="hidden" name="year" th:value="${currentYear}">
+                        <input type="hidden" name="month" th:value="${currentMonth}">
+                        <button type="submit" class="btn btn-sm btn-info" title="Refresh your register with team lead updates">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Update from Team Lead
+                        </button>
+                    </form>
+                </div>
                 <div class="small text-muted">Total entries: <span id="entries-count">0</span></div>
             </div>
         </div>
@@ -143,14 +153,16 @@
                         <th scope="col">Error Description</th>
                         <th scope="col" style="width: 100px;">Status</th>
                         <th scope="col" style="width: 60px;">Value</th>
-                        <th scope="col" style="width: 120px;" th:if="${isTeamView}">Team Status</th>
+                        <th scope="col" style="width: 45px;" title="Sync Status">
+                            <i class="bi bi-shield-check"></i>
+                        </th>
                         <th scope="col" style="width: 60px;">Mod</th>
                     </tr>
                     </thead>
                     <tbody>
                     <!-- Empty state row -->
                     <tr th:if="${entries == null || entries.isEmpty()}">
-                        <td th:colspan="${isTeamView ? 13 : 12}" class="text-center py-5">
+                        <td colspan="13" class="text-center py-5">
                             <div class="text-muted">
                                 <i class="bi bi-inbox-fill fs-2 d-block mb-2"></i>
                                 <h5 class="mt-3">No Entries Found</h5>
@@ -161,8 +173,9 @@
                     </tr>
 
                     <!-- Entries -->
-                    <tr th:each="entry, stat : ${entries}" th:with="isEditable=${isTeamView || (editableEntryIds != null && editableEntryIds.contains(entry.entryId))}">
-                        <td th:text="${entry.entryId}">1</td>
+                    <!-- Users can now edit/delete ALL entries including team lead entries (tombstone deletion) -->
+                    <tr th:each="entry, stat : ${entries}" th:with="isEditable=${true}">
+                        <td th:text="${stat.size - stat.index}">1</td>
                         <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">01/01/2023</td>
                         <td th:text="${entry.omsId}">OMS123</td>
                         <td th:text="${entry.productionId}">PROD123</td>
@@ -191,14 +204,30 @@
                                       th:text="${entry.approvalStatus}">Status</span>
                         </td>
                         <td th:text="${entry.orderValue}">2.5</td>
-                        <td th:if="${isTeamView}">
-                                <span th:class="${'badge ' +
-                                    (entry.adminSync == 'TL_CHECK_DONE' ? 'bg-info' :
-                                     entry.adminSync == 'TL_EDITED' ? 'bg-primary' :
-                                     entry.adminSync == 'TL_BLANK' ? 'bg-danger' :
-                                     entry.adminSync == 'CHECKING_INPUT' ? 'bg-secondary' :
-                                     'bg-secondary')}"
-                                      th:text="${entry.adminSync}">Team Status</span>
+                        <!-- Compact Status Display -->
+                        <td class="text-center">
+                            <span th:if="${entry.adminSync != null}"
+                                  th:data-entry-id="${isTeamView ? entry.entryId : null}"
+                                  th:class="${'badge rounded-pill status-badge ' +
+                                      (isTeamView && entry.adminSync != 'ADMIN_FINAL' ? 'clickable-badge ' : '') +
+                                      (entry.adminSync == 'USER_INPUT' ? 'bg-secondary' :
+                                       entry.adminSync == 'ADMIN_INPUT' ? 'bg-primary' :
+                                       entry.adminSync == 'TEAM_INPUT' ? 'bg-info' :
+                                       entry.adminSync == 'USER_IN_PROCESS' ? 'bg-warning' :
+                                       entry.adminSync == 'ADMIN_FINAL' ? 'bg-danger' :
+                                       entry.adminSync == 'TEAM_FINAL' ? 'bg-success' :
+                                       T(com.ctgraphdep.merge.constants.MergingStatusConstants).isUserEditedStatus(entry.adminSync) ? 'bg-secondary' :
+                                       T(com.ctgraphdep.merge.constants.MergingStatusConstants).isAdminEditedStatus(entry.adminSync) ? 'bg-primary' :
+                                       T(com.ctgraphdep.merge.constants.MergingStatusConstants).isTeamEditedStatus(entry.adminSync) ? 'bg-info' :
+                                       T(com.ctgraphdep.merge.constants.MergingStatusConstants).isUserDeletedStatus(entry.adminSync) ? 'bg-dark' :
+                                       T(com.ctgraphdep.merge.constants.MergingStatusConstants).isAdminDeletedStatus(entry.adminSync) ? 'bg-dark' :
+                                       T(com.ctgraphdep.merge.constants.MergingStatusConstants).isTeamDeletedStatus(entry.adminSync) ? 'bg-dark' :
+                                       'bg-secondary')}"
+                                  th:title="${T(com.ctgraphdep.merge.constants.MergingStatusConstants).getStatusDescription(entry.adminSync)}"
+                                  th:text="${T(com.ctgraphdep.merge.constants.MergingStatusConstants).toCompactDisplay(entry.adminSync)}">
+                                UI
+                            </span>
+                            <span th:if="${entry.adminSync == null}" class="badge rounded-pill bg-light text-dark" title="No status">??</span>
                         </td>
                         <td class="mod-column">
                             <div class="action-icons">
@@ -220,11 +249,6 @@
                                         th:data-user-id="${isTeamView ? selectedUser?.userId : null}">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <!-- Disabled edit icon for non-editable entries in user view -->
-                                <span class="btn-icon disabled-icon" th:if="${!isTeamView && !isEditable}"
-                                      title="This entry cannot be edited because it has been reviewed by a team lead">
-                                    <i class="bi bi-pencil text-muted"></i>
-                                </span>
 
                                 <!-- Copy button - available for all entries -->
                                 <button type="button" class="btn-icon copy-entry"
@@ -250,16 +274,10 @@
                                     <!-- Additional hidden fields for team view -->
                                     <input type="hidden" name="username" th:if="${isTeamView}" th:value="${selectedUser?.username}">
                                     <input type="hidden" name="userId" th:if="${isTeamView}" th:value="${selectedUser?.userId}">
-                                    <button type="submit" class="btn-icon delete-entry"
-                                            th:onclick="return confirm(${isTeamView ? 'Are you sure you want to mark this entry for deletion?' : 'Are you sure you want to delete this entry?'})">
+                                    <button type="submit" class="btn-icon delete-entry">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </form>
-                                <!-- Disabled delete icon for non-editable entries in user view -->
-                                <span class="btn-icon disabled-icon" th:if="${!isTeamView && !isEditable}"
-                                      title="This entry cannot be deleted because it has been reviewed by a team lead">
-                                    <i class="bi bi-trash text-muted"></i>
-                                </span>
                             </div>
                         </td>
                     </tr>

@@ -77,18 +77,52 @@ com.ctgraphdep/
 │   ├── user/                           # User endpoints
 │   └── team/                           # Team lead endpoints
 ├── model/                              # Data models (RegisterEntry, WorktimeEntry, etc.)
-├── service/                            # Business logic
+├── service/                            # Core business logic
 │   ├── UserLoginMergeServiceImpl.java  # Login merge coordinator
-│   └── SessionService.java             # Session management
+│   ├── UserService.java                # User operations
+│   ├── AdminBonusService.java          # Bonus calculations
+│   ├── cache/                          # Caching services
+│   └── result/                         # Service result patterns
+├── session/
+│   ├── service/                        # Session management
+│   │   ├── SessionService.java         # Session lifecycle
+│   │   ├── SessionMonitorService.java  # Session monitoring
+│   │   └── SessionMidnightHandler.java # Midnight session handling
+│   ├── commands/                       # Session command pattern
+│   └── query/                          # Session queries
+├── worktime/
+│   ├── service/                        # Worktime services
+│   │   ├── WorktimeOperationService.java
+│   │   ├── WorktimeMergeService.java
+│   │   └── TeamOperationService.java
+│   └── display/                        # Worktime display logic
+│       ├── WorktimeDisplayService.java # Display formatting
+│       └── StatusDTOConverter.java     # DTO conversion
+├── register/
+│   ├── service/                        # Register services
+│   │   ├── AdminCheckRegisterService.java
+│   │   ├── CheckRegisterService.java
+│   │   ├── CheckValuesService.java
+│   │   ├── RegisterMergeService.java
+│   │   ├── UserRegisterService.java
+│   │   └── AdminRegisterService.java
+│   └── util/                           # Register utilities
+│       └── CheckRegisterWrapperFactory.java
 ├── security/                           # Authentication
 │   └── CustomAuthenticationProvider.java
 ├── merge/                              # Universal merge engine
 │   ├── engine/UniversalMergeEngine.java # Enum-based merge rules
+│   ├── service/UniversalMergeService.java
 │   └── constants/MergingStatusConstants.java
 ├── fileOperations/
-│   └── DataAccessService.java          # Dual-location file I/O
-├── register/service/                   # Register services
-├── worktime/service/                   # Worktime services
+│   ├── DataAccessService.java          # Dual-location file I/O
+│   └── service/                        # File operation services
+│       ├── BackupService.java
+│       ├── FileReaderService.java
+│       ├── FileWriterService.java
+│       └── SyncFilesService.java
+├── notification/service/               # Notification services
+├── dashboard/service/                  # Dashboard services
 ├── monitoring/NetworkStatusMonitor.java
 ├── tray/CTTTSystemTray.java            # System tray integration
 └── utils/LoggerUtil.java
@@ -162,19 +196,25 @@ Network-aware: queues when offline, retries when network available.
 ### Data Flow Examples
 
 #### User Session Workflow
-1. `SessionService.startSession()` → creates `session_{user}_{year}.json`
+1. `session.service.SessionService.startSession()` → creates `session_{user}_{year}.json`
 2. Status: `USER_IN_PROCESS`
-3. `SessionMonitorService` syncs every 30 min
+3. `session.service.SessionMonitorService` syncs every 30 min
 4. Admin can view but not modify (merge engine blocks)
-5. `SessionService.stopSession()` → status: `USER_INPUT`
+5. `session.service.SessionService.stopSession()` → status: `USER_INPUT`
 6. Admin can now edit → `ADMIN_EDITED_{timestamp}`
 
 #### Registration Approval Flow
 1. User creates entry → `registru_{user}_{year}_{month}_{day}.json` (status: USER_INPUT)
 2. Team reviews → `check_registru_...json` (status: TEAM_EDITED_{ts})
 3. Admin approves → `admin_registru_...json` (status: ADMIN_FINAL)
-4. User login → `RegisterMergeService` merges admin → user local
+4. User login → `register.service.RegisterMergeService` merges admin → user local
 5. User sees updated entries
+
+#### Worktime Display Flow
+1. Raw worktime data loaded by `worktime.service.WorktimeOperationService`
+2. `worktime.display.WorktimeDisplayService` formats for presentation
+3. `worktime.display.StatusDTOConverter` converts to DTOs for frontend
+4. Controllers use display service for consistent formatting across pages
 
 ### Configuration (`application.properties`)
 
