@@ -11,7 +11,6 @@ import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.worktime.service.TeamOperationService;
 import lombok.Getter;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -26,7 +25,6 @@ import java.util.stream.Collectors;
 /**
  * REFACTORED TeamStatisticsController using command pattern.
  * Fully migrated from deprecated TeamStatisticsService to command-based operations.
-
  * Key Features:
  * - Uses TeamOperationService for all team operations
  * - Handles OperationResult responses with proper error handling
@@ -36,7 +34,6 @@ import java.util.stream.Collectors;
  */
 @Controller
 @RequestMapping("/user/stats")
-@PreAuthorize("hasAnyRole('ROLE_TEAM_LEADER', 'ROLE_ADMIN')")
 public class TeamStatisticsController extends BaseController {
 
     private final TeamOperationService teamOperationService;
@@ -260,9 +257,13 @@ public class TeamStatisticsController extends BaseController {
 
     /**
      * Validate team leader access with consistent error handling
+     * Allows access for: TEAM_LEADER, TL_CHECKING, and ADMIN roles
      */
     private String validateTeamLeaderAccess(UserDetails userDetails) {
-        return checkUserAccess(userDetails, SecurityConstants.ROLE_TEAM_LEADER);
+        return checkUserAccess(userDetails,
+                SecurityConstants.ROLE_TEAM_LEADER,
+                SecurityConstants.ROLE_TL_CHECKING,
+                SecurityConstants.ROLE_ADMIN);
     }
 
     /**
@@ -325,7 +326,7 @@ public class TeamStatisticsController extends BaseController {
         model.addAttribute("teamMemberDTOS", pageData.getTeamMembers());
         model.addAttribute("currentYear", year);
         model.addAttribute("currentMonth", month);
-        model.addAttribute("dashboardUrl", "/team-lead");
+        model.addAttribute("dashboardUrl", getDashboardUrlForUser(teamLead));
 
         // Team statistics
         model.addAttribute("teamMemberCount", pageData.getTeamMembers().size());

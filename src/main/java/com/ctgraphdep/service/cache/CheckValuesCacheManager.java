@@ -46,6 +46,21 @@ public class CheckValuesCacheManager {
     }
 
     /**
+     * Invalidates (removes) cached check values for a specific user
+     * @param username The username to invalidate cache for
+     */
+    public void invalidateCache(String username) {
+        if (username != null) {
+            CheckValuesEntry removed = checkValuesCache.remove(username);
+            if (removed != null) {
+                LoggerUtil.info(this.getClass(), String.format("Invalidated check values cache for user %s", username));
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format("No cached check values found for user %s", username));
+            }
+        }
+    }
+
+    /**
      * Clears all cached check values
      */
     public void clearAllCachedCheckValues() {

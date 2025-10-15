@@ -14,7 +14,8 @@ import com.ctgraphdep.register.service.CheckValuesService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.cache.CheckValuesCacheManager;
 import com.ctgraphdep.service.result.ServiceResult;
-import com.ctgraphdep.utils.CheckRegisterExcelExporter;
+import com.ctgraphdep.model.CheckValuesEntry;
+import com.ctgraphdep.utils.CheckRegisterWithCalculationExporter;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -45,17 +46,19 @@ import java.util.stream.Collectors;
 public class CheckRegisterController extends BaseController {
 
     private final CheckRegisterService checkRegisterService;
-    private final CheckRegisterExcelExporter checkRegisterExcelExporter;
+
+    private final CheckRegisterWithCalculationExporter checkRegisterWithCalculationExporter;
     private final WorkScheduleService workScheduleService;
     private final CheckValuesCacheManager checkValuesCacheManager;
     private final CheckValuesService checkValuesService;
 
     public CheckRegisterController(UserService userService, FolderStatus folderStatus, CheckRegisterService checkRegisterService, TimeValidationService timeValidationService,
-                                   CheckRegisterExcelExporter checkRegisterExcelExporter, WorkScheduleService workScheduleService, CheckValuesCacheManager checkValuesCacheManager,
+                                   CheckRegisterWithCalculationExporter checkRegisterWithCalculationExporter,
+                                   WorkScheduleService workScheduleService, CheckValuesCacheManager checkValuesCacheManager,
                                    CheckValuesService checkValuesService) {
         super(userService, folderStatus, timeValidationService);
         this.checkRegisterService = checkRegisterService;
-        this.checkRegisterExcelExporter = checkRegisterExcelExporter;
+        this.checkRegisterWithCalculationExporter = checkRegisterWithCalculationExporter;
         this.workScheduleService = workScheduleService;
         this.checkValuesCacheManager = checkValuesCacheManager;
         this.checkValuesService = checkValuesService;
@@ -366,6 +369,7 @@ public class CheckRegisterController extends BaseController {
     /**
      * Update from Team Lead - Force cache invalidation and perform merge with team lead register
      * This endpoint clears the cache for the specified month and triggers a fresh merge with team lead updates
+     * Also invalidates check values cache to ensure latest values are loaded
      */
     @PostMapping("/update-from-team-lead")
     public String updateFromTeamLead(@AuthenticationPrincipal UserDetails userDetails,
@@ -382,27 +386,43 @@ public class CheckRegisterController extends BaseController {
                 return "redirect:/login";
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Invalidating check register cache and performing merge for %s - %d/%d",
+            LoggerUtil.info(this.getClass(), String.format("Invalidating caches and performing merge for %s - %d/%d",
                     currentUser.getUsername(), year, month));
 
-            // Step 1: Clear the cache for this month to force reload
+            // Step 1: Clear the check register cache for this month to force reload
             try {
                 checkRegisterService.getRegisterCheckCacheService().clearMonth(currentUser.getUsername(), year, month);
                 LoggerUtil.info(this.getClass(), String.format("Successfully cleared check register cache for %s - %d/%d",
                         currentUser.getUsername(), year, month));
             } catch (Exception cacheException) {
-                LoggerUtil.warn(this.getClass(), String.format("Failed to clear cache: %s", cacheException.getMessage()));
+                LoggerUtil.warn(this.getClass(), String.format("Failed to clear check register cache: %s", cacheException.getMessage()));
                 // Continue anyway - the merge will still work
             }
 
-            // Step 2: Perform the merge with team lead register
+            // Step 2: Invalidate check values cache to force reload of latest values
+            try {
+                checkValuesCacheManager.invalidateCache(currentUser.getUsername());
+                LoggerUtil.info(this.getClass(), String.format("Successfully invalidated check values cache for %s",
+                        currentUser.getUsername()));
+
+                // Reload check values immediately
+                loadCheckValuesForUser(currentUser);
+                LoggerUtil.info(this.getClass(), String.format("Successfully reloaded check values for %s",
+                        currentUser.getUsername()));
+            } catch (Exception valuesCacheException) {
+                LoggerUtil.warn(this.getClass(), String.format("Failed to invalidate/reload check values cache: %s",
+                        valuesCacheException.getMessage()));
+                // Continue anyway - the merge will still work
+            }
+
+            // Step 3: Perform the merge with team lead register
             ServiceResult<List<RegisterCheckEntry>> mergeResult =
                     checkRegisterService.loadAndMergeUserLoginEntries(currentUser.getUsername(), currentUser.getUserId(), year, month);
 
             if (mergeResult.isSuccess()) {
                 List<RegisterCheckEntry> mergedEntries = mergeResult.getData();
                 redirectAttributes.addFlashAttribute("successMessage",
-                        String.format("Successfully updated with team lead changes. %d entries processed.", mergedEntries.size()));
+                        String.format("Successfully updated with team lead changes. %d entries processed. Check values refreshed.", mergedEntries.size()));
 
                 LoggerUtil.info(this.getClass(), String.format("Successfully merged %d entries for %s - %d/%d",
                         mergedEntries.size(), currentUser.getUsername(), year, month));
@@ -472,7 +492,7 @@ public class CheckRegisterController extends BaseController {
     }
 
     /**
-     * Export to Excel - ENHANCED with ServiceResult handling
+     * Export to Excel with two sheets (Registry + Calculation) - ENHANCED with ServiceResult handling
      */
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportToExcel(@AuthenticationPrincipal UserDetails userDetails, @RequestParam int year, @RequestParam int month) {
@@ -498,14 +518,33 @@ public class CheckRegisterController extends BaseController {
 
             List<RegisterCheckEntry> entries = entriesResult.getData();
 
-            // Generate Excel using our exporter
-            byte[] excelData = checkRegisterExcelExporter.exportToExcel(currentUser, entries, year, month);
+            // Get check values for this user
+            UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(currentUser.getUsername(), currentUser.getUserId());
+            CheckValuesEntry checkValues;
+
+            if (userCheckValues != null && userCheckValues.getCheckValuesEntry() != null) {
+                checkValues = userCheckValues.getCheckValuesEntry();
+                LoggerUtil.info(this.getClass(), "Using check values for user " + currentUser.getUsername());
+            } else {
+                // Use default values
+                checkValues = CheckValuesEntry.createDefault();
+                LoggerUtil.warn(this.getClass(), "Using default check values for user " + currentUser.getUsername());
+            }
+
+            // Generate Excel with two sheets using the new exporter
+            byte[] excelData = checkRegisterWithCalculationExporter.exportToExcel(currentUser, entries, checkValues, year, month);
+
+            if (excelData.length == 0) {
+                LoggerUtil.error(this.getClass(), "Excel export returned empty byte array");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
 
             LoggerUtil.info(this.getClass(), String.format("Successfully exported %d entries to Excel for %s",
                     entries.size(), currentUser.getUsername()));
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%d_%02d.xlsx\"", year, month))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%s_%d_%02d.xlsx\"",
+                            currentUser.getUsername(), year, month))
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(excelData);
 

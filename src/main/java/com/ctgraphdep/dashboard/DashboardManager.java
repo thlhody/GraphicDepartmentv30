@@ -70,11 +70,11 @@ public class DashboardManager {
                 .cards(Arrays.asList(
                         createStatusCard(SecurityConstants.ROLE_ADMIN),  // Using admin view for status
                         createSessionCard(),
-                        createRegisterCard(),
+                        createWorkTimeManagementCard(),
                         createUserCheckRegisterCard(),
                         createTeamCheckRegisterCard(),
-                        createWorkTimeManagementCard(),
                         createCheckValuesCard(),
+                        createRegisterCard(),
                         createTeamStatisticsCard(),
                         createOMSSystemCard(),
                         createSettingsCard(SecurityConstants.ROLE_USER)

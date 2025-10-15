@@ -54,6 +54,12 @@ public class SecurityConfig {
                             .requestMatchers("/team-checking/**").hasRole(SecurityConstants.ROLE_TL_CHECKING)
                             .requestMatchers("/checking/**").hasRole(SecurityConstants.ROLE_CHECKING)
 
+                            // Team Statistics - specific access for team leaders and admins
+                            .requestMatchers("/user/stats/**").hasAnyRole(
+                                    SecurityConstants.ROLE_TEAM_LEADER,
+                                    SecurityConstants.ROLE_TL_CHECKING,
+                                    SecurityConstants.ROLE_ADMIN)
+
                             // User URLs - multiple roles can access
                             .requestMatchers("/user/**").hasAnyRole(
                                     SecurityConstants.ROLE_USER,
