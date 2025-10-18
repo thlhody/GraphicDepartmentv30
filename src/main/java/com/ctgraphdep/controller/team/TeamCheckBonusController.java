@@ -23,7 +23,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +53,6 @@ public class TeamCheckBonusController extends BaseController {
 
     /**
      * Calculate bonus for a single user
-     *
      * POST /team/check-register/calculate-bonus
      */
     @PostMapping("/calculate-bonus")
@@ -99,7 +97,6 @@ public class TeamCheckBonusController extends BaseController {
 
     /**
      * Save bonus data
-     *
      * POST /team/check-register/save-bonus
      */
     @PostMapping("/save-bonus")
@@ -138,7 +135,6 @@ public class TeamCheckBonusController extends BaseController {
 
     /**
      * Load bonus data for a period
-     *
      * GET /team/check-register/load-bonus
      */
     @GetMapping("/load-bonus")
@@ -175,7 +171,6 @@ public class TeamCheckBonusController extends BaseController {
 
     /**
      * Show check bonus dashboard page
-     *
      * GET /team/check-register/bonus
      */
     @GetMapping("/bonus")
@@ -209,7 +204,6 @@ public class TeamCheckBonusController extends BaseController {
 
     /**
      * Export bonus data to Excel
-     *
      * GET /team/check-register/export-bonus
      */
     @GetMapping("/export-bonus")

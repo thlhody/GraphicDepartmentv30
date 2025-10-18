@@ -636,7 +636,6 @@ public class TeamCheckRegisterController extends BaseController {
 
     /**
      * Export team check register to Excel - Team lead can export any checking user's register
-     *
      * GET /team/check-register/export
      */
     @GetMapping("/export")
