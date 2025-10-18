@@ -478,10 +478,11 @@ class CheckRegisterSummaryHandler {
             this.metrics.targetUnitsHour = parseFloat(document.getElementById('target-units-hour')?.textContent || '0');
 
             // DIRECT ID COUNTING APPROACH
-            // Get all rows from the table and count unique IDs
-            const tableBody = document.querySelector('.table tbody');
+            // Get all rows from the CHECK REGISTER table specifically (not bonus table)
+            // Use the check register entries table which is inside check-register-content
+            const tableBody = document.querySelector('.register-content .table tbody');
             if (!tableBody) {
-                console.warn("Table body not found, cannot calculate metrics");
+                console.warn("Check register table body not found, cannot calculate metrics");
                 this.updateUI();
                 return;
             }

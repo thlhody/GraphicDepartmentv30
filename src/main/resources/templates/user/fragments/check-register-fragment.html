@@ -100,7 +100,14 @@
                                 style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
                             <i class="bi bi-x-circle me-1"></i>Clear
                         </button>
-                        <a th:href="${urlPrefix + '/export'}+'?year='+${currentYear}+'&month='+${currentMonth}" th:if="${!isTeamView || selectedUser != null}"
+                        <a th:if="${!isTeamView}"
+                           th:href="${urlPrefix + '/export'}+'?year='+${currentYear}+'&month='+${currentMonth}"
+                           class="btn btn-outline-success btn-sm"
+                           style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                            <i class="bi bi-file-excel me-1"></i>Export
+                        </a>
+                        <a th:if="${isTeamView && selectedUser != null}"
+                           th:href="@{/team/check-register/export(year=${currentYear},month=${currentMonth},username=${selectedUser.username},userId=${selectedUser.userId})}"
                            class="btn btn-outline-success btn-sm"
                            style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
                             <i class="bi bi-file-excel me-1"></i>Export

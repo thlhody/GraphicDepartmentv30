@@ -148,6 +148,9 @@ public class FilePathResolver {
             case LEAD_CHECK_REGISTER -> isLocal?
                     pathConfig.getLocalCheckLeadRegisterPath(username,userId,year,month) :
                     pathConfig.getNetworkCheckLeadRegisterPath(username,userId,year,month);
+            case LEAD_CHECK_BONUS -> isLocal ?
+                    pathConfig.getLocalCheckBonusPath(year, month) :
+                    pathConfig.getNetworkCheckBonusPath(year, month);
             //admin
             case ADMIN_BONUS ->
                     pathConfig.getLocalBonusPath(year, month);
@@ -197,6 +200,7 @@ public class FilePathResolver {
         TEAM,
         CHECK_REGISTER,
         LEAD_CHECK_REGISTER,
+        LEAD_CHECK_BONUS,
         //admin
         ADMIN_WORKTIME,
         ADMIN_REGISTER,

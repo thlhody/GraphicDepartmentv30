@@ -1,0 +1,353 @@
+/* ========================================
+   Team Check Bonus Styles
+   ======================================== */
+
+/* Page Header */
+.page-header {
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 1rem;
+}
+
+.header-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+/* Card Styling */
+.card {
+    border: none;
+    border-radius: 8px;
+}
+
+.card-header {
+    border-bottom: 1px solid #e9ecef;
+    background-color: #f8f9fa;
+    padding: 1rem 1.25rem;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Table Styling */
+#checkBonusTable {
+    font-size: 0.95rem;
+}
+
+#checkBonusTable thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+#checkBonusTable tbody td {
+    padding: 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #e9ecef;
+}
+
+#checkBonusTable tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Sortable Columns */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 1.5rem;
+}
+
+.sortable:hover {
+    background-color: #e9ecef;
+}
+
+.sort-icon {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.sort-icon::before {
+    content: '⇅';
+}
+
+.sortable.asc .sort-icon::before {
+    content: '▲';
+    color: #0d6efd;
+}
+
+.sortable.desc .sort-icon::before {
+    content: '▼';
+    color: #0d6efd;
+}
+
+/* Empty State */
+#emptyRow td {
+    padding: 3rem 1rem !important;
+}
+
+#emptyRow .text-muted {
+    color: #6c757d !important;
+}
+
+#emptyRow i.bi-inbox-fill {
+    color: #adb5bd;
+}
+
+/* Number Formatting */
+.text-center {
+    text-align: center !important;
+}
+
+.fw-bold {
+    font-weight: 600 !important;
+}
+
+/* Efficiency Badge Styling */
+.efficiency-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.efficiency-high {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.efficiency-medium {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.efficiency-low {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Bonus Amount Styling */
+.bonus-amount {
+    font-weight: 600;
+    color: #198754;
+    font-size: 1rem;
+}
+
+.bonus-amount-high {
+    color: #198754;
+}
+
+.bonus-amount-medium {
+    color: #fd7e14;
+}
+
+.bonus-amount-low {
+    color: #dc3545;
+}
+
+/* Form Controls */
+.form-label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Button Styling */
+.btn {
+    font-weight: 500;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+.btn-success {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.btn-success:hover {
+    background-color: #157347;
+    border-color: #146c43;
+}
+
+.btn-outline-primary {
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-outline-primary:hover {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+/* Badge Styling */
+.badge {
+    font-weight: 500;
+    padding: 0.35rem 0.65rem;
+}
+
+/* Alert Styling */
+.alert {
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.alert i {
+    font-size: 1.1rem;
+}
+
+/* Loading Spinner */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.15em;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .header-title {
+        font-size: 1.5rem;
+    }
+
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+
+    .btn {
+        font-size: 0.875rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    #checkBonusTable thead th,
+    #checkBonusTable tbody td {
+        padding: 0.5rem;
+    }
+}
+
+/* Bonus Fragment Specific Styles */
+.check-bonus-content {
+    margin-top: 2rem;
+}
+
+.check-bonus-content .card {
+    border: 1px solid #dee2e6;
+}
+
+.check-bonus-content .table {
+    margin-bottom: 0;
+}
+
+.check-bonus-content #bonusResults {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Number Input Styling */
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Table Hover Effect */
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Success/Error Message Animation */
+.alert {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Print Styles */
+@media print {
+    .btn,
+    .page-header .btn,
+    .card-header,
+    .alert {
+        display: none !important;
+    }
+
+    .card {
+        border: 1px solid #000 !important;
+    }
+
+    .table {
+        font-size: 10pt;
+    }
+}

@@ -10,10 +10,15 @@ import com.ctgraphdep.register.service.CheckValuesService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.WorkScheduleService;
 import com.ctgraphdep.service.result.ServiceResult;
+import com.ctgraphdep.utils.CheckRegisterWithCalculationExporter;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -38,13 +43,15 @@ public class TeamCheckRegisterController extends BaseController {
     private final CheckRegisterService checkRegisterService;
     private final CheckValuesService checkValuesService;
     private final WorkScheduleService workScheduleService;
+    private final CheckRegisterWithCalculationExporter checkRegisterWithCalculationExporter;
 
     public TeamCheckRegisterController(UserService userService, FolderStatus folderStatus, TimeValidationService timeValidationService, CheckRegisterService checkRegisterService,
-                                       CheckValuesService checkValuesService, WorkScheduleService workScheduleService) {
+                                       CheckValuesService checkValuesService, WorkScheduleService workScheduleService, CheckRegisterWithCalculationExporter checkRegisterWithCalculationExporter) {
         super(userService, folderStatus, timeValidationService);
         this.checkRegisterService = checkRegisterService;
         this.checkValuesService = checkValuesService;
         this.workScheduleService = workScheduleService;
+        this.checkRegisterWithCalculationExporter = checkRegisterWithCalculationExporter;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -625,6 +632,79 @@ public class TeamCheckRegisterController extends BaseController {
         }
 
         return getRedirectUrl(username, userId, year, month);
+    }
+
+    /**
+     * Export team check register to Excel - Team lead can export any checking user's register
+     *
+     * GET /team/check-register/export
+     */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportToExcel(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam String username,
+            @RequestParam Integer userId,
+            @RequestParam int year,
+            @RequestParam int month) {
+
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                "Team lead exporting check register for %s (ID: %d), year: %d, month: %d",
+                username, userId, year, month));
+
+            // Get the target user from cache
+            User targetUser = getUserService().getUserById(userId).orElse(null);
+            if (targetUser == null) {
+                LoggerUtil.error(this.getClass(), "User not found: " + username);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
+
+            // Load team check register entries for the selected user
+            ServiceResult<List<RegisterCheckEntry>> entriesResult = checkRegisterService.loadTeamCheckRegister(
+                    username, userId, year, month);
+
+            if (entriesResult.isFailure()) {
+                LoggerUtil.error(this.getClass(), String.format("Failed to load entries for export for %s: %s",
+                        username, entriesResult.getErrorMessage()));
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+
+            List<RegisterCheckEntry> entries = entriesResult.getData();
+
+            // Get check values for the target user
+            UsersCheckValueEntry userCheckValues = checkValuesService.getUserCheckValues(username, userId);
+            CheckValuesEntry checkValues;
+
+            if (userCheckValues != null && userCheckValues.getCheckValuesEntry() != null) {
+                checkValues = userCheckValues.getCheckValuesEntry();
+                LoggerUtil.info(this.getClass(), "Using check values for user " + username);
+            } else {
+                // Use default values
+                checkValues = CheckValuesEntry.createDefault();
+                LoggerUtil.warn(this.getClass(), "Using default check values for user " + username);
+            }
+
+            // Generate Excel with two sheets using the exporter
+            byte[] excelData = checkRegisterWithCalculationExporter.exportToExcel(targetUser, entries, checkValues, year, month);
+
+            if (excelData.length == 0) {
+                LoggerUtil.error(this.getClass(), "Excel export returned empty byte array");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Successfully exported %d entries to Excel for %s",
+                    entries.size(), username));
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=\"check_register_%s_%d_%02d.xlsx\"",
+                            username, year, month))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(excelData);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Unexpected error exporting check register to Excel: " + e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
 // ========================================================================

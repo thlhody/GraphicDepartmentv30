@@ -26,8 +26,8 @@ public class DashboardManager {
                         createStatusCard(SecurityConstants.ROLE_ADMIN),
                         createAdminWorktimeCard(),
                         createAdminRegisterCard(),
-                        createAdminCheckRegisterCard(),
                         createAdminBonusCard(),
+                        createCheckBonusCard(),
                         createTeamStatisticsCard(),
                         createAdminStatistics(),
                         createAdminHolidaysCard(),
@@ -73,6 +73,7 @@ public class DashboardManager {
                         createWorkTimeManagementCard(),
                         createUserCheckRegisterCard(),
                         createTeamCheckRegisterCard(),
+                        createCheckBonusCard(),
                         createCheckValuesCard(),
                         createRegisterCard(),
                         createTeamStatisticsCard(),
@@ -152,7 +153,7 @@ public class DashboardManager {
                 .icon("check-square")  // Using the check-square icon to match the page
                 .badge("View")
                 .badgeColor("success")
-                .actionText("Open Check Register")
+                .actionText("Checking Register")
                 .actionUrl("/user/check-register")
                 .external(false)
                 .permission(PermissionFilterService.PERMISSION_MANAGE_CHECK_REGISTER)
@@ -172,7 +173,6 @@ public class DashboardManager {
                 .permission(PermissionFilterService.PERMISSION_MANAGE_CHECK_VALUES)
                 .build();
     }
-
     //General Cards
     private DashboardCardDTO createStatusCard(String role) {
         return DashboardCardDTO.builder()
@@ -225,7 +225,7 @@ public class DashboardManager {
                 .icon("journal-text")
                 .badge("View")
                 .badgeColor("primary")
-                .actionText("Open Register")
+                .actionText("Register")
                 .actionUrl("/user/register")
                 .external(false)
                 .permission(PermissionFilterService.PERMISSION_MANAGE_USER_REGISTER)
@@ -256,15 +256,13 @@ public class DashboardManager {
                 .actionText(role.equals(SecurityConstants.ROLE_ADMIN) ? "Manage Settings" : "Manage Account")
                 .actionUrl(role.equals(SecurityConstants.ROLE_ADMIN) ? "/admin/settings" : "/user/settings")
                 .external(false)
-                .permission(role.equals(SecurityConstants.ROLE_ADMIN) ?
-                        PermissionFilterService.PERMISSION_MANAGE_SETTINGS : PermissionFilterService.PERMISSION_MANAGE_ACCOUNT)
+                .permission(role.equals(SecurityConstants.ROLE_ADMIN) ? PermissionFilterService.PERMISSION_MANAGE_SETTINGS : PermissionFilterService.PERMISSION_MANAGE_ACCOUNT)
                 .build();
     }
-
     // Admin Cards
     private DashboardCardDTO createAdminWorktimeCard() {
         return DashboardCardDTO.builder()
-                .title("Work Time")
+                .title("Work Time Management")
                 .subtitle("Manage employees hours")
                 .color("warning")
                 .icon("clock-fill")
@@ -278,7 +276,7 @@ public class DashboardManager {
     }
     private DashboardCardDTO createAdminRegisterCard() {
         return DashboardCardDTO.builder()
-                .title("Work Register Manager")
+                .title("Register Manager")
                 .subtitle("Manage work activities")
                 .color("primary")
                 .icon("journal-text")
@@ -290,29 +288,15 @@ public class DashboardManager {
                 .permission(PermissionFilterService.PERMISSION_MANAGE_ADMIN_REGISTER)
                 .build();
     }
-    private DashboardCardDTO createAdminCheckRegisterCard() {
-        return DashboardCardDTO.builder()
-                .title("Check Register Manager")
-                .subtitle("Manage work checking activities")
-                .color("warning")
-                .icon("check-square")
-                .badge("Admin")
-                .badgeColor("warning")
-                .actionText("Manage Check Register")
-                .actionUrl("/user/check-register")
-                .external(false)
-                .permission(PermissionFilterService.PERMISSION_MANAGE_ADMIN_CHECKING)
-                .build();
-    }
     private DashboardCardDTO createAdminBonusCard() {
         return DashboardCardDTO.builder()
-                .title("Admin Bonus Management")
+                .title("Bonus Management")
                 .subtitle("Manage Bonus")
                 .color("primary")
                 .icon("journal-text")
                 .badge("View")
                 .badgeColor("primary")
-                .actionText("Manage Register")
+                .actionText("Manage Bonuses")
                 .actionUrl("/admin/bonus")
                 .external(false)
                 .permission(PermissionFilterService.PERMISSION_MANAGE_BONUS)
@@ -320,7 +304,7 @@ public class DashboardManager {
     }
     private DashboardCardDTO createAdminStatistics() {
         return DashboardCardDTO.builder()
-                .title("Admin Statistics Management")
+                .title("Statistics Management")
                 .subtitle("CT3 Statistics")
                 .color("primary")
                 .icon("journal-text")
@@ -334,19 +318,18 @@ public class DashboardManager {
     }
     private DashboardCardDTO createAdminHolidaysCard() {
         return DashboardCardDTO.builder()
-                .title("Holidays")
+                .title("Holidays Management")
                 .subtitle("Update paid holidays")
                 .color("info")
                 .icon("calendar-fill")
                 .badge("Manage")
                 .badgeColor("info")
-                .actionText("Holiday List")
+                .actionText("Manage Holidays")
                 .actionUrl("/admin/holidays")
                 .external(false)
                 .permission(PermissionFilterService.PERMISSION_MANAGE_HOLIDAYS)
                 .build();
     }
-
     //Team Lead Cards
     private DashboardCardDTO createTeamStatisticsCard() {
         return DashboardCardDTO.builder()
@@ -376,5 +359,18 @@ public class DashboardManager {
                 .permission(PermissionFilterService.PERMISSION_MANAGE_TEAM_CHECKING)
                 .build();
     }
-
+    private DashboardCardDTO createCheckBonusCard() {
+        return DashboardCardDTO.builder()
+                .title("Check Bonus Management")
+                .subtitle("View and manage team check bonuses")
+                .color("success")
+                .icon("currency-dollar")
+                .badge("Bonus")
+                .badgeColor("success")
+                .actionText("Manage Bonuses")
+                .actionUrl("/team/check-register/bonus")
+                .external(false)
+                .permission(PermissionFilterService.PERMISSION_MANAGE_TEAM_CHECKING)
+                .build();
+    }
 }

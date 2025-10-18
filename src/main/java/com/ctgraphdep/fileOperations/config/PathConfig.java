@@ -120,22 +120,24 @@ public class PathConfig {
     private String userRegister;
     @Value("${dbj.dir.format.register}")
     private String registerFormat;
+
     //Admin Register Path and Format
     @Value("${dbj.admin.register}")
     private String adminRegister;
     @Value("${dbj.dir.format.admin.register}")
     private String adminRegisterFormat;
-    @Value("${dbj.dir.format.admin.check.register}")
-    private String leadCheckRegisterFormat;
 
     //User Check Register Path and Format
     @Value("${dbj.user.check.register}")
     private String checkRegister;
     @Value("${dbj.dir.format.check.register}")
     private String checkRegisterFormat;
+
     //Team Lead Check Register Path and Format
     @Value("${dbj.admin.check.register}")
     private String leadCheckRegister;
+    @Value("${dbj.dir.format.admin.check.register}")
+    private String leadCheckRegisterFormat;
     @Value("${dbj.dir.format.lead.check.bonus}")
     private String leadCheckBonusFormat;
 

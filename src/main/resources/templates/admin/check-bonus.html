@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}"
+      lang="en">
+<head>
+    <title>Team Check Bonus Management</title>
+    <link rel="stylesheet" th:href="@{/css/check-bonus.css?v=18782}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187813}">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-4">
+        <!-- Alert System -->
+        <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
+
+        <!-- Header Section -->
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="header-title">
+                    <i class="bi bi-currency-dollar me-2"></i>Team Check Bonus Management
+                </h1>
+                <div class="badge bg-primary rounded-pill">
+                    <i class="bi bi-people me-2"></i>Team Lead Panel
+                </div>
+            </div>
+            <a class="btn btn-outline-secondary" th:href="${dashboardUrl}">
+                <i class="bi bi-grid me-1"></i>Dashboard
+            </a>
+        </div>
+
+        <!-- Period Selection -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Year Selection -->
+                    <div class="col-md-2">
+                        <label for="yearSelect" class="form-label">Year</label>
+                        <select id="yearSelect" class="form-select">
+                            <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
+                                    th:value="${y}"
+                                    th:text="${y}"
+                                    th:selected="${y == currentYear}">
+                                2025
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Month Selection -->
+                    <div class="col-md-2">
+                        <label for="monthSelect" class="form-label">Month</label>
+                        <select id="monthSelect" class="form-select">
+                            <option th:each="m : ${#numbers.sequence(1, 12)}"
+                                    th:value="${m}"
+                                    th:text="${T(java.time.Month).of(m).toString().toLowerCase().substring(0,1).toUpperCase() + T(java.time.Month).of(m).toString().toLowerCase().substring(1)}"
+                                    th:selected="${m == currentMonth}">
+                                January
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Load Data Button -->
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="loadData" class="btn btn-primary w-100">
+                            <i class="bi bi-sync me-2"></i>Load Data
+                        </button>
+                    </div>
+
+                    <!-- Export Excel Button -->
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="exportExcel" class="btn btn-success w-100">
+                            <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                        </button>
+                    </div>
+
+                    <!-- View Dashboard Button -->
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <a th:href="@{/team/check-register}" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-clipboard-check me-2"></i>Back to Check Register
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bonus Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Team Check Bonus Overview</h5>
+                    <span class="badge bg-secondary" id="totalEntriesCount">0 users</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table id="checkBonusTable" class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable" data-sort="name">
+                                    Name <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="totalWUM">
+                                    Total WU/M <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="workingHours">
+                                    Working Hours <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="targetWUHR">
+                                    Target WU/HR <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="totalWUHRM">
+                                    Total WU/HR/M <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="efficiencyPercent">
+                                    Efficiency % <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="bonusAmount">
+                                    Bonus Amount <span class="sort-icon"></span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="checkBonusTableBody">
+                            <!-- Populated by JavaScript -->
+                            <tr id="emptyRow">
+                                <td colspan="7" class="text-center py-5">
+                                    <div class="text-muted">
+                                        <i class="bi bi-inbox-fill fs-2 d-block mb-3"></i>
+                                        <h5>No Bonus Data Available</h5>
+                                        <p>Select a year and month, then click "Load Data" to view team check bonuses.</p>
+                                        <p class="small">If no data exists for this period, the bonus file hasn't been created yet.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page Scripts -->
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/toast-alerts.js?v=187814}"></script>
+    <script th:inline="javascript">
+        // Pass server-side variables to JavaScript
+        const CURRENT_YEAR = /*[[${currentYear}]]*/ new Date().getFullYear();
+        const CURRENT_MONTH = /*[[${currentMonth}]]*/ new Date().getMonth() + 1;
+        const DASHBOARD_URL = /*[[${dashboardUrl}]]*/ '/team';
+    </script>
+    <script th:src="@{/js/check-bonus.js?v=18785}"></script>
+</th:block>
+</body>
+</html>

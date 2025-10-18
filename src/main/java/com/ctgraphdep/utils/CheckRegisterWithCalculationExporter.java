@@ -160,12 +160,9 @@ public class CheckRegisterWithCalculationExporter {
             statusCell.setCellValue(entry.getApprovalStatus() != null ? entry.getApprovalStatus() : "");
             statusCell.setCellStyle(styles.get("cell-center"));
 
-            // Controller (username) - capitalize first letter, centered
+            // Controller (first name only for Excel) - centered
             Cell controllerCell = dataRow.createCell(9);
-            String controller = user.getUsername() != null ? user.getUsername() : "";
-            if (!controller.isEmpty()) {
-                controller = controller.substring(0, 1).toUpperCase() + controller.substring(1);
-            }
+            String controller = extractFirstName(user.getName());
             controllerCell.setCellValue(controller);
             controllerCell.setCellStyle(styles.get("cell-center"));
 
@@ -690,5 +687,27 @@ public class CheckRegisterWithCalculationExporter {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         workbook.write(outputStream);
         return outputStream.toByteArray();
+    }
+
+    /**
+     * Extract first name from full name
+     * For example: "Oana Radu" -> "Oana"
+     *
+     * @param fullName The full name
+     * @return First name only, or full name if no space found, or empty string if null
+     */
+    private String extractFirstName(String fullName) {
+        if (fullName == null || fullName.trim().isEmpty()) {
+            return "";
+        }
+
+        String trimmed = fullName.trim();
+        int spaceIndex = trimmed.indexOf(' ');
+
+        if (spaceIndex > 0) {
+            return trimmed.substring(0, spaceIndex);
+        }
+
+        return trimmed;
     }
 }

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+<body>
+<!-- Check Bonus Fragment for Team Lead - Individual User Bonus Calculation -->
+<div th:fragment="check-bonus-content (urlPrefix, isTeamView)" class="check-bonus-content">
+    <!-- Only show for team lead view with selected user -->
+    <div th:if="${isTeamView && selectedUser != null && !needsInitialization}">
+
+        <!-- Bonus Configuration Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-currency-dollar me-2"></i>Bonus Configuration
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Bonus Sum Input -->
+                    <div class="col-md-3">
+                        <label for="bonusSum" class="form-label">Bonus Sum</label>
+                        <input type="number"
+                               class="form-control"
+                               id="bonusSum"
+                               value="1343"
+                               step="0.01"
+                               min="0"
+                               placeholder="1343">
+                    </div>
+
+                    <!-- Standard Hours Input -->
+                    <div class="col-md-3">
+                        <label for="standardHours" class="form-label">Standard Hours/Month</label>
+                        <input type="number"
+                               class="form-control"
+                               id="standardHours"
+                               value="160"
+                               step="1"
+                               min="0"
+                               placeholder="160">
+                    </div>
+
+                    <!-- Calculate Button -->
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="calculateBonusBtn"
+                                class="btn btn-primary w-100"
+                                type="button">
+                            <i class="bi bi-calculator me-1"></i>Calculate Bonus
+                        </button>
+                    </div>
+
+                    <!-- Save Button -->
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="saveBonusBtn"
+                                class="btn btn-success w-100"
+                                type="button">
+                            <i class="bi bi-save me-1"></i>Save Bonus
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bonus Results Card -->
+        <div class="card shadow-sm mb-4" id="bonusResults" style="display: none;">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up me-2"></i>Bonus Calculation -
+                    <span id="bonusUserName" th:text="${selectedUser.name}">User Name</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-center">Total WU/M</th>
+                                <th class="text-center">Working Hours</th>
+                                <th class="text-center">Target WU/HR</th>
+                                <th class="text-center">Total WU/HR/M</th>
+                                <th class="text-center">Efficiency %</th>
+                                <th class="text-center">Bonus Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bonusResultsBody">
+                            <!-- Single row populated by JavaScript for selected user -->
+                            <tr>
+                                <td class="text-center" id="result-totalWUM">-</td>
+                                <td class="text-center" id="result-workingHours">-</td>
+                                <td class="text-center" id="result-targetWUHR">-</td>
+                                <td class="text-center" id="result-totalWUHRM">-</td>
+                                <td class="text-center" id="result-efficiencyPercent">-</td>
+                                <td class="text-center fw-bold" id="result-bonusAmount">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State Message -->
+        <div class="alert alert-info" id="noBonusMessage" style="display: none;">
+            <i class="bi bi-info-circle me-2"></i>
+            No bonus calculated yet. Click "Calculate Bonus" to generate bonus for
+            <strong th:text="${selectedUser.name}">selected user</strong>.
+        </div>
+
+        <!-- Error Message -->
+        <div class="alert alert-danger" id="bonusErrorMessage" style="display: none;">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <span id="bonusErrorText"></span>
+        </div>
+
+        <!-- Success Message -->
+        <div class="alert alert-success" id="bonusSuccessMessage" style="display: none;">
+            <i class="bi bi-check-circle me-2"></i>
+            <span id="bonusSuccessText"></span>
+        </div>
+    </div>
+</div>
+</body>
+</html>
