@@ -473,8 +473,9 @@ class CheckRegisterSummaryHandler {
             this.metrics.totalFiles = 0;
             this.metrics.totalOrderValue = 0;
 
-            // Get standard hours and target units/hour from the page
+            // Get standard hours, live work hours, and target units/hour from the page
             this.metrics.standardHours = parseFloat(document.getElementById('standard-hours')?.textContent || '0');
+            this.metrics.liveWorkHours = parseFloat(document.getElementById('live-work-hours')?.textContent || '0');
             this.metrics.targetUnitsHour = parseFloat(document.getElementById('target-units-hour')?.textContent || '0');
 
             // DIRECT ID COUNTING APPROACH
@@ -570,7 +571,7 @@ class CheckRegisterSummaryHandler {
                 }
             });
 
-            // Calculate efficiency
+            // Calculate efficiency (based on Standard Hours)
             let efficiency = 0;
             if (this.metrics.standardHours > 0 && this.metrics.targetUnitsHour > 0) {
                 const targetTotal = this.metrics.standardHours * this.metrics.targetUnitsHour;
@@ -590,6 +591,29 @@ class CheckRegisterSummaryHandler {
                     efficiencyElement.classList.add('medium-efficiency');
                 } else {
                     efficiencyElement.classList.add('low-efficiency');
+                }
+            }
+
+            // Calculate Live Efficiency (based on actual Live Work Hours)
+            let liveEfficiency = 0;
+            if (this.metrics.liveWorkHours > 0 && this.metrics.targetUnitsHour > 0) {
+                const liveTargetTotal = this.metrics.liveWorkHours * this.metrics.targetUnitsHour;
+                liveEfficiency = liveTargetTotal > 0 ? (this.metrics.totalOrderValue / liveTargetTotal * 100) : 0;
+            }
+
+            // Update the live efficiency level element
+            const liveEfficiencyElement = document.getElementById('live-efficiency-level');
+            if (liveEfficiencyElement) {
+                liveEfficiencyElement.textContent = `${liveEfficiency.toFixed(1)}%`;
+
+                // Add class based on live efficiency level
+                liveEfficiencyElement.classList.remove('high-efficiency', 'medium-efficiency', 'low-efficiency');
+                if (liveEfficiency >= 90) {
+                    liveEfficiencyElement.classList.add('high-efficiency');
+                } else if (liveEfficiency >= 70) {
+                    liveEfficiencyElement.classList.add('medium-efficiency');
+                } else {
+                    liveEfficiencyElement.classList.add('low-efficiency');
                 }
             }
 

@@ -93,20 +93,20 @@ public class CheckRegisterController extends BaseController {
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Calculate standard work hours
-            int standardWorkHours = workScheduleService.calculateStandardWorkHours(currentUser.getUsername(), selectedYear, selectedMonth);
+            // Calculate standard work hours using cache-aware method
+            double standardWorkHours = workScheduleService.calculateStandardWorkHoursWithCache(
+                    currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
 
-            // Get target work units per hour from cache if available, otherwise use the service
-            double targetWorkUnitsPerHour;
-            if (checkValuesCacheManager.hasCachedCheckValues(currentUser.getUsername())) {
-                targetWorkUnitsPerHour = checkValuesCacheManager.getTargetWorkUnitsPerHour(currentUser.getUsername());
-                LoggerUtil.info(this.getClass(), String.format("USING CACHED VALUE: For user %s, cached targetWorkUnitsPerHour=%f", currentUser.getUsername(), targetWorkUnitsPerHour));
-            } else {
-                targetWorkUnitsPerHour = workScheduleService.getTargetWorkUnitsPerHour();
-                LoggerUtil.warn(this.getClass(), String.format("USING DEFAULT VALUE: For user %s, default targetWorkUnitsPerHour=%f", currentUser.getUsername(), targetWorkUnitsPerHour));
-            }
+            // Calculate live work hours using cache-aware method
+            double liveWorkHours = workScheduleService.calculateLiveWorkHours(
+                    currentUser.getUsername(), currentUser.getUserId(), selectedYear, selectedMonth);
+
+            // Get target work units per hour from cache (CheckValuesCacheManager handles defaults internally)
+            double targetWorkUnitsPerHour = checkValuesCacheManager.getTargetWorkUnitsPerHour(currentUser.getUsername());
+            LoggerUtil.info(this.getClass(), String.format("Target work units/hour for %s: %.2f", currentUser.getUsername(), targetWorkUnitsPerHour));
 
             model.addAttribute("standardWorkHours", standardWorkHours);
+            model.addAttribute("liveWorkHours", liveWorkHours);
             model.addAttribute("targetWorkUnitsPerHour", targetWorkUnitsPerHour);
 
             // Add check type values from cache to be used by JavaScript
@@ -182,6 +182,7 @@ public class CheckRegisterController extends BaseController {
 
             // Provide default values for metrics in case of error
             model.addAttribute("standardWorkHours", 160);
+            model.addAttribute("liveWorkHours", 0);
             model.addAttribute("targetWorkUnitsPerHour", 4.5);
 
             return "user/check-register";

@@ -30,6 +30,7 @@ public class WorktimeCacheService {
 
     private final WorktimeDataService worktimeDataService;
     private final MainDefaultUserContextCache mainDefaultUserContextCache;
+    private MetricsCacheService metricsCacheService; // Optional - set via setter to avoid circular dependency
 
     // Thread-safe cache - monthKey as key (format: "username-year-month")
     private final ConcurrentHashMap<String, WorktimeCacheEntry> userMonthSessions = new ConcurrentHashMap<>();
@@ -42,6 +43,14 @@ public class WorktimeCacheService {
         this.worktimeDataService = worktimeDataService;
         this.mainDefaultUserContextCache = mainDefaultUserContextCache;
         LoggerUtil.initialize(this.getClass(), null);
+    }
+
+    /**
+     * Set MetricsCacheService - using setter injection to avoid circular dependency
+     */
+    @Autowired(required = false)
+    public void setMetricsCacheService(MetricsCacheService metricsCacheService) {
+        this.metricsCacheService = metricsCacheService;
     }
 
     // ========================================================================
@@ -198,6 +207,12 @@ public class WorktimeCacheService {
                     // Cache not loaded - create new session
                     boolean sessionCreated = loadUserMonthSession(username, userId, year, month);
                     LoggerUtil.debug(this.getClass(), String.format("Cache session created for %s - %d/%d: %s", username, year, month, sessionCreated));
+                }
+
+                // Step 3: Invalidate metrics cache since worktime data changed
+                if (metricsCacheService != null) {
+                    metricsCacheService.invalidateMonth(username, year, month);
+                    LoggerUtil.debug(this.getClass(), String.format("Invalidated metrics cache for %s - %d/%d", username, year, month));
                 }
 
                 return true;
