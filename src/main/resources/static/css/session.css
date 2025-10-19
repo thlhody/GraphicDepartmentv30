@@ -1,86 +1,401 @@
-/* Custom styles for session stats */
-.stat-container {
-    transition: transform 0.2s ease;
+/* ========================================
+   MODERN SESSION PAGE STYLES
+   White Background, Clean Design
+   ======================================== */
+
+/* Page Layout */
+.session-tab {
+    background: #ffffff;
+    min-height: 100vh;
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 
-.stat-container:hover {
-    transform: translateY(-2px);
+.session-tab .container {
+    max-width: 1400px;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 
-.time-display {
-    font-size: 2rem;
+/* Header Styles */
+.page-header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.header-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+.page-header .badge {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
     font-weight: 500;
+    letter-spacing: 0.3px;
 }
 
+.page-header .badge.bg-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+.page-header .badge.bg-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+}
+
+.page-header .badge.bg-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+}
+
+.page-header .badge.bg-secondary {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+}
+
+.status-online {
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Session Controls - Modern Button Grid */
 .session-controls {
-    gap: 0.5rem;
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+    max-width: 100%;
 }
 
-/* Make buttons flex to fill available space evenly */
-.session-controls form,
-.session-controls > .btn {
-    flex: 1;
-    display: flex;
+.session-controls form {
+    display: contents;
 }
 
 .session-controls .btn {
     width: 100%;
-    padding: 0.75rem 1rem;
-    white-space: nowrap;
-    font-weight: 500;
-    border-radius: 0.5rem;
-    transition: all 0.2s ease;
-}
-
-.session-controls .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-@media (max-width: 768px) {
-    .session-controls {
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
-    .session-controls form,
-    .session-controls .btn {
-        width: 100%;
-    }
-}
-
-/* Styles for end time scheduler */
-/* Styles for end time scheduler section */
-.border-purple {
-    border-left-color: #6f42c1 !important;
-}
-
-/* Styles for end time calculations */
-.end-time-calculation-result {
-    display: block;
-    width: 100%;
-    transition: all 0.2s ease;
-}
-
-.end-time-calculation-result.highlight-result {
-    animation: pulse-highlight 1s ease;
-}
-
-.calculation-card {
-    font-size: 0.85rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.calculation-card .card-title {
+    padding: 1rem 1.25rem;
+    font-weight: 600;
     font-size: 0.9rem;
+    border-radius: 12px;
+    border: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.session-controls .btn i {
+    font-size: 1.1rem;
+}
+
+.session-controls .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.session-controls .btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.session-controls .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.session-controls .btn-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.session-controls .btn-info {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    color: white;
+}
+
+.session-controls .btn-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+}
+
+.session-controls .btn-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+}
+
+.session-controls .btn-outline-secondary {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #6b7280;
+}
+
+.session-controls .btn-outline-secondary:hover:not(:disabled) {
+    background: #f9fafb;
+    border-color: #d1d5db;
+}
+
+.session-controls .btn-outline-primary {
+    background: white;
+    border: 2px solid #667eea;
+    color: #667eea;
+}
+
+.session-controls .btn-outline-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+/* Main Session Card */
+.session-info-card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+.session-info-card .card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    padding: 1.5rem;
+    color: white;
+}
+
+.session-info-card .card-header h5 {
+    font-weight: 600;
+    font-size: 1.125rem;
+    margin: 0;
+}
+
+.session-info-card .card-header .badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+}
+
+.session-info-card .card-body {
+    padding: 2rem;
+    background: white;
+}
+
+/* Clock Display - Modern Glassmorphism */
+.clock-container {
+    margin-bottom: 2.5rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(102, 126, 234, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.clock-container::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(102, 126, 234, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.clock-container h6 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #6b7280;
+    margin-bottom: 0.75rem;
+    position: relative;
+    z-index: 1;
+}
+
+.time-display {
+    font-size: 3rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-variant-numeric: tabular-nums;
+    position: relative;
+    z-index: 1;
+}
+
+/* Stats Grid - Modern Card Design - 3 per row */
+/* ONLY target session info card rows, NOT time management rows */
+.session-info-card .card-body .row.g-4 {
+    row-gap: 1rem;
+    column-gap: 1rem;
+}
+
+/* Force 3 columns per row - ONLY in session info card */
+.session-info-card .card-body .row .col-md-4 {
+    flex: 0 0 auto;
+    width: calc(33.333% - 0.75rem);
+}
+
+.stat-container {
+    padding: 1rem;
+    background: white;
+    border-radius: 10px;
+    border-left: 3px solid;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    height: 100%;
+}
+
+.stat-container:hover {
+    transform: translateX(3px);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+.stat-container h6 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.stat-container h6 i {
+    font-size: 0.9rem;
+    opacity: 0.7;
+}
+
+.stat-container .h5 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-container small {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 500;
+}
+
+/* Border Colors for Stats */
+.border-primary {
+    border-left-color: #667eea !important;
+}
+
+.border-success {
+    border-left-color: #10b981 !important;
+}
+
+.border-info {
+    border-left-color: #0ea5e9 !important;
+}
+
+.border-warning {
+    border-left-color: #f59e0b !important;
+}
+
+.border-danger {
+    border-left-color: #ef4444 !important;
+}
+
+.border-secondary {
+    border-left-color: #6b7280 !important;
+}
+
+.border-purple {
+    border-left-color: #9c27b0 !important;
+}
+
+/* End Time Scheduler Section */
+.stat-container .input-group-sm .form-control {
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.stat-container .input-group-sm .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.stat-container .input-group-text {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    color: #6b7280;
     font-weight: 600;
 }
 
-.calculation-details strong {
+.stat-container .btn-sm {
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
     font-weight: 600;
+}
+
+.stat-container .badge.bg-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+.stat-container .badge.bg-light {
+    background: #f9fafb !important;
+    color: #667eea;
+    border: 1px solid #e5e7eb;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.stat-container .badge.bg-light:hover {
+    background: #667eea !important;
+    color: white;
+    border-color: #667eea;
+}
+
+/* Calculation Preview */
+.calculation-preview-container {
+    min-height: 60px;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.calculation-preview-container .text-muted {
+    color: #9ca3af;
+    font-size: 0.875rem;
+}
+
+.calculation-details {
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.calculation-details i {
+    width: 16px;
+    text-align: center;
+    color: #6b7280;
+}
+
+.calculation-preview-container.highlight-result {
+    animation: pulse-highlight 1s ease;
 }
 
 @keyframes pulse-highlight {
@@ -89,67 +404,362 @@
     100% { opacity: 1; transform: scale(1); }
 }
 
-/* Calculation preview styles */
-.calculation-preview-container {
-    min-height: 60px;
+/* Unresolved Tab Styles */
+.unresolved-tab .card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
 }
 
-.calculation-details i {
-    width: 16px;
-    text-align: center;
+.unresolved-tab .card-header {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    border: none;
+    padding: 1.5rem;
+    color: white;
+    border-radius: 16px 16px 0 0;
 }
 
-.calculation-preview-container.highlight-result {
-    animation: pulse-highlight 1s ease;
-}
-
-/* Enhanced persistent notification styles */
-.resolution-container {
-    position: relative;
-    z-index: 10;
-}
-
-.resolution-container .card {
-    border-width: 2px !important;
-    box-shadow: 0 8px 20px rgba(255, 193, 7, 0.15) !important;
-    animation: gentle-pulse 2s ease-in-out infinite;
-}
-
-.resolution-container .card-header {
-    background: linear-gradient(135deg, #ffc107, #ff8f00) !important;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-.resolution-container .card-header h5 {
+.unresolved-tab .card-header h5 {
     font-weight: 600;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    font-size: 1.125rem;
 }
 
-/* Subtle pulsing animation for the resolution container */
-@keyframes gentle-pulse {
-    0%, 100% {
-        box-shadow: 0 8px 20px rgba(255, 193, 7, 0.15);
-        transform: scale(1);
+.unresolved-floating-card {
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    z-index: 1050;
+    max-width: 380px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    border-left: 4px solid #f59e0b;
+    animation: slide-in-right 0.4s ease;
+}
+
+@keyframes slide-in-right {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
     }
-    50% {
-        box-shadow: 0 12px 25px rgba(255, 193, 7, 0.25);
-        transform: scale(1.005);
+    to {
+        transform: translateX(0);
+        opacity: 1;
     }
 }
 
-/* Enhanced unresolved entries alert styling */
-.alert-warning.border-2 {
-    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
-    background: linear-gradient(135deg, #fff3cd, #fffaeb);
+.floating-card-content {
+    padding: 1.5rem;
 }
 
-.alert-warning.border-2 .alert-icon i {
-    animation: gentle-bounce 2s ease-in-out infinite;
+.card-header-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
-@keyframes gentle-bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-3px); }
+.card-icon {
+    font-size: 2rem;
+    color: #f59e0b;
+}
+
+.card-title {
+    font-weight: 600;
+    font-size: 1.125rem;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+.card-message {
+    color: #6b7280;
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.card-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn-resolve {
+    flex: 1;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-resolve:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.btn-dismiss {
+    background: white;
+    border: 2px solid #e5e7eb;
+    color: #6b7280;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-dismiss:hover {
+    background: #f9fafb;
+}
+
+.progress-bar {
+    height: 3px;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    width: 0%;
+    animation: progress 10s linear;
+}
+
+@keyframes progress {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
+/* Time Management Tab */
+.time-management-tab {
+    margin-top: 1rem;
+}
+
+.time-management-tab .card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.time-management-tab .card-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    border: none;
+    padding: 1rem 1.5rem;
+    border-radius: 16px 16px 0 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: white !important;
+}
+
+.time-management-tab .card-header:hover {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(14, 165, 233, 0.3);
+}
+
+.time-management-tab .card-header h5 {
+    font-weight: 600;
+    font-size: 1rem;
+    color: white !important;
+    margin: 0;
+}
+
+.time-management-tab .card-header h5 i {
+    opacity: 0.9;
+    color: white !important;
+}
+
+.time-management-tab .card-header small {
+    color: rgba(255, 255, 255, 0.95) !important;
+    font-size: 0.813rem;
+}
+
+.time-management-tab .card-header #tmToggleIcon {
+    color: white !important;
+    opacity: 0.9;
+    transition: transform 0.3s ease;
+}
+
+.time-management-tab .card-header:hover #tmToggleIcon {
+    opacity: 1;
+}
+
+/* Force white text for all card headers within Time Management section */
+.time-management-tab .card .card-header,
+.time-management-tab .card .card-header h6,
+.time-management-tab .card .card-header .card-title,
+.time-management-tab .card .card-header i,
+.time-management-tab .summary-card .card-header,
+.time-management-tab .summary-card .card-header h6,
+.time-management-tab .summary-card .card-header .card-title,
+.time-management-tab .summary-card .card-header i,
+.time-management-tab .timeoff-card .card-header,
+.time-management-tab .timeoff-card .card-header h6,
+.time-management-tab .timeoff-card .card-header .card-title,
+.time-management-tab .timeoff-card .card-header i {
+    color: white !important;
+}
+
+/* Work Time Records card header - make export button visible */
+.time-management-tab .btn-outline-success {
+    color: white !important;
+    border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.time-management-tab .btn-outline-success:hover {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    border-color: white !important;
+}
+
+.time-management-tab .card-body {
+    padding: 1.5rem;
+}
+
+/* Make the time management content more compact */
+.time-management-tab .summary-card {
+    margin-bottom: 1rem;
+}
+
+.time-management-tab .timeoff-card {
+    margin-bottom: 1rem;
+}
+
+/* Ensure the layout is more horizontal - summary and timeoff side by side */
+.time-management-tab .row {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+}
+
+.time-management-tab .row > [class*="col"] {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+/* Make the work time records table more compact */
+.time-management-tab .table-sm {
+    font-size: 0.813rem;
+}
+
+.time-management-tab .table-sm th,
+.time-management-tab .table-sm td {
+    padding: 0.4rem 0.25rem;
+}
+
+/* Resolution Form Styles */
+.resolution-form .form-label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.875rem;
+}
+
+.resolution-form .form-select {
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    padding: 0.625rem;
+    transition: all 0.2s ease;
+}
+
+.resolution-form .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.calculation-panel {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+}
+
+.calculation-panel.error {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.calculation-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.calculation-text {
+    font-size: 0.875rem;
+    color: #6b7280;
+    line-height: 1.6;
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+    /* 2 columns on tablets */
+    .session-info-card .card-body .row .col-md-4 {
+        width: calc(50% - 0.5rem);
+    }
+}
+
+@media (max-width: 768px) {
+    .session-controls {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .time-display {
+        font-size: 2.25rem;
+    }
+
+    .stat-container {
+        padding: 1.25rem;
+    }
+
+    .stat-container .h5 {
+        font-size: 1.25rem;
+    }
+
+    .unresolved-floating-card {
+        top: 80px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+
+    .page-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start !important;
+    }
+
+    .header-title {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    /* Single column on mobile */
+    .session-info-card .card-body .row .col-md-4 {
+        width: 100%;
+    }
+
+    .session-info-card .card-body {
+        padding: 1.5rem;
+    }
+
+    .clock-container {
+        padding: 1.5rem;
+    }
+
+    .session-info-card .row.g-4 {
+        row-gap: 1rem;
+    }
+}
+
+/* Status Badge Animations */
+.status-active {
+    animation: status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
 }
 
 /* Time pulse animation for live clock */
@@ -159,87 +769,6 @@
 
 @keyframes time-pulse-effect {
     0% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.8; transform: scale(1.05); }
+    50% { opacity: 0.9; transform: scale(1.02); }
     100% { opacity: 1; transform: scale(1); }
-}
-
-/* Enhanced status badge animations */
-.status-active {
-    animation: status-pulse 2s ease-in-out infinite;
-}
-
-@keyframes status-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.8; }
-}
-
-/* Form validation states */
-.resolution-form .form-control:invalid {
-    border-color: #dc3545;
-    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-}
-
-.resolution-form .form-control:valid {
-    border-color: #198754;
-    box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
-}
-
-/* Enhanced calculation panel styling */
-.calculation-panel {
-    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-    border: 1px solid #dee2e6;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    transition: all 0.3s ease;
-}
-
-.calculation-panel.error {
-    background: linear-gradient(135deg, #f8d7da, #f5c2c7);
-    border-color: #dc3545;
-}
-
-.calculation-breakdown .calculation-item {
-    padding: 0.25rem 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.calculation-breakdown .calculation-item:last-child {
-    border-bottom: none;
-}
-
-.calculation-breakdown .calculation-item.total {
-    background: rgba(25, 135, 84, 0.1);
-    margin: 0.5rem -1rem -1rem;
-    padding: 0.75rem 1rem;
-    border-radius: 0 0 0.5rem 0.5rem;
-    border-bottom: none;
-}
-
-.calculation-breakdown .calculation-item.overtime {
-    background: rgba(220, 53, 69, 0.1);
-    margin: 0.5rem -1rem;
-    padding: 0.5rem 1rem;
-    border-bottom: none;
-}
-
-/* Responsive enhancements */
-@media (max-width: 768px) {
-    .resolution-container .card-body {
-        padding: 1rem;
-    }
-
-    .time-selectors {
-        flex-direction: column !important;
-        gap: 0.5rem;
-    }
-
-    .time-selectors .form-group {
-        margin-right: 0 !important;
-        width: 100%;
-    }
-
-    .info-items {
-        flex-direction: column !important;
-        gap: 0.5rem !important;
-    }
 }

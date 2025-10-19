@@ -4,12 +4,114 @@
  */
 
 /* ========================================================================
+   LAYOUT OPTIMIZATION - ENSURE SIDE-BY-SIDE FIT
+   ======================================================================== */
+
+/* Container padding adjustments */
+#timeManagementContent .container,
+.time-management-tab .container {
+    max-width: 1400px !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+}
+
+/* Force better column layout - prevent stacking on larger screens */
+/* AGGRESSIVE SELECTORS - target all possible col-lg-3 and col-lg-9 */
+@media (min-width: 992px) {
+    /* Ultra-specific targeting for col-lg-3 */
+    .col-lg-3,
+    div[class*="col-lg-3"],
+    #timeManagementContent .col-lg-3,
+    #timeManagementContent div[class*="col-lg-3"],
+    .time-management-tab .col-lg-3,
+    .container .row > .col-lg-3,
+    .container .col-lg-3 {
+        flex: 0 0 auto !important;
+        width: 26% !important;
+        max-width: 340px !important;
+    }
+
+    /* Ultra-specific targeting for col-lg-9 */
+    .col-lg-9,
+    div[class*="col-lg-9"],
+    #timeManagementContent .col-lg-9,
+    #timeManagementContent div[class*="col-lg-9"],
+    .time-management-tab .col-lg-9,
+    .container .row > .col-lg-9,
+    .container .col-lg-9 {
+        flex: 0 0 auto !important;
+        width: 74% !important;
+    }
+
+    /* Force row to display as flex */
+    .row.g-4,
+    div[class*="row g-4"],
+    #timeManagementContent .row,
+    .container .row {
+        display: flex !important;
+        flex-wrap: wrap !important;
+    }
+
+    /* Left column: 2 cards stacked */
+    .col-lg-3 .summary-card,
+    .col-lg-3 .timeoff-card {
+        margin-bottom: 0.75rem;
+    }
+
+    /* Right column: 1 tall card that grows */
+    .col-lg-9 > .card {
+        min-height: 600px;
+    }
+}
+
+/* Medium screens - still keep side by side but adjust ratios */
+@media (min-width: 768px) and (max-width: 991px) {
+    .col-lg-3,
+    div[class*="col-lg-3"],
+    #timeManagementContent .col-lg-3,
+    .time-management-tab .col-lg-3,
+    .container .col-lg-3 {
+        flex: 0 0 auto !important;
+        width: 32% !important;
+    }
+
+    .col-lg-9,
+    div[class*="col-lg-9"],
+    #timeManagementContent .col-lg-9,
+    .time-management-tab .col-lg-9,
+    .container .col-lg-9 {
+        flex: 0 0 auto !important;
+        width: 68% !important;
+    }
+}
+
+/* Ensure row uses proper spacing and layout */
+.row.g-4,
+#timeManagementContent .row.g-4,
+.time-management-tab .row.g-4,
+.container .row.g-4 {
+    margin-left: -0.5rem !important;
+    margin-right: -0.5rem !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+}
+
+.row.g-4 > [class*="col"],
+#timeManagementContent .row.g-4 > [class*="col"],
+.time-management-tab .row.g-4 > [class*="col"],
+.container .row.g-4 > [class*="col"] {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+}
+
+/* ========================================================================
    COMPACT SUMMARY CARD STYLES
    ======================================================================== */
 
 .summary-card {
     transition: transform 0.2s ease;
     border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
 }
 
 .summary-card:hover {
@@ -18,15 +120,16 @@
 
 /* Compact summary body */
 .compact-summary {
-    padding: 0.75rem !important;
-    font-size: 0.875rem;
+    padding: 0.625rem !important;
+    font-size: 0.813rem;
 }
 
 /* Compact summary items */
 .summary-item-compact {
     transition: transform 0.1s ease;
     border-radius: 0.375rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.2rem;
+    padding: 0.4rem 0.5rem !important;
 }
 
 .summary-item-compact:hover {
@@ -35,8 +138,9 @@
 
 /* Mini summary items for time off breakdown */
 .summary-item-mini {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     border-radius: 0.25rem;
+    padding: 0.25rem 0.5rem !important;
 }
 
 .summary-item-mini:hover {
@@ -45,15 +149,159 @@
 
 /* Section titles in compact summary */
 .section-title {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: #495057;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
 }
 
 /* Compact badges */
 .summary-card .badge.small {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+}
+
+/* ========================================================================
+   MODERN CARD HEADER GRADIENT STYLES
+   ======================================================================== */
+
+/* Month Overview card - Blue gradient */
+.summary-card .card-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+    border: none !important;
+    padding: 0.75rem 1rem !important;
+    border-radius: 0.5rem 0.5rem 0 0 !important;
+    transition: all 0.3s ease;
+}
+
+.summary-card .card-header:hover {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+}
+
+.summary-card .card-header h6,
+.summary-card .card-header .card-title {
+    color: white !important;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.summary-card .card-header i {
+    color: white !important;
+    opacity: 0.9;
+}
+
+/* Request Time Off card - Blue gradient */
+.timeoff-card .card-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+    border: none !important;
+    padding: 0.75rem 1rem !important;
+    border-radius: 0.5rem 0.5rem 0 0 !important;
+    transition: all 0.3s ease;
+}
+
+.timeoff-card .card-header:hover {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+}
+
+.timeoff-card .card-header h6,
+.timeoff-card .card-header .card-title {
+    color: white !important;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.timeoff-card .card-header i {
+    color: white !important;
+    opacity: 0.9;
+}
+
+/* Work Time Records card - Blue gradient */
+.card .card-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+    border: none !important;
+    padding: 1rem 1.25rem !important;
+    border-radius: 0.5rem 0.5rem 0 0 !important;
+    transition: all 0.3s ease;
+}
+
+.card .card-header:hover {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+}
+
+.card .card-header h5,
+.card .card-header .card-title {
+    color: white !important;
+    font-weight: 600;
+    margin: 0;
+}
+
+.card .card-header i {
+    color: white !important;
+}
+
+.card .card-header small,
+.card .card-header .text-muted {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Override form styling inside Work Time Records header */
+.card .card-header .form-label {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.card .card-header .form-select {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+.card .card-header .form-select:focus {
+    background-color: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: white;
+}
+
+.card .card-header .form-select option {
+    background-color: #0284c7;
+    color: white;
+}
+
+/* Export button - White outline on blue background */
+.card .card-header .btn-outline-success {
+    color: white !important;
+    border-color: rgba(255, 255, 255, 0.5) !important;
+    background-color: transparent;
+}
+
+.card .card-header .btn-outline-success:hover {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    border-color: white !important;
+    color: white !important;
+}
+
+/* Primary button inside header */
+.card .card-header .btn-primary {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: white;
+}
+
+.card .card-header .btn-primary:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: white;
+}
+
+/* Vertical divider in header */
+.card .card-header .vr {
+    background-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 /* ========================================================================
