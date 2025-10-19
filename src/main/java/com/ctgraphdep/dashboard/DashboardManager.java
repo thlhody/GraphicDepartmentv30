@@ -364,7 +364,7 @@ public class DashboardManager {
                 .title("Check Bonus Management")
                 .subtitle("View and manage team check bonuses")
                 .color("success")
-                .icon("currency-dollar")
+                .icon("journal-text")
                 .badge("Bonus")
                 .badgeColor("success")
                 .actionText("Manage Bonuses")
