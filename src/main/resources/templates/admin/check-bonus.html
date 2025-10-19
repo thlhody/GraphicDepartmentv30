@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.w3.org/1999/xhtml"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       layout:decorate="~{layout/default}"
       lang="en">
 <head>
     <title>Team Check Bonus Management</title>
-    <link rel="stylesheet" th:href="@{/css/check-bonus.css?v=18782}">
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=187813}">
+    <link rel="stylesheet" th:href="@{/css/bonus.css?v=191020250926}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=191020250926}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -18,9 +19,12 @@
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
                 <h1 class="header-title">
-                    <i class="bi bi-currency-dollar me-2"></i>Team Check Bonus Management
+                    <i class="bi bi-cash-stack me-2"></i>Check Bonus Management
                 </h1>
-                <div class="badge bg-primary rounded-pill">
+                <div class="badge bg-primary rounded-pill" sec:authorize="hasRole('ROLE_ADMIN')">
+                    <i class="bi bi-shield me-2"></i>Admin Panel
+                </div>
+                <div class="badge bg-primary rounded-pill" sec:authorize="hasAnyRole('ROLE_TL_CHECKING', 'ROLE_TEAM_LEADER')">
                     <i class="bi bi-people me-2"></i>Team Lead Panel
                 </div>
             </div>
@@ -67,19 +71,27 @@
                         </button>
                     </div>
 
-                    <!-- Export Excel Button -->
-                    <div class="col-md-3">
+                    <!-- Export Admin Excel Button (Admin only) -->
+                    <div class="col-md-2" sec:authorize="hasRole('ROLE_ADMIN')">
                         <label class="form-label">&nbsp;</label>
                         <button id="exportExcel" class="btn btn-success w-100">
-                            <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                            <i class="bi bi-file-earmark-excel me-2"></i>Export Admin
                         </button>
                     </div>
 
-                    <!-- View Dashboard Button -->
-                    <div class="col-md-3">
+                    <!-- Export User Excel Button -->
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="exportUserExcel" class="btn btn-success w-100">
+                            <i class="bi bi-file-earmark-person me-2"></i>Export User
+                        </button>
+                    </div>
+
+                    <!-- Back to Check Register Button (Team Leader only) -->
+                    <div class="col-md-2" sec:authorize="hasRole('ROLE_TL_CHECKING')">
                         <label class="form-label">&nbsp;</label>
                         <a th:href="@{/team/check-register}" class="btn btn-outline-primary w-100">
-                            <i class="bi bi-clipboard-check me-2"></i>Back to Check Register
+                            <i class="bi bi-clipboard-check me-2"></i>Back to Register
                         </a>
                     </div>
                 </div>
@@ -144,14 +156,8 @@
 
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/toast-alerts.js?v=187814}"></script>
-    <script th:inline="javascript">
-        // Pass server-side variables to JavaScript
-        const CURRENT_YEAR = /*[[${currentYear}]]*/ new Date().getFullYear();
-        const CURRENT_MONTH = /*[[${currentMonth}]]*/ new Date().getMonth() + 1;
-        const DASHBOARD_URL = /*[[${dashboardUrl}]]*/ '/team';
-    </script>
-    <script th:src="@{/js/check-bonus.js?v=18785}"></script>
+    <script th:src="@{/js/toast-alerts.js?v=191020250926}"></script>
+    <script th:src="@{/js/check-bonus.js?v=191020250926}"></script>
 </th:block>
 </body>
 </html>

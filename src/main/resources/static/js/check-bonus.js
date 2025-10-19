@@ -11,7 +11,7 @@
     const header = document.querySelector('meta[name="_csrf_header"]')?.content;
 
     // DOM Elements
-    let yearSelect, monthSelect, loadDataBtn, exportExcelBtn;
+    let yearSelect, monthSelect, loadDataBtn, exportExcelBtn, exportUserExcelBtn;
     let checkBonusTableBody, totalEntriesCount, emptyRow;
 
     // Current data
@@ -28,6 +28,7 @@
         monthSelect = document.getElementById('monthSelect');
         loadDataBtn = document.getElementById('loadData');
         exportExcelBtn = document.getElementById('exportExcel');
+        exportUserExcelBtn = document.getElementById('exportUserExcel');
         checkBonusTableBody = document.getElementById('checkBonusTableBody');
         totalEntriesCount = document.getElementById('totalEntriesCount');
         emptyRow = document.getElementById('emptyRow');
@@ -41,6 +42,7 @@
         // Attach event listeners
         loadDataBtn.addEventListener('click', handleLoadData);
         exportExcelBtn?.addEventListener('click', handleExportExcel);
+        exportUserExcelBtn?.addEventListener('click', handleExportUserExcel);
 
         // Setup sortable columns
         setupSortableColumns();
@@ -184,6 +186,14 @@
         const efficiencyPercent = entry.efficiencyPercent || 0;
         const bonusAmount = entry.bonusAmount || 0;
 
+        // Determine efficiency level for row coloring
+        let efficiencyLevel = 'low';
+        if (efficiencyPercent >= 100) {
+            efficiencyLevel = 'high';
+        } else if (efficiencyPercent >= 70) {
+            efficiencyLevel = 'medium';
+        }
+
         // Determine efficiency badge class
         let efficiencyClass = 'efficiency-low';
         if (efficiencyPercent >= 100) {
@@ -192,13 +202,8 @@
             efficiencyClass = 'efficiency-medium';
         }
 
-        // Determine bonus amount class
-        let bonusClass = 'bonus-amount-low';
-        if (bonusAmount >= 1200) {
-            bonusClass = 'bonus-amount-high';
-        } else if (bonusAmount >= 800) {
-            bonusClass = 'bonus-amount-medium';
-        }
+        // Set row efficiency data attribute for CSS styling
+        row.setAttribute('data-efficiency', efficiencyLevel);
 
         row.innerHTML = `
             <td>${escapeHtml(name)}</td>
@@ -209,7 +214,7 @@
             <td class="text-center">
                 <span class="efficiency-badge ${efficiencyClass}">${efficiencyPercent}%</span>
             </td>
-            <td class="text-center ${bonusClass}">${formatNumber(bonusAmount)}</td>
+            <td class="text-center">${formatCurrency(bonusAmount)}</td>
         `;
 
         // Store data for sorting
@@ -277,7 +282,7 @@
     }
 
     /**
-     * Handle export to Excel
+     * Handle export to Excel (Admin version with bonus amounts)
      */
     async function handleExportExcel() {
         const year = yearSelect.value;
@@ -321,7 +326,7 @@
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
 
-            showToastAlert('Bonus data exported successfully', 'success');
+            showToastAlert('Admin bonus data exported successfully', 'success');
 
         } catch (error) {
             console.error('Error exporting bonus data:', error);
@@ -329,7 +334,64 @@
         } finally {
             // Reset button state
             exportExcelBtn.disabled = false;
-            exportExcelBtn.innerHTML = '<i class="bi bi-file-earmark-excel me-2"></i>Export Excel';
+            exportExcelBtn.innerHTML = '<i class="bi bi-file-earmark-excel me-2"></i>Export Admin';
+        }
+    }
+
+    /**
+     * Handle export to Excel for users (without bonus amounts)
+     */
+    async function handleExportUserExcel() {
+        const year = yearSelect.value;
+        const month = monthSelect.value;
+
+        if (!year || !month) {
+            showToastAlert('Please select year and month', 'warning');
+            return;
+        }
+
+        if (!currentBonusData || currentBonusData.length === 0) {
+            showToastAlert('No data to export', 'warning');
+            return;
+        }
+
+        // Show loading state
+        exportUserExcelBtn.disabled = true;
+        exportUserExcelBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Exporting...';
+
+        try {
+            // Make API call to export user version
+            const response = await fetch(`/team/check-register/export-bonus-user?year=${year}&month=${month}`, {
+                method: 'GET',
+                headers: {
+                    [header]: token
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to export performance data');
+            }
+
+            // Download file
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `check_performance_${year}_${month}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            showToastAlert('Performance data exported successfully', 'success');
+
+        } catch (error) {
+            console.error('Error exporting performance data:', error);
+            showToastAlert(error.message || 'Failed to export performance data', 'danger');
+        } finally {
+            // Reset button state
+            exportUserExcelBtn.disabled = false;
+            exportUserExcelBtn.innerHTML = '<i class="bi bi-file-earmark-person me-2"></i>Export User';
         }
     }
 
@@ -341,6 +403,17 @@
             return '-';
         }
         return parseFloat(value).toFixed(2);
+    }
+
+    /**
+     * Format currency with RON suffix
+     */
+    function formatCurrency(value) {
+        if (value === null || value === undefined || isNaN(value)) {
+            return '0.00 RON';
+        }
+        const numValue = parseFloat(value);
+        return numValue.toFixed(2) + ' RON';
     }
 
     /**

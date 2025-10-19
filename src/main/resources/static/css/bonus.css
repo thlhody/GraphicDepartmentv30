@@ -1,5 +1,6 @@
 /* ========================================
-   Team Check Bonus Styles
+   Unified Bonus Management Styles
+   Used by both Admin Bonus and Check Bonus pages
    ======================================== */
 
 /* Page Header */
@@ -34,10 +35,12 @@
 }
 
 /* Table Styling */
+#bonusTable,
 #checkBonusTable {
     font-size: 0.95rem;
 }
 
+#bonusTable thead th,
 #checkBonusTable thead th {
     background-color: #f8f9fa;
     border-bottom: 2px solid #dee2e6;
@@ -47,12 +50,14 @@
     vertical-align: middle;
 }
 
+#bonusTable tbody td,
 #checkBonusTable tbody td {
     padding: 0.75rem;
     vertical-align: middle;
     border-bottom: 1px solid #e9ecef;
 }
 
+#bonusTable tbody tr:hover,
 #checkBonusTable tbody tr:hover {
     background-color: #f8f9fa;
 }
@@ -61,48 +66,67 @@
 .sortable {
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
     position: relative;
-    padding-right: 1.5rem;
+    padding-left: 28px !important;
+    text-indent: 10px !important;
 }
 
 .sortable:hover {
     background-color: #e9ecef;
 }
 
+/* Sort icon styling */
 .sort-icon {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-right: 4px solid transparent;
+    border-left: 4px solid transparent;
     position: absolute;
-    right: 0.5rem;
+    left: 10px;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 0.75rem;
-    color: #6c757d;
+    opacity: 0.3;
 }
 
-.sort-icon::before {
-    content: '⇅';
+/* Default unsorted state */
+.sortable .sort-icon::before {
+    content: '';
 }
 
-.sortable.asc .sort-icon::before {
-    content: '▲';
-    color: #0d6efd;
+/* Ascending sort */
+.sortable.asc .sort-icon,
+.sortable.sort-asc .sort-icon {
+    border-bottom: 4px solid #0d6efd;
+    opacity: 1;
 }
 
-.sortable.desc .sort-icon::before {
-    content: '▼';
-    color: #0d6efd;
+/* Descending sort */
+.sortable.desc .sort-icon,
+.sortable.sort-desc .sort-icon {
+    border-top: 4px solid #0d6efd;
+    opacity: 1;
 }
 
 /* Empty State */
 #emptyRow td {
     padding: 3rem 1rem !important;
+    text-align: center !important;
 }
 
 #emptyRow .text-muted {
     color: #6c757d !important;
+    text-align: center !important;
 }
 
 #emptyRow i.bi-inbox-fill {
     color: #adb5bd;
+}
+
+#emptyRow h5,
+#emptyRow p {
+    text-align: center !important;
 }
 
 /* Number Formatting */
@@ -147,14 +171,17 @@
 
 .bonus-amount-high {
     color: #198754;
+    font-weight: 600;
 }
 
 .bonus-amount-medium {
     color: #fd7e14;
+    font-weight: 600;
 }
 
 .bonus-amount-low {
     color: #dc3545;
+    font-weight: 600;
 }
 
 /* Form Controls */
@@ -268,26 +295,28 @@
         padding: 0.4rem 0.8rem;
     }
 
+    #bonusTable thead th,
+    #bonusTable tbody td,
     #checkBonusTable thead th,
     #checkBonusTable tbody td {
         padding: 0.5rem;
     }
 }
 
-/* Bonus Fragment Specific Styles */
-.check-bonus-content {
+/* Bonus Content Specific Styles */
+.bonus-content {
     margin-top: 2rem;
 }
 
-.check-bonus-content .card {
+.bonus-content .card {
     border: 1px solid #dee2e6;
 }
 
-.check-bonus-content .table {
+.bonus-content .table {
     margin-bottom: 0;
 }
 
-.check-bonus-content #bonusResults {
+.bonus-content #bonusResults {
     animation: fadeIn 0.3s ease-in-out;
 }
 
@@ -350,4 +379,67 @@ input[type="number"]::-webkit-outer-spin-button {
     .table {
         font-size: 10pt;
     }
+}
+
+/* Admin Bonus Specific: Column width settings */
+#bonusTable th:first-child,
+#bonusTable td:first-child {
+    text-align: left !important;
+    width: 200px !important;
+    max-width: 200px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+/* Admin Bonus Specific: Numeric columns alignment */
+#bonusTable th:nth-child(n+2),
+#bonusTable td:nth-child(n+2) {
+    text-align: right !important;
+    width: auto !important;
+    min-width: 80px !important;
+}
+
+/* Admin Bonus Specific: Row coloring by entries level */
+#bonusTable tbody tr[data-entries="high"] {
+    background-color: #e3f2fd !important;
+}
+
+#bonusTable tbody tr[data-entries="medium"] {
+    background-color: #fff3e0 !important;
+}
+
+#bonusTable tbody tr[data-entries="low"] {
+    background-color: #ffebee !important;
+}
+
+#bonusTable tbody tr:hover {
+    filter: brightness(95%) !important;
+}
+
+/* Check Bonus Specific: Row coloring by efficiency level */
+#checkBonusTable tbody tr[data-efficiency="high"] {
+    background-color: #d4edda !important;
+}
+
+#checkBonusTable tbody tr[data-efficiency="medium"] {
+    background-color: #fff3cd !important;
+}
+
+#checkBonusTable tbody tr[data-efficiency="low"] {
+    background-color: #f8d7da !important;
+}
+
+#checkBonusTable tbody tr:hover {
+    filter: brightness(95%) !important;
+}
+
+/* Override Bootstrap table variables */
+#bonusTable,
+#checkBonusTable {
+    --bs-table-bg: transparent;
+    --bs-table-accent-bg: transparent;
+    --bs-table-striped-bg: transparent;
+    --bs-table-active-bg: transparent;
+    --bs-table-hover-bg: transparent;
 }

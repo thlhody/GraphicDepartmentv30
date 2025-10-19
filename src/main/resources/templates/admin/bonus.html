@@ -5,68 +5,83 @@
         lang="en">
 <head>
     <title>Admin Bonus Management</title>
-    <link rel="stylesheet" th:href="@{/css/admin-bonus.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/bonus.css?v=191020250926}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=191020250926}">
 </head>
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
+        <!-- Alert System -->
+        <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
+
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">
                 <h1 class="header-title">
-                    <i class="bi bi-currency-dollar me-2"></i>Bonus Management
+                    <i class="bi bi-cash-stack me-2"></i>Admin Bonus Management
                 </h1>
                 <div class="badge bg-primary rounded-pill">
                     <i class="bi bi-shield me-2"></i>Admin Panel
                 </div>
             </div>
-            <a class="btn btn-outline-primary" th:href="@{/admin}">
-                <i class="bi bi-grid me-2"></i>Dashboard
+            <a class="btn btn-outline-secondary" th:href="@{/admin}">
+                <i class="bi bi-grid me-1"></i>Dashboard
             </a>
         </div>
 
         <!-- Period Selection -->
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-2">
-                    <label for="yearSelect" class="form-label">Year</label>
-                    <select id="yearSelect" class="form-select">
-                        <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
-                                th:value="${y}"
-                                th:text="${y}"
-                                th:selected="${y == currentYear}">
-                            2024
-                        </option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="monthSelect" class="form-label">Month</label>
-                    <select id="monthSelect" class="form-select">
-                        <option th:each="month : ${months}"
-                                th:value="${month.key}"
-                                th:text="${month.value}"
-                                th:selected="${month.key == currentMonth}">
-                            January
-                        </option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">&nbsp;</label>
-                    <button id="loadData" class="btn btn-primary w-100">
-                        <i class="bi bi-sync me-2"></i>Load Data
-                    </button>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">&nbsp;</label>
-                    <button id="exportExcel" class="btn btn-success w-100">
-                        <i class="bi bi-file-earmark-excel me-2"></i>Export Admin Excel
-                    </button>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">&nbsp;</label>
-                    <button id="exportUserExcel" class="btn btn-success w-100">
-                        <i class="bi bi-file-earmark-person me-2"></i>Export User Excel
-                    </button>
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Year Selection -->
+                    <div class="col-md-2">
+                        <label for="yearSelect" class="form-label">Year</label>
+                        <select id="yearSelect" class="form-select">
+                            <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
+                                    th:value="${y}"
+                                    th:text="${y}"
+                                    th:selected="${y == currentYear}">
+                                2025
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Month Selection -->
+                    <div class="col-md-2">
+                        <label for="monthSelect" class="form-label">Month</label>
+                        <select id="monthSelect" class="form-select">
+                            <option th:each="month : ${months}"
+                                    th:value="${month.key}"
+                                    th:text="${month.value}"
+                                    th:selected="${month.key == currentMonth}">
+                                January
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Load Data Button -->
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="loadData" class="btn btn-primary w-100">
+                            <i class="bi bi-sync me-2"></i>Load Data
+                        </button>
+                    </div>
+
+                    <!-- Export Admin Excel Button -->
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="exportExcel" class="btn btn-success w-100">
+                            <i class="bi bi-file-earmark-excel me-2"></i>Export Admin Excel
+                        </button>
+                    </div>
+
+                    <!-- Export User Excel Button -->
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button id="exportUserExcel" class="btn btn-success w-100">
+                            <i class="bi bi-file-earmark-person me-2"></i>Export User Excel
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -74,53 +89,66 @@
         <!-- Bonus Table -->
         <div class="card shadow-sm">
             <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Bonus Overview</h5>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Register Bonus Overview</h5>
+                    <span class="badge bg-secondary" id="totalEntriesCount">0 users</span>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table id="bonusTable" class="table table-hover mb-0">
-                        <thead class="bg-light">
-                        <tr>
-                            <th class="sortable" data-sort="name">
-                                Name <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="entries">
-                                Act. <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="articleNumbers">
-                                Nr.Art. <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="graphicComplexity">
-                                C.G. <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="misc">
-                                Misc <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="workedDays">
-                                Z.L.d <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="workedPercentage">
-                                Work % <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="bonusPercentage">
-                                Bonus % <span class="sort-icon"></span>
-                            </th>
-                            <th class="sortable" data-sort="bonusAmount">
-                                Current Bonus <span class="sort-icon"></span>
-                            </th>
-                            <th id="prev-month-1" class="sortable" data-sort="previousMonth1">
-                                Previous 1 <span class="sort-icon"></span>
-                            </th>
-                            <th id="prev-month-2" class="sortable" data-sort="previousMonth2">
-                                Previous 2 <span class="sort-icon"></span>
-                            </th>
-                            <th id="prev-month-3" class="sortable" data-sort="previousMonth3">
-                                Previous 3 <span class="sort-icon"></span>
-                            </th>
-                        </tr>
+                    <table id="bonusTable" class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable" data-sort="name">
+                                    Name <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="entries">
+                                    Act. <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="articleNumbers">
+                                    Nr.Art. <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="graphicComplexity">
+                                    C.G. <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="misc">
+                                    Misc <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="workedDays">
+                                    Z.L.d <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="workedPercentage">
+                                    Work % <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="bonusPercentage">
+                                    Bonus % <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable text-center" data-sort="bonusAmount">
+                                    Current Bonus <span class="sort-icon"></span>
+                                </th>
+                                <th id="prev-month-1" class="sortable text-center" data-sort="previousMonth1">
+                                    Previous 1 <span class="sort-icon"></span>
+                                </th>
+                                <th id="prev-month-2" class="sortable text-center" data-sort="previousMonth2">
+                                    Previous 2 <span class="sort-icon"></span>
+                                </th>
+                                <th id="prev-month-3" class="sortable text-center" data-sort="previousMonth3">
+                                    Previous 3 <span class="sort-icon"></span>
+                                </th>
+                            </tr>
                         </thead>
                         <tbody id="bonusTableBody">
-                        <!-- Populated by JavaScript -->
+                            <!-- Populated by JavaScript -->
+                            <tr id="emptyRow">
+                                <td colspan="12" class="text-center py-5">
+                                    <div class="text-muted">
+                                        <i class="bi bi-inbox-fill fs-2 d-block mb-3"></i>
+                                        <h5>No Bonus Data Available</h5>
+                                        <p>Select a year and month, then click "Load Data" to view register bonuses.</p>
+                                        <p class="small">If no data exists for this period, the bonus file hasn't been created yet.</p>
+                                    </div>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -128,9 +156,11 @@
         </div>
     </div>
 </div>
+
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/admin-bonus.js?v=18781}"></script>
+    <script th:src="@{/js/toast-alerts.js?v=191020250926}"></script>
+    <script th:src="@{/js/admin-bonus.js?v=191020250926}"></script>
 </th:block>
 </body>
 </html>

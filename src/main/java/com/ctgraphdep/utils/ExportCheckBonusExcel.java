@@ -18,7 +18,25 @@ import java.util.Map;
 public class ExportCheckBonusExcel {
     private Workbook workbook;
 
+    /**
+     * Export bonus data to Excel (Admin version with bonus amounts)
+     */
     public byte[] exportToExcel(List<CheckBonusEntry> bonusData, int year, int month) {
+        return exportToExcel(bonusData, year, month, false);
+    }
+
+    /**
+     * Export bonus data to Excel for users (without bonus amounts)
+     */
+    public byte[] exportToExcelForUser(List<CheckBonusEntry> bonusData, int year, int month) {
+        return exportToExcel(bonusData, year, month, true);
+    }
+
+    /**
+     * Export bonus data to Excel
+     * @param hideBonus if true, hides the bonus amount column (for user export)
+     */
+    private byte[] exportToExcel(List<CheckBonusEntry> bonusData, int year, int month, boolean hideBonus) {
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             this.workbook = workbook;
             Sheet sheet = workbook.createSheet("Check Bonus Report");
@@ -27,18 +45,20 @@ public class ExportCheckBonusExcel {
             int currentRow = 0;
 
             // Create title section
-            currentRow = createTitleSection(sheet, styles, year, month, currentRow);
+            currentRow = createTitleSection(sheet, styles, year, month, currentRow, hideBonus);
             currentRow += 2;
 
-            // Create summary section
-            currentRow = createSummarySection(sheet, styles, bonusData, currentRow);
-            currentRow += 2;
+            // Create summary section (only if not hiding bonus)
+            if (!hideBonus) {
+                currentRow = createSummarySection(sheet, styles, bonusData, currentRow);
+                currentRow += 2;
+            }
 
             // Create data table
-            currentRow = createDataTable(sheet, styles, bonusData, currentRow);
+            currentRow = createDataTable(sheet, styles, bonusData, currentRow, hideBonus);
 
             // Adjust column widths
-            adjustColumnWidths(sheet);
+            adjustColumnWidths(sheet, hideBonus);
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             workbook.write(outputStream);
@@ -49,12 +69,16 @@ public class ExportCheckBonusExcel {
         }
     }
 
-    private int createTitleSection(Sheet sheet, Map<String, CellStyle> styles, int year, int month, int startRow) {
+    private int createTitleSection(Sheet sheet, Map<String, CellStyle> styles, int year, int month, int startRow, boolean hideBonus) {
         Row titleRow = sheet.createRow(startRow++);
         Cell titleCell = titleRow.createCell(0);
-        titleCell.setCellValue(String.format("Check Bonus Report - %s %d", Month.of(month), year));
+        String title = hideBonus ?
+            String.format("Check Performance Report - %s %d", Month.of(month), year) :
+            String.format("Check Bonus Report - %s %d", Month.of(month), year);
+        titleCell.setCellValue(title);
         titleCell.setCellStyle(styles.get("title"));
-        sheet.addMergedRegion(new CellRangeAddress(startRow-1, startRow-1, 0, 6));
+        int lastCol = hideBonus ? 5 : 6;
+        sheet.addMergedRegion(new CellRangeAddress(startRow-1, startRow-1, 0, lastCol));
 
         return startRow;
     }
@@ -119,20 +143,21 @@ public class ExportCheckBonusExcel {
     }
 
     private int createDataTable(Sheet sheet, Map<String, CellStyle> styles,
-                                List<CheckBonusEntry> bonusData, int startRow) {
+                                List<CheckBonusEntry> bonusData, int startRow, boolean hideBonus) {
         // Create table title
         Row tableTitleRow = sheet.createRow(startRow++);
         Cell tableTitle = tableTitleRow.createCell(0);
-        tableTitle.setCellValue("Check Bonus Details");
+        String tableTitle_text = hideBonus ? "Check Performance Details" : "Check Bonus Details";
+        tableTitle.setCellValue(tableTitle_text);
         tableTitle.setCellStyle(styles.get("subHeader"));
-        sheet.addMergedRegion(new CellRangeAddress(startRow-1, startRow-1, 0, 6));
+        int lastCol = hideBonus ? 5 : 6;
+        sheet.addMergedRegion(new CellRangeAddress(startRow-1, startRow-1, 0, lastCol));
 
         // Create header row
         Row headerRow = sheet.createRow(startRow++);
-        String[] headers = {
-                "Name", "Total WU/M", "Working Hours", "Target WU/HR",
-                "Total WU/HR/M", "Efficiency %", "Bonus Amount"
-        };
+        String[] headers = hideBonus ?
+                new String[]{"Name", "Total WU/M", "Working Hours", "Target WU/HR", "Total WU/HR/M", "Efficiency %"} :
+                new String[]{"Name", "Total WU/M", "Working Hours", "Target WU/HR", "Total WU/HR/M", "Efficiency %", "Bonus Amount"};
 
         // Create header cells
         for (int i = 0; i < headers.length; i++) {
@@ -193,17 +218,20 @@ public class ExportCheckBonusExcel {
             efficiencyCell.setCellValue(efficiency);
             efficiencyCell.setCellStyle(percentStyle);
 
-            // Bonus Amount
-            Cell bonusCell = row.createCell(colNum++);
-            bonusCell.setCellValue(entry.getBonusAmount() != null ? entry.getBonusAmount() : 0.0);
-            bonusCell.setCellStyle(currencyStyle);
+            // Bonus Amount (only if not hiding)
+            if (!hideBonus) {
+                Cell bonusCell = row.createCell(colNum++);
+                bonusCell.setCellValue(entry.getBonusAmount() != null ? entry.getBonusAmount() : 0.0);
+                bonusCell.setCellStyle(currencyStyle);
+            }
         }
 
         return startRow;
     }
 
-    private void adjustColumnWidths(Sheet sheet) {
-        for (int i = 0; i < 7; i++) {
+    private void adjustColumnWidths(Sheet sheet, boolean hideBonus) {
+        int numColumns = hideBonus ? 6 : 7;
+        for (int i = 0; i < numColumns; i++) {
             sheet.autoSizeColumn(i);
             // Add a bit of padding
             sheet.setColumnWidth(i, sheet.getColumnWidth(i) + 1000);

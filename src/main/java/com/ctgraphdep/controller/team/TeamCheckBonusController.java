@@ -203,7 +203,7 @@ public class TeamCheckBonusController extends BaseController {
     }
 
     /**
-     * Export bonus data to Excel
+     * Export bonus data to Excel (Admin version with bonus amounts)
      * GET /team/check-register/export-bonus
      */
     @GetMapping("/export-bonus")
@@ -241,6 +241,48 @@ public class TeamCheckBonusController extends BaseController {
             LoggerUtil.error(this.getClass(), "Error exporting bonus: " + e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("message", "Failed to export bonus: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Export bonus data to Excel for users (without bonus amounts)
+     * GET /team/check-register/export-bonus-user
+     */
+    @GetMapping("/export-bonus-user")
+    public ResponseEntity<?> exportBonusForUser(@RequestParam("year") int year,
+                                                 @RequestParam("month") int month) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                "Export user bonus request for year: %d, month: %d", year, month));
+
+            // Load bonus data
+            ServiceResult<List<CheckBonusEntry>> result = checkBonusService.loadBonusData(year, month);
+
+            if (!result.isSuccess() || result.getData() == null || result.getData().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "No bonus data to export"));
+            }
+
+            // Export to Excel for user (without bonus amounts)
+            byte[] excelData = exportCheckBonusExcel.exportToExcelForUser(result.getData(), year, month);
+
+            // Prepare response headers
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment",
+                    String.format("check_performance_%d_%02d.xlsx", year, month));
+
+            LoggerUtil.info(this.getClass(), String.format(
+                "Successfully exported %d performance entries to Excel (user version)", result.getData().size()));
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(excelData);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error exporting user bonus: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to export user bonus: " + e.getMessage()));
         }
     }
 }

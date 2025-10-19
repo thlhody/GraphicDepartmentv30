@@ -41,18 +41,31 @@ let currentSort = {
 
 function displayBonusData(data) {
     const tbody = document.getElementById('bonusTableBody');
+    const totalEntriesCount = document.getElementById('totalEntriesCount');
     tbody.innerHTML = '';
 
     console.log('Raw data received:', data); // Debug log
 
     if (!data || Object.keys(data).length === 0) {
         tbody.innerHTML = `
-            <tr>
-                <td colspan="12" class="text-center">No bonus data available</td>
+            <tr id="emptyRow">
+                <td colspan="12" class="text-center py-5">
+                    <div class="text-muted">
+                        <i class="bi bi-inbox-fill fs-2 d-block mb-3"></i>
+                        <h5>No Bonus Data Available</h5>
+                        <p>Select a year and month, then click "Load Data" to view register bonuses.</p>
+                        <p class="small">If no data exists for this period, the bonus file hasn't been created yet.</p>
+                    </div>
+                </td>
             </tr>
         `;
+        if (totalEntriesCount) {
+            totalEntriesCount.textContent = '0 users';
+        }
         return;
     }
+
+    const userCount = Object.keys(data).length;
 
     Object.entries(data).forEach(([userId, entry]) => {
         console.log(`Processing entry for user ${userId}:`, entry); // Debug log
@@ -65,6 +78,10 @@ function displayBonusData(data) {
             entriesLevel = 'medium';
         }
 
+        const month1 = entry.previousMonths && entry.previousMonths.month1 ? entry.previousMonths.month1 : 0;
+        const month2 = entry.previousMonths && entry.previousMonths.month2 ? entry.previousMonths.month2 : 0;
+        const month3 = entry.previousMonths && entry.previousMonths.month3 ? entry.previousMonths.month3 : 0;
+
         const rowHtml = `
             <tr data-entries="${entriesLevel}">
                 <td>${entry.displayName || entry.username || 'Unknown User'}</td>
@@ -76,14 +93,19 @@ function displayBonusData(data) {
                 <td>${formatPercent(entry.workedPercentage)}</td>
                 <td>${formatPercent(entry.bonusPercentage)}</td>
                 <td>${formatCurrency(entry.bonusAmount)}</td>
-                <td>${formatCurrency(entry.previousMonths?.month1 || 0)}</td>
-                <td>${formatCurrency(entry.previousMonths?.month2 || 0)}</td>
-                <td>${formatCurrency(entry.previousMonths?.month3 || 0)}</td>
+                <td>${formatCurrency(month1)}</td>
+                <td>${formatCurrency(month2)}</td>
+                <td>${formatCurrency(month3)}</td>
             </tr>
         `;
 
         tbody.insertAdjacentHTML('beforeend', rowHtml);
     });
+
+    // Update user count
+    if (totalEntriesCount) {
+        totalEntriesCount.textContent = `${userCount} user${userCount !== 1 ? 's' : ''}`;
+    }
 
     sortTable('name');
 }
@@ -91,12 +113,24 @@ function displayBonusData(data) {
 async function loadBonusData() {
     const year = document.getElementById('yearSelect').value;
     const month = document.getElementById('monthSelect').value;
+    const loadDataBtn = document.getElementById('loadData');
+
+    // Show loading state
+    if (loadDataBtn) {
+        loadDataBtn.disabled = true;
+        loadDataBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+    }
 
     try {
         console.log(`Fetching data for year: ${year}, month: ${month}`);
         const response = await fetch(`/admin/bonus/data?year=${year}&month=${month}`);
 
         if (!response.ok) {
+            if (response.status === 404) {
+                displayBonusData({});
+                showToastAlert('No bonus data found for this period', 'warning');
+                return;
+            }
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
@@ -113,9 +147,21 @@ async function loadBonusData() {
         const data = await response.json();
         console.log('Response data:', data);
         displayBonusData(data);
+
+        const userCount = Object.keys(data || {}).length;
+        if (userCount > 0) {
+            showToastAlert(`Loaded ${userCount} bonus entries`, 'success');
+        }
     } catch (error) {
         console.error('Error loading bonus data:', error);
-        showError(`Failed to load bonus data: ${error.message}`);
+        showToastAlert(error.message || 'Failed to load bonus data', 'danger');
+        displayBonusData({});
+    } finally {
+        // Reset button state
+        if (loadDataBtn) {
+            loadDataBtn.disabled = false;
+            loadDataBtn.innerHTML = '<i class="bi bi-sync me-2"></i>Load Data';
+        }
     }
 }
 
@@ -177,18 +223,23 @@ function sortTable(column) {
 
 // Add formatting helper functions
 function formatNumber(value) {
-    return value?.toFixed(2) || '0.00';
+    if (value === null || value === undefined) {
+        return '0.00';
+    }
+    return value.toFixed(2);
 }
 
 function formatPercent(value) {
-    return (value?.toFixed(2) || '0.00') + '%';
+    if (value === null || value === undefined) {
+        return '0.00%';
+    }
+    return value.toFixed(2) + '%';
 }
 
 function formatCurrency(value) {
-    return new Intl.NumberFormat('ro-RO', {
-        style: 'currency',
-        currency: 'RON'
-    }).format(value || 0);
+    // Format as number with 2 decimals and add RON suffix
+    const numValue = parseFloat(value || 0);
+    return numValue.toFixed(2) + ' RON';
 }
 
 function getColumnIndex(column) {
@@ -209,31 +260,89 @@ function getColumnIndex(column) {
     return columns[column] || 0;
 }
 
-function showError(message) {
-    // You can implement your preferred error display method here
-    alert(message);
+/**
+ * Show toast alert
+ */
+function showToastAlert(message, type) {
+    // Use existing toast alert system if available
+    if (typeof window.showToast === 'function') {
+        // Map type to title
+        const titleMap = {
+            'success': 'Success',
+            'danger': 'Error',
+            'warning': 'Warning',
+            'info': 'Info'
+        };
+        const title = titleMap[type] || 'Notification';
+        window.showToast(title, message, type === 'danger' ? 'error' : type);
+    } else {
+        // Fallback to console
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
 }
 
 async function exportUserToExcel() {
     const year = document.getElementById('yearSelect').value;
     const month = document.getElementById('monthSelect').value;
+    const exportUserExcelBtn = document.getElementById('exportUserExcel');
+
+    if (!year || !month) {
+        showToastAlert('Please select year and month', 'warning');
+        return;
+    }
+
+    // Show loading state
+    if (exportUserExcelBtn) {
+        exportUserExcelBtn.disabled = true;
+        exportUserExcelBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Exporting...';
+    }
 
     try {
         window.location.href = `/admin/bonus/export/user?year=${year}&month=${month}`;
+        showToastAlert('User Excel exported successfully', 'success');
     } catch (error) {
         console.error('Error exporting user data:', error);
-        showError('Failed to export user data');
+        showToastAlert(error.message || 'Failed to export user data', 'danger');
+    } finally {
+        // Reset button state after a delay
+        setTimeout(() => {
+            if (exportUserExcelBtn) {
+                exportUserExcelBtn.disabled = false;
+                exportUserExcelBtn.innerHTML = '<i class="bi bi-file-earmark-person me-2"></i>Export User Excel';
+            }
+        }, 2000);
     }
 }
-// Add the export function
+
 async function exportToExcel() {
     const year = document.getElementById('yearSelect').value;
     const month = document.getElementById('monthSelect').value;
+    const exportExcelBtn = document.getElementById('exportExcel');
+
+    if (!year || !month) {
+        showToastAlert('Please select year and month', 'warning');
+        return;
+    }
+
+    // Show loading state
+    if (exportExcelBtn) {
+        exportExcelBtn.disabled = true;
+        exportExcelBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Exporting...';
+    }
 
     try {
         window.location.href = `/admin/bonus/export?year=${year}&month=${month}`;
+        showToastAlert('Admin Excel exported successfully', 'success');
     } catch (error) {
         console.error('Error exporting data:', error);
-        showError('Failed to export data');
+        showToastAlert(error.message || 'Failed to export data', 'danger');
+    } finally {
+        // Reset button state after a delay
+        setTimeout(() => {
+            if (exportExcelBtn) {
+                exportExcelBtn.disabled = false;
+                exportExcelBtn.innerHTML = '<i class="bi bi-file-earmark-excel me-2"></i>Export Admin Excel';
+            }
+        }, 2000);
     }
 }
