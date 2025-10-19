@@ -93,20 +93,20 @@
                                     <span>Total Entries: <strong id="total-entries">0</strong></span>
                                     <span>Total Articles: <strong id="total-articles">0</strong></span>
                                     <span>Total Files: <strong id="total-files">0</strong></span>
-                                    <span>Total Value: <strong id="total-order-value">0</strong></span>
                                     <span>Target Units/Hour: <strong id="target-units-hour" th:text="${targetWorkUnitsPerHour}">0</strong></span>
+                                    <span>Total Value: <strong id="total-order-value">0</strong></span>
+                                    <span title="Expected hours based on schedule and time off">
+                                        Standard Hours: <strong id="standard-hours" th:text="${standardWorkHours}">0</strong>
+                                    </span>
+                                    <span title="Efficiency based on Standard Hours">
+                                        Efficiency: <strong id="efficiency-level" class="text-primary">0%</strong>
+                                    </span>
                                 </div>
 
                                 <!-- Second row: Work hours and efficiency metrics -->
                                 <div class="d-flex flex-wrap gap-3 align-items-center">
-                                    <span title="Expected hours based on schedule and time off">
-                                        Standard Hours: <strong id="standard-hours" th:text="${standardWorkHours}">0</strong>
-                                    </span>
-                                    <span title="Actual hours worked from worktime tracking">
+                                     <span title="Actual hours worked from worktime tracking">
                                         Live Work Hours: <strong id="live-work-hours" th:text="${liveWorkHours}">0</strong>
-                                    </span>
-                                    <span title="Efficiency based on Standard Hours">
-                                        Efficiency: <strong id="efficiency-level" class="text-primary">0%</strong>
                                     </span>
                                     <span title="Efficiency based on actual Live Work Hours">
                                         Live Efficiency: <strong id="live-efficiency-level" class="text-success">0%</strong>
