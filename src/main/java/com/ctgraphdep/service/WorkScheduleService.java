@@ -6,7 +6,6 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.service.cache.MetricsCacheService;
-import com.ctgraphdep.service.cache.TimeOffCacheService;
 import com.ctgraphdep.service.cache.WorktimeCacheService;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
@@ -28,19 +27,16 @@ public class WorkScheduleService {
     private final UserService userService;
     private final WorktimeDataService worktimeDataService;
     private final WorktimeCacheService worktimeCacheService;
-    private final TimeOffCacheService timeOffCacheService;
     private final MetricsCacheService metricsCacheService;
 
     public WorkScheduleService(
             UserService userService,
             WorktimeDataService worktimeDataService,
             WorktimeCacheService worktimeCacheService,
-            TimeOffCacheService timeOffCacheService,
             MetricsCacheService metricsCacheService) {
         this.userService = userService;
         this.worktimeDataService = worktimeDataService;
         this.worktimeCacheService = worktimeCacheService;
-        this.timeOffCacheService = timeOffCacheService;
         this.metricsCacheService = metricsCacheService;
         LoggerUtil.initialize(this.getClass(), null);
     }
