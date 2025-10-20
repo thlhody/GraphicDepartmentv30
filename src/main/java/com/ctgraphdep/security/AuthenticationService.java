@@ -1,9 +1,9 @@
 package com.ctgraphdep.security;
 
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.data.UserDataService;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.service.UserLoginCacheService;
 import com.ctgraphdep.service.UserLoginMergeService;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
@@ -31,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class AuthenticationService {
 
-    private final DataAccessService dataAccessService;  // Keep for system utilities only
+    private final SystemAvailabilityService systemAvailabilityService;  // Keep for system utilities only
     private final UserDataService userDataService;      // Primary user data operations
     private final PasswordEncoder passwordEncoder;
     private final CustomUserDetailsService userDetailsService;
@@ -47,7 +47,7 @@ public class AuthenticationService {
 
 
     public AuthenticationService(
-            DataAccessService dataAccessService,
+            SystemAvailabilityService systemAvailabilityService,
             UserDataService userDataService,
             PasswordEncoder passwordEncoder,
             CustomUserDetailsService userDetailsService,
@@ -56,7 +56,7 @@ public class AuthenticationService {
             LoginMergeCacheService loginMergeCacheService,
             UserLoginMergeService userLoginMergeService,
             UserLoginCacheService userLoginCacheService) {
-        this.dataAccessService = dataAccessService;
+        this.systemAvailabilityService = systemAvailabilityService;
         this.userDataService = userDataService;
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
@@ -77,8 +77,8 @@ public class AuthenticationService {
      */
     public AuthenticationStatus getAuthenticationStatus() {
         try {
-            // Check network status via DataAccessService (system utility)
-            boolean networkAvailable = dataAccessService.isNetworkAvailable();
+            // Check network status via SystemAvailabilityService (system utility)
+            boolean networkAvailable = systemAvailabilityService.isNetworkAvailable();
 
             // Check if local users exist via UserDataService
             boolean offlineModeAvailable = false;

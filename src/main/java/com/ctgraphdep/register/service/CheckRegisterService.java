@@ -708,7 +708,7 @@ public class CheckRegisterService {
                 return ServiceResult.validationError("Search query is required", "missing_query");
             }
 
-            // This would need to be implemented in DataAccessService first
+            // This would need to be implemented in SystemAvailabilityService first
             // For now we'll just return an empty list
             LoggerUtil.info(this.getClass(), "Full search for check entries not yet implemented");
             return ServiceResult.successWithWarning(new ArrayList<>(), "Full search functionality not yet implemented");

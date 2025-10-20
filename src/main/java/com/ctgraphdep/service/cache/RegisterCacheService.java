@@ -320,7 +320,7 @@ public class RegisterCacheService {
     }
 
     /**
-     * Write month data from cache to file using DataAccessService
+     * Write month data from cache to file using SystemAvailabilityService
      */
     private boolean writeMonthToFile(RegisterCacheEntry cacheEntry) {
         try {
@@ -333,7 +333,7 @@ public class RegisterCacheService {
             LoggerUtil.debug(this.getClass(), String.format("Writing %d entries from cache to file for %s - %d/%d",
                     entries.size(), cacheEntry.getUsername(), cacheEntry.getMonth(), cacheEntry.getYear()));
 
-            // Use DataAccessService to write - this handles all the file operations, backup, and sync
+            // Use SystemAvailabilityService to write - this handles all the file operations, backup, and sync
             registerDataService.writeUserLocalWithSyncAndBackup(cacheEntry.getUsername(), cacheEntry.getUserId(), entries, cacheEntry.getYear(), cacheEntry.getMonth());
 
             // Mark cache as clean after successful write

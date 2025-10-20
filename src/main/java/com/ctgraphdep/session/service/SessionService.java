@@ -131,7 +131,7 @@ public class SessionService {
             LoggerUtil.debug(this.getClass(), String.format("Calculating end time work for user %s at %02d:%02d", username, endHour, endMinute));
 
             // Validate inputs
-            if (endHour < 0 || endHour > 23 || endMinute < 0 || endMinute > 59) {
+            if (endHour < WorkCode.DEFAULT_ZERO || endHour > WorkCode.DEFAULT_MIDNIGHT_END_HOUR || endMinute < WorkCode.DEFAULT_ZERO || endMinute > WorkCode.DEFAULT_MIDNIGHT_END_MIN){
                 return createErrorEndTimeDTO("Invalid time values");
             }
 
@@ -192,7 +192,7 @@ public class SessionService {
             LoggerUtil.debug(this.getClass(), String.format("Calculating resolution values for user %s, date %s at %02d:%02d", username, workDate, endHour, endMinute));
 
             // Validate inputs
-            if (endHour < 0 || endHour > 23 || endMinute < 0 || endMinute > 59) {
+            if (endHour < WorkCode.DEFAULT_ZERO || endHour > WorkCode.DEFAULT_MIDNIGHT_END_HOUR || endMinute < WorkCode.DEFAULT_ZERO || endMinute > WorkCode.DEFAULT_MIDNIGHT_END_MIN) {
                 return createErrorResolutionDTO("Invalid time values");
             }
 

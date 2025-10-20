@@ -2,7 +2,6 @@ package com.ctgraphdep.fileOperations.config;
 
 import com.ctgraphdep.fileOperations.core.FilePath;
 import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
-import com.ctgraphdep.fileOperations.util.FileOperationsUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -168,7 +167,7 @@ public class PathConfig {
         LoggerUtil.info(this.getClass(), "Raw network path: " + networkBasePath);
         try {
             // Fix network path format - ensure proper UNC path format
-            networkBasePath = FileOperationsUtil.normalizeNetworkPath(networkBasePath);
+            networkBasePath = normalizeNetworkPath(networkBasePath);
             LoggerUtil.info(this.getClass(), "Using normalized network path: " + networkBasePath);
 
             // Initialize paths
@@ -482,5 +481,32 @@ public class PathConfig {
             Files.createDirectories(directory);
             LoggerUtil.info(this.getClass(), "Created directory: " + directory);
         }
+    }
+
+    /**
+     * Normalizes a network path to ensure proper UNC format.
+     *
+     * @param path The network path to normalize
+     * @return The normalized path
+     */
+    private String normalizeNetworkPath(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return path;
+        }
+
+        // Remove any quotes, brackets or parentheses
+        path = path.replaceAll("[\"'()]", "");
+
+        // Fix UNC path format - must start with \\
+        if (path.startsWith("\\") && !path.startsWith("\\\\")) {
+            path = "\\" + path;
+        }
+
+        // Normalize excessive backslashes
+        if (path.matches("^\\\\\\\\\\\\\\\\+.*")) {
+            path = "\\\\\\\\" + path.replaceAll("^\\\\\\\\+", "");
+        }
+
+        return path;
     }
 }

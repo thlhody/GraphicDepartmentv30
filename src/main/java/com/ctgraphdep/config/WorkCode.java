@@ -57,6 +57,8 @@ public class WorkCode {
 
     // Constants for default end/start worktime
     public static final int DEFAULT_W_END_HOUR = 13;
+    public static final int DEFAULT_MIDNIGHT_END_HOUR = 23;
+    public static final int DEFAULT_MIDNIGHT_END_MIN = 59;
     public static final int DEFAULT_END_HOUR = 17;
     public static final int DEFAULT_ZERO = 0;
 
@@ -72,7 +74,7 @@ public class WorkCode {
             DayOfWeek.THURSDAY, "J", DayOfWeek.FRIDAY, "V", DayOfWeek.SATURDAY, "S",
             DayOfWeek.SUNDAY, "D"
     );
-    public static final Integer HISTORY_MONTHS = 12;
+
     public static final String[] MONTH_NAMES = {
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"
@@ -87,9 +89,6 @@ public class WorkCode {
     public static final String WORK_TS = "TS";
     public static final String WORK_OFFLINE = "Offline";
     public static final String WORK_OFFLINE_LONG = "WORK_OFFLINE";
-
-    //status dialog codes
-    public static final String STATUS_UNKNOWN = "Unknown";
 
     //action types
     public static final String AT_IMPOSTARE = "IMPOSTARE";

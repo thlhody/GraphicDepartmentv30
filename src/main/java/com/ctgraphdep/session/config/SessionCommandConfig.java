@@ -1,6 +1,6 @@
 package com.ctgraphdep.session.config;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.notification.api.NotificationService;
@@ -32,7 +32,7 @@ public class SessionCommandConfig {
             NotificationService notificationService,
             @Lazy SessionService sessionService,
             SessionDataService sessionDataService,
-            DataAccessService dataAccessService,
+            SystemAvailabilityService systemAvailabilityService,
             WorktimeOperationContext worktimeOperationContext) {
 
         return new SessionContext(userService,
@@ -45,7 +45,7 @@ public class SessionCommandConfig {
                 notificationService,
                 sessionService,
                 sessionDataService,
-                dataAccessService,
+                systemAvailabilityService,
                 worktimeOperationContext);
     }
 }

@@ -1,10 +1,10 @@
 package com.ctgraphdep.fileOperations.config;
 
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.service.*;
 import com.ctgraphdep.fileOperations.data.*;
 import com.ctgraphdep.fileOperations.events.FileEventPublisher;
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
-import com.ctgraphdep.fileOperations.DataAccessService;
 import com.ctgraphdep.monitoring.BackupEventMonitor;  // CHANGED: Import from monitoring package
 import com.ctgraphdep.service.cache.MainDefaultUserContextCache;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -195,12 +195,12 @@ public class FileOperationsConfig {
     // ===== MAIN FACADE SERVICE =====
 
     /**
-     * Creates the main DataAccessService as a pure facade over the specialized services.
+     * Creates the main SystemAvailabilityService as a pure facade over the specialized services.
      * This maintains backward compatibility while providing a cleaner architecture.
      */
     @Bean
-    public DataAccessService dataAccessService(PathConfig pathConfig) {
-        return new DataAccessService(pathConfig);
+    public SystemAvailabilityService dataAccessService(PathConfig pathConfig) {
+        return new SystemAvailabilityService(pathConfig);
     }
 
     // ===== NETWORK AND MONITORING =====

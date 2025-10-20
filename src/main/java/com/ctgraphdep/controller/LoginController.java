@@ -1,7 +1,7 @@
 package com.ctgraphdep.controller;
 
 import com.ctgraphdep.controller.base.BaseController;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -36,16 +36,16 @@ public class LoginController extends BaseController {
     private static final String MODE_OFFLINE = "OFFLINE";
     private static final String MODE_EMERGENCY = "EMERGENCY";
 
-    private final DataAccessService dataAccessService;
+    private final SystemAvailabilityService systemAvailabilityService;
 
     @Autowired
     public LoginController(
             UserService userService,
             FolderStatus folderStatus,
             TimeValidationService timeValidationService,
-            DataAccessService dataAccessService) {
+            SystemAvailabilityService systemAvailabilityService) {
         super(userService, folderStatus, timeValidationService);
-        this.dataAccessService = dataAccessService;
+        this.systemAvailabilityService = systemAvailabilityService;
     }
 
     @GetMapping
@@ -83,7 +83,7 @@ public class LoginController extends BaseController {
 
     private boolean checkNetworkAvailability() {
         try {
-            boolean available = dataAccessService.isNetworkAvailable();
+            boolean available = systemAvailabilityService.isNetworkAvailable();
             LoggerUtil.debug(this.getClass(), String.format("Network mode availability: %s", available));
             return available;
         } catch (Exception e) {
@@ -94,7 +94,7 @@ public class LoginController extends BaseController {
 
     private boolean checkOfflineModeAvailability() {
         try {
-            boolean available = dataAccessService.isOfflineModeAvailable();
+            boolean available = systemAvailabilityService.isOfflineModeAvailable();
             LoggerUtil.debug(this.getClass(), String.format("Offline mode availability: %s", available));
             return available;
         } catch (Exception e) {

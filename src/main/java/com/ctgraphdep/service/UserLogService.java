@@ -1,6 +1,6 @@
 package com.ctgraphdep.service;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.VersionModelAttribute;
@@ -23,7 +23,7 @@ import java.util.Optional;
  */
 @Service
 public class UserLogService {
-    private final DataAccessService dataAccessService;
+    private final SystemAvailabilityService systemAvailabilityService;
     private final SessionDataService sessionDataService;       // NEW - Log operations
     private final MainDefaultUserContextService mainDefaultUserContextService;       // NEW - Current user info
     private final UserService userService;                     // NEW - User data from cache
@@ -33,8 +33,8 @@ public class UserLogService {
     private static final long RETRY_DELAY_MS = 120000; // 2 minutes
 
     @Autowired
-    public UserLogService(DataAccessService dataAccessService, SessionDataService sessionDataService, MainDefaultUserContextService mainDefaultUserContextService, UserService userService) {
-        this.dataAccessService = dataAccessService;
+    public UserLogService(SystemAvailabilityService systemAvailabilityService, SessionDataService sessionDataService, MainDefaultUserContextService mainDefaultUserContextService, UserService userService) {
+        this.systemAvailabilityService = systemAvailabilityService;
         this.sessionDataService = sessionDataService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.userService = userService;
@@ -55,7 +55,7 @@ public class UserLogService {
      */
     private void syncUserLog(String username) {
         // Use SessionDataService to check network availability
-        if (!dataAccessService.isNetworkAvailable()) {
+        if (!systemAvailabilityService.isNetworkAvailable()) {
             LoggerUtil.info(this.getClass(), "Network unavailable, skipping log sync");
             return;
         }
@@ -93,7 +93,7 @@ public class UserLogService {
         LoggerUtil.info(this.getClass(), "Attempting to sync logs for user: " + username);
 
         // Check network availability via SessionDataService
-        if (!dataAccessService.isNetworkAvailable()) {
+        if (!systemAvailabilityService.isNetworkAvailable()) {
             LoggerUtil.warn(this.getClass(), "Network is not available. Cannot sync logs.");
             return new SyncResult(false, "Network is currently unavailable. Log sync will be performed automatically when connection is restored.");
         }

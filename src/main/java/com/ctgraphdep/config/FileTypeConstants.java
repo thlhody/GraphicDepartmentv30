@@ -1,6 +1,5 @@
 package com.ctgraphdep.config;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 /**
@@ -175,37 +174,6 @@ public final class FileTypeConstants {
         return CriticalityLevel.LEVEL2_MEDIUM;
     }
 
-    /**
-     * Enhanced method that analyzes full path for criticality determination.
-     * Useful when filename analysis isn't sufficient.
-     *
-     * @param filePath The complete file path
-     * @return The criticality level enum
-     */
-    public static CriticalityLevel getCriticalityLevelForPath(Path filePath) {
-        if (filePath == null) {
-            return CriticalityLevel.LEVEL2_MEDIUM;
-        }
-
-        String fileName = filePath.getFileName().toString();
-
-        // First try filename-based detection
-        CriticalityLevel level = getCriticalityLevelForFilename(fileName);
-
-        // If we got a specific result (not default), return it
-        if (level != CriticalityLevel.LEVEL2_MEDIUM) {
-            return level;
-        }
-
-        // For medium results, check if path indicates low criticality
-        String pathStr = filePath.toString().toLowerCase();
-        if (isLowCriticalityPath(pathStr)) {
-            return CriticalityLevel.LEVEL1_LOW;
-        }
-
-        return level;
-    }
-
     // ===== FILE TYPE DETECTION METHODS =====
 
     /**
@@ -235,15 +203,6 @@ public final class FileTypeConstants {
     }
 
     /**
-     * Checks if a filename corresponds to any known file type.
-     * @param filename The filename to check
-     * @return true if it matches a known pattern
-     */
-    public static boolean isKnownFileType(String filename) {
-        return extractFileTypeFromFilename(filename) != null;
-    }
-
-    /**
      * Checks if a filename indicates a low criticality file.
      * @param lowerFilename The filename in lowercase
      * @return true if it's a low criticality file
@@ -257,41 +216,7 @@ public final class FileTypeConstants {
                 lowerFilename.endsWith(".tmp");
     }
 
-    /**
-     * Checks if a file path indicates low criticality based on directory structure.
-     * @param lowerPath The path in lowercase
-     * @return true if it's in a low criticality location
-     */
-    private static boolean isLowCriticalityPath(String lowerPath) {
-        return lowerPath.contains("/status/") ||
-                lowerPath.contains("\\status\\") ||
-                lowerPath.contains("/temp/") ||
-                lowerPath.contains("\\temp\\") ||
-                lowerPath.contains("/cache/") ||
-                lowerPath.contains("\\cache\\") ||
-                lowerPath.contains("/logs/") ||
-                lowerPath.contains("\\logs\\");
-    }
-
     // ===== VALIDATION METHODS =====
-
-    /**
-     * Checks if a file has a backup extension.
-     * @param filename The filename to check
-     * @return true if it's a backup file
-     */
-    public static boolean isBackupFile(String filename) {
-        return filename != null && filename.toLowerCase().endsWith(BACKUP_EXTENSION);
-    }
-
-    /**
-     * Checks if a file has a JSON extension.
-     * @param filename The filename to check
-     * @return true if it's a JSON file
-     */
-    public static boolean isJsonFile(String filename) {
-        return filename != null && filename.toLowerCase().endsWith(JSON_EXTENSION);
-    }
 
     /**
      * Gets a human-readable description of a criticality level.

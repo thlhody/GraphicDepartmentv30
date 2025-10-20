@@ -1,5 +1,6 @@
 package com.ctgraphdep.register.service;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.RegisterEntry;
@@ -54,7 +55,7 @@ public class UserRegisterService {
             ValidationServiceResult validation = ValidationServiceResult.create()
                     .requireNotEmpty(username, "Username", "missing_username")
                     .requireNotNull(userId, "User ID", "missing_user_id")
-                    .validate(() -> userId > 0, "User ID must be positive", "invalid_user_id")
+                    .validate(() -> userId > WorkCode.DEFAULT_ZERO, "User ID must be positive", "invalid_user_id")
                     .validate(() -> year >= 2000 && year <= 2100, "Year must be between 2000 and 2100", "invalid_year")
                     .validate(() -> month >= 1 && month <= 12, "Month must be between 1 and 12", "invalid_month");
 

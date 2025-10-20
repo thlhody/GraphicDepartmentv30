@@ -298,7 +298,7 @@ public class UserSessionController extends BaseController {
             }
 
             // Validate hour and minute range
-            if (endHour < 0 || endHour > 23 || endMinute < 0 || endMinute > 59) {
+            if (endHour < WorkCode.DEFAULT_ZERO || endHour > WorkCode.DEFAULT_MIDNIGHT_END_HOUR || endMinute < WorkCode.DEFAULT_ZERO || endMinute > WorkCode.DEFAULT_MIDNIGHT_END_MIN) {
                 LoggerUtil.warn(this.getClass(), "Invalid time values provided: " + endHour + ":" + endMinute);
                 redirectAttributes.addFlashAttribute("errorMessage", "Invalid time values");
                 return "redirect:/user/session";

@@ -159,10 +159,10 @@ All file operations go through this service.
 
 ```java
 // Reading (local first, fallback to network)
-ServiceResult<List<RegisterEntry>> result = dataAccessService.loadData(path, RegisterEntry.class);
+ServiceResult<List<RegisterEntry>> result = systemAvailabilityService.loadData(path, RegisterEntry.class);
 
 // Writing (both local + network)
-ServiceResult<Void> result = dataAccessService.saveData(path, entries);
+ServiceResult<Void> result = systemAvailabilityService.saveData(path, entries);
 ```
 
 **Backup**: 3 levels (level1: 3 files, level2: 5 files, level3: 10 files), 30-day retention

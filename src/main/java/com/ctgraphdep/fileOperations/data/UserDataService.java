@@ -65,21 +65,6 @@ public class UserDataService {
     }
 
     /**
-     * Gets user count from network (for cache validation).
-     * Pattern: Network-only count
-     *
-     * @return Number of users in network
-     */
-    public int getUserCountFromNetwork() {
-        try {
-            return adminReadAllUsersNetworkOnly().size();
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error getting user count from network: " + e.getMessage());
-            return 0;
-        }
-    }
-
-    /**
      * Scans for any local user files (for MainDefaultUserContextCache single-user pattern).
      * Pattern: Local scan for any local_user_*.json
      * Files: local_user_[username]_[userId].json

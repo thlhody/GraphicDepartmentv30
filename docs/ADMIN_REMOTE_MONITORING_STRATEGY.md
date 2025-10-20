@@ -404,7 +404,7 @@ public class AdminCommandController {
 @Service
 public class AdminMonitoringService {
 
-    private final DataAccessService dataAccessService;
+    private final DataAccessService systemAvailabilityService;
 
     public List<UserStatusInfo> getAllUserStatuses() {
         // Scan network location for all session files
@@ -633,7 +633,7 @@ public String viewSyncStatus(Model model) {
 @Service
 public class AdminOverrideService {
 
-    private final DataAccessService dataAccessService;
+    private final DataAccessService systemAvailabilityService;
     private final UniversalMergeService mergeService;
 
     /**
@@ -647,7 +647,7 @@ public class AdminOverrideService {
         // Load user's register from NETWORK
         String registerPath = buildRegisterPath(username, year, month, day);
         ServiceResult<List<RegisterEntry>> loadResult =
-            dataAccessService.loadData(registerPath, RegisterEntry.class);
+            systemAvailabilityService.loadData(registerPath, RegisterEntry.class);
 
         if (!loadResult.isSuccess()) {
             return ServiceResult.error("Failed to load user register");
@@ -675,7 +675,7 @@ public class AdminOverrideService {
 
         // Save back to NETWORK
         ServiceResult<Void> saveResult =
-            dataAccessService.saveData(registerPath, entries);
+            systemAvailabilityService.saveData(registerPath, entries);
 
         if (saveResult.isSuccess()) {
             LoggerUtil.info(this.getClass(), String.format(
@@ -697,7 +697,7 @@ public class AdminOverrideService {
         String sessionPath = buildSessionPath(username, year);
 
         ServiceResult<List<SessionEntry>> loadResult =
-            dataAccessService.loadData(sessionPath, SessionEntry.class);
+            systemAvailabilityService.loadData(sessionPath, SessionEntry.class);
 
         if (!loadResult.isSuccess()) {
             return ServiceResult.error("Failed to load session");
@@ -718,7 +718,7 @@ public class AdminOverrideService {
         }
 
         // Save back
-        return dataAccessService.saveData(sessionPath, sessions);
+        return systemAvailabilityService.saveData(sessionPath, sessions);
     }
 }
 ```

@@ -1,6 +1,6 @@
 package com.ctgraphdep.session;
 
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.FolderStatus;
@@ -43,7 +43,7 @@ public class SessionContext {
     private final NotificationService notificationService;
     private final SessionService sessionService;
     private final SessionDataService sessionDataService;
-    private final DataAccessService dataAccessService;
+    private final SystemAvailabilityService systemAvailabilityService;
 
     @Autowired
     private SessionCacheService sessionCacheService;
@@ -57,7 +57,7 @@ public class SessionContext {
             @Lazy SessionMonitorService sessionMonitorService,
             FolderStatus folderStatus, SessionCommandFactory commandFactory, TimeValidationService validationService,
             NotificationService notificationService, SessionService sessionService,
-            SessionDataService sessionDataService, DataAccessService dataAccessService, WorktimeOperationContext worktimeOperationContext) {
+            SessionDataService sessionDataService, SystemAvailabilityService systemAvailabilityService, WorktimeOperationContext worktimeOperationContext) {
 
         this.userService = userService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
@@ -69,7 +69,7 @@ public class SessionContext {
         this.notificationService = notificationService;
         this.sessionService = sessionService;
         this.sessionDataService = sessionDataService;
-        this.dataAccessService = dataAccessService;
+        this.systemAvailabilityService = systemAvailabilityService;
         this.worktimeOperationContext = worktimeOperationContext;
     }
 

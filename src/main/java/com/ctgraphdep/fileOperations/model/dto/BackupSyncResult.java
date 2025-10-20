@@ -27,7 +27,4 @@ public class BackupSyncResult {
         return (syncedCount + skippedCount + failedCount) > 0;
     }
 
-    public int getTotalFiles() {
-        return syncedCount + skippedCount + failedCount;
-    }
 }

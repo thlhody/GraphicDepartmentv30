@@ -596,21 +596,21 @@ public class CalculationService {
 
             // Weekend special case (end at 1 PM)
             if (isWeekend) {
-                endTime = LocalTime.of(13, 0);
+                endTime = LocalTime.of(WorkCode.DEFAULT_W_END_HOUR, WorkCode.DEFAULT_ZERO);
             }
             // For 8-hour schedule, default end time is 17:00 (5 PM)
             else if (schedule == WorkCode.INTERVAL_HOURS_C) {
-                endTime = LocalTime.of(17, 0);
+                endTime = LocalTime.of(WorkCode.WORK_END_HOUR, WorkCode.DEFAULT_ZERO);
             }
             // For custom schedules, assume start at 9 and add schedule hours
             else {
                 int endHour = WorkCode.START_HOUR + schedule;
                 // Cap at 23:59 to avoid invalid times
-                if (endHour > 23) {
-                    endHour = 23;
+                if (endHour > WorkCode.DEFAULT_MIDNIGHT_END_HOUR) {
+                    endHour = WorkCode.DEFAULT_MIDNIGHT_END_HOUR;
                     LoggerUtil.warn(this.getClass(), String.format("Schedule %d hours would exceed 23:59, capping end time", schedule));
                 }
-                endTime = LocalTime.of(endHour, 0);
+                endTime = LocalTime.of(endHour, WorkCode.DEFAULT_ZERO);
             }
 
             LoggerUtil.debug(this.getClass(), String.format("Expected end time for %d hour schedule (weekend: %b): %s", schedule, isWeekend, endTime));

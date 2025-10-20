@@ -91,22 +91,6 @@ public class FilePathResolver {
     }
 
     /**
-     * Converts a network path to its local equivalent
-     * @param networkPath The network file path
-     * @return The equivalent local file path
-     */
-    public FilePath toLocalPath(FilePath networkPath) {
-        if (!networkPath.isNetwork()) {
-            throw new IllegalArgumentException("Not a network path: " + networkPath.getPath());
-        }
-
-        Path relativePath = pathConfig.getNetworkPath().relativize(networkPath.getPath());
-        Path localPath = pathConfig.getLocalPath().resolve(relativePath);
-
-        return FilePath.local(localPath, networkPath.getUsername().orElse(null), networkPath.getUserId().orElse(null));
-    }
-
-    /**
      * Gets a lock for a specific file path
      * @param path The file path to lock
      * @return The lock for the path
@@ -175,17 +159,6 @@ public class FilePathResolver {
             //logs - Update to include version parameter
             case LOG -> pathConfig.getNetworkLogPath(username, version);
         };
-    }
-
-    /**
-     * Creates a parameter map with version information
-     * @param version The version string
-     * @return A parameter map with version
-     */
-    public static Map<String, Object> createVersionParams(String version) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("version", version);
-        return params;
     }
 
     /**

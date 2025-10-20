@@ -2,7 +2,7 @@ package com.ctgraphdep.service;
 
 import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.model.FlagInfo;
 import com.ctgraphdep.model.User;
@@ -27,7 +27,7 @@ import java.nio.file.Path;
 
 /**
  * Service for managing user status information via network flag files.
- * Now uses SessionDataService for all status and flag operations instead of DataAccessService.
+ * Now uses SessionDataService for all status and flag operations instead of SystemAvailabilityService.
  * Delegates cache operations to AllUsersCacheService and session reads to SessionCacheService.
  * Responsibilities:
  * 1. Managing network flag creation for local user
@@ -41,7 +41,7 @@ public class ReadFileNameStatusService {
     private final AllUsersCacheService allUsersCacheService;
     private final SessionCacheService sessionCacheService;
     private final SessionDataService sessionDataService;
-    private final DataAccessService dataAccessService;
+    private final SystemAvailabilityService systemAvailabilityService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
 
     // Simplified pending updates for edge cases
@@ -66,12 +66,12 @@ public class ReadFileNameStatusService {
 
     @Autowired
     public ReadFileNameStatusService(TimeValidationService timeValidationService, AllUsersCacheService allUsersCacheService, SessionCacheService sessionCacheService,
-                                     SessionDataService sessionDataService, DataAccessService dataAccessService, MainDefaultUserContextService mainDefaultUserContextService) {
+                                     SessionDataService sessionDataService, SystemAvailabilityService systemAvailabilityService, MainDefaultUserContextService mainDefaultUserContextService) {
         this.timeValidationService = timeValidationService;
         this.allUsersCacheService = allUsersCacheService;
         this.sessionCacheService = sessionCacheService;
         this.sessionDataService = sessionDataService;      // NEW
-        this.dataAccessService = dataAccessService;        // Keep for isNetworkAvailable()
+        this.systemAvailabilityService = systemAvailabilityService;        // Keep for isNetworkAvailable()
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -271,7 +271,7 @@ public class ReadFileNameStatusService {
     @Scheduled(fixedRate = 3600000)
     public void cleanupStaleFlags() {
         try {
-            if (!dataAccessService.isNetworkAvailable()) {
+            if (!systemAvailabilityService.isNetworkAvailable()) {
                 LoggerUtil.info(this.getClass(), "Network not available, skipping flag cleanup");
                 return;
             }

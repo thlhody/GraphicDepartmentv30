@@ -3,7 +3,7 @@ package com.ctgraphdep.service.cache;
 import com.ctgraphdep.config.FileTypeConstants;
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.fileOperations.DataAccessService;
+import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.data.SessionDataService;
 import com.ctgraphdep.fileOperations.data.UserDataService;  // CHANGED: Use UserDataService instead of UserService
 import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 @Service
 public class AllUsersCacheService {
 
-    private final DataAccessService dataAccessService;
+    private final SystemAvailabilityService systemAvailabilityService;
     private final SessionDataService sessionDataService;
     private final UserDataService userDataService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
@@ -56,10 +56,10 @@ public class AllUsersCacheService {
     private final ReentrantReadWriteLock globalLock = new ReentrantReadWriteLock();
 
     @Autowired
-    public AllUsersCacheService(DataAccessService dataAccessService,
+    public AllUsersCacheService(SystemAvailabilityService systemAvailabilityService,
                                 SessionDataService sessionDataService,
                                 UserDataService userDataService, MainDefaultUserContextService mainDefaultUserContextService) {
-        this.dataAccessService = dataAccessService;
+        this.systemAvailabilityService = systemAvailabilityService;
         this.sessionDataService = sessionDataService;
         this.userDataService = userDataService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
@@ -628,7 +628,7 @@ public class AllUsersCacheService {
      */
     public void syncFromNetworkFlags() {
         try {
-            if (!dataAccessService.isNetworkAvailable()) {
+            if (!systemAvailabilityService.isNetworkAvailable()) {
                 LoggerUtil.debug(this.getClass(), "Network not available, skipping flag sync");
                 return;
             }

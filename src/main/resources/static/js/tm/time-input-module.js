@@ -279,7 +279,7 @@ const TimeInputModule = {
         const [hours, minutes] = trimmed.split(':').map(Number);
         return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
     },
-
+    (endHour < WorkCode.DEFAULT_ZERO || endHour > WorkCode.DEFAULT_MIDNIGHT_END_HOUR || endMinute < WorkCode.DEFAULT_ZERO || endMinute > WorkCode.DEFAULT_MIDNIGHT_END_MIN)
     /**
      * Convert various time formats to 24-hour format
      * @param {string} timeString - Input time string
