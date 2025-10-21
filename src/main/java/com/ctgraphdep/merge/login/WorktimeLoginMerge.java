@@ -1,4 +1,4 @@
-package com.ctgraphdep.worktime.service;
+package com.ctgraphdep.merge.login;
 
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.WorktimeDataService;
@@ -9,6 +9,7 @@ import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.TimeOffRequest;
 import com.ctgraphdep.service.cache.MainDefaultUserContextCache;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.worktime.service.WorktimeMergeService;
 import com.ctgraphdep.worktime.util.StatusCleanupUtil;
 import lombok.Getter;
 import org.springframework.stereotype.Service;
@@ -26,14 +27,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
-public class WorktimeLoginMergeService {
+public class WorktimeLoginMerge {
 
     private final WorktimeDataService worktimeDataService;
     private final TimeOffDataService timeOffDataService;
     private final WorktimeMergeService worktimeMergeService;
     private final MainDefaultUserContextCache mainDefaultUserContextCache;
 
-    public WorktimeLoginMergeService(
+    public WorktimeLoginMerge(
             WorktimeDataService worktimeDataService,
             TimeOffDataService timeOffDataService,
             WorktimeMergeService worktimeMergeService,

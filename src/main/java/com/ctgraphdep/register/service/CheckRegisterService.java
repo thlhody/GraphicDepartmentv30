@@ -841,7 +841,7 @@ public class CheckRegisterService {
 
         int originalSize = entries.size();
         List<RegisterCheckEntry> filtered = entries.stream()
-                .filter(entry -> entry.getAdminSync() == null || !MergingStatusConstants.isDeletedStatus(entry.getAdminSync()))
+                .filter(entry -> entry.getAdminSync() == null || MergingStatusConstants.isActiveStatus(entry.getAdminSync()))
                 .collect(Collectors.toList());
 
         int deletedCount = originalSize - filtered.size();

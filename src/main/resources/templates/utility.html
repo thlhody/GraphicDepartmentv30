@@ -76,6 +76,9 @@
             <!-- Session Diagnostics - Now Functional -->
             <div th:replace="~{utility/session-fragment :: session-utility}"></div>
 
+            <!-- Merge Management - New -->
+            <div th:replace="~{utility/merge-fragment :: merge-utility}"></div>
+
             <!-- System Health - Now Functional -->
             <div th:replace="~{utility/health-fragment :: health-utility}"></div>
 
@@ -124,6 +127,7 @@
     <script th:src="@{/js/um/backup-utility.js?v=18792}"></script>
     <script th:src="@{/js/um/monitor-utility.js?v=18792}"></script>
     <script th:src="@{/js/um/session-utility.js?v=18785}"></script>
+    <script th:src="@{/js/um/merge-utility.js?v=18792}"></script>
     <script th:src="@{/js/um/health-utility.js?v=18792}"></script>
     <script th:src="@{/js/um/diagnostics-utility.js?v=18792}"></script>
     <script th:src="@{/js/um/actions-utility.js?v=18792}"></script>
@@ -139,6 +143,7 @@
                 backup: typeof window.BackupUtility !== 'undefined' ? '✅' : '❌',
                 monitor: typeof window.MonitorUtility !== 'undefined' ? '✅' : '❌',
                 session: typeof window.SessionUtility !== 'undefined' ? '✅' : '❌',
+                merge: typeof window.MergeUtility !== 'undefined' ? '✅' : '❌',
                 health: typeof window.HealthUtility !== 'undefined' ? '✅' : '❌',
                 diagnostics: typeof window.DiagnosticsUtility !== 'undefined' ? '✅' : '❌',
                 actions: typeof window.ActionsUtility !== 'undefined' ? '✅' : '❌',
@@ -260,6 +265,7 @@
                 'Backup Management': typeof window.BackupUtility !== 'undefined',
                 'Cache Monitoring': typeof window.MonitorUtility !== 'undefined',
                 'Session Diagnostics': typeof window.SessionUtility !== 'undefined',
+                'Merge Management': typeof window.MergeUtility !== 'undefined',
                 'System Health': typeof window.HealthUtility !== 'undefined',
                 'Diagnostics': typeof window.DiagnosticsUtility !== 'undefined',
                 'Quick Actions': typeof window.ActionsUtility !== 'undefined',

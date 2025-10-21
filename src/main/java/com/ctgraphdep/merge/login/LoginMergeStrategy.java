@@ -1,4 +1,4 @@
-package com.ctgraphdep.security;
+package com.ctgraphdep.merge.login;
 
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
@@ -15,14 +15,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Thread-safe implementation for concurrent login attempts.
  */
 @Service
-public class LoginMergeCacheService {
+public class LoginMergeStrategy {
 
     // Thread-safe login counter, starts at 0 each day/app restart
     private final AtomicInteger dailyLoginCount = new AtomicInteger(0);
 
-    public LoginMergeCacheService() {
+    public LoginMergeStrategy() {
         LoggerUtil.initialize(this.getClass(), null);
-        LoggerUtil.info(this.getClass(), "LoginMergeCacheService initialized - daily login counter reset to 0");
+        LoggerUtil.info(this.getClass(), "LoginMergeStrategy initialized - daily login counter reset to 0");
     }
 
     // ========================================================================

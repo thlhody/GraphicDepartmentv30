@@ -17,6 +17,8 @@ import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.TimeValidationService;
 import com.ctgraphdep.config.FileTypeConstants;
+import com.ctgraphdep.merge.login.interfaces.LoginMergeService;
+import com.ctgraphdep.merge.login.LoginMergeStrategy;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -52,6 +54,8 @@ public class UtilityController extends BaseController {
     private final BackupEventListener backupEventListener;
     private final MainDefaultUserContextService mainDefaultUserContextService;
     private final PathConfig pathConfig;
+    private final LoginMergeService loginMergeService;
+    private final LoginMergeStrategy loginMergeStrategy;
 
     public UtilityController(
             UserService userService,
@@ -65,7 +69,9 @@ public class UtilityController extends BaseController {
             MonitoringStateService monitoringStateService,
             BackupEventListener backupEventListener,
             MainDefaultUserContextService mainDefaultUserContextService,
-            PathConfig pathConfig) {
+            PathConfig pathConfig,
+            LoginMergeService loginMergeService,
+            LoginMergeStrategy loginMergeStrategy) {
 
         super(userService, folderStatus, timeValidationService);
         this.backupUtilityService = backupUtilityService;
@@ -77,6 +83,8 @@ public class UtilityController extends BaseController {
         this.backupEventListener = backupEventListener;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.pathConfig = pathConfig;
+        this.loginMergeService = loginMergeService;
+        this.loginMergeStrategy = loginMergeStrategy;
     }
 
     /**
@@ -981,6 +989,266 @@ public class UtilityController extends BaseController {
             LoggerUtil.error(this.getClass(), "Error getting system summary: " + e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Error getting system summary: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    // ========================================================================
+    // MERGE MANAGEMENT SECTION (New)
+    // ========================================================================
+
+    /**
+     * NEW: Get pending merge status for current user
+     * Checks if there are pending merge operations stuck in the queue
+     */
+    @GetMapping("/merge/pending-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPendingMergeStatus(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                response.put("success", false);
+                response.put("message", "User not found");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            String username = currentUser.getUsername();
+            boolean hasPendingMerges = loginMergeService.hasPendingMerges(username);
+            int pendingCount = loginMergeService.getPendingMergeCount();
+
+            response.put("success", true);
+            response.put("username", username);
+            response.put("hasPendingMerges", hasPendingMerges);
+            response.put("pendingCount", pendingCount);
+            response.put("timestamp", getStandardCurrentDateTime());
+
+            // Warning message if user has pending merges
+            if (hasPendingMerges) {
+                response.put("warning", "You have pending merge operations that may need clearing if stuck");
+                response.put("action", "Consider using the Clear Pending Merges utility if these operations are not completing");
+            } else {
+                response.put("message", "No pending merge operations");
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("Pending merge status checked for user %s: %d pending",
+                    username, pendingCount));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting pending merge status: " + e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error getting pending merge status: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * NEW: Get total count of pending merge operations
+     * Useful for dashboard or status indicators
+     */
+    @GetMapping("/merge/pending-count")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPendingMergeCount() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            int pendingCount = loginMergeService.getPendingMergeCount();
+
+            response.put("success", true);
+            response.put("pendingCount", pendingCount);
+            response.put("message", pendingCount > 0
+                ? String.format("Found %d pending merge operation(s)", pendingCount)
+                : "No pending merge operations");
+            response.put("timestamp", getStandardCurrentDateTime());
+
+            // Add severity level based on count
+            if (pendingCount > 10) {
+                response.put("severity", "high");
+                response.put("recommendation", "High number of pending merges - consider clearing queue");
+            } else if (pendingCount > 5) {
+                response.put("severity", "medium");
+                response.put("recommendation", "Moderate pending merges - monitor if they complete");
+            } else if (pendingCount > 0) {
+                response.put("severity", "low");
+                response.put("recommendation", "Low pending merges - should complete automatically");
+            } else {
+                response.put("severity", "none");
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting pending merge count: " + e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error getting pending merge count: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * NEW: Clear all pending merge operations
+     * Use this when merge operations are stuck and not completing
+     * WARNING: Only use if merges are confirmed stuck/failed
+     */
+    @PostMapping("/merge/clear-pending")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> clearPendingMerges(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                response.put("success", false);
+                response.put("message", "User not found");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            int countBeforeClear = loginMergeService.getPendingMergeCount();
+
+            // Clear all pending merges
+            loginMergeService.clearPendingMerges();
+
+            response.put("success", true);
+            response.put("message", "All pending merge operations have been cleared");
+            response.put("clearedCount", countBeforeClear);
+            response.put("timestamp", getStandardCurrentDateTime());
+
+            LoggerUtil.warn(this.getClass(), String.format("User %s cleared %d pending merge operations",
+                    currentUser.getUsername(), countBeforeClear));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error clearing pending merges: " + e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error clearing pending merges: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * NEW: Get login merge strategy status
+     * Shows current login count and next merge strategy
+     */
+    @GetMapping("/merge/strategy-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getMergeStrategyStatus() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            int loginCount = loginMergeStrategy.getCurrentLoginCount();
+            boolean shouldPerformFullMerge = loginMergeStrategy.shouldPerformFullMerge();
+            boolean shouldPerformFastRefresh = loginMergeStrategy.shouldPerformFastCacheRefresh();
+            boolean isFirstLogin = loginMergeStrategy.isFirstLoginOfDay();
+            String statusDescription = loginMergeStrategy.getStatus();
+            String performanceBenefit = loginMergeStrategy.getPerformanceBenefit();
+
+            response.put("success", true);
+            response.put("loginCount", loginCount);
+            response.put("shouldPerformFullMerge", shouldPerformFullMerge);
+            response.put("shouldPerformFastRefresh", shouldPerformFastRefresh);
+            response.put("isFirstLogin", isFirstLogin);
+            response.put("statusDescription", statusDescription);
+            response.put("performanceBenefit", performanceBenefit);
+            response.put("timestamp", getStandardCurrentDateTime());
+
+            LoggerUtil.info(this.getClass(), "Merge strategy status retrieved: " + statusDescription);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting merge strategy status: " + e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error getting merge strategy status: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * NEW: Force full merge on next login
+     * Resets login count to 0, causing next login to perform full merge
+     */
+    @PostMapping("/merge/force-full-merge")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> forceFullMergeOnNextLogin(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                response.put("success", false);
+                response.put("message", "User not found");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            int beforeCount = loginMergeStrategy.getCurrentLoginCount();
+
+            // Force full merge on next login
+            loginMergeStrategy.forceFullMergeOnNextLogin();
+
+            response.put("success", true);
+            response.put("message", "Next login will perform full merge (data refresh)");
+            response.put("previousLoginCount", beforeCount);
+            response.put("newLoginCount", loginMergeStrategy.getCurrentLoginCount());
+            response.put("nextStrategy", "Full Merge (~7 seconds)");
+            response.put("timestamp", getStandardCurrentDateTime());
+
+            LoggerUtil.warn(this.getClass(), String.format("User %s forced full merge on next login (reset from count %d to 0)",
+                    currentUser.getUsername(), beforeCount));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error forcing full merge: " + e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error forcing full merge: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * NEW: Trigger full merge immediately
+     * Sets login count to 1, simulating first login
+     * WARNING: This sets the counter to 1, not 0!
+     */
+    @PostMapping("/merge/trigger-merge-now")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> triggerFullMergeNow(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                response.put("success", false);
+                response.put("message", "User not found");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Trigger full merge now
+            loginMergeStrategy.triggerFullMergeNow();
+
+            response.put("success", true);
+            response.put("message", "Merge strategy set to trigger full merge");
+            response.put("currentLoginCount", loginMergeStrategy.getCurrentLoginCount());
+            response.put("willPerformFullMerge", loginMergeStrategy.shouldPerformFullMerge());
+            response.put("status", loginMergeStrategy.getStatus());
+            response.put("timestamp", getStandardCurrentDateTime());
+
+            LoggerUtil.info(this.getClass(), "User " + currentUser.getUsername() + " triggered full merge strategy");
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error triggering full merge: " + e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error triggering full merge: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
 

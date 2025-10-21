@@ -21,7 +21,6 @@ public class CheckRegisterWrapperFactory {
         return new GenericEntityWrapper<>(
                 checkEntry,
                 RegisterCheckEntry::getAdminSync,
-                RegisterCheckEntry::setAdminSync,
                 ce -> ce.getEntryId() + "_" + ce.getDate()
         );
     }

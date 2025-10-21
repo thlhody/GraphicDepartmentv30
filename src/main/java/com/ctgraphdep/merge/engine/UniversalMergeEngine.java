@@ -349,11 +349,11 @@ public enum UniversalMergeEngine {
     // ========================================================================
 
     /**
-     * Interface that all mergeable entities must implement
+     * Interface that all mergeable entities must implement.
+     * Read-only interface - merge engine selects winner without modification.
      */
     public interface UniversalMergeableEntity {
         String getUniversalStatus();
-        void setUniversalStatus(String status);
         Object getIdentifier(); // For logging/debugging
     }
 

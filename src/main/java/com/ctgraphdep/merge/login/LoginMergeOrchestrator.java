@@ -1,11 +1,11 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.merge.login;
 
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.monitoring.NetworkStatusMonitor;
 import com.ctgraphdep.monitoring.events.NetworkStatusChangedEvent;
 import com.ctgraphdep.register.service.CheckRegisterService;
 import com.ctgraphdep.register.service.RegisterMergeService;
-import com.ctgraphdep.worktime.service.WorktimeLoginMergeService;
+import com.ctgraphdep.merge.login.interfaces.LoginMergeService;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.context.ApplicationListener;
@@ -26,24 +26,24 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Queuing system for offline merge operations
  */
 @Service
-public class UserLoginMergeServiceImpl implements UserLoginMergeService, ApplicationListener<NetworkStatusChangedEvent> {
+public class LoginMergeOrchestrator implements LoginMergeService, ApplicationListener<NetworkStatusChangedEvent> {
 
     private final RegisterMergeService registerMergeService;
     private final CheckRegisterService checkRegisterService;
-    private final WorktimeLoginMergeService worktimeLoginMergeService;
+    private final WorktimeLoginMerge worktimeLoginMerge;
     private final NetworkStatusMonitor networkStatusMonitor;
 
     // Queue for retrying failed merges when network becomes available
     private final ConcurrentHashMap<String, PendingMergeOperation> pendingMerges = new ConcurrentHashMap<>();
 
-    public UserLoginMergeServiceImpl(
+    public LoginMergeOrchestrator(
             RegisterMergeService registerMergeService,
             CheckRegisterService checkRegisterService,
-            WorktimeLoginMergeService worktimeLoginMergeService,
+            WorktimeLoginMerge worktimeLoginMerge,
             NetworkStatusMonitor networkStatusMonitor) {
         this.registerMergeService = registerMergeService;
         this.checkRegisterService = checkRegisterService;
-        this.worktimeLoginMergeService = worktimeLoginMergeService;
+        this.worktimeLoginMerge = worktimeLoginMerge;
         this.networkStatusMonitor = networkStatusMonitor;
         LoggerUtil.initialize(this.getClass(), null);
     }
@@ -70,11 +70,6 @@ public class UserLoginMergeServiceImpl implements UserLoginMergeService, Applica
                 LoggerUtil.warn(this.getClass(), String.format("Network unavailable - queuing merge operations for user: %s", username));
                 queuePendingMerge(username, role);
                 return CompletableFuture.completedFuture(null);
-            }
-            // NEW: Load check values for checking roles
-            if (role.equals(SecurityConstants.ROLE_TL_CHECKING) || role.equals(SecurityConstants.ROLE_CHECKING) || role.equals(SecurityConstants.ROLE_USER_CHECKING)) {
-
-               performCheckValuesLoading(username);
             }
 
             // Execute role-based merges
@@ -220,19 +215,13 @@ public class UserLoginMergeServiceImpl implements UserLoginMergeService, Applica
     private void performWorktimeMergeInternal(String username) {
         try {
             LoggerUtil.info(this.getClass(), "Performing worktime merge for: " + username);
-            worktimeLoginMergeService.performUserWorktimeLoginMerge(username);
+            worktimeLoginMerge.performUserWorktimeLoginMerge(username);
             LoggerUtil.info(this.getClass(), "Worktime merge completed for: " + username);
         } catch (Exception e) {
             LoggerUtil.warn(this.getClass(), String.format(
                     "Worktime merge failed for %s: %s - continuing", username, e.getMessage()));
             // Don't throw - worktime merge failure shouldn't block other operations
         }
-    }
-
-    private void performCheckValuesLoading(String username){
-        //TODO need to add or check where this is happening
-        LoggerUtil.info(this.getClass(),"Username: "+ username);
-
     }
 
     // ========================================================================

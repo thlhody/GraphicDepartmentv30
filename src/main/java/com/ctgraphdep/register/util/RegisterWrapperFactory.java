@@ -21,7 +21,6 @@ public class RegisterWrapperFactory {
         return new GenericEntityWrapper<>(
                 registerEntry,
                 RegisterEntry::getAdminSync,
-                RegisterEntry::setAdminSync,
                 re -> re.getUserId() + "_" + re.getEntryId() + "_" + re.getDate()
         );
     }

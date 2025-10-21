@@ -11,7 +11,11 @@ public class WorktimeWrapperFactory {
 
     // Create wrapper for WorkTimeTable
     public static GenericEntityWrapper<WorkTimeTable> createWrapper(WorkTimeTable workTime) {
-        return new GenericEntityWrapper<>(workTime, WorkTimeTable::getAdminSync, WorkTimeTable::setAdminSync, wt -> wt.getUserId() + "_" + wt.getWorkDate());
+        return new GenericEntityWrapper<>(
+                workTime,
+                WorkTimeTable::getAdminSync,
+                wt -> wt.getUserId() + "_" + wt.getWorkDate()
+        );
     }
 
     // Create wrapper only if entity is not null

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
+
+<!-- Merge Management Fragment -->
+<div th:fragment="merge-utility" class="utility-section" id="merge-utility">
+    <div class="utility-header">
+        <div class="utility-icon">
+            <i class="bi bi-diagram-3"></i>
+        </div>
+        <div class="utility-info">
+            <h3 class="utility-title">Merge Management</h3>
+            <p class="utility-description">
+                Monitor and manage pending merge operations.<br>
+                Clear stuck merges when network issues prevent completion.
+            </p>
+        </div>
+        <div class="utility-toggle">
+            <button class="btn-subtle" data-bs-toggle="collapse" data-bs-target="#merge-controls"
+                    aria-expanded="false" aria-controls="merge-controls">
+                <i class="bi bi-chevron-down toggle-icon"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="collapse utility-controls" id="merge-controls">
+        <div class="controls-grid">
+            <!-- Merge Status -->
+            <div class="control-group">
+                <label class="control-label">Pending Merge Status</label>
+                <div class="stats-display" id="merge-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Pending Count</span>
+                        <span class="stat-value" id="pending-merge-count">Loading...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Your Status</span>
+                        <span class="stat-value" id="user-merge-status">Checking...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Severity</span>
+                        <span class="stat-value" id="merge-severity">-</span>
+                    </div>
+                </div>
+                <!-- Warning Banner -->
+                <div id="merge-warning-banner" class="alert alert-warning" style="display: none; margin-top: 10px;">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Warning:</strong> <span id="merge-warning-text"></span>
+                </div>
+            </div>
+
+            <!-- Merge Operations -->
+            <div class="control-group">
+                <label class="control-label">Merge Operations</label>
+                <div class="action-buttons">
+                    <button id="check-merge-status-btn" class="btn-action info">
+                        <i class="bi bi-search"></i>
+                        <span>Check Status</span>
+                    </button>
+                    <button id="refresh-merge-count-btn" class="btn-action secondary">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        <span>Refresh Count</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Clear Operations -->
+            <div class="control-group">
+                <label class="control-label">Clear Stuck Merges</label>
+                <div class="action-buttons">
+                    <button id="clear-pending-merges-btn" class="btn-action danger">
+                        <i class="bi bi-trash"></i>
+                        <span>Clear All Pending</span>
+                    </button>
+                </div>
+                <small class="text-muted">
+                    <i class="bi bi-info-circle"></i>
+                    Only use if merge operations are confirmed stuck or failed
+                </small>
+            </div>
+
+            <!-- NEW: Merge Strategy Status -->
+            <div class="control-group">
+                <label class="control-label">Login Merge Strategy</label>
+                <div class="stats-display" id="strategy-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Login Count</span>
+                        <span class="stat-value" id="strategy-login-count">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Next Strategy</span>
+                        <span class="stat-value" id="strategy-next-type">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Performance</span>
+                        <span class="stat-value" id="strategy-performance">-</span>
+                    </div>
+                </div>
+                <!-- Info Banner -->
+                <div id="strategy-info-banner" class="alert alert-info" style="display: none; margin-top: 10px;">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <strong>Info:</strong> <span id="strategy-info-text"></span>
+                </div>
+            </div>
+
+            <!-- NEW: Strategy Operations -->
+            <div class="control-group">
+                <label class="control-label">Data Refresh Operations</label>
+                <div class="action-buttons">
+                    <button id="check-strategy-status-btn" class="btn-action info">
+                        <i class="bi bi-speedometer2"></i>
+                        <span>Check Strategy</span>
+                    </button>
+                    <button id="force-full-merge-btn" class="btn-action warning">
+                        <i class="bi bi-arrow-repeat"></i>
+                        <span>Force Full Refresh</span>
+                    </button>
+                </div>
+                <small class="text-muted">
+                    <i class="bi bi-lightbulb"></i>
+                    Use "Force Full Refresh" when data seems stale or outdated
+                </small>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div id="merge-results" class="results-area" style="display: none;">
+            <div class="results-header">
+                <h4 class="results-title">Merge Diagnostics</h4>
+                <button id="clear-merge-results" class="btn-clear">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div id="merge-content" class="results-content">
+                <!-- Merge results will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+</html>

@@ -5,9 +5,10 @@ import java.time.Instant;
 /**
  * Enhanced MergingStatusConstants with timestamped status creation support.
  * Provides both base statuses and methods to create timestamped edit statuses.
+ * this is mostly for display purposes
  * Status Hierarchy:
  * 1. BASE: USER_INPUT, ADMIN_INPUT, USER_IN_PROCESS
- * 2. TIMESTMPED EDITS: USER_EDITED_[epoch], ADMIN_EDITED_[epoch], TEAM_EDITED_[epoch]
+ * 2. TIMESTAMPED EDITS: USER_EDITED_[epoch], ADMIN_EDITED_[epoch], TEAM_EDITED_[epoch]
  * 3. FINAL: ADMIN_FINAL, TEAM_FINAL
  * 4. SPECIAL: DELETE
  */
@@ -96,29 +97,6 @@ public class MergingStatusConstants {
         return TEAM_EDITED_PREFIX + minutesSinceEpoch;
     }
 
-    /**
-     * Create timestamped user edit status for specific time
-     * Format: "USER_EDITED_[minutesSinceEpoch]"
-     */
-    public static String createUserEditedStatus(long minutesSinceEpoch) {
-        return USER_EDITED_PREFIX + minutesSinceEpoch;
-    }
-
-    /**
-     * Create timestamped admin edit status for specific time
-     * Format: "ADMIN_EDITED_[minutesSinceEpoch]"
-     */
-    public static String createAdminEditedStatus(long minutesSinceEpoch) {
-        return ADMIN_EDITED_PREFIX + minutesSinceEpoch;
-    }
-
-    /**
-     * Create timestamped team edit status for specific time
-     * Format: "TEAM_EDITED_[minutesSinceEpoch]"
-     */
-    public static String createTeamEditedStatus(long minutesSinceEpoch) {
-        return TEAM_EDITED_PREFIX + minutesSinceEpoch;
-    }
 
     // ========================================================================
     // DELETION STATUS CREATION METHODS
@@ -131,15 +109,6 @@ public class MergingStatusConstants {
     public static String createUserDeletedStatus() {
         long minutesSinceEpoch = Instant.now().getEpochSecond() / 60;
         return USER_DELETED_PREFIX + minutesSinceEpoch;
-    }
-
-    /**
-     * Create timestamped admin deletion status for current time
-     * Format: "ADMIN_DELETED_[minutesSinceEpoch]"
-     */
-    public static String createAdminDeletedStatus() {
-        long minutesSinceEpoch = Instant.now().getEpochSecond() / 60;
-        return ADMIN_DELETED_PREFIX + minutesSinceEpoch;
     }
 
     /**
@@ -201,6 +170,22 @@ public class MergingStatusConstants {
     }
 
     /**
+     * Check if status is valid in the merge system.
+     * Used by GenericEntityWrapper for status normalization.
+     */
+    public static boolean isValidStatus(String status) {
+        if (status == null) return false;
+
+        return USER_INPUT.equals(status) ||
+                USER_IN_PROCESS.equals(status) ||
+                ADMIN_INPUT.equals(status) ||
+                TEAM_INPUT.equals(status) ||
+                ADMIN_FINAL.equals(status) ||
+                TEAM_FINAL.equals(status) ||
+                isTimestampedEditStatus(status);
+    }
+
+    /**
      * Extract timestamp from timestamped status
      * Returns 0 if not a timestamped status or parsing fails
      */
@@ -239,18 +224,28 @@ public class MergingStatusConstants {
     // ========================================================================
 
     /**
-     * Check if status is a deletion status
+     * Check if status is NOT a deletion status (active entry)
+     * Primary method - used in filter operations to identify active entries
+     */
+    public static boolean isActiveStatus(String status) {
+        if (status == null) return true; // null status means active entry
+        return !status.startsWith(USER_DELETED_PREFIX) &&
+                !status.startsWith(ADMIN_DELETED_PREFIX) &&
+                !status.startsWith(TEAM_DELETED_PREFIX);
+    }
+
+    /**
+     * Check if status is a deletion status (tombstone)
+     * Convenience method - returns opposite of isActiveStatus()
      */
     public static boolean isDeletedStatus(String status) {
-        if (status == null) return false;
-        return status.startsWith(USER_DELETED_PREFIX) ||
-                status.startsWith(ADMIN_DELETED_PREFIX) ||
-                status.startsWith(TEAM_DELETED_PREFIX);
+        return !isActiveStatus(status);
     }
 
     /**
      * Check if status is a user deletion
      */
+    @SuppressWarnings("unused")
     public static boolean isUserDeletedStatus(String status) {
         return status != null && status.startsWith(USER_DELETED_PREFIX);
     }
@@ -258,6 +253,7 @@ public class MergingStatusConstants {
     /**
      * Check if status is an admin deletion
      */
+    @SuppressWarnings("unused")
     public static boolean isAdminDeletedStatus(String status) {
         return status != null && status.startsWith(ADMIN_DELETED_PREFIX);
     }
@@ -265,6 +261,7 @@ public class MergingStatusConstants {
     /**
      * Check if status is a team deletion
      */
+    @SuppressWarnings("unused")
     public static boolean isTeamDeletedStatus(String status) {
         return status != null && status.startsWith(TEAM_DELETED_PREFIX);
     }
@@ -304,49 +301,42 @@ public class MergingStatusConstants {
      * USER_DELETED_12345 → UD
      * etc.
      */
+    @SuppressWarnings("unused")
     public static String toCompactDisplay(String status) {
-        if (status == null) return "??";
+        if (status == null) {
+            return "??";
+        }
 
-        // Base statuses
-        if (USER_INPUT.equals(status)) return "UI";
-        if (TEAM_INPUT.equals(status)) return "TI";
-        if (ADMIN_INPUT.equals(status)) return "AI";
-        if (USER_IN_PROCESS.equals(status)) return "UP";
-
-        // Final statuses
-        if (ADMIN_FINAL.equals(status)) return "AF";
-        if (TEAM_FINAL.equals(status)) return "TF";
-
-        // Timestamped edit statuses
+        // Check prefixes first (for timestamped statuses)
         if (status.startsWith(USER_EDITED_PREFIX)) return "UE";
         if (status.startsWith(ADMIN_EDITED_PREFIX)) return "AE";
         if (status.startsWith(TEAM_EDITED_PREFIX)) return "TE";
-
-        // Deletion statuses
         if (status.startsWith(USER_DELETED_PREFIX)) return "UD";
         if (status.startsWith(ADMIN_DELETED_PREFIX)) return "AD";
         if (status.startsWith(TEAM_DELETED_PREFIX)) return "TD";
 
-        return "??";
+        // Base and final statuses (exact matches)
+        return switch (status) {
+            case USER_INPUT -> "UI";
+            case TEAM_INPUT -> "TI";
+            case ADMIN_INPUT -> "AI";
+            case USER_IN_PROCESS -> "UP";
+            case ADMIN_FINAL -> "AF";
+            case TEAM_FINAL -> "TF";
+            default -> "??";
+        };
     }
 
     /**
      * Get status description for tooltip/title
      */
+    @SuppressWarnings("unused")
     public static String getStatusDescription(String status) {
-        if (status == null) return "Unknown status";
+        if (status == null) {
+            return "Unknown status";
+        }
 
-        // Base statuses
-        if (USER_INPUT.equals(status)) return "User Input";
-        if (TEAM_INPUT.equals(status)) return "Team Input";
-        if (ADMIN_INPUT.equals(status)) return "Admin Input";
-        if (USER_IN_PROCESS.equals(status)) return "User In Process";
-
-        // Final statuses
-        if (ADMIN_FINAL.equals(status)) return "Admin Final (Locked)";
-        if (TEAM_FINAL.equals(status)) return "Team Final";
-
-        // Timestamped edit statuses
+        // Check prefixes first (for timestamped statuses)
         if (status.startsWith(USER_EDITED_PREFIX)) {
             long ts = extractTimestamp(status);
             return "User Edited (timestamp: " + ts + ")";
@@ -359,8 +349,6 @@ public class MergingStatusConstants {
             long ts = extractTimestamp(status);
             return "Team Edited (timestamp: " + ts + ")";
         }
-
-        // Deletion statuses
         if (status.startsWith(USER_DELETED_PREFIX)) {
             long ts = extractDeletionTimestamp(status);
             return "User Deleted (timestamp: " + ts + ")";
@@ -374,6 +362,15 @@ public class MergingStatusConstants {
             return "Team Deleted (timestamp: " + ts + ")";
         }
 
-        return "Unknown: " + status;
+        // Base and final statuses (exact matches)
+        return switch (status) {
+            case USER_INPUT -> "User Input";
+            case TEAM_INPUT -> "Team Input";
+            case ADMIN_INPUT -> "Admin Input";
+            case USER_IN_PROCESS -> "User In Process";
+            case ADMIN_FINAL -> "Admin Final (Locked)";
+            case TEAM_FINAL -> "Team Final";
+            default -> "Unknown: " + status;
+        };
     }
 }

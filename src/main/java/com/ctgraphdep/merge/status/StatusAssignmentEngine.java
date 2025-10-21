@@ -130,8 +130,8 @@ public class StatusAssignmentEngine {
             return getEditStatusForRole(userRole);
         }
 
-        // For existing EDIT statuses - update with new timestamp
-        if (isEditStatus(currentStatus)) {
+        // For existing EDIT statuses - update with new timestamp (using centralized method)
+        if (MergingStatusConstants.isTimestampedEditStatus(currentStatus)) {
             return getEditStatusForRole(userRole);
         }
 
@@ -179,15 +179,6 @@ public class StatusAssignmentEngine {
         return MergingStatusConstants.ADMIN_INPUT.equals(status) ||
                 MergingStatusConstants.TEAM_INPUT.equals(status) ||
                 MergingStatusConstants.USER_INPUT.equals(status);
-    }
-
-    // Check if status is an EDIT status (timestamped)
-    private static boolean isEditStatus(String status) {
-        return status != null && (
-                status.startsWith(MergingStatusConstants.USER_EDITED_PREFIX) ||
-                        status.startsWith(MergingStatusConstants.ADMIN_EDITED_PREFIX) ||
-                        status.startsWith(MergingStatusConstants.TEAM_EDITED_PREFIX)
-        );
     }
 
     // Check if user has admin role

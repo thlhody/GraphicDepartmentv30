@@ -1,13 +1,13 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.merge.login.interfaces;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Interface for UserLoginMergeService to avoid Spring proxy injection issues.
+ * Interface for LoginMergeService to avoid Spring proxy injection issues.
  * This interface defines the public API for merge operations while allowing
  * the implementation to implement ApplicationListener for network events.
  */
-public interface UserLoginMergeService {
+public interface LoginMergeService {
 
     // ========================================================================
     // MAIN MERGE OPERATIONS

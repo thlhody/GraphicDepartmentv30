@@ -3,13 +3,13 @@ package com.ctgraphdep.session.service;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
 import com.ctgraphdep.fileOperations.service.BackupService;
+import com.ctgraphdep.merge.login.LoginMergeStrategy;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
 import com.ctgraphdep.monitoring.MonitoringStateService;
 import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.notification.service.NotificationBackupService;
-import com.ctgraphdep.security.LoginMergeCacheService; // NEW IMPORT
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.session.SessionCommandFactory;
@@ -28,7 +28,7 @@ import java.util.List;
 
 /**
  * ENHANCED: Component responsible for resetting sessions at midnight.
- * Now includes LoginMergeCacheService integration for daily login optimization.
+ * Now includes LoginMergeStrategy integration for daily login optimization.
  * Key responsibilities:
  * 1. Reset user session files to fresh state
  * 2. Clear all monitoring state
@@ -51,7 +51,7 @@ public class SessionMidnightHandler {
     private final AllUsersCacheService allUsersCacheService;
     private final SessionCacheService sessionCacheService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
-    private final LoginMergeCacheService loginMergeCacheService;
+    private final LoginMergeStrategy loginMergeStrategy;
     private final BackupService backupService;           // For clearSyncedBackupFilesCache()
     private final BackupEventListener backupEventListener;
 
@@ -59,7 +59,7 @@ public class SessionMidnightHandler {
             SessionRegistry sessionRegistry, SessionCommandService commandService, SessionCommandFactory commandFactory,
             SchedulerHealthMonitor healthMonitor, NotificationService notificationService, NotificationBackupService notificationBackupService,
             MonitoringStateService monitoringStateService, AllUsersCacheService allUsersCacheService, SessionCacheService sessionCacheService,
-            MainDefaultUserContextService mainDefaultUserContextService, LoginMergeCacheService loginMergeCacheService, BackupService backupService,
+            MainDefaultUserContextService mainDefaultUserContextService, LoginMergeStrategy loginMergeStrategy, BackupService backupService,
             BackupEventListener backupEventListener) {
         this.sessionRegistry = sessionRegistry;
         this.commandService = commandService;
@@ -71,7 +71,7 @@ public class SessionMidnightHandler {
         this.allUsersCacheService = allUsersCacheService;
         this.sessionCacheService = sessionCacheService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
-        this.loginMergeCacheService = loginMergeCacheService; // NEW ASSIGNMENT
+        this.loginMergeStrategy = loginMergeStrategy; // NEW ASSIGNMENT
         this.backupService = backupService;
         this.backupEventListener = backupEventListener;
         LoggerUtil.initialize(this.getClass(), null);
@@ -129,9 +129,9 @@ public class SessionMidnightHandler {
             LoggerUtil.info(this.getClass(), "Reset MainDefaultUserContextCache access counter and failure state");
 
             // STEP 7: NEW - Reset daily login count for merge optimization
-            String loginStatusBefore = loginMergeCacheService.getStatus();
-            loginMergeCacheService.resetDailyLoginCount();
-            String loginStatusAfter = loginMergeCacheService.getStatus();
+            String loginStatusBefore = loginMergeStrategy.getStatus();
+            loginMergeStrategy.resetDailyLoginCount();
+            String loginStatusAfter = loginMergeStrategy.getStatus();
 
             LoggerUtil.info(this.getClass(), String.format("Reset daily login count - Before: [%s], After: [%s]",
                     loginStatusBefore, loginStatusAfter));
@@ -169,7 +169,7 @@ public class SessionMidnightHandler {
             notificationBackupService.cancelBackupTask(username);
 
             LoggerUtil.info(this.getClass(), "Completed comprehensive midnight reset for user " + username);
-            LoggerUtil.info(this.getClass(), loginMergeCacheService.getPerformanceBenefit());
+            LoggerUtil.info(this.getClass(), loginMergeStrategy.getPerformanceBenefit());
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error during midnight reset: " + e.getMessage(), e);
@@ -267,9 +267,9 @@ public class SessionMidnightHandler {
                 sessionCacheService.clearAllCache();
 
                 // NEW - Reset login merge cache for complete state reset
-                String beforeStatus = loginMergeCacheService.getStatus();
-                loginMergeCacheService.resetDailyLoginCount();
-                String afterStatus = loginMergeCacheService.getStatus();
+                String beforeStatus = loginMergeStrategy.getStatus();
+                loginMergeStrategy.resetDailyLoginCount();
+                String afterStatus = loginMergeStrategy.getStatus();
 
                 // Update status to offline
                 allUsersCacheService.updateUserStatus(username, localUser.getUserId(),
@@ -323,9 +323,9 @@ public class SessionMidnightHandler {
             LoggerUtil.info(this.getClass(), "Cleared and rebuilt status cache");
 
             // NEW - Reset login merge cache for emergency cleanup
-            String beforeStatus = loginMergeCacheService.getStatus();
-            loginMergeCacheService.resetDailyLoginCount();
-            String afterStatus = loginMergeCacheService.getStatus();
+            String beforeStatus = loginMergeStrategy.getStatus();
+            loginMergeStrategy.resetDailyLoginCount();
+            String afterStatus = loginMergeStrategy.getStatus();
             LoggerUtil.info(this.getClass(), String.format(
                     "Reset login merge cache: [%s] -> [%s]", beforeStatus, afterStatus));
 
@@ -416,9 +416,9 @@ public class SessionMidnightHandler {
                 status.append("Monitoring Mode: ").append(monitoringMode).append("\n");
 
                 // NEW - Check login merge cache status
-                status.append("Login Merge Cache: ").append(loginMergeCacheService.getStatus()).append("\n");
-                status.append("Performance Optimization: ").append(loginMergeCacheService.getPerformanceBenefit()).append("\n");
-                status.append("Initial State: ").append(loginMergeCacheService.isInInitialState() ? "Yes (ready for first login)" : "No").append("\n");
+                status.append("Login Merge Cache: ").append(loginMergeStrategy.getStatus()).append("\n");
+                status.append("Performance Optimization: ").append(loginMergeStrategy.getPerformanceBenefit()).append("\n");
+                status.append("Initial State: ").append(loginMergeStrategy.isInInitialState() ? "Yes (ready for first login)" : "No").append("\n");
 
             } else {
                 status.append("Local User: NOT FOUND\n");

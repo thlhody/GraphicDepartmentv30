@@ -1,6 +1,6 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.merge.login;
 
-import com.ctgraphdep.security.LoginMergeCacheService;
+import com.ctgraphdep.merge.login.interfaces.LoginCacheService;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.fileOperations.data.UserDataService;
@@ -24,33 +24,30 @@ import java.util.List;
  * - Parallel cache operations that can run immediately
  * - Sequential cache loading after merge operations complete
  * - Fast cache refresh for subsequent logins
- * - Integration with LoginMergeCacheService for strategy decisions
  * - All cache logic moved from AuthenticationService
+ * - Uses local-first data access patterns for optimal performance
  */
 @Service
-public class UserLoginCacheServiceImpl implements UserLoginCacheService {
+public class LoginCacheOrchestrator implements LoginCacheService {
 
     private final MainDefaultUserContextService mainDefaultUserContextService;
     private final AllUsersCacheService allUsersCacheService;
-    private final LoginMergeCacheService loginMergeCacheService;
 
-    // NEW: Data services for local-first operations
+    // Data services for local-first operations
     private final UserDataService userDataService;
     private final WorktimeDataService worktimeDataService;
     private final RegisterDataService registerDataService;
     private final CheckRegisterDataService checkRegisterDataService;
 
-    public UserLoginCacheServiceImpl(
+    public LoginCacheOrchestrator(
             MainDefaultUserContextService mainDefaultUserContextService,
             AllUsersCacheService allUsersCacheService,
-            LoginMergeCacheService loginMergeCacheService,
             UserDataService userDataService,
             WorktimeDataService worktimeDataService,
             RegisterDataService registerDataService,
             CheckRegisterDataService checkRegisterDataService) {
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.allUsersCacheService = allUsersCacheService;
-        this.loginMergeCacheService = loginMergeCacheService;
         this.userDataService = userDataService;
         this.worktimeDataService = worktimeDataService;
         this.registerDataService = registerDataService;
@@ -334,63 +331,6 @@ public class UserLoginCacheServiceImpl implements UserLoginCacheService {
         });
     }
 
-    /**
-     * Determine if fast cache refresh should be performed.
-     * Delegates to LoginMergeCacheService for strategy decision.
-     */
-    @Override
-    public boolean shouldPerformFastCacheRefresh() {
-        return loginMergeCacheService.shouldPerformFastCacheRefresh();
-    }
-
-    /**
-     * Determine if full cache operations should be performed.
-     * Delegates to LoginMergeCacheService for strategy decision.
-     */
-    @Override
-    public boolean shouldPerformFullCacheOperations() {
-        return loginMergeCacheService.shouldPerformFullMerge();
-    }
-
-    /**
-     * Get current login count for cache strategy decisions.
-     */
-    @Override
-    public int getCurrentLoginCount() {
-        return loginMergeCacheService.getCurrentLoginCount();
-    }
-
-    // ========================================================================
-    // ASYNC CONVENIENCE METHODS
-    // ========================================================================
-
-    /**
-     * Async version of performInitialCacheOperations for better coordination
-     */
-    @Override
-    @Async
-    public CompletableFuture<Void> performInitialCacheOperationsAsync(User user) {
-        return CompletableFuture.runAsync(() -> performInitialCacheOperations(user));
-    }
-
-    /**
-     * Async version of performPostMergeCacheLoading for better coordination
-     */
-    @Override
-    @Async
-    public CompletableFuture<Void> performPostMergeCacheLoadingAsync(String username) {
-        return CompletableFuture.runAsync(() -> performPostMergeCacheLoading(username));
-    }
-
-    /**
-     * Async version of performFastCacheRefresh for better coordination
-     */
-    @Override
-    @Async
-    public CompletableFuture<Void> performFastCacheRefreshAsync(User user) {
-        return CompletableFuture.runAsync(() -> performFastCacheRefresh(user));
-    }
-
     // ========================================================================
     // UTILITY METHODS
     // ========================================================================
@@ -421,16 +361,5 @@ public class UserLoginCacheServiceImpl implements UserLoginCacheService {
         }
 
         LoggerUtil.info(this.getClass(), String.format("Forced full cache refresh completed for: %s", username));
-    }
-
-    /**
-     * Get cache status information for monitoring
-     */
-    @Override
-    public String getCacheStatus(String username) {
-        return String.format("Cache status for %s - Login count: %d, Strategy: %s",
-                username,
-                getCurrentLoginCount(),
-                shouldPerformFastCacheRefresh() ? "Fast Refresh" : "Full Operations");
     }
 }

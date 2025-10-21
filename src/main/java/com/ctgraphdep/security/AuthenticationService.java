@@ -2,10 +2,11 @@ package com.ctgraphdep.security;
 
 import com.ctgraphdep.fileOperations.service.SystemAvailabilityService;
 import com.ctgraphdep.fileOperations.data.UserDataService;
+import com.ctgraphdep.merge.login.LoginMergeStrategy;
+import com.ctgraphdep.merge.login.interfaces.LoginCacheService;
+import com.ctgraphdep.merge.login.interfaces.LoginMergeService;
 import com.ctgraphdep.model.AuthenticationStatus;
 import com.ctgraphdep.model.User;
-import com.ctgraphdep.service.UserLoginCacheService;
-import com.ctgraphdep.service.UserLoginMergeService;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -20,9 +21,9 @@ import java.util.concurrent.CompletableFuture;
 /**
  * REFACTORED AuthenticationService - focused on authentication only.
  * Changes made:
- * - Removed direct merge service dependencies (RegisterMergeService, CheckRegisterService, WorktimeLoginMergeService)
- * - Removed cache operation methods (moved to UserLoginCacheService)
- * - Removed role-based merge logic (moved to UserLoginMergeService)
+ * - Removed direct merge service dependencies (RegisterMergeService, CheckRegisterService, WorktimeLoginMerge)
+ * - Removed cache operation methods (moved to LoginCacheService)
+ * - Removed role-based merge logic (moved to LoginMergeService)
  * - Simplified post-login operations to use new decoupled services
  * - Maintained all authentication logic unchanged
  * - Added admin elevation logic
@@ -37,11 +38,11 @@ public class AuthenticationService {
     private final CustomUserDetailsService userDetailsService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
     private final AllUsersCacheService allUsersCacheService;
-    private final LoginMergeCacheService loginMergeCacheService;
+    private final LoginMergeStrategy loginMergeStrategy;
 
     // NEW: Decoupled services for merge and cache operations
-    private final UserLoginMergeService userLoginMergeService;
-    private final UserLoginCacheService userLoginCacheService;
+    private final LoginMergeService loginMergeService;
+    private final LoginCacheService loginCacheService;
 
     private final ThreadLocal<User> authenticatedUserCache = new ThreadLocal<>();
 
@@ -53,18 +54,18 @@ public class AuthenticationService {
             CustomUserDetailsService userDetailsService,
             MainDefaultUserContextService mainDefaultUserContextService,
             AllUsersCacheService allUsersCacheService,
-            LoginMergeCacheService loginMergeCacheService,
-            UserLoginMergeService userLoginMergeService,
-            UserLoginCacheService userLoginCacheService) {
+            LoginMergeStrategy loginMergeStrategy,
+            LoginMergeService loginMergeService,
+            LoginCacheService loginCacheService) {
         this.systemAvailabilityService = systemAvailabilityService;
         this.userDataService = userDataService;
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.allUsersCacheService = allUsersCacheService;
-        this.loginMergeCacheService = loginMergeCacheService;
-        this.userLoginMergeService = userLoginMergeService;
-        this.userLoginCacheService = userLoginCacheService;
+        this.loginMergeStrategy = loginMergeStrategy;
+        this.loginMergeService = loginMergeService;
+        this.loginCacheService = loginCacheService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -288,12 +289,12 @@ public class AuthenticationService {
 
         LoggerUtil.info(this.getClass(), String.format("Performing FIRST LOGIN operations for: %s", username));
         // Pass User object instead of username
-        userLoginCacheService.performInitialCacheOperations(user);  // ← Pass User object
+        loginCacheService.performInitialCacheOperations(user);  // ← Pass User object
 
-        CompletableFuture<Void> mergeOperations = userLoginMergeService.performLoginMerges(username, role);
+        CompletableFuture<Void> mergeOperations = loginMergeService.performLoginMerges(username, role);
 
         mergeOperations.thenRun(() -> {
-            userLoginCacheService.performPostMergeCacheLoading(username);
+            loginCacheService.performPostMergeCacheLoading(username);
             LoggerUtil.info(this.getClass(), String.format("First login operations completed for: %s", username));
         }).exceptionally(throwable -> {
             // error handling...
@@ -307,14 +308,14 @@ public class AuthenticationService {
     private void performPostLoginOperations(User user) {
         String username = user.getUsername();
 
-        int loginCount = loginMergeCacheService.incrementAndGetLoginCount();
+        int loginCount = loginMergeStrategy.incrementAndGetLoginCount();
 
         LoggerUtil.info(this.getClass(), String.format("Daily login count: %d for user: %s", loginCount, username));
-        LoggerUtil.info(this.getClass(), loginMergeCacheService.getPerformanceBenefit());
+        LoggerUtil.info(this.getClass(), loginMergeStrategy.getPerformanceBenefit());
 
-        if (loginMergeCacheService.shouldPerformFullMerge()) {
+        if (loginMergeStrategy.shouldPerformFullMerge()) {
             performFirstLoginOperations(user);  // ← Pass User object instead of username, role
-        } else if (loginMergeCacheService.shouldPerformFastCacheRefresh()) {
+        } else if (loginMergeStrategy.shouldPerformFastCacheRefresh()) {
             performSubsequentLoginOperations(user);
         }
 
@@ -331,7 +332,7 @@ public class AuthenticationService {
 
         try {
             // Fast cache refresh only (synchronous but fast ~0.5 seconds)
-            userLoginCacheService.performFastCacheRefresh(user);  // ← Pass User object
+            loginCacheService.performFastCacheRefresh(user);  // ← Pass User object
 
             LoggerUtil.info(this.getClass(), String.format("Subsequent login operations completed for: %s", user.getUsername()));
 
@@ -392,34 +393,34 @@ public class AuthenticationService {
      * Get current login optimization status
      */
     public String getLoginOptimizationStatus() {
-        return loginMergeCacheService.getStatus();
+        return loginMergeStrategy.getStatus();
     }
 
     /**
      * Check if there are pending merge operations for a user
      */
     public boolean hasPendingMerges(String username) {
-        return userLoginMergeService.hasPendingMerges(username);
+        return loginMergeService.hasPendingMerges(username);
     }
 
     /**
      * Get the number of pending merge operations
      */
     public int getPendingMergeCount() {
-        return userLoginMergeService.getPendingMergeCount();
+        return loginMergeService.getPendingMergeCount();
     }
 
     /**
      * Force retry of pending merges (for manual intervention)
      */
     public void retryPendingMerges() {
-        userLoginMergeService.retryPendingMerges();
+        loginMergeService.retryPendingMerges();
     }
 
     /**
      * Force full cache refresh for a user (for manual intervention)
      */
     public void forceFullCacheRefresh(String username) {
-        userLoginCacheService.forceFullCacheRefresh(username);
+        loginCacheService.forceFullCacheRefresh(username);
     }
 }
