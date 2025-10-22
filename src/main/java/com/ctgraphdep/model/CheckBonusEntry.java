@@ -46,10 +46,38 @@ public class CheckBonusEntry {
     private Double totalWUM;
 
     /**
-     * Working hours for the month (schedule-based, adjusted for time off)
+     * Working hours for the month (the selected value used for calculation)
+     * This is set based on hoursOption selection
      */
     @JsonProperty("workingHours")
     private Double workingHours;
+
+    /**
+     * Live hours - actual hours worked including overtime (Option 1)
+     * Read from worktime file, calculated by WorkScheduleService
+     */
+    @JsonProperty("liveHours")
+    private Double liveHours;
+
+    /**
+     * Standard hours - expected hours based on workdays minus time-off (Option 2)
+     * Calculated as: (workdays - timeoff_days) × schedule
+     */
+    @JsonProperty("standardHours")
+    private Double standardHours;
+
+    /**
+     * Manual hours - TL_CHECKING manually entered value (Option 3)
+     */
+    @JsonProperty("manualHours")
+    private Double manualHours;
+
+    /**
+     * Which hours option was selected for calculation
+     * Values: "live", "standard", "manual"
+     */
+    @JsonProperty("hoursOption")
+    private String hoursOption;
 
     /**
      * Target Work Units per Hour (from CheckValues)

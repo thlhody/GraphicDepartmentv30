@@ -12,7 +12,12 @@
 
     // DOM Elements
     let calculateBtn, saveBonusBtn, bonusResults, bonusErrorMessage, bonusSuccessMessage;
-    let bonusSumInput, standardHoursInput;
+    let bonusSumInput, hoursOptionLive, hoursOptionStandard, hoursOptionManual, manualHoursInput;
+    let liveHoursValue, standardHoursValue;
+
+    // Cached hours values
+    let cachedLiveHours = null;
+    let cachedStandardHours = null;
 
     /**
      * Initialize the bonus fragment
@@ -25,7 +30,14 @@
         bonusErrorMessage = document.getElementById('bonusErrorMessage');
         bonusSuccessMessage = document.getElementById('bonusSuccessMessage');
         bonusSumInput = document.getElementById('bonusSum');
-        standardHoursInput = document.getElementById('standardHours');
+
+        // Hours option elements
+        hoursOptionLive = document.getElementById('hoursOptionLive');
+        hoursOptionStandard = document.getElementById('hoursOptionStandard');
+        hoursOptionManual = document.getElementById('hoursOptionManual');
+        manualHoursInput = document.getElementById('manualHours');
+        liveHoursValue = document.getElementById('liveHoursValue');
+        standardHoursValue = document.getElementById('standardHoursValue');
 
         // Check if elements exist (fragment might not be loaded)
         if (!calculateBtn || !saveBonusBtn) {
@@ -37,7 +49,79 @@
         calculateBtn.addEventListener('click', handleCalculateBonus);
         saveBonusBtn.addEventListener('click', handleSaveBonus);
 
+        // Add listeners for hours option radio buttons
+        if (hoursOptionManual) {
+            hoursOptionManual.addEventListener('change', function() {
+                manualHoursInput.disabled = !this.checked;
+                if (this.checked) {
+                    manualHoursInput.focus();
+                }
+            });
+        }
+
+        if (hoursOptionLive) {
+            hoursOptionLive.addEventListener('change', function() {
+                manualHoursInput.disabled = true;
+            });
+        }
+
+        if (hoursOptionStandard) {
+            hoursOptionStandard.addEventListener('change', function() {
+                manualHoursInput.disabled = true;
+            });
+        }
+
+        // Load hours values when fragment loads
+        loadHoursValues();
+
         console.log('Check bonus fragment initialized');
+    }
+
+    /**
+     * Load live and standard hours values from backend
+     */
+    async function loadHoursValues() {
+        // Get selected user info from page context
+        const username = SELECTED_USER;
+        const userId = SELECTED_USER_ID;
+        const year = CURRENT_YEAR;
+        const month = CURRENT_MONTH;
+
+        if (!username || !userId || !year || !month) {
+            console.warn('Cannot load hours values - missing user or period information');
+            return;
+        }
+
+        try {
+            // Make API call to get hours values
+            const response = await fetch(`/team/check-register/get-hours?username=${username}&userId=${userId}&year=${year}&month=${month}`, {
+                method: 'GET',
+                headers: {
+                    [header]: token
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                cachedLiveHours = data.liveHours || 0;
+                cachedStandardHours = data.standardHours || 0;
+
+                // Update badge displays (no minutes, whole numbers)
+                if (liveHoursValue) {
+                    liveHoursValue.textContent = Math.round(cachedLiveHours) + ' hrs';
+                }
+                if (standardHoursValue) {
+                    standardHoursValue.textContent = Math.round(cachedStandardHours) + ' hrs';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading hours values:', error);
+            // Set default values on error
+            cachedLiveHours = 0;
+            cachedStandardHours = 0;
+            if (liveHoursValue) liveHoursValue.textContent = '0 hrs';
+            if (standardHoursValue) standardHoursValue.textContent = '0 hrs';
+        }
     }
 
     /**
@@ -48,16 +132,28 @@
 
         // Validate inputs
         const bonusSum = parseFloat(bonusSumInput.value);
-        const standardHours = parseFloat(standardHoursInput.value);
 
         if (isNaN(bonusSum) || bonusSum <= 0) {
             showError('Please enter a valid bonus sum greater than 0');
             return;
         }
 
-        if (isNaN(standardHours) || standardHours <= 0) {
-            showError('Please enter valid standard hours greater than 0');
-            return;
+        // Determine which hours option is selected
+        let hoursOption = 'standard'; // default
+        let manualHours = null;
+
+        if (hoursOptionLive && hoursOptionLive.checked) {
+            hoursOption = 'live';
+        } else if (hoursOptionStandard && hoursOptionStandard.checked) {
+            hoursOption = 'standard';
+        } else if (hoursOptionManual && hoursOptionManual.checked) {
+            hoursOption = 'manual';
+            manualHours = parseFloat(manualHoursInput.value);
+
+            if (isNaN(manualHours) || manualHours <= 0) {
+                showError('Please enter valid manual hours greater than 0');
+                return;
+            }
         }
 
         // Get selected user info from page context
@@ -89,7 +185,8 @@
                     year: year,
                     month: month,
                     bonusSum: bonusSum,
-                    standardHours: standardHours
+                    hoursOption: hoursOption,
+                    manualHours: manualHours
                 })
             });
 
@@ -227,12 +324,29 @@
             return null;
         }
 
+        // Determine which hours option was selected
+        let hoursOption = 'standard';
+        let manualHours = null;
+
+        if (hoursOptionLive && hoursOptionLive.checked) {
+            hoursOption = 'live';
+        } else if (hoursOptionStandard && hoursOptionStandard.checked) {
+            hoursOption = 'standard';
+        } else if (hoursOptionManual && hoursOptionManual.checked) {
+            hoursOption = 'manual';
+            manualHours = parseFloat(manualHoursInput.value) || 0;
+        }
+
         return {
             username: SELECTED_USER,
             employeeId: SELECTED_USER_ID,
             name: document.getElementById('bonusUserName')?.textContent || SELECTED_USER,
             totalWUM: totalWUM,
             workingHours: workingHours,
+            liveHours: cachedLiveHours,
+            standardHours: cachedStandardHours,
+            manualHours: manualHours,
+            hoursOption: hoursOption,
             targetWUHR: targetWUHR,
             totalWUHRM: totalWUHRM,
             efficiencyPercent: efficiencyPercent,

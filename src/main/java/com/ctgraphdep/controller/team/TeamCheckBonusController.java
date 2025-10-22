@@ -41,14 +41,52 @@ public class TeamCheckBonusController extends BaseController {
     @Autowired
     private ExportCheckBonusExcel exportCheckBonusExcel;
 
+    @Autowired
+    private com.ctgraphdep.service.WorkScheduleService workScheduleService;
+
     public TeamCheckBonusController(UserService userService, FolderStatus folderStatus,
                                      TimeValidationService timeValidationService,
                                      CheckBonusService checkBonusService,
-                                     ExportCheckBonusExcel exportCheckBonusExcel) {
+                                     ExportCheckBonusExcel exportCheckBonusExcel,
+                                     com.ctgraphdep.service.WorkScheduleService workScheduleService) {
         super(userService, folderStatus, timeValidationService);
         this.checkBonusService = checkBonusService;
         this.exportCheckBonusExcel = exportCheckBonusExcel;
+        this.workScheduleService = workScheduleService;
         LoggerUtil.initialize(this.getClass(), null);
+    }
+
+    /**
+     * Get hours values (live and standard) for a user
+     * GET /team/check-register/get-hours
+     */
+    @GetMapping("/get-hours")
+    @ResponseBody
+    public ResponseEntity<?> getHours(@RequestParam("username") String username,
+                                       @RequestParam("userId") Integer userId,
+                                       @RequestParam("year") int year,
+                                       @RequestParam("month") int month) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format(
+                "Get hours request for user: %s, year: %d, month: %d", username, year, month));
+
+            // Calculate live hours
+            double liveHours = workScheduleService.calculateLiveWorkHours(username, userId, year, month);
+
+            // Calculate standard hours
+            double standardHours = workScheduleService.calculateStandardWorkHoursWithCache(username, userId, year, month);
+
+            // Return both values
+            return ResponseEntity.ok(Map.of(
+                "liveHours", liveHours,
+                "standardHours", standardHours
+            ));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting hours: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "Failed to get hours: " + e.getMessage()));
+        }
     }
 
     /**
@@ -65,7 +103,9 @@ public class TeamCheckBonusController extends BaseController {
             Integer year = (Integer) request.get("year");
             Integer month = (Integer) request.get("month");
             Double bonusSum = ((Number) request.get("bonusSum")).doubleValue();
-            Double standardHours = ((Number) request.get("standardHours")).doubleValue();
+            String hoursOption = (String) request.get("hoursOption");
+            Double manualHours = request.get("manualHours") != null ?
+                ((Number) request.get("manualHours")).doubleValue() : null;
 
             // Validate parameters
             if (username == null || userId == null || year == null || month == null) {
@@ -73,12 +113,18 @@ public class TeamCheckBonusController extends BaseController {
                     .body(Map.of("message", "Missing required parameters"));
             }
 
+            // Default hoursOption to "standard" if not provided
+            if (hoursOption == null || hoursOption.isEmpty()) {
+                hoursOption = "standard";
+            }
+
             LoggerUtil.info(this.getClass(), String.format(
-                "Calculate bonus request for user: %s, year: %d, month: %d", username, year, month));
+                "Calculate bonus request for user: %s, year: %d, month: %d, hoursOption: %s",
+                username, year, month, hoursOption));
 
             // Calculate bonus
             ServiceResult<CheckBonusEntry> result = checkBonusService.calculateUserBonus(
-                username, userId, year, month, bonusSum, standardHours);
+                username, userId, year, month, bonusSum, hoursOption, manualHours);
 
             if (!result.isSuccess()) {
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

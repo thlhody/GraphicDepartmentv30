@@ -48,6 +48,9 @@ public class CheckBonusService {
     @Autowired
     private BonusCalculationService bonusCalculationService;
 
+    @Autowired
+    private com.ctgraphdep.service.WorkScheduleService workScheduleService;
+
     /**
      * Calculate bonus for a single user
      *
@@ -56,12 +59,13 @@ public class CheckBonusService {
      * @param year Year for calculation
      * @param month Month for calculation
      * @param bonusSum Base bonus sum
-     * @param standardHours Standard hours per month (for reference)
+     * @param hoursOption Which hours to use: "live", "standard", or "manual"
+     * @param manualHours Manual hours value (only used if hoursOption is "manual")
      * @return ServiceResult containing CheckBonusEntry or error
      */
     public ServiceResult<CheckBonusEntry> calculateUserBonus(String username, Integer userId,
                                                                int year, int month,
-                                                               Double bonusSum, Double standardHours) {
+                                                               Double bonusSum, String hoursOption, Double manualHours) {
         try {
             LoggerUtil.info(this.getClass(), String.format(
                 "Calculating bonus for user: %s (ID: %d) for %d-%02d", username, userId, year, month));
@@ -72,27 +76,48 @@ public class CheckBonusService {
                 return ServiceResult.systemError("Failed to calculate Total WU/M for user", "calc_total_wum_failed");
             }
 
-            // 2. Get Working Hours (schedule-based, adjusted for time off)
-            Double workingHours = calculateWorkingHours(username, year, month);
-            if (workingHours == null) {
-                workingHours = 0.0; // Default to 0 if calculation fails
-                LoggerUtil.warn(this.getClass(), "Working hours calculation failed, using 0.0");
+            // 2. Calculate ALL THREE hour options
+            Double liveHours = calculateLiveHours(username, userId, year, month);
+            Double standardHours = calculateStandardHours(username, userId, year, month);
+
+            // 3. Determine which hours to use based on hoursOption
+            Double workingHours;
+            if ("live".equals(hoursOption)) {
+                workingHours = liveHours;
+            } else if ("standard".equals(hoursOption)) {
+                workingHours = standardHours;
+            } else if ("manual".equals(hoursOption)) {
+                workingHours = manualHours != null ? manualHours : 0.0;
+            } else {
+                // Default to standard if invalid option
+                workingHours = standardHours;
+                hoursOption = "standard";
+                LoggerUtil.warn(this.getClass(), "Invalid hoursOption, defaulting to 'standard'");
             }
 
-            // 3. Get Target WU/HR from CheckValues
+            // 4. Get Target WU/HR from CheckValues
             Double targetWUHR = getTargetWUHR(username, userId);
             if (targetWUHR == null) {
                 targetWUHR = 4.5; // Default value
                 LoggerUtil.warn(this.getClass(), "Target WU/HR not found, using default 4.5");
             }
 
-            // Create bonus entry
+            // Create bonus entry with ALL values
             CheckBonusEntry bonusEntry = new CheckBonusEntry();
             bonusEntry.setUsername(username);
             bonusEntry.setEmployeeId(userId);
             bonusEntry.setName(getUserName(username, userId));
             bonusEntry.setTotalWUM(totalWUM);
+
+            // Set all 3 hour options
+            bonusEntry.setLiveHours(liveHours);
+            bonusEntry.setStandardHours(standardHours);
+            bonusEntry.setManualHours(manualHours);
+            bonusEntry.setHoursOption(hoursOption);
+
+            // Set the selected working hours for calculation
             bonusEntry.setWorkingHours(workingHours);
+
             bonusEntry.setTargetWUHR(targetWUHR);
             bonusEntry.setYear(year);
             bonusEntry.setMonth(month);
@@ -153,26 +178,57 @@ public class CheckBonusService {
     }
 
     /**
-     * Calculate Working Hours (schedule-based, adjusted for time off)
-     * For now, we'll use a simplified calculation based on worktime data
+     * Calculate Live Hours - Option 1
+     * Actual hours worked including overtime from worktime file
+     * Uses WorkScheduleService.calculateLiveWorkHours() which:
+     * - Reads from worktime file (network for team members, cache for own data)
+     * - Counts all worked hours including overtime
+     * - Skips time-off days without work
+     * - Includes special day overtime (CO/CM/SN/W with work)
      */
-    private Double calculateWorkingHours(String username, int year, int month) {
+    private Double calculateLiveHours(String username, Integer userId, int year, int month) {
         try {
-            // Get worked days from worktime service
-            // For now, use a simple approximation: 20 working days per month * 8 hours
-            // TODO: Implement proper worktime calculation with time off adjustments
+            // Use existing WorkScheduleService method
+            double liveHours = workScheduleService.calculateLiveWorkHours(username, userId, year, month);
 
-            // Temporary: Assume 20 working days * 8 hours = 160 hours
-            double workingHours = 160.0;
+            LoggerUtil.info(this.getClass(), String.format(
+                "Live hours for %s (%d-%02d): %.2f hours", username, year, month, liveHours));
 
-            LoggerUtil.debug(this.getClass(), String.format(
-                "Working hours for %s: %.2f (using default 160 hours)", username, workingHours));
-
-            return workingHours;
+            return liveHours;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error calculating working hours: " + e.getMessage(), e);
-            return null;
+            LoggerUtil.error(this.getClass(), "Error calculating live hours: " + e.getMessage(), e);
+            return 0.0; // Default to 0 on error
+        }
+    }
+
+    /**
+     * Calculate Standard Hours - Option 2
+     * Expected hours based on workdays minus time-off days
+     * Formula: (total_workdays_in_month - timeoff_days) × user_schedule
+     * Time-off days counted: CO, CM, SN, W (WorkCode constants)
+     * Only counts days with NO work done (pure time-off)
+     */
+    private Double calculateStandardHours(String username, Integer userId, int year, int month) {
+        try {
+            // Get user to determine schedule
+            User user = userService.getUserById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+            int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
+
+            // Use existing WorkScheduleService method to get standard hours WITH cache
+            // This already calculates workdays and subtracts time-off
+            double standardHours = workScheduleService.calculateStandardWorkHoursWithCache(username, userId, year, month);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                "Standard hours for %s (%d-%02d): %.2f hours (schedule: %d hrs/day)",
+                username, year, month, standardHours, userSchedule));
+
+            return standardHours;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error calculating standard hours: " + e.getMessage(), e);
+            return 0.0; // Default to 0 on error
         }
     }
 
