@@ -9,6 +9,7 @@ import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
+import com.ctgraphdep.model.dto.CheckRegisterSearchResultDTO;
 import com.ctgraphdep.register.service.CheckRegisterService;
 import com.ctgraphdep.register.service.CheckValuesService;
 import com.ctgraphdep.service.*;
@@ -451,10 +452,10 @@ public class CheckRegisterController extends BaseController {
     }
 
     /**
-     * Search across all check register entries - REFACTORED with ServiceResult handling
+     * Search across all check register entries - REFACTORED with ServiceResult handling and DTO
      */
     @GetMapping("/search")
-    public ResponseEntity<List<RegisterCheckEntry>> performSearch(@AuthenticationPrincipal UserDetails userDetails, @RequestParam() String query) {
+    public ResponseEntity<List<CheckRegisterSearchResultDTO>> performSearch(@AuthenticationPrincipal UserDetails userDetails, @RequestParam() String query) {
 
         try {
             LoggerUtil.info(this.getClass(), "Performing check register search at " + getStandardCurrentDateTime());
@@ -471,8 +472,14 @@ public class CheckRegisterController extends BaseController {
 
             if (searchResult.isSuccess()) {
                 List<RegisterCheckEntry> results = searchResult.getData();
-                LoggerUtil.info(this.getClass(), String.format("Search completed successfully, found %d results", results.size()));
-                return ResponseEntity.ok(results);
+
+                // Convert to DTO (hides internal fields like entryId and adminSync)
+                List<CheckRegisterSearchResultDTO> dtoResults = results.stream()
+                        .map(CheckRegisterSearchResultDTO::new)
+                        .collect(Collectors.toList());
+
+                LoggerUtil.info(this.getClass(), String.format("Search completed successfully, found %d results", dtoResults.size()));
+                return ResponseEntity.ok(dtoResults);
             } else {
                 LoggerUtil.warn(this.getClass(), String.format("Search failed for %s: %s",
                         currentUser.getUsername(), searchResult.getErrorMessage()));

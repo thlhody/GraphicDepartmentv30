@@ -7,15 +7,16 @@ import com.ctgraphdep.model.CheckValuesEntry;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
+import com.ctgraphdep.service.BonusCalculationService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.result.ServiceResult;
+import com.ctgraphdep.utils.DateFormatUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.worktime.service.WorktimeOperationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,7 +45,8 @@ public class CheckBonusService {
     @Autowired
     private UserService userService;
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    @Autowired
+    private BonusCalculationService bonusCalculationService;
 
     /**
      * Calculate bonus for a single user
@@ -94,16 +96,16 @@ public class CheckBonusService {
             bonusEntry.setTargetWUHR(targetWUHR);
             bonusEntry.setYear(year);
             bonusEntry.setMonth(month);
-            bonusEntry.setCalculationDate(LocalDate.now().format(DATE_FORMATTER));
+            bonusEntry.setCalculationDate(DateFormatUtil.formatForDisplay(LocalDate.now()));
 
             // 4. Calculate Total WU/HR/M (Working Hours × Target WU/HR)
-            bonusEntry.calculateTotalWUHRM();
+            bonusCalculationService.calculateTotalWUHRM(bonusEntry);
 
             // 5. Calculate Efficiency %
-            bonusEntry.calculateEfficiency();
+            bonusCalculationService.calculateEfficiency(bonusEntry);
 
             // 6. Calculate Bonus Amount
-            bonusEntry.calculateBonus(bonusSum);
+            bonusCalculationService.calculateBonus(bonusEntry, bonusSum);
 
             LoggerUtil.info(this.getClass(), String.format(
                 "Bonus calculated for %s: WU/M=%.2f, Hours=%.2f, Efficiency=%d%%, Bonus=%.2f",

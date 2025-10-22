@@ -59,8 +59,6 @@ public class WorkTimeSummaryDTO {
 
     // ENHANCED: Create with entries for time management page
     public static WorkTimeSummaryDTO createWithEntries(List<WorkTimeEntryDTO> entries, WorkTimeCountsDTO counts, Integer availablePaidDays) {
-        int totalMinutes = counts.getRegularMinutes() + counts.getOvertimeMinutes();
-
         return WorkTimeSummaryDTO.builder()
                 .entries(entries)
                 .daysWorked(counts.getDaysWorked())
@@ -72,20 +70,15 @@ public class WorkTimeSummaryDTO {
                 .formattedRegularHours(CalculateWorkHoursUtil.minutesToHHmm(counts.getRegularMinutes()))
                 .totalOvertimeMinutes(counts.getOvertimeMinutes()) // Includes SN overtime
                 .formattedOvertimeHours(CalculateWorkHoursUtil.minutesToHHmm(counts.getOvertimeMinutes()))
-                .totalMinutes(totalMinutes)
-                .formattedTotalHours(CalculateWorkHoursUtil.minutesToHHmm(totalMinutes))
+                .totalMinutes(counts.getTotalMinutes()) // Use existing method instead of manual calculation
+                .formattedTotalHours(CalculateWorkHoursUtil.minutesToHHmm(counts.getTotalMinutes()))
                 .discardedMinutes(counts.getDiscardedMinutes())
                 .availablePaidDays(availablePaidDays != null ? availablePaidDays : 0)
                 .build();
     }
 
-    // Utility methods
-    public int getEntryCount() {
-        return entries != null ? entries.size() : 0;
-    }
-
-    public long getSNWorkDayCount() {
-        if (entries == null) return 0;
-        return entries.stream().filter(WorkTimeEntryDTO::isSNWorkDay).count();
-    }
+    // ========================================================================
+    // NOTE: Utility methods getEntryCount() and getSNWorkDayCount() removed as unused.
+    //       Consumers directly access the 'entries' field or summary fields (daysWorked, snDays, etc.)
+    // ========================================================================
 }

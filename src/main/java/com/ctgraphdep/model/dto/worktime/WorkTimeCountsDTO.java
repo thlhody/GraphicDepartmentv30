@@ -6,6 +6,7 @@ import lombok.Data;
  * DTO for tracking work time counts and totals
  * Used internally by WorktimeDisplayService for calculations
  */
+
 @Data
 public class WorkTimeCountsDTO {
     // Day counts

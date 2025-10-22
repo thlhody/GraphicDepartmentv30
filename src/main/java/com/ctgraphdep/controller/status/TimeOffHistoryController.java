@@ -28,7 +28,6 @@ import java.util.Optional;
 /**
  * TimeOffHistoryController - Handles time off history viewing functionality.
  * Displays approved time off entries and summary for a specific user and year.
- *
  * Part of StatusController refactoring - separated from monolithic StatusController.
  */
 @Controller

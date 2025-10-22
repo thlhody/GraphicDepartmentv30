@@ -10,6 +10,8 @@ import com.ctgraphdep.model.dto.worktime.*;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.TimeOffCacheService;
 import com.ctgraphdep.service.cache.WorktimeCacheService;
+import com.ctgraphdep.service.dto.WorkTimeDisplayDTOFactory;
+import com.ctgraphdep.service.dto.WorkTimeEntryDTOFactory;
 import com.ctgraphdep.worktime.service.WorktimeOperationService;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -33,16 +35,25 @@ public class WorktimeDisplayService {
     private final TimeOffCacheService timeOffCacheService;
     private final WorktimeCacheService worktimeCacheService;
     private final AllUsersCacheService allUsersCacheService;
+    private final WorkTimeDisplayDTOFactory displayDTOFactory;
+    private final WorkTimeEntryDTOFactory entryDTOFactory;
+
     @Autowired
     private StatusDTOConverter statusDTOConverter;
 
-
     @Autowired
-    public WorktimeDisplayService(WorktimeOperationService worktimeOperationService, TimeOffCacheService timeOffCacheService, WorktimeCacheService worktimeCacheService, AllUsersCacheService allUsersCacheService) {
+    public WorktimeDisplayService(WorktimeOperationService worktimeOperationService,
+                                 TimeOffCacheService timeOffCacheService,
+                                 WorktimeCacheService worktimeCacheService,
+                                 AllUsersCacheService allUsersCacheService,
+                                 WorkTimeDisplayDTOFactory displayDTOFactory,
+                                 WorkTimeEntryDTOFactory entryDTOFactory) {
         this.worktimeOperationService = worktimeOperationService;
         this.timeOffCacheService = timeOffCacheService;
         this.worktimeCacheService = worktimeCacheService;
         this.allUsersCacheService = allUsersCacheService;
+        this.displayDTOFactory = displayDTOFactory;
+        this.entryDTOFactory = entryDTOFactory;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -106,7 +117,7 @@ public class WorktimeDisplayService {
                         // CREATE status information for each entry
                         GeneralDataStatusDTO statusInfo = createStatusInfo(entry, user.getUserId(), entry.getUserId());
                         // PASS status info to factory method
-                        return WorkTimeEntryDTO.fromWorkTimeTable(entry, userSchedule, statusInfo);
+                        return entryDTOFactory.fromWorkTimeTable(entry, userSchedule, statusInfo);
                     })
                     .collect(Collectors.toList());
 
@@ -194,12 +205,12 @@ public class WorktimeDisplayService {
 
         // No entry exists
         if (entry == null) {
-            return WorkTimeDisplayDTO.createEmpty(user.getUserId(), date, isWeekend, statusInfo);
+            return displayDTOFactory.createEmpty(user.getUserId(), date, isWeekend, statusInfo);
         }
 
         // Skip entries that shouldn't be displayed (like USER_IN_PROCESS)
         if (!WorkTimeEntryUtil.isEntryDisplayable(entry)) {
-            return WorkTimeDisplayDTO.createEmpty(user.getUserId(), date, isWeekend, statusInfo);
+            return displayDTOFactory.createEmpty(user.getUserId(), date, isWeekend, statusInfo);
         }
 
         // Handle special day work entries (TYPE with overtime)
@@ -207,30 +218,30 @@ public class WorktimeDisplayService {
 
             switch (entry.getTimeOffType()) {
                 case WorkCode.NATIONAL_HOLIDAY_CODE:
-                    return WorkTimeDisplayDTO.createFromSNWorkEntry(entry, isWeekend, statusInfo);
+                    return displayDTOFactory.createFromSNWorkEntry(entry, isWeekend, statusInfo);
                 case WorkCode.TIME_OFF_CODE:
-                    return WorkTimeDisplayDTO.createFromCOWorkEntry(entry, isWeekend, statusInfo);
+                    return displayDTOFactory.createFromCOWorkEntry(entry, isWeekend, statusInfo);
                 case WorkCode.MEDICAL_LEAVE_CODE:
-                    return WorkTimeDisplayDTO.createFromCMWorkEntry(entry, isWeekend, statusInfo);
+                    return displayDTOFactory.createFromCMWorkEntry(entry, isWeekend, statusInfo);
                 case WorkCode.WEEKEND_CODE:
-                    return WorkTimeDisplayDTO.createFromWWorkEntry(entry, isWeekend, statusInfo);
+                    return displayDTOFactory.createFromWWorkEntry(entry, isWeekend, statusInfo);
             }
         }
 
         // Regular time off (SN without work, CO, CM)
         if (entry.getTimeOffType() != null) {
-            return WorkTimeDisplayDTO.createFromTimeOffEntry(entry, isWeekend, statusInfo);
+            return displayDTOFactory.createFromTimeOffEntry(entry, isWeekend, statusInfo);
         }
 
         // Regular work entry
         if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
 
             int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8; // Default to 8 hours
-            return WorkTimeDisplayDTO.createFromWorkEntry(entry, userSchedule, isWeekend, statusInfo);
+            return displayDTOFactory.createFromWorkEntry(entry, userSchedule, isWeekend, statusInfo);
         }
 
         // Default to empty
-        return WorkTimeDisplayDTO.createEmpty(user.getUserId(), date, isWeekend, statusInfo);
+        return displayDTOFactory.createEmpty(user.getUserId(), date, isWeekend, statusInfo);
     }
 
     // Calculate summary with verification against display DTOs
@@ -418,7 +429,7 @@ public class WorktimeDisplayService {
         GeneralDataStatusDTO statusInfo = createStatusInfo(entry, null, entry.getUserId());
 
         // Use the enhanced DTO conversion method
-        WorkTimeEntryDTO dto = WorkTimeEntryDTO.fromWorkTimeTable(entry, userSchedule, statusInfo);
+        WorkTimeEntryDTO dto = entryDTOFactory.fromWorkTimeTable(entry, userSchedule, statusInfo);
 
         LoggerUtil.debug(this.getClass(), String.format("Converted entry for %s: timeOff=%s, workedMinutes=%d, overtimeMinutes=%d, isSpecialDayWork=%b, specialDayType=%s, Status: %s",
                 entry.getWorkDate(), entry.getTimeOffType(), entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0,

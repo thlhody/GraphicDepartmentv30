@@ -162,20 +162,6 @@ public class GeneralDataStatusDTO {
     // ========================================================================
 
     /**
-     * Get short display text for compact views
-     */
-    public String getShortDisplay() {
-        if (!isDisplayable) return "";
-
-        if (isUserInProcess) return "Active";
-        if (isFinal) return roleName.charAt(0) + "F"; // "AF", "TF"
-        if (isEdited) return roleName.charAt(0) + "E"; // "AE", "UE", "TE"
-        if (isInput) return roleName.charAt(0) + "I"; // "AI", "UI", "TI"
-
-        return "?";
-    }
-
-    /**
      * Get medium display text for normal views
      */
     public String getMediumDisplay() {
@@ -202,14 +188,6 @@ public class GeneralDataStatusDTO {
         }
 
         return base;
-    }
-
-    /**
-     * Check if this status has higher priority than another
-     */
-    public boolean hasHigherPriorityThan(GeneralDataStatusDTO other) {
-        if (other == null) return true;
-        return this.priorityLevel > other.priorityLevel;
     }
 
     /**

@@ -31,7 +31,6 @@ import java.util.Map;
 /**
  * StatusOverviewController - Handles main status page and AJAX refresh functionality.
  * Displays online/offline status for all users in the system.
- *
  * Part of StatusController refactoring - separated from monolithic StatusController.
  */
 @Controller

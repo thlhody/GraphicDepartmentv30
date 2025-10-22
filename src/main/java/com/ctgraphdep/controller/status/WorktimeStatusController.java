@@ -38,7 +38,6 @@ import java.util.Map;
 /**
  * WorktimeStatusController - Handles worktime status viewing and export functionality.
  * Displays worktime entries and summary for a specific user, month, and year.
- *
  * Part of StatusController refactoring - separated from monolithic StatusController.
  */
 @Controller

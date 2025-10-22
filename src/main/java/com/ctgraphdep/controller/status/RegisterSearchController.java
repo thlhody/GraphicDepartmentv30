@@ -38,7 +38,6 @@ import java.util.Set;
 /**
  * RegisterSearchController - Handles register search and export functionality.
  * Allows users to search and export their register entries with various filters.
- *
  * Part of StatusController refactoring - separated from monolithic StatusController.
  */
 @Controller

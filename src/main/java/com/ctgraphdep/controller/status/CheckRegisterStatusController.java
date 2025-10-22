@@ -39,15 +39,12 @@ import java.util.Set;
 /**
  * CheckRegisterStatusController - Handles check register viewing and export functionality.
  * Displays check register entries with search filters and allows Excel export.
- *
  * Part of StatusController refactoring - separated from monolithic StatusController.
  */
 @Controller
 @RequestMapping("/status")
 @PreAuthorize("isAuthenticated()")
 public class CheckRegisterStatusController extends BaseController {
-
-    private static final String DATE_TIME_FORMAT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     private final WorktimeOperationContext worktimeContext;
     private final CheckRegisterStatusExcelExporter checkRegisterExcelExporter;

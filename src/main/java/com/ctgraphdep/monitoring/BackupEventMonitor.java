@@ -4,8 +4,6 @@ import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -22,9 +20,6 @@ public class BackupEventMonitor {
     private final AtomicLong totalBackupFailures = new AtomicLong(0);
     @Getter
     private volatile long lastEventTimestamp = 0;
-
-    // Health status tracking
-    private volatile LocalDateTime lastHealthCheck = LocalDateTime.now();
 
     // ========================================================================
     // EVENT RECORDING METHODS (Called by FileEventPublisher)
@@ -59,18 +54,6 @@ public class BackupEventMonitor {
     // STATISTICS GETTERS
     // ========================================================================
 
-    public long getTotalEventsProcessed() {
-        return totalEventsProcessed.get();
-    }
-
-    public long getTotalBackupsCreated() {
-        return totalBackupsCreated.get();
-    }
-
-    public long getTotalBackupFailures() {
-        return totalBackupFailures.get();
-    }
-
     public double getBackupSuccessRate() {
         long total = totalBackupsCreated.get() + totalBackupFailures.get();
         if (total == 0) return 0.0;
@@ -92,73 +75,6 @@ public class BackupEventMonitor {
         } else {
             return "Idle - No recent activity";
         }
-    }
-
-    /**
-     * Gets detailed health information.
-     */
-    public String getDetailedHealthStatus() {
-        return String.format(
-                """
-                        BackupEventMonitor Health Report [%s]:
-                          Events Processed: %d
-                          Backups Created: %d
-                          Backup Failures: %d
-                          Success Rate: %.1f%%
-                          Status: %s
-                          Last Event: %s
-                          Last Health Check: %s""",
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                totalEventsProcessed.get(),
-                totalBackupsCreated.get(),
-                totalBackupFailures.get(),
-                getBackupSuccessRate(),
-                getHealthStatus(),
-                lastEventTimestamp > 0 ?
-                        LocalDateTime.ofEpochSecond(lastEventTimestamp / 1000, 0, java.time.ZoneOffset.systemDefault().getRules().getOffset(java.time.Instant.now()))
-                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Never",
-                lastHealthCheck.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-        );
-    }
-
-    // ========================================================================
-    // HEALTH ISSUE HANDLING
-    // ========================================================================
-
-    /**
-     * Handles backup monitoring issues detected by SchedulerHealthMonitor.
-     */
-    private void handleBackupMonitoringIssues(SchedulerHealthMonitor.TaskStatus taskStatus) {
-        try {
-            LoggerUtil.warn(this.getClass(), String.format(
-                    "Backup monitoring issue detected - Consecutive failures: %d, Minutes since last execution: %d",
-                    taskStatus.getConsecutiveFailures(), taskStatus.getMinutesSinceLastExecution()
-            ));
-
-            // Log current state for debugging
-            LoggerUtil.info(this.getClass(), "Current backup system state:\n" + getDetailedHealthStatus());
-
-            // Could implement recovery actions here:
-            // - Reset counters
-            // - Send alerts
-            // - Trigger manual backup verification
-            // - etc.
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error handling backup monitoring issues: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Manual reset of statistics (for admin/debug purposes).
-     */
-    public void resetStatistics() {
-        totalEventsProcessed.set(0);
-        totalBackupsCreated.set(0);
-        totalBackupFailures.set(0);
-        lastEventTimestamp = 0;
-        lastHealthCheck = LocalDateTime.now();
-        LoggerUtil.info(this.getClass(), "Backup event statistics have been reset");
     }
 
     // ========================================================================

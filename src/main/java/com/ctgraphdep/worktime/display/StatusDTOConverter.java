@@ -37,6 +37,13 @@ public class StatusDTOConverter {
                 return GeneralDataStatusDTO.createUnknown();
             }
 
+            // Handle DELETED statuses (tombstones - not displayable)
+            if (MergingStatusConstants.isUserDeletedStatus(rawStatus) ||
+                MergingStatusConstants.isAdminDeletedStatus(rawStatus) ||
+                MergingStatusConstants.isTeamDeletedStatus(rawStatus)) {
+                return GeneralDataStatusDTO.createNonDisplayable(rawStatus);
+            }
+
             // Determine ownership
             boolean isOwnedByCurrentUser = currentUserId != null && currentUserId.equals(entryUserId);
 

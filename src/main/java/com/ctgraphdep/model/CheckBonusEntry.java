@@ -1,5 +1,6 @@
 package com.ctgraphdep.model;
 
+import com.ctgraphdep.utils.DateFormatUtil;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -11,6 +12,9 @@ import java.time.LocalDate;
 /**
  * Model class for check register bonus calculation entries.
  * Matches the format of admin bonus JSON structure.
+ * THIS IS A PURE DATA CONTAINER - No business logic allowed!
+ * All calculation logic has been moved to BonusCalculationService.java
+ * @see com.ctgraphdep.service.BonusCalculationService for calculation logic
  */
 @Data
 @NoArgsConstructor
@@ -91,7 +95,7 @@ public class CheckBonusEntry {
     private Integer month;
 
     /**
-     * Default constructor with null-safe initialization
+     * Constructor with null-safe initialization
      */
     public CheckBonusEntry(String username, Integer employeeId, String name) {
         this.username = username;
@@ -103,42 +107,12 @@ public class CheckBonusEntry {
         this.totalWUHRM = 0.0;
         this.efficiencyPercent = 0;
         this.bonusAmount = 0.0;
-        this.calculationDate = LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        this.calculationDate = DateFormatUtil.formatForDisplay(LocalDate.now());
     }
 
-    /**
-     * Calculate efficiency percentage from totalWUM and totalWUHRM
-     */
-    public void calculateEfficiency() {
-        if (totalWUHRM != null && totalWUHRM > 0 && totalWUM != null) {
-            double efficiency = (totalWUM / totalWUHRM) * 100;
-            this.efficiencyPercent = (int) Math.round(efficiency);
-        } else {
-            this.efficiencyPercent = 0;
-        }
-    }
-
-    /**
-     * Calculate bonus amount from bonusSum and efficiency
-     */
-    public void calculateBonus(Double bonusSum) {
-        if (bonusSum != null && efficiencyPercent != null) {
-            this.bonusAmount = bonusSum * (efficiencyPercent / 100.0);
-        } else {
-            this.bonusAmount = 0.0;
-        }
-    }
-
-    /**
-     * Calculate totalWUHRM from workingHours and targetWUHR
-     */
-    public void calculateTotalWUHRM() {
-        if (workingHours != null && targetWUHR != null) {
-            this.totalWUHRM = workingHours * targetWUHR;
-        } else {
-            this.totalWUHRM = 0.0;
-        }
-    }
+    // ========================================================================
+    // NULL-SAFE GETTERS
+    // ========================================================================
 
     /**
      * Null-safe getter for totalWUM
@@ -181,4 +155,8 @@ public class CheckBonusEntry {
     public Double getBonusAmount() {
         return bonusAmount != null ? bonusAmount : 0.0;
     }
+
+    // ========================================================================
+    // NOTE: All calculation methods removed - use BonusCalculationService
+    // ========================================================================
 }

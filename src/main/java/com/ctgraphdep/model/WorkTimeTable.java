@@ -43,6 +43,7 @@ public class WorkTimeTable {
     @JsonProperty("totalTemporaryStopMinutes")
     private Integer totalTemporaryStopMinutes;
 
+    // Getter for temporaryStops - ensure backward compatibility
     @JsonProperty("temporaryStops")
     private List<TemporaryStop> temporaryStops;
 
@@ -110,10 +111,5 @@ public class WorkTimeTable {
             return MergingStatusConstants.USER_INPUT;
         }
         return adminSync;
-    }
-
-    // Getter for temporaryStops - ensure backward compatibility
-    public List<TemporaryStop> getTemporaryStops() {
-        return temporaryStops;
     }
 }
