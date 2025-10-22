@@ -518,12 +518,28 @@ public class CheckRegisterService {
 
     /**
      * Save a new or updated user check entry - REFACTORED TO USE ServiceResult
+     * SECURITY: CHECKING role cannot edit TEAM_FINAL entries - only TL_CHECKING can
      */
     public ServiceResult<RegisterCheckEntry> saveUserEntry(String username, Integer userId, RegisterCheckEntry entry) {
         // Comprehensive validation
         ServiceResult<Void> validation = validateEntryComprehensive(entry);
         if (validation.isFailure()) {
             return ServiceResult.validationError(validation.getErrorMessage(), validation.getErrorCode());
+        }
+
+        // If this is an UPDATE (entry has ID), check if we can edit it
+        if (entry.getEntryId() != null) {
+            // Load existing entry to check its status
+            RegisterCheckEntry existingEntry = registerCheckCacheService.getEntry(username, userId, entry.getEntryId(),
+                    entry.getDate().getYear(), entry.getDate().getMonthValue());
+
+            if (existingEntry != null) {
+                // SECURITY CHECK: Verify user has permission to edit this entry
+                ServiceResult<Void> permissionCheck = validateEditPermission(existingEntry);
+                if (permissionCheck.isFailure()) {
+                    return ServiceResult.validationError(permissionCheck.getErrorMessage(), permissionCheck.getErrorCode());
+                }
+            }
         }
 
         // Business rule validation
@@ -584,6 +600,7 @@ public class CheckRegisterService {
      * Delete a user check entry - REFACTORED TO USE TOMBSTONE DELETION
      * User can delete their own entries - marks them with USER_DELETED_{timestamp} status
      * Tombstone deletion ensures deletions persist across merges
+     * SECURITY: CHECKING role cannot delete TEAM_FINAL entries - only TL_CHECKING can
      */
     public ServiceResult<Void> deleteUserEntry(String username, Integer userId, Integer entryId, int year, int month) {
         try {
@@ -600,7 +617,12 @@ public class CheckRegisterService {
                 return ServiceResult.businessError("Entry not found for deletion", "entry_not_found");
             }
 
-            // Users can now delete any entry (including team lead entries)
+            // SECURITY CHECK: Verify user has permission to delete this entry
+            ServiceResult<Void> permissionCheck = validateDeletePermission(existingEntry);
+            if (permissionCheck.isFailure()) {
+                return permissionCheck;
+            }
+
             // Mark with USER_DELETED_{timestamp} tombstone status
             RegisterCheckEntry deletedEntry = copyEntry(existingEntry);
             deletedEntry.setAdminSync(MergingStatusConstants.createUserDeletedStatus());
@@ -951,36 +973,93 @@ public class CheckRegisterService {
     }
 
     /**
-     * Creates a copy of an entry with status set to USER_INPUT
+     * Validate permission to edit an entry based on current user role and entry status
+     * SECURITY RULES:
+     * - TEAM_FINAL can only be edited by TL_CHECKING role (or higher)
+     * - ADMIN_FINAL can only be edited by ADMIN role
+     * - CHECKING role cannot edit TEAM_FINAL or ADMIN_FINAL entries
      */
-    private RegisterCheckEntry copyEntryWithUserInput(RegisterCheckEntry original) {
-        return RegisterCheckEntry.builder()
-                .entryId(original.getEntryId())
-                .date(original.getDate())
-                .omsId(original.getOmsId())
-                .designerName(original.getDesignerName())
-                .productionId(original.getProductionId())
-                .checkType(original.getCheckType())
-                .articleNumbers(original.getArticleNumbers())
-                .filesNumbers(original.getFilesNumbers())
-                .errorDescription(original.getErrorDescription())
-                .approvalStatus(original.getApprovalStatus())
-                .orderValue(original.getOrderValue())
-                .adminSync(MergingStatusConstants.USER_INPUT)
-                .build();
+    private ServiceResult<Void> validateEditPermission(RegisterCheckEntry entry) {
+        String currentRole = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .map(auth -> auth.getAuthority().replace("ROLE_", ""))
+                .findFirst()
+                .orElse("");
+
+        String entryStatus = entry.getAdminSync();
+
+        // Check if entry is TEAM_FINAL
+        if (MergingStatusConstants.TEAM_FINAL.equals(entryStatus)) {
+            // Only TL_CHECKING and ADMIN can edit TEAM_FINAL
+            if (!SecurityConstants.ROLE_TL_CHECKING.equals(currentRole) &&
+                !SecurityConstants.ROLE_ADMIN.equals(currentRole)) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                    "User with role %s attempted to edit TEAM_FINAL entry %d - DENIED",
+                    currentRole, entry.getEntryId()));
+                return ServiceResult.validationError(
+                    "Cannot edit Team Lead approved entries. Only Team Leaders can modify these entries.",
+                    "insufficient_permissions_team_final");
+            }
+        }
+
+        // Check if entry is ADMIN_FINAL
+        if (MergingStatusConstants.ADMIN_FINAL.equals(entryStatus)) {
+            // Only ADMIN can edit ADMIN_FINAL
+            if (!SecurityConstants.ROLE_ADMIN.equals(currentRole)) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                    "User with role %s attempted to edit ADMIN_FINAL entry %d - DENIED",
+                    currentRole, entry.getEntryId()));
+                return ServiceResult.validationError(
+                    "Cannot edit Admin approved entries. Only Administrators can modify these entries.",
+                    "insufficient_permissions_admin_final");
+            }
+        }
+
+        return ServiceResult.success();
     }
 
     /**
-     * Helper method to determine if an entry should be skipped during marking
+     * Validate permission to delete an entry based on current user role and entry status
+     * SECURITY RULES:
+     * - TEAM_FINAL can only be deleted by TL_CHECKING role (or higher)
+     * - ADMIN_FINAL can only be deleted by ADMIN role
+     * - CHECKING role cannot delete TEAM_FINAL or ADMIN_FINAL entries
      */
-    private boolean shouldSkipEntry(RegisterCheckEntry entry) {
-        if (entry.getAdminSync() == null) {
-            return false; // Null status entries should be processed
+    private ServiceResult<Void> validateDeletePermission(RegisterCheckEntry entry) {
+        String currentRole = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .map(auth -> auth.getAuthority().replace("ROLE_", ""))
+                .findFirst()
+                .orElse("");
+
+        String entryStatus = entry.getAdminSync();
+
+        // Check if entry is TEAM_FINAL
+        if (MergingStatusConstants.TEAM_FINAL.equals(entryStatus)) {
+            // Only TL_CHECKING and ADMIN can delete TEAM_FINAL
+            if (!SecurityConstants.ROLE_TL_CHECKING.equals(currentRole) &&
+                !SecurityConstants.ROLE_ADMIN.equals(currentRole)) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                    "User with role %s attempted to delete TEAM_FINAL entry %d - DENIED",
+                    currentRole, entry.getEntryId()));
+                return ServiceResult.validationError(
+                    "Cannot delete Team Lead approved entries. Only Team Leaders can remove these entries.",
+                    "insufficient_permissions_team_final");
+            }
         }
 
-        // Skip entries with team edited status (timestamped), admin final, or team final
-        return MergingStatusConstants.isTeamEditedStatus(entry.getAdminSync()) ||
-                MergingStatusConstants.isFinalStatus(entry.getAdminSync());
+        // Check if entry is ADMIN_FINAL
+        if (MergingStatusConstants.ADMIN_FINAL.equals(entryStatus)) {
+            // Only ADMIN can delete ADMIN_FINAL
+            if (!SecurityConstants.ROLE_ADMIN.equals(currentRole)) {
+                LoggerUtil.warn(this.getClass(), String.format(
+                    "User with role %s attempted to delete ADMIN_FINAL entry %d - DENIED",
+                    currentRole, entry.getEntryId()));
+                return ServiceResult.validationError(
+                    "Cannot delete Admin approved entries. Only Administrators can remove these entries.",
+                    "insufficient_permissions_admin_final");
+            }
+        }
+
+        return ServiceResult.success();
     }
 
     /**

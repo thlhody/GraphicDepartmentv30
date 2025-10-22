@@ -192,17 +192,6 @@ public class NotificationConfigService {
         return notificationsEnabled;
     }
 
-    /**
-     * Set notification enabled state and save
-     */
-    public void setNotificationsEnabled(boolean enabled) {
-        if (notificationsEnabled != enabled) {
-            notificationsEnabled = enabled;
-            saveConfigValues();
-            LoggerUtil.info(this.getClass(), "Notifications " + (enabled ? "enabled" : "disabled"));
-        }
-    }
-
     // Helper methods
     public boolean isDefaultMonitor() {
         return "default".equalsIgnoreCase(monitor);

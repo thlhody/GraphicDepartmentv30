@@ -1,6 +1,5 @@
 package com.ctgraphdep.notification.events;
 
-
 import com.ctgraphdep.config.WorkCode;
 
 /**

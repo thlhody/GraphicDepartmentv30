@@ -4,7 +4,9 @@
       "Bash(dir:*)",
       "Bash(find:*)",
       "Bash(mvn clean:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(git log:*)",
+      "Bash(git grep:*)"
     ],
     "deny": [],
     "ask": []

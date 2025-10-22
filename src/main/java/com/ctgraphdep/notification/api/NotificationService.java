@@ -1,8 +1,5 @@
 package com.ctgraphdep.notification.api;
 
-import com.ctgraphdep.notification.model.NotificationRequest;
-import com.ctgraphdep.notification.model.NotificationResponse;
-
 import java.time.LocalDateTime;
 
 /**
@@ -10,14 +7,6 @@ import java.time.LocalDateTime;
  * This provides high-level notification functionality to other parts of the application.
  */
 public interface NotificationService {
-
-    /**
-     * Shows a notification based on the provided request
-     *
-     * @param request The notification request containing all required parameters
-     * @return A response indicating success or failure
-     */
-    NotificationResponse showNotification(NotificationRequest request);
 
     /**
      * Shows a schedule completion warning
@@ -45,18 +34,16 @@ public interface NotificationService {
      * @param username The username
      * @param userId The user ID
      * @param tempStopStart When the temporary stop started
-     * @return true if notification was successfully displayed
      */
-    boolean showTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart);
+    void showTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart);
 
     /**
      * Shows a work day start reminder
      *
      * @param username The username
      * @param userId The user ID
-     * @return true if notification was successfully displayed
      */
-    boolean showStartDayReminder(String username, Integer userId);
+    void showStartDayReminder(String username, Integer userId);
 
     /**
      * Shows a worktime resolution reminder
@@ -67,9 +54,8 @@ public interface NotificationService {
      * @param message The notification message
      * @param trayMessage The tray notification message
      * @param timeoutPeriod The timeout period in milliseconds
-     * @return true if notification was successfully displayed
      */
-    boolean showResolutionReminder(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod);
+    void showResolutionReminder(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod);
 
     /**
      * Records when a notification is displayed for rate-limiting purposes
@@ -97,9 +83,8 @@ public interface NotificationService {
     /**
      * Cancels any pending backup tasks for a user
      * @param username The username to cancel backup tasks for
-     * @return true if cancellation was successful
      */
-    boolean cancelNotificationBackup(String username);
+    void cancelNotificationBackup(String username);
 
     boolean showTestNotification();
 }

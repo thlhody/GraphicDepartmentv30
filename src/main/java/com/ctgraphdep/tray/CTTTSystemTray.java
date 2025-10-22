@@ -1,5 +1,6 @@
 package com.ctgraphdep.tray;
 
+import com.ctgraphdep.notification.api.NotificationEventPublisher;
 import com.ctgraphdep.notification.service.NotificationConfigService;
 import com.ctgraphdep.notification.service.NotificationDisplayService;
 import com.ctgraphdep.notification.service.NotificationCheckerService;
@@ -36,6 +37,7 @@ public class CTTTSystemTray {
     private final NotificationConfigService notificationConfigService;
     private final NotificationDisplayService notificationDisplayService;
     private final NotificationCheckerService notificationCheckerService;
+    private final NotificationEventPublisher eventPublisher;
 
     private volatile boolean isInitialized = false;
     private final Object trayLock = new Object();
@@ -47,10 +49,12 @@ public class CTTTSystemTray {
 
     public CTTTSystemTray(NotificationConfigService notificationConfigService,
                           @Lazy NotificationDisplayService notificationDisplayService,
-                          @Lazy NotificationCheckerService notificationCheckerService) {
+                          @Lazy NotificationCheckerService notificationCheckerService,
+                          NotificationEventPublisher eventPublisher) {
         this.notificationConfigService = notificationConfigService;
         this.notificationDisplayService = notificationDisplayService;
         this.notificationCheckerService = notificationCheckerService;
+        this.eventPublisher = eventPublisher;
     }
 
     public synchronized void initialize() {
@@ -295,38 +299,62 @@ public class CTTTSystemTray {
     }
 
     /**
-     * Refreshes active notifications by forcing a service reset.
+     * Refreshes active notifications by completely resetting the notification system.
      * This helps fix broken notification displays on laptops where buttons disappear.
      * Particularly useful for the start day notification that displays during 05-17:00.
+     *
+     * This method performs a clean refresh by:
+     * 1. Unregistering the display subscriber (cleans event queue)
+     * 2. Resetting the display service (cleans up UI)
+     * 3. Re-registering the display subscriber (fresh subscription)
+     * 4. Triggering immediate notification check (re-displays relevant notifications)
      */
     private void refreshActiveNotification() {
         try {
             LoggerUtil.info(this.getClass(), "User requested notification refresh via system tray");
 
+            // STEP 1: Unregister the display service subscriber to clean the event queue
+            // This ensures no pending events will be delivered to the old state
+            eventPublisher.unregisterSubscriber(notificationDisplayService);
+            LoggerUtil.info(this.getClass(), "Unregistered display service from event bus");
 
-            // Force notification service reset which will:
-            // 1. Close current broken notifications (but preserve business logic)
-            // 2. Allow notifications to redisplay based on current state
-            // 3. Maintain all timers and notification logic
+            // STEP 2: Reset the notification display service which will:
+            // - Close current broken notifications (but preserve business logic)
+            // - Clean up timers and dialogs
+            // - Prepare for fresh notifications
             notificationDisplayService.resetService();
+            LoggerUtil.info(this.getClass(), "Display service reset completed");
 
-            // CRITICAL: Immediately trigger notification check to redisplay start day notification
+            // STEP 3: Re-register the display service subscriber with clean state
+            // This creates a fresh subscription without any stale event handlers
+            eventPublisher.registerSubscriber(notificationDisplayService);
+            LoggerUtil.info(this.getClass(), "Re-registered display service with clean state");
+
+            // STEP 4: Immediately trigger notification check to redisplay relevant notifications
             LoggerUtil.info(this.getClass(), "Triggering immediate notification check after refresh");
 
             // Run the check in a separate thread to avoid blocking the UI
             new Thread(() -> {
                 try {
-                    // Small delay to ensure reset is complete
+                    // Small delay to ensure re-registration is complete
                     Thread.sleep(500);
                     notificationCheckerService.checkForNotifications();
-                    LoggerUtil.info(this.getClass(), "Immediate notification check completed");
+                    LoggerUtil.info(this.getClass(), "Immediate notification check completed - notifications should redisplay");
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Error during immediate notification check: " + e.getMessage(), e);
                 }
             }, "NotificationRefreshCheck").start();
 
-            LoggerUtil.info(this.getClass(), "Notification refresh completed");
+            LoggerUtil.info(this.getClass(), "Notification refresh completed successfully");
 
+            // Show success message to user
+            if (trayIcon != null) {
+                trayIcon.displayMessage(
+                        "Notifications Refreshed",
+                        "Notification system has been refreshed successfully",
+                        TrayIcon.MessageType.INFO
+                );
+            }
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Error refreshing notifications: " + e.getMessage(), e);

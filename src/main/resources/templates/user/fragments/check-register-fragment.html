@@ -180,8 +180,24 @@
                     </tr>
 
                     <!-- Entries -->
-                    <!-- Users can now edit/delete ALL entries including team lead entries (tombstone deletion) -->
-                    <tr th:each="entry, stat : ${entries}" th:with="isEditable=${true}">
+                    <!-- Users can edit/delete entries based on role and status permissions -->
+                    <!-- CHECKING: Cannot edit/delete TEAM_FINAL or ADMIN_FINAL -->
+                    <!-- TL_CHECKING: Can edit/delete TEAM_FINAL but not ADMIN_FINAL -->
+                    <!-- ADMIN: Can edit/delete everything -->
+                    <tr th:each="entry, stat : ${entries}"
+                        th:with="
+                            userRole=${user?.role},
+                            entryStatus=${entry.adminSync},
+                            isTeamFinal=${entryStatus == 'TEAM_FINAL'},
+                            isAdminFinal=${entryStatus == 'ADMIN_FINAL'},
+                            isCheckingRole=${userRole == 'CHECKING'},
+                            isTlCheckingRole=${userRole == 'TL_CHECKING'},
+                            isAdminRole=${userRole == 'ADMIN'},
+                            canEditTeamFinal=${isTlCheckingRole || isAdminRole},
+                            canEditAdminFinal=${isAdminRole},
+                            isEditable=${isTeamView ? true : (
+                                (isTeamFinal && !canEditTeamFinal) || (isAdminFinal && !canEditAdminFinal) ? false : true
+                            )}">
                         <td th:text="${stat.size - stat.index}">1</td>
                         <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}">01/01/2023</td>
                         <td th:text="${entry.omsId}">OMS123</td>
@@ -238,8 +254,11 @@
                         </td>
                         <td class="mod-column">
                             <div class="action-icons">
-                                <!-- Edit button - only shown for editable entries or team lead view -->
-                                <button type="button" class="btn-icon edit-entry" th:if="${isEditable}"
+                                <!-- Edit button - shown for editable entries (enabled) or non-editable (disabled with tooltip) -->
+                                <button type="button" class="btn-icon edit-entry"
+                                        th:classappend="${!isEditable ? 'disabled' : ''}"
+                                        th:disabled="${!isEditable}"
+                                        th:title="${!isEditable ? (isTeamFinal ? 'Cannot edit Team Lead approved entries. Only Team Leaders can modify.' : (isAdminFinal ? 'Cannot edit Admin approved entries. Only Admins can modify.' : '')) : 'Edit entry'}"
                                         th:data-entry-id="${entry.entryId}"
                                         th:data-date="${#temporals.format(entry.date, 'yyyy-MM-dd')}"
                                         th:data-oms-id="${entry.omsId}"
@@ -273,15 +292,18 @@
                                     <i class="bi bi-copy"></i>
                                 </button>
 
-                                <!-- Delete button - only shown for editable entries or team lead view -->
-                                <form th:action="${urlPrefix + '/delete'}" method="post" class="d-inline" th:if="${isEditable}">
+                                <!-- Delete button - shown for all entries but disabled if not editable -->
+                                <form th:action="${urlPrefix + '/delete'}" method="post" class="d-inline">
                                     <input type="hidden" name="entryId" th:value="${entry.entryId}">
                                     <input type="hidden" name="year" th:value="${currentYear}">
                                     <input type="hidden" name="month" th:value="${currentMonth}">
                                     <!-- Additional hidden fields for team view -->
                                     <input type="hidden" name="username" th:if="${isTeamView}" th:value="${selectedUser?.username}">
                                     <input type="hidden" name="userId" th:if="${isTeamView}" th:value="${selectedUser?.userId}">
-                                    <button type="submit" class="btn-icon delete-entry">
+                                    <button type="submit" class="btn-icon delete-entry"
+                                            th:classappend="${!isEditable ? 'disabled' : ''}"
+                                            th:disabled="${!isEditable}"
+                                            th:title="${!isEditable ? (isTeamFinal ? 'Cannot delete Team Lead approved entries. Only Team Leaders can delete.' : (isAdminFinal ? 'Cannot delete Admin approved entries. Only Admins can delete.' : '')) : 'Delete entry'}">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </form>

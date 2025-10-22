@@ -178,6 +178,20 @@ tr.entry-edited {
     background-color: transparent;
 }
 
+/* Disabled buttons (using disabled attribute) */
+.btn-icon.disabled,
+.btn-icon:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.btn-icon.disabled:hover,
+.btn-icon:disabled:hover {
+    background-color: transparent;
+    transform: none;
+}
+
 /* Status badges */
 .badge.bg-info {
     background-color: #17a2b8 !important;

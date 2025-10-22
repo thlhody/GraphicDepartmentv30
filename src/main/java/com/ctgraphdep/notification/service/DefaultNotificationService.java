@@ -77,6 +77,10 @@ public class DefaultNotificationService implements NotificationService {
         LoggerUtil.info(this.getClass(), "Notification service initialized");
     }
 
+    // REMOVED: This method is never called from outside the notification package
+    // The public interface method was removed from NotificationService
+    // Internal usage remains in NotificationDisplayService
+    /*
     @Override
     public NotificationResponse showNotification(NotificationRequest request) {
         try {
@@ -97,6 +101,7 @@ public class DefaultNotificationService implements NotificationService {
             return NotificationResponse.failure(e.getMessage());
         }
     }
+    */
 
     @Override
     public boolean showScheduleEndNotification(String username, Integer userId, Integer finalMinutes) {
@@ -131,23 +136,21 @@ public class DefaultNotificationService implements NotificationService {
     }
 
     @Override
-    public boolean showTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
+    public void showTempStopWarning(String username, Integer userId, LocalDateTime tempStopStart) {
         try {
             // Create and publish temp stop warning event
             TempStopWarningEvent event = new TempStopWarningEvent(username, userId, tempStopStart);
             eventPublisher.publishEvent(event);
             // Record pending notification
             pendingNotifications.put(username + "_tempstop",getStandardCurrentTime());
-            return true;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error showing temp stop warning for user %s: %s", username, e.getMessage()), e);
             healthMonitor.recordTaskFailure("notification-service", e.getMessage());
-            return false;
         }
     }
 
     @Override
-    public boolean showStartDayReminder(String username, Integer userId) {
+    public void showStartDayReminder(String username, Integer userId) {
         try {
             // Get standardized time values
             LocalDateTime currentTime = getStandardCurrentTime();
@@ -157,7 +160,7 @@ public class DefaultNotificationService implements NotificationService {
             if (hour < WorkCode.WORK_START_HOUR || hour >= WorkCode.WORK_END_HOUR) {
                 LoggerUtil.info(this.getClass(),
                         String.format("Outside display hours (5-17) for start day reminder, current hour: %d", hour));
-                return false;
+                return;
             }
 
             // Create and publish start day reminder event
@@ -165,27 +168,23 @@ public class DefaultNotificationService implements NotificationService {
             eventPublisher.publishEvent(event);
             // Record pending notification
             pendingNotifications.put(username + "_startday", getStandardCurrentTime());
-            return true;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error showing start day reminder for user %s: %s", username, e.getMessage()), e);
             healthMonitor.recordTaskFailure("notification-service", e.getMessage());
-            return false;
         }
     }
 
     @Override
-    public boolean showResolutionReminder(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod) {
+    public void showResolutionReminder(String username, Integer userId, String title, String message, String trayMessage, Integer timeoutPeriod) {
         try {
             // Create and publish resolution reminder event
             ResolutionReminderEvent event = new ResolutionReminderEvent(username, userId, title, message, trayMessage, timeoutPeriod);
             eventPublisher.publishEvent(event);
             // Record pending notification
             pendingNotifications.put(username + "_resolution", getStandardCurrentTime());
-            return true;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error showing resolution reminder for user %s: %s", username, e.getMessage()), e);
             healthMonitor.recordTaskFailure("notification-service", e.getMessage());
-            return false;
         }
     }
 
@@ -282,15 +281,13 @@ public class DefaultNotificationService implements NotificationService {
     }
 
     @Override
-    public boolean cancelNotificationBackup(String username) {
+    public void cancelNotificationBackup(String username) {
         try {
             // Use the injected backupService to cancel backup tasks
             backupService.cancelBackupTask(username);
             LoggerUtil.info(this.getClass(), String.format("Canceled backup tasks for user %s", username));
-            return true;
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error canceling backup tasks for user %s: %s", username, e.getMessage()), e);
-            return false;
         }
     }
 

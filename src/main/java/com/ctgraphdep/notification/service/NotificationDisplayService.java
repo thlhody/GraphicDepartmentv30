@@ -37,7 +37,6 @@ import java.awt.image.BufferedImage;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -154,10 +153,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
             // Reset the userResponded flag before showing new notification
             userResponded.set(false);
 
-            // Always use invokeLater to avoid blocking and potential deadlocks
-            final boolean[] dialogDisplayed = new boolean[1];
-            final boolean[] trayDisplayed = new boolean[1];
-
+            // Check for existing dialog first
             String existingDialogKey = findExistingDialogKey(request.getUsername(), request.getType().getTypeId());
             if (existingDialogKey != null) {
                 JDialog existingDialog = activeDialogs.get(existingDialogKey);
@@ -177,21 +173,21 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 }
             }
 
+            // Use invokeLater for EDT thread safety - we don't wait for the result
+            // This is fire-and-forget because the event-driven architecture handles success/failure
             SwingUtilities.invokeLater(() -> {
                 try {
                     // Check if we're on the EDT now
                     LoggerUtil.debug(this.getClass(), "UI thread: " + Thread.currentThread().getName() + ", is EDT: " + SwingUtilities.isEventDispatchThread());
 
                     // Try to show dialog first
-                    dialogDisplayed[0] = showNotificationDialog(request, notificationId);
+                    boolean dialogShown = showNotificationDialog(request, notificationId);
 
                     // ONLY attempt tray notification if dialog fails
-                    if (!dialogDisplayed[0] && systemTray.getTrayIcon() != null) {
+                    if (!dialogShown && systemTray.getTrayIcon() != null) {
                         LoggerUtil.info(this.getClass(), "Dialog display failed, attempting to display tray notification for user: " + request.getUsername());
                         systemTray.getTrayIcon().displayMessage(request.getTitle(), request.getTrayMessage(), TrayIcon.MessageType.INFO);
-                        trayDisplayed[0] = true;
                         LoggerUtil.info(this.getClass(), "Tray notification displayed as fallback");
-
                     }
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), "Error showing notification: " + e.getMessage(), e);
@@ -199,19 +195,10 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 }
             });
 
-            // Wait a short time for the notification to display
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-            // Return success if either dialog or tray was displayed
-            if (dialogDisplayed[0] || trayDisplayed[0]) {
-                return NotificationResponse.success(notificationId, dialogDisplayed[0], trayDisplayed[0]);
-            } else {
-                return NotificationResponse.failure("Failed to display notification");
-            }
+            // Return optimistic success - the notification request was accepted and queued for display
+            // Actual display success is tracked via logs and backup notification system
+            LoggerUtil.info(this.getClass(), String.format("Notification %s queued for display to user %s", notificationId, request.getUsername()));
+            return NotificationResponse.success(notificationId, true, false);
 
 
         } catch (Exception e) {
@@ -414,12 +401,9 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
     private void showTestNotification(TestNotificationEvent event) {
         try {
-            LoggerUtil.info(this.getClass(), "Attempting to show test notification for user. ");
+            LoggerUtil.info(this.getClass(), "Attempting to show test notification for user.");
 
-            // Use the standard notification flag for synchronization
-            final boolean[] dialogDisplayed = new boolean[1];
-            final boolean[] trayDisplayed = new boolean[1];
-
+            // Use invokeLater for EDT thread safety - fire-and-forget pattern
             SwingUtilities.invokeLater(() -> {
                 try {
                     // Try to create and show dialog first
@@ -430,7 +414,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
                     try {
                         showDialog(components.dialog(), "Test", event.getNotificationType());
-                        dialogDisplayed[0] = true;
 
                         // Generate unique ID for test notification
                         String testNotificationId = "test_" + "Test" + "_" + System.currentTimeMillis();
@@ -445,13 +428,11 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
                     } catch (Exception e) {
                         LoggerUtil.error(this.getClass(), "Failed to display test dialog: " + e.getMessage());
-                        dialogDisplayed[0] = false;
 
                         // ONLY attempt tray notification if dialog fails
                         if (systemTray.getTrayIcon() != null) {
                             LoggerUtil.info(this.getClass(), "Attempting to display test tray notification as fallback");
                             systemTray.getTrayIcon().displayMessage(WorkCode.TEST_NOTICE_TITLE, WorkCode.TEST_MESSAGE_TRAY, TrayIcon.MessageType.INFO);
-                            trayDisplayed[0] = true;
                             LoggerUtil.info(this.getClass(), "Test tray notification displayed as fallback");
                         }
                     }
@@ -462,7 +443,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
             // Record notification
             monitorService.recordNotificationTime(event.getUsername(), event.getNotificationType());
-            LoggerUtil.debug(this.getClass(), "Normal dialog displayed:" + Arrays.toString(dialogDisplayed) + ". Tray dialog displayed:" + Arrays.toString(trayDisplayed));
+            LoggerUtil.info(this.getClass(), "Test notification queued for display");
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error showing test notification for user %s: %s", event.getUsername(), e.getMessage()), e);
@@ -697,7 +678,10 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
                 y = screenBounds.y + screenInsets.top + 20; // 20px from top edge
             } else if (configService.isCenterPosition()) {
                 y = screenBounds.y + (screenBounds.height - dialog.getHeight()) / 2;
-            } else { // bottom position
+            } else if (configService.isBottomPosition()) { // bottom position
+                y = screenBounds.y + screenBounds.height - dialog.getHeight() - 20 - screenInsets.bottom;
+            } else {
+                // Fallback to bottom if position parsing fails
                 y = screenBounds.y + screenBounds.height - dialog.getHeight() - 20 - screenInsets.bottom;
             }
 
@@ -1814,10 +1798,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
         try {
             LoggerUtil.info(this.getClass(), "Showing mockup notification for user: " + event.getUsername());
 
-            // Use the standard notification flag for synchronization
-            final boolean[] dialogDisplayed = new boolean[1];
-            final boolean[] trayDisplayed = new boolean[1];
-
+            // Use invokeLater for EDT thread safety - fire-and-forget pattern
             SwingUtilities.invokeLater(() -> {
                 try {
                     // Try to create and show dialog first
@@ -1828,7 +1809,6 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
                     try {
                         showDialog(components.dialog(), event.getUsername(), event.getNotificationType());
-                        dialogDisplayed[0] = true;
 
                         // Generate unique ID for the notification
                         String notificationId = "mockup_" + event.getUsername() + "_" + System.currentTimeMillis();
@@ -1843,13 +1823,11 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
                     } catch (Exception e) {
                         LoggerUtil.error(this.getClass(), "Failed to display mockup dialog: " + e.getMessage());
-                        dialogDisplayed[0] = false;
 
                         // ONLY attempt tray notification if dialog fails
                         if (systemTray.getTrayIcon() != null) {
                             LoggerUtil.info(this.getClass(), "Attempting to display mockup tray notification as fallback");
                             systemTray.getTrayIcon().displayMessage(event.getTitle(), event.getTrayMessage(), TrayIcon.MessageType.INFO);
-                            trayDisplayed[0] = true;
                             LoggerUtil.info(this.getClass(), "Mockup tray notification displayed as fallback");
                         }
                     }
@@ -1860,7 +1838,7 @@ public class NotificationDisplayService implements NotificationEventSubscriber {
 
             // Record notification
             monitorService.recordNotificationTime(event.getUsername(), event.getNotificationType());
-            LoggerUtil.info(this.getClass(), "Mockup notification display attempt complete");
+            LoggerUtil.info(this.getClass(), "Mockup notification queued for display");
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error showing mockup notification for user %s: %s", event.getUsername(), e.getMessage()), e);

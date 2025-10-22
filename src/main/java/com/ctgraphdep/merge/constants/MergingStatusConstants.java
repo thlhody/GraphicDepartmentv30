@@ -182,7 +182,8 @@ public class MergingStatusConstants {
                 TEAM_INPUT.equals(status) ||
                 ADMIN_FINAL.equals(status) ||
                 TEAM_FINAL.equals(status) ||
-                isTimestampedEditStatus(status);
+                isTimestampedEditStatus(status) ||
+                isDeletedStatus(status);  // ← FIX: Include deletion statuses
     }
 
     /**

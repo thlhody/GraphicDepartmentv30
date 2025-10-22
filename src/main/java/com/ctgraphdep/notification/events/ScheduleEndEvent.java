@@ -3,8 +3,6 @@ package com.ctgraphdep.notification.events;
 import com.ctgraphdep.config.WorkCode;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
-
 /**
  * Event for schedule completion notification
  */

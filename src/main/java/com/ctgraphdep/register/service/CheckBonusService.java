@@ -296,39 +296,7 @@ public class CheckBonusService {
         }
     }
 
-    /**
-     * Calculate bonuses for all team members
-     *
-     * @param users List of users
-     * @param year Year
-     * @param month Month
-     * @param bonusSum Base bonus sum
-     * @param standardHours Standard hours
-     * @return ServiceResult containing list of CheckBonusEntry
-     */
-    public ServiceResult<List<CheckBonusEntry>> calculateAllBonuses(List<User> users,
-                                                                      int year, int month,
-                                                                      Double bonusSum, Double standardHours) {
-        try {
-            List<CheckBonusEntry> bonusList = new ArrayList<>();
-
-            for (User user : users) {
-                ServiceResult<CheckBonusEntry> result = calculateUserBonus(
-                    user.getUsername(), user.getUserId(), year, month, bonusSum, standardHours);
-
-                if (result.isSuccess() && result.getData() != null) {
-                    bonusList.add(result.getData());
-                } else {
-                    LoggerUtil.warn(this.getClass(),
-                        "Failed to calculate bonus for " + user.getUsername() + ": " + result.getErrorMessage());
-                }
-            }
-
-            return ServiceResult.success(bonusList);
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), "Error calculating all bonuses: " + e.getMessage(), e);
-            return ServiceResult.systemError("Failed to calculate bonuses: " + e.getMessage(), "calc_all_bonuses_failed");
-        }
-    }
+    // REMOVED: calculateAllBonuses() - Never used since creation
+    // UI calculates bonuses one user at a time using calculateUserBonus()
+    // Git history: Added in commit 328942e but never called from any controller
 }
