@@ -1,5 +1,6 @@
 package com.ctgraphdep.model;
 
+import com.ctgraphdep.register.service.BonusCalculationService;
 import com.ctgraphdep.utils.DateFormatUtil;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -14,7 +15,7 @@ import java.time.LocalDate;
  * Matches the format of admin bonus JSON structure.
  * THIS IS A PURE DATA CONTAINER - No business logic allowed!
  * All calculation logic has been moved to BonusCalculationService.java
- * @see com.ctgraphdep.service.BonusCalculationService for calculation logic
+ * @see BonusCalculationService for calculation logic
  */
 @Data
 @NoArgsConstructor

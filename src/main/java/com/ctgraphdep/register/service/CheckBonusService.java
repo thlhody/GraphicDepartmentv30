@@ -7,7 +7,6 @@ import com.ctgraphdep.model.CheckValuesEntry;
 import com.ctgraphdep.model.RegisterCheckEntry;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UsersCheckValueEntry;
-import com.ctgraphdep.service.BonusCalculationService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.result.ServiceResult;
 import com.ctgraphdep.utils.DateFormatUtil;

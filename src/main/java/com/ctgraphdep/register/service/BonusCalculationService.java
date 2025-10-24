@@ -1,4 +1,4 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.register.service;
 
 import com.ctgraphdep.model.CheckBonusEntry;
 import com.ctgraphdep.utils.LoggerUtil;

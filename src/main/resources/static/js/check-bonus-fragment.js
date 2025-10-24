@@ -71,10 +71,63 @@
             });
         }
 
+        // Initialize bonus sum double-click edit functionality
+        initializeBonusSumEdit();
+
         // Load hours values when fragment loads
         loadHoursValues();
 
         console.log('Check bonus fragment initialized');
+    }
+
+    /**
+     * Initialize bonus sum double-click edit functionality
+     */
+    function initializeBonusSumEdit() {
+        const bonusSumDisplay = document.getElementById('bonusSumDisplay');
+        const bonusSumInput = document.getElementById('bonusSum');
+        const bonusSumText = document.getElementById('bonusSumText');
+
+        if (!bonusSumDisplay || !bonusSumInput || !bonusSumText) {
+            return;
+        }
+
+        // Double-click to edit
+        bonusSumDisplay.addEventListener('dblclick', function() {
+            // Hide display, show input
+            bonusSumDisplay.style.display = 'none';
+            bonusSumInput.style.display = 'block';
+            bonusSumInput.focus();
+            bonusSumInput.select();
+        });
+
+        // When input loses focus or Enter is pressed, save and switch back to display
+        bonusSumInput.addEventListener('blur', saveBonusSum);
+        bonusSumInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                saveBonusSum();
+            } else if (e.key === 'Escape') {
+                // Cancel edit - restore original value
+                bonusSumInput.value = bonusSumText.textContent;
+                bonusSumInput.style.display = 'none';
+                bonusSumDisplay.style.display = 'block';
+            }
+        });
+
+        function saveBonusSum() {
+            const value = parseFloat(bonusSumInput.value);
+            if (!isNaN(value) && value > 0) {
+                // Update display text
+                bonusSumText.textContent = Math.round(value);
+                bonusSumInput.value = Math.round(value);
+            } else {
+                // Invalid value - restore previous
+                bonusSumInput.value = bonusSumText.textContent;
+            }
+            // Switch back to display mode
+            bonusSumInput.style.display = 'none';
+            bonusSumDisplay.style.display = 'block';
+        }
     }
 
     /**

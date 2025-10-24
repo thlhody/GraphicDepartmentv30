@@ -3,7 +3,7 @@ package com.ctgraphdep.controller.admin;
 import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.controller.base.BaseController;
 import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
-import com.ctgraphdep.service.AdminBonusService;
+import com.ctgraphdep.register.service.AdminBonusService;
 import com.ctgraphdep.model.FolderStatus;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.LoggerUtil;

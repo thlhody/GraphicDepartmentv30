@@ -1,9 +1,10 @@
-package com.ctgraphdep.service;
+package com.ctgraphdep.register.service;
 
 import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.BonusEntry;
 import com.ctgraphdep.model.dto.bonus.BonusEntryDTO;
 import com.ctgraphdep.model.User;
+import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.utils.AdminBonusExcelExporter;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
