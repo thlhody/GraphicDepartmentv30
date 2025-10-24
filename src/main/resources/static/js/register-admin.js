@@ -1106,7 +1106,22 @@ function resetEditState() {
 
 function schedulePageReload() {
     setTimeout(() => {
-        window.location.reload();
+        // Preserve year, month, and userId parameters when reloading
+        const userId = document.getElementById('userSelect')?.value;
+        const year = document.getElementById('yearSelect')?.value;
+        const month = document.getElementById('monthSelect')?.value;
+
+        if (userId && year && month) {
+            // Reload with preserved parameters
+            const url = new URL(window.location.href);
+            url.searchParams.set('userId', userId);
+            url.searchParams.set('year', year);
+            url.searchParams.set('month', month);
+            window.location.href = url.toString();
+        } else {
+            // Fallback to simple reload if parameters are missing
+            window.location.reload();
+        }
     }, 1500);
 }
 

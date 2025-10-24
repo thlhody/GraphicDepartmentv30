@@ -200,9 +200,7 @@ public class FileWriterService {
                         shouldCreateBackup, username, userId);
 
                 if (result.isSuccess()) {
-                    // Record successful write attempt
-                    recordWriteAttempt(username, path);
-
+                    // Write attempt was already recorded atomically in canAttemptWrite()
                     if (attempt > 0) {
                         LoggerUtil.info(this.getClass(), String.format(
                                 "Write succeeded on retry #%d for file: %s", attempt, path.getFileName()));
@@ -423,31 +421,54 @@ public class FileWriterService {
     // ========================================================================
 
     /**
-     * Check if write attempt is allowed (prevents rapid clicks).
+     * Atomically check if write can proceed and record the attempt.
+     * This prevents race conditions where two threads both see no recent attempt
+     * and both proceed to write at the same time (prevents rapid clicks and concurrent writes).
+     *
+     * @param username Username attempting the write
+     * @param path File path being written
+     * @return true if write should proceed, false if too soon since last attempt
      */
     private boolean canAttemptWrite(String username, Path path) {
         String key = username + ":" + path.getFileName().toString();
-        Long lastAttempt = lastWriteAttempts.get(key);
+        long now = System.currentTimeMillis();
 
-        if (lastAttempt == null) {
-            return true;
-        }
+        // Atomically check and update - this prevents race conditions
+        Long previousAttempt = lastWriteAttempts.compute(key, (k, lastAttempt) -> {
+            if (lastAttempt == null) {
+                // No previous attempt - allow and record this one
+                return now;
+            }
 
-        long timeSinceLastAttempt = System.currentTimeMillis() - lastAttempt;
-        return timeSinceLastAttempt >= MIN_WRITE_INTERVAL_MS;
-    }
+            long timeSinceLastAttempt = now - lastAttempt;
+            if (timeSinceLastAttempt >= MIN_WRITE_INTERVAL_MS) {
+                // Enough time has passed - allow and record this one
+                return now;
+            }
 
-    /**
-     * Record write attempt timestamp for deduplication.
-     */
-    private void recordWriteAttempt(String username, Path path) {
-        String key = username + ":" + path.getFileName().toString();
-        lastWriteAttempts.put(key, System.currentTimeMillis());
+            // Too soon - keep the previous timestamp, don't update
+            return lastAttempt;
+        });
 
         // Periodic cleanup of old entries
         if (lastWriteAttempts.size() > 100) {
             cleanupOldWriteAttempts();
         }
+
+        // If compute() returned our new timestamp, we can proceed
+        // If it returned the old timestamp, we should skip (too soon)
+        return previousAttempt.equals(now);
+    }
+
+    /**
+     * Record write attempt timestamp for deduplication.
+     * NOTE: This method is now integrated into canAttemptWrite() for atomicity.
+     * Keeping it for backwards compatibility but it's a no-op.
+     */
+    @Deprecated
+    private void recordWriteAttempt(String username, Path path) {
+        // No-op - now handled atomically in canAttemptWrite()
+        // Kept for backwards compatibility in case any code calls this directly
     }
 
     /**

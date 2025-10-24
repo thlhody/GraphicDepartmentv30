@@ -170,6 +170,11 @@ public class RegisterMergeService {
 
             List<RegisterEntry> mergedEntries = mergeResult.getData();
 
+            // Normalize all merged entries to clean up old/invalid statuses (USER_DONE, etc.)
+            mergedEntries = mergedEntries.stream()
+                    .map(this::normalizeEntryStatus)
+                    .collect(Collectors.toList());
+
             // Save result to user file and invalidate cache
             ServiceResult<Void> saveResult = saveUserEntries(username, userId, mergedEntries, year, month);
             if (saveResult.isFailure()) {
@@ -245,6 +250,7 @@ public class RegisterMergeService {
 
             List<RegisterEntry> mergedEntries;
             List<String> warnings = new ArrayList<>();
+            boolean needsSave = false;
 
             // Bootstrap logic: If admin file doesn't exist, create from user file
             if (adminEntries == null || adminEntries.isEmpty()) {
@@ -256,6 +262,7 @@ public class RegisterMergeService {
                         .collect(Collectors.toList());
 
                 warnings.add("Admin register bootstrapped from " + userEntries.size() + " user entries");
+                needsSave = true; // Bootstrap always needs save
             } else {
                 // Perform Universal Merge (User → Admin direction)
                 ServiceResult<List<RegisterEntry>> mergeResult = performUniversalMerge(
@@ -270,13 +277,30 @@ public class RegisterMergeService {
                 if (mergeResult.hasWarnings()) {
                     warnings.addAll(mergeResult.getWarnings());
                 }
+
+                // Normalize all merged entries to clean up old/invalid statuses (USER_DONE, etc.)
+                mergedEntries = mergedEntries.stream()
+                        .map(this::normalizeEntryStatus)
+                        .collect(Collectors.toList());
+
+                // Check if merge actually changed anything
+                needsSave = hasEntriesChanged(adminEntries, mergedEntries);
+                if (!needsSave) {
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Admin load merge: No changes detected for %s - %d/%d, skipping save", username, year, month));
+                } else {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Admin load merge: Changes detected for %s - %d/%d, will save", username, year, month));
+                }
             }
 
-            // Save merged result to admin file
-            ServiceResult<Void> saveResult = saveAdminEntries(username, userId, mergedEntries, year, month);
-            if (saveResult.isFailure()) {
-                return ServiceResult.systemError("Failed to save merged entries: " + saveResult.getErrorMessage(),
-                        "save_failed");
+            // Only save if there are actual changes or bootstrap
+            if (needsSave) {
+                ServiceResult<Void> saveResult = saveAdminEntries(username, userId, mergedEntries, year, month);
+                if (saveResult.isFailure()) {
+                    return ServiceResult.systemError("Failed to save merged entries: " + saveResult.getErrorMessage(),
+                            "save_failed");
+                }
             }
 
             String summary = String.format("Admin load merge completed for %s - %d/%d (%d user entries, %d admin entries, %d merged entries)",
@@ -448,7 +472,7 @@ public class RegisterMergeService {
         String status = entry.getAdminSync();
 
         // If status is null or not a valid new format, normalize to USER_INPUT
-        if (status == null || !isValidMergeStatus(status)) {
+        if (status == null || !MergingStatusConstants.isValidStatus(status)) {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Normalizing entry %d status from '%s' to USER_INPUT",
                     entry.getEntryId(), status));
@@ -456,18 +480,6 @@ public class RegisterMergeService {
         }
 
         return entry;
-    }
-
-    /**
-     * Check if status is valid in new merge system
-     */
-    private boolean isValidMergeStatus(String status) {
-        return MergingStatusConstants.USER_INPUT.equals(status) ||
-                MergingStatusConstants.ADMIN_INPUT.equals(status) ||
-                MergingStatusConstants.TEAM_INPUT.equals(status) ||
-                MergingStatusConstants.ADMIN_FINAL.equals(status) ||
-                MergingStatusConstants.TEAM_FINAL.equals(status) ||
-                MergingStatusConstants.isTimestampedEditStatus(status);
     }
 
     /**
@@ -491,6 +503,51 @@ public class RegisterMergeService {
         }
 
         return String.format("%s[entry:%d]", status, entry.getEntryId());
+    }
+
+    /**
+     * Check if two lists of entries have meaningful differences.
+     * Compares entry count, entry IDs, and adminSync statuses.
+     * Returns true if merge changed anything that matters.
+     */
+    private boolean hasEntriesChanged(List<RegisterEntry> originalEntries, List<RegisterEntry> mergedEntries) {
+        if (originalEntries == null && mergedEntries == null) {
+            return false;
+        }
+        if (originalEntries == null || mergedEntries == null) {
+            return true; // One is null, other isn't
+        }
+        if (originalEntries.size() != mergedEntries.size()) {
+            return true; // Different count
+        }
+
+        // Create maps for comparison
+        Map<Integer, RegisterEntry> originalMap = createEntriesMap(originalEntries);
+        Map<Integer, RegisterEntry> mergedMap = createEntriesMap(mergedEntries);
+
+        // Check if entry IDs match
+        if (!originalMap.keySet().equals(mergedMap.keySet())) {
+            return true; // Different entry IDs
+        }
+
+        // Check if any adminSync status changed
+        for (Integer entryId : originalMap.keySet()) {
+            RegisterEntry original = originalMap.get(entryId);
+            RegisterEntry merged = mergedMap.get(entryId);
+
+            String originalStatus = original.getAdminSync();
+            String mergedStatus = merged.getAdminSync();
+
+            // Compare statuses
+            if (!java.util.Objects.equals(originalStatus, mergedStatus)) {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Entry %d status changed: %s → %s", entryId, originalStatus, mergedStatus));
+                return true;
+            }
+        }
+
+        // No meaningful changes detected
+        return false;
     }
 
     // ========================================================================
