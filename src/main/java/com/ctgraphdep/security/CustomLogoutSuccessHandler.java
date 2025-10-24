@@ -2,6 +2,7 @@ package com.ctgraphdep.security;
 
 import com.ctgraphdep.fileOperations.events.BackupEventListener;
 import com.ctgraphdep.fileOperations.service.BackupService;
+import com.ctgraphdep.register.service.UserRegisterService;
 import com.ctgraphdep.service.cache.CheckValuesCacheManager;
 import com.ctgraphdep.service.cache.MainDefaultUserContextService;
 import com.ctgraphdep.service.cache.RegisterCacheService;
@@ -19,14 +20,16 @@ public class CustomLogoutSuccessHandler implements LogoutSuccessHandler {
 
     private final CheckValuesCacheManager checkValuesCacheManager;
     private final RegisterCacheService registerCacheService;
+    private final UserRegisterService userRegisterService;
     private final MainDefaultUserContextService mainDefaultUserContextService;
     private final BackupEventListener backupEventListener;
     private final BackupService backupService;
 
 
-    public CustomLogoutSuccessHandler(CheckValuesCacheManager checkValuesCacheManager, RegisterCacheService registerCacheService, MainDefaultUserContextService mainDefaultUserContextService, BackupEventListener backupEventListener, BackupService backupService) {
+    public CustomLogoutSuccessHandler(CheckValuesCacheManager checkValuesCacheManager, RegisterCacheService registerCacheService, UserRegisterService userRegisterService, MainDefaultUserContextService mainDefaultUserContextService, BackupEventListener backupEventListener, BackupService backupService) {
         this.checkValuesCacheManager = checkValuesCacheManager;
         this.registerCacheService = registerCacheService;
+        this.userRegisterService = userRegisterService;
         this.mainDefaultUserContextService = mainDefaultUserContextService;
         this.backupEventListener = backupEventListener;
         this.backupService = backupService;
@@ -36,6 +39,18 @@ public class CustomLogoutSuccessHandler implements LogoutSuccessHandler {
     @Override
     public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
         try {
+            // IMPORTANT: Flush register cache BEFORE clearing to save any unsaved changes
+            if (authentication != null) {
+                String username = authentication.getName();
+                int flushedCount = registerCacheService.flushUser(username);
+                if (flushedCount > 0) {
+                    LoggerUtil.info(this.getClass(), String.format("Flushed %d dirty register cache entries for %s on logout", flushedCount, username));
+                }
+
+                // Clear merged months tracking for this user
+                userRegisterService.clearMergedMonthsTracking(username);
+            }
+
             // Clear all cached check values when any user logs out
             checkValuesCacheManager.clearAllCachedCheckValues();
             registerCacheService.clearAllCache();

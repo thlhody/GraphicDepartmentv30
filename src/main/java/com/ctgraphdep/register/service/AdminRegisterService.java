@@ -306,7 +306,8 @@ public class AdminRegisterService {
                     // Handle printPrepTypes conversion with comprehensive logic
                     List<String> printPrepTypes = convertPrintPrepTypes(data.get("printPrepTypes"));
 
-                    // IMPORTANT: Preserve the original adminSync status from the client
+                    // IMPORTANT: Preserve the adminSync status from the client for now
+                    // Status determination will happen later in saveAdminRegisterEntries() with change detection
                     String adminSync = data.get("adminSync") != null ?
                             data.get("adminSync").toString() : MergingStatusConstants.USER_INPUT;
 
@@ -324,7 +325,7 @@ public class AdminRegisterService {
                             .articleNumbers(convertToInteger(data.get("articleNumbers")))
                             .graphicComplexity(convertToDouble(data.get("graphicComplexity")))
                             .observations(data.get("observations") != null ? data.get("observations").toString() : "")
-                            .adminSync(adminSync) // Use the status from the client
+                            .adminSync(adminSync) // Preserve for now, will be determined in save method
                             .build();
 
                     entries.add(entry);
@@ -475,6 +476,7 @@ public class AdminRegisterService {
 
     /**
      * Save admin register entries using the new merge service.
+     * IMPORTANT: Compares with existing entries to determine which were actually edited
      */
     public ServiceResult<Void> saveAdminRegisterEntries(String username, Integer userId, Integer year, Integer month, List<RegisterEntry> entries) {
         try {
@@ -490,25 +492,74 @@ public class AdminRegisterService {
                 return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Saving %d entries for user %s - %d/%d using RegisterMergeService", entries.size(), username, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Saving %d entries for user %s - %d/%d with change detection", entries.size(), username, year, month));
 
-            // Process entries using the merge service
-            ServiceResult<List<RegisterEntry>> processResult = registerMergeService.performAdminSaveProcessing(entries);
+            // Load existing admin entries to compare for changes
+            List<RegisterEntry> existingEntries;
+            try {
+                existingEntries = registerDataService.readAdminLocalReadOnly(username, userId, year, month);
+            } catch (Exception e) {
+                LoggerUtil.warn(this.getClass(), String.format("No existing admin entries found for %s - %d/%d, treating all as new", username, year, month));
+                existingEntries = new ArrayList<>();
+            }
+
+            // Create map of existing entries by entryId for quick lookup
+            Map<Integer, RegisterEntry> existingEntriesMap = existingEntries.stream()
+                    .collect(Collectors.toMap(RegisterEntry::getEntryId, entry -> entry));
+
+            // Process entries: only mark as ADMIN_EDITED if actually changed
+            List<RegisterEntry> processedEntries = new ArrayList<>();
+            int editedCount = 0;
+            int unchangedCount = 0;
+
+            for (RegisterEntry entry : entries) {
+                RegisterEntry existingEntry = existingEntriesMap.get(entry.getEntryId());
+
+                if (existingEntry != null && hasEntryChanged(existingEntry, entry)) {
+                    // Entry was changed - apply ADMIN_EDITED status logic
+                    String currentStatus = entry.getAdminSync();
+                    String newStatus = determineAdminSyncStatusForSave(currentStatus);
+                    entry.setAdminSync(newStatus);
+                    editedCount++;
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Entry %d changed - status: %s → %s", entry.getEntryId(), currentStatus, newStatus));
+                } else if (existingEntry == null) {
+                    // New entry - use ADMIN_INPUT
+                    entry.setAdminSync(MergingStatusConstants.ADMIN_INPUT);
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Entry %d is new - status: ADMIN_INPUT", entry.getEntryId()));
+                } else {
+                    // Entry unchanged - preserve existing status
+                    entry.setAdminSync(existingEntry.getAdminSync());
+                    unchangedCount++;
+                    LoggerUtil.debug(this.getClass(), String.format(
+                            "Entry %d unchanged - preserving status: %s", entry.getEntryId(), existingEntry.getAdminSync()));
+                }
+
+                processedEntries.add(entry);
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Change detection results: %d edited, %d unchanged, %d total",
+                    editedCount, unchangedCount, processedEntries.size()));
+
+            // Process entries using the merge service (for filtering, etc.)
+            ServiceResult<List<RegisterEntry>> processResult = registerMergeService.performAdminSaveProcessing(processedEntries);
             if (processResult.isFailure()) {
                 return ServiceResult.businessError("Failed to process entries: " + processResult.getErrorMessage(), "process_entries_failed");
             }
 
-            List<RegisterEntry> processedEntries = processResult.getData();
+            List<RegisterEntry> finalEntries = processResult.getData();
 
             // Save processed entries to admin file
             try {
-                registerDataService.writeAdminLocalWithSyncAndBackup(username, userId, processedEntries, year, month);
+                registerDataService.writeAdminLocalWithSyncAndBackup(username, userId, finalEntries, year, month);
             } catch (Exception e) {
                 LoggerUtil.error(this.getClass(), String.format("Error saving processed entries for %s - %d/%d: %s", username, year, month, e.getMessage()), e);
                 return ServiceResult.systemError("Failed to save processed entries", "save_entries_failed");
             }
 
-            LoggerUtil.info(this.getClass(), String.format("Successfully saved %d processed entries for user %s - %d/%d", processedEntries.size(), username, year, month));
+            LoggerUtil.info(this.getClass(), String.format("Successfully saved %d processed entries for user %s - %d/%d", finalEntries.size(), username, year, month));
 
             if (processResult.hasWarnings()) {
                 return ServiceResult.successWithWarnings(null, processResult.getWarnings());
@@ -747,6 +798,70 @@ public class AdminRegisterService {
     // ========================================================================
     // PRIVATE HELPER METHODS
     // ========================================================================
+
+    /**
+     * Check if an entry has been changed by comparing relevant fields.
+     * Compares fields that admin can edit (ignoring adminSync status and userId).
+     *
+     * @param existingEntry Original entry from database
+     * @param newEntry New entry from client
+     * @return true if entry has changed, false otherwise
+     */
+    private boolean hasEntryChanged(RegisterEntry existingEntry, RegisterEntry newEntry) {
+        if (existingEntry == null || newEntry == null) {
+            return true; // Treat as changed if either is null
+        }
+
+        // Compare fields that admin can edit
+        // Note: We deliberately exclude adminSync from comparison
+        return !Objects.equals(existingEntry.getDate(), newEntry.getDate()) ||
+                !Objects.equals(existingEntry.getOrderId(), newEntry.getOrderId()) ||
+                !Objects.equals(existingEntry.getProductionId(), newEntry.getProductionId()) ||
+                !Objects.equals(existingEntry.getOmsId(), newEntry.getOmsId()) ||
+                !Objects.equals(existingEntry.getClientName(), newEntry.getClientName()) ||
+                !Objects.equals(existingEntry.getActionType(), newEntry.getActionType()) ||
+                !Objects.equals(existingEntry.getPrintPrepTypes(), newEntry.getPrintPrepTypes()) ||
+                !Objects.equals(existingEntry.getColorsProfile(), newEntry.getColorsProfile()) ||
+                !Objects.equals(existingEntry.getArticleNumbers(), newEntry.getArticleNumbers()) ||
+                !Objects.equals(existingEntry.getGraphicComplexity(), newEntry.getGraphicComplexity()) ||
+                !Objects.equals(existingEntry.getObservations(), newEntry.getObservations());
+    }
+
+    /**
+     * Determine the adminSync status when admin saves an entry.
+     * Rules:
+     * - If status is ADMIN_FINAL or TEAM_FINAL: preserve it (immutable)
+     * - If status is USER_IN_PROCESS: preserve it (user actively working)
+     * - Otherwise: create ADMIN_EDITED_[timestamp] (admin is making changes)
+     *
+     * @param currentStatus Current adminSync status from the client
+     * @return New adminSync status to use when saving
+     */
+    private String determineAdminSyncStatusForSave(String currentStatus) {
+        // Preserve final statuses (immutable)
+        if (MergingStatusConstants.ADMIN_FINAL.equals(currentStatus)) {
+            LoggerUtil.debug(this.getClass(), "Preserving ADMIN_FINAL status (immutable)");
+            return currentStatus;
+        }
+
+        if (MergingStatusConstants.TEAM_FINAL.equals(currentStatus)) {
+            // Admin can override TEAM_FINAL, so create ADMIN_EDITED
+            LoggerUtil.debug(this.getClass(), "Admin overriding TEAM_FINAL with ADMIN_EDITED");
+            return MergingStatusConstants.createAdminEditedStatus();
+        }
+
+        // Preserve USER_IN_PROCESS (user actively working)
+        if (MergingStatusConstants.USER_IN_PROCESS.equals(currentStatus)) {
+            LoggerUtil.debug(this.getClass(), "Preserving USER_IN_PROCESS status (user actively working)");
+            return currentStatus;
+        }
+
+        // For all other statuses (USER_INPUT, USER_EDITED_*, TEAM_EDITED_*, ADMIN_EDITED_*, etc.)
+        // Admin is making changes, so create new ADMIN_EDITED timestamp
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Admin editing entry with status %s, creating ADMIN_EDITED timestamp", currentStatus));
+        return MergingStatusConstants.createAdminEditedStatus();
+    }
 
     private List<RegisterEntry> filterValidEntriesForBonus(List<RegisterEntry> entries) {
         if (entries == null) return new ArrayList<>();

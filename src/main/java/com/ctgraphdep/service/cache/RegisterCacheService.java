@@ -4,7 +4,9 @@ import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.utils.LoggerUtil;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -13,11 +15,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Thread-safe register cache service with write-through pattern.
+ * Thread-safe register cache service with write-back pattern.
  * Manages in-memory register data per month to eliminate file concurrency issues.
  * Features:
  * - Per-user, per-month caching
- * - Write-through: cache updates immediately trigger file writes
+ * - Write-back: cache updates stay in memory, periodic flush to disk
+ * - Automatic flush every 30 seconds for dirty entries
+ * - Manual flush on demand (save button, logout, etc.)
  * - Month-based memory management
  * - Thread-safe operations
  */
@@ -40,6 +44,14 @@ public class RegisterCacheService {
     @PostConstruct
     public void initializeCache() {
         // Cache will be populated on first access to any month
+        LoggerUtil.info(this.getClass(), "Register cache service initialized with write-back pattern (30-second periodic flush)");
+    }
+
+    @PreDestroy
+    public void shutdownCache() {
+        // Flush all dirty entries before shutdown
+        LoggerUtil.info(this.getClass(), "Shutting down register cache - flushing all dirty entries");
+        flushAllDirtyEntries();
     }
 
     /**
@@ -73,7 +85,8 @@ public class RegisterCacheService {
     }
 
     /**
-     * Add new register entry with write-through
+     * Add new register entry with immediate write-through
+     * Adding takes 26+ seconds, so no risk of conflicts - write immediately
      * @param username Username
      * @param userId User ID
      * @param entry Register entry to add
@@ -106,11 +119,10 @@ public class RegisterCacheService {
                 return false;
             }
 
-            // Write-through: immediately write to file
+            // Write-through: ADD is slow (26+ seconds), write immediately - no conflicts
             boolean written = writeMonthToFile(cacheEntry);
             if (!written) {
                 LoggerUtil.error(this.getClass(), String.format("Failed to write entry to file for %s - %d/%d", username, month, year));
-                // Remove from cache since file write failed
                 cacheEntry.deleteEntry(entry.getEntryId());
                 return false;
             }
@@ -125,7 +137,7 @@ public class RegisterCacheService {
     }
 
     /**
-     * Update existing register entry with write-through
+     * Update existing register entry in cache (write-back - will be flushed periodically)
      * @param username Username
      * @param userId User ID
      * @param entry Register entry to update
@@ -151,21 +163,15 @@ public class RegisterCacheService {
                 return false;
             }
 
-            // Update in cache
+            // Update in cache only - will be flushed periodically
             boolean updated = cacheEntry.updateEntry(entry);
             if (!updated) {
                 LoggerUtil.warn(this.getClass(), String.format("Entry %d not found in cache for %s", entry.getEntryId(), username));
                 return false;
             }
 
-            // Write-through: immediately write to file
-            boolean written = writeMonthToFile(cacheEntry);
-            if (!written) {
-                LoggerUtil.error(this.getClass(), String.format("Failed to write updated entry to file for %s - %d/%d", username, month, year));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Successfully updated entry %d for %s - %d/%d", entry.getEntryId(), username, month, year));
+            LoggerUtil.debug(this.getClass(), String.format("Updated entry %d in cache for %s - %d/%d (dirty, will flush in next cycle)",
+                entry.getEntryId(), username, month, year));
             return true;
 
         } catch (Exception e) {
@@ -175,7 +181,7 @@ public class RegisterCacheService {
     }
 
     /**
-     * Delete register entry with write-through
+     * Delete register entry from cache (write-back - will be flushed periodically)
      * @param username Username
      * @param userId User ID
      * @param entryId Entry ID to delete
@@ -201,21 +207,15 @@ public class RegisterCacheService {
                 return false;
             }
 
-            // Delete from cache
+            // Delete from cache only - will be flushed periodically
             boolean deleted = cacheEntry.deleteEntry(entryId);
             if (!deleted) {
                 LoggerUtil.warn(this.getClass(), String.format("Entry %d not found in cache for %s", entryId, username));
                 return false;
             }
 
-            // Write-through: immediately write to file
-            boolean written = writeMonthToFile(cacheEntry);
-            if (!written) {
-                LoggerUtil.error(this.getClass(), String.format("Failed to write after deletion to file for %s - %d/%d", username, month, year));
-                return false;
-            }
-
-            LoggerUtil.info(this.getClass(), String.format("Successfully deleted entry %d for %s - %d/%d", entryId, username, month, year));
+            LoggerUtil.debug(this.getClass(), String.format("Deleted entry %d from cache for %s - %d/%d (dirty, will flush in next cycle)",
+                entryId, username, month, year));
             return true;
 
         } catch (Exception e) {
@@ -296,8 +296,11 @@ public class RegisterCacheService {
      */
     private List<RegisterEntry> loadMonthFromFile(String username, Integer userId, int year, int month) {
         try {
-            // Load from file
-            List<RegisterEntry> entriesFromFile = registerDataService.readUserFromNetworkOnly(username, userId, year, month);
+            // Use the public readUserLocalReadOnly method which has internal smart fallback logic:
+            // - If own data: tries local first, fallback to network with sync-to-local
+            // - If other user data: reads from network
+            // This prevents caching empty data if local file is corrupted or missing
+            List<RegisterEntry> entriesFromFile = registerDataService.readUserLocalReadOnly(username, userId, username, year, month);
             if (entriesFromFile == null) {
                 entriesFromFile = new ArrayList<>();
             }
@@ -367,5 +370,107 @@ public class RegisterCacheService {
      */
     private String createMonthKey(String username, int year, int month) {
         return String.format("%s-%d-%02d", username, year, month);
+    }
+
+    // ========================================================================
+    // WRITE-BACK FLUSH OPERATIONS
+    // ========================================================================
+
+    /**
+     * Periodic flush of all dirty cache entries to disk.
+     * Runs every 30 seconds to persist in-memory changes.
+     * This is the main mechanism for write-back caching.
+     */
+    @Scheduled(fixedRate = 30000) // 30 seconds
+    public void periodicFlush() {
+        try {
+            int flushedCount = flushAllDirtyEntries();
+            if (flushedCount > 0) {
+                LoggerUtil.info(this.getClass(), String.format("Periodic flush completed: %d dirty cache entries written to disk", flushedCount));
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error during periodic flush: %s", e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Flush all dirty cache entries to disk immediately.
+     * Called by:
+     * - Periodic scheduler (every 30 seconds)
+     * - Manual save operations
+     * - User logout
+     * - Application shutdown
+     * @return Number of entries flushed
+     */
+    public int flushAllDirtyEntries() {
+        int flushedCount = 0;
+        globalLock.readLock().lock();
+        try {
+            for (RegisterCacheEntry cacheEntry : registerCache.values()) {
+                if (cacheEntry.isDirty()) {
+                    boolean written = writeMonthToFile(cacheEntry);
+                    if (written) {
+                        flushedCount++;
+                    }
+                }
+            }
+        } finally {
+            globalLock.readLock().unlock();
+        }
+        return flushedCount;
+    }
+
+    /**
+     * Flush a specific user's cache entries for a specific month.
+     * Used for explicit save operations.
+     * @param username Username
+     * @param year Year
+     * @param month Month
+     * @return true if successfully flushed
+     */
+    public boolean flushMonth(String username, int year, int month) {
+        try {
+            String monthKey = createMonthKey(username, year, month);
+            RegisterCacheEntry cacheEntry = registerCache.get(monthKey);
+
+            if (cacheEntry != null && cacheEntry.isDirty()) {
+                boolean written = writeMonthToFile(cacheEntry);
+                if (written) {
+                    LoggerUtil.info(this.getClass(), String.format("Flushed cache for %s - %d/%d", username, month, year));
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error flushing cache for %s - %d/%d: %s", username, month, year, e.getMessage()), e);
+            return false;
+        }
+    }
+
+    /**
+     * Flush all cache entries for a specific user.
+     * Used on user logout to ensure all changes are saved.
+     * @param username Username
+     * @return Number of months flushed
+     */
+    public int flushUser(String username) {
+        int flushedCount = 0;
+        globalLock.readLock().lock();
+        try {
+            for (RegisterCacheEntry cacheEntry : registerCache.values()) {
+                if (cacheEntry.getUsername().equals(username) && cacheEntry.isDirty()) {
+                    boolean written = writeMonthToFile(cacheEntry);
+                    if (written) {
+                        flushedCount++;
+                    }
+                }
+            }
+            if (flushedCount > 0) {
+                LoggerUtil.info(this.getClass(), String.format("Flushed %d cache entries for user %s on logout", flushedCount, username));
+            }
+        } finally {
+            globalLock.readLock().unlock();
+        }
+        return flushedCount;
     }
 }

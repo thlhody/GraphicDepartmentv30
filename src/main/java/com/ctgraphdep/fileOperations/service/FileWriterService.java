@@ -54,7 +54,7 @@ public class FileWriterService {
     // === REQUEST DEDUPLICATION ===
     // Prevent rapid clicks by tracking recent write attempts
     private final Map<String, Long> lastWriteAttempts = new ConcurrentHashMap<>();
-    private static final long MIN_WRITE_INTERVAL_MS = 10; // 1 second between writes per user/file
+    private static final long MIN_WRITE_INTERVAL_MS = 1000; // 1 second between writes per user/file
 
     // === ASYNC OPERATION TRACKING ===
     // Track ongoing async operations to coordinate with new requests
@@ -359,12 +359,24 @@ public class FileWriterService {
         CompletableFuture<Void> existingSync = pendingSyncs.get(syncKey);
         if (existingSync != null && !existingSync.isDone()) {
             LoggerUtil.debug(this.getClass(), String.format(
-                    "Network sync already in progress for: %s", localPath.getPath().getFileName()));
+                    "Network sync already in progress for: %s - skipping duplicate sync request", localPath.getPath().getFileName()));
             return;
         }
 
-        // Start new async sync operation
-        CompletableFuture<Void> syncFuture = CompletableFuture.runAsync(() -> {
+        // IMPORTANT: Create and register the future BEFORE starting async work
+        // This prevents race condition where two threads both see no pending sync
+        CompletableFuture<Void> syncFuture = new CompletableFuture<>();
+
+        // Atomically register the sync - if another thread already registered, use theirs
+        CompletableFuture<Void> registeredFuture = pendingSyncs.putIfAbsent(syncKey, syncFuture);
+        if (registeredFuture != null) {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Network sync already registered for: %s - skipping duplicate", localPath.getPath().getFileName()));
+            return;
+        }
+
+        // Now start the actual async operation
+        CompletableFuture.runAsync(() -> {
             try {
                 // Small delay to ensure local write is completely finished
                 Thread.sleep(200);
@@ -374,16 +386,16 @@ public class FileWriterService {
                 // Perform the sync
                 syncService.syncToNetwork(localPath, networkPath);
 
-
+                // Mark as successfully completed
+                syncFuture.complete(null);
 
             } catch (Exception e) {
                 LoggerUtil.warn(this.getClass(), String.format(
                         "Async network sync failed for %s: %s", localPath.getPath().getFileName(), e.getMessage()));
+                // Mark as failed
+                syncFuture.completeExceptionally(e);
             }
         });
-
-        // Track the sync operation
-        pendingSyncs.put(syncKey, syncFuture);
 
         // Clean up completed sync after it finishes
         syncFuture.whenComplete((result, throwable) -> {

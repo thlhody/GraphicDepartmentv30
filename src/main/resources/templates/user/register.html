@@ -316,11 +316,12 @@
                             <td th:text="${entry.graphicComplexity}"></td>
                             <td th:text="${entry.observations}"></td>
                             <td>
-                                    <span th:switch="${entry.adminSync}">
-                                        <span th:case="'ADMIN_EDITED'" class="badge bg-info">Edited</span>
-                                        <span th:case="'USER_INPUT'" class="badge bg-secondary">In Process</span>
-                                        <span th:case="'USER_DONE'" class="badge bg-success">Synced</span>
-                                    </span>
+                                <span class="badge"
+                                      th:text="${entry.statusDisplay}"
+                                      th:classappend="${entry.statusBadgeClass}"
+                                      th:title="${entry.adminSync}">
+                                    In Process
+                                </span>
                             </td>
                             <td class="text-nowrap mod-column" style="width: 50px; padding: 0.25rem;">
                                 <div class="action-icons">

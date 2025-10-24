@@ -73,22 +73,9 @@ document.addEventListener('DOMContentLoaded', function() {
     debugThymeleafData();
     debugFormStructure();
     setTimeout(() => {debugPrintPrepTypesDisplay();}, 1000);
-    // Add status badge updates
-    setTimeout(updateStatusBadges, 500);
-
-    // Update badges after any table changes
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.type === 'childList' && mutation.target.matches('#registerTable tbody')) {
-                updateStatusBadges();
-            }
-        });
-    });
-
-    const tableBody = document.querySelector('#registerTable tbody');
-    if (tableBody) {
-        observer.observe(tableBody, { childList: true, subtree: true });
-    }
+    // Status badges are now handled by backend (RegisterEntry.getStatusBadgeClass())
+    // No need to update them via JavaScript anymore - colors are set server-side
+    // The updateStatusBadges() function has been disabled to prevent overriding backend colors
 
     // Manual attachment for confirm button
     setTimeout(() => {
@@ -130,51 +117,62 @@ function updateStatusBadges() {
     statusBadges.forEach(badge => {
         const statusText = badge.textContent.trim();
 
-        // Clear existing classes
-        badge.classList.remove('bg-primary', 'bg-success', 'bg-secondary', 'bg-warning', 'bg-danger');
+        // Don't override colors that are already set by the backend
+        // The backend (RegisterEntry.getStatusBadgeClass()) already sets the correct color
+        // We only need to add special behaviors (like pulsing) for specific cases
 
-        // Apply appropriate styling based on status
-        switch(statusText) {
-            case 'USER_INPUT':
-                badge.classList.add('bg-info');
-                badge.title = 'New user entry - needs admin review';
-                break;
-            case 'ADMIN_EDITED':
-                badge.classList.add('bg-primary');
-                badge.title = 'Admin approved/edited - will be synced to user';
-                break;
-            case 'USER_DONE':
-                badge.classList.add('bg-success');
-                badge.title = 'Completed - user and admin are in sync';
-                break;
-            case 'USER_EDITED':
-                badge.classList.add('bg-warning');
-                badge.title = 'User modified approved entry - needs admin attention';
-                break;
-            case 'ADMIN_CHECK':
-                badge.classList.add('bg-danger');
-                badge.classList.add('badge-pulse'); // Add pulsing animation
-                badge.title = 'CONFLICT - Requires immediate admin review';
-                // Add pulsing CSS if not already present
-                if (!document.querySelector('#admin-check-pulse-style')) {
-                    const style = document.createElement('style');
-                    style.id = 'admin-check-pulse-style';
-                    style.textContent = `
-                        .badge-pulse {
-                            animation: pulse 2s infinite;
-                        }
-                        @keyframes pulse {
-                            0% { opacity: 1; }
-                            50% { opacity: 0.5; }
-                            100% { opacity: 1; }
-                        }
-                    `;
-                    document.head.appendChild(style);
-                }
-                break;
-            default:
-                badge.classList.add('bg-secondary');
-                break;
+        // Check for special cases that need additional styling
+        if (statusText === 'ADMIN_CHECK') {
+            // Add pulsing animation for conflicts (if this status still exists)
+            badge.classList.add('badge-pulse');
+            badge.title = 'CONFLICT - Requires immediate admin review';
+
+            // Add pulsing CSS if not already present
+            if (!document.querySelector('#admin-check-pulse-style')) {
+                const style = document.createElement('style');
+                style.id = 'admin-check-pulse-style';
+                style.textContent = `
+                    .badge-pulse {
+                        animation: pulse 2s infinite;
+                    }
+                    @keyframes pulse {
+                        0% { opacity: 1; }
+                        50% { opacity: 0.5; }
+                        100% { opacity: 1; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        // Update tooltips to show more helpful information based on display text
+        if (!badge.title || badge.title === '') {
+            switch(statusText) {
+                case 'In Process':
+                    badge.title = 'User created entry - ready for review';
+                    break;
+                case 'Admin Edited':
+                    badge.title = 'Admin reviewed/edited - will sync to user';
+                    break;
+                case 'User Edited':
+                    badge.title = 'User modified this entry';
+                    break;
+                case 'Team Edited':
+                    badge.title = 'Team lead reviewed this entry';
+                    break;
+                case 'Admin Final':
+                    badge.title = 'Admin locked - cannot be changed';
+                    break;
+                case 'Team Final':
+                    badge.title = 'Team approved - admin can override';
+                    break;
+                case 'Working':
+                    badge.title = 'User is actively working on this';
+                    break;
+                case 'Deleted':
+                    badge.title = 'This entry has been deleted';
+                    break;
+            }
         }
     });
 }

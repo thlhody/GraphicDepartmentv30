@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Admin Register Management</title>
-    <link rel="stylesheet" th:href="@{/css/register-admin.css?v=18783}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=18781}">
+    <link rel="stylesheet" th:href="@{/css/register-admin.css?v=241020252149}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=241020252149}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -247,10 +247,12 @@
                         <td class="cg-editable" th:text="${entry.graphicComplexity}">2.5</td>
                         <td th:text="${entry.observations}">Notes</td>
                         <td>
-                                <span class="badge" th:text="${entry.adminSync}"
-                                      th:classappend="${entry.adminSync == 'ADMIN_EDITED' ? 'bg-primary' : entry.adminSync == 'USER_INPUT' ? 'bg-success' : 'bg-secondary'}">
-                                    USER_INPUT
-                                </span>
+                            <span class="badge"
+                                  th:text="${entry.statusDisplay}"
+                                  th:classappend="${entry.statusBadgeClass}"
+                                  th:title="${entry.adminSync}">
+                                In Process
+                            </span>
                         </td>
                     </tr>
                     </tbody>
@@ -275,7 +277,7 @@
         };
     </script>
     <!-- Include your external JS file -->
-    <script th:src="@{/js/register-admin.js?v=18792}"></script>
+    <script th:src="@{/js/register-admin.js?v=241020252154}"></script>
 </th:block>
 </body>
 </html>

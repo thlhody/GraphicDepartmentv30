@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -32,12 +33,26 @@ public class UserRegisterService {
     private final RegisterCacheService registerCacheService;
     private final RegisterMergeService registerMergeService;
 
+    // Track which months have been merged this session to avoid redundant merges
+    // Key format: "username-year-month"
+    private final Set<String> mergedMonthsThisSession = ConcurrentHashMap.newKeySet();
+
     @Autowired
     public UserRegisterService(RegisterDataService registerDataService, RegisterCacheService registerCacheService, RegisterMergeService registerMergeService) {
         this.registerDataService = registerDataService;
         this.registerCacheService = registerCacheService;
         this.registerMergeService = registerMergeService;
         LoggerUtil.initialize(this.getClass(), null);
+    }
+
+    /**
+     * Clear merged months tracking for a specific user (called on logout)
+     * @param username Username
+     */
+    public void clearMergedMonthsTracking(String username) {
+        // Remove all entries for this user
+        mergedMonthsThisSession.removeIf(key -> key.startsWith(username + "-"));
+        LoggerUtil.debug(this.getClass(), String.format("Cleared merged months tracking for user: %s", username));
     }
 
     /**
@@ -71,9 +86,12 @@ public class UserRegisterService {
                 LocalDate currentDate = LocalDate.now();
                 boolean isCurrentMonth = (year == currentDate.getYear() && month == currentDate.getMonthValue());
 
-                if (!isCurrentMonth) {
-                    // For non-current months, perform merge first to get admin changes
-                    LoggerUtil.info(this.getClass(), String.format("Performing on-demand merge for %s - %d/%d (non-current month)", username, year, month));
+                // Track month access to avoid redundant merges
+                String monthKey = String.format("%s-%d-%02d", username, year, month);
+
+                if (!isCurrentMonth && !mergedMonthsThisSession.contains(monthKey)) {
+                    // First time accessing this non-current month in this session - perform merge
+                    LoggerUtil.info(this.getClass(), String.format("First access for %s - %d/%d this session, performing merge", username, year, month));
 
                     ServiceResult<String> mergeResult = registerMergeService.performUserLoginMerge(username, userId, year, month);
                     if (mergeResult.isFailure()) {
@@ -82,9 +100,18 @@ public class UserRegisterService {
                     } else if (mergeResult.hasWarnings()) {
                         warnings.addAll(mergeResult.getWarnings());
                     }
+
+                    // IMPORTANT: After merge, force cache reload to ensure we get fresh merged data
+                    registerCacheService.clearMonth(username, year, month);
+                    LoggerUtil.debug(this.getClass(), String.format("Cleared cache after merge for %s - %d/%d", username, year, month));
+
+                    // Mark this month as merged for this session
+                    mergedMonthsThisSession.add(monthKey);
+                } else if (!isCurrentMonth) {
+                    LoggerUtil.debug(this.getClass(), String.format("Month %s - %d/%d already merged this session, using cache", username, year, month));
                 }
 
-                // Use cache - will load fresh merged data
+                // Use cache - returns data without reloading from file (unless cache was cleared after merge)
                 List<RegisterEntry> entries = registerCacheService.getMonthEntries(username, userId, year, month);
 
                 LoggerUtil.info(this.getClass(), String.format("Loaded %d entries for %s - %d/%d from cache", entries.size(), username, year, month));
@@ -190,7 +217,7 @@ public class UserRegisterService {
                 }
             }
 
-            // Add/update entry using cache (which will write-through to file)
+            // Add/update entry using cache (write-back pattern)
             boolean success;
 
             // Check if entry exists in cache
@@ -260,7 +287,7 @@ public class UserRegisterService {
                 return ServiceResult.unauthorized("Access denied - entry belongs to different user", "entry_access_denied");
             }
 
-            // Delete entry using cache (which will write-through to file)
+            // Delete entry using cache (write-back pattern)
             boolean success = registerCacheService.deleteEntry(username, userId, entryId, year, month);
 
             if (!success) {
