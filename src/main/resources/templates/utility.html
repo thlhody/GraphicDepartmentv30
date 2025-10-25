@@ -3,19 +3,29 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Utilities</title>
-    <link rel="stylesheet" th:href="@{/css/utility.css?v=18786}">
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=18785}">
+    <link rel="stylesheet" th:href="@{/css/utility.css?v=251020250132}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=251020250132}">
 </head>
 
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
         <!-- Header Section -->
-        <div class="page-header mb-4">
-            <h1 class="header-title">User Utilities</h1>
-            <p class="header-subtitle">
-                Complete self-service tools for backup management, diagnostics, and troubleshooting
-            </p>
+        <div class="page-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="header-title">
+                    <i class="bi bi-tools me-2"></i>User Utilities
+                </h1>
+                <p class="header-subtitle mb-0">
+                    Complete self-service tools for backup management, diagnostics, and troubleshooting
+                </p>
+            </div>
+            <a class="btn btn-outline-primary" th:href="${dashboardUrl != null ? dashboardUrl : '/dashboard'}">
+                <i class="bi bi-grid me-2"></i>Dashboard
+            </a>
+        </div>
+
+        <div class="mb-4">
             <div class="header-stats">
                 <div class="stat-card">
                     <i class="bi bi-person-check"></i>
@@ -121,19 +131,19 @@
 <!-- Enhanced Utility JavaScript with Full Functionality -->
 <th:block layout:fragment="scripts">
     <!-- Core utility scripts -->
-    <script th:src="@{/js/toast-alerts.js?v=18785}"></script>
+    <script th:src="@{/js/toast-alerts.js?v=251020250132}"></script>
 
     <!-- Individual utility modules -->
-    <script th:src="@{/js/um/backup-utility.js?v=18792}"></script>
-    <script th:src="@{/js/um/monitor-utility.js?v=18792}"></script>
-    <script th:src="@{/js/um/session-utility.js?v=18785}"></script>
-    <script th:src="@{/js/um/merge-utility.js?v=18792}"></script>
-    <script th:src="@{/js/um/health-utility.js?v=18792}"></script>
-    <script th:src="@{/js/um/diagnostics-utility.js?v=18792}"></script>
-    <script th:src="@{/js/um/actions-utility.js?v=18792}"></script>
+    <script th:src="@{/js/um/backup-utility.js?v=251020250132}"></script>
+    <script th:src="@{/js/um/monitor-utility.js?v=251020250132}"></script>
+    <script th:src="@{/js/um/session-utility.js?v=251020250132}"></script>
+    <script th:src="@{/js/um/merge-utility.js?v=251020250132}"></script>
+    <script th:src="@{/js/um/health-utility.js?v=251020250132}"></script>
+    <script th:src="@{/js/um/diagnostics-utility.js?v=251020250132}"></script>
+    <script th:src="@{/js/um/actions-utility.js?v=251020250132}"></script>
 
     <!-- Main utility coordinator -->
-    <script th:src="@{/js/utility-core.js?v=18792}"></script>
+    <script th:src="@{/js/utility-core.js?v=251020250132}"></script>
 
     <!-- Initialization script -->
     <script th:inline="javascript">

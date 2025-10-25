@@ -98,6 +98,27 @@ main {
     transform: translateY(-1px);
 }
 
+/* Navbar Button Styles - No outline, no gradient, white text */
+.btn-navbar {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-navbar:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-navbar:focus {
+    box-shadow: none;
+    color: white;
+}
+
 /* Animation Classes */
 .fade-in {
     animation: fadeIn 0.3s ease-in;
