@@ -13,13 +13,11 @@ import java.time.format.DateTimeFormatter;
 /**
  * Factory service for creating WorkTimeEntryDTO instances.
  * Extracted from WorkTimeEntryDTO to separate data structure from construction logic.
- *
  * Responsibilities:
  * - Convert WorkTimeTable entities to DTOs
  * - Handle all special day types (SN, CO, CM, W) with proper formatting
  * - Calculate work time, overtime, and discarded minutes
  * - Apply CSS classes and generate display values
- *
  * This service encapsulates all business logic related to DTO creation,
  * keeping the DTO itself as a pure data container.
  */

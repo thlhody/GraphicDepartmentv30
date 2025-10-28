@@ -390,12 +390,10 @@ public class CheckRegisterStatusExcelExporter {
         if (status == null) return styles.get("cell-text");
 
         return switch (status) {
-            case "CHECKING_INPUT" -> styles.get("badge-secondary");
-            case "CHECKING_DONE" -> styles.get("badge-success");
+            case "CHECKING_DONE", "ADMIN_DONE" -> styles.get("badge-success");
             case "TL_CHECK_DONE" -> styles.get("badge-primary");
             case "TL_EDITED" -> styles.get("badge-info");
             case "ADMIN_EDITED" -> styles.get("badge-warning");
-            case "ADMIN_DONE" -> styles.get("badge-success");
             default -> styles.get("badge-secondary");
         };
     }

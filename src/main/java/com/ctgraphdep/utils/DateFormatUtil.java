@@ -7,10 +7,8 @@ import java.time.format.DateTimeFormatter;
 /**
  * Utility class for centralized date and time formatting.
  * Provides consistent date/time format patterns across the application.
- *
  * This eliminates duplicate DateTimeFormatter instances and ensures
  * consistent formatting throughout the codebase.
- *
  * Usage:
  * - Use the static formatters for direct formatting
  * - Use the format methods for convenience

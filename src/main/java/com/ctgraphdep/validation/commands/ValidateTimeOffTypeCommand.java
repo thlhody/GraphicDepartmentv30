@@ -21,9 +21,10 @@ public class ValidateTimeOffTypeCommand extends BaseTimeValidationCommand<Void> 
         }
 
         String type = timeOffType.trim().toUpperCase();
-        if (!type.matches("^(CO|CM|SN)$")) {
+        if (!type.matches("^(CO|CM|SN|CR|CN|ZS|D|CE)$")) {
             throw new IllegalArgumentException("Invalid time off type: " + timeOffType +
-                    ". Valid types: CO (vacation), CM (medical), SN (national holiday)");
+                    ". Valid types: CO (vacation), CM (medical), SN (national holiday), " +
+                    "CR (recovery leave), CN (unpaid leave), ZS (short day), D(delegation), CE(event holiday)");
         }
 
         debug("Validated time off type: " + type);

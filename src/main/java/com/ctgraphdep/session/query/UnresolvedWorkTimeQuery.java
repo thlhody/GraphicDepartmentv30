@@ -5,7 +5,6 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.SessionQuery;
 import com.ctgraphdep.utils.LoggerUtil;
-import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 
 import java.time.LocalDate;
 import java.util.ArrayList;

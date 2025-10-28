@@ -425,7 +425,7 @@ public class FileWriterService {
      * This prevents race conditions where two threads both see no recent attempt
      * and both proceed to write at the same time (prevents rapid clicks and concurrent writes).
      *
-     * @param username Username attempting the write
+     * @param username Username attempting to write
      * @param path File path being written
      * @return true if write should proceed, false if too soon since last attempt
      */
@@ -458,17 +458,6 @@ public class FileWriterService {
         // If compute() returned our new timestamp, we can proceed
         // If it returned the old timestamp, we should skip (too soon)
         return previousAttempt.equals(now);
-    }
-
-    /**
-     * Record write attempt timestamp for deduplication.
-     * NOTE: This method is now integrated into canAttemptWrite() for atomicity.
-     * Keeping it for backwards compatibility but it's a no-op.
-     */
-    @Deprecated
-    private void recordWriteAttempt(String username, Path path) {
-        // No-op - now handled atomically in canAttemptWrite()
-        // Kept for backwards compatibility in case any code calls this directly
     }
 
     /**

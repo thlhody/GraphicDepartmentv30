@@ -645,6 +645,116 @@ ENHANCED CARD HEADER STYLES
     box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
 }
 
+/* CR Display - Recovery Leave (paid from overtime) */
+.cr-display {
+    background-color: #198754 !important; /* Green - positive, paid leave */
+    color: white !important;
+    border: 1px solid #146c43;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.cr-display:hover {
+    background-color: #157347 !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.3);
+}
+
+/* CN Display - Unpaid Leave */
+.cn-display {
+    background-color: #6c757d !important; /* Gray - neutral, unpaid */
+    color: white !important;
+    border: 1px solid #565e64;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.cn-display:hover {
+    background-color: #5c636a !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+/* ZS Display - Short Day (worked < schedule, filled from overtime) */
+.zs-display {
+    background-color: #ffc107 !important; /* Yellow/Amber - warning, needs attention */
+    color: #000 !important;
+    border: 1px solid #ffca2c;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.65rem; /* Slightly smaller to fit "ZS 6h/8h" */
+    display: inline-block;
+    min-width: 45px; /* Wider to fit format */
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.zs-display:hover {
+    background-color: #ffca2c !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+/* CE Display - Event Leave (Marriage/Birth/Death) */
+.ce-display {
+    background-color: #e83e8c !important; /* Pink - special events */
+    color: white !important;
+    border: 1px solid #d6336c;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.ce-display:hover {
+    background-color: #d6336c !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(232, 62, 140, 0.3);
+}
+
+/* D Display - Delegation (Business Trip) */
+.d-display {
+    background-color: #0dcaf0 !important; /* Cyan - business/official */
+    color: #000 !important;
+    border: 1px solid #3dd5f3;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.d-display:hover {
+    background-color: #31d2f2 !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(13, 202, 240, 0.3);
+}
+
 /* ========================================================================
    NEW: WEEKEND TIME OFF STYLE (Add after existing medical style)
    ======================================================================== */

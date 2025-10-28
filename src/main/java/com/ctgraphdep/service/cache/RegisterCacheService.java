@@ -421,33 +421,6 @@ public class RegisterCacheService {
     }
 
     /**
-     * Flush a specific user's cache entries for a specific month.
-     * Used for explicit save operations.
-     * @param username Username
-     * @param year Year
-     * @param month Month
-     * @return true if successfully flushed
-     */
-    public boolean flushMonth(String username, int year, int month) {
-        try {
-            String monthKey = createMonthKey(username, year, month);
-            RegisterCacheEntry cacheEntry = registerCache.get(monthKey);
-
-            if (cacheEntry != null && cacheEntry.isDirty()) {
-                boolean written = writeMonthToFile(cacheEntry);
-                if (written) {
-                    LoggerUtil.info(this.getClass(), String.format("Flushed cache for %s - %d/%d", username, month, year));
-                    return true;
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error flushing cache for %s - %d/%d: %s", username, month, year, e.getMessage()), e);
-            return false;
-        }
-    }
-
-    /**
      * Flush all cache entries for a specific user.
      * Used on user logout to ensure all changes are saved.
      * @param username Username

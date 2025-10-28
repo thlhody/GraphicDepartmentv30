@@ -318,15 +318,44 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
     private WorkTimeTable createNewTimeOffEntry(LocalDate date, String currentUserRole) {
         LoggerUtil.info(this.getClass(), String.format("Creating new %s entry for %s on %s", timeOffType, username, date));
 
-        WorkTimeTable timeOffEntry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, timeOffType);
+        WorkTimeTable timeOffEntry;
+
+        // SPECIAL HANDLING for CR (Recovery Leave) - Create full work day paid from overtime
+        if (WorkCode.RECOVERY_LEAVE_CODE.equalsIgnoreCase(timeOffType)) {
+            int userSchedule = context.getCurrentUser().getSchedule();
+            LoggerUtil.info(this.getClass(), String.format(
+                "Creating CR (Recovery Leave) entry as full work day for %s on %s: schedule=%d hours",
+                username, date, userSchedule));
+
+            // Create recovery leave entry with full schedule hours
+            // This creates a regular work entry (totalWorkedMinutes = schedule + lunch)
+            // Overtime deduction happens during monthly consolidation
+            timeOffEntry = WorktimeEntityBuilder.createRecoveryLeaveEntry(userId, date, userSchedule);
+
+            LoggerUtil.info(this.getClass(), String.format("CR entry created: %s - %d minutes worked (%dh schedule + 30min lunch), will be deducted from overtime balance",
+                date, timeOffEntry.getTotalWorkedMinutes(), userSchedule));
+        }
+        // SPECIAL HANDLING for CN (Unpaid Leave) - Simple time off entry, no work
+        else if (WorkCode.UNPAID_LEAVE_CODE.equalsIgnoreCase(timeOffType)) {
+            LoggerUtil.info(this.getClass(), String.format(
+                "Creating CN (Unpaid Leave) entry for %s on %s: no work, no deductions",
+                username, date));
+
+            // Create simple time off entry with no work time
+            timeOffEntry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, timeOffType);
+
+            LoggerUtil.info(this.getClass(), String.format("CN entry created: %s - unpaid leave, no work time", date));
+        }
+        // STANDARD HANDLING for CO/CM/SN/ZS
+        else {
+            timeOffEntry = WorktimeEntityBuilder.createTimeOffEntry(userId, date, timeOffType);
+        }
 
         // Assign status
-        StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
-                timeOffEntry, currentUserRole, getOperationType());
+        StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(timeOffEntry, currentUserRole, getOperationType());
 
         if (!statusResult.isSuccess()) {
-            LoggerUtil.warn(this.getClass(), String.format("Status assignment failed for new %s entry on %s: %s",
-                    timeOffType, date, statusResult.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Status assignment failed for new %s entry on %s: %s", timeOffType, date, statusResult.getMessage()));
             return null;
         }
 

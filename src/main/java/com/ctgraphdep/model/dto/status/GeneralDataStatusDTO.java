@@ -162,6 +162,54 @@ public class GeneralDataStatusDTO {
     // ========================================================================
 
     /**
+     * Get short display text for compact views (abbreviations)
+     * Examples: "UI" (User Input), "AE" (Admin Edited), "AF" (Admin Final)
+     */
+    @SuppressWarnings("unused")
+    public String getShortDisplay() {
+        if (!isDisplayable) return "";
+
+        // Special case for active sessions
+        if (isUserInProcess) return "Active";
+
+        // Build abbreviation from role + action
+        String roleAbbr = getRoleAbbreviation();
+        String actionAbbr = getActionAbbreviation();
+
+        return roleAbbr + actionAbbr;
+    }
+
+    /**
+     * Get role abbreviation for short display
+     */
+    private String getRoleAbbreviation() {
+        if (roleName == null) return "?";
+
+        return switch (roleName) {
+            case "Admin" -> "A";
+            case "User" -> "U";
+            case "Team_Leader" -> "TL";
+            case "TL_Checking" -> "TLC";
+            default -> roleName.substring(0, 1).toUpperCase();
+        };
+    }
+
+    /**
+     * Get action abbreviation for short display
+     */
+    private String getActionAbbreviation() {
+        if (actionType == null) return "?";
+
+        return switch (actionType) {
+            case "Input" -> "I";
+            case "Edited" -> "E";
+            case "Final" -> "F";
+            case "Active" -> "A";
+            default -> actionType.substring(0, 1).toUpperCase();
+        };
+    }
+
+    /**
      * Get medium display text for normal views
      */
     public String getMediumDisplay() {

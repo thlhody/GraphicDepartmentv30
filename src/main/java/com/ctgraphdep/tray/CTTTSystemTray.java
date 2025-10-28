@@ -302,7 +302,6 @@ public class CTTTSystemTray {
      * Refreshes active notifications by completely resetting the notification system.
      * This helps fix broken notification displays on laptops where buttons disappear.
      * Particularly useful for the start day notification that displays during 05-17:00.
-     *
      * This method performs a clean refresh by:
      * 1. Unregistering the display subscriber (cleans event queue)
      * 2. Resetting the display service (cleans up UI)

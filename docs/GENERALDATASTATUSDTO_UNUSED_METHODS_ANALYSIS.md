@@ -325,17 +325,17 @@ public class StatusTransitionService {
         }
 
         // ADMIN can override any status
-        if ("ADMIN".equals(userRole)) {
+        if (SecurityConstants.ROLE_ADMIN.equals(userRole)) {
             return true;
         }
 
         // TEAM can override user statuses but not admin
-        if ("TEAM".equals(userRole)) {
+        if (SecurityConstants.ROLE_TEAM_LEADER.equals(userRole)) {
             return !currentStatus.getRoleType().equals("ADMIN");
         }
 
         // USER can only modify their own input/edited statuses
-        if ("USER".equals(userRole)) {
+        if (SecurityConstants.ROLE_USER.equals(userRole)) {
             return currentStatus.getRoleType().equals("USER") &&
                    !currentStatus.isFinal();
         }

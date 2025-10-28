@@ -66,6 +66,23 @@ public class WorktimeEntityBuilder {
         return entry;
     }
 
+    // Create CR (Recovery Leave) entry - time off paid from overtime
+    // Per spec: CR should only have date + timeOffType, no work times
+    // Deduction calculation happens in display service based on user schedule
+    public static WorkTimeTable createRecoveryLeaveEntry(Integer userId, LocalDate date, int scheduleHours) {
+        WorkTimeTable entry = createNewEntry(userId, date);
+        entry.setTimeOffType(WorkCode.RECOVERY_LEAVE_CODE);
+
+        // CR is a time-off entry, not a work entry - reset all work fields
+        resetWorkFields(entry);
+
+        LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
+            "Created CR (Recovery Leave) entry for user %d on %s (deducts %d schedule hours from overtime)",
+            userId, date, scheduleHours));
+
+        return entry;
+    }
+
     // ========================================================================
     // TEMPORARY STOP UPDATE METHODS - Entry Modification (CLEAN - NO VALIDATION)
     // ========================================================================
@@ -101,7 +118,7 @@ public class WorktimeEntityBuilder {
     // SPECIAL DAY METHODS
     // ========================================================================
 
-    // Create special day entry with work time (for admin use) Supports all special day types: SN, CO, CM, W
+    // Create special day entry with work time (for admin use) Supports all special day types: SN, CO, CM, CE, W
     public static WorkTimeTable createSpecialDayWithWorkTime(Integer userId, LocalDate date, String timeOffType, double workHours) {
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format("Creating %s entry with work time for user %d on %s: %.2f hours",
                 timeOffType, userId, date, workHours));
@@ -195,8 +212,15 @@ public class WorktimeEntityBuilder {
         }
 
         String timeOffType = entry.getTimeOffType().trim().toUpperCase();
-        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) || WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
-                WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) || WorkCode.WEEKEND_CODE.equals(timeOffType);
+        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) ||
+               WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
+               WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) ||
+               WorkCode.WEEKEND_CODE.equals(timeOffType) ||
+               WorkCode.SPECIAL_EVENT_CODE.equals(timeOffType);  // CE can also have overtime work
+        // CR (Recovery Leave) is NOT a special day - it's a time-off entry paid from overtime
+        // CN (Unpaid Leave) is NOT a special day - it's a time-off entry (unpaid)
+        // ZS (Short Day) is NOT a special day - it's a short work day filled from overtime
+        // D (Delegation) is NOT a special day - it's a normal work day at different location
     }
 
     // Apply special day calculation to existing entry with start/end times

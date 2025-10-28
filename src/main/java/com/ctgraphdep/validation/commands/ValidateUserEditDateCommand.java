@@ -28,10 +28,6 @@ public class ValidateUserEditDateCommand extends BaseTimeValidationCommand<Valid
         this(date, null, null, false, timeProvider);
     }
 
-    public ValidateUserEditDateCommand(LocalDate date, String field, TimeProvider timeProvider) {
-        this(date, field, null, false, timeProvider);
-    }
-
     public ValidateUserEditDateCommand(LocalDate date, String field, String existingTimeOffType,
                                        boolean isAdminUser, TimeProvider timeProvider) {
         super(timeProvider);
@@ -190,11 +186,11 @@ public class ValidateUserEditDateCommand extends BaseTimeValidationCommand<Valid
      */
     @Getter
     public static class ValidationContext {
-        private boolean isCurrentDay = false;
-        private boolean isFutureDate = false;
-        private boolean isPastDate = false;
-        private boolean isWeekend = false;
-        private boolean isSNField = false;
+        private final boolean isCurrentDay = false;
+        private final boolean isFutureDate = false;
+        private final boolean isPastDate = false;
+        private final boolean isWeekend = false;
+        private final boolean isSNField = false;
 
         // Can be extended with more context as needed
     }

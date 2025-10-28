@@ -65,19 +65,5 @@ public class GetStandardTimeValuesCommand implements TimeValidationCommand<GetSt
             this.continuationTimestamp = continuationTimestamp;
             this.nextHourlyCheck = nextHourlyCheck;
         }
-
-        /**
-         * Gets a timestamp for recording events like continuation points
-         */
-        public LocalDateTime getEventTimestamp() {
-            return continuationTimestamp;
-        }
-
-        /**
-         * Gets the appropriate time for the next hourly check
-         */
-        public LocalDateTime getNextHourlyCheckTime() {
-            return nextHourlyCheck;
-        }
     }
 }

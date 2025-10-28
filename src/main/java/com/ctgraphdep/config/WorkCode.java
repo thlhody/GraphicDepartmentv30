@@ -11,11 +11,21 @@ public class WorkCode {
     public static final String TIME_OFF_CODE = "CO";
     public static final String MEDICAL_LEAVE_CODE = "CM";
     public static final String WEEKEND_CODE = "W";
+    public static final String RECOVERY_LEAVE_CODE = "CR";   // Concediu Recuperare - paid from overtime
+    public static final String UNPAID_LEAVE_CODE = "CN";     // Concediu Neplatit - unpaid leave
+    public static final String DELEGATION_CODE = "D";        // Normal work day but away from office
+    public static final String SHORT_DAY_CODE = "ZS";        // Zi Scurta - short day filled from overtime
+    public static final String SPECIAL_EVENT_CODE = "CE";    // Special day event marriage/death/birth
     public static final String REGULAR_WORK_DAY = "Regular Work Day";
     public static final String NATIONAL_HOLIDAY_CODE_LONG = "National Holiday(SN)";
     public static final String TIME_OFF_CODE_LONG = "Holiday(CO)";
     public static final String MEDICAL_LEAVE_CODE_LONG = "Medical Leave(CM)";
     public static final String WEEKEND_CODE_LONG = "Weekend Work(W)";
+    public static final String RECOVERY_LEAVE_CODE_LONG = "Recovery Leave(CR)";
+    public static final String UNPAID_LEAVE_CODE_LONG = "Unpaid Leave(CN)";
+    public static final String SHORT_DAY_CODE_LONG = "Short Day(ZS)";
+    public static final String DELEGATION_CODE_LONG = "Delegation(D)";
+    public static final String SPECIAL_EVENT_CODE_LONG = "Special Event(CE)";
     public static final String AVAILABLE_PAID_DAYS = "Available Paid Days";
 
     public static final String APPROVED = "APPROVED";

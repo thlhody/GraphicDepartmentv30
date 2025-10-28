@@ -3,7 +3,6 @@ package com.ctgraphdep.session.commands.notification;
 import com.ctgraphdep.session.SessionContext;
 import com.ctgraphdep.session.commands.UpdateSessionActivityCommand;
 import com.ctgraphdep.session.config.CommandConstants;
-import com.ctgraphdep.session.query.IsInTempStopMonitoringQuery;
 
 // Command to continue a temporary stop
 public class ContinueTempStopCommand extends BaseNotificationCommand<Boolean> {

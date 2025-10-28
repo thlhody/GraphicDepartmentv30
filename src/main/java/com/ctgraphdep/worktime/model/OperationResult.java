@@ -133,6 +133,7 @@ public class OperationResult {
 
         public static final String UPDATE_HOLIDAY_BALANCE = "UPDATE_HOLIDAY_BALANCE";
         public static final String CONSOLIDATE_WORKTIME = "CONSOLIDATE_WORKTIME";
+        public static final String CONSOLIDATE_OVERTIME = "CONSOLIDATE_OVERTIME";
         public static final String LOAD_USER_WORKTIME = "LOAD_USER_WORKTIME";
 
         public static final String RESET_SPECIAL_DAY = "RESET_SPECIAL_DAY";

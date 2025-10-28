@@ -3,10 +3,10 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
   <title>Team Check Register</title>
-  <link rel="stylesheet" th:href="@{/css/register-user.css?v=251020250132}">
-  <link rel="stylesheet" th:href="@{/css/check-register.css?v=251020250132}">
-  <link rel="stylesheet" th:href="@{/css/bonus.css?v=251020250132}">
-  <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=251020250132}">
+  <link rel="stylesheet" th:href="@{/css/register-user.css?v=281020252315}">
+  <link rel="stylesheet" th:href="@{/css/check-register.css?v=281020252315}">
+  <link rel="stylesheet" th:href="@{/css/bonus.css?v=281020252315}">
+  <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=281020252315}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -186,7 +186,7 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-  <script th:src="@{/js/toast-alerts.js?v=251020250132}"></script>
+  <script th:src="@{/js/toast-alerts.js?v=281020252315}"></script>
   <script th:inline="javascript">
     // Pass check type values from server to JavaScript
     const SERVER_CHECK_TYPE_VALUES = /*[[${checkTypeValues}]]*/ null;
@@ -198,8 +198,8 @@
     const CURRENT_YEAR = /*[[${currentYear}]]*/ null;
     const CURRENT_MONTH = /*[[${currentMonth}]]*/ null;
   </script>
-  <script th:src="@{/js/check-register.js?v=251020250132}"></script>
-  <script th:src="@{/js/check-bonus-fragment.js?v=251020250132}"></script>
+  <script th:src="@{/js/check-register.js?v=281020252315}"></script>
+  <script th:src="@{/js/check-bonus-fragment.js?v=281020252315}"></script>
   <script th:if="${showRegisterContent}">
     // Additional safety checks for initialization
     document.addEventListener('DOMContentLoaded', function() {

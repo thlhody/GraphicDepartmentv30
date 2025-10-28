@@ -10,8 +10,12 @@ let selectedRecovery = null;
 
 /**
  * Open holiday request modal with data from time management form
+ * @param {string} startDate - Start date for the holiday
+ * @param {string} endDate - End date for the holiday
+ * @param {object} userData - User data object
+ * @param {string} timeOffType - Optional time-off type for auto-selection (CO, CM, CR, CN, CE, D)
  */
-function openHolidayModal(startDate, endDate, userData = {}) {
+function openHolidayModal(startDate, endDate, userData = {}, timeOffType = null) {
     holidayModalData = { startDate, endDate, userData };
 
     // Populate form with data
@@ -24,8 +28,16 @@ function openHolidayModal(startDate, endDate, userData = {}) {
         document.body.style.overflow = 'hidden';
     }
 
-    // Set default selection
-    selectHolidayType('odihna');
+    // Auto-select holiday type based on timeOffType parameter
+    if (timeOffType) {
+        console.log('Auto-selecting holiday type for:', timeOffType);
+        setTimeout(function() {
+            autoSelectHolidayType(timeOffType);
+        }, 300);
+    } else {
+        // Set default selection if no type specified
+        selectHolidayType('odihna');
+    }
 }
 
 /**
@@ -79,6 +91,60 @@ function formatDateForDisplay(dateString) {
     } catch (error) {
         console.error('Error formatting date:', error);
         return dateString;
+    }
+}
+
+/**
+ * Auto-select holiday type based on time-off type code
+ * Used when modal is opened after form submission (from backend)
+ * @param {string} timeOffType - Time-off type code (CO, CM, CR, CN, CE, D)
+ */
+function autoSelectHolidayType(timeOffType) {
+    console.log('Auto-selecting holiday type for time-off code:', timeOffType);
+
+    switch (timeOffType) {
+        case 'CO':
+            // CO → Field 1: Concediu de odihnă
+            selectHolidayType('odihna');
+            break;
+
+        case 'CM':
+            // CM → Field 2: Concediu pentru evenimente speciale
+            selectHolidayType('special');
+            break;
+
+        case 'CR':
+            // CR → Field 3: Concediu fara plata + cu recuperare
+            selectHolidayType('fara_plata');
+            setTimeout(function() {
+                toggleRecovery('cu');  // cu recuperare
+            }, 200);
+            break;
+
+        case 'CN':
+            // CN → Field 3: Concediu fara plata + fara recuperare
+            selectHolidayType('fara_plata');
+            setTimeout(function() {
+                toggleRecovery('fara');  // fara recuperare
+            }, 200);
+            break;
+
+        case 'CE':
+            // CE → Field 2: Concediu pentru evenimente speciale (Special Event Leave)
+            selectHolidayType('special');
+            break;
+
+        case 'D':
+            // D → Field 1: Default (Delegation - normal work day with special form)
+            // Per spec: Delegation requires no special field, so default to Field 1
+            selectHolidayType('odihna');
+            break;
+
+        default:
+            // Default to field 1
+            console.warn('Unknown time-off type:', timeOffType, '- defaulting to odihna');
+            selectHolidayType('odihna');
+            break;
     }
 }
 
@@ -148,6 +214,7 @@ function hideElement(elementId) {
 
 /**
  * Handle recovery option selection (cu/fara recuperare)
+ * UPDATED: Now sends CR/CN backend codes instead of 'cu'/'fara'
  */
 function toggleRecovery(type) {
     // Clear both selections
@@ -160,10 +227,10 @@ function toggleRecovery(type) {
     // Select the clicked one
     if (type === 'cu' && cuBox) {
         cuBox.classList.add('selected');
-        selectedRecovery = 'cu';
+        selectedRecovery = 'CR';  // CR = Concediu Recuperare (paid from overtime balance)
     } else if (type === 'fara' && faraBox) {
         faraBox.classList.add('selected');
-        selectedRecovery = 'fara';
+        selectedRecovery = 'CN';  // CN = Concediu Neplatit (unpaid leave)
     }
 }
 
@@ -315,6 +382,11 @@ function validateFormBasic() {
 /**
  * FIXED: Test function for integration with time management page
  * Uses name attributes to avoid ID conflicts
+ * Auto-selects holiday type based on dropdown selection:
+ * - CO → Field 1: Concediu de odihnă
+ * - CM → Field 2: Concediu pentru evenimente speciale
+ * - CR → Field 3: Concediu fara plata / Invoire + cu recuperare
+ * - CN → Field 3: Concediu fara plata / Invoire + fara recuperare
  */
 function openHolidayRequestFromForm() {
     // Extract user data from current page
@@ -327,10 +399,58 @@ function openHolidayRequestFromForm() {
     const startDate = startDateField ? startDateField.value : '2025-08-10';
     const endDate = endDateField ? endDateField.value : '2025-08-20';
 
-    console.log('Opening holiday modal with:', { startDate, endDate, userData });
+    // Check what type is selected in the main form
+    const timeOffTypeSelect = document.getElementById('timeOffType');
+    const selectedType = timeOffTypeSelect ? timeOffTypeSelect.value : null;
+
+    console.log('Opening holiday modal with:', { startDate, endDate, userData, selectedType });
 
     // Open the modal
     openHolidayModal(startDate, endDate, userData);
+
+    // Auto-select the appropriate holiday type based on dropdown
+    setTimeout(function() {
+        switch (selectedType) {
+            case 'CO':
+                // CO → Field 1: Concediu de odihnă (default, already selected)
+                selectHolidayType('odihna');
+                break;
+
+            case 'CM':
+                // CM → Field 2: Concediu pentru evenimente speciale
+                selectHolidayType('special');
+                break;
+
+            case 'CR':
+                // CR → Field 3: Concediu fara plata + cu recuperare
+                selectHolidayType('fara_plata');
+                setTimeout(function() {
+                    toggleRecovery('cu');  // cu recuperare
+                }, 200);
+                break;
+
+            case 'CN':
+                // CN → Field 3: Concediu fara plata + fara recuperare
+                selectHolidayType('fara_plata');
+                setTimeout(function() {
+                    toggleRecovery('fara');  // fara recuperare
+                }, 200);
+                break;
+            case 'CE':
+                // CE → Field 2: Concediu pentru evenimente speciale (Special Event Leave)
+                selectHolidayType('special');
+                break;
+            case 'D':
+                // D → No field required (Delegation - normal work day with special form)
+                // Per spec: Delegation requires no form field selection
+                // selectHolidayType('special');  // Removed - not needed per spec
+
+            default:
+                // Default to field 1
+                selectHolidayType('odihna');
+                break;
+        }
+    }, 300);
 }
 
 /**

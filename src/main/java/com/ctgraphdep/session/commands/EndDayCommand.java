@@ -207,6 +207,9 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
         if (!dayType.requiresSpecialOvertimeLogic()) {
             debug("Applying regular day overtime calculation");
             applyRegularDayOvertimeLogic(entry, session, context, workDate);
+
+            // ENHANCED: Auto-detect short days (ZS) after overtime calculation
+            detectAndHandleShortDay(entry, session, context);
         }
 
         debug("Ensured final end day state is properly set");
@@ -286,6 +289,53 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
             }
         } catch (Exception e) {
             warn(String.format("Error calculating regular day overtime: %s", e.getMessage()));
+        }
+    }
+
+    /**
+     * AUTO-DETECT short days (ZS) - User-level automation for production
+     * If user worked less than schedule AND has no time off type, mark as ZS
+     * ZS entries will be filled from overtime during month-end processing
+     */
+    private void detectAndHandleShortDay(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+        try {
+            // Skip if entry already has a time off type
+            if (entry.getTimeOffType() != null && !entry.getTimeOffType().trim().isEmpty()) {
+                debug("Entry already has time off type, skipping ZS detection");
+                return;
+            }
+
+            // Get user schedule
+            int userSchedule = getUserSchedule(context);
+            int scheduleMinutes = userSchedule * 60;
+
+            // Get worked minutes
+            Integer workedMinutes = entry.getTotalWorkedMinutes();
+            if (workedMinutes == null || workedMinutes <= 0) {
+                debug("No worked minutes, skipping ZS detection");
+                return;
+            }
+
+            // Check if short day (worked < schedule)
+            if (workedMinutes < scheduleMinutes) {
+                int missingMinutes = scheduleMinutes - workedMinutes;
+                int missingHours = (int) Math.ceil(missingMinutes / 60.0);
+
+                // Store as "ZS-5" format (display format with missing hours)
+                // This avoids recalculating from start/end times every time
+                entry.setTimeOffType(WorkCode.SHORT_DAY_CODE + "-" + missingHours);
+
+                // ZS entries don't store overtime (it's deducted from pool)
+                entry.setTotalOvertimeMinutes(0);
+
+                info(String.format("AUTO-DETECTED short day for user %s on %s: worked %d/%d minutes (missing %d hours). Marked as %s.",
+                        username, entry.getWorkDate(), workedMinutes, scheduleMinutes, missingHours, entry.getTimeOffType()));
+            } else {
+                debug(String.format("Full day worked: %d/%d minutes, no ZS marking needed", workedMinutes, scheduleMinutes));
+            }
+
+        } catch (Exception e) {
+            warn(String.format("Error detecting short day for user %s: %s", username, e.getMessage()));
         }
     }
 }

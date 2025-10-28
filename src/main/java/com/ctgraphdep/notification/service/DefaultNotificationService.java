@@ -6,8 +6,6 @@ import com.ctgraphdep.monitoring.SchedulerHealthMonitor;
 import com.ctgraphdep.notification.api.NotificationEventPublisher;
 import com.ctgraphdep.notification.api.NotificationService;
 import com.ctgraphdep.notification.events.*;
-import com.ctgraphdep.notification.model.NotificationRequest;
-import com.ctgraphdep.notification.model.NotificationResponse;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -34,7 +32,6 @@ public class DefaultNotificationService implements NotificationService {
     private final NotificationBackupService backupService;
     private final SchedulerHealthMonitor healthMonitor;
     private final MonitoringStateService monitoringStateService;
-    private final NotificationConfigService configService;
 
     private final AtomicLong totalNotificationsShown = new AtomicLong(0);
     private final Map<String, LocalDateTime> pendingNotifications = new HashMap<>();
@@ -44,7 +41,7 @@ public class DefaultNotificationService implements NotificationService {
             NotificationDisplayService displayService,
             TimeValidationService timeValidationService,
             NotificationBackupService backupService,
-            SchedulerHealthMonitor healthMonitor, MonitoringStateService monitoringStateService, NotificationConfigService configService) {
+            SchedulerHealthMonitor healthMonitor, MonitoringStateService monitoringStateService) {
 
         this.eventPublisher = eventPublisher;
         this.displayService = displayService;
@@ -52,7 +49,6 @@ public class DefaultNotificationService implements NotificationService {
         this.backupService = backupService;
         this.healthMonitor = healthMonitor;
         this.monitoringStateService = monitoringStateService;
-        this.configService = configService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -77,31 +73,7 @@ public class DefaultNotificationService implements NotificationService {
         LoggerUtil.info(this.getClass(), "Notification service initialized");
     }
 
-    // REMOVED: This method is never called from outside the notification package
-    // The public interface method was removed from NotificationService
-    // Internal usage remains in NotificationDisplayService
-    /*
-    @Override
-    public NotificationResponse showNotification(NotificationRequest request) {
-        try {
-            // Check if notifications are enabled
-            if (!configService.isNotificationsEnabled()) {
-                LoggerUtil.info(this.getClass(), String.format("Notifications disabled in config. Skipping notification for user %s", request.getUsername()));
-                return NotificationResponse.success("notifications-disabled", false, false);
-            }
 
-            LoggerUtil.info(this.getClass(), String.format("Showing notification: Type=%s, User=%s", request.getType(), request.getUsername()));
-            // Record notification attempt
-            totalNotificationsShown.incrementAndGet();
-            healthMonitor.recordTaskExecution("notification-service");
-            return displayService.showNotification(request);
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error showing notification for user %s: %s", request.getUsername(), e.getMessage()), e);
-            healthMonitor.recordTaskFailure("notification-service", e.getMessage());
-            return NotificationResponse.failure(e.getMessage());
-        }
-    }
-    */
 
     @Override
     public boolean showScheduleEndNotification(String username, Integer userId, Integer finalMinutes) {

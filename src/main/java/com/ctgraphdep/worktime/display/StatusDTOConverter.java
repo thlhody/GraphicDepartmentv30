@@ -123,7 +123,7 @@ public class StatusDTOConverter {
 
             case MergingStatusConstants.TEAM_INPUT:
                 info.roleName = "TL_Checking";
-                info.roleType = "TEAM";
+                info.roleType = "TEAM_LEADER";
                 info.actionType = "Input";
                 info.fullDescription = "TL_Checking Input";
                 info.isInput = true;

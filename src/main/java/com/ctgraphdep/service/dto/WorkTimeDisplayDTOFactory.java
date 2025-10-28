@@ -14,13 +14,11 @@ import java.time.format.DateTimeFormatter;
 /**
  * Factory service for creating WorkTimeDisplayDTO instances.
  * Extracted from WorkTimeDisplayDTO to separate data structure from construction logic.
- *
  * Responsibilities:
  * - Create DTOs for different entry types (empty, work, time off, special cases)
  * - Calculate display values and formatting
  * - Build tooltips with detailed information
  * - Determine CSS classes for styling
- *
  * This service encapsulates all business logic related to DTO creation,
  * keeping the DTO itself as a pure data container.
  */
@@ -234,6 +232,110 @@ public class WorkTimeDisplayDTOFactory {
                 .build();
     }
 
+    /**
+     * Create DTO for CR entry (Recovery Leave - paid from overtime)
+     */
+    public WorkTimeDisplayDTO createFromCREntry(WorkTimeTable entry, boolean isWeekend, GeneralDataStatusDTO statusInfo) {
+        String tooltip = buildCRTooltip(entry, statusInfo);
+
+        return WorkTimeDisplayDTO.builder()
+                .displayText(WorkCode.RECOVERY_LEAVE_CODE)
+                .cssClass("cr-display" + (isWeekend ? " weekend" : ""))
+                .tooltipText(tooltip)
+                .rawEntry(entry)
+                .userId(entry.getUserId())
+                .date(entry.getWorkDate())
+                .dateString(formatDateForFrontend(entry.getWorkDate()))
+                .statusInfo(statusInfo)
+                .hasEntry(true)
+                .isTimeOff(true)
+                .isSNWithWork(false)
+                .isEditable(!statusInfo.isLocked())
+                .isWeekend(isWeekend)
+                .contributedRegularMinutes(0)
+                .contributedOvertimeMinutes(0) // CR doesn't contribute to overtime pool
+                .totalContributedMinutes(0)
+                .build();
+    }
+
+    /**
+     * Create DTO for CN entry (Unpaid Leave)
+     */
+    public WorkTimeDisplayDTO createFromCNEntry(WorkTimeTable entry, boolean isWeekend,
+                                                GeneralDataStatusDTO statusInfo) {
+        String displayText = WorkCode.UNPAID_LEAVE_CODE;
+        String tooltip = buildCNTooltip(entry, statusInfo);
+
+        return WorkTimeDisplayDTO.builder()
+                .displayText(displayText)
+                .cssClass("cn-display" + (isWeekend ? " weekend" : ""))
+                .tooltipText(tooltip)
+                .rawEntry(entry)
+                .userId(entry.getUserId())
+                .date(entry.getWorkDate())
+                .dateString(formatDateForFrontend(entry.getWorkDate()))
+                .statusInfo(statusInfo)
+                .hasEntry(true)
+                .isTimeOff(true)
+                .isSNWithWork(false)
+                .isEditable(!statusInfo.isLocked())
+                .isWeekend(isWeekend)
+                .contributedRegularMinutes(0)
+                .contributedOvertimeMinutes(0)
+                .totalContributedMinutes(0)
+                .build();
+    }
+
+    /**
+     * Create DTO for ZS entry (Short Day - worked < schedule, filled from overtime)
+     * Display format: "ZS-X" where X = missing hours (rounded up)
+     * Per spec: expected = schedule, missing = expected - rawWorked, roundUp(missing/60)
+     * IMPORTANT: Use RAW worked time (not processed totalWorkedMinutes)
+     */
+    public WorkTimeDisplayDTO createFromZSEntry(WorkTimeTable entry, Integer userSchedule,
+                                                boolean isWeekend, GeneralDataStatusDTO statusInfo) {
+        int scheduleMinutes = userSchedule * 60;
+
+        // Calculate RAW worked time from start/end times (per spec: rawWorkedMinutes)
+        int rawWorkedMinutes = 0;
+        if (entry.getDayStartTime() != null && entry.getDayEndTime() != null) {
+            long elapsedMinutes = java.time.Duration.between(entry.getDayStartTime(), entry.getDayEndTime()).toMinutes();
+            int tempStops = entry.getTotalTemporaryStopMinutes() != null ? entry.getTotalTemporaryStopMinutes() : 0;
+            rawWorkedMinutes = (int) (elapsedMinutes - tempStops);
+        }
+
+        // Per spec: expected = scheduleMinutes (NO lunch for ZS calculation)
+        // ZS means user didn't work full schedule, so lunch break is NOT applicable
+        int expectedMinutes = scheduleMinutes;
+
+        // Calculate missing minutes and round UP to hours (per spec)
+        int missingMinutes = Math.max(0, expectedMinutes - rawWorkedMinutes);
+        int missingHours = (int) Math.ceil(missingMinutes / 60.0);  // Round UP
+
+        // Display format: "ZS-6" (missing hours only, per spec)
+        String displayText = String.format("ZS-%d", missingHours);
+        String tooltip = buildZSTooltip(entry, userSchedule, statusInfo);
+
+        return WorkTimeDisplayDTO.builder()
+                .displayText(displayText)
+                .cssClass("zs-display" + (isWeekend ? " weekend" : ""))
+                .tooltipText(tooltip)
+                .rawEntry(entry)
+                .userId(entry.getUserId())
+                .date(entry.getWorkDate())
+                .dateString(formatDateForFrontend(entry.getWorkDate()))
+                .statusInfo(statusInfo)
+                .hasEntry(true)
+                .isTimeOff(true) // ZS is a special time off type
+                .isSNWithWork(false)
+                .isEditable(!statusInfo.isLocked())
+                .isWeekend(isWeekend)
+                .contributedRegularMinutes(0) // Completed by overtime
+                .contributedOvertimeMinutes(entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : -missingMinutes)
+                .totalContributedMinutes(0)
+                .build();
+    }
+
     // ========================================================================
     // PRIVATE HELPER METHODS - Date Formatting
     // ========================================================================
@@ -356,6 +458,70 @@ public class WorkTimeDisplayDTOFactory {
      */
     private String buildWWorkTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
         return buildSpecialWorkTooltip("Weekend with Work", entry, statusInfo);
+    }
+
+    /**
+     * Build tooltip for CR (Recovery Leave)
+     */
+    private String buildCRTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
+        StringBuilder tooltip = new StringBuilder();
+
+        tooltip.append("Recovery Leave (paid from overtime)\n");
+        tooltip.append("Date: ").append(entry.getWorkDate()).append("\n");
+
+        if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
+            tooltip.append("Hours: ").append(CalculateWorkHoursUtil.minutesToHH(entry.getTotalWorkedMinutes()));
+        }
+
+        // Add status information
+        if (statusInfo != null && statusInfo.isDisplayable()) {
+            tooltip.append("\nStatus: ").append(statusInfo.getFullDisplay());
+        }
+
+        return tooltip.toString();
+    }
+
+    /**
+     * Build tooltip for CN (Unpaid Leave)
+     */
+    private String buildCNTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
+        String tooltip = "Unpaid Leave";
+
+        // Add status information
+        if (statusInfo != null && statusInfo.isDisplayable()) {
+            tooltip += "\nStatus: " + statusInfo.getFullDisplay();
+        }
+
+        return tooltip;
+    }
+
+    /**
+     * Build tooltip for ZS (Short Day)
+     */
+    private String buildZSTooltip(WorkTimeTable entry, Integer userSchedule, GeneralDataStatusDTO statusInfo) {
+        StringBuilder tooltip = new StringBuilder();
+
+        tooltip.append("Short Day (completed from overtime)\n");
+        tooltip.append("Date: ").append(entry.getWorkDate()).append("\n");
+
+        int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        int scheduleMinutes = userSchedule * 60;
+        int missingMinutes = scheduleMinutes - workedMinutes;
+
+        tooltip.append("Worked: ").append(CalculateWorkHoursUtil.minutesToHH(workedMinutes)).append("\n");
+        tooltip.append("Schedule: ").append(userSchedule).append("h\n");
+        tooltip.append("Filled from overtime: ").append(CalculateWorkHoursUtil.minutesToHH(missingMinutes));
+
+        if (entry.getTotalOvertimeMinutes() != null) {
+            tooltip.append("\nRemaining overtime: ").append(CalculateWorkHoursUtil.minutesToHH(Math.abs(entry.getTotalOvertimeMinutes())));
+        }
+
+        // Add status information
+        if (statusInfo != null && statusInfo.isDisplayable()) {
+            tooltip.append("\nStatus: ").append(statusInfo.getFullDisplay());
+        }
+
+        return tooltip.toString();
     }
 
     /**

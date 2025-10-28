@@ -1,5 +1,7 @@
 package com.ctgraphdep.merge.constants;
 
+import com.ctgraphdep.config.SecurityConstants;
+
 import java.time.Instant;
 
 /**
@@ -211,13 +213,13 @@ public class MergingStatusConstants {
 
     /**
      * Get editor type from timestamped status
-     * Returns "USER", "ADMIN", "TEAM", or "UNKNOWN"
+     * Returns "USER", "ADMIN", "TEAM", or "user"
      */
     public static String getEditorType(String status) {
-        if (isUserEditedStatus(status)) return "USER";
-        if (isAdminEditedStatus(status)) return "ADMIN";
-        if (isTeamEditedStatus(status)) return "TEAM";
-        return "UNKNOWN";
+        if (isUserEditedStatus(status)) return SecurityConstants.ROLE_USER;
+        if (isAdminEditedStatus(status)) return SecurityConstants.ROLE_ADMIN;
+        if (isTeamEditedStatus(status)) return SecurityConstants.ROLE_TEAM_LEADER ;
+        return SecurityConstants.ROLE_USER;
     }
 
     // ========================================================================

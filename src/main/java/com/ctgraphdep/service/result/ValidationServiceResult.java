@@ -11,13 +11,11 @@ import java.util.function.Supplier;
 /**
  * Specialized validation result for accumulating multiple validation errors.
  * Useful for validating forms or complex objects with multiple fields.
- *
  * Usage:
  * ValidationServiceResult validation = ValidationServiceResult.create()
  *     .validate(() -> entry.getDate() != null, "Date is required", "missing_date")
  *     .validate(() -> entry.getOmsId() != null, "OMS ID is required", "missing_oms_id")
  *     .validate(() -> entry.getDesignerName() != null, "Designer name is required", "missing_designer_name");
- *
  * if (validation.hasErrors()) {
  *     return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
  * }

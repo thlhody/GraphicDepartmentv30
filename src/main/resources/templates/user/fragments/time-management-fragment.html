@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+yes but<!DOCTYPE html>
 <html xmlns:th="http://www.w3.org/1999/xhtml" lang="en">
 <head>
     <meta charset="UTF-8">
@@ -103,8 +103,7 @@
                                 <div class="col-12">
                                     <div class="form-check">
                                         <input type="checkbox" id="singleDayRequest" class="form-check-input">
-                                        <label class="form-check-label small" for="singleDayRequest">Single Day
-                                            Request</label>
+                                        <label class="form-check-label small" for="singleDayRequest">Single Day Request</label>
                                     </div>
                                 </div>
 
@@ -117,6 +116,10 @@
                                             required>
                                         <option value="CO">Vacation (CO)</option>
                                         <option value="CM">Medical (CM)</option>
+                                        <option value="CR">Recovery Leave (CR)</option>
+                                        <option value="CN">Unpaid Leave (CN)</option>
+                                        <option value="CE">Event Leave (CE)</option>
+                                        <option value="D">Delegation (D)</option>
                                     </select>
                                 </div>
 
@@ -327,6 +330,36 @@
                                                   class="w-work-display small fw-bold"
                                                   th:title="'Weekend with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work'"
                                                   th:text="'W' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '') : '0'}">W8</span>
+
+                                            <!-- CR - Recovery Leave (paid from overtime) -->
+                                            <span th:if="${record.timeOffType == 'CR'}"
+                                                  class="cr-display small fw-bold"
+                                                  th:title="'Recovery Leave (paid from overtime): ' + ${record.totalWorkedMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalWorkedMinutes) : '0h'}"
+                                                  th:text="CR">CR</span>
+
+                                            <!-- CN - Unpaid Leave -->
+                                            <span th:if="${record.timeOffType == 'CN'}"
+                                                  class="cn-display small fw-bold"
+                                                  title="Unpaid Leave"
+                                                  th:text="${record.timeOffType}">CN</span>
+
+                                            <!-- ZS - Short Day (Display format stored as ZS-X in timeOffType) -->
+                                            <span th:if="${record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-')}"
+                                                  class="zs-display small fw-bold"
+                                                  th:title="'Short Day (missing hours deducted from overtime)'"
+                                                  th:text="${record.timeOffType}">ZS-5</span>
+
+                                            <!-- CE - Event Leave (Marriage/Birth/Death) -->
+                                            <span th:if="${record.timeOffType == 'CE'}"
+                                                  class="ce-display small fw-bold"
+                                                  title="Event Leave (Marriage/Birth/Death) - Field 2 required"
+                                                  th:text="${record.timeOffType}">CE</span>
+
+                                            <!-- D - Delegation (Business Trip) -->
+                                            <span th:if="${record.timeOffType == 'D'}"
+                                                  class="d-display small fw-bold"
+                                                  title="Delegation (Business Trip) - Normal work day with special form"
+                                                  th:text="${record.timeOffType}">D</span>
 
                                             <!-- Regular time off without work -->
                                             <span th:if="${record.timeOffType == 'SN' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
@@ -596,7 +629,12 @@
                                     <span class="medical me-2">CM</span> Medical •
                                     <span class="cm-work-display me-2">CM4</span> Medical+Work •
                                     <span class="weekend me-2">W</span> Weekend •
-                                    <span class="w-work-display me-2">W8</span> Weekend+Work
+                                    <span class="w-work-display me-2">W8</span> Weekend+Work •
+                                    <span class="cr-display me-2">CR</span> Recovery Leave •
+                                    <span class="cn-display me-2">CN</span> Unpaid Leave •
+                                    <span class="zs-display me-2">ZS-6</span> Short Day (missing 6h) •
+                                    <span class="ce-display me-2">CE</span> Event Leave •
+                                    <span class="d-display me-2">D</span> Delegation
                                 </small>
                                 <br>
                                 <small class="text-muted">

@@ -261,6 +261,7 @@ public class UserTimeManagementController extends BaseController {
                 redirectAttributes.addFlashAttribute("openHolidayModal", true);
                 redirectAttributes.addFlashAttribute("holidayStartDate", startDate);
                 redirectAttributes.addFlashAttribute("holidayEndDate", endDate);
+                redirectAttributes.addFlashAttribute("holidayTimeOffType", timeOffType.toUpperCase());
 
                 LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully: %s", result.getMessage()));
             } else {

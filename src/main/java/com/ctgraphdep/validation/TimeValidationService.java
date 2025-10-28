@@ -250,7 +250,7 @@ public class TimeValidationService {
             var timeValues = execute(getTimeCommand);
             LocalDate today = timeValues.getCurrentDate();
 
-            // Calculate earliest allowed date (first day of previous month)
+            // Calculate the earliest allowed date (first day of previous month)
             LocalDate earliestAllowed = today.withDayOfMonth(1).minusMonths(1);
 
             if (date.isBefore(earliestAllowed)) {
@@ -367,7 +367,7 @@ public class TimeValidationService {
                 return validateSpecialDayWorkFormat(trimmedValue);
             } else if (trimmedValue.matches("^\\d+$")) {
                 return validateWorkHoursRange(trimmedValue);
-            } else if (trimmedValue.matches("^(CO|CM|SN|REMOVE|BLANK)$")) {
+            } else if (trimmedValue.matches("^(CO|CM|SN|CR|CN|CE|D|REMOVE|BLANK)$")) {
                 return validateTimeOffOrRemove(trimmedValue);
             } else {
                 return ValidationResult.invalid("Invalid value format. Use: hours (8), time off (CO/CM/SN), special day work (SN:7.5, CO:6, CM:4, W:8), BLANK, or REMOVE");
@@ -474,7 +474,9 @@ public class TimeValidationService {
      * UPDATED: Validate time off or remove operation (admin) - Added BLANK support
      */
     private ValidationResult validateTimeOffOrRemove(String value) {
-        if (!WorkCode.TIME_OFF_CODE.equals(value) && !WorkCode.MEDICAL_LEAVE_CODE.equals(value) && !WorkCode.NATIONAL_HOLIDAY_CODE.equals(value) && !"REMOVE".equals(value) && !"BLANK".equals(value)) {
+        if (!WorkCode.TIME_OFF_CODE.equals(value) && !WorkCode.MEDICAL_LEAVE_CODE.equals(value) && !WorkCode.NATIONAL_HOLIDAY_CODE.equals(value)
+                && !WorkCode.RECOVERY_LEAVE_CODE.equals(value) && !WorkCode.UNPAID_LEAVE_CODE.equals(value) && !WorkCode.DELEGATION_CODE.equals(value)
+                && !WorkCode.SPECIAL_EVENT_CODE.equals(value) && !"REMOVE".equals(value) && !"BLANK".equals(value)) {
             return ValidationResult.invalid("Invalid operation. Use CO, CM, SN, BLANK, or REMOVE");
         }
         return ValidationResult.valid();
@@ -489,7 +491,9 @@ public class TimeValidationService {
             return ValidationResult.invalid("Time off type is required");
         }
 
-        if (!WorkCode.TIME_OFF_CODE.equals(timeOffType) && !WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType)) {
+        if (!WorkCode.TIME_OFF_CODE.equals(timeOffType) && !WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) &&
+                !WorkCode.RECOVERY_LEAVE_CODE.equals(timeOffType) && !WorkCode.UNPAID_LEAVE_CODE.equals(timeOffType)
+                && !WorkCode.DELEGATION_CODE.equals(timeOffType) && !WorkCode.SPECIAL_EVENT_CODE.equals(timeOffType)) {
             return ValidationResult.invalid("Invalid time off type. Users can only request CO (vacation) or CM (medical)");
         }
 

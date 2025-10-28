@@ -5,16 +5,12 @@ import com.ctgraphdep.config.WorkCode;
 // Enum representing different types of work days for overtime calculation logic
 public enum DayType {
 
-    // Regular work day - normal overtime rules apply
-    REGULAR_DAY,
-    // National Holiday (SN) - all work time becomes overtime, rounded down to full hours
-    NATIONAL_HOLIDAY,
-    // Time Off (CO) - all work time becomes overtime, rounded down to full hours
-    TIME_OFF,
-    // Medical Leave (CM) - all work time becomes overtime, rounded down to full hours
-    MEDICAL_LEAVE,
-    // Weekend (W) - all work time becomes overtime, rounded down to full hours
-    WEEKEND;
+
+    REGULAR_DAY,        // Regular work day - normal overtime rules apply
+    NATIONAL_HOLIDAY,   // National Holiday (SN) - all work time becomes overtime, rounded down to full hours
+    TIME_OFF,           // Time Off (CO) - all work time becomes overtime, rounded down to full hours
+    MEDICAL_LEAVE,      // Medical Leave (CM) - all work time becomes overtime, rounded down to full hours
+    WEEKEND;            // Weekend (W) - all work time becomes overtime, rounded down to full hours
 
     // Check if this day type requires special overtime logic
     public boolean requiresSpecialOvertimeLogic() {

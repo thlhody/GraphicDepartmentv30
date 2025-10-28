@@ -132,13 +132,4 @@ public class WorkTimeEntryDTO {
                 WorkCode.MEDICAL_LEAVE_CODE.equals(this.timeOffType) ||
                 WorkCode.WEEKEND_CODE.equals(this.timeOffType);
     }
-
-    /**
-     * LEGACY: Check if this entry represents work on a national holiday (for backward compatibility)
-     */
-    public boolean isSNWorkDay() {
-        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(this.timeOffType) &&
-                totalOvertimeMinutes != null &&
-                totalOvertimeMinutes > 0;
-    }
 }

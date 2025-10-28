@@ -440,7 +440,11 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
             case WorkCode.NATIONAL_HOLIDAY_CODE -> WorkCode.NATIONAL_HOLIDAY_CODE_LONG;
             case WorkCode.TIME_OFF_CODE -> WorkCode.TIME_OFF_CODE_LONG;
             case WorkCode.MEDICAL_LEAVE_CODE -> WorkCode.MEDICAL_LEAVE_CODE_LONG;
+            case WorkCode.RECOVERY_LEAVE_CODE -> WorkCode.RECOVERY_LEAVE_CODE_LONG;
+            case WorkCode.UNPAID_LEAVE_CODE -> WorkCode.UNPAID_LEAVE_CODE_LONG;
+            case WorkCode.SPECIAL_EVENT_CODE -> WorkCode.SPECIAL_EVENT_CODE_LONG;
             case WorkCode.WEEKEND_CODE -> WorkCode.WEEKEND_CODE_LONG;
+            case WorkCode.SHORT_DAY_CODE -> WorkCode.SHORT_DAY_CODE_LONG;
             default -> timeOffType;
         };
     }

@@ -247,6 +247,64 @@
     transition: all 0.15s ease;
 }
 
+/* CR Display - Recovery Leave (paid from overtime) */
+.cr-display {
+    display: inline-block;
+    background-color: #198754 !important; /* Green - positive, paid leave */
+    color: white !important;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.75em;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.1;
+    min-width: 24px;
+    max-width: 40px;
+    text-align: center;
+    overflow: hidden;
+    border: 1px solid #146c43;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+/* CN Display - Unpaid Leave (matches user view styling) */
+.cn-display {
+    display: inline-block;
+    background-color: #6c757d !important; /* Gray - neutral, unpaid */
+    color: white !important;
+    padding: 0.25rem 0.5rem; /* Match user view: 4px 8px */
+    border-radius: 0.375rem; /* Match user view: 6px */
+    font-weight: 600; /* Match user view */
+    font-size: 0.75rem; /* Match user view: absolute size */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.1;
+    min-width: 35px; /* Match user view */
+    text-align: center;
+    border: 1px solid #565e64;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+/* ZS Display - Short Day (worked < schedule, filled from overtime) */
+.zs-display {
+    display: inline-block;
+    background-color: #ffc107 !important; /* Yellow/Amber - warning, needs attention */
+    color: #000 !important;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.65em; /* Slightly smaller to fit "ZS 6h/8h" */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    line-height: 1.1;
+    min-width: 32px; /* Wider to fit format */
+    max-width: 50px;
+    text-align: center;
+    overflow: hidden;
+    border: 1px solid #ffca2c;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
 /* ============================================================================ */
 /* 7. OVERTIME BADGE HOVER EFFECTS - KEEP SUBTLE */
 /* ============================================================================ */
@@ -273,6 +331,24 @@
     background-color: #bb2d3b !important;
     transform: scale(1.02);
     box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.cr-display:hover {
+    background-color: #157347 !important;
+    transform: scale(1.02);
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.3);
+}
+
+.cn-display:hover {
+    background-color: #5c636a !important;
+    transform: scale(1.02);
+    box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+.zs-display:hover {
+    background-color: #ffca2c !important;
+    transform: scale(1.02);
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
 }
 
 /* ============================================================================ */

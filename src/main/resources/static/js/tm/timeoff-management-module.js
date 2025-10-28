@@ -170,7 +170,8 @@ const TimeOffManagementModule = {
         }
 
         // Validate time off type
-        if (!formData.timeOffType || !['CO', 'CM'].includes(formData.timeOffType)) {
+        // Note: CR (Recovery Leave - paid from overtime), CN (Unpaid Leave)
+        if (!formData.timeOffType || !['CO', 'CM', 'CR', 'CN','CE','D'].includes(formData.timeOffType)) {
             return 'Please select a valid time off type';
         }
 

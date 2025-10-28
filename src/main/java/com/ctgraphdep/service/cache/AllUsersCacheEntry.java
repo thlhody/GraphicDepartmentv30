@@ -1,5 +1,6 @@
 package com.ctgraphdep.service.cache;
 
+import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusInfo;
 import com.ctgraphdep.model.dto.UserStatusDTO;
@@ -380,6 +381,6 @@ public class AllUsersCacheEntry {
      * Check if role indicates admin user
      */
     private boolean isAdminRole(String role) {
-        return role != null && (role.equals("ROLE_ADMIN") || role.contains("ADMIN"));
+        return role != null && (role.equals(SecurityConstants.SPRING_ROLE_ADMIN) || role.contains(SecurityConstants.ROLE_ADMIN));
     }
 }

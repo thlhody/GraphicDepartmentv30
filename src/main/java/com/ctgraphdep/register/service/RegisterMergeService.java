@@ -250,7 +250,7 @@ public class RegisterMergeService {
 
             List<RegisterEntry> mergedEntries;
             List<String> warnings = new ArrayList<>();
-            boolean needsSave = false;
+            boolean needsSave;
 
             // Bootstrap logic: If admin file doesn't exist, create from user file
             if (adminEntries == null || adminEntries.isEmpty()) {
@@ -472,7 +472,7 @@ public class RegisterMergeService {
         String status = entry.getAdminSync();
 
         // If status is null or not a valid new format, normalize to USER_INPUT
-        if (status == null || !MergingStatusConstants.isValidStatus(status)) {
+        if (!MergingStatusConstants.isValidStatus(status)) {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Normalizing entry %d status from '%s' to USER_INPUT",
                     entry.getEntryId(), status));

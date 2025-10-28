@@ -213,17 +213,19 @@ const TimeManagementCore = {
                 setTimeout(() => {
                     console.log('🚀 Opening holiday modal with dates:', {
                         start: holidayData.holidayStartDate,
-                        end: holidayData.holidayEndDate
+                        end: holidayData.holidayEndDate,
+                        timeOffType: holidayData.holidayTimeOffType
                     });
 
                     // Extract user data (reuse existing function if available)
                     const userData = this.extractCurrentUserData();
 
-                    // Open the holiday modal
+                    // Open the holiday modal with timeOffType for auto-selection
                     window.openHolidayModal(
                         holidayData.holidayStartDate,
                         holidayData.holidayEndDate,
-                        userData
+                        userData,
+                        holidayData.holidayTimeOffType  // Pass timeOffType for auto-selection
                     );
 
                     console.log('✅ Holiday modal opened successfully');

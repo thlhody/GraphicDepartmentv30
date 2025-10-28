@@ -30,12 +30,4 @@ public class UsersCheckValueEntry {
     @JsonProperty("checkValuesEntry")
     private CheckValuesEntry checkValuesEntry;
 
-    /**
-     * Updates the check values entry
-     * @param entry The new entry to set
-     */
-    public void updateCheckValueEntry(CheckValuesEntry entry) {
-        this.checkValuesEntry = entry;
-        this.latestEntry = entry.getCreatedAt().toString();
-    }
 }
