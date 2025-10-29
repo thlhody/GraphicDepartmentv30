@@ -1,5 +1,6 @@
 package com.ctgraphdep.worktime.commands;
 
+import com.ctgraphdep.config.TimeOffTypeRegistry;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
@@ -257,12 +258,13 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
     }
 
     // Check if value matches special day work format (TYPE:HOURS)
+    // Uses centralized TimeOffTypeRegistry for pattern validation
     private boolean isSpecialDayWorkFormat(String value) {
         if (value == null || value.trim().isEmpty()) {
             return false;
         }
-        // Pattern: (SN|CO|CM|W):HOURS
-        return value.matches("^(SN|CO|CM|W):\\d+(\\.\\d+)?$");
+        // ✅ CENTRALIZED: Pattern managed in TimeOffTypeRegistry
+        return TimeOffTypeRegistry.isSpecialDayWorkFormat(value);
     }
 
     // Parse special day work value (e.g., "SN:5" -> type="SN", hours=5.0)
@@ -281,18 +283,20 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
             throw new IllegalArgumentException("Invalid work hours in special day value: " + specialDayValue);
         }
 
-        // Validate time off type
-        if (!timeOffType.matches("^(SN|CO|CM|W)$")) {
-            throw new IllegalArgumentException("Invalid time off type: " + timeOffType + ". Expected: SN, CO, CM, or W");
+        // ✅ CENTRALIZED: Validate using TimeOffTypeRegistry
+        if (!TimeOffTypeRegistry.isSpecialDayType(timeOffType)) {
+            throw new IllegalArgumentException("Invalid time off type with hours: " + timeOffType +
+                ". Expected: " + TimeOffTypeRegistry.getSpecialDayTypesDisplay() +
+                ". Note: " + TimeOffTypeRegistry.getPlainTimeOffTypesDisplay() + " do not support hour components.");
         }
 
         return new SpecialDayParseResult(timeOffType, workHours);
     }
 
-    // Create admin entry using existing WorktimeEntityBuilder methods - UNCHANGED
+    // Create admin entry using existing WorktimeEntityBuilder methods
     private WorkTimeTable createAdminEntry(Integer userId, LocalDate date, String value) {
-        // Check for time off types (CO/CM/SN) - regular time off without work
-        if (value.matches("^(CO|CM|SN)$")) {
+        // ✅ CENTRALIZED: Check for any valid time off type using registry
+        if (TimeOffTypeRegistry.isValidTimeOffType(value)) {
             // Status will be assigned by StatusAssignmentEngine
             return WorktimeEntityBuilder.createTimeOffEntry(userId, date, value);
         }
@@ -307,7 +311,11 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
                 throw new IllegalArgumentException("Work hours must be between 1 and 24");
             }
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid admin value: " + value + ". Expected: work hours (1-24), time off type (CO/CM/SN), or special day work (SN:5, CO:6, etc.)");
+            // ✅ CENTRALIZED: Error messages use registry display methods
+            throw new IllegalArgumentException("Invalid admin value: " + value +
+                ". Expected: work hours (1-24), time off type (" + TimeOffTypeRegistry.getAllTimeOffTypesDisplay() +
+                "), or special day work with hours (" + TimeOffTypeRegistry.getSpecialDayWorkExamples() +
+                "). Note: " + TimeOffTypeRegistry.getPlainTimeOffTypesDisplay() + " do not support hour components.");
         }
     }
 
@@ -417,8 +425,8 @@ public class AdminUpdateCommand extends WorktimeOperationCommand<WorkTimeTable> 
             return "special day work (" + trimmedValue + ")";
         }
 
-        // Check for regular time off
-        if (trimmedValue.matches("^(CO|CM|SN)$")) {
+        // ✅ CENTRALIZED: Check for regular time off using registry
+        if (TimeOffTypeRegistry.isValidTimeOffType(trimmedValue)) {
             return "time off (" + trimmedValue + ")";
         }
 

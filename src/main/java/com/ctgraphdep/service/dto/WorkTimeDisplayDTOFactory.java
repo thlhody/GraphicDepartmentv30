@@ -233,6 +233,35 @@ public class WorkTimeDisplayDTOFactory {
     }
 
     /**
+     * Create DTO for CE with work hours entry (Special Event with work)
+     */
+    public WorkTimeDisplayDTO createFromCEWorkEntry(WorkTimeTable entry, boolean isWeekend,
+                                                    GeneralDataStatusDTO statusInfo) {
+        int overtimeHours = entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() / 60 : 0;
+        String displayText = WorkCode.SPECIAL_EVENT_CODE + overtimeHours;
+        String tooltip = buildCEWorkTooltip(entry, statusInfo);
+
+        return WorkTimeDisplayDTO.builder()
+                .displayText(displayText)
+                .cssClass("ce-work-display" + (isWeekend ? " weekend" : ""))
+                .tooltipText(tooltip)
+                .rawEntry(entry)
+                .userId(entry.getUserId())
+                .date(entry.getWorkDate())
+                .dateString(formatDateForFrontend(entry.getWorkDate()))
+                .statusInfo(statusInfo)
+                .hasEntry(true)
+                .isTimeOff(true)
+                .isSNWithWork(false)
+                .isEditable(!statusInfo.isLocked())
+                .isWeekend(isWeekend)
+                .contributedRegularMinutes(0)
+                .contributedOvertimeMinutes(entry.getTotalOvertimeMinutes())
+                .totalContributedMinutes(entry.getTotalOvertimeMinutes())
+                .build();
+    }
+
+    /**
      * Create DTO for CR entry (Recovery Leave - paid from overtime)
      */
     public WorkTimeDisplayDTO createFromCREntry(WorkTimeTable entry, boolean isWeekend, GeneralDataStatusDTO statusInfo) {
@@ -349,11 +378,20 @@ public class WorkTimeDisplayDTOFactory {
     // ========================================================================
 
     private String determineCssClassForTimeOff(String timeOffType, boolean isWeekend) {
+        // Handle ZS-X format (e.g., "ZS-5")
+        if (timeOffType != null && timeOffType.startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+            return "zs-display";
+        }
+
         String baseClass = switch (timeOffType) {
             case WorkCode.NATIONAL_HOLIDAY_CODE -> "holiday";
             case WorkCode.TIME_OFF_CODE -> "vacation";
             case WorkCode.MEDICAL_LEAVE_CODE -> "medical";
             case WorkCode.WEEKEND_CODE -> "weekend";
+            case WorkCode.RECOVERY_LEAVE_CODE -> "cr-display";
+            case WorkCode.UNPAID_LEAVE_CODE -> "cn-display";
+            case WorkCode.SPECIAL_EVENT_CODE -> "ce-display";
+            case WorkCode.DELEGATION_CODE -> "d-display";
             default -> "";
         };
 
@@ -415,12 +453,25 @@ public class WorkTimeDisplayDTOFactory {
      * Build tooltip for simple time off entries (no work)
      */
     private String buildTimeOffTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
-        String typeLabel = switch (entry.getTimeOffType()) {
-            case WorkCode.NATIONAL_HOLIDAY_CODE -> "National Holiday";
-            case WorkCode.TIME_OFF_CODE -> "Vacation";
-            case WorkCode.MEDICAL_LEAVE_CODE -> "Medical Leave";
-            default -> entry.getTimeOffType();
-        };
+        // Handle ZS-X format specially
+        String timeOffType = entry.getTimeOffType();
+        String typeLabel;
+
+        if (timeOffType != null && timeOffType.startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+            typeLabel = "Short Day (" + timeOffType + ")";
+        } else {
+            typeLabel = switch (timeOffType) {
+                case WorkCode.NATIONAL_HOLIDAY_CODE -> "National Holiday";
+                case WorkCode.TIME_OFF_CODE -> "Vacation";
+                case WorkCode.MEDICAL_LEAVE_CODE -> "Medical Leave";
+                case WorkCode.RECOVERY_LEAVE_CODE -> "Recovery Leave";
+                case WorkCode.UNPAID_LEAVE_CODE -> "Unpaid Leave";
+                case WorkCode.SPECIAL_EVENT_CODE -> "Event Leave";
+                case WorkCode.DELEGATION_CODE -> "Delegation";
+                case WorkCode.WEEKEND_CODE -> "Weekend";
+                default -> timeOffType;
+            };
+        }
 
         String tooltip = "Type: " + typeLabel;
 
@@ -458,6 +509,13 @@ public class WorkTimeDisplayDTOFactory {
      */
     private String buildWWorkTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
         return buildSpecialWorkTooltip("Weekend with Work", entry, statusInfo);
+    }
+
+    /**
+     * Build tooltip for CE (Special Event) with work
+     */
+    private String buildCEWorkTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
+        return buildSpecialWorkTooltip("Special Event with Work", entry, statusInfo);
     }
 
     /**

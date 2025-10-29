@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=281020252315}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=281020252315}">
+    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=291020251458}">
+    <link rel="stylesheet" th:href="@{/css/alerts.css?v=291020251458}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -260,11 +260,15 @@
                             <!-- Editor popup for each cell -->
                             <div class="worktime-editor">
                                 <h6 class="mb-2">Edit Time Entry</h6>
-                                <div class="quick-actions d-flex gap-2 mb-3">
+                                <div class="quick-actions d-flex gap-2 flex-wrap mb-3">
                                     <button class="btn btn-sm btn-outline-primary" onclick="setWorktime(this, '8')" title="8 hours work">8h</button>
                                     <button class="btn btn-sm btn-outline-success" onclick="setWorktime(this, 'SN')" title="Holiday (no work)">SN</button>
                                     <button class="btn btn-sm btn-outline-info" onclick="setWorktime(this, 'CO')" title="Vacation">CO</button>
                                     <button class="btn btn-sm btn-outline-warning" onclick="setWorktime(this, 'CM')" title="Medical">CM</button>
+                                    <button class="btn btn-sm" onclick="setWorktime(this, 'CR')" title="Recovery Leave (paid from overtime)" style="background-color: #198754; color: white; border-color: #198754;">CR</button>
+                                    <button class="btn btn-sm" onclick="setWorktime(this, 'CN')" title="Unpaid Leave" style="background-color: #6c757d; color: white; border-color: #6c757d;">CN</button>
+                                    <button class="btn btn-sm" onclick="setWorktime(this, 'D')" title="Delegation (business trip)" style="background-color: #0d6efd; color: white; border-color: #0d6efd;">D</button>
+                                    <button class="btn btn-sm" onclick="setWorktime(this, 'CE')" title="Event Leave (marriage/birth/death)" style="background-color: #d63384; color: white; border-color: #d63384;">CE</button>
                                     <button class="btn btn-sm btn-outline-danger" onclick="setWorktime(this, 'REMOVE')" title="Remove entry">
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -314,18 +318,27 @@
             <!-- Table Footer with Legend -->
             <div class="card-footer bg-light py-2">
                 <div class="row">
-                    <div class="col-md-8">
+                    <div class="col-md-10">
                         <small class="text-muted">
                             <strong>Legend:</strong>
-                            <span class="holiday me-2">SN</span> Holiday (Free Day) •
-                            <span class="sn-work-display me-2">SN4</span> Holiday + Work •
+                            <span class="holiday me-2">SN</span> Holiday •
+                            <span class="sn-work-display me-2">SN4</span> Holiday+Work •
                             <span class="vacation me-2">CO</span> Vacation •
-                            <span class="medical me-2">CM</span> Medical
+                            <span class="co-work-display me-2">CO6</span> Vacation+Work •
+                            <span class="medical me-2">CM</span> Medical •
+                            <span class="cm-work-display me-2">CM4</span> Medical+Work •
+                            <span class="weekend me-2">W</span> Weekend •
+                            <span class="w-work-display me-2">W8</span> Weekend+Work •
+                            <span class="cr-display me-2">CR</span> Recovery Leave •
+                            <span class="cn-display me-2">CN</span> Unpaid Leave •
+                            <span class="zs-display me-2">ZS-6</span> Short Day •
+                            <span class="ce-display me-2">CE</span> Event Leave •
+                            <span class="d-display me-2">D</span> Delegation
                         </small>
                     </div>
-                    <div class="col-md-4 text-end">
+                    <div class="col-md-2 text-end">
                         <small class="text-muted">
-                            <strong>Tip:</strong> Click any cell to edit worktime
+                            <strong>Tip:</strong> Click any cell to edit
                         </small>
                     </div>
                 </div>
@@ -335,7 +348,7 @@
 
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <script th:src="@{/js/worktime-admin.js?v=281020252315}"></script>
+        <script th:src="@{/js/worktime-admin.js?v=291020251458}"></script>
     </th:block>
 </div>
 </body>

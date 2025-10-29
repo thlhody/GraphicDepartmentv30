@@ -243,6 +243,8 @@ public class WorktimeDisplayService {
                     return displayDTOFactory.createFromCMWorkEntry(entry, isWeekend, statusInfo);
                 case WorkCode.WEEKEND_CODE:
                     return displayDTOFactory.createFromWWorkEntry(entry, isWeekend, statusInfo);
+                case WorkCode.SPECIAL_EVENT_CODE:
+                    return displayDTOFactory.createFromCEWorkEntry(entry, isWeekend, statusInfo);
             }
         }
 
@@ -272,8 +274,8 @@ public class WorktimeDisplayService {
             Map<LocalDate, WorkTimeDisplayDTO> userDTOs = displayDTOs.get(user.getUserId());
             if (userDTOs == null) continue;
 
-            // Calculate from DTOs to ensure consistency
-            WorkTimeSummary summary = calculateSummaryFromDTOs(userDTOs, totalWorkDays);
+            // Calculate from DTOs to ensure consistency (pass user for schedule info)
+            WorkTimeSummary summary = calculateSummaryFromDTOs(userDTOs, totalWorkDays, user);
             summaries.put(user.getUserId(), summary);
 
             LoggerUtil.debug(this.getClass(), String.format("User %s summary: %d work days, %d regular minutes, %d overtime minutes",
@@ -284,7 +286,7 @@ public class WorktimeDisplayService {
     }
 
     // Calculate summary from display DTOs to ensure consistency
-    private WorkTimeSummary calculateSummaryFromDTOs(Map<LocalDate, WorkTimeDisplayDTO> userDTOs, int totalWorkDays) {
+    private WorkTimeSummary calculateSummaryFromDTOs(Map<LocalDate, WorkTimeDisplayDTO> userDTOs, int totalWorkDays, User user) {
         int daysWorked = 0;
         int snDays = 0;
         int coDays = 0;
@@ -295,16 +297,45 @@ public class WorktimeDisplayService {
         for (WorkTimeDisplayDTO dto : userDTOs.values()) {
             if (!dto.isHasEntry()) continue;
 
-            // Count days by type
+            // Count time off days (SN, CO, CM, CE)
             if (dto.isTimeOff()) {
                 if (dto.getRawEntry() != null) {
                     switch (dto.getRawEntry().getTimeOffType()) {
                         case WorkCode.NATIONAL_HOLIDAY_CODE -> snDays++;
                         case WorkCode.TIME_OFF_CODE -> coDays++;
                         case WorkCode.MEDICAL_LEAVE_CODE -> cmDays++;
+                        case WorkCode.SPECIAL_EVENT_CODE -> coDays++;  // CE counts as CO for display totals
                     }
                 }
-            } else {
+            }
+
+            // Count work days (including regular work, ZS, CR, D) - same logic as user time management
+            boolean isWorkDay = false;
+            WorkTimeTable rawEntry = dto.getRawEntry();
+
+            if (rawEntry != null) {
+                // Regular work entry (no time off type)
+                if (rawEntry.getTimeOffType() == null && rawEntry.getTotalWorkedMinutes() != null && rawEntry.getTotalWorkedMinutes() > 0) {
+                    isWorkDay = true;
+                }
+
+                // ZS (Short Day) - work day paid partially from overtime
+                if (rawEntry.getTimeOffType() != null && rawEntry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+                    isWorkDay = true;
+                }
+
+                // CR (Recovery Leave) - work day paid from overtime
+                if (WorkCode.RECOVERY_LEAVE_CODE.equalsIgnoreCase(rawEntry.getTimeOffType())) {
+                    isWorkDay = true;
+                }
+
+                // D (Delegation) - normal work day with special form
+                if ("D".equalsIgnoreCase(rawEntry.getTimeOffType())) {
+                    isWorkDay = true;
+                }
+            }
+
+            if (isWorkDay) {
                 daysWorked++;
             }
 
@@ -317,7 +348,61 @@ public class WorktimeDisplayService {
             }
         }
 
+        // Calculate CR/ZS deductions (same logic as user time management)
+        int pendingCRDeductions = 0;
+        int pendingZSDeductions = 0;
+        int crCount = 0;
+        int zsCount = 0;
+
+        for (WorkTimeDisplayDTO dto : userDTOs.values()) {
+            if (!dto.isHasEntry()) continue;
+
+            WorkTimeTable entry = dto.getRawEntry();
+            if (entry == null) continue;
+
+            // Skip in-process entries
+            if (MergingStatusConstants.USER_IN_PROCESS.equals(entry.getAdminSync())) {
+                continue;
+            }
+
+            // Calculate CR deductions: each CR deducts full schedule hours
+            if (WorkCode.RECOVERY_LEAVE_CODE.equalsIgnoreCase(entry.getTimeOffType())) {
+                int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
+                int scheduleMinutes = userSchedule * 60;
+                pendingCRDeductions += scheduleMinutes;
+                crCount++;
+            }
+
+            // Calculate ZS deductions: parse hours from "ZS-X" format
+            if (entry.getTimeOffType() != null && entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+                try {
+                    // Parse "ZS-5" → extract "5"
+                    String[] parts = entry.getTimeOffType().split("-");
+                    if (parts.length == 2) {
+                        int missingHours = Integer.parseInt(parts[1]);
+                        int deductionMinutes = missingHours * 60;
+                        pendingZSDeductions += deductionMinutes;
+                        zsCount++;
+                    }
+                } catch (NumberFormatException e) {
+                    LoggerUtil.warn(this.getClass(), String.format(
+                            "Failed to parse ZS hours from %s: %s",
+                            entry.getTimeOffType(), e.getMessage()));
+                }
+            }
+        }
+
+        // Calculate adjusted overtime and regular time (move overtime → regular for CR/ZS)
+        int totalPendingDeductions = pendingCRDeductions + pendingZSDeductions;
+        int adjustedRegularMinutes = totalRegularMinutes + totalPendingDeductions;  // Add deductions to regular
+        int adjustedOvertimeMinutes = totalOvertimeMinutes - totalPendingDeductions;  // Subtract from overtime
+
         int remainingWorkDays = totalWorkDays - (daysWorked + snDays + coDays + cmDays);
+
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Admin summary for user %s: daysWorked=%d (includes CR/ZS/D), regular=%d (adjusted: %d), overtime=%d (adjusted: %d), pendingCR=%d (%d entries), pendingZS=%d (%d entries)",
+                user.getName(), daysWorked, totalRegularMinutes, adjustedRegularMinutes, totalOvertimeMinutes, adjustedOvertimeMinutes,
+                pendingCRDeductions, crCount, pendingZSDeductions, zsCount));
 
         return WorkTimeSummary.builder()
                 .totalWorkDays(totalWorkDays)
@@ -326,8 +411,8 @@ public class WorktimeDisplayService {
                 .snDays(snDays)
                 .coDays(coDays)
                 .cmDays(cmDays)
-                .totalRegularMinutes(totalRegularMinutes)
-                .totalOvertimeMinutes(totalOvertimeMinutes)
+                .totalRegularMinutes(adjustedRegularMinutes)  // Use adjusted regular time (includes CR/ZS from overtime)
+                .totalOvertimeMinutes(adjustedOvertimeMinutes)  // Use adjusted overtime with deductions
                 .build();
     }
 
@@ -380,9 +465,11 @@ public class WorktimeDisplayService {
 
         List<WorkTimeTable> allEntries = userEntriesMap.values().stream().flatMap(map -> map.values().stream()).toList();
 
-        // Count time off types
+        // Count time off types (CE counts with CO for display totals)
         counts.put("snCount", allEntries.stream().filter(e -> WorkCode.NATIONAL_HOLIDAY_CODE.equals(e.getTimeOffType())).count());
-        counts.put("coCount", allEntries.stream().filter(e -> WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType())).count());
+        counts.put("coCount", allEntries.stream().filter(e ->
+            WorkCode.TIME_OFF_CODE.equals(e.getTimeOffType()) ||
+            WorkCode.SPECIAL_EVENT_CODE.equals(e.getTimeOffType())).count());  // CO + CE
         counts.put("cmCount", allEntries.stream().filter(e -> WorkCode.MEDICAL_LEAVE_CODE.equals(e.getTimeOffType())).count());
 
         // Count by status
@@ -516,18 +603,22 @@ public class WorktimeDisplayService {
                 continue;
             }
 
-            // Count time off days
+            // Count time off days (CE counts with CO)
             if (entry.getTimeOffType() != null) {
                 switch (entry.getTimeOffType()) {
                     case WorkCode.NATIONAL_HOLIDAY_CODE -> snDays++;
                     case WorkCode.TIME_OFF_CODE -> coDays++;
                     case WorkCode.MEDICAL_LEAVE_CODE -> cmDays++;
+                    case WorkCode.SPECIAL_EVENT_CODE -> coDays++;  // CE counts as CO for display totals
                 }
             }
 
-            // Count work days (no time off type)
+            // Count work days (including regular work, ZS, CR, D)
+            boolean isWorkDay = false;
+
+            // Regular work entry (no time off type)
             if (entry.getTimeOffType() == null && entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
-                daysWorked++;
+                isWorkDay = true;
 
                 // Use default schedule
                 int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
@@ -542,6 +633,28 @@ public class WorktimeDisplayService {
                         "Regular work entry %s: %d raw minutes, %d processed, %d overtime, %d discarded",
                         entry.getWorkDate(), entry.getTotalWorkedMinutes(),
                         result.getProcessedMinutes(), result.getOvertimeMinutes(), discardedForEntry));
+            }
+
+            // ZS (Short Day) - work day paid partially from overtime
+            if (entry.getTimeOffType() != null && entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+                isWorkDay = true;
+                LoggerUtil.debug(this.getClass(), String.format("ZS work day counted: %s", entry.getWorkDate()));
+            }
+
+            // CR (Recovery Leave) - work day paid from overtime
+            if (WorkCode.RECOVERY_LEAVE_CODE.equalsIgnoreCase(entry.getTimeOffType())) {
+                isWorkDay = true;
+                LoggerUtil.debug(this.getClass(), String.format("CR work day counted: %s", entry.getWorkDate()));
+            }
+
+            // D (Delegation) - normal work day with special form
+            if ("D".equalsIgnoreCase(entry.getTimeOffType())) {
+                isWorkDay = true;
+                LoggerUtil.debug(this.getClass(), String.format("D work day counted: %s", entry.getWorkDate()));
+            }
+
+            if (isWorkDay) {
+                daysWorked++;
             }
 
             // ENHANCED: Handle ALL special day types with overtime work
@@ -607,15 +720,16 @@ public class WorktimeDisplayService {
             }
         }
 
-        // Calculate adjusted overtime (real-time display with pending deductions)
-        // Allow negative values to show deficit
+        // Calculate adjusted overtime and regular time (real-time display with pending deductions)
+        // CR/ZS deductions are moved from overtime → regular time (reclassification, not loss)
         int totalPendingDeductions = pendingCRDeductions + pendingZSDeductions;
-        int adjustedOvertimeMinutes = totalOvertimeMinutes - totalPendingDeductions;
+        int adjustedRegularMinutes = totalRegularMinutes + totalPendingDeductions;  // Add deductions to regular
+        int adjustedOvertimeMinutes = totalOvertimeMinutes - totalPendingDeductions;  // Subtract from overtime
 
         LoggerUtil.info(this.getClass(), String.format(
-                "Month summary calculated: totalWorkDays=%d, daysWorked=%d, snDays=%d, coDays=%d, cmDays=%d, remainingWorkDays=%d, totalRegular=%d, totalOvertime=%d (includes all special day overtime), pendingCR=%d (%d entries), pendingZS=%d (%d entries), adjustedOvertime=%d",
-                totalWorkDays, daysWorked, snDays, coDays, cmDays, remainingWorkDays, totalRegularMinutes, totalOvertimeMinutes,
-                pendingCRDeductions, crCount, pendingZSDeductions, zsCount, adjustedOvertimeMinutes));
+                "Month summary calculated: totalWorkDays=%d, daysWorked=%d, snDays=%d, coDays=%d, cmDays=%d, remainingWorkDays=%d, totalRegular=%d (adjusted: %d), totalOvertime=%d (adjusted: %d), pendingCR=%d (%d entries), pendingZS=%d (%d entries)",
+                totalWorkDays, daysWorked, snDays, coDays, cmDays, remainingWorkDays, totalRegularMinutes, adjustedRegularMinutes, totalOvertimeMinutes, adjustedOvertimeMinutes,
+                pendingCRDeductions, crCount, pendingZSDeductions, zsCount));
 
         return WorkTimeSummary.builder()
                 .totalWorkDays(totalWorkDays)
@@ -624,9 +738,9 @@ public class WorktimeDisplayService {
                 .snDays(snDays)
                 .coDays(coDays)
                 .cmDays(cmDays)
-                .totalRegularMinutes(totalRegularMinutes)
+                .totalRegularMinutes(adjustedRegularMinutes)  // Use adjusted regular time (includes CR/ZS from overtime)
                 .totalOvertimeMinutes(adjustedOvertimeMinutes)  // Use adjusted overtime with real-time deductions
-                .totalMinutes(totalRegularMinutes + adjustedOvertimeMinutes)
+                .totalMinutes(adjustedRegularMinutes + adjustedOvertimeMinutes)  // Total remains consistent
                 .discardedMinutes(totalDiscardedMinutes)
                 .build();
     }
@@ -647,7 +761,7 @@ public class WorktimeDisplayService {
                 continue;
             }
 
-            // Handle time off types (for day counting)
+            // Handle time off types (for day counting - CE counts with CO)
             if (entry.getTimeOffType() != null) {
                 switch (entry.getTimeOffType()) {
                     case WorkCode.NATIONAL_HOLIDAY_CODE -> {
@@ -662,6 +776,10 @@ public class WorktimeDisplayService {
                         counts.incrementCmDays();
                         LoggerUtil.debug(this.getClass(), String.format("Found CM day: %s", entry.getWorkDate()));
                     }
+                    case WorkCode.SPECIAL_EVENT_CODE -> {
+                        counts.incrementCoDays();  // CE counts as CO for display totals
+                        LoggerUtil.debug(this.getClass(), String.format("Found CE day (counted as CO): %s", entry.getWorkDate()));
+                    }
                     case WorkCode.WEEKEND_CODE -> {
                         // Count weekend work days if they have overtime
                         if (entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
@@ -671,9 +789,12 @@ public class WorktimeDisplayService {
                 }
             }
 
-            // Handle regular work entries (no time off type)
+            // Handle regular work entries and work days (including ZS, CR, D)
+            boolean isWorkDay = false;
+
+            // Regular work entry (no time off type)
             if (entry.getTimeOffType() == null && entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
-                counts.incrementDaysWorked();
+                isWorkDay = true;
 
                 // Use default schedule if not available
                 int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
@@ -685,6 +806,28 @@ public class WorktimeDisplayService {
                 totalOvertimeMinutes += result.getOvertimeMinutes();
                 totalDiscardedMinutes += discardedForEntry;
                 LoggerUtil.debug(this.getClass(), String.format("Regular work entry %s: %d minutes processed, %d overtime", entry.getWorkDate(), result.getProcessedMinutes(), result.getOvertimeMinutes()));
+            }
+
+            // ZS (Short Day) - work day paid partially from overtime
+            if (entry.getTimeOffType() != null && entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+                isWorkDay = true;
+                LoggerUtil.debug(this.getClass(), String.format("ZS work day counted: %s", entry.getWorkDate()));
+            }
+
+            // CR (Recovery Leave) - work day paid from overtime
+            if (WorkCode.RECOVERY_LEAVE_CODE.equalsIgnoreCase(entry.getTimeOffType())) {
+                isWorkDay = true;
+                LoggerUtil.debug(this.getClass(), String.format("CR work day counted: %s", entry.getWorkDate()));
+            }
+
+            // D (Delegation) - normal work day with special form
+            if ("D".equalsIgnoreCase(entry.getTimeOffType())) {
+                isWorkDay = true;
+                LoggerUtil.debug(this.getClass(), String.format("D work day counted: %s", entry.getWorkDate()));
+            }
+
+            if (isWorkDay) {
+                counts.incrementDaysWorked();
             }
 
             // ENHANCED: Handle ALL special day types with overtime work (SN/CO/CM/W)
@@ -748,18 +891,19 @@ public class WorktimeDisplayService {
             }
         }
 
-        // Calculate adjusted overtime (real-time display with pending deductions)
-        // Allow negative values to show deficit
+        // Calculate adjusted overtime and regular time (real-time display with pending deductions)
+        // CR/ZS deductions are moved from overtime → regular time (reclassification, not loss)
         int totalPendingDeductions = pendingCRDeductions + pendingZSDeductions;
-        int adjustedOvertimeMinutes = totalOvertimeMinutes - totalPendingDeductions;
+        int adjustedRegularMinutes = totalRegularMinutes + totalPendingDeductions;  // Add deductions to regular
+        int adjustedOvertimeMinutes = totalOvertimeMinutes - totalPendingDeductions;  // Subtract from overtime
 
         // Set calculated totals
-        counts.setRegularMinutes(totalRegularMinutes);
+        counts.setRegularMinutes(adjustedRegularMinutes);  // Use adjusted regular time (includes CR/ZS from overtime)
         counts.setOvertimeMinutes(adjustedOvertimeMinutes);  // Use adjusted overtime with deductions
         counts.setDiscardedMinutes(totalDiscardedMinutes);
 
-        LoggerUtil.info(this.getClass(), String.format("Work time counts calculated: totalRegular=%d, totalOvertime=%d (raw), pendingCR=%d (%d entries), pendingZS=%d (%d entries), adjustedOvertime=%d",
-                totalRegularMinutes, totalOvertimeMinutes, pendingCRDeductions, crCount, pendingZSDeductions, zsCount, adjustedOvertimeMinutes));
+        LoggerUtil.info(this.getClass(), String.format("Work time counts calculated: totalRegular=%d (adjusted: %d), totalOvertime=%d (adjusted: %d), pendingCR=%d (%d entries), pendingZS=%d (%d entries)",
+                totalRegularMinutes, adjustedRegularMinutes, totalOvertimeMinutes, adjustedOvertimeMinutes, pendingCRDeductions, crCount, pendingZSDeductions, zsCount));
 
         return counts;
     }

@@ -1,5 +1,6 @@
 package com.ctgraphdep.validation;
 
+import com.ctgraphdep.config.TimeOffTypeRegistry;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.utils.LoggerUtil;
@@ -363,14 +364,18 @@ public class TimeValidationService {
 
             // 3. ENHANCED VALUE TYPE VALIDATION - Now supports all special day work formats
             if (isSpecialDayWorkFormat(trimmedValue)) {
-                // FIXED: Handle all special day work formats (SN:5, CO:6, CM:4, W:8)
+                // FIXED: Handle all special day work formats (SN:5, CO:6, CM:4, W:8, CE:5)
                 return validateSpecialDayWorkFormat(trimmedValue);
             } else if (trimmedValue.matches("^\\d+$")) {
                 return validateWorkHoursRange(trimmedValue);
-            } else if (trimmedValue.matches("^(CO|CM|SN|CR|CN|CE|D|REMOVE|BLANK)$")) {
+            } else if (TimeOffTypeRegistry.isValidTimeOffType(trimmedValue) ||
+                       trimmedValue.matches("^(REMOVE|BLANK)$")) {
                 return validateTimeOffOrRemove(trimmedValue);
             } else {
-                return ValidationResult.invalid("Invalid value format. Use: hours (8), time off (CO/CM/SN), special day work (SN:7.5, CO:6, CM:4, W:8), BLANK, or REMOVE");
+                // ✅ CENTRALIZED: Error message uses registry display methods
+                return ValidationResult.invalid("Invalid value format. Use: hours (8), time off (" +
+                    TimeOffTypeRegistry.getAllTimeOffTypesDisplay() + "), special day work (" +
+                    TimeOffTypeRegistry.getSpecialDayWorkExamples() + "), BLANK, or REMOVE");
             }
 
         } catch (Exception e) {
@@ -380,28 +385,32 @@ public class TimeValidationService {
     }
 
     /**
-     * NEW: Check if value matches special day work format for any type
-     * Supports: SN:5, CO:6, CM:4, W:8
+     * Check if value matches special day work format for any type.
+     * ✅ CENTRALIZED: Uses TimeOffTypeRegistry for pattern validation
      */
     private boolean isSpecialDayWorkFormat(String value) {
-        return value.matches("^(SN|CO|CM|W):\\d+(\\.\\d+)?$");
+        return TimeOffTypeRegistry.isSpecialDayWorkFormat(value);
     }
 
     /**
-     * NEW: Unified validation for all special day work formats
-     * Replaces validateSNWorkTimeFormat() with comprehensive validation for all types
+     * Unified validation for all special day work formats.
+     * ✅ CENTRALIZED: Uses TimeOffTypeRegistry for type validation
      */
     private ValidationResult validateSpecialDayWorkFormat(String value) {
         LoggerUtil.debug(this.getClass(), String.format("Validating special day work format: %s", value));
 
         String[] parts = value.split(":");
         if (parts.length != 2) {
-            return ValidationResult.invalid("Invalid special day work format. Use TYPE:hours (e.g., SN:7.5, CO:6, CM:4, W:8)");
+            return ValidationResult.invalid("Invalid special day work format. Use TYPE:hours (e.g., " +
+                TimeOffTypeRegistry.getSpecialDayWorkExamples() + ")");
         }
 
         String type = parts[0];
-        if (!type.matches("^(SN|CO|CM|W)$")) {
-            return ValidationResult.invalid("Invalid special day type. Use SN (National Holiday), CO (Time Off), CM (Medical Leave), or W (Weekend)");
+        // ✅ CENTRALIZED: Validate type using registry
+        if (!TimeOffTypeRegistry.isSpecialDayType(type)) {
+            return ValidationResult.invalid("Invalid special day type: " + type +
+                ". Expected: " + TimeOffTypeRegistry.getSpecialDayTypesDisplay() +
+                ". Note: " + TimeOffTypeRegistry.getPlainTimeOffTypesDisplay() + " do not support work hours.");
         }
 
         try {

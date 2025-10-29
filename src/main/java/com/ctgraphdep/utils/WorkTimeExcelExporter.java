@@ -329,14 +329,14 @@ public class WorkTimeExcelExporter {
         // Add overtime for SN entries
         if ("SN".equals(entry.getTimeOffType()) && entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
             commentText.append("\n");
-            commentText.append("Holiday overtime: ").append(CalculateWorkHoursUtil.minutesToHH(entry.getTotalOvertimeMinutes()));
+            commentText.append("Holiday overtime").append(CalculateWorkHoursUtil.minutesToHH(entry.getTotalOvertimeMinutes()));
         }
 
         // Add sync status
         if (entry.getAdminSync() != null) {
             if (hasWorkData) commentText.append("\n");
             commentText.append("Status: ");
-            switch (entry.getAdminSync().toString()) {
+            switch (entry.getAdminSync()) {
                 case "USER_DONE" -> commentText.append("User Completed");
                 case "ADMIN_EDITED" -> commentText.append("Admin Modified");
                 case "USER_IN_PROCESS" -> commentText.append("In Progress");

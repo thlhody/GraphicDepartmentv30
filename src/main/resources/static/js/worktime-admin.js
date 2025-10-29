@@ -1,6 +1,15 @@
 /**
  * FIXED: Enhanced worktime-admin.js with SN + work time support
  * Fixed the saveWorktime function to properly find the input element
+ *
+ * ⚠️ IMPORTANT: Time-off type patterns in this file MUST match TimeOffTypeRegistry.java
+ * Backend source of truth: src/main/java/com/ctgraphdep/config/TimeOffTypeRegistry.java
+ *
+ * Special Day Types (support work hours TYPE:X):
+ * - SN (National Holiday), CO (Vacation), CM (Medical), W (Weekend), CE (Special Event)
+ *
+ * Plain Time-Off Types (no work hours):
+ * - D (Delegation), CN (Unpaid Leave), CR (Recovery Leave)
  */
 
 // Document ready initialization
@@ -143,13 +152,18 @@ function saveWorktime(btn) {
 }
 
 function validateWorktimeValue(value) {
-    // Handle special day work time format (SN:5, CO:6, CM:4, W:8)
+    // Handle special day work time format (SN:5, CO:6, CM:4, W:8, CE:6)
     if (value.includes(':')) {
         return validateSpecialDayWorktime(value);
     }
 
-    // Handle time off types
-    if (['CO', 'CM', 'SN', 'W'].includes(value.toUpperCase())) {
+    // Handle ZS format (ZS-5 means missing 5 hours)
+    if (value.toUpperCase().startsWith('ZS-')) {
+        return validateZSFormat(value);
+    }
+
+    // Handle time off types (expanded with CR, CN, D, CE)
+    if (['CO', 'CM', 'SN', 'W', 'CR', 'CN', 'D', 'CE'].includes(value.toUpperCase())) {
         return true; // Valid time off types
     }
 
@@ -163,29 +177,50 @@ function validateWorktimeValue(value) {
         return true;
     }
 
-    alert('Invalid format. Use:\n- Hours: 8 or 8h\n- Special work: SN:7.5, CO:6, CM:4, W:8\n- Time off: CO, CM, SN, W');
+    alert('Invalid format. Use:\n- Hours: 8 or 8h\n- Special work: SN:7.5, CO:6, CM:4, W:8, CE:6\n- Time off: CO, CM, SN, W, CR, CN, D, CE\n- Short day: ZS-5 (missing 5 hours)');
     return false;
 }
 
 /**
+ * Validate ZS format (short day)
+ * Format: ZS-5 means user is missing 5 hours (worked less than schedule)
+ */
+function validateZSFormat(value) {
+    const parts = value.toUpperCase().split('-');
+
+    if (parts.length !== 2 || parts[0] !== 'ZS') {
+        alert('Invalid ZS format. Use: ZS-X where X is missing hours (e.g., ZS-5)');
+        return false;
+    }
+
+    const missingHours = parseInt(parts[1]);
+    if (isNaN(missingHours) || missingHours < 1 || missingHours > 12) {
+        alert('Missing hours must be between 1 and 12 (e.g., ZS-5)');
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * Validate special day work time format for all types
- * Supports: SN:5, CO:6, CM:4, W:8
+ * Supports: SN:5, CO:6, CM:4, W:8, CE:6
  */
 function validateSpecialDayWorktime(value) {
     const parts = value.split(':');
 
     // Check format: must be exactly "TYPE:number"
     if (parts.length !== 2) {
-        alert('Invalid format. Use TYPE:hours (e.g., SN:7.5, CO:6, CM:4, W:8)');
+        alert('Invalid format. Use TYPE:hours (e.g., SN:7.5, CO:6, CM:4, W:8, CE:6)');
         return false;
     }
 
     const type = parts[0].toUpperCase();
     const hoursStr = parts[1];
 
-    // Validate type
-    if (!['SN', 'CO', 'CM', 'W'].includes(type)) {
-        alert('Invalid type. Use SN, CO, CM, or W (e.g., SN:7.5, CO:6)');
+    // Validate type (added CE)
+    if (!['SN', 'CO', 'CM', 'W', 'CE'].includes(type)) {
+        alert('Invalid type. Use SN, CO, CM, W, or CE (e.g., SN:7.5, CE:6)');
         return false;
     }
 
@@ -482,11 +517,45 @@ function extractEntryFromCell(userId, date) {
     } else if (cellContent === 'CM') {
         entryData.timeOffType = 'CM';
         entryData.timeOffLabel = 'Medical Leave';
+    } else if (cellContent === 'CR') {
+        entryData.timeOffType = 'CR';
+        entryData.timeOffLabel = 'Recovery Leave (CR)';
+    } else if (cellContent === 'CN') {
+        entryData.timeOffType = 'CN';
+        entryData.timeOffLabel = 'Unpaid Leave (CN)';
+    } else if (cellContent === 'D') {
+        entryData.timeOffType = 'D';
+        entryData.timeOffLabel = 'Delegation (D)';
+    } else if (cellContent === 'CE') {
+        entryData.timeOffType = 'CE';
+        entryData.timeOffLabel = 'Event Leave (CE)';
+    } else if (cellContent.startsWith('ZS-')) {
+        // Handle ZS-5 format
+        entryData.timeOffType = cellContent;
+        entryData.timeOffLabel = getTimeOffLabel(cellContent);
     } else if (cellContent.startsWith('SN') && cellContent.length > 2) {
         // Handle SN4 format
         const hours = cellContent.substring(2);
         entryData.timeOffType = 'SN';
         entryData.timeOffLabel = 'National Holiday';
+        entryData.overtimeHours = hours + 'h';
+    } else if (cellContent.startsWith('CO') && cellContent.length > 2 && /^\d+$/.test(cellContent.substring(2))) {
+        // Handle CO6 format
+        const hours = cellContent.substring(2);
+        entryData.timeOffType = 'CO';
+        entryData.timeOffLabel = 'Vacation';
+        entryData.overtimeHours = hours + 'h';
+    } else if (cellContent.startsWith('CM') && cellContent.length > 2 && /^\d+$/.test(cellContent.substring(2))) {
+        // Handle CM4 format
+        const hours = cellContent.substring(2);
+        entryData.timeOffType = 'CM';
+        entryData.timeOffLabel = 'Medical Leave';
+        entryData.overtimeHours = hours + 'h';
+    } else if (cellContent.startsWith('CE') && cellContent.length > 2 && /^\d+$/.test(cellContent.substring(2))) {
+        // Handle CE6 format
+        const hours = cellContent.substring(2);
+        entryData.timeOffType = 'CE';
+        entryData.timeOffLabel = 'Event Leave (CE)';
         entryData.overtimeHours = hours + 'h';
     } else if (cellContent.includes('h') || /^\d+$/.test(cellContent)) {
         // Regular work hours
@@ -563,9 +632,19 @@ function generateEntryInfoHTML(entryData, cell) {
     if (entryData.timeOffType && entryData.timeOffType !== 'null') {
         const timeOffLabel = entryData.timeOffLabel || getTimeOffLabel(entryData.timeOffType);
         const iconClass = getTimeOffIcon(entryData.timeOffType);
+        const description = getTimeOffDescription(entryData.timeOffType);
+
         html += `<small class="text-primary">
             <i class="${iconClass} entry-icon"></i><strong>Type:</strong> ${timeOffLabel}
         </small>`;
+
+        // Add helpful description for special types (CR, ZS, CN, D, CE)
+        if (description) {
+            html += `<small class="text-muted d-block ms-3" style="font-size: 0.85em; font-style: italic; line-height: 1.3;">
+                <i class="bi bi-info-circle-fill entry-icon text-info"></i>${description}
+            </small>`;
+        }
+
         hasData = true;
     }
 
@@ -583,16 +662,20 @@ function generateEntryInfoHTML(entryData, cell) {
         hasData = true;
     }
 
-    // Handle overtime (API or fallback)
+    // Handle overtime (API or fallback) - with dynamic label based on day/type
     if (entryData.totalOvertimeMinutes && parseInt(entryData.totalOvertimeMinutes) > 0) {
         const hours = formatMinutesToHours(parseInt(entryData.totalOvertimeMinutes));
+        const cellDate = cell.dataset.date;
+        const overtimeLabel = getOvertimeTypeLabel(cellDate, entryData.timeOffType);
         html += `<small class="text-danger">
-            <i class="bi bi-clock-history entry-icon"></i><strong>Holiday overtime:</strong> ${hours}
+            <i class="bi bi-clock-history entry-icon"></i><strong>${overtimeLabel}:</strong> ${hours}
         </small>`;
         hasData = true;
     } else if (entryData.overtimeHours) {
+        const cellDate = cell.dataset.date;
+        const overtimeLabel = getOvertimeTypeLabel(cellDate, entryData.timeOffType);
         html += `<small class="text-danger">
-            <i class="bi bi-clock-history entry-icon"></i><strong>Holiday overtime:</strong> ${entryData.overtimeHours}
+            <i class="bi bi-clock-history entry-icon"></i><strong>${overtimeLabel}:</strong> ${entryData.overtimeHours}
         </small>`;
         hasData = true;
     }
@@ -637,21 +720,116 @@ function generateEntryInfoHTML(entryData, cell) {
  * NEW: Helper functions for formatting
  */
 function getTimeOffLabel(timeOffType) {
-    switch (timeOffType) {
+    if (!timeOffType) return timeOffType;
+
+    // Handle ZS format (ZS-5 means missing 5 hours)
+    if (timeOffType.startsWith('ZS-')) {
+        const missingHours = timeOffType.split('-')[1];
+        return `Short Day (missing ${missingHours}h)`;
+    }
+
+    switch (timeOffType.toUpperCase()) {
         case 'SN': return 'National Holiday';
         case 'CO': return 'Vacation';
         case 'CM': return 'Medical Leave';
+        case 'W': return 'Weekend Work';
+        case 'CR': return 'Recovery Leave (CR)';
+        case 'CN': return 'Unpaid Leave (CN)';
+        case 'D': return 'Delegation (D)';
+        case 'CE': return 'Event Leave (CE)';
         default: return timeOffType;
     }
 }
 
 function getTimeOffIcon(timeOffType) {
-    switch (timeOffType) {
+    if (!timeOffType) return 'bi bi-calendar-x';
+
+    // Handle ZS format
+    if (timeOffType.startsWith('ZS-')) {
+        return 'bi bi-hourglass-split text-warning';
+    }
+
+    switch (timeOffType.toUpperCase()) {
         case 'SN': return 'bi bi-calendar-event text-success';
         case 'CO': return 'bi bi-airplane text-info';
         case 'CM': return 'bi bi-heart-pulse text-warning';
+        case 'W': return 'bi bi-calendar-week text-secondary';
+        case 'CR': return 'bi bi-battery-charging text-success';
+        case 'CN': return 'bi bi-dash-circle text-secondary';
+        case 'D': return 'bi bi-briefcase text-primary';
+        case 'CE': return 'bi bi-gift text-danger';
         default: return 'bi bi-calendar-x';
     }
+}
+
+/**
+ * Get helpful description for each time-off type
+ */
+function getTimeOffDescription(timeOffType) {
+    if (!timeOffType) return '';
+
+    // Handle ZS format
+    if (timeOffType.startsWith('ZS-')) {
+        const missingHours = timeOffType.split('-')[1];
+        return `User worked less than schedule. Missing ${missingHours} hours will be deducted from overtime.`;
+    }
+
+    switch (timeOffType.toUpperCase()) {
+        case 'CR':
+            return 'Recovery Leave - Paid day off using overtime balance. Deducts full schedule hours (8h) from overtime → regular time.';
+        case 'CN':
+            return 'Unpaid Leave - Day off without payment. Does not count as work day or deduct from balances.';
+        case 'D':
+            return 'Delegation / Business Trip - Normal work day with special documentation. Counts as regular work day.';
+        case 'CE':
+            return 'Event Leave - Special event (marriage, birth, death). Free days per company policy. Field 2 required in form.';
+        case 'SN':
+            return 'National Holiday - Company holiday. If worked, all time counts as overtime.';
+        case 'CO':
+            return 'Vacation - Paid time off using vacation balance. Deducts from annual vacation days.';
+        case 'CM':
+            return 'Medical Leave - Sick day. Does not deduct from vacation balance.';
+        case 'W':
+            return 'Weekend Work - Work on weekend day. All time counts as overtime.';
+        default:
+            return '';
+    }
+}
+
+/**
+ * Determine the correct overtime type label based on date and time-off type
+ * - Monday-Friday normal work: "Overtime"
+ * - Saturday-Sunday (W): "Weekend Overtime"
+ * - SN/CO/CE/CM with work: "Holiday Overtime"
+ */
+function getOvertimeTypeLabel(dateString, timeOffType) {
+    // Parse the date to determine day of week
+    const date = new Date(dateString);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+
+    // Check if it's a holiday/vacation/event with work (SN:5, CO:5, CE:5, CM:5)
+    if (timeOffType) {
+        const upperType = timeOffType.toUpperCase();
+        if (upperType === 'SN' || upperType.startsWith('SN:') ||
+            upperType === 'CO' || upperType.startsWith('CO:') ||
+            upperType === 'CE' || upperType.startsWith('CE:') ||
+            upperType === 'CM' || upperType.startsWith('CM:')) {
+            return 'Holiday Overtime';
+        }
+
+        // Weekend work (W, W:5)
+        if (upperType === 'W' || upperType.startsWith('W:')) {
+            return 'Weekend Overtime';
+        }
+    }
+
+    // Check if it's a weekend day (Saturday or Sunday)
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+        return 'Weekend Overtime';
+    }
+
+    // Normal weekday overtime
+    return 'Overtime';
 }
 
 function getStatusLabel(adminSync) {
