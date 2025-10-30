@@ -138,7 +138,7 @@ const WorkTimeDisplayModule = {
 
             if (isSnOvertime) {
                 badgeClass = 'badge bg-warning text-dark rounded-pill overtime-display small sn-overtime';
-                title = `?v=291020251458 work: ${value}`;
+                title = `?v=301020251614 work: ${value}`;
             } else if (isCoOvertime) {
                 badgeClass = 'badge bg-info text-white rounded-pill overtime-display small co-overtime';
                 title = `Time Off overtime work: ${value}`;

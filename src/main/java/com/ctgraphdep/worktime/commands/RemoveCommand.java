@@ -30,15 +30,18 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
     private final LocalDate date;
     private final String removalType; // "all", "timeoff", "starttime", etc.
     private final WorktimeDataAccessor accessor;
+    private final com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules;
 
     // Private constructor - use factory methods
     private RemoveCommand(WorktimeOperationContext context, WorktimeDataAccessor accessor,
-                          String username, LocalDate date, String removalType) {
+                          String username, LocalDate date, String removalType,
+                          com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
         super(context);
         this.accessor = accessor;
         this.username = username;
         this.date = date;
         this.removalType = removalType;
+        this.timeOffRules = timeOffRules;
     }
 
     // ========================================================================
@@ -46,18 +49,21 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
     // ========================================================================
 
     // Create command for complete entry removal (admin delete button)
-    public static RemoveCommand forCompleteRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date) {
-        return new RemoveCommand(context, accessor, username, date, "all");
+    public static RemoveCommand forCompleteRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date,
+                                                    com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
+        return new RemoveCommand(context, accessor, username, date, "all", timeOffRules);
     }
 
     // Create command for time-off field removal (user CO/CM removal)
-    public static RemoveCommand forTimeOffRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date) {
-        return new RemoveCommand(context, accessor, username, date, "timeoff");
+    public static RemoveCommand forTimeOffRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date,
+                                                   com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
+        return new RemoveCommand(context, accessor, username, date, "timeoff", timeOffRules);
     }
 
     // Create command for specific field removal (future extensibility)
-    public static RemoveCommand forFieldRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date, String fieldName) {
-        return new RemoveCommand(context, accessor, username, date, fieldName);
+    public static RemoveCommand forFieldRemoval(WorktimeOperationContext context, WorktimeDataAccessor accessor, String username, LocalDate date, String fieldName,
+                                                 com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
+        return new RemoveCommand(context, accessor, username, date, fieldName, timeOffRules);
     }
 
     // ========================================================================
@@ -236,13 +242,25 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
 
         LoggerUtil.info(this.getClass(), String.format("Removing time-off type '%s' from entry", originalTimeOffType));
 
-        // STEP 1: Remove time-off field first
+        // STEP 1: Handle special removal logic BEFORE removing
+        if (timeOffRules.requiresSpecialRemovalLogic(originalTimeOffType)) {
+            if (WorkCode.RECOVERY_LEAVE_CODE.equalsIgnoreCase(originalTimeOffType)) {
+                // CR: Refill overtime
+                handleCRRefill(entry, userSchedule);
+            } else if (WorkCode.WEEKEND_CODE.equalsIgnoreCase(originalTimeOffType)) {
+                // W: Complete tombstone (reset entire entry to empty)
+                LoggerUtil.info(this.getClass(), String.format("W (Weekend) removal - tombstoning entry for %s on %s", username, date));
+                return handleWeekendTombstone(entry, userRole, originalTimeOffType);
+            }
+        }
+
+        // STEP 2: Remove time-off field
         entry.setTimeOffType(null);
 
-        // STEP 2: Remove from tracker IMMEDIATELY
+        // STEP 3: Remove from tracker IMMEDIATELY
         removeFromTimeOffTracker(userRole);
 
-        // STEP 3: Determine path and process accordingly
+        // STEP 4: Determine path and process accordingly
         if (shouldResetEntry(entry)) {
             return handleEntryReset(entry, userRole, originalTimeOffType);
         } else {
@@ -250,17 +268,112 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
         }
     }
 
-    // Validate time-off removal permissions
+    // Validate time-off removal permissions using centralized business rules
     private OperationResult validateTimeOffRemovalPermissions(String timeOffType, String userRole) {
-        if (!SecurityConstants.ROLE_ADMIN.equalsIgnoreCase(userRole)) {
-            if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType)) {
-                return OperationResult.failure("Users cannot remove national holidays (SN). Only admin can modify SN entries.", getOperationType());
+        // Admin can remove any type (except auto-managed types)
+        if (SecurityConstants.ROLE_ADMIN.equalsIgnoreCase(userRole)) {
+            if (timeOffRules.isRemovalBlocked(timeOffType)) {
+                String reason = timeOffRules.getCannotRemoveReason(timeOffType);
+                return OperationResult.failure(reason, getOperationType());
             }
-            if (!WorkCode.TIME_OFF_CODE.equals(timeOffType) && !WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType)) {
-                return OperationResult.failure("Users can only remove vacation (CO) or medical (CM) time off", getOperationType());
-            }
+            return OperationResult.success("Permissions validated", getOperationType());
         }
+
+        // User removal: use centralized rules
+        if (timeOffRules.isRemovalBlocked(timeOffType)) {
+            String reason = timeOffRules.getCannotRemoveReason(timeOffType);
+            return OperationResult.failure(reason, getOperationType());
+        }
+
         return OperationResult.success("Permissions validated", getOperationType());
+    }
+
+    /**
+     * Handle CR (Recovery Leave) overtime refill logic.
+     * CR Logic:
+     * - When ADDED: Fills regular time with schedule hours, deducts from overtime (during consolidation)
+     * - When REMOVED: Removes those regular hours, refills overtime
+     *
+     * This is the inverse operation of CR addition.
+     *
+     * @param entry The worktime entry with CR to be removed
+     * @param userSchedule User's schedule in hours (e.g., 8)
+     */
+    private void handleCRRefill(WorkTimeTable entry, Integer userSchedule) {
+        if (userSchedule == null) {
+            userSchedule = 8; // Default schedule
+        }
+
+        int scheduleMinutes = userSchedule * 60;
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Handling CR refill: Removing %d minutes from regular time and adding to overtime",
+                scheduleMinutes));
+
+        // STEP 1: Remove regular hours that CR added
+        int currentWorkedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        int newWorkedMinutes = Math.max(0, currentWorkedMinutes - scheduleMinutes);
+        entry.setTotalWorkedMinutes(newWorkedMinutes);
+
+        LoggerUtil.debug(this.getClass(), String.format(
+                "Regular time: %d → %d minutes (removed %d)",
+                currentWorkedMinutes, newWorkedMinutes, scheduleMinutes));
+
+        // STEP 2: Refill overtime with schedule hours
+        int currentOvertimeMinutes = entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : 0;
+        int newOvertimeMinutes = currentOvertimeMinutes + scheduleMinutes;
+        entry.setTotalOvertimeMinutes(newOvertimeMinutes);
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Overtime refilled: %d → %d minutes (added %d back)",
+                currentOvertimeMinutes, newOvertimeMinutes, scheduleMinutes));
+    }
+
+    /**
+     * Handle W (Weekend) removal - complete tombstone (reset to empty).
+     * Weekend Removal Logic:
+     * - Removing W = "I didn't actually work this weekend"
+     * - Complete entry reset (clear all work times and data)
+     * - Different from CO/CM/CE which preserve work times and recalculate
+     *
+     * @param entry The worktime entry with W to be removed
+     * @param userRole Current user role for status assignment
+     * @param originalTimeOffType Original time-off type (W)
+     * @return OperationResult indicating success or failure
+     */
+    private OperationResult handleWeekendTombstone(WorkTimeTable entry, String userRole, String originalTimeOffType) {
+        LoggerUtil.info(this.getClass(), String.format(
+                "Tombstoning W (Weekend) entry for %s on %s - complete reset to empty",
+                username, date));
+
+        // STEP 1: Reset entry to completely empty state
+        WorktimeEntityBuilder.resetEntryToEmpty(entry);
+
+        // STEP 2: Remove from tracker
+        removeFromTimeOffTracker(userRole);
+
+        // STEP 3: Assign status for empty entry
+        StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
+                entry, userRole, OperationResult.OperationType.REMOVE_TIME_OFF);
+
+        if (!statusResult.isSuccess()) {
+            return OperationResult.failure("Cannot remove weekend: " + statusResult.getMessage(), getOperationType());
+        }
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Weekend tombstone complete: Status %s → %s. Entry completely reset.",
+                statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+
+        // STEP 4: Handle holiday balance restoration (W doesn't affect balance)
+        HolidayBalanceResult balanceResult = new HolidayBalanceResult(false, null, null);
+
+        // STEP 5: Create success message
+        String message = String.format("Successfully removed Weekend Work from %s (entry completely reset)", date);
+
+        // STEP 6: Invalidate caches
+        invalidateCaches();
+
+        return OperationResult.success(message, getOperationType(), entry);
     }
 
     // Remove from time off tracker

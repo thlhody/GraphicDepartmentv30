@@ -146,6 +146,9 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
             // Ensure timeOffType is preserved
             entry.setTimeOffType(originalTimeOffType);
 
+            // AUTO-UPDATE ZS (Short Day) based on completion status
+            checkAndUpdateShortDayStatus(entry, originalTimeOffType);
+
             LoggerUtil.info(this.getClass(), String.format("Updated end time for %s: start=%s, end=%s, timeOffType=%s, regular=%d, overtime=%d, lunch=%s", date,
                     entry.getDayStartTime() != null ? entry.getDayStartTime().toLocalTime() : "null",
                     entry.getDayEndTime() != null ? entry.getDayEndTime().toLocalTime() : "null",
@@ -271,5 +274,80 @@ public class UpdateEndTimeCommand extends WorktimeOperationCommand<WorkTimeTable
 
     private String createFilePathId(String username, int year, int month) {
         return String.format("%s/%d/%d", username, year, month);
+    }
+
+    /**
+     * Auto-update ZS (Short Day) based on completion status.
+     * ZS is automatically managed when day completion status changes:
+     * - Day becomes complete → Remove ZS
+     * - Day becomes incomplete (and has no other time-off) → Create/Update ZS
+     *
+     * Logic:
+     * 1. Check if day is complete (totalWorkedMinutes >= schedule)
+     * 2. If complete AND has ZS → Remove ZS
+     * 3. If incomplete AND has no time-off (or has ZS) → Create/Update ZS with missing hours
+     *
+     * @param entry The worktime entry to check
+     * @param originalTimeOffType The original timeOffType before calculations
+     */
+    private void checkAndUpdateShortDayStatus(WorkTimeTable entry, String originalTimeOffType) {
+        boolean isDayComplete = isDayComplete(entry);
+        int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        int scheduleMinutes = userScheduleHours * 60;
+        boolean hasZS = originalTimeOffType != null && originalTimeOffType.startsWith("ZS-");
+
+        if (isDayComplete) {
+            // Day is complete - remove ZS if it exists
+            if (hasZS) {
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Day is now complete for %s (worked: %d min, schedule: %d min). Auto-removing %s",
+                        date, workedMinutes, scheduleMinutes, originalTimeOffType));
+                entry.setTimeOffType(null);
+            }
+        } else {
+            // Day is incomplete - create/update ZS if no other time-off type
+            boolean hasOtherTimeOff = originalTimeOffType != null && !originalTimeOffType.trim().isEmpty() && !hasZS;
+
+            if (!hasOtherTimeOff) {
+                // Calculate missing hours
+                int missingMinutes = scheduleMinutes - workedMinutes;
+                int missingHours = (int) Math.ceil(missingMinutes / 60.0);
+                String newZS = "ZS-" + missingHours;
+
+                if (!newZS.equals(originalTimeOffType)) {
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Day is incomplete for %s (worked: %d min, schedule: %d min). Auto-updating ZS: %s → %s",
+                            date, workedMinutes, scheduleMinutes,
+                            originalTimeOffType != null ? originalTimeOffType : "none", newZS));
+                    entry.setTimeOffType(newZS);
+                }
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "Day is incomplete but has other time-off (%s). Not creating ZS.",
+                        originalTimeOffType));
+            }
+        }
+    }
+
+    /**
+     * Check if the day is complete (reached schedule).
+     * A day is complete if:
+     * - Has both start and end time
+     * - Total worked minutes >= schedule (schedule * 60 minutes)
+     *
+     * @param entry The worktime entry to check
+     * @return true if day is complete, false otherwise
+     */
+    private boolean isDayComplete(WorkTimeTable entry) {
+        // Must have both start and end time
+        if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
+            return false;
+        }
+
+        // Check if worked time meets or exceeds schedule
+        int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        int scheduleMinutes = userScheduleHours * 60;
+
+        return workedMinutes >= scheduleMinutes;
     }
 }

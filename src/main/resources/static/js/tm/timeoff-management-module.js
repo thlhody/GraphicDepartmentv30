@@ -281,11 +281,17 @@ const TimeOffManagementModule = {
     },
 
     /**
-     * Check if time off type is removable (CO/CM only)
+     * Check if time off type is removable (all types except SN and ZS)
+     * Business Rules:
+     * - Can remove: CO, CE, W, CM, D, CR, CN
+     * - Cannot remove: SN (admin-controlled), ZS-* (auto-managed)
      */
     isRemovableTimeOffType(cell) {
         const timeOffType = cell.getAttribute('data-timeoff-type');
-        return timeOffType === 'CO' || timeOffType === 'CM';
+        if (!timeOffType) return false;
+
+        // Cannot remove SN (admin-controlled) or ZS (auto-managed)
+        return timeOffType !== 'SN' && !timeOffType.startsWith('ZS-');
     },
 
     /**

@@ -190,20 +190,6 @@ public class OvertimeDeductionCalculator {
         }
 
         /**
-         * Get total count of deduction entries.
-         */
-        public int getTotalCount() {
-            return crCount + zsCount;
-        }
-
-        /**
-         * Check if there are any deductions.
-         */
-        public boolean hasDeductions() {
-            return getTotalDeductions() > 0;
-        }
-
-        /**
          * Get formatted description of deductions for logging.
          */
         public String getDescription() {

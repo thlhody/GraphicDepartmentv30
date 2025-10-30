@@ -118,29 +118,4 @@ public class WorkDayCounter {
         return false;
     }
 
-    /**
-     * Check if an entry is a special overtime day (SN/CO/CM/CE/W with work hours).
-     * These are NOT counted as regular work days.
-     *
-     * @param entry Worktime entry to check
-     * @return true if this is a special overtime day
-     */
-    public boolean isSpecialOvertimeDay(WorkTimeTable entry) {
-        if (entry == null || entry.getTimeOffType() == null) {
-            return false;
-        }
-
-        // Check if it's a special day type with overtime hours
-        boolean hasOvertime = entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0;
-        if (!hasOvertime) {
-            return false;
-        }
-
-        String timeOffType = entry.getTimeOffType();
-        return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) ||
-               WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
-               WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) ||
-               WorkCode.SPECIAL_EVENT_CODE.equals(timeOffType) ||
-               WorkCode.WEEKEND_CODE.equals(timeOffType);
-    }
 }

@@ -300,11 +300,14 @@ yes but<!DOCTYPE html>
 
                                     <!-- Time Off Column -->
                                     <td class="text-center timeoff-cell"
-                                        th:classappend="${(record.timeOffType == 'CO' || record.timeOffType == 'CM') ? 'deletable-timeoff' : ''}"
+                                        th:classappend="${record.timeOffType != null && record.timeOffType != 'SN' && !#strings.startsWith(record.timeOffType, 'ZS-') ? 'deletable-timeoff' : ''}"
                                         th:attr="data-timeoff-type=${record.timeOffType},
                                              data-date=${record.workDate},
                                              data-has-overtime=${record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0},
-                                             data-deletable=${record.timeOffType == 'CO' || record.timeOffType == 'CM'}">
+                                             data-deletable=${record.timeOffType != null && record.timeOffType != 'SN' && !#strings.startsWith(record.timeOffType, 'ZS-')},
+                                             data-locked=${record.timeOffType == 'SN' || (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-'))}"
+                                        th:title="${record.timeOffType == 'SN' ? 'National holidays are set by admin and cannot be removed' : (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-') ? 'Short Day is automatically managed. Complete your work day to remove it.' : '')}"
+                                        th:style="${record.timeOffType == 'SN' || (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-')) ? 'cursor: not-allowed; opacity: 0.7;' : ''}">
 
                                         <div class="cell-value">
                                             <!-- SN with overtime work -->
@@ -328,7 +331,7 @@ yes but<!DOCTYPE html>
                                             <!-- W with overtime work -->
                                             <span th:if="${record.timeOffType == 'W' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
                                                   class="w-work-display small fw-bold"
-                                                  th:title="'Weekend with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work'"
+                                                  th:title="'Weekend with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work. Click X to remove (cannot be changed to other types)'"
                                                   th:text="'W' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '') : '0'}">W8</span>
 
                                             <!-- CR - Recovery Leave (paid from overtime) -->
@@ -372,7 +375,7 @@ yes but<!DOCTYPE html>
                                                   class="medical small" title="Medical Leave"
                                                   th:text="${record.timeOffType}">CM</span>
                                             <span th:if="${record.timeOffType == 'W' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
-                                                  class="weekend small" title="Weekend Day"
+                                                  class="weekend small" title="Weekend Day (click X to remove - cannot be changed to other types)"
                                                   th:text="${record.timeOffType}">W</span>
 
                                             <!-- No time off -->
@@ -473,7 +476,7 @@ yes but<!DOCTYPE html>
                                     <td class="text-center small">
                                     <span th:if="${record.timeOffType == 'SN' && record.formattedOvertimeTime != null}"
                                           class="badge bg-warning text-dark rounded-pill overtime-display small sn-overtime"
-                                          th:title="'?v=291020251458 work: ' + ${record.formattedOvertimeTime}"
+                                          th:title="'?v=301020251614 work: ' + ${record.formattedOvertimeTime}"
                                           th:text="${record.formattedOvertimeTime}">--:--</span>
                                         <span th:if="${record.timeOffType == 'CO' && record.formattedOvertimeTime != null}"
                                               class="badge bg-info text-white rounded-pill overtime-display small co-overtime"

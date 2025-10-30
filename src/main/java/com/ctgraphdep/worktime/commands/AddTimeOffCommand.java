@@ -24,18 +24,22 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
     private final Integer userId;
     private final List<LocalDate> dates;
     private final String timeOffType;
+    private final com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules;
 
     private AddTimeOffCommand(WorktimeOperationContext context, String username, Integer userId,
-                              List<LocalDate> dates, String timeOffType) {
+                              List<LocalDate> dates, String timeOffType,
+                              com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
         super(context);
         this.username = username;
         this.userId = userId;
         this.dates = dates;
         this.timeOffType = timeOffType;
+        this.timeOffRules = timeOffRules;
     }
 
     // FACTORY METHOD: Create command for user time off addition
-    public static AddTimeOffCommand forUser(WorktimeOperationContext context, String username, Integer userId, List<LocalDate> dates, String timeOffType) {
+    public static AddTimeOffCommand forUser(WorktimeOperationContext context, String username, Integer userId, List<LocalDate> dates, String timeOffType,
+                                           com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("Username required for time off addition");
         }
@@ -49,11 +53,12 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
             throw new IllegalArgumentException("Time off type required for time off addition");
         }
 
-        return new AddTimeOffCommand(context, username, userId, dates, timeOffType);
+        return new AddTimeOffCommand(context, username, userId, dates, timeOffType, timeOffRules);
     }
 
     // FACTORY METHOD: Create command for admin time off addition
-    public static AddTimeOffCommand forAdmin(WorktimeOperationContext context, String targetUsername, Integer targetUserId, List<LocalDate> dates, String timeOffType) {
+    public static AddTimeOffCommand forAdmin(WorktimeOperationContext context, String targetUsername, Integer targetUserId, List<LocalDate> dates, String timeOffType,
+                                            com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
         if (targetUsername == null || targetUsername.trim().isEmpty()) {
             throw new IllegalArgumentException("Target username required for admin time off addition");
         }
@@ -67,7 +72,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
             throw new IllegalArgumentException("Time off type required for admin time off addition");
         }
 
-        return new AddTimeOffCommand(context, targetUsername, targetUserId, dates, timeOffType);
+        return new AddTimeOffCommand(context, targetUsername, targetUserId, dates, timeOffType, timeOffRules);
     }
 
     @Override
@@ -171,8 +176,37 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
 
             LoggerUtil.debug(this.getClass(), String.format("Loaded %d existing entries for TIME OFF conflict checking", existingEntries.size()));
 
-            // Check each date in this month for TIME OFF conflicts only
+            // Check each date in this month for conflicts
             for (LocalDate date : monthDates) {
+                // STEP 1: Check if date has existing WORK TIME that cannot be overlaid
+                boolean hasWorkTime = existingEntries.stream()
+                        .anyMatch(entry -> entry.getUserId().equals(userId) &&
+                                entry.getWorkDate().equals(date) &&
+                                (entry.getDayStartTime() != null || entry.getDayEndTime() != null));
+
+                if (hasWorkTime && timeOffRules.requiresClearWorktime(timeOffType)) {
+                    String reason = timeOffRules.getCannotAddOverWorktimeReason(timeOffType);
+                    skippedConflicts.add(date);
+                    LoggerUtil.info(this.getClass(), String.format("WORK TIME CONFLICT: Skipping %s - %s", date, reason));
+                    continue; // Skip this date and move to next
+                }
+
+                // STEP 1.5: Special check - W (Weekend) cannot be changed to other types
+                boolean hasWeekendLock = existingEntries.stream()
+                        .anyMatch(entry -> entry.getUserId().equals(userId) &&
+                                entry.getWorkDate().equals(date) &&
+                                WorkCode.WEEKEND_CODE.equalsIgnoreCase(entry.getTimeOffType()) &&
+                                !WorkCode.WEEKEND_CODE.equalsIgnoreCase(timeOffType));
+
+                if (hasWeekendLock) {
+                    skippedConflicts.add(date);
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "WEEKEND LOCK: Skipping %s - Weekend work (W) cannot be changed to %s. Remove W first, then add new type.",
+                            date, timeOffType));
+                    continue; // Skip this date and move to next
+                }
+
+                // STEP 2: Check for TIME OFF conflicts only
                 boolean hasTimeOffConflict = existingEntries.stream()
                         .anyMatch(entry -> entry.getUserId().equals(userId) &&
                                 entry.getWorkDate().equals(date) &&

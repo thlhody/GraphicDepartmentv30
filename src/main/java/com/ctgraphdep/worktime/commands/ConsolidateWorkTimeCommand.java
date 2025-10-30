@@ -87,6 +87,12 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
             // STEP 3: Calculate expected consolidation result using Universal Merge
             ConsolidationResult consolidationResult = calculateUniversalMergeConsolidationResult(nonAdminUsers, currentAdminGeneral);
 
+            // STEP 3.5: POST-CONSOLIDATION ZS VALIDATION - Apply ZS logic to all consolidated entries
+            boolean zsUpdated = validateAndApplyShortDayLogicForAllUsers(consolidationResult.consolidatedEntries, nonAdminUsers);
+            if (zsUpdated) {
+                LoggerUtil.info(this.getClass(), "POST-CONSOLIDATION: ZS validation updated entries");
+            }
+
             // STEP 4: OPTIMIZATION - Check if consolidation is needed
             if (isConsolidationUpToDate(currentAdminGeneral, consolidationResult.consolidatedEntries)) {
                 LoggerUtil.info(this.getClass(), String.format("Admin general file already up-to-date for %d/%d - skipping consolidation", month, year));
@@ -294,6 +300,106 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
     // Create unique key for entry lookup - ORIGINAL LOGIC
     private String createEntryKey(Integer userId, LocalDate date) {
         return userId + "_" + date.toString();
+    }
+
+    // ========================================================================
+    // POST-CONSOLIDATION ZS (SHORT DAY) VALIDATION
+    // ========================================================================
+
+    /**
+     * Validate and apply ZS (Short Day) logic to ALL users' consolidated worktime entries.
+     * This ensures that after consolidation, ZS markers are correctly applied based on actual work vs schedule.
+     *
+     * Similar to login merge validation, but processes ALL users at once.
+     *
+     * Logic for each entry:
+     * 1. Skip if entry has no start/end time (incomplete day, in-process)
+     * 2. Get user schedule for that user
+     * 3. Calculate worked minutes vs schedule
+     * 4. If complete AND has ZS → Remove ZS
+     * 5. If incomplete AND has no other time-off → Create/Update ZS
+     * 6. If has other time-off (CO, CM, SN, etc) → Don't touch it
+     *
+     * @param consolidatedEntries List of all consolidated worktime entries (all users)
+     * @param users List of users being processed
+     * @return true if any ZS was added/updated/removed, false otherwise
+     */
+    private boolean validateAndApplyShortDayLogicForAllUsers(List<WorkTimeTable> consolidatedEntries, List<User> users) {
+        try {
+            LoggerUtil.debug(this.getClass(), String.format("Starting post-consolidation ZS validation for %d users (%d entries)", users.size(), consolidatedEntries.size()));
+
+            // Create a map of userId -> User schedule for quick lookup
+            Map<Integer, Integer> userScheduleMap = new HashMap<>();
+            for (User user : users) {
+                userScheduleMap.put(user.getUserId(), user.getSchedule());
+            }
+
+            boolean anyUpdated = false;
+
+            // Process each entry
+            for (WorkTimeTable entry : consolidatedEntries) {
+                // Skip entries without both start and end time (in-process or incomplete)
+                if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
+                    continue;
+                }
+
+                // Get user schedule
+                Integer userScheduleHours = userScheduleMap.get(entry.getUserId());
+                if (userScheduleHours == null) {
+                    LoggerUtil.warn(this.getClass(), String.format("Could not find schedule for userId %d during ZS validation", entry.getUserId()));
+                    continue;
+                }
+
+                int scheduleMinutes = userScheduleHours * 60;
+                String originalTimeOffType = entry.getTimeOffType();
+                int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+                boolean isDayComplete = workedMinutes >= scheduleMinutes;
+                boolean hasZS = originalTimeOffType != null && originalTimeOffType.startsWith("ZS-");
+
+                if (isDayComplete) {
+                    // Day is complete - remove ZS if it exists
+                    if (hasZS) {
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "POST-CONSOLIDATION ZS: Day complete for userId %d on %s (worked: %d min, schedule: %d min). Removing %s",
+                                entry.getUserId(), entry.getWorkDate(), workedMinutes, scheduleMinutes, originalTimeOffType));
+                        entry.setTimeOffType(null);
+                        anyUpdated = true;
+                    }
+                } else {
+                    // Day is incomplete - create/update ZS if no other time-off type
+                    boolean hasOtherTimeOff = originalTimeOffType != null && !originalTimeOffType.trim().isEmpty() && !hasZS;
+
+                    if (!hasOtherTimeOff) {
+                        // Calculate missing hours
+                        int missingMinutes = scheduleMinutes - workedMinutes;
+                        int missingHours = (int) Math.ceil(missingMinutes / 60.0);
+                        String newZS = "ZS-" + missingHours;
+
+                        if (!newZS.equals(originalTimeOffType)) {
+                            LoggerUtil.info(this.getClass(), String.format(
+                                    "POST-CONSOLIDATION ZS: Day incomplete for userId %d on %s (worked: %d min, schedule: %d min). Updating ZS: %s → %s",
+                                    entry.getUserId(), entry.getWorkDate(), workedMinutes, scheduleMinutes,
+                                    originalTimeOffType != null ? originalTimeOffType : "none", newZS));
+                            entry.setTimeOffType(newZS);
+                            anyUpdated = true;
+                        }
+                    }
+                }
+            }
+
+            if (anyUpdated) {
+                LoggerUtil.info(this.getClass(), "POST-CONSOLIDATION ZS validation completed: entries were updated");
+            } else {
+                LoggerUtil.debug(this.getClass(), "POST-CONSOLIDATION ZS validation completed: no updates needed");
+            }
+
+            return anyUpdated;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error during post-consolidation ZS validation: %s", e.getMessage()), e);
+            // Don't throw - ZS validation failure shouldn't break consolidation
+            return false;
+        }
     }
 
     @Override

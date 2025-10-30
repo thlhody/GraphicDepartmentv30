@@ -40,13 +40,16 @@ public class UserTimeManagementController extends BaseController {
     private final WorktimeOperationService worktimeOperationService;
     private final WorktimeDisplayService worktimeDisplayService;
     private final UserWorktimeExcelExporter userWorktimeExcelExporter;
+    private final com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules;
 
     public UserTimeManagementController(UserService userService, FolderStatus folderStatus, TimeValidationService validationService, WorktimeOperationService worktimeOperationService,
-                                        WorktimeDisplayService worktimeDisplayService, UserWorktimeExcelExporter userWorktimeExcelExporter) {
+                                        WorktimeDisplayService worktimeDisplayService, UserWorktimeExcelExporter userWorktimeExcelExporter,
+                                        com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
         super(userService, folderStatus, validationService);
         this.worktimeOperationService = worktimeOperationService;
         this.worktimeDisplayService = worktimeDisplayService;
         this.userWorktimeExcelExporter = userWorktimeExcelExporter;
+        this.timeOffRules = timeOffRules;
     }
 
     // ========================================================================
@@ -245,6 +248,33 @@ public class UserTimeManagementController extends BaseController {
 
             LoggerUtil.info(this.getClass(), String.format("Parsed %d weekday dates for command processing", dates.size()));
 
+            // PART 1.5: Validate time-off operation rules
+            LoggerUtil.info(this.getClass(), "=== PART 1.5: Time-off operation rules validation ===");
+
+            // Check if this time-off type can be added over existing worktime
+            if (timeOffRules.requiresClearWorktime(timeOffType.toUpperCase())) {
+                // This type cannot be added over worktime - check if any dates have worktime
+                LoggerUtil.info(this.getClass(), String.format("Type %s cannot be added over worktime - checking for conflicts", timeOffType));
+
+                List<WorkTimeTable> existingEntries = worktimeOperationService.loadUserWorktime(
+                        currentUser.getUsername(), start.getYear(), start.getMonthValue());
+
+                // Check if any of the target dates have worktime
+                boolean hasConflict = dates.stream().anyMatch(date ->
+                        existingEntries.stream()
+                                .filter(entry -> entry.getUserId().equals(currentUser.getUserId()))
+                                .filter(entry -> entry.getWorkDate().equals(date))
+                                .anyMatch(entry -> entry.getDayStartTime() != null || entry.getDayEndTime() != null)
+                );
+
+                if (hasConflict) {
+                    String reason = timeOffRules.getCannotAddOverWorktimeReason(timeOffType.toUpperCase());
+                    LoggerUtil.warn(this.getClass(), String.format("Time-off addition blocked: %s", reason));
+                    redirectAttributes.addFlashAttribute("error", reason);
+                    return getRedirectUrl(startDate);
+                }
+            }
+
             // PART 2: Execute command (which will do file-based conflict resolution)
             LoggerUtil.info(this.getClass(), "=== PART 2: Command execution with file-based conflict resolution ===");
             OperationResult result = worktimeOperationService.addUserTimeOff(currentUser.getUsername(), currentUser.getUserId(), dates, timeOffType.toUpperCase());
@@ -421,7 +451,20 @@ public class UserTimeManagementController extends BaseController {
             }
             case "timeoff" -> {
                 if (value == null || value.trim().isEmpty()) {
-                    // REMOVAL: Use existing service method
+                    // REMOVAL: Validate before removing
+                    String existingType = getExistingTimeOffTypeForDate(workDate, currentUser);
+
+                    if (existingType == null || existingType.trim().isEmpty()) {
+                        yield OperationResult.failure("No time-off found to remove", "FIELD_UPDATE");
+                    }
+
+                    // Check if this type can be removed
+                    if (timeOffRules.isRemovalBlocked(existingType)) {
+                        String reason = timeOffRules.getCannotRemoveReason(existingType);
+                        yield OperationResult.failure(reason, "FIELD_UPDATE");
+                    }
+
+                    // Removal is allowed - proceed
                     yield worktimeOperationService.removeUserTimeOff(username, userId, workDate);
                 } else {
                     // ADDITION: Block direct addition

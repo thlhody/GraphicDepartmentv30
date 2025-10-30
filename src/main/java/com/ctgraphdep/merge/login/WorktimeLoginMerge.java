@@ -215,8 +215,11 @@ public class WorktimeLoginMerge {
             // Perform merge using existing merge logic
             List<WorkTimeTable> mergedEntries = worktimeMergeService.mergeEntries(userEntries, userAdminEntries, userId);
 
-            // Check if result is different from user entries OR cleanup was needed
-            boolean wasModified = !mergedEntries.equals(userEntries) || !userAdminEntries.isEmpty() || anyCleanupNeeded;
+            // POST-MERGE ZS VALIDATION: Apply ZS logic to merged entries
+            boolean zsUpdated = validateAndApplyShortDayLogic(mergedEntries, username);
+
+            // Check if result is different from user entries OR cleanup was needed OR ZS was updated
+            boolean wasModified = !mergedEntries.equals(userEntries) || !userAdminEntries.isEmpty() || anyCleanupNeeded || zsUpdated;
 
             if (wasModified) {
                 // Save merged result as final local worktime (includes cleaned statuses)
@@ -441,6 +444,101 @@ public class WorktimeLoginMerge {
         }
 
         return adminEntries.stream().filter(entry -> userId.equals(entry.getUserId())).collect(Collectors.toList());
+    }
+
+    // ========================================================================
+    // POST-MERGE ZS (SHORT DAY) VALIDATION
+    // ========================================================================
+
+    /**
+     * Validate and apply ZS (Short Day) logic to merged worktime entries.
+     * This ensures that after merging admin changes, ZS markers are correctly applied.
+     *
+     * Logic for each entry:
+     * 1. Skip if entry has no start/end time (incomplete day, in-process)
+     * 2. Get user schedule
+     * 3. Calculate worked minutes vs schedule
+     * 4. If complete AND has ZS → Remove ZS
+     * 5. If incomplete AND has no other time-off → Create/Update ZS
+     * 6. If has other time-off (CO, CM, SN, etc) → Don't touch it
+     *
+     * @param mergedEntries List of merged worktime entries to validate
+     * @param username Username for logging and user lookup
+     * @return true if any ZS was added/updated/removed, false otherwise
+     */
+    private boolean validateAndApplyShortDayLogic(List<WorkTimeTable> mergedEntries, String username) {
+        try {
+            LoggerUtil.debug(this.getClass(), String.format("Starting post-merge ZS validation for %s (%d entries)", username, mergedEntries.size()));
+
+            // Get user schedule
+            User user = mainDefaultUserContextCache.getOriginalUser();
+            if (user == null || !username.equals(user.getUsername())) {
+                LoggerUtil.warn(this.getClass(), String.format("Could not get user schedule for %s during ZS validation", username));
+                return false;
+            }
+
+            int userScheduleHours = user.getSchedule();
+            int scheduleMinutes = userScheduleHours * 60;
+            boolean anyUpdated = false;
+
+            LoggerUtil.debug(this.getClass(), String.format("User %s schedule: %d hours (%d minutes)", username, userScheduleHours, scheduleMinutes));
+
+            // Process each entry
+            for (WorkTimeTable entry : mergedEntries) {
+                // Skip entries without both start and end time (in-process or incomplete)
+                if (entry.getDayStartTime() == null || entry.getDayEndTime() == null) {
+                    continue;
+                }
+
+                String originalTimeOffType = entry.getTimeOffType();
+                int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+                boolean isDayComplete = workedMinutes >= scheduleMinutes;
+                boolean hasZS = originalTimeOffType != null && originalTimeOffType.startsWith("ZS-");
+
+                if (isDayComplete) {
+                    // Day is complete - remove ZS if it exists
+                    if (hasZS) {
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "POST-MERGE ZS: Day complete for %s on %s (worked: %d min, schedule: %d min). Removing %s",
+                                username, entry.getWorkDate(), workedMinutes, scheduleMinutes, originalTimeOffType));
+                        entry.setTimeOffType(null);
+                        anyUpdated = true;
+                    }
+                } else {
+                    // Day is incomplete - create/update ZS if no other time-off type
+                    boolean hasOtherTimeOff = originalTimeOffType != null && !originalTimeOffType.trim().isEmpty() && !hasZS;
+
+                    if (!hasOtherTimeOff) {
+                        // Calculate missing hours
+                        int missingMinutes = scheduleMinutes - workedMinutes;
+                        int missingHours = (int) Math.ceil(missingMinutes / 60.0);
+                        String newZS = "ZS-" + missingHours;
+
+                        if (!newZS.equals(originalTimeOffType)) {
+                            LoggerUtil.info(this.getClass(), String.format(
+                                    "POST-MERGE ZS: Day incomplete for %s on %s (worked: %d min, schedule: %d min). Updating ZS: %s → %s",
+                                    username, entry.getWorkDate(), workedMinutes, scheduleMinutes,
+                                    originalTimeOffType != null ? originalTimeOffType : "none", newZS));
+                            entry.setTimeOffType(newZS);
+                            anyUpdated = true;
+                        }
+                    }
+                }
+            }
+
+            if (anyUpdated) {
+                LoggerUtil.info(this.getClass(), String.format("POST-MERGE ZS validation completed for %s: entries were updated", username));
+            } else {
+                LoggerUtil.debug(this.getClass(), String.format("POST-MERGE ZS validation completed for %s: no updates needed", username));
+            }
+
+            return anyUpdated;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("Error during post-merge ZS validation for %s: %s", username, e.getMessage()), e);
+            // Don't throw - ZS validation failure shouldn't break the merge
+            return false;
+        }
     }
 
     // ========================================================================

@@ -184,9 +184,11 @@ public class WorktimeEntityBuilder {
             return;
         }
 
-        // Calculate total elapsed minutes
+        // Calculate total elapsed minutes with proper rounding
+        // FIXED: Use Math.round() instead of truncating - toMinutes() loses seconds!
         Duration elapsed = Duration.between(entry.getDayStartTime(), entry.getDayEndTime());
-        int totalElapsedMinutes = (int) elapsed.toMinutes();
+        long totalSeconds = elapsed.getSeconds();
+        int totalElapsedMinutes = (int) Math.round(totalSeconds / 60.0);
 
         // Apply temp stop deduction (should be 0 for fresh admin entries)
         int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ? entry.getTotalTemporaryStopMinutes() : WorkCode.DEFAULT_ZERO;
@@ -290,9 +292,11 @@ public class WorktimeEntityBuilder {
             return;
         }
 
-        // Calculate total elapsed time
+        // Calculate total elapsed time with proper rounding
+        // FIXED: Use Math.round() instead of truncating - toMinutes() loses seconds!
         Duration elapsed = Duration.between(entry.getDayStartTime(), entry.getDayEndTime());
-        int totalElapsedMinutes = (int) elapsed.toMinutes();
+        long totalSeconds = elapsed.getSeconds();
+        int totalElapsedMinutes = (int) Math.round(totalSeconds / 60.0);
 
         // Handle SN entries (holiday work) specially
         if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType())) {

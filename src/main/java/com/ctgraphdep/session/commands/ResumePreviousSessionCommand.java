@@ -75,6 +75,12 @@ public class ResumePreviousSessionCommand extends BaseWorktimeUpdateSessionComma
         entry.setTotalWorkedMinutes(session.getTotalWorkedMinutes());
         entry.setTotalTemporaryStopMinutes(session.getTotalTemporaryStopMinutes());
         entry.setAdminSync(MergingStatusConstants.USER_IN_PROCESS); // Mark as in-process
+
+        // AUTO-REMOVE ZS when resuming - user is continuing work
+        if (entry.getTimeOffType() != null && entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+            debug(String.format("Removing ZS (%s) - user is resuming work", entry.getTimeOffType()));
+            entry.setTimeOffType(null);
+        }
     }
 
     @Override

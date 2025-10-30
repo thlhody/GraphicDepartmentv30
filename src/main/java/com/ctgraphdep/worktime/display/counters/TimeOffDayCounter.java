@@ -130,12 +130,5 @@ public class TimeOffDayCounter {
         public int getTotalDays() {
             return snDays + coDays + cmDays;
         }
-
-        /**
-         * Check if there are any time-off days.
-         */
-        public boolean hasAnyDays() {
-            return getTotalDays() > 0;
-        }
     }
 }

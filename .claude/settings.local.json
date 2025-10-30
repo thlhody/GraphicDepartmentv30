@@ -6,7 +6,8 @@
       "Bash(mvn clean:*)",
       "Bash(mkdir:*)",
       "Bash(git log:*)",
-      "Bash(git grep:*)"
+      "Bash(git grep:*)",
+      "Bash(mvn compile:*)"
     ],
     "deny": [],
     "ask": []

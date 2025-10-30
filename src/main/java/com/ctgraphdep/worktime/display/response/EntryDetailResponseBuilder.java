@@ -1,6 +1,5 @@
 package com.ctgraphdep.worktime.display.response;
 
-import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.utils.CalculateWorkHoursUtil;
@@ -16,12 +15,9 @@ import java.util.Map;
 
 /**
  * Builder for entry detail API responses.
- *
  * This class provides THE SINGLE SOURCE OF TRUTH for building detailed worktime
  * entry information for API responses (used by admin worktime endpoint).
- *
  * Previously scattered across WorktimeDisplayService as 10+ private methods.
- *
  * Responsibilities:
  * - Build detailed entry responses with all fields
  * - Build "no entry" responses for empty dates
@@ -40,7 +36,6 @@ public class EntryDetailResponseBuilder {
 
     /**
      * Build comprehensive response for an existing entry.
-     *
      * @param user User who owns the entry
      * @param date Date of the entry
      * @param entry Worktime entry data (can be null)
@@ -73,7 +68,6 @@ public class EntryDetailResponseBuilder {
 
     /**
      * Build response for cases where no entry exists.
-     *
      * @param user User for whom we're checking
      * @param date Date to check
      * @return Map containing minimal information indicating no entry

@@ -4,10 +4,8 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.worktime.WorkTimeDisplayDTO;
-import com.ctgraphdep.service.dto.WorkTimeDisplayDTOFactory;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.worktime.util.WorkTimeEntryUtil;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -16,30 +14,23 @@ import java.util.*;
 
 /**
  * Service for preparing display data for Thymeleaf views.
- *
  * This class handles data preparation logic for admin and user views,
  * including:
  * - Day headers for calendar display
  * - Display DTO creation for worktime entries
  * - View-specific data formatting
- *
  * Extracted from WorktimeDisplayService to separate view concerns
  * from business logic.
  */
 @Component
-@RequiredArgsConstructor
 public class DisplayDataPreparationService {
-
-    private final WorkTimeDisplayDTOFactory displayDTOFactory;
 
     /**
      * Prepare day headers for admin calendar display.
-     *
      * Creates header information for each day in a month including:
      * - Day number
      * - Day initial (Romanian: L, M, M, J, V, S, D)
      * - Weekend flag
-     *
      * @param yearMonth Year and month for which to prepare headers
      * @return List of header maps, one per day
      */
@@ -66,12 +57,10 @@ public class DisplayDataPreparationService {
 
     /**
      * Prepare worktime display DTOs for multiple users.
-     *
      * Creates a complete calendar view for each user, with one DTO per day.
      * Each DTO represents either:
      * - An existing worktime entry (work, time-off, etc.)
      * - An empty day (no entry)
-     *
      * @param users List of users to process
      * @param userEntriesMap Map of userId → (date → entry)
      * @param year Year
@@ -118,7 +107,6 @@ public class DisplayDataPreparationService {
 
     /**
      * Functional interface for creating display DTOs.
-     *
      * Allows the calling service to inject its DTO creation logic
      * while this service handles the iteration and structure.
      */

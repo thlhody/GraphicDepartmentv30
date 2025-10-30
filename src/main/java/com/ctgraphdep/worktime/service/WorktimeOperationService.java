@@ -25,6 +25,7 @@ public class WorktimeOperationService {
 
     private final WorktimeOperationContext context;
     private final WorktimeMergeService worktimeMergeService;
+    private final com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules;
 
     // Locks for concurrent operations
     private final ReentrantReadWriteLock userLock = new ReentrantReadWriteLock();
@@ -33,9 +34,11 @@ public class WorktimeOperationService {
 
     public WorktimeOperationService(
             WorktimeOperationContext context,
-            WorktimeMergeService worktimeMergeService) {
+            WorktimeMergeService worktimeMergeService,
+            com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
         this.context = context;
         this.worktimeMergeService = worktimeMergeService;
+        this.timeOffRules = timeOffRules;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -88,7 +91,7 @@ public class WorktimeOperationService {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Executing time off addition for %s: %d dates, type=%s", username, dates.size(), timeOffType));
 
-            AddTimeOffCommand command = AddTimeOffCommand.forUser(context, username, userId, dates, timeOffType);
+            AddTimeOffCommand command = AddTimeOffCommand.forUser(context, username, userId, dates, timeOffType, timeOffRules);
             return command.execute();
 
         } finally {
@@ -104,9 +107,9 @@ public class WorktimeOperationService {
             LoggerUtil.debug(this.getClass(), String.format(
                     "Executing time off removal for %s on %s", username, date));
 
-            // NEW: Use enhanced RemoveCommand instead of
+            // NEW: Use enhanced RemoveCommand with time-off operation rules
             WorktimeDataAccessor accessor = context.getDataAccessor(username);
-            RemoveCommand command = RemoveCommand.forTimeOffRemoval(context, accessor, username, date);
+            RemoveCommand command = RemoveCommand.forTimeOffRemoval(context, accessor, username, date, timeOffRules);
             return command.execute();
 
         } finally {
@@ -161,7 +164,7 @@ public class WorktimeOperationService {
         try {
             LoggerUtil.debug(this.getClass(), String.format("Executing admin time off addition for %s: %d dates, type=%s", targetUsername, dates.size(), timeOffType));
 
-            AddTimeOffCommand command = AddTimeOffCommand.forAdmin(context, targetUsername, targetUserId, dates, timeOffType);
+            AddTimeOffCommand command = AddTimeOffCommand.forAdmin(context, targetUsername, targetUserId, dates, timeOffType, timeOffRules);
             return command.execute();
 
         } finally {
