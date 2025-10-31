@@ -263,9 +263,19 @@ public class WorkTimeDisplayDTOFactory {
 
     /**
      * Create DTO for CR entry (Recovery Leave - paid from overtime)
+     * CR represents a full work day where the user takes a recovery day paid from overtime balance.
+     * The full schedule is deducted from overtime and counts as regular work time.
+     * Example: User with 8h schedule takes CR → counts as 8h regular work (deducted from overtime)
      */
-    public WorkTimeDisplayDTO createFromCREntry(WorkTimeTable entry, boolean isWeekend, GeneralDataStatusDTO statusInfo) {
-        String tooltip = buildCRTooltip(entry, statusInfo);
+    public WorkTimeDisplayDTO createFromCREntry(WorkTimeTable entry, Integer userSchedule, boolean isWeekend, GeneralDataStatusDTO statusInfo) {
+        int scheduleMinutes = userSchedule * 60;
+        String tooltip = buildCRTooltip(entry, userSchedule, statusInfo);
+
+        // CR represents a full work day paid from overtime pool
+        // Therefore, CR should contribute the FULL SCHEDULE as regular minutes (not 0)
+        // Example: User with 8h schedule takes CR
+        //   - Day counts as 8h regular work (filled from overtime)
+        //   - Overtime deduction calculator will handle the -8h from overtime pool
 
         return WorkTimeDisplayDTO.builder()
                 .displayText(WorkCode.RECOVERY_LEAVE_CODE)
@@ -281,9 +291,9 @@ public class WorkTimeDisplayDTOFactory {
                 .isSNWithWork(false)
                 .isEditable(!statusInfo.isLocked())
                 .isWeekend(isWeekend)
-                .contributedRegularMinutes(0)
-                .contributedOvertimeMinutes(0) // CR doesn't contribute to overtime pool
-                .totalContributedMinutes(0)
+                .contributedRegularMinutes(scheduleMinutes) // CR counts as full work day (filled from overtime)
+                .contributedOvertimeMinutes(0) // No overtime generated on CR days
+                .totalContributedMinutes(scheduleMinutes)
                 .build();
     }
 
@@ -317,33 +327,27 @@ public class WorkTimeDisplayDTOFactory {
 
     /**
      * Create DTO for ZS entry (Short Day - worked < schedule, filled from overtime)
-     * Display format: "ZS-X" where X = missing hours (rounded up)
-     * Per spec: expected = schedule, missing = expected - rawWorked, roundUp(missing/60)
-     * IMPORTANT: Use RAW worked time (not processed totalWorkedMinutes)
+     * Display format: "ZS-X" where X = missing hours (from the stored timeOffType)
+     * IMPORTANT: Use the STORED timeOffType value, don't recalculate!
+     * The ZS value has already been calculated correctly with lunch deduction during consolidation.
      */
     public WorkTimeDisplayDTO createFromZSEntry(WorkTimeTable entry, Integer userSchedule,
                                                 boolean isWeekend, GeneralDataStatusDTO statusInfo) {
         int scheduleMinutes = userSchedule * 60;
 
-        // Calculate RAW worked time from start/end times (per spec: rawWorkedMinutes)
-        int rawWorkedMinutes = 0;
-        if (entry.getDayStartTime() != null && entry.getDayEndTime() != null) {
-            long elapsedMinutes = java.time.Duration.between(entry.getDayStartTime(), entry.getDayEndTime()).toMinutes();
-            int tempStops = entry.getTotalTemporaryStopMinutes() != null ? entry.getTotalTemporaryStopMinutes() : 0;
-            rawWorkedMinutes = (int) (elapsedMinutes - tempStops);
-        }
+        // IMPORTANT: Use the stored timeOffType value (e.g., "ZS-1", "ZS-3")
+        // Don't recalculate - the value was already correctly calculated during consolidation
+        // with proper lunch deduction handling
+        String displayText = entry.getTimeOffType() != null ? entry.getTimeOffType() : "ZS";
 
-        // Per spec: expected = scheduleMinutes (NO lunch for ZS calculation)
-        // ZS means user didn't work full schedule, so lunch break is NOT applicable
-        int expectedMinutes = scheduleMinutes;
-
-        // Calculate missing minutes and round UP to hours (per spec)
-        int missingMinutes = Math.max(0, expectedMinutes - rawWorkedMinutes);
-        int missingHours = (int) Math.ceil(missingMinutes / 60.0);  // Round UP
-
-        // Display format: "ZS-6" (missing hours only, per spec)
-        String displayText = String.format("ZS-%d", missingHours);
         String tooltip = buildZSTooltip(entry, userSchedule, statusInfo);
+
+        // ZS represents a full work day where the user worked less than schedule
+        // The missing hours are filled from overtime pool, but it counts as a complete work day
+        // Therefore, ZS should contribute the FULL SCHEDULE as regular minutes (not 0)
+        // Example: User with 8h schedule works 5h → ZS-3
+        //   - Day counts as 8h regular work (filled 3h from overtime)
+        //   - Overtime deduction calculator will handle the -3h from overtime pool
 
         return WorkTimeDisplayDTO.builder()
                 .displayText(displayText)
@@ -359,9 +363,9 @@ public class WorkTimeDisplayDTOFactory {
                 .isSNWithWork(false)
                 .isEditable(!statusInfo.isLocked())
                 .isWeekend(isWeekend)
-                .contributedRegularMinutes(0) // Completed by overtime
-                .contributedOvertimeMinutes(entry.getTotalOvertimeMinutes() != null ? entry.getTotalOvertimeMinutes() : -missingMinutes)
-                .totalContributedMinutes(0)
+                .contributedRegularMinutes(scheduleMinutes) // ZS counts as full work day (filled from overtime)
+                .contributedOvertimeMinutes(0) // No overtime generated on ZS days
+                .totalContributedMinutes(scheduleMinutes)
                 .build();
     }
 
@@ -521,15 +525,12 @@ public class WorkTimeDisplayDTOFactory {
     /**
      * Build tooltip for CR (Recovery Leave)
      */
-    private String buildCRTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
+    private String buildCRTooltip(WorkTimeTable entry, Integer userSchedule, GeneralDataStatusDTO statusInfo) {
         StringBuilder tooltip = new StringBuilder();
 
         tooltip.append("Recovery Leave (paid from overtime)\n");
         tooltip.append("Date: ").append(entry.getWorkDate()).append("\n");
-
-        if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
-            tooltip.append("Hours: ").append(CalculateWorkHoursUtil.minutesToHH(entry.getTotalWorkedMinutes()));
-        }
+        tooltip.append("Schedule: ").append(userSchedule).append("h (full day from overtime)");
 
         // Add status information
         if (statusInfo != null && statusInfo.isDisplayable()) {

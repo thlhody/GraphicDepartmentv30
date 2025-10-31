@@ -214,7 +214,7 @@ public class WorktimeDisplayService {
 
         // Handle CR (Recovery Leave) - special case, works like a full day paid from overtime
         if (WorkCode.RECOVERY_LEAVE_CODE.equals(entry.getTimeOffType())) {
-            return displayDTOFactory.createFromCREntry(entry, isWeekend, statusInfo);
+            return displayDTOFactory.createFromCREntry(entry, userSchedule, isWeekend, statusInfo);
         }
 
         // Handle CN (Unpaid Leave)
@@ -222,8 +222,8 @@ public class WorktimeDisplayService {
             return displayDTOFactory.createFromCNEntry(entry, isWeekend, statusInfo);
         }
 
-        // Handle ZS (Short Day)
-        if (WorkCode.SHORT_DAY_CODE.equals(entry.getTimeOffType())) {
+        // Handle ZS (Short Day) - timeOffType is stored as "ZS-2", "ZS-4", etc.
+        if (entry.getTimeOffType() != null && entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
             return displayDTOFactory.createFromZSEntry(entry, userSchedule, isWeekend, statusInfo);
         }
 

@@ -144,8 +144,10 @@ public class WorkTimeSummaryCalculator {
                 .mapToInt(WorkTimeDisplayDTO::getContributedOvertimeMinutes)
                 .sum();
 
-        // Apply CR/ZS deductions (move from overtime → regular)
-        int adjustedRegularMinutes = totalRegularMinutes + deductions.getTotalDeductions();
+        // IMPORTANT: ZS/CR DTOs now already contribute their full schedule as regular minutes
+        // Therefore, we need to SUBTRACT the deductions from overtime only (not add to regular)
+        // The DTOs already have the correct regular minutes, we just need to reduce overtime
+        int adjustedRegularMinutes = totalRegularMinutes;  // No adjustment needed - DTOs already correct
         int adjustedOvertimeMinutes = totalOvertimeMinutes - deductions.getTotalDeductions();
 
         // Calculate remaining work days

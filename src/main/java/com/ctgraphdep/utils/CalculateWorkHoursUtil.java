@@ -107,9 +107,20 @@ public class CalculateWorkHoursUtil {
 
     //display
     public static String minutesToHHmm(Integer minutes) {
-        int hours = minutes /  WorkCode.HOUR_DURATION;
-        int remainingMinutes = minutes %  WorkCode.HOUR_DURATION;
-        return String.format("%02d:%02d", hours, remainingMinutes);
+        if (minutes == null) {
+            return "00:00";
+        }
+
+        // Handle negative overtime (when user consumed more overtime than earned)
+        boolean isNegative = minutes < 0;
+        int absMinutes = Math.abs(minutes);
+
+        int hours = absMinutes / WorkCode.HOUR_DURATION;
+        int remainingMinutes = absMinutes % WorkCode.HOUR_DURATION;
+
+        // Format with sign if negative
+        String formatted = String.format("%02d:%02d", hours, remainingMinutes);
+        return isNegative ? "-" + formatted : formatted;
     }
 
     public static String minutesToHH(Integer minutes) {

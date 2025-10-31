@@ -9,6 +9,7 @@ import com.ctgraphdep.merge.status.StatusAssignmentEngine;
 import com.ctgraphdep.merge.status.StatusAssignmentResult;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -304,7 +305,8 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
      */
     private void checkAndUpdateShortDayStatus(WorkTimeTable entry, String originalTimeOffType) {
         boolean isDayComplete = isDayComplete(entry);
-        int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        int rawWorkedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        int adjustedWorkedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(rawWorkedMinutes, userScheduleHours);
         int scheduleMinutes = userScheduleHours * 60;
         boolean hasZS = originalTimeOffType != null && originalTimeOffType.startsWith("ZS-");
 
@@ -312,8 +314,8 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
             // Day is complete - remove ZS if it exists
             if (hasZS) {
                 LoggerUtil.info(this.getClass(), String.format(
-                        "Day is now complete for %s (worked: %d min, schedule: %d min). Auto-removing %s",
-                        date, workedMinutes, scheduleMinutes, originalTimeOffType));
+                        "Day is now complete for %s (raw: %d min, adjusted: %d min, schedule: %d min). Auto-removing %s",
+                        date, rawWorkedMinutes, adjustedWorkedMinutes, scheduleMinutes, originalTimeOffType));
                 entry.setTimeOffType(null);
             }
         } else {
@@ -321,15 +323,15 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
             boolean hasOtherTimeOff = originalTimeOffType != null && !originalTimeOffType.trim().isEmpty() && !hasZS;
 
             if (!hasOtherTimeOff) {
-                // Calculate missing hours
-                int missingMinutes = scheduleMinutes - workedMinutes;
+                // Calculate missing hours using ADJUSTED minutes
+                int missingMinutes = scheduleMinutes - adjustedWorkedMinutes;
                 int missingHours = (int) Math.ceil(missingMinutes / 60.0);
                 String newZS = "ZS-" + missingHours;
 
                 if (!newZS.equals(originalTimeOffType)) {
                     LoggerUtil.info(this.getClass(), String.format(
-                            "Day is incomplete for %s (worked: %d min, schedule: %d min). Auto-updating ZS: %s → %s",
-                            date, workedMinutes, scheduleMinutes,
+                            "Day is incomplete for %s (raw: %d min, adjusted: %d min, schedule: %d min). Auto-updating ZS: %s → %s",
+                            date, rawWorkedMinutes, adjustedWorkedMinutes, scheduleMinutes,
                             originalTimeOffType != null ? originalTimeOffType : "none", newZS));
                     entry.setTimeOffType(newZS);
                 }
@@ -345,7 +347,9 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
      * Check if the day is complete (reached schedule).
      * A day is complete if:
      * - Has both start and end time
-     * - Total worked minutes >= schedule (schedule * 60 minutes)
+     * - ADJUSTED worked minutes >= schedule (schedule * 60 minutes)
+     *
+     * IMPORTANT: Uses adjusted minutes (after lunch deduction) for accurate comparison
      *
      * @param entry The worktime entry to check
      * @return true if day is complete, false otherwise
@@ -356,10 +360,11 @@ public class UpdateStartTimeCommand extends WorktimeOperationCommand<WorkTimeTab
             return false;
         }
 
-        // Check if worked time meets or exceeds schedule
-        int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        // IMPORTANT: Use ADJUSTED minutes (after lunch deduction) for ZS calculation
+        int rawWorkedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+        int adjustedWorkedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(rawWorkedMinutes, userScheduleHours);
         int scheduleMinutes = userScheduleHours * 60;
 
-        return workedMinutes >= scheduleMinutes;
+        return adjustedWorkedMinutes >= scheduleMinutes;
     }
 }

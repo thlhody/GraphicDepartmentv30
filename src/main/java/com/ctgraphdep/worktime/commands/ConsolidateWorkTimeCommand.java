@@ -9,6 +9,7 @@ import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.accessor.NetworkOnlyAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.worktime.util.StatusCleanupUtil;
 
 import java.time.LocalDate;
@@ -352,16 +353,21 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
 
                 int scheduleMinutes = userScheduleHours * 60;
                 String originalTimeOffType = entry.getTimeOffType();
-                int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
-                boolean isDayComplete = workedMinutes >= scheduleMinutes;
+                int rawWorkedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+
+                // IMPORTANT: Use ADJUSTED minutes (after lunch deduction) for ZS calculation
+                // If lunch was deducted, we need to account for that when checking if day is complete
+                int adjustedWorkedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(rawWorkedMinutes, userScheduleHours);
+
+                boolean isDayComplete = adjustedWorkedMinutes >= scheduleMinutes;
                 boolean hasZS = originalTimeOffType != null && originalTimeOffType.startsWith("ZS-");
 
                 if (isDayComplete) {
                     // Day is complete - remove ZS if it exists
                     if (hasZS) {
                         LoggerUtil.info(this.getClass(), String.format(
-                                "POST-CONSOLIDATION ZS: Day complete for userId %d on %s (worked: %d min, schedule: %d min). Removing %s",
-                                entry.getUserId(), entry.getWorkDate(), workedMinutes, scheduleMinutes, originalTimeOffType));
+                                "POST-CONSOLIDATION ZS: Day complete for userId %d on %s (raw: %d min, adjusted: %d min, schedule: %d min). Removing %s",
+                                entry.getUserId(), entry.getWorkDate(), rawWorkedMinutes, adjustedWorkedMinutes, scheduleMinutes, originalTimeOffType));
                         entry.setTimeOffType(null);
                         anyUpdated = true;
                     }
@@ -370,15 +376,15 @@ public class ConsolidateWorkTimeCommand extends WorktimeOperationCommand<Map<Str
                     boolean hasOtherTimeOff = originalTimeOffType != null && !originalTimeOffType.trim().isEmpty() && !hasZS;
 
                     if (!hasOtherTimeOff) {
-                        // Calculate missing hours
-                        int missingMinutes = scheduleMinutes - workedMinutes;
+                        // Calculate missing hours using ADJUSTED minutes
+                        int missingMinutes = scheduleMinutes - adjustedWorkedMinutes;
                         int missingHours = (int) Math.ceil(missingMinutes / 60.0);
                         String newZS = "ZS-" + missingHours;
 
                         if (!newZS.equals(originalTimeOffType)) {
                             LoggerUtil.info(this.getClass(), String.format(
-                                    "POST-CONSOLIDATION ZS: Day incomplete for userId %d on %s (worked: %d min, schedule: %d min). Updating ZS: %s → %s",
-                                    entry.getUserId(), entry.getWorkDate(), workedMinutes, scheduleMinutes,
+                                    "POST-CONSOLIDATION ZS: Day incomplete for userId %d on %s (raw: %d min, adjusted: %d min, schedule: %d min). Updating ZS: %s → %s",
+                                    entry.getUserId(), entry.getWorkDate(), rawWorkedMinutes, adjustedWorkedMinutes, scheduleMinutes,
                                     originalTimeOffType != null ? originalTimeOffType : "none", newZS));
                             entry.setTimeOffType(newZS);
                             anyUpdated = true;

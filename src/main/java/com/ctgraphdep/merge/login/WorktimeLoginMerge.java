@@ -9,6 +9,7 @@ import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.model.TimeOffRequest;
 import com.ctgraphdep.service.cache.MainDefaultUserContextCache;
 import com.ctgraphdep.utils.LoggerUtil;
+import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.worktime.service.WorktimeMergeService;
 import com.ctgraphdep.worktime.util.StatusCleanupUtil;
 import lombok.Getter;
@@ -491,16 +492,20 @@ public class WorktimeLoginMerge {
                 }
 
                 String originalTimeOffType = entry.getTimeOffType();
-                int workedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
-                boolean isDayComplete = workedMinutes >= scheduleMinutes;
+                int rawWorkedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+
+                // IMPORTANT: Use ADJUSTED minutes (after lunch deduction) for ZS calculation
+                int adjustedWorkedMinutes = CalculateWorkHoursUtil.calculateAdjustedMinutes(rawWorkedMinutes, userScheduleHours);
+
+                boolean isDayComplete = adjustedWorkedMinutes >= scheduleMinutes;
                 boolean hasZS = originalTimeOffType != null && originalTimeOffType.startsWith("ZS-");
 
                 if (isDayComplete) {
                     // Day is complete - remove ZS if it exists
                     if (hasZS) {
                         LoggerUtil.info(this.getClass(), String.format(
-                                "POST-MERGE ZS: Day complete for %s on %s (worked: %d min, schedule: %d min). Removing %s",
-                                username, entry.getWorkDate(), workedMinutes, scheduleMinutes, originalTimeOffType));
+                                "POST-MERGE ZS: Day complete for %s on %s (raw: %d min, adjusted: %d min, schedule: %d min). Removing %s",
+                                username, entry.getWorkDate(), rawWorkedMinutes, adjustedWorkedMinutes, scheduleMinutes, originalTimeOffType));
                         entry.setTimeOffType(null);
                         anyUpdated = true;
                     }
@@ -509,15 +514,15 @@ public class WorktimeLoginMerge {
                     boolean hasOtherTimeOff = originalTimeOffType != null && !originalTimeOffType.trim().isEmpty() && !hasZS;
 
                     if (!hasOtherTimeOff) {
-                        // Calculate missing hours
-                        int missingMinutes = scheduleMinutes - workedMinutes;
+                        // Calculate missing hours using ADJUSTED minutes
+                        int missingMinutes = scheduleMinutes - adjustedWorkedMinutes;
                         int missingHours = (int) Math.ceil(missingMinutes / 60.0);
                         String newZS = "ZS-" + missingHours;
 
                         if (!newZS.equals(originalTimeOffType)) {
                             LoggerUtil.info(this.getClass(), String.format(
-                                    "POST-MERGE ZS: Day incomplete for %s on %s (worked: %d min, schedule: %d min). Updating ZS: %s → %s",
-                                    username, entry.getWorkDate(), workedMinutes, scheduleMinutes,
+                                    "POST-MERGE ZS: Day incomplete for %s on %s (raw: %d min, adjusted: %d min, schedule: %d min). Updating ZS: %s → %s",
+                                    username, entry.getWorkDate(), rawWorkedMinutes, adjustedWorkedMinutes, scheduleMinutes,
                                     originalTimeOffType != null ? originalTimeOffType : "none", newZS));
                             entry.setTimeOffType(newZS);
                             anyUpdated = true;
