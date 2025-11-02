@@ -61,6 +61,7 @@ public class WorkTimeSummaryCalculator {
         int totalDiscardedMinutes = 0;
 
         int userSchedule = user.getSchedule() != null ? user.getSchedule() : 8;
+        int scheduleMinutes = userSchedule * 60;
 
         for (WorkTimeTable entry : displayableEntries) {
             // Skip in-process entries
@@ -82,6 +83,22 @@ public class WorkTimeSummaryCalculator {
                         result.getProcessedMinutes(), result.getOvertimeMinutes(), discardedForEntry));
             }
 
+            // Handle ZS (Short Day) entries: contribute the FULL SCHEDULE to regular
+            // ZS represents a complete work day filled from overtime, so it counts as full schedule
+            // The deduction calculator will subtract the ZS value from overtime
+            // NOTE: We add FULL schedule here, NOT the worked portion, to match admin DTO logic
+            if (entry.getTimeOffType() != null && entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+                // ZS entries: Add FULL schedule (matching DTO logic)
+                totalRegularMinutes += scheduleMinutes;
+                LoggerUtil.debug(this.getClass(), String.format(
+                        "ZS entry %s: added %d minutes (full schedule) to regular",
+                        entry.getWorkDate(), scheduleMinutes));
+            }
+
+            // NOTE: CR is handled entirely by the deduction calculator (adds full schedule)
+            // NOTE: CO/CM/SN without work contribute 0 (they're time off, not work days)
+            // NOTE: CO/CM/SN WITH work contribute to overtime only (special day overtime)
+
             // Special day types with overtime work (SN:5, CO:6, etc.)
             if (isSpecialDayType(entry.getTimeOffType()) && entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
                 totalOvertimeMinutes += entry.getTotalOvertimeMinutes();
@@ -91,9 +108,11 @@ public class WorkTimeSummaryCalculator {
             }
         }
 
-        // Apply CR/ZS deductions (move from overtime → regular)
-        int adjustedRegularMinutes = totalRegularMinutes + deductions.getTotalDeductions();
-        int adjustedOvertimeMinutes = totalOvertimeMinutes - deductions.getTotalDeductions();
+        // Apply CR/ZS deductions
+        // IMPORTANT: Only add CR deductions to regular (ZS already added full schedule in loop above)
+        // Both CR and ZS deductions subtract from overtime
+        int adjustedRegularMinutes = totalRegularMinutes + deductions.getCrDeductions();  // Only CR!
+        int adjustedOvertimeMinutes = totalOvertimeMinutes - deductions.getTotalDeductions();  // CR + ZS
 
         // Calculate remaining work days
         int remainingWorkDays = totalWorkDays - (daysWorked + timeOffCounts.getTotalDays());

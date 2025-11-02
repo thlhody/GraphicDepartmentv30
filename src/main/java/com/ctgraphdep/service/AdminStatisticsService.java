@@ -1,5 +1,6 @@
 package com.ctgraphdep.service;
 
+import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.fileOperations.data.RegisterDataService;
 import com.ctgraphdep.model.RegisterEntry;
 import com.ctgraphdep.model.User;
@@ -95,25 +96,30 @@ public class AdminStatisticsService {
         Map<String, Integer> spizedEntries = new LinkedHashMap<>();
 
         // Initialize all months with 0
-        String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-        Arrays.asList(months).forEach(month -> {regularEntries.put(month, 0);spizedEntries.put(month, 0);});
+
+        Arrays.asList(WorkCode.MONTH_NAMES_SHORT).forEach(month -> {regularEntries.put(month, 0);spizedEntries.put(month, 0);});
 
         // For each month
         for (int month = 1; month <= 12; month++) {
             List<RegisterEntry> entries = getAllEntriesForMonth(year, month);
 
-            // Count regular entries (excluding IMPOSTARE and ORDIN SPIZED)
-            int regularCount = (int) entries.stream().filter(entry -> !"IMPOSTARE".equals(entry.getActionType()) && !"SPIZED".contains(entry.getActionType())).count();
+            // Count regular entries (excluding IMPOSTARE and all SPIZED types)
+            int regularCount = (int) entries.stream()
+                    .filter(entry -> !WorkCode.AT_IMPOSTARE.equals(entry.getActionType())
+                                  && !entry.getActionType().contains(WorkCode.AT_SPIZED))
+                    .count();
 
-            // Count ORDIN SPIZED entries
-            int spizedCount = (int) entries.stream().filter(entry -> "SPIZED".contains(entry.getActionType())).count();
+            // Count all SPIZED entries (ORDIN_SPIZED, CAMPION_SPIZED, PROBA_S_SPIZED)
+            int spizedCount = (int) entries.stream()
+                    .filter(entry -> entry.getActionType().contains(WorkCode.AT_SPIZED))
+                    .count();
 
-            regularEntries.put(months[month - 1], regularCount);
-            spizedEntries.put(months[month - 1], spizedCount);
+            regularEntries.put(WorkCode.MONTH_NAMES_SHORT[month - 1], regularCount);
+            spizedEntries.put(WorkCode.MONTH_NAMES_SHORT[month - 1], spizedCount);
         }
 
-        result.put("regular", regularEntries);
-        result.put("spized", spizedEntries);
+        result.put(WorkCode.REGULAR_NAME, regularEntries);
+        result.put(WorkCode.SPIZED_NAME, spizedEntries);
 
         return result;
     }
@@ -131,7 +137,7 @@ public class AdminStatisticsService {
         }
 
         // Count entries per day
-        entries.stream().filter(entry -> !"IMPOSTARE".equals(entry.getActionType())).forEach(entry -> {
+        entries.stream().filter(entry -> !WorkCode.AT_IMPOSTARE.equals(entry.getActionType())).forEach(entry -> {
                     Integer day = entry.getDate().getDayOfMonth();
                     dailyEntries.merge(day, 1, Integer::sum);
                 });

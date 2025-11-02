@@ -472,6 +472,7 @@ public class WorktimeDisplayService {
         counts.setDaysWorked(daysWorked);
 
         // Calculate time totals (this is specific logic for raw time calculation)
+        int scheduleMinutes = userSchedule * 60;
         for (WorkTimeTable entry : worktimeData) {
             // Skip in-process entries
             if (MergingStatusConstants.USER_IN_PROCESS.equals(entry.getAdminSync())) {
@@ -490,6 +491,20 @@ public class WorktimeDisplayService {
                 LoggerUtil.debug(this.getClass(), String.format("Regular work entry %s: %d minutes processed, %d overtime", entry.getWorkDate(), result.getProcessedMinutes(), result.getOvertimeMinutes()));
             }
 
+            // Handle ZS (Short Day) entries: contribute the FULL SCHEDULE to regular
+            // ZS represents a complete work day filled from overtime, so it counts as full schedule
+            // The deduction calculator will subtract the ZS value from overtime
+            // NOTE: We add FULL schedule here, NOT the worked portion, to match admin DTO logic
+            if (entry.getTimeOffType() != null && entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
+                // ZS entries: Add FULL schedule (matching DTO logic)
+                totalRegularMinutes += scheduleMinutes;
+                LoggerUtil.debug(this.getClass(), String.format("ZS entry %s: added %d minutes (full schedule) to regular", entry.getWorkDate(), scheduleMinutes));
+            }
+
+            // NOTE: CR is handled entirely by the deduction calculator (adds full schedule)
+            // NOTE: CO/CM/SN without work contribute 0 (they're time off, not work days)
+            // NOTE: CO/CM/SN WITH work contribute to overtime only (special day overtime)
+
             // Handle ALL special day types with overtime work (SN/CO/CM/W/CE)
             if (isSpecialDayType(entry.getTimeOffType()) && entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
                 // Special day overtime goes directly to overtime totals (no regular minutes)
@@ -501,9 +516,11 @@ public class WorktimeDisplayService {
         // Phase 1: Use OvertimeDeductionCalculator for CR/ZS deductions
         OvertimeDeductionCalculator.DeductionResult deductions = overtimeDeductionCalculator.calculateForUser(worktimeData, user);
 
-        // Calculate adjusted overtime and regular time (move overtime → regular for CR/ZS)
-        int adjustedRegularMinutes = totalRegularMinutes + deductions.getTotalDeductions();
-        int adjustedOvertimeMinutes = totalOvertimeMinutes - deductions.getTotalDeductions();
+        // Calculate adjusted overtime and regular time
+        // IMPORTANT: Only add CR deductions to regular (ZS already added full schedule in loop above)
+        // Both CR and ZS deductions subtract from overtime
+        int adjustedRegularMinutes = totalRegularMinutes + deductions.getCrDeductions();  // Only CR!
+        int adjustedOvertimeMinutes = totalOvertimeMinutes - deductions.getTotalDeductions();  // CR + ZS
 
         // Set calculated totals
         counts.setRegularMinutes(adjustedRegularMinutes);

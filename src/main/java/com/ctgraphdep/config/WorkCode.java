@@ -89,6 +89,7 @@ public class WorkCode {
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"
     };
+    public static final String[] MONTH_NAMES_SHORT = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
     //work statuses
     public static final String WORK_ONLINE = "Online";
@@ -102,6 +103,10 @@ public class WorkCode {
 
     //action types
     public static final String AT_IMPOSTARE = "IMPOSTARE";
+    public static final String AT_SPIZED = "SPIZED";
+    public static final String REGULAR_NAME = "regular";
+    public static final String SPIZED_NAME = "spized";
+
 
     //work messages
     public static final String END_SCHEDULE_TITLE = "END SCHEDULE NOTICE";
