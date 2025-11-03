@@ -1,6 +1,9 @@
 > no refactoring just answear a question and tell me in js can i make a js file that contains hardcoded values like in java and can use those hardcoded values or declare them at the begining and when i change those values they will be
 used everywhere?
 
+**Date:** 2025-11-03
+**Status:** In process
+
 ● Yes! JavaScript can do exactly that. You have a few options:
 
 Option 1: ES6 Modules (Modern, Recommended)
