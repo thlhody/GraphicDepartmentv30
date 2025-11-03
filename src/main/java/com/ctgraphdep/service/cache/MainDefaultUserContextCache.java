@@ -552,6 +552,7 @@ public class MainDefaultUserContextCache {
     /**
      * Invalidates the cache - ENHANCED to clear elevation
      */
+    @SuppressWarnings("unused")
     public void invalidateCache() {
         cacheLock.writeLock().lock();
         try {

@@ -387,7 +387,10 @@ public class RegisterCheckCacheService {
             return true;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error writing cache to file for %s - %d/%d: %s", cacheEntry.getUsername(), cacheEntry.getMonth(), cacheEntry.getYear(), e.getMessage()), e);
+            String errorMsg = cacheEntry != null
+                ? String.format("Error writing cache to file for %s - %d/%d: %s", cacheEntry.getUsername(), cacheEntry.getMonth(), cacheEntry.getYear(), e.getMessage())
+                : String.format("Error writing cache to file (null cache entry): %s", e.getMessage());
+            LoggerUtil.error(this.getClass(), errorMsg, e);
             return false;
         }
     }

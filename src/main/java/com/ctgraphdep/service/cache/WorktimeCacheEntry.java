@@ -133,67 +133,6 @@ public class WorktimeCacheEntry {
     }
 
     /**
-     * Add single entry to cache (thread-safe)
-     * @param entry Entry to add
-     * @return true if entry was added successfully
-     */
-    public boolean addEntry(WorkTimeTable entry) {
-        lock.writeLock().lock();
-        try {
-            if (!initialized || entry == null) {
-                return false;
-            }
-
-            // Remove existing entry for same date/user if exists
-            entries.removeIf(existing ->
-                    existing.getUserId().equals(entry.getUserId()) &&
-                            existing.getWorkDate().equals(entry.getWorkDate()));
-
-            // Add new entry
-            entries.add(entry);
-
-            // Mark as dirty and update timestamp
-            this.dirty = true;
-            this.lastUpdated = System.currentTimeMillis();
-
-            return true;
-
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Remove entry by date (thread-safe)
-     * @param userId User ID
-     * @param date Work date
-     * @return true if entry was removed
-     */
-    public boolean removeEntry(Integer userId, java.time.LocalDate date) {
-        lock.writeLock().lock();
-        try {
-            if (!initialized) {
-                return false;
-            }
-
-            boolean removed = entries.removeIf(entry ->
-                    entry.getUserId().equals(userId) &&
-                            entry.getWorkDate().equals(date));
-
-            if (removed) {
-                // Mark as dirty and update timestamp
-                this.dirty = true;
-                this.lastUpdated = System.currentTimeMillis();
-            }
-
-            return removed;
-
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
-    /**
      * Check if cache entry is initialized and valid
      * @return true if cache has valid data
      */
@@ -203,31 +142,6 @@ public class WorktimeCacheEntry {
             return initialized && username != null && userId != null && entries != null;
         } finally {
             lock.readLock().unlock();
-        }
-    }
-
-    /**
-     * Check if cache has unsaved changes
-     * @return true if cache needs to be written to file
-     */
-    public boolean isDirty() {
-        lock.readLock().lock();
-        try {
-            return dirty;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /**
-     * Mark cache as clean (after successful file write)
-     */
-    public void markClean() {
-        lock.writeLock().lock();
-        try {
-            this.dirty = false;
-        } finally {
-            lock.writeLock().unlock();
         }
     }
 
@@ -274,19 +188,6 @@ public class WorktimeCacheEntry {
         lock.readLock().lock();
         try {
             return getCacheAge() > 3600000L; // 1 hour in milliseconds
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /**
-     * Get month key for this cache entry
-     * @return String key in format "year-month"
-     */
-    public String getMonthKey() {
-        lock.readLock().lock();
-        try {
-            return String.format("%d-%d", year, month);
         } finally {
             lock.readLock().unlock();
         }

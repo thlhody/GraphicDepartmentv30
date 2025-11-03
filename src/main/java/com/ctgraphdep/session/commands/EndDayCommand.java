@@ -209,7 +209,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
             applyRegularDayOvertimeLogic(entry, session, context, workDate);
 
             // ENHANCED: Auto-detect short days (ZS) after overtime calculation
-            detectAndHandleShortDay(entry, session, context);
+            detectAndHandleShortDay(entry, context);
         }
 
         debug("Ensured final end day state is properly set");
@@ -297,7 +297,7 @@ public class EndDayCommand extends BaseWorktimeUpdateSessionCommand<WorkUsersSes
      * If user worked less than schedule AND has no time off type, mark as ZS
      * ZS entries will be filled from overtime during month-end processing
      */
-    private void detectAndHandleShortDay(WorkTimeTable entry, WorkUsersSessionsStates session, SessionContext context) {
+    private void detectAndHandleShortDay(WorkTimeTable entry, SessionContext context) {
         try {
             // Skip if entry already has a time off type
             if (entry.getTimeOffType() != null && !entry.getTimeOffType().trim().isEmpty()) {

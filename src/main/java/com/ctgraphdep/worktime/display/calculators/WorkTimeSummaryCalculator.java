@@ -7,7 +7,7 @@ import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeDisplayDTO;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
+import com.ctgraphdep.service.CalculationService;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.worktime.display.counters.TimeOffDayCounter;
 import com.ctgraphdep.worktime.display.counters.WorkDayCounter;
@@ -36,6 +36,7 @@ public class WorkTimeSummaryCalculator {
     private final TimeOffDayCounter timeOffDayCounter;
     private final WorkDayCounter workDayCounter;
     private final OvertimeDeductionCalculator overtimeDeductionCalculator;
+    private final CalculationService calculationService;
 
     /**
      * Calculate month summary from WorkTimeTable entries (user view).
@@ -71,8 +72,8 @@ public class WorkTimeSummaryCalculator {
 
             // Regular work entry (no time off type)
             if (entry.getTimeOffType() == null && entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
-                int discardedForEntry = CalculateWorkHoursUtil.calculateDiscardedMinutes(entry.getTotalWorkedMinutes(), userSchedule);
-                WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
+                int discardedForEntry = calculationService.calculateDiscardedMinutes(entry.getTotalWorkedMinutes(), userSchedule);
+                WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
                 totalRegularMinutes += result.getProcessedMinutes();
                 totalOvertimeMinutes += result.getOvertimeMinutes();
                 totalDiscardedMinutes += discardedForEntry;

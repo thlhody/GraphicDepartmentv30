@@ -87,7 +87,6 @@ public class StatusCleanupUtil {
 
     /**
      * Check if status is already in new format (should be preserved).
-     *
      * @param status The status to check
      * @return true if status is in new format, false if it needs conversion
      */
@@ -106,7 +105,6 @@ public class StatusCleanupUtil {
     /**
      * Check if cleanup period is still active.
      * Will be manually removed when conversion is complete.
-     *
      * @return true if cleanup should be performed, false otherwise
      */
     private static boolean isCleanupPeriodActive() {
@@ -118,37 +116,5 @@ public class StatusCleanupUtil {
         }
 
         return active;
-    }
-
-    /**
-     * Get cleanup status information for monitoring.
-     *
-     * @return Status information string
-     */
-    public static String getCleanupStatus() {
-        boolean active = isCleanupPeriodActive();
-        long daysRemaining = LocalDate.now().until(CLEANUP_END_DATE).getDays();
-
-        return String.format("Status cleanup: %s (ends %s, %d days remaining)",
-                active ? "ACTIVE" : "INACTIVE",
-                CLEANUP_END_DATE,
-                Math.max(0, daysRemaining));
-    }
-
-    /**
-     * Force cleanup status check for a single entry (for testing/debugging).
-     *
-     * @param entry The entry to check
-     * @return Cleanup information
-     */
-    public static String checkEntryStatus(WorkTimeTable entry) {
-        if (entry == null) return "Entry is null";
-
-        String original = entry.getAdminSync();
-        String cleaned = convertOldStatusToNew(original);
-        boolean needsCleanup = !cleaned.equals(original);
-
-        return String.format("Entry [%s, userId=%d]: status='%s' → '%s' (needs cleanup: %s)",
-                entry.getWorkDate(), entry.getUserId(), original, cleaned, needsCleanup);
     }
 }

@@ -1,6 +1,5 @@
 package com.ctgraphdep.service.cache;
 
-import com.ctgraphdep.config.SecurityConstants;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.UserStatusInfo;
 import com.ctgraphdep.model.dto.UserStatusDTO;
@@ -138,33 +137,6 @@ public class AllUsersCacheEntry {
     }
 
     /**
-     * Update user information (name, role, employeeId, schedule, holidayDays) from UserService data (thread-safe)
-     * @param name User's display name
-     * @param role User's role
-     * @param employeeId Employee ID
-     * @param schedule Work schedule
-     * @param paidHolidayDays Paid holiday days
-     */
-    public void updateUserInfo(String name, String role, Integer employeeId, Integer schedule, Integer paidHolidayDays) {
-        lock.writeLock().lock();
-        try {
-            if (!initialized) {
-                return;
-            }
-
-            this.name = name;
-            this.role = role;
-            this.employeeId = employeeId;
-            this.schedule = schedule;
-            this.paidHolidayDays = paidHolidayDays;
-            this.lastUpdated = System.currentTimeMillis();
-
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
-    /**
      * Update user information from User object (thread-safe)
      * @param user Complete user object with updated information
      */
@@ -284,38 +256,6 @@ public class AllUsersCacheEntry {
     }
 
     /**
-     * Create a complete status entry from basic user data (thread-safe)
-     * Used for initial setup from UserService
-     * @param username Username
-     * @param userId User ID
-     * @param name Display name
-     * @param role User role
-     * @param defaultStatus Default status to set
-     */
-    public void initializeFromUserData(String username, Integer userId, String name, String role, String defaultStatus) {
-        lock.writeLock().lock();
-        try {
-            this.username = username;
-            this.userId = userId;
-            this.name = name;
-            this.role = role;
-            this.status = defaultStatus;
-            this.lastActive = null; // No activity yet
-
-            // These will need to be populated separately or from complete User data
-            this.employeeId = null;
-            this.schedule = null;
-            this.paidHolidayDays = null;
-
-            this.lastUpdated = System.currentTimeMillis();
-            this.initialized = true;
-
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
-    /**
      * Clear cache entry (for midnight reset)
      */
     public void clear() {
@@ -375,12 +315,5 @@ public class AllUsersCacheEntry {
             return "--/--/---- :: --:--";
         }
         return dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-    }
-
-    /**
-     * Check if role indicates admin user
-     */
-    private boolean isAdminRole(String role) {
-        return role != null && (role.equals(SecurityConstants.SPRING_ROLE_ADMIN) || role.contains(SecurityConstants.ROLE_ADMIN));
     }
 }

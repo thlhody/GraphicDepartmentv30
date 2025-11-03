@@ -5,7 +5,7 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.status.GeneralDataStatusDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeEntryDTO;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
+import com.ctgraphdep.service.CalculationService;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
@@ -23,6 +23,12 @@ import java.time.format.DateTimeFormatter;
  */
 @Service
 public class WorkTimeEntryDTOFactory {
+
+    private final CalculationService calculationService;
+
+    public WorkTimeEntryDTOFactory(CalculationService calculationService) {
+        this.calculationService = calculationService;
+    }
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
@@ -88,18 +94,18 @@ public class WorkTimeEntryDTOFactory {
         // Check if this special day has work time
         boolean hasWorkTime = entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0;
 
+        builder.totalWorkedMinutes(0);
         if (hasWorkTime) {
             // Special day WITH work time
-            builder.totalWorkedMinutes(0);
             builder.formattedWorkTime("0:00");
             builder.totalOvertimeMinutes(entry.getTotalOvertimeMinutes());
-            builder.formattedOvertimeTime(CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalOvertimeMinutes()));
+            builder.formattedOvertimeTime(calculationService.minutesToHHmm(entry.getTotalOvertimeMinutes()));
             builder.hasSpecialDayWork(true);
 
             // Set raw and scheduled for special day with work
             builder.rawWorkedMinutes(entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0);
             builder.formattedRawTime(entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0 ?
-                    CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalWorkedMinutes()) : "-");
+                    calculationService.minutesToHHmm(entry.getTotalWorkedMinutes()) : "-");
             builder.formattedScheduledTime("-");  // No scheduled time for special days
 
             // Set appropriate CSS class for special day with work
@@ -113,7 +119,6 @@ public class WorkTimeEntryDTOFactory {
             builder.timeOffClass(cssClass);
         } else {
             // Special day WITHOUT work time (regular time off)
-            builder.totalWorkedMinutes(0);
             builder.formattedWorkTime(null);
             builder.totalOvertimeMinutes(0);
             builder.formattedOvertimeTime(null);
@@ -169,29 +174,29 @@ public class WorkTimeEntryDTOFactory {
         if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
             int rawWorkedMinutes = entry.getTotalWorkedMinutes();
 
-            // Use calculation utility for consistency
-            WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(rawWorkedMinutes, userSchedule);
+            // Use calculation service for consistency
+            WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(rawWorkedMinutes, userSchedule);
 
             builder.totalWorkedMinutes(result.getProcessedMinutes());
-            builder.formattedWorkTime(CalculateWorkHoursUtil.minutesToHHmm(result.getProcessedMinutes()));
+            builder.formattedWorkTime(calculationService.minutesToHHmm(result.getProcessedMinutes()));
             builder.totalOvertimeMinutes(result.getOvertimeMinutes());
 
             if (result.getOvertimeMinutes() > 0) {
-                builder.formattedOvertimeTime(CalculateWorkHoursUtil.minutesToHHmm(result.getOvertimeMinutes()));
+                builder.formattedOvertimeTime(calculationService.minutesToHHmm(result.getOvertimeMinutes()));
             }
 
             builder.lunchBreakApplied(result.isLunchDeducted());
             builder.hasSpecialDayWork(false);
 
-            int discardedMinutes = CalculateWorkHoursUtil.calculateDiscardedMinutes(rawWorkedMinutes, userSchedule);
+            int discardedMinutes = calculationService.calculateDiscardedMinutes(rawWorkedMinutes, userSchedule);
             builder.discardedMinutes(discardedMinutes);
 
             // Set raw and scheduled time for regular work days
             builder.rawWorkedMinutes(rawWorkedMinutes);
-            builder.formattedRawTime(CalculateWorkHoursUtil.minutesToHHmm(rawWorkedMinutes));
+            builder.formattedRawTime(calculationService.minutesToHHmm(rawWorkedMinutes));
 
             int scheduleMinutes = userSchedule * 60;
-            builder.formattedScheduledTime(CalculateWorkHoursUtil.minutesToHHmm(scheduleMinutes));
+            builder.formattedScheduledTime(calculationService.minutesToHHmm(scheduleMinutes));
 
         } else {
             // No work time

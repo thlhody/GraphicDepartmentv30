@@ -8,17 +8,14 @@ import java.util.stream.Collectors;
 
 /**
  * CENTRALIZED REGISTRY FOR ALL TIME-OFF TYPE LOGIC
- *
  * This class is the SINGLE SOURCE OF TRUTH for time-off type definitions.
  * When adding a new time-off type, ONLY update this class - all other code
  * references this registry for validation, patterns, and business logic.
- *
  * Key Features:
  * - Defines which types support work hours (e.g., SN:5, CO:6)
  * - Defines which types are plain time-off only (e.g., D, CN, CR)
  * - Provides regex patterns for validation
  * - Provides formatted strings for error messages
- *
  * Usage:
  * - AdminUpdateCommand uses this for validation patterns
  * - TimeValidationService uses this for input validation
@@ -35,7 +32,6 @@ public final class TimeOffTypeRegistry {
     /**
      * Time-off types that support work hours (TYPE:HOURS format).
      * These are "special days" where all work becomes holiday overtime.
-     *
      * TO ADD A NEW SPECIAL DAY TYPE:
      * 1. Add the WorkCode constant to this array
      * 2. That's it! All validation patterns update automatically.
@@ -56,7 +52,6 @@ public final class TimeOffTypeRegistry {
     /**
      * Time-off types that DO NOT support work hours (plain type only).
      * These represent full-day absences or special work arrangements.
-     *
      * TO ADD A NEW PLAIN TIME-OFF TYPE:
      * 1. Add the WorkCode constant to this array
      * 2. That's it! All validation patterns update automatically.
@@ -141,14 +136,6 @@ public final class TimeOffTypeRegistry {
     }
 
     /**
-     * Check if type is a plain time-off type (no work hours allowed).
-     * Examples: D, CN, CR
-     */
-    public static boolean isPlainTimeOffType(String type) {
-        return type != null && PLAIN_TIME_OFF_SET.contains(type.toUpperCase());
-    }
-
-    /**
      * Check if type is ANY valid time-off type.
      * Examples: SN, CO, CM, W, CE, D, CN, CR
      */
@@ -164,6 +151,7 @@ public final class TimeOffTypeRegistry {
      * Get regex pattern for special day work format validation.
      * Use this for .matches() calls: value.matches(getSpecialDayWorkPattern())
      */
+    @SuppressWarnings("unused")
     public static String getSpecialDayWorkPattern() {
         return SPECIAL_DAY_WORK_PATTERN;
     }
@@ -172,6 +160,7 @@ public final class TimeOffTypeRegistry {
      * Get regex pattern for special day types validation.
      * Use this for .matches() calls: type.matches(getSpecialDayTypesPattern())
      */
+    @SuppressWarnings("unused")
     public static String getSpecialDayTypesPattern() {
         return SPECIAL_DAY_TYPES_PATTERN;
     }
@@ -180,6 +169,7 @@ public final class TimeOffTypeRegistry {
      * Get regex pattern for plain time-off types validation.
      * Use this for .matches() calls: type.matches(getPlainTimeOffPattern())
      */
+    @SuppressWarnings("unused")
     public static String getPlainTimeOffPattern() {
         return PLAIN_TIME_OFF_PATTERN;
     }
@@ -188,6 +178,7 @@ public final class TimeOffTypeRegistry {
      * Get regex pattern for ALL time-off types validation.
      * Use this for .matches() calls: type.matches(getAllTimeOffPattern())
      */
+    @SuppressWarnings("unused")
     public static String getAllTimeOffPattern() {
         return ALL_TIME_OFF_PATTERN;
     }
@@ -237,6 +228,7 @@ public final class TimeOffTypeRegistry {
     /**
      * Get immutable list of special day types.
      */
+    @SuppressWarnings("unused")
     public static List<String> getSpecialDayTypes() {
         return Arrays.asList(SPECIAL_DAY_TYPES_WITH_WORK);
     }
@@ -244,6 +236,7 @@ public final class TimeOffTypeRegistry {
     /**
      * Get immutable list of plain time-off types.
      */
+    @SuppressWarnings("unused")
     public static List<String> getPlainTimeOffTypes() {
         return Arrays.asList(PLAIN_TIME_OFF_ONLY);
     }
@@ -251,6 +244,7 @@ public final class TimeOffTypeRegistry {
     /**
      * Get immutable set of ALL time-off types.
      */
+    @SuppressWarnings("unused")
     public static Set<String> getAllTimeOffTypes() {
         return ALL_TIME_OFF_TYPES;
     }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -72,7 +73,7 @@ public class CacheStatusController {
             metrics.put("activeUsers", onlineUsers); // Same for now
             metrics.put("totalUsers", totalUsers);
             metrics.put("isRefreshing", allUsersCacheService.isRefreshing());
-            metrics.put("lastUpdate", java.time.LocalDateTime.now().toString());
+            metrics.put("lastUpdate", LocalDateTime.now().toString());
 
             LoggerUtil.debug(this.getClass(), "Fresh metrics requested: " + onlineUsers + " online users");
 
@@ -86,7 +87,7 @@ public class CacheStatusController {
             errorMetrics.put("activeUsers", 0);
             errorMetrics.put("totalUsers", 0);
             errorMetrics.put("isRefreshing", false);
-            errorMetrics.put("lastUpdate", java.time.LocalDateTime.now().toString());
+            errorMetrics.put("lastUpdate", LocalDateTime.now().toString());
 
             return ResponseEntity.ok(errorMetrics);
         }

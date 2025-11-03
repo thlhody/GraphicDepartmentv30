@@ -3,14 +3,22 @@ package com.ctgraphdep.worktime.util;
 import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
+import com.ctgraphdep.service.CalculationService;
 import com.ctgraphdep.utils.LoggerUtil;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+@Component
 public class WorktimeEntityBuilder {
+
+    private static CalculationService calculationService;
+
+    public WorktimeEntityBuilder(CalculationService calculationService) {
+        WorktimeEntityBuilder.calculationService = calculationService;
+    }
 
     // ========================================================================
     // FACTORY METHODS - Entry Creation (CLEAN - NO VALIDATION)
@@ -335,8 +343,8 @@ public class WorktimeEntityBuilder {
                 entry.getTotalTemporaryStopMinutes() : WorkCode.DEFAULT_ZERO;
         int netWorkMinutes = Math.max(WorkCode.DEFAULT_ZERO, totalElapsedMinutes - tempStopMinutes);
 
-        // 2. USE PROVEN CALCULATION LOGIC from CalculateWorkHoursUtil
-        WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(netWorkMinutes, userScheduleHours);
+        // 2. USE CALCULATION SERVICE for consistency
+        WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(netWorkMinutes, userScheduleHours);
 
         // 3. Apply results to entry
         entry.setTotalWorkedMinutes(netWorkMinutes);        // Regular time
@@ -344,7 +352,7 @@ public class WorktimeEntityBuilder {
         entry.setLunchBreakDeducted(result.isLunchDeducted());           // Lunch break
 
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Regular work calculation using CalculateWorkHoursUtil: elapsed=%d, tempStops=%d, netWork=%d, schedule=%dh → regular=%d, overtime=%d, lunch=%s",
+                "Regular work calculation using CalculationService: elapsed=%d, tempStops=%d, netWork=%d, schedule=%dh → regular=%d, overtime=%d, lunch=%s",
                 totalElapsedMinutes, tempStopMinutes, netWorkMinutes, userScheduleHours, result.getProcessedMinutes(), result.getOvertimeMinutes(), result.isLunchDeducted()));
     }
 }

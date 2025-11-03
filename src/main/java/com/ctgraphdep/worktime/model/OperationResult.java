@@ -72,16 +72,6 @@ public class OperationResult {
     // ========================================================================
 
     /**
-     * Get result data as WorkTimeTable entry
-     */
-    public WorkTimeTable getEntryData() {
-        if (data instanceof WorkTimeTable) {
-            return (WorkTimeTable) data;
-        }
-        return null;
-    }
-
-    /**
      * Get result data as list of WorkTimeTable entries
      */
     @SuppressWarnings("unchecked")

@@ -33,11 +33,8 @@ public class AdminBonusController extends BaseController {
     }
 
     @GetMapping
-    public String showBonusPage(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
-            Model model) {
+    public String showBonusPage(@AuthenticationPrincipal UserDetails userDetails, @RequestParam(required = false) Integer year,
+                                @RequestParam(required = false) Integer month, Model model) {
 
         try {
             // Use the new role validation method
@@ -72,9 +69,7 @@ public class AdminBonusController extends BaseController {
 
     @GetMapping("/data")
     @ResponseBody
-    public ResponseEntity<Map<Integer, BonusEntryDTO>> getBonusData(
-            @RequestParam int year,
-            @RequestParam int month) {
+    public ResponseEntity<Map<Integer, BonusEntryDTO>> getBonusData(@RequestParam int year, @RequestParam int month) {
         try {
             String[] previousMonths = MonthFormatter.getPreviousMonthNames(year, month);
             Map<Integer, BonusEntryDTO> bonusData = adminBonusService.loadBonusData(year, month);
@@ -92,9 +87,7 @@ public class AdminBonusController extends BaseController {
     }
 
     @GetMapping("/export")
-    public ResponseEntity<byte[]> exportBonusData(
-            @RequestParam int year,
-            @RequestParam int month) {
+    public ResponseEntity<byte[]> exportBonusData(@RequestParam int year, @RequestParam int month) {
         try {
             byte[] excelData = adminBonusService.exportBonusData(year, month);
             String filename = String.format("bonus_data_%d_%02d.xlsx", year, month);
@@ -110,9 +103,7 @@ public class AdminBonusController extends BaseController {
     }
 
     @GetMapping("/export/user")
-    public ResponseEntity<byte[]> exportUserBonusData(
-            @RequestParam int year,
-            @RequestParam int month) {
+    public ResponseEntity<byte[]> exportUserBonusData(@RequestParam int year, @RequestParam int month) {
         try {
             byte[] excelData = adminBonusService.exportUserBonusData(year, month);
             String filename = String.format("user_bonus_data_%d_%02d.xlsx", year, month);

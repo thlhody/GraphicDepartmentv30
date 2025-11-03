@@ -42,39 +42,6 @@ public class StatusAssignmentResult {
         return new StatusAssignmentResult(false, null, null, message, false);
     }
 
-    // ========================================================================
-    // GETTERS
-    // ========================================================================
-
-    public boolean wasProtected() {
-        return wasProtected;
-    }
-
-    // ========================================================================
-    // UTILITY METHODS
-    // ========================================================================
-
-    // Check if status was actually changed
-    public boolean statusChanged() {
-        if (!success) return false;
-        if (originalStatus == null && newStatus == null) return false;
-        if (originalStatus == null) return true;
-        return !originalStatus.equals(newStatus);
-    }
-
-    // Get status change description
-    public String getChangeDescription() {
-        if (!success) {
-            return wasProtected ? "Protected: " + message : "Error: " + message;
-        }
-
-        if (statusChanged()) {
-            return String.format("Changed: %s → %s", originalStatus != null ? originalStatus : "null", newStatus != null ? newStatus : "null");
-        }
-
-        return "No change needed";
-    }
-
     @Override
     public String toString() {
         return String.format("StatusAssignmentResult{success=%s, original='%s', new='%s', message='%s', protected=%s}",

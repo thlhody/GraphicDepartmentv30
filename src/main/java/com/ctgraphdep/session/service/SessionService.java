@@ -16,7 +16,6 @@ import com.ctgraphdep.session.SessionCommandService;
 import com.ctgraphdep.service.cache.SessionCacheService;
 import com.ctgraphdep.session.commands.UpdateSessionCalculationsCommand;
 import com.ctgraphdep.session.query.UnresolvedWorkTimeQuery;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.validation.GetStandardTimeValuesCommand;
 import com.ctgraphdep.validation.TimeValidationService;
@@ -365,7 +364,7 @@ public class SessionService {
 
         // For actual work time, use calculation result
         if (session.getTotalWorkedMinutes() != null && session.getTotalWorkedMinutes() > 0) {
-            WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(session.getTotalWorkedMinutes(), userSchedule);
+            WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(session.getTotalWorkedMinutes(), userSchedule);
 
             dto.setActualWorkMinutes(result.getProcessedMinutes());
             dto.setFormattedActualWorkTime(formatMinutes(result.getProcessedMinutes()));
@@ -559,7 +558,7 @@ public class SessionService {
 
     // Formats minutes as HH:MM
     private String formatMinutes(Integer minutes) {
-        return minutes != null ? CalculateWorkHoursUtil.minutesToHHmm(minutes) : "00:00";
+        return minutes != null ? calculationService.minutesToHHmm(minutes) : "00:00";
     }
 
     // Formats datetime as dd/MM/yyyy :: HH:mm

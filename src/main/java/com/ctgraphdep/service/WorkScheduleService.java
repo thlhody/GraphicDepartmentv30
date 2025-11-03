@@ -8,7 +8,6 @@ import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.service.cache.MetricsCacheService;
 import com.ctgraphdep.service.cache.WorktimeCacheService;
 import com.ctgraphdep.config.WorkCode;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import org.springframework.stereotype.Service;
 
@@ -28,16 +27,19 @@ public class WorkScheduleService {
     private final WorktimeDataService worktimeDataService;
     private final WorktimeCacheService worktimeCacheService;
     private final MetricsCacheService metricsCacheService;
+    private final CalculationService calculationService;
 
     public WorkScheduleService(
             UserService userService,
             WorktimeDataService worktimeDataService,
             WorktimeCacheService worktimeCacheService,
-            MetricsCacheService metricsCacheService) {
+            MetricsCacheService metricsCacheService,
+            CalculationService calculationService) {
         this.userService = userService;
         this.worktimeDataService = worktimeDataService;
         this.worktimeCacheService = worktimeCacheService;
         this.metricsCacheService = metricsCacheService;
+        this.calculationService = calculationService;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -273,8 +275,8 @@ public class WorkScheduleService {
                     entriesWithWork++;
 
                     // For regular days, totalWorkedMinutes is RAW time worked
-                    // Process through CalculateWorkHoursUtil to split into regular + overtime
-                    WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(
+                    // Process through CalculationService to split into regular + overtime
+                    WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(
                             entry.getTotalWorkedMinutes(), userSchedule);
 
                     // Add BOTH regular and overtime (we want total hours actually worked)

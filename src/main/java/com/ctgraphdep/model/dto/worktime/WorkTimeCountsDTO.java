@@ -20,23 +20,6 @@ public class WorkTimeCountsDTO {
     private int overtimeMinutes = 0;
     private int discardedMinutes = 0;
 
-    // Increment methods for day counting
-    public void incrementDaysWorked() {
-        this.daysWorked++;
-    }
-
-    public void incrementSnDays() {
-        this.snDays++;
-    }
-
-    public void incrementCoDays() {
-        this.coDays++;
-    }
-
-    public void incrementCmDays() {
-        this.cmDays++;
-    }
-
     // Utility methods
     public int getTotalTimeOffDays() {
         return snDays + coDays + cmDays;

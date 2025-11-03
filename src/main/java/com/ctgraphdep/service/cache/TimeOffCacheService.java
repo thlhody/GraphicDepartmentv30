@@ -154,7 +154,7 @@ public class TimeOffCacheService {
      * Add time off through cache WITHOUT holiday balance adjustment.
      * Used by commands that handle balance logic themselves.
      */
-    public boolean addTimeOffToCacheWithoutBalanceUpdate(String username, Integer userId, int year, List<LocalDate> dates, String timeOffType) {
+    public void addTimeOffToCacheWithoutBalanceUpdate(String username, Integer userId, int year, List<LocalDate> dates, String timeOffType) {
         try {
             String userKey = createUserKey(username, year);
             TimeOffCacheEntry cacheEntry = userSessions.get(userKey);
@@ -164,7 +164,7 @@ public class TimeOffCacheService {
                         "No valid session found for %s - %d, loading session first", username, year));
 
                 if (!loadUserSession(username, userId, year)) {
-                    return false;
+                    return;
                 }
                 cacheEntry = userSessions.get(userKey);
             }
@@ -176,7 +176,7 @@ public class TimeOffCacheService {
             TimeOffTracker tracker = cacheEntry.getTracker();
             if (tracker == null) {
                 LoggerUtil.error(this.getClass(), "Tracker is null in cache entry");
-                return false;
+                return;
             }
 
             // Add requests to tracker
@@ -226,12 +226,9 @@ public class TimeOffCacheService {
                         "Successfully added and persisted %d new time off requests for %s (balance-neutral)", addedCount, username));
             }
 
-            return true;
-
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
                     "Error adding time off to cache for %s: %s", username, e.getMessage()), e);
-            return false;
         }
     }
 
@@ -336,7 +333,7 @@ public class TimeOffCacheService {
             }
 
             // Calculate summary from tracker
-            return buildSummaryFromTracker(tracker, username, year);
+            return buildSummaryFromTracker(tracker, username);
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error getting summary from cache for %s - %d: %s", username, year, e.getMessage()));
@@ -424,7 +421,7 @@ public class TimeOffCacheService {
     /**
      * Build summary from tracker data
      */
-    private TimeOffSummaryDTO buildSummaryFromTracker(TimeOffTracker tracker, String username, int year) {
+    private TimeOffSummaryDTO buildSummaryFromTracker(TimeOffTracker tracker, String username) {
         try {
             int coDays = 0;
             int cmDays = 0;

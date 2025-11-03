@@ -5,7 +5,7 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.status.GeneralDataStatusDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
 import com.ctgraphdep.model.dto.worktime.WorkTimeDisplayDTO;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
+import com.ctgraphdep.service.CalculationService;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -24,6 +24,12 @@ import java.time.format.DateTimeFormatter;
  */
 @Service
 public class WorkTimeDisplayDTOFactory {
+
+    private final CalculationService calculationService;
+
+    public WorkTimeDisplayDTOFactory(CalculationService calculationService) {
+        this.calculationService = calculationService;
+    }
 
     private static final DateTimeFormatter FRONTEND_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-M-d");
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
@@ -63,7 +69,7 @@ public class WorkTimeDisplayDTOFactory {
                                                   boolean isWeekend, GeneralDataStatusDTO statusInfo) {
         // Calculate processed values using backend logic
         WorkTimeCalculationResultDTO calculationResult =
-            CalculateWorkHoursUtil.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
+            calculationService.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
 
         int totalProcessedMinutes = calculationResult.getProcessedMinutes() + calculationResult.getOvertimeMinutes();
         String displayHours = String.valueOf(totalProcessedMinutes / 60);
@@ -263,7 +269,7 @@ public class WorkTimeDisplayDTOFactory {
 
     /**
      * Create DTO for CR entry (Recovery Leave - paid from overtime)
-     * CR represents a full work day where the user takes a recovery day paid from overtime balance.
+     * CR represents a full work day when the user takes a recovery day paid from overtime balance.
      * The full schedule is deducted from overtime and counts as regular work time.
      * Example: User with 8h schedule takes CR → counts as 8h regular work (deducted from overtime)
      */
@@ -303,7 +309,7 @@ public class WorkTimeDisplayDTOFactory {
     public WorkTimeDisplayDTO createFromCNEntry(WorkTimeTable entry, boolean isWeekend,
                                                 GeneralDataStatusDTO statusInfo) {
         String displayText = WorkCode.UNPAID_LEAVE_CODE;
-        String tooltip = buildCNTooltip(entry, statusInfo);
+        String tooltip = buildCNTooltip(statusInfo);
 
         return WorkTimeDisplayDTO.builder()
                 .displayText(displayText)
@@ -342,7 +348,7 @@ public class WorkTimeDisplayDTOFactory {
 
         String tooltip = buildZSTooltip(entry, userSchedule, statusInfo);
 
-        // ZS represents a full work day where the user worked less than schedule
+        // ZS represents a full work day when the user worked less than schedule
         // The missing hours are filled from overtime pool, but it counts as a complete work day
         // Therefore, ZS should contribute the FULL SCHEDULE as regular minutes (not 0)
         // Example: User with 8h schedule works 5h → ZS-3
@@ -387,6 +393,7 @@ public class WorkTimeDisplayDTOFactory {
             return "zs-display";
         }
 
+        assert timeOffType != null;
         String baseClass = switch (timeOffType) {
             case WorkCode.NATIONAL_HOLIDAY_CODE -> "holiday";
             case WorkCode.TIME_OFF_CODE -> "vacation";
@@ -427,17 +434,17 @@ public class WorkTimeDisplayDTOFactory {
 
         if (entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
             if (!tooltip.isEmpty()) tooltip.append("\n");
-            tooltip.append("Total worked: ").append(CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalWorkedMinutes()));
+            tooltip.append("Total worked: ").append(calculationService.minutesToHHmm(entry.getTotalWorkedMinutes()));
         }
 
         if (calculationResult.getProcessedMinutes() > 0) {
             if (!tooltip.isEmpty()) tooltip.append("\n");
-            tooltip.append("Regular: ").append(CalculateWorkHoursUtil.minutesToHHmm(calculationResult.getProcessedMinutes()));
+            tooltip.append("Regular: ").append(calculationService.minutesToHHmm(calculationResult.getProcessedMinutes()));
         }
 
         if (calculationResult.getOvertimeMinutes() > 0) {
             if (!tooltip.isEmpty()) tooltip.append("\n");
-            tooltip.append("Overtime: ").append(CalculateWorkHoursUtil.minutesToHHmm(calculationResult.getOvertimeMinutes()));
+            tooltip.append("Overtime: ").append(calculationService.minutesToHHmm(calculationResult.getOvertimeMinutes()));
         }
 
         if (entry.isLunchBreakDeducted()) {
@@ -464,6 +471,7 @@ public class WorkTimeDisplayDTOFactory {
         if (timeOffType != null && timeOffType.startsWith(WorkCode.SHORT_DAY_CODE + "-")) {
             typeLabel = "Short Day (" + timeOffType + ")";
         } else {
+            assert timeOffType != null;
             typeLabel = switch (timeOffType) {
                 case WorkCode.NATIONAL_HOLIDAY_CODE -> "National Holiday";
                 case WorkCode.TIME_OFF_CODE -> "Vacation";
@@ -543,7 +551,7 @@ public class WorkTimeDisplayDTOFactory {
     /**
      * Build tooltip for CN (Unpaid Leave)
      */
-    private String buildCNTooltip(WorkTimeTable entry, GeneralDataStatusDTO statusInfo) {
+    private String buildCNTooltip(GeneralDataStatusDTO statusInfo) {
         String tooltip = "Unpaid Leave";
 
         // Add status information
@@ -567,12 +575,12 @@ public class WorkTimeDisplayDTOFactory {
         int scheduleMinutes = userSchedule * 60;
         int missingMinutes = scheduleMinutes - workedMinutes;
 
-        tooltip.append("Worked: ").append(CalculateWorkHoursUtil.minutesToHH(workedMinutes)).append("\n");
+        tooltip.append("Worked: ").append(calculationService.minutesToHH(workedMinutes)).append("\n");
         tooltip.append("Schedule: ").append(userSchedule).append("h\n");
-        tooltip.append("Filled from overtime: ").append(CalculateWorkHoursUtil.minutesToHH(missingMinutes));
+        tooltip.append("Filled from overtime: ").append(calculationService.minutesToHH(missingMinutes));
 
         if (entry.getTotalOvertimeMinutes() != null) {
-            tooltip.append("\nRemaining overtime: ").append(CalculateWorkHoursUtil.minutesToHH(Math.abs(entry.getTotalOvertimeMinutes())));
+            tooltip.append("\nRemaining overtime: ").append(calculationService.minutesToHH(Math.abs(entry.getTotalOvertimeMinutes())));
         }
 
         // Add status information
@@ -603,7 +611,7 @@ public class WorkTimeDisplayDTOFactory {
 
         if (entry.getTotalOvertimeMinutes() != null && entry.getTotalOvertimeMinutes() > 0) {
             if (!tooltip.isEmpty()) tooltip.append("\n");
-            tooltip.append("Overtime: ").append(CalculateWorkHoursUtil.minutesToHHmm(entry.getTotalOvertimeMinutes()));
+            tooltip.append("Overtime: ").append(calculationService.minutesToHHmm(entry.getTotalOvertimeMinutes()));
         }
 
         // Add status information

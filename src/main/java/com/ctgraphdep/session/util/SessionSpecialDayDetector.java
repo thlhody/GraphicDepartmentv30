@@ -136,9 +136,4 @@ public class SessionSpecialDayDetector {
             LoggerUtil.error(SessionSpecialDayDetector.class, String.format("Failed to update worktime entry with special day logic: %s", e.getMessage()), e);
         }
     }
-
-    // Helper method to check if a day type needs special processing
-    public static boolean needsSpecialProcessing(DayType dayType) {
-        return dayType != null && dayType.requiresSpecialOvertimeLogic();
-    }
 }

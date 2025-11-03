@@ -222,19 +222,6 @@ public class RegisterCacheEntry {
     }
 
     /**
-     * Get entries count (thread-safe)
-     * @return Number of entries in cache
-     */
-    public int getEntryCount() {
-        lock.readLock().lock();
-        try {
-            return initialized ? entries.size() : 0;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /**
      * Check if cache entry is initialized and valid
      * @return true if cache has valid data
      */
@@ -326,19 +313,6 @@ public class RegisterCacheEntry {
 
             return e2.getEntryId().compareTo(e1.getEntryId());
         });
-    }
-
-    /**
-     * Get month key for this cache entry
-     * @return String key in format "year-month"
-     */
-    public String getMonthKey() {
-        lock.readLock().lock();
-        try {
-            return String.format("%d-%02d", year, month);
-        } finally {
-            lock.readLock().unlock();
-        }
     }
 
     @Override

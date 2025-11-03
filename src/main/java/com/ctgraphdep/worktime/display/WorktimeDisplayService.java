@@ -14,13 +14,13 @@ import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.WorkTimeSummary;
 import com.ctgraphdep.model.dto.status.GeneralDataStatusDTO;
 import com.ctgraphdep.model.dto.worktime.*;
+import com.ctgraphdep.service.CalculationService;
 import com.ctgraphdep.service.cache.AllUsersCacheService;
 import com.ctgraphdep.service.cache.TimeOffCacheService;
 import com.ctgraphdep.service.cache.WorktimeCacheService;
 import com.ctgraphdep.service.dto.WorkTimeDisplayDTOFactory;
 import com.ctgraphdep.service.dto.WorkTimeEntryDTOFactory;
 import com.ctgraphdep.worktime.service.WorktimeOperationService;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import com.ctgraphdep.worktime.util.WorkTimeEntryUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +42,7 @@ public class WorktimeDisplayService {
     private final AllUsersCacheService allUsersCacheService;
     private final WorkTimeDisplayDTOFactory displayDTOFactory;
     private final WorkTimeEntryDTOFactory entryDTOFactory;
+    private final CalculationService calculationService;
 
     // Phase 1 Refactoring: Specialized counters and calculators
     private final TimeOffDayCounter timeOffDayCounter;
@@ -66,6 +67,7 @@ public class WorktimeDisplayService {
                                  AllUsersCacheService allUsersCacheService,
                                  WorkTimeDisplayDTOFactory displayDTOFactory,
                                  WorkTimeEntryDTOFactory entryDTOFactory,
+                                 CalculationService calculationService,
                                  TimeOffDayCounter timeOffDayCounter,
                                  WorkDayCounter workDayCounter,
                                  OvertimeDeductionCalculator overtimeDeductionCalculator,
@@ -79,6 +81,7 @@ public class WorktimeDisplayService {
         this.allUsersCacheService = allUsersCacheService;
         this.displayDTOFactory = displayDTOFactory;
         this.entryDTOFactory = entryDTOFactory;
+        this.calculationService = calculationService;
         this.timeOffDayCounter = timeOffDayCounter;
         this.workDayCounter = workDayCounter;
         this.overtimeDeductionCalculator = overtimeDeductionCalculator;
@@ -264,7 +267,7 @@ public class WorktimeDisplayService {
         LoggerUtil.info(this.getClass(), String.format("Calculating summaries from display DTOs for %d users", users.size()));
 
         Map<Integer, WorkTimeSummary> summaries = new HashMap<>();
-        int totalWorkDays = CalculateWorkHoursUtil.calculateWorkDays(year, month);
+        int totalWorkDays = calculationService.calculateWorkDays(year, month);
 
         for (User user : users) {
             Map<LocalDate, WorkTimeDisplayDTO> userDTOs = displayDTOs.get(user.getUserId());
@@ -482,9 +485,9 @@ public class WorktimeDisplayService {
 
             // Regular work entry (no time off type)
             if (entry.getTimeOffType() == null && entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0) {
-                // Use calculation utility for consistency
-                WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
-                int discardedForEntry = CalculateWorkHoursUtil.calculateDiscardedMinutes(entry.getTotalWorkedMinutes(), userSchedule);
+                // Use calculation service for consistency
+                WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(entry.getTotalWorkedMinutes(), userSchedule);
+                int discardedForEntry = calculationService.calculateDiscardedMinutes(entry.getTotalWorkedMinutes(), userSchedule);
                 totalRegularMinutes += result.getProcessedMinutes();
                 totalOvertimeMinutes += result.getOvertimeMinutes();
                 totalDiscardedMinutes += discardedForEntry;

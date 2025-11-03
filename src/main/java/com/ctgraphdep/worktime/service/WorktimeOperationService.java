@@ -5,6 +5,7 @@ import com.ctgraphdep.model.TimeOffTracker;
 import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.commands.*;
 import com.ctgraphdep.worktime.context.WorktimeOperationContext;
+import com.ctgraphdep.worktime.display.counters.WorkDayCounter;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.merge.constants.MergingStatusConstants;
 import com.ctgraphdep.model.User;
@@ -26,6 +27,7 @@ public class WorktimeOperationService {
     private final WorktimeOperationContext context;
     private final WorktimeMergeService worktimeMergeService;
     private final com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules;
+    private final WorkDayCounter workDayCounter;
 
     // Locks for concurrent operations
     private final ReentrantReadWriteLock userLock = new ReentrantReadWriteLock();
@@ -35,10 +37,12 @@ public class WorktimeOperationService {
     public WorktimeOperationService(
             WorktimeOperationContext context,
             WorktimeMergeService worktimeMergeService,
-            com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules) {
+            com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules,
+            WorkDayCounter workDayCounter) {
         this.context = context;
         this.worktimeMergeService = worktimeMergeService;
         this.timeOffRules = timeOffRules;
+        this.workDayCounter = workDayCounter;
         LoggerUtil.initialize(this.getClass(), null);
     }
 
@@ -535,21 +539,28 @@ public class WorktimeOperationService {
             User user = userOpt.get();
             String username = user.getUsername();
 
-            // Load worktime using accessor and count work days
+            // Load worktime using accessor
             List<WorkTimeTable> entries = loadUserWorktime(username, year, month);
 
-            long workedDays = entries.stream()
+            // Filter entries for the specific user
+            List<WorkTimeTable> userEntries = entries.stream()
                     .filter(entry -> entry.getUserId().equals(userId))
-                    .filter(entry -> entry.getTimeOffType() == null)
-                    .filter(entry -> entry.getTotalWorkedMinutes() != null && entry.getTotalWorkedMinutes() > 0)
-                    .count();
+                    .collect(Collectors.toList());
 
-            LoggerUtil.debug(this.getClass(), String.format("User %d (%s) worked %d days in %d/%d", userId, username, workedDays, month, year));
+            // Use WorkDayCounter for consistent work day counting
+            // This correctly counts: regular work days, ZS (Short Day), CR (Recovery Leave), and D (Delegation)
+            int workedDays = workDayCounter.countFromEntries(userEntries);
 
-            return (int) workedDays;
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "User %d (%s) worked %d days in %d/%d (includes ZS, CR, D)",
+                    userId, username, workedDays, month, year));
+
+            return workedDays;
 
         } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error getting worked days for user %d in %d/%d: %s", userId, year, month, e.getMessage()));
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error getting worked days for user %d in %d/%d: %s",
+                    userId, year, month, e.getMessage()));
             return 0;
         }
     }

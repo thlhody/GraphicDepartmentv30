@@ -138,31 +138,6 @@ public class TimeOffCacheEntry {
     }
 
     /**
-     * Check if cache has unsaved changes
-     * @return true if cache needs to be written to file
-     */
-    public boolean isDirty() {
-        lock.readLock().lock();
-        try {
-            return dirty;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /**
-     * Mark cache as clean (after successful file write)
-     */
-    public void markClean() {
-        lock.writeLock().lock();
-        try {
-            this.dirty = false;
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
-    /**
      * Clear cache entry (for cleanup)
      */
     public void clear() {
@@ -204,19 +179,6 @@ public class TimeOffCacheEntry {
         lock.readLock().lock();
         try {
             return getCacheAge() > 3600000L; // 1 hour in milliseconds
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /**
-     * Get year key for this cache entry
-     * @return String key in format "year"
-     */
-    public String getYearKey() {
-        lock.readLock().lock();
-        try {
-            return String.valueOf(year);
         } finally {
             lock.readLock().unlock();
         }

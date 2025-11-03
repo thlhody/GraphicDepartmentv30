@@ -185,18 +185,6 @@ public class OptimizedStatusUpdateUtil {
             existingEntryMap.put(date, existingEntry);
         }
 
-        public boolean isNew(LocalDate date) {
-            return newDates.contains(date);
-        }
-
-        public boolean isChanged(LocalDate date) {
-            return changedDates.contains(date);
-        }
-
-        public WorkTimeTable getExistingEntry(LocalDate date) {
-            return existingEntryMap.get(date);
-        }
-
         public Map<String, Integer> getChangeStatistics() {
             Map<String, Integer> stats = new HashMap<>();
             stats.put("newEntries", newDates.size());

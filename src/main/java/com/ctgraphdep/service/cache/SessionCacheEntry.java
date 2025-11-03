@@ -2,7 +2,6 @@ package com.ctgraphdep.service.cache;
 
 import com.ctgraphdep.model.TemporaryStop;
 import com.ctgraphdep.model.WorkUsersSessionsStates;
-import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -115,38 +114,6 @@ public class SessionCacheEntry {
     // Legacy compatibility method
     public void initializeFromFile(WorkUsersSessionsStates session) {
         initializeFromFile(session, "file");
-    }
-
-    //Update only calculated values with source tracking. Called by SessionMonitorService for dynamic updates
-    public void updateCalculatedValues(WorkUsersSessionsStates session, String source) {
-        lock.writeLock().lock();
-        try {
-            if (session == null || !initialized) {
-                return;
-            }
-
-            // Update only dynamic/calculated fields
-            this.totalWorkedMinutes = session.getTotalWorkedMinutes();
-            this.finalWorkedMinutes = session.getFinalWorkedMinutes();
-            this.totalOvertimeMinutes = session.getTotalOvertimeMinutes();
-            this.lunchBreakDeducted = session.getLunchBreakDeducted();
-            this.totalTemporaryStopMinutes = session.getTotalTemporaryStopMinutes();
-            this.lastTemporaryStopTime = session.getLastTemporaryStopTime();
-            this.lastActivity = session.getLastActivity();
-
-            // Update metadata
-            this.lastCalculationUpdate = System.currentTimeMillis();
-            if ("monitor".equals(source)) {
-                LoggerUtil.info(this.getClass(),"Monitoring update");
-                // Monitor updates don't make cache dirty (they're just calculations)
-                // File writes only happen through commands
-            } else {
-                this.dirty = true; // Mark as dirty for non-monitor updates
-            }
-
-        } finally {
-            lock.writeLock().unlock();
-        }
     }
 
     //Get complete session object combining static and dynamic values
@@ -298,67 +265,4 @@ public class SessionCacheEntry {
     public String toString() {
         return getDiagnosticInfo();
     }
-
-    //Check if cache has unsaved changes
-    public boolean isDirty() {
-        lock.readLock().lock();
-        try {
-            return dirty;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    //Mark cache as clean (after successful file write)
-    public void markClean(long writeTimestamp) {
-        lock.writeLock().lock();
-        try {
-            this.dirty = false;
-            this.lastFileWrite = writeTimestamp;
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
-    //Get time since last file write
-    public long getTimeSinceLastWrite() {
-        lock.readLock().lock();
-        try {
-            return lastFileWrite > 0 ? System.currentTimeMillis() - lastFileWrite : Long.MAX_VALUE;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    //Get cache version for optimistic concurrency
-    public long getCacheVersion() {
-        lock.readLock().lock();
-        try {
-            return cacheVersion;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    //Get data source information
-    public String getDataSource() {
-        lock.readLock().lock();
-        try {
-            return dataSource;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    //Check if session is currently active (online or temp stop)
-    public boolean isActiveSession() {
-        lock.readLock().lock();
-        try {
-            return initialized && ("WORK_ONLINE".equals(sessionStatus) || "WORK_TEMPORARY_STOP".equals(sessionStatus));
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-
 }

@@ -33,15 +33,4 @@ public class SessionValidator {
         }
         return true;
     }
-
-    // Validates that a session is completed and can be resumed
-    public static boolean isCompletedSession(WorkUsersSessionsStates session, Class<?> loggerClass) {
-        if (session == null ||
-                !WorkCode.WORK_OFFLINE.equals(session.getSessionStatus()) ||
-                !session.getWorkdayCompleted()) {
-            LoggerUtil.warn(loggerClass, String.format("Invalid session state: %s - expecting completed offline session", session != null ? session.getSessionStatus() : "null"));
-            return false;
-        }
-        return true;
-    }
 }

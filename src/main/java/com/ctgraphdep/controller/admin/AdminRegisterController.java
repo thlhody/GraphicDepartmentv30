@@ -61,12 +61,9 @@ public class AdminRegisterController extends BaseController {
      * Display admin register page - SIMPLIFIED to use service layer
      */
     @GetMapping
-    public String getRegisterPage(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) Integer userId,
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
-            Model model) {
+    public String getRegisterPage(@AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) Integer userId, @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month, Model model) {
 
         try {
             LoggerUtil.info(this.getClass(), "Accessing admin register page at " + getStandardCurrentDateTime());

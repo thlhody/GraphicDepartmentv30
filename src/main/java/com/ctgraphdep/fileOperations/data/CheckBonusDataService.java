@@ -146,48 +146,4 @@ public class CheckBonusDataService {
             return new ArrayList<>();
         }
     }
-
-    /**
-     * Reads team lead check bonus from network ONLY without any sync or backup operations.
-     * Pattern: Network-only, no fallback, no sync, no local operations
-     * This will be used by admin to read team lead bonus entries from network.
-     * (To be used in future admin implementation)
-     *
-     * @param year Year
-     * @param month Month
-     * @return Team lead check bonus entries from network, or empty if not found
-     */
-    public List<CheckBonusEntry> readTeamLeadCheckBonusFromNetworkOnly(int year, int month) {
-        try {
-            if (!pathConfig.isNetworkAvailable()) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Network not available for team lead check bonus network-only read %d/%d", year, month));
-                return new ArrayList<>();
-            }
-
-            Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
-            FilePath networkPath = pathResolver.getNetworkPath(null, null, FilePathResolver.FileType.LEAD_CHECK_BONUS, params);
-
-            Optional<List<CheckBonusEntry>> networkEntries = fileReaderService.readNetworkFile(
-                    networkPath, new TypeReference<>() {}, true);
-
-            if (networkEntries.isPresent()) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "Read team lead check bonus network-only data for %d/%d (%d entries)",
-                        year, month, networkEntries.get().size()));
-                return networkEntries.get();
-            } else {
-                LoggerUtil.debug(this.getClass(), String.format(
-                        "No team lead check bonus network data found for %d/%d",
-                        year, month));
-                return new ArrayList<>();
-            }
-
-        } catch (Exception e) {
-            LoggerUtil.debug(this.getClass(), String.format(
-                    "Error reading team lead check bonus network-only data for %d/%d: %s",
-                    year, month, e.getMessage()));
-            return new ArrayList<>();
-        }
-    }
 }

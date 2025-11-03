@@ -4,10 +4,10 @@ import com.ctgraphdep.config.WorkCode;
 import com.ctgraphdep.model.User;
 import com.ctgraphdep.model.WorkTimeTable;
 import com.ctgraphdep.model.dto.worktime.WorkTimeCalculationResultDTO;
+import com.ctgraphdep.service.CalculationService;
 import com.ctgraphdep.service.UserService;
 import com.ctgraphdep.service.cache.WorktimeCacheService;
 import com.ctgraphdep.service.result.ServiceResult;
-import com.ctgraphdep.utils.CalculateWorkHoursUtil;
 import com.ctgraphdep.utils.LoggerUtil;
 import lombok.Getter;
 import org.springframework.stereotype.Service;
@@ -33,73 +33,14 @@ public class MonthlyOvertimeConsolidationService {
 
     private final WorktimeCacheService worktimeCacheService;
     private final UserService userService;
+    private final CalculationService calculationService;
 
     public MonthlyOvertimeConsolidationService(WorktimeCacheService worktimeCacheService,
-                                               UserService userService) {
+                                               UserService userService,
+                                               CalculationService calculationService) {
         this.worktimeCacheService = worktimeCacheService;
         this.userService = userService;
-    }
-
-    /**
-     * Detect and mark short days (ZS) without consolidating
-     * This should be run BEFORE consolidation to identify entries that need overtime fill
-     */
-    public ServiceResult<DetectionResult> detectShortDays(String username, Integer userId, int year, int month) {
-        try {
-            LoggerUtil.info(this.getClass(), String.format("=== Starting ZS detection for %s - %d/%d ===", username, year, month));
-
-            // 1. Get user schedule
-            int userSchedule = getUserSchedule(userId);
-            int scheduleMinutes = userSchedule * 60;
-            LoggerUtil.info(this.getClass(), String.format("User schedule: %d hours (%d minutes)", userSchedule, scheduleMinutes));
-
-            // 2. Load entries from cache
-            List<WorkTimeTable> entries = loadMonthEntries(username, year, month);
-            if (entries.isEmpty()) {
-                return ServiceResult.failure("No entries found for this month");
-            }
-            LoggerUtil.info(this.getClass(), String.format("Loaded %d entries for ZS detection", entries.size()));
-
-            // 3. Find short days (worked < schedule AND no timeOffType set)
-            List<WorkTimeTable> shortDays = new ArrayList<>();
-            for (WorkTimeTable entry : entries) {
-                // Skip if already has a time off type
-                if (entry.getTimeOffType() != null && !entry.getTimeOffType().trim().isEmpty()) {
-                    continue;
-                }
-
-                // Check if short day
-                Integer workedMinutes = entry.getTotalWorkedMinutes();
-                if (workedMinutes != null && workedMinutes > 0 && workedMinutes < scheduleMinutes) {
-                    // Mark as ZS
-                    entry.setTimeOffType(WorkCode.SHORT_DAY_CODE);
-                    shortDays.add(entry);
-
-                    LoggerUtil.info(this.getClass(), String.format("Detected ZS: %s worked %d/%d minutes",
-                        entry.getWorkDate(), workedMinutes, scheduleMinutes));
-                }
-            }
-
-            if (shortDays.isEmpty()) {
-                LoggerUtil.info(this.getClass(), "No short days detected");
-                return ServiceResult.success(new DetectionResult(0, "No short days found in this month"));
-            }
-
-            // 4. Save updated entries (now with ZS markers)
-            saveConsolidatedEntries(username, entries, year, month);
-
-            LoggerUtil.info(this.getClass(), String.format("=== Completed ZS detection: marked %d short days ===", shortDays.size()));
-
-            return ServiceResult.success(new DetectionResult(
-                shortDays.size(),
-                String.format("Detected and marked %d short days as ZS. Run consolidation to fill with overtime.", shortDays.size())
-            ));
-
-        } catch (Exception e) {
-            LoggerUtil.error(this.getClass(), String.format("Error detecting short days for %s - %d/%d: %s",
-                username, year, month, e.getMessage()), e);
-            return ServiceResult.failure("Failed to detect short days: " + e.getMessage());
-        }
+        this.calculationService = calculationService;
     }
 
     /**
@@ -130,7 +71,7 @@ public class MonthlyOvertimeConsolidationService {
             // 3. Calculate total overtime pool
             int totalOvertimeMinutes = calculateTotalOvertimePool(entries);
             LoggerUtil.info(this.getClass(), String.format("Total overtime pool: %d minutes (%s)",
-                totalOvertimeMinutes, CalculateWorkHoursUtil.minutesToHHmm(totalOvertimeMinutes)));
+                totalOvertimeMinutes, calculationService.minutesToHHmm(totalOvertimeMinutes)));
 
             // 4. Find CR and ZS entries
             List<WorkTimeTable> crEntries = findEntriesByType(entries, WorkCode.RECOVERY_LEAVE_CODE);
@@ -154,8 +95,8 @@ public class MonthlyOvertimeConsolidationService {
             if (totalOvertimeMinutes < totalRequired) {
                 return ServiceResult.failure(String.format(
                     "Insufficient overtime balance. Required: %s, Available: %s",
-                    CalculateWorkHoursUtil.minutesToHHmm(totalRequired),
-                    CalculateWorkHoursUtil.minutesToHHmm(totalOvertimeMinutes)
+                    calculationService.minutesToHHmm(totalRequired),
+                    calculationService.minutesToHHmm(totalOvertimeMinutes)
                 ));
             }
 
@@ -175,7 +116,7 @@ public class MonthlyOvertimeConsolidationService {
             // 10. Recalculate final overtime pool
             int finalOvertimePool = calculateTotalOvertimePool(entries);
             LoggerUtil.info(this.getClass(), String.format("Final overtime pool: %d minutes (%s)",
-                finalOvertimePool, CalculateWorkHoursUtil.minutesToHHmm(finalOvertimePool)));
+                finalOvertimePool, calculationService.minutesToHHmm(finalOvertimePool)));
 
             // 11. Save consolidated entries (write-back)
             saveConsolidatedEntries(username, entries, year, month);
@@ -185,7 +126,7 @@ public class MonthlyOvertimeConsolidationService {
             return ServiceResult.success(new ConsolidationResult(
                 crEntries.size(), zsEntries.size(), totalDistributed, finalOvertimePool,
                 String.format("Successfully consolidated %d CR and %d ZS entries. Distributed %s from overtime pool.",
-                    crEntries.size(), zsEntries.size(), CalculateWorkHoursUtil.minutesToHHmm(totalDistributed))
+                    crEntries.size(), zsEntries.size(), calculationService.minutesToHHmm(totalDistributed))
             ));
 
         } catch (Exception e) {
@@ -327,8 +268,8 @@ public class MonthlyOvertimeConsolidationService {
             // Set work times (8:00 - schedule end)
             LocalDateTime startTime = entry.getWorkDate().atTime(8, 0);
 
-            // Use CalculateWorkHoursUtil to get proper work time with lunch break
-            WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(scheduleMinutes, userSchedule);
+            // Use CalculationService to get proper work time with lunch break
+            WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(scheduleMinutes, userSchedule);
 
             // Calculate end time (start + schedule + lunch break if applicable)
             int totalMinutesIncludingBreak = result.isLunchDeducted() ?
@@ -367,7 +308,7 @@ public class MonthlyOvertimeConsolidationService {
 
             if (missingMinutes > 0) {
                 // Calculate what the full schedule work time should be
-                WorkTimeCalculationResultDTO result = CalculateWorkHoursUtil.calculateWorkTime(scheduleMinutes, userSchedule);
+                WorkTimeCalculationResultDTO result = calculationService.calculateWorkTime(scheduleMinutes, userSchedule);
 
                 // Update entry to reflect full schedule (short hours + overtime fill)
                 entry.setTotalWorkedMinutes(result.getProcessedMinutes());  // Full schedule now
@@ -512,17 +453,6 @@ public class MonthlyOvertimeConsolidationService {
             this.zsEntriesProcessed = zsEntriesProcessed;
             this.overtimeDistributed = overtimeDistributed;
             this.remainingOvertimePool = remainingOvertimePool;
-            this.message = message;
-        }
-    }
-
-    @Getter
-    public static class DetectionResult {
-        private final int shortDaysDetected;
-        private final String message;
-
-        public DetectionResult(int shortDaysDetected, String message) {
-            this.shortDaysDetected = shortDaysDetected;
             this.message = message;
         }
     }

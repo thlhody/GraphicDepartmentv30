@@ -454,14 +454,13 @@ public class WorktimeLoginMerge {
     /**
      * Validate and apply ZS (Short Day) logic to merged worktime entries.
      * This ensures that after merging admin changes, ZS markers are correctly applied.
-     *
      * Logic for each entry:
      * 1. Skip if entry has no start/end time (incomplete day, in-process)
      * 2. Get user schedule
      * 3. Calculate worked minutes vs schedule
      * 4. If complete AND has ZS → Remove ZS
      * 5. If incomplete AND has no other time-off → Create/Update ZS
-     * 6. If has other time-off (CO, CM, SN, etc) → Don't touch it
+     * 6. If it has other time-off (CO, CM, SN, etc.) → Don't touch it
      *
      * @param mergedEntries List of merged worktime entries to validate
      * @param username Username for logging and user lookup

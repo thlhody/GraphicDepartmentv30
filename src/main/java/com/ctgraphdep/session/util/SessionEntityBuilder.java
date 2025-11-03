@@ -118,11 +118,6 @@ public class SessionEntityBuilder {
                 return this;
             }
 
-            public SessionUpdateBuilder lastTemporaryStopTime(LocalDateTime time) {
-                session.setLastTemporaryStopTime(time);
-                return this;
-            }
-
             public SessionUpdateBuilder addTemporaryStop(TemporaryStop tempStop) {
                 if (session.getTemporaryStops() == null) {
                     session.setTemporaryStops(new ArrayList<>());

@@ -94,14 +94,4 @@ public class OnlineMetricsService {
         return String.format("OnlineMetrics: %d online, %d active (updated %d ms ago)",
                 lastKnownOnlineCount, lastKnownActiveCount, ageMs);
     }
-
-    /**
-     * Force refresh metrics (for manual triggers)
-     */
-    public void forceRefreshMetrics() {
-        LoggerUtil.info(this.getClass(), "Force refreshing metrics");
-        getOnlineUserCount(); // This will update both counts
-        getActiveUserCount();
-        LoggerUtil.info(this.getClass(), "Metrics force refreshed: " + getMetricsStatus());
-    }
 }

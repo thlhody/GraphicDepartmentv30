@@ -195,11 +195,6 @@ public class SessionContext {
         return calculationService.calculateRawWorkMinutesForEntry(entry, endTime);
     }
 
-    // Calculate total temporary stop minutes using CalculationService
-    public int calculateTotalTempStopMinutes(WorkUsersSessionsStates session, LocalDateTime currentTime) {
-        return calculationService.calculateTotalTempStopMinutes(session, currentTime);
-    }
-
     // Add break as temporary stop using CalculationService
     public WorkUsersSessionsStates addBreakAsTempStop(WorkUsersSessionsStates session, LocalDateTime startTime, LocalDateTime endTime) {
         return calculationService.addBreakAsTempStop(session, startTime, endTime);

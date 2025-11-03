@@ -86,6 +86,7 @@ public class ThymeleafService {
      * @param model The model
      * @return The processed template
      */
+    @SuppressWarnings("unused")
     public String processTemplateWithWebContext(String templateName, Model model) {
         try {
             // Create a standard context

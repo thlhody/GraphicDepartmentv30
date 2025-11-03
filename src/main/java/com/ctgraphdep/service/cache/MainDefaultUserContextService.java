@@ -273,6 +273,7 @@ public class MainDefaultUserContextService {
      *
      * @return Admin user if elevated, null otherwise
      */
+    @SuppressWarnings("unused")
     public User getElevatedAdminUser() {
         return mainDefaultUserContextCache.getElevatedAdminUser();
     }
