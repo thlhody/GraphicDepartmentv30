@@ -25,7 +25,7 @@ function createMonthlyEntriesChart(elementId, data, title) {
                 pointBackgroundColor: '#36A2EB'
             },
                 {
-                    label: 'ORDIN SPIZED Entries',
+                    label: 'SPIZED Entries',
                     data: Object.values(data.spized),
                     fill: false,
                     borderColor: '#FF6384',

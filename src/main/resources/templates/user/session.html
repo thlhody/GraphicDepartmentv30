@@ -3,12 +3,12 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Session Management</title>
-    <link rel="stylesheet" th:href="@{/css/session.css?v=301020251614}">
-    <link rel="stylesheet" th:href="@{/css/resolution.css?v=301020251614}">
+    <link rel="stylesheet" th:href="@{/css/session.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/resolution.css?v=031120251812}">
     <!-- Add time management CSS for embedded section -->
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=301020251614}">
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=301020251614}">
-    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=301020251614}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=031120251812}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -424,41 +424,41 @@
 
     <th:block layout:fragment="scripts">
         <!-- Toast alerts system -->
-        <script th:src="@{/js/toast-alerts.js?v=301020251614}"></script>
+        <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
 
         <!-- Resume confirmation script -->
-        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/session.js?v=301020251614}"></script>
+        <script th:if="${param.showResumeConfirmation}" th:src="@{/js/legacy/session.js?v=031120251812}"></script>
 
         <!-- Main script for resolution handling and clock -->
-        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/resolution.js?v=301020251614}" defer></script>
+        <script th:if="${hasUnresolvedEntries}" th:src="@{/js/legacy/resolution.js?v=031120251812}" defer></script>
 
         <!-- Always load the session enhancement script -->
-        <script th:src="@{/js/session-enhanced.js?v=301020251614}" defer></script>
+        <script th:src="@{/js/legacy/session-enhanced.js?v=031120251812}" defer></script>
 
         <!-- ========================================= -->
         <!-- TIME MANAGEMENT MODULES (for embedded fragment) -->
         <!-- ========================================= -->
 
         <!-- Core utilities first -->
-        <script th:src="@{/js/tm/utilities-module.js?v=301020251614}"></script>
-        <script th:src="@{/js/tm/time-input-module.js?v=301020251614}"></script>
+        <script th:src="@{/js/legacy/tm/utilities-module.js?v=031120251812}"></script>
+        <script th:src="@{/js/legacy/tm/time-input-module.js?v=031120251812}"></script>
 
         <!-- Feature modules -->
-        <script th:src="@{/js/tm/status-display-module.js?v=301020251614}"></script>
-        <script th:src="@{/js/tm/work-time-display-module.js?v=301020251614}"></script>
-        <script th:src="@{/js/tm/inline-editing-module.js?v=301020251614}"></script>
-        <script th:src="@{/js/tm/timeoff-management-module.js?v=301020251614}"></script>
-        <script th:src="@{/js/tm/period-navigation-module.js?v=301020251614}"></script>
+        <script th:src="@{/js/legacy/tm/status-display-module.js?v=031120251812}"></script>
+        <script th:src="@{/js/legacy/tm/work-time-display-module.js?v=031120251812}"></script>
+        <script th:src="@{/js/legacy/tm/inline-editing-module.js?v=031120251812}"></script>
+        <script th:src="@{/js/legacy/tm/timeoff-management-module.js?v=031120251812}"></script>
+        <script th:src="@{/js/legacy/tm/period-navigation-module.js?v=031120251812}"></script>
 
         <!-- Holiday request functionality -->
-        <script th:src="@{/js/tm/holiday-export-utils.js?v=301020251614}"></script>
-        <script th:src="@{/js/tm/holiday-request-modal.js?v=301020251614}"></script>
+        <script th:src="@{/js/legacy/tm/holiday-export-utils.js?v=031120251812}"></script>
+        <script th:src="@{/js/legacy/tm/holiday-request-modal.js?v=031120251812}"></script>
 
         <!-- Time Management Core coordinator -->
-        <script th:src="@{/js/time-management-core.js?v=301020251614}"></script>
+        <script th:src="@{/js/legacy/time-management-core.js?v=031120251812}"></script>
 
         <!-- Time Management Integration Script (load last) -->
-        <script th:src="@{/js/session-time-management-integration.js?v=301020251614}" defer></script>
+        <script th:src="@{/js/legacy/session-time-management-integration.js?v=031120251812}" defer></script>
     </th:block>
 </div>
 </body>

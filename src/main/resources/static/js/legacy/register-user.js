@@ -335,7 +335,7 @@ class RegisterFormHandler {
         if (!actionType) return 0;
 
         // Special cases first
-        if (actionType === 'IMPOSTARE') return 0.0;
+        if (actionType === AppConstants.IMPOSTARE) return 0.0;
         if (actionType === 'REORDIN') return 1.0;
         if (actionType === 'ORDIN SPIZED') return 2.0;
         if (actionType === 'CAMPION SPIZED') return 2.0;
@@ -798,7 +798,7 @@ class RegisterSummaryHandler {
                     case 'PROBA STAMPA': this.actionCounts.probaStampa++; break;
                     case 'DESIGN':
                     case 'DESIGN 3D':this.actionCounts.design++;break;
-                    case 'IMPOSTARE': this.actionCounts.impostare++; break;
+                    case AppConstants.IMPOSTARE: this.actionCounts.impostare++; break;
                     case 'ORDIN SPIZED': this.actionCounts.ordinSpized++; break;
                     case 'CAMPION SPIZED': this.actionCounts.campionSpized++; break;
                     case 'PROBA S SPIZED': this.actionCounts.probaSSpized++; break;
@@ -809,7 +809,7 @@ class RegisterSummaryHandler {
                 }
 
                 // Calculate metrics excluding IMPOSTARE entries
-                if (actionType !== 'IMPOSTARE') {
+                if (actionType !== AppConstants.IMPOSTARE) {
                     nonImpostareCount++;
                     totalArticles += articles;
                     totalComplexity += complexity;

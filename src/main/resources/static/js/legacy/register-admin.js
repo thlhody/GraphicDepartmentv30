@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function calculateSummaryFromEntries(entries) {
     if (!entries || entries.length === 0) return;
 
-    const validEntries = entries.filter(entry => entry.actionType !== 'IMPOSTARE');
+    const validEntries = entries.filter(entry => entry.actionType !== AppConstants.IMPOSTARE);
     if (validEntries.length === 0) return;
 
     state.bonusCalculationData.totalEntries = validEntries.length;
@@ -757,7 +757,7 @@ async function calculateBonus() {
             };
         })
         // Filter out only IMPOSTARE
-            .filter(entry => entry.actionType !== 'IMPOSTARE');
+            .filter(entry => entry.actionType !== AppConstants.IMPOSTARE);
 
         // Add error handling for empty entries
         if (visibleEntries.length === 0) {

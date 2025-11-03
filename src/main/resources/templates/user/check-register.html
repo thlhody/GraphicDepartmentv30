@@ -3,9 +3,9 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Check Register</title>
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=301020251614}">
-    <link rel="stylesheet" th:href="@{/css/check-register.css?v=301020251614}">
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=301020251614}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/check-register.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=031120251812}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -126,7 +126,7 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/toast-alerts.js?v=301020251614}"></script>
+    <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
     <script th:inline="javascript">
         // Pass check type values from server to JavaScript
         const SERVER_CHECK_TYPE_VALUES = /*[[${checkTypeValues}]]*/ null;
@@ -142,7 +142,7 @@
             }, 500);
         });
     </script>
-    <script th:src="@{/js/check-register.js?v=301020251614}"></script>
+    <script th:src="@{/js/legacy/check-register.js?v=031120251812}"></script>
 </th:block>
 </body>
 </html>

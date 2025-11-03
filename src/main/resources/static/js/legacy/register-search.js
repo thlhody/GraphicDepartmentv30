@@ -221,7 +221,7 @@ function calculateStats() {
                 else if (actionType === 'CAMPION') actionCounts.campion++;
                 else if (actionType === 'PROBA STAMPA') actionCounts.probaStampa++;
                 else if (actionType === 'DESIGN') actionCounts.design++;
-                else if (actionType === 'IMPOSTARE') actionCounts.impostare++;
+                else if (actionType === AppConstants.IMPOSTARE) actionCounts.impostare++;
                 else if (actionType === 'ORDIN SPIZED') actionCounts.ordinSpized++;
                 else if (actionType === 'CAMPION SPIZED') actionCounts.campionSpized++;
                 else if (actionType === 'PROBA S SPIZED') actionCounts.probaSSpized++;
@@ -231,7 +231,7 @@ function calculateStats() {
             // Calculate metrics
             metrics.totalEntries++;
 
-            if (!actionType.includes('IMPOSTARE')) {
+            if (!actionType.includes(AppConstants.IMPOSTARE)) {
                 metrics.totalNoImpostare++;
                 metrics.totalArticles += articles;
                 metrics.totalComplexity += complexity;

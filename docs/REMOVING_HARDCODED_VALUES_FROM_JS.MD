@@ -61,13 +61,13 @@ Step-by-step:
    };
 
 2. Include it in src/main/resources/templates/layout/main.html (in the <head> or before other scripts):
-  <script th:src="@{/js/constants.js}"></script>
+  <script th:src="@{/js/legacy/constants.js}"></script>
   <!-- Then your other scripts -->
-  <script th:src="@{/js/default.js}"></script>
+  <script th:src="@{/js/legacy/default.js}"></script>
 
 3. Use anywhere in any other JS file:
    // register.js
-   if (actionType === AppConstants.AT_IMPOSTARE) {
+   if (actionType === AppConstants.IMPOSTARE) {
    // works!
    }
 
