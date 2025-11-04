@@ -82,18 +82,91 @@ const overtimeType = TimeOffService.getOvertimeTypeLabel('2025-01-01', 'SN');
 
 ---
 
-### `statusService.js` ⏳ PENDING
+### `statusService.js` ✅ COMPLETE
 
 **Status badge and label management.**
 
-Will consolidate status-related helpers from multiple files.
+Previously duplicated across 3+ files, now unified here.
 
-**Planned Methods:**
-- `getLabel(status)` - Get display label
-- `getClass(status)` - Get CSS class
-- `getBadgeClass(status)` - Get badge class
-- `isEditable(status)` - Check if entry can be edited
-- `isFinal(status)` - Check if status is final
+**Exports:**
+- `StatusService` class with static methods
+
+**Key Methods:**
+
+**Display Helpers:**
+- `getLabel(status)` - Get display label ('USER_DONE' → 'User Completed')
+- `getClass(status)` - Get CSS text class ('text-success', 'text-warning')
+- `getBadgeClass(status)` - Get badge class ('bg-success', 'bg-warning')
+- `getBadgeHtml(status, classes)` - Generate complete badge HTML
+- `formatWithIcon(status)` - Format with icon (✓, 🔒, etc.)
+
+**Status Checks:**
+- `isFinal(status)` - Check if status is final (ADMIN_FINAL, TEAM_FINAL)
+- `isInProcess(status)` - Check if active session
+- `isUserStatus(status)` - Check if user-created
+- `isAdminStatus(status)` - Check if admin-modified
+- `isTeamStatus(status)` - Check if team-modified
+
+**Permission Checks:**
+- `isEditable(status, userRole)` - Check if user can edit entry
+- `canOverride(currentStatus, newStatus)` - Check override permissions
+- `getPriority(status)` - Get priority level (0-5)
+
+**Utilities:**
+- `getAllStatuses()` - Get all valid status codes
+- `isValidStatus(status)` - Validate status code
+- `getStatusForAction(userRole, isFinal)` - Get recommended status for action
+
+**Usage:**
+```javascript
+import { StatusService } from './services/statusService.js';
+
+// Display helpers
+const label = StatusService.getLabel('USER_DONE'); // 'User Completed'
+const cssClass = StatusService.getClass('ADMIN_EDITED'); // 'text-warning'
+const badge = StatusService.getBadgeClass('ADMIN_FINAL'); // 'bg-dark'
+const html = StatusService.getBadgeHtml('USER_DONE');
+// '<span class="badge bg-success">User Completed</span>'
+
+// Status checks
+const isFinal = StatusService.isFinal('ADMIN_FINAL'); // true
+const isActive = StatusService.isInProcess('USER_IN_PROCESS'); // true
+
+// Permission checks
+const canEdit = StatusService.isEditable('USER_DONE', 'ROLE_ADMIN'); // true
+const canEdit2 = StatusService.isEditable('ADMIN_FINAL', 'ROLE_ADMIN'); // false
+const canEdit3 = StatusService.isEditable('USER_IN_PROCESS', 'ROLE_ADMIN'); // false (active)
+
+const canOverride = StatusService.canOverride('TEAM_EDITED', 'ADMIN_EDITED'); // true
+const canOverride2 = StatusService.canOverride('ADMIN_FINAL', 'TEAM_EDITED'); // false
+
+// Utilities
+const priority = StatusService.getPriority('ADMIN_FINAL'); // 5 (highest)
+const status = StatusService.getStatusForAction('ROLE_ADMIN', true); // 'ADMIN_FINAL'
+```
+
+**Permission Rules:**
+- **ADMIN_FINAL**: Cannot be edited by anyone (locked)
+- **USER_IN_PROCESS**: Cannot be edited (active session)
+- **ROLE_ADMIN**: Can edit all except ADMIN_FINAL and active sessions
+- **ROLE_TEAM_LEADER**: Can edit user and team entries, not admin entries
+- **ROLE_USER**: Can only edit own non-final entries
+
+**Priority Hierarchy:**
+1. ADMIN_FINAL (5) - Highest
+2. TEAM_FINAL (4)
+3. ADMIN_EDITED (3)
+4. TEAM_EDITED (2)
+5. USER_IN_PROCESS (2)
+6. USER_DONE, USER_INPUT, ADMIN_BLANK (1) - Lowest
+
+**Benefits:**
+- ✅ Single place for all status logic
+- ✅ ~80 lines of duplication eliminated
+- ✅ Comprehensive permission checking
+- ✅ Role-based edit validation
+- ✅ Priority-based conflict resolution
+- ✅ Uses STATUS_TYPES from `core/constants.js`
 
 ---
 
