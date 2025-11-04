@@ -450,56 +450,6 @@ export function allowsWorkHours(type) {
 }
 
 // =============================================================================
-// BACKWARD COMPATIBILITY - Legacy Window Global Support
-// =============================================================================
-
-/**
- * Export constants to window object for legacy code compatibility
- * This allows old code to access constants via window.Constants.*
- *
- * ⚠️ TEMPORARY: Remove once all legacy code is migrated
- */
-if (typeof window !== 'undefined') {
-    window.Constants = {
-        // Export as plain objects for legacy code
-        ActionTypeConstants,
-        ACTION_TYPE_VALUES,
-        CHECK_TYPE_VALUES,
-        COMPLEXITY_PRINT_PREPS,
-        NEUTRAL_PRINT_PREPS,
-        TIME_OFF_TYPES,
-        STATUS_TYPES,
-        ARTICLE_BASED_TYPES,
-        FILE_BASED_TYPES,
-        SPECIAL_DAY_TYPES,
-        PLAIN_TIME_OFF_TYPES,
-        ALL_TIME_OFF_TYPES,
-        DAYS_OF_WEEK,
-        MONTHS,
-        APPROVAL_STATUS,
-
-        // Helper functions
-        addActionType,
-        removeActionType,
-        addCheckType,
-        removeCheckType,
-        getActionTypes,
-        getCheckTypes,
-        getTimeOffTypes,
-        isArticleBasedType,
-        isFileBasedType,
-        allowsWorkHours
-    };
-
-    // Legacy format support (plain objects instead of Maps)
-    window.ActionTypeConstansts = ActionTypeConstants; // Note: Legacy typo preserved
-    window.ACTION_TYPE_VALUES = Object.fromEntries(ACTION_TYPE_VALUES);
-    window.CHECK_TYPE_VALUES = Object.fromEntries(CHECK_TYPE_VALUES);
-
-    console.log('✅ Core constants loaded - Single source of truth established');
-}
-
-// =============================================================================
 // EXPORTS
 // =============================================================================
 

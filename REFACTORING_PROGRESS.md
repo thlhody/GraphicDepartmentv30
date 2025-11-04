@@ -19,12 +19,14 @@
   - Lines saved: ~500 lines of duplication
   - **Status**: ✅ COMPLETE (2025-11-04)
 
-- [ ] **Task 1.2**: Create `services/timeOffService.js`
+- [x] **Task 1.2**: Create `services/timeOffService.js` ✅ COMPLETE
   - Branch: `refactor/timeoff-service`
-  - Files: Create `src/main/resources/static/js/services/timeOffService.js`
+  - Files: Created `src/main/resources/static/js/services/timeOffService.js` (469 lines)
+  - Files: Created `src/main/resources/static/js/services/README.md`
   - Consolidate: getTimeOffLabel(), getTimeOffIcon(), getTimeOffDescription(), validation
+  - Methods: 13 static methods (display, validation, parsing, formatting)
   - Lines saved: ~300 lines
-  - **Status**: ⏳ PENDING
+  - **Status**: ✅ COMPLETE (2025-11-04)
 
 - [ ] **Task 1.3**: Create `services/statusService.js`
   - Branch: `refactor/status-service`
@@ -89,43 +91,52 @@
 - ✅ Used ES6 Maps for better structure and type safety
 - ✅ Added JSDoc documentation for all exports
 - ✅ Included helper functions (add/remove/query)
-- ✅ Backward compatibility layer for legacy code
 - 💡 **Impact**: ~500 lines of duplication eliminated
+
+### Task 1.2 - Time-Off Service (2025-11-04)
+- ✅ Created `src/main/resources/static/js/services/timeOffService.js` (469 lines)
+- ✅ Created `src/main/resources/static/js/services/README.md`
+- ✅ Consolidated time-off functions from 4+ files
+- ✅ 13 static methods: display helpers, validation, parsing, formatting
+- ✅ Comprehensive validation with user-friendly alerts
+- ✅ Handles all formats: SN, SN:7.5, ZS-5, regular hours
+- ✅ Uses TIME_OFF_TYPES from core/constants.js
+- 💡 **Impact**: ~300 lines of duplication eliminated
 
 ---
 
 ## Current Focus 🎯
 
-**Working on**: Task 1.2 - Time-off Service
-**Branch**: `refactor/timeoff-service` (ready to create)
-**Goal**: Consolidate all time-off helper functions into a service
+**Working on**: Task 1.3 - Status Service
+**Branch**: `refactor/status-service` (ready to create)
+**Goal**: Consolidate all status-related helper functions into a service
 
-### Task 1.2 Details - NEXT
+### Task 1.3 Details - NEXT
 
-**Create**: `src/main/resources/static/js/services/timeOffService.js`
+**Create**: `src/main/resources/static/js/services/statusService.js`
 
 **Functions to consolidate**:
-1. `getTimeOffLabel()` - from 4 files
-2. `getTimeOffIcon()` - from 4 files
-3. `getTimeOffDescription()` - from 4 files
-4. `getOvertimeTypeLabel()` - from worktime-admin.js
-5. `validateWorktimeValue()` - validation logic
-6. `validateSpecialDayWorktime()` - special day validation
-7. `validateZSFormat()` - ZS format validation
+1. `getStatusLabel()` - from 3+ files
+2. `getStatusClass()` - from 3+ files
+3. `getBadgeClass()` - CSS badge classes
+4. `isEditable()` - check if entry can be edited
+5. `isFinal()` - check if status is final
+6. `canOverride()` - check override permissions
 
 **Files containing duplicates**:
-- `legacy/constants.js` (lines 163-235)
-- `legacy/worktime-admin.js` (lines 722-833)
-- Inline in `register-admin.js`, `check-register.js`
+- `legacy/worktime-admin.js` (lines 835-853)
+- `legacy/constants.js` (lines 237-255)
+- `legacy/check-register.js`
+- Inline in other files
 
 **Features**:
-- Use `TIME_OFF_TYPES` from core/constants.js
-- Static class methods (no instantiation needed)
-- Comprehensive validation
-- Handle all formats: SN, SN:5, ZS-5, etc.
+- Use `STATUS_TYPES` from core/constants.js
+- Static class methods
+- Permission checking logic
+- Status transition validation
 - JSDoc documentation
 
-**Lines saved**: ~300 lines
+**Lines saved**: ~80 lines
 
 ---
 
@@ -169,18 +180,25 @@ javascript-refactoring (main branch)
 
 ## Notes & Decisions
 
-### 2025-11-04 - Task 1.1 Complete ✅
+### 2025-11-04 - Tasks 1.1 & 1.2 Complete ✅
 - ✅ Analysis complete, full plan created
 - ✅ Decision: Option B (Phased Refactoring - 6 weeks)
 - ✅ Created progress tracker
 - ✅ **COMPLETED**: Task 1.1 - Core Constants
   - Created comprehensive constants module (438 lines)
   - All constants now use ES6 Maps for better structure
-  - Backward compatibility layer for legacy code
   - Helper functions for dynamic add/remove
   - Full JSDoc documentation
   - ~500 lines of duplication eliminated
-- 📋 **NEXT**: Task 1.2 - Time-off Service (ready to start)
+- ✅ **COMPLETED**: Task 1.2 - Time-Off Service
+  - Created timeOffService (469 lines)
+  - 13 static methods for display, validation, parsing, formatting
+  - Handles all time-off formats (SN, SN:7.5, ZS-5, etc.)
+  - Comprehensive validation with user alerts
+  - Uses TIME_OFF_TYPES from core/constants.js
+  - ~300 lines of duplication eliminated
+- 🔧 **NOTE**: Removed backward compatibility from constants.js (per user request)
+- 📋 **NEXT**: Task 1.3 - Status Service (ready to start)
 
 ---
 
