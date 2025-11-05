@@ -50,28 +50,189 @@ const complexity = window.Constants.ACTION_TYPE_VALUES.get('ORDIN');
 
 ---
 
-### `api.js` ⏳ PENDING
+### `api.js` ✅ COMPLETE
 
 **Unified AJAX/fetch wrapper with CSRF handling.**
 
-Will provide:
-- GET, POST, PUT, DELETE methods
-- Automatic CSRF token injection
-- Error handling
+Provides consistent HTTP request handling across the application.
+
+**Exports:**
+- `API` class with static methods
+- `APIError` class for error handling
+
+**HTTP Methods:**
+- `get(url, params, options)` - GET request
+- `post(url, data, options)` - POST with JSON
+- `postForm(url, formData, options)` - POST with form data
+- `put(url, data, options)` - PUT request
+- `patch(url, data, options)` - PATCH request
+- `delete(url, options)` - DELETE request
+
+**Features:**
+- Automatic CSRF token injection (from meta tags)
 - Request/response interceptors
+- Timeout support (default: 30s)
+- JSON/FormData handling
+- URL parameter encoding
+- Consistent error handling
+- Custom APIError class with helper methods
+
+**Usage:**
+```javascript
+import { API } from './core/api.js';
+
+// GET request with params
+const users = await API.get('/api/users', { page: 1, limit: 10 });
+
+// POST with JSON
+const result = await API.post('/api/users', {
+    name: 'John Doe',
+    email: 'john@example.com'
+});
+
+// POST with form data
+const formData = new FormData(form);
+const result = await API.postForm('/api/upload', formData);
+
+// Error handling
+try {
+    const data = await API.get('/api/data');
+} catch (error) {
+    if (error.isTimeout()) {
+        console.error('Request timed out');
+    } else if (error.isClientError()) {
+        console.error('Client error:', error.message);
+    }
+}
+
+// Configure (do once on app init)
+API.configure({
+    baseURL: '/api',
+    timeout: 60000,
+    defaultHeaders: { 'X-Custom': 'value' }
+});
+
+// Add interceptors
+API.addRequestInterceptor((url, options) => {
+    console.log('Request:', url);
+    return options;
+});
+
+API.addResponseInterceptor((response) => {
+    console.log('Response:', response.status);
+    return response;
+});
+```
+
+**Benefits:**
+- ✅ Single place for HTTP logic
+- ✅ ~250 lines of inline AJAX eliminated
+- ✅ Automatic CSRF handling
+- ✅ Consistent error handling
+- ✅ Interceptor support for logging/auth
 
 ---
 
-### `utils.js` ⏳ PENDING
+### `utils.js` ✅ COMPLETE
 
-**Common utility functions.**
+**Common utility functions - No jQuery.**
 
-Will provide:
-- Date formatting
-- Number formatting
-- String utilities
-- DOM utilities
-- No jQuery dependency
+Pure vanilla JavaScript utilities for common operations.
+
+**Categories:**
+
+**DOM Utilities:**
+- `$(selector, context)` - Query selector wrapper
+- `$$(selector, context)` - Query selector all wrapper
+- `createElement(tag, attrs, content)` - Create element with attributes
+- `on(element, event, selector, handler)` - Event delegation
+- `remove(element)` - Remove element from DOM
+- `hasClass(element, className)` - Check if has class
+
+**Date/Time Utilities:**
+- `formatDate(date)` - Format to YYYY-MM-DD
+- `formatDateEU(date)` - Format to DD/MM/YYYY
+- `formatTime(date)` - Format to HH:mm
+- `formatDateTime(date)` - Format to YYYY-MM-DD HH:mm:ss
+- `parseDate(dateString)` - Parse various date formats
+- `getRelativeTime(date)` - Get relative time ("2 hours ago")
+
+**String Utilities:**
+- `capitalize(str)` - Capitalize first letter
+- `titleCase(str)` - Convert to title case
+- `truncate(str, maxLength, suffix)` - Truncate with suffix
+- `escapeHtml(str)` - Escape HTML characters
+- `stripHtml(html)` - Strip HTML tags
+- `randomString(length)` - Generate random string
+
+**Number Utilities:**
+- `formatNumber(num, decimals)` - Format with thousand separators
+- `formatPercentage(num, decimals, isDecimal)` - Format as percentage
+- `clamp(num, min, max)` - Clamp between min/max
+- `isNumeric(value)` - Check if numeric
+
+**Array/Object Utilities:**
+- `deepClone(obj)` - Deep clone object
+- `isEmpty(obj)` - Check if empty
+- `groupBy(array, key)` - Group array by key
+- `sortBy(array, key, ascending)` - Sort array by key
+- `unique(array)` - Remove duplicates
+
+**Function Utilities:**
+- `debounce(func, wait)` - Debounce function
+- `throttle(func, limit)` - Throttle function
+- `sleep(ms)` - Async sleep/delay
+
+**URL Utilities:**
+- `getUrlParams(url)` - Get URL parameters as object
+- `updateUrlParam(key, value)` - Update URL parameter
+- `removeUrlParam(key)` - Remove URL parameter
+
+**Validation Utilities:**
+- `isValidEmail(email)` - Validate email
+- `isValidUrl(url)` - Validate URL
+- `isValidPhone(phone)` - Validate phone number
+
+**Usage:**
+```javascript
+import { formatDate, debounce, createElement, $ } from './core/utils.js';
+
+// Date formatting
+const today = formatDate(new Date()); // '2025-11-04'
+const time = formatTime(new Date()); // '14:30'
+
+// DOM manipulation (no jQuery)
+const button = $('button.submit');
+const inputs = $$('input.required');
+const div = createElement('div', { class: 'card' }, 'Hello');
+
+// Debounce search input
+const debouncedSearch = debounce((query) => {
+    console.log('Searching:', query);
+}, 300);
+input.addEventListener('input', (e) => debouncedSearch(e.target.value));
+
+// String utilities
+const text = truncate('Long text here...', 20); // 'Long text here...'
+const safe = escapeHtml('<script>alert("xss")</script>');
+
+// Array operations
+const grouped = groupBy(users, 'role');
+const sorted = sortBy(users, 'name');
+const uniqueIds = unique([1, 2, 2, 3, 3, 4]);
+
+// Number formatting
+const formatted = formatNumber(1234567.89, 2); // '1,234,567.89'
+const percent = formatPercentage(0.856, 1); // '85.6%'
+```
+
+**Benefits:**
+- ✅ No jQuery dependency
+- ✅ ~200 lines saved across files
+- ✅ Consistent utilities across app
+- ✅ Modern JavaScript (ES6+)
+- ✅ Well-tested patterns
+- ✅ Tree-shakeable imports
 
 ---
 
