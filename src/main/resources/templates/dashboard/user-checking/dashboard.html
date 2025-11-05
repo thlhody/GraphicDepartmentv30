@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title th:text="${dashboard.pageTitle}">User Dashboard</title>
-    <link rel="stylesheet" th:href="@{/css/dashboard.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -79,7 +79,17 @@
 </div>
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/legacy/dashboard.js?v=031120251812}"></script>
+    <!-- ES6 Module (Modern Browsers) -->
+    <script type="module">
+        import '/js/features/dashboard/index.js';
+        console.log('✅ User-Checking Dashboard - ES6 module loaded');
+    </script>
+
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/dashboard.js}"></script>
+    <script nomodule>
+        console.log('⚠️ User-Checking Dashboard - Legacy fallback loaded');
+    </script>
 </th:block>
 </body>
 </html>
