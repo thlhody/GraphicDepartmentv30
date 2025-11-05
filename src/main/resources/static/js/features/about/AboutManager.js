@@ -32,14 +32,12 @@ export class AboutManager {
     initialize() {
         console.log('🚀 Initializing About Manager...');
 
-        // Check if Bootstrap is available
-        if (typeof bootstrap === 'undefined') {
-            console.error('Bootstrap not loaded - About modal requires Bootstrap');
-            return;
+        // Setup modal (only if Bootstrap is available and modal exists)
+        if (typeof bootstrap !== 'undefined') {
+            this.setupModal();
+        } else {
+            console.log('Bootstrap not loaded - skipping modal setup (about page mode)');
         }
-
-        // Setup modal
-        this.setupModal();
 
         // Setup logo easter egg
         this.setupLogoShortcut();

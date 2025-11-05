@@ -16,10 +16,12 @@ function init() {
     console.log('🚀 Initializing About System...');
 
     try {
-        // Only initialize if about modal exists
+        // Check if we're on the about page (has notification testing card)
+        const notificationCard = document.querySelector('.notification-testing-card');
         const aboutModal = document.getElementById('aboutModal');
-        if (!aboutModal) {
-            console.log('About modal not found, skipping initialization');
+
+        if (!notificationCard && !aboutModal) {
+            console.log('About page/modal not found, skipping initialization');
             return;
         }
 
