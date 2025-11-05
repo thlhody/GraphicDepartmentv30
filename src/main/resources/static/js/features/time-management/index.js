@@ -15,6 +15,11 @@ import { WorkTimeDisplay } from './WorkTimeDisplay.js';
 import { InlineEditing } from './InlineEditing.js';
 import { TimeOffManagement } from './TimeOffManagement.js';
 import { PeriodNavigation } from './PeriodNavigation.js';
+import { HolidayRequestModal } from './HolidayRequestModal.js';
+import { HolidayExportService } from './HolidayExportService.js';
+
+// Global holiday modal instance
+let holidayModal = null;
 
 /**
  * Initialize time management interface
@@ -39,6 +44,9 @@ function init() {
         // Initialize period navigation (must be after inline editing)
         PeriodNavigation.initialize();
 
+        // Initialize holiday request modal if present on page
+        initializeHolidayModal();
+
         console.log('✅ Time Management Interface initialized successfully');
 
         // Restore scroll position if available
@@ -46,6 +54,28 @@ function init() {
 
     } catch (error) {
         console.error('❌ Error initializing Time Management:', error);
+    }
+}
+
+/**
+ * Initialize holiday request modal if modal element exists on page
+ */
+function initializeHolidayModal() {
+    const holidayModalElement = document.getElementById('holidayModal');
+    if (holidayModalElement) {
+        console.log('📋 Initializing Holiday Request Modal...');
+        holidayModal = new HolidayRequestModal();
+        holidayModal.init();
+
+        // Make available globally for backward compatibility
+        window.holidayRequestModal = holidayModal;
+        window.openHolidayRequestModal = (startDate, endDate, userData, timeOffType) => {
+            return holidayModal.open(startDate, endDate, userData, timeOffType);
+        };
+        window.closeHolidayModal = () => holidayModal.close();
+        window.exportHolidayToImage = (format) => holidayModal.exportToImage(format);
+
+        console.log('✅ Holiday Request Modal initialized');
     }
 }
 
@@ -77,6 +107,9 @@ export {
     InlineEditing,
     TimeOffManagement,
     PeriodNavigation,
+    HolidayRequestModal,
+    HolidayExportService,
+    holidayModal,
     init
 };
 

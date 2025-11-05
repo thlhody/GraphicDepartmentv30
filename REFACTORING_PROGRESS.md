@@ -173,7 +173,7 @@
   - Lines saved: ~120 lines (removed duplicated formatMinutes, cleaner structure)
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-- [x] **Task 3.6**: Refactor Time Management modules (4,181 lines from 7 of 9 files in `legacy/tm/`) ✅ PARTIAL
+- [x] **Task 3.6**: Refactor Time Management modules (4,181 lines from 7 of 9 files in `legacy/tm/`) ✅ COMPLETE
   - Created 8 modular files in `features/time-management/`
   - Modules: TimeManagementUtilities (455), StatusDisplay (459), TimeInput (471), WorkTimeDisplay (575), InlineEditing (879), TimeOffManagement (735), PeriodNavigation (406), index (99)
   - Features:
@@ -186,8 +186,20 @@
     - **PeriodNavigation**: Month/year selection, Ctrl+←/→ keyboard shortcuts, export button
   - Uses Phase 1 & 2 infrastructure: TimeOffService, StatusService, API wrapper, utils, Modal
   - Lines saved: ~300 lines (removed formatMinutesToHours duplication, centralized utilities)
-  - **Remaining**: 2 files (holiday-request-modal.js 699 lines, holiday-export-utils.js 641 lines) - complex, use different patterns
   - **Status**: ✅ PARTIAL (7/9 files, 2025-11-05)
+
+- [x] **Task 3.6.1**: Complete Time Management - Holiday modules (1,340 lines from 2 files) ✅ COMPLETE
+  - Created 2 modular files in `features/time-management/`
+  - **Holiday Modules** (2 files):
+    - HolidayRequestModal.js (658 lines) - ES6 class for holiday request modal UI, form handling, validation
+    - HolidayExportService.js (680 lines) - Export service for JPG/PNG with html2canvas, dynamic library loading
+  - Features:
+    - HolidayRequestModal: Modal state management, form population, auto-select holiday types (CO/CM/CR/CN/CE/D), checkbox handling, signature upload, validation
+    - HolidayExportService: Dynamic library loading (html2canvas), image export with DOCX-style template, form validation with detailed errors, success/error notifications
+  - Integration: Conditional initialization in time-management index.js (only if modal element exists)
+  - Backward compatibility: Global functions for legacy HTML (openHolidayRequestModal, closeHolidayModal, exportHolidayToImage)
+  - Lines saved: ~100 lines (removed duplicated validation, cleaner module structure)
+  - **Status**: ✅ COMPLETE (2025-11-05)
 
 - [x] **Task 3.8**: Refactor check-values.js (539 lines) ✅ COMPLETE
   - Created 2 files in `features/check-values/`
@@ -271,10 +283,7 @@
   - Lines saved: ~50 lines (removed duplicated CSRF handling, validation)
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-### Pending Tasks (15 Legacy Files)
-- [ ] **Task 3.6.1**: Complete Time Management - Holiday modules (2 remaining files)
-  - `holiday-request-modal.js` (699 lines) - modal for holiday request forms
-  - `holiday-export-utils.js` (641 lines) - export utilities (requires html2canvas, jsPDF)
+### Pending Tasks (13 Legacy Files)
 - [ ] **Task 3.7**: Refactor Utility Management modules (7 files in `legacy/um/`)
   - `actions-utility.js`, `backup-utility.js`, `diagnostics-utility.js`, etc.
   - **Note**: jQuery-heavy admin-only utilities, lower priority
@@ -287,20 +296,20 @@
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 64% (27/42 files complete - note: 3 session files merged, 7 TM files converted)
-- **Completed**: 27 files → 54 modules
+- **Progress**: 69% (29/42 files complete - note: 3 session files merged, 9 TM files converted)
+- **Completed**: 29 files → 56 modules
   - register-user.js, register-admin.js, worktime-admin.js, check-register.js
   - session.js, session-enhanced.js, session-time-management-integration.js (merged)
-  - 7 time management modules: utilities, status-display, time-input, work-time-display, inline-editing, timeoff-management, period-navigation
+  - 9 time management modules: utilities, status-display, time-input, work-time-display, inline-editing, timeoff-management, period-navigation, holiday-request-modal, holiday-export-utils
   - check-values.js
   - dashboard.js
   - admin-bonus.js, check-bonus.js, check-bonus-fragment.js
   - statistics.js, team-stats.js
   - status.js, login.js, viewer.js
   - resolution.js, about.js, register-search.js
-- **Remaining**: 15 files to refactor (2 TM holiday modules + 13 others)
-- **New code created**: ~16,546 lines (54 focused modules)
-- **Lines saved so far**: ~2,070 lines of duplication
+- **Remaining**: 13 files to refactor
+- **New code created**: ~17,884 lines (56 focused modules)
+- **Lines saved so far**: ~2,170 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
 
@@ -335,8 +344,8 @@
 | 27 | `tm/time-input-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/TimeInput.js` |
 | 28 | `tm/work-time-display-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/WorkTimeDisplay.js` |
 | 29 | `tm/status-display-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/StatusDisplay.js` |
-| 30 | `tm/holiday-request-modal.js` | Time Mgmt | ⏳ PENDING | Use Modal component (complex) |
-| 31 | `tm/holiday-export-utils.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` (complex) |
+| 30 | `tm/holiday-request-modal.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/HolidayRequestModal.js` |
+| 31 | `tm/holiday-export-utils.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/HolidayExportService.js` |
 | 32 | `tm/utilities-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/TimeManagementUtilities.js` |
 | 33 | `um/actions-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
 | 34 | `um/backup-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
@@ -727,7 +736,7 @@
 
 **PHASE 3: REFACTORING ALL LEGACY JAVASCRIPT** 🚀
 
-**Current Status**: 27 of 42 legacy files refactored (64% complete - NEARLY TWO-THIRDS! 🎉)
+**Current Status**: 29 of 42 legacy files refactored (69% complete - APPROACHING THREE-QUARTERS! 🎉)
 
 **Refactoring Workflow**:
 1. ✅ **Phase 1**: Foundation (6 modules) - COMPLETE
@@ -742,24 +751,26 @@
 - ✅ Task 3.3: `worktime-admin.js` → 5 modules (WorktimeEditor, WorktimeValidator, WorktimeDataService, WorktimeFinalization, index)
 - ✅ Task 3.4: `check-register.js` → 5 modules (CheckRegisterForm, CheckRegisterSummary, CheckRegisterSearch, StatusBadgeHandler, index)
 - ✅ Task 3.5: Session modules (3 files merged) → 4 modules (SessionUI, SessionEndTime, SessionTimeManagement, index)
-- ✅ Task 3.6: Time Management modules (7 of 9 files) → 8 modules (PARTIAL - 2 holiday files remain)
+- ✅ Task 3.6: Time Management modules (9 of 9 files) → 10 modules (COMPLETE)
+- ✅ Task 3.6.1: Holiday modules (2 files) → 2 modules (HolidayRequestModal, HolidayExportService)
 - ✅ Task 3.8: `check-values.js` → 2 modules (CheckValuesHandler, index)
 - ✅ Task 3.9: Dashboard & Bonus → 6 modules (DashboardAutoRefresh, AdminBonusManager, CheckBonusDashboard, CheckBonusFragment, 2x index)
 - ✅ Task 3.10: Statistics → 3 modules (StatisticsCharts, TeamStatsManager, index)
 - ✅ Task 3.11: Standalone Pages → 6 modules (StatusManager, LoginManager, LogViewerManager, 3x index)
 - ✅ Task 3.12: Standalone Utility Pages → 6 modules (ResolutionManager, AboutManager, RegisterSearchManager, 3x index)
-- ⏳ 15 more legacy files to refactor...
+- ⏳ 13 more legacy files to refactor...
 
 **Summary (Phases 1+2+3 so far)**:
-- **54 modules created** (6 foundation + 4 components + 44 features)
-- **16,546 lines of new code**
-- **~4,000 lines duplication eliminated**
-- **15 legacy files remaining** to refactor before Phase 4
+- **56 modules created** (6 foundation + 4 components + 46 features)
+- **~17,884 lines of new code**
+- **~4,100 lines duplication eliminated**
+- **13 legacy files remaining** to refactor before Phase 4
 
 **Next Steps**:
 - Continue refactoring legacy JS files (Task 3.13 onwards)
 - Target next: Time management core modules (standalone-time-management.js, time-management-core.js)
 - Or: Utility management modules (7 files in legacy/um/)
+- Clean up deprecated files (constants.js, default.js, toast-alerts.js - already replaced)
 - After ALL legacy JS is refactored → Phase 4 (update HTML templates)
 - After templates updated → Phase 5 (cleanup & documentation)
 
