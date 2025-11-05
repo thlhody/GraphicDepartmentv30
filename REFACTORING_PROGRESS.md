@@ -197,7 +197,26 @@
   - Handles batch save/reset, form validation, modified state tracking
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-### Pending Tasks (31 Legacy Files)
+- [x] **Task 3.9**: Refactor Dashboard and Bonus modules (1,639 lines from 4 files) ✅ COMPLETE
+  - Created 2 directories: `features/dashboard/` and `features/bonus/`
+  - **Dashboard Module** (2 files):
+    - DashboardAutoRefresh.js (360 lines) - Cache monitoring, auto-refresh, manual refresh button
+    - index.js (76 lines) - Entry point with CSS injection
+  - **Bonus Modules** (4 files):
+    - AdminBonusManager.js (463 lines) - Admin bonus page (period selection, data loading, sorting, Excel export)
+    - CheckBonusDashboard.js (458 lines) - Team bonus dashboard (all users view, sorting, dual export)
+    - CheckBonusFragment.js (577 lines) - Individual user bonus calculation (hours options, save bonus)
+    - index.js (76 lines) - Smart entry point (detects page type, initializes appropriate manager)
+  - Features:
+    - Dashboard: Auto-refresh on cache completion, progress indicators, metrics updates
+    - Admin Bonus: Period selection, sortable table (12 columns), currency/percentage formatting, 2 export types
+    - Check Bonus Dashboard: Team view with efficiency badges, sortable, AJAX loading, 2 export types
+    - Check Bonus Fragment: Calculate bonus with live/standard/manual hours, double-click edit bonus sum, save to JSON
+  - Uses Phase 1 & 2 infrastructure: API wrapper (CSRF), formatCurrency/formatNumber helpers
+  - Lines saved: ~150 lines (removed duplicated formatting, CSRF handling)
+  - **Status**: ✅ COMPLETE (2025-11-05)
+
+### Pending Tasks (27 Legacy Files)
 - [ ] **Task 3.6.1**: Complete Time Management - Holiday modules (2 remaining files)
   - `holiday-request-modal.js` (699 lines) - modal for holiday request forms
   - `holiday-export-utils.js` (641 lines) - export utilities (requires html2canvas, jsPDF)
@@ -213,15 +232,17 @@
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 36% (15/42 files complete - note: 3 session files merged, 7 TM files converted)
-- **Completed**: 15 files → 33 modules
+- **Progress**: 45% (19/42 files complete - note: 3 session files merged, 7 TM files converted)
+- **Completed**: 19 files → 39 modules
   - register-user.js, register-admin.js, worktime-admin.js, check-register.js
   - session.js, session-enhanced.js, session-time-management-integration.js (merged)
   - 7 time management modules: utilities, status-display, time-input, work-time-display, inline-editing, timeoff-management, period-navigation
   - check-values.js
-- **Remaining**: 27 files to refactor (2 TM holiday modules + 25 others)
-- **New code created**: ~11,059 lines (33 focused modules)
-- **Lines saved so far**: ~1,770 lines of duplication
+  - dashboard.js
+  - admin-bonus.js, check-bonus.js, check-bonus-fragment.js
+- **Remaining**: 23 files to refactor (2 TM holiday modules + 21 others)
+- **New code created**: ~13,669 lines (39 focused modules)
+- **Lines saved so far**: ~1,920 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
 
@@ -234,12 +255,12 @@
 | 5 | `session.js` | Session | ✅ COMPLETE | `features/session/` (4 modules, merged with 6 & 7) |
 | 6 | `session-enhanced.js` | Session | ✅ COMPLETE | Merged into `features/session/` |
 | 7 | `session-time-management-integration.js` | Session | ✅ COMPLETE | Merged into `features/session/` |
-| 8 | `dashboard.js` | Dashboard | ⏳ PENDING | `features/dashboard/` |
+| 8 | `dashboard.js` | Dashboard | ✅ COMPLETE | `features/dashboard/` (2 modules) |
 | 9 | `statistics.js` | Statistics | ⏳ PENDING | `features/statistics/` |
 | 10 | `team-stats.js` | Statistics | ⏳ PENDING | `features/statistics/team/` |
-| 11 | `admin-bonus.js` | Bonus | ⏳ PENDING | `features/bonus/admin/` |
-| 12 | `check-bonus.js` | Bonus | ⏳ PENDING | `features/bonus/check/` |
-| 13 | `check-bonus-fragment.js` | Bonus | ⏳ PENDING | Merge with check-bonus |
+| 11 | `admin-bonus.js` | Bonus | ✅ COMPLETE | `features/bonus/` (AdminBonusManager + index) |
+| 12 | `check-bonus.js` | Bonus | ✅ COMPLETE | `features/bonus/` (CheckBonusDashboard + index) |
+| 13 | `check-bonus-fragment.js` | Bonus | ✅ COMPLETE | `features/bonus/` (CheckBonusFragment + index) |
 | 14 | `check-values.js` | Check | ✅ COMPLETE | `features/check-values/` (2 modules) |
 | 15 | `login.js` | Auth | ⏳ PENDING | `features/auth/` |
 | 16 | `status.js` | Status | ⏳ PENDING | Integrate with StatusService |
@@ -648,7 +669,7 @@
 
 **PHASE 3: REFACTORING ALL LEGACY JAVASCRIPT** 🚀
 
-**Current Status**: 7 of 42 legacy files refactored (17% complete)
+**Current Status**: 19 of 42 legacy files refactored (45% complete)
 
 **Refactoring Workflow**:
 1. ✅ **Phase 1**: Foundation (6 modules) - COMPLETE
@@ -663,18 +684,22 @@
 - ✅ Task 3.3: `worktime-admin.js` → 5 modules (WorktimeEditor, WorktimeValidator, WorktimeDataService, WorktimeFinalization, index)
 - ✅ Task 3.4: `check-register.js` → 5 modules (CheckRegisterForm, CheckRegisterSummary, CheckRegisterSearch, StatusBadgeHandler, index)
 - ✅ Task 3.5: Session modules (3 files merged) → 4 modules (SessionUI, SessionEndTime, SessionTimeManagement, index)
-- ⏳ Task 3.6: Time Management modules - NEXT
-- ⏳ 35 more legacy files to refactor...
+- ✅ Task 3.6: Time Management modules (7 of 9 files) → 8 modules (PARTIAL - 2 holiday files remain)
+- ✅ Task 3.8: `check-values.js` → 2 modules (CheckValuesHandler, index)
+- ✅ Task 3.9: Dashboard & Bonus → 6 modules (DashboardAutoRefresh, AdminBonusManager, CheckBonusDashboard, CheckBonusFragment, 2x index)
+- ⏳ Task 3.10: Statistics modules - NEXT
+- ⏳ 23 more legacy files to refactor...
 
 **Summary (Phases 1+2+3 so far)**:
-- **33 modules created** (6 foundation + 4 components + 23 features)
-- **11,731 lines of new code**
-- **~3,700 lines duplication eliminated**
-- **35 legacy files remaining** to refactor before Phase 4
+- **39 modules created** (6 foundation + 4 components + 29 features)
+- **13,669 lines of new code**
+- **~3,850 lines duplication eliminated**
+- **23 legacy files remaining** to refactor before Phase 4
 
 **Next Steps**:
-- Continue refactoring legacy JS files (Task 3.6 onwards)
-- Target next: Time Management modules (10 files in legacy/tm/)
+- Continue refactoring legacy JS files (Task 3.10 onwards)
+- Target next: Statistics modules (statistics.js, team-stats.js)
+- Then: Login, viewer, and other standalone files
 - After ALL legacy JS is refactored → Phase 4 (update HTML templates)
 - After templates updated → Phase 5 (cleanup & documentation)
 
