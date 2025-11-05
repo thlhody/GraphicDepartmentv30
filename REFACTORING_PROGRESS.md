@@ -173,9 +173,26 @@
   - Lines saved: ~120 lines (removed duplicated formatMinutes, cleaner structure)
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-### Pending Tasks (35 Legacy Files)
-- [ ] **Task 3.6**: Refactor Time Management modules (10 files in `legacy/tm/`)
-  - `time-management-core.js`, `inline-editing-module.js`, `timeoff-management-module.js`, etc.
+- [x] **Task 3.6**: Refactor Time Management modules (4,181 lines from 7 of 9 files in `legacy/tm/`) ✅ PARTIAL
+  - Created 8 modular files in `features/time-management/`
+  - Modules: TimeManagementUtilities (455), StatusDisplay (459), TimeInput (471), WorkTimeDisplay (575), InlineEditing (879), TimeOffManagement (735), PeriodNavigation (406), index (99)
+  - Features:
+    - **TimeManagementUtilities**: Utility functions, delegates formatMinutesToHours to core/utils.js (NO DUPLICATION)
+    - **StatusDisplay**: Status modals, tooltips, editability checking based on merge status
+    - **TimeInput**: 24-hour time input with auto-formatting, validation, paste handling
+    - **WorkTimeDisplay**: Cell display updates, special day work (SN overtime), row styling
+    - **InlineEditing**: Double-click editing, save/cancel, status-based restrictions, auto-save
+    - **TimeOffManagement**: Time off form validation, recyclebin deletion (X → trash → remove)
+    - **PeriodNavigation**: Month/year selection, Ctrl+←/→ keyboard shortcuts, export button
+  - Uses Phase 1 & 2 infrastructure: TimeOffService, StatusService, API wrapper, utils, Modal
+  - Lines saved: ~300 lines (removed formatMinutesToHours duplication, centralized utilities)
+  - **Remaining**: 2 files (holiday-request-modal.js 699 lines, holiday-export-utils.js 641 lines) - complex, use different patterns
+  - **Status**: ✅ PARTIAL (7/9 files, 2025-11-05)
+
+### Pending Tasks (33 Legacy Files)
+- [ ] **Task 3.6.1**: Complete Time Management - Holiday modules (2 remaining files)
+  - `holiday-request-modal.js` (699 lines) - modal for holiday request forms
+  - `holiday-export-utils.js` (641 lines) - export utilities (requires html2canvas, jsPDF)
 - [ ] **Task 3.7**: Refactor Utility Management modules (7 files in `legacy/um/`)
   - `actions-utility.js`, `backup-utility.js`, `diagnostics-utility.js`, etc.
 - [ ] **Task 3.8**: Refactor Bonus modules
@@ -187,13 +204,14 @@
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 17% (7/42 files complete - note: 3 session files merged into 1 task)
-- **Completed**: 7 files → 23 modules
+- **Progress**: 33% (14/42 files complete - note: 3 session files merged, 7 TM files converted)
+- **Completed**: 14 files → 31 modules
   - register-user.js, register-admin.js, worktime-admin.js, check-register.js
   - session.js, session-enhanced.js, session-time-management-integration.js (merged)
-- **Remaining**: 35 files to refactor
-- **New code created**: ~6,305 lines (23 focused modules)
-- **Lines saved so far**: ~1,470 lines of duplication
+  - 7 time management modules: utilities, status-display, time-input, work-time-display, inline-editing, timeoff-management, period-navigation
+- **Remaining**: 28 files to refactor (2 TM holiday modules + 26 others)
+- **New code created**: ~10,486 lines (31 focused modules)
+- **Lines saved so far**: ~1,770 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
 
@@ -222,15 +240,15 @@
 | 21 | `utility-core.js` | Utilities | ⏳ PENDING | Merge into core/utils.js |
 | 22 | `standalone-time-management.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
 | 23 | `time-management-core.js` | Time Mgmt | ⏳ PENDING | `features/time-management/core/` |
-| 24 | `tm/inline-editing-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
-| 25 | `tm/timeoff-management-module.js` | Time Mgmt | ⏳ PENDING | Use TimeOffService |
-| 26 | `tm/period-navigation-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
-| 27 | `tm/time-input-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
-| 28 | `tm/work-time-display-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
-| 29 | `tm/status-display-module.js` | Time Mgmt | ⏳ PENDING | Use StatusService |
-| 30 | `tm/holiday-request-modal.js` | Time Mgmt | ⏳ PENDING | Use Modal component |
-| 31 | `tm/holiday-export-utils.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
-| 32 | `tm/utilities-module.js` | Time Mgmt | ⏳ PENDING | Merge into core/utils.js |
+| 24 | `tm/inline-editing-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/InlineEditing.js` |
+| 25 | `tm/timeoff-management-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/TimeOffManagement.js` |
+| 26 | `tm/period-navigation-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/PeriodNavigation.js` |
+| 27 | `tm/time-input-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/TimeInput.js` |
+| 28 | `tm/work-time-display-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/WorkTimeDisplay.js` |
+| 29 | `tm/status-display-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/StatusDisplay.js` |
+| 30 | `tm/holiday-request-modal.js` | Time Mgmt | ⏳ PENDING | Use Modal component (complex) |
+| 31 | `tm/holiday-export-utils.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` (complex) |
+| 32 | `tm/utilities-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/TimeManagementUtilities.js` |
 | 33 | `um/actions-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
 | 34 | `um/backup-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
 | 35 | `um/diagnostics-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
