@@ -149,9 +149,15 @@
   - Lines saved: ~400 lines of duplication
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-### Pending Tasks (40 Legacy Files)
+- [x] **Task 3.3**: Refactor `worktime-admin.js` (1,090 lines) ✅ COMPLETE
+  - Created 5 modular files in `features/worktime/admin/`
+  - Modules: WorktimeEditor (491), WorktimeValidator (133), WorktimeDataService (105), WorktimeFinalization (178), index (62)
+  - Features: Editor UI management, validation using TimeOffService, AJAX via core/api.js, finalization workflow
+  - Uses Phase 1 & 2 infrastructure: TimeOffService, StatusService, API wrapper, utils
+  - Lines saved: ~200 lines of duplication (removed duplicated helpers)
+  - **Status**: ✅ COMPLETE (2025-11-05)
 
-- [ ] **Task 3.3**: Refactor `worktime-admin.js` - Admin worktime management
+### Pending Tasks (39 Legacy Files)
 - [ ] **Task 3.4**: Refactor `check-register.js` - Team check register
 - [ ] **Task 3.5**: Refactor `session.js` / `session-enhanced.js` - Session management
 - [ ] **Task 3.6**: Refactor Time Management modules (10 files in `legacy/tm/`)
@@ -167,11 +173,11 @@
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 5% (2/42 files complete)
-- **Completed**: 2 files (register-user.js, register-admin.js) → 9 modules
-- **Remaining**: 40 files to refactor
-- **New code created**: ~3,135 lines (9 focused modules)
-- **Lines saved so far**: ~1,000 lines of duplication
+- **Progress**: 7% (3/42 files complete)
+- **Completed**: 3 files (register-user.js, register-admin.js, worktime-admin.js) → 14 modules
+- **Remaining**: 39 files to refactor
+- **New code created**: ~4,104 lines (14 focused modules)
+- **Lines saved so far**: ~1,200 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
 
@@ -179,7 +185,7 @@
 |---|------|----------|--------|-----------------|
 | 1 | `register-user.js` | Register | ✅ COMPLETE | `features/register/` (5 modules) |
 | 2 | `register-admin.js` | Register | ✅ COMPLETE | `features/register/admin/` (4 modules) |
-| 3 | `worktime-admin.js` | Worktime | ⏳ PENDING | `features/worktime/admin/` |
+| 3 | `worktime-admin.js` | Worktime | ✅ COMPLETE | `features/worktime/admin/` (5 modules) |
 | 4 | `check-register.js` | Check Register | ⏳ PENDING | `features/check-register/` |
 | 5 | `session.js` | Session | ⏳ PENDING | `features/session/` |
 | 6 | `session-enhanced.js` | Session | ⏳ PENDING | Merge with `session.js` |
@@ -478,36 +484,75 @@
   - Makes instances globally available for debugging
 - 💡 **Impact**: Replaced register-admin.js (1,407 lines), eliminated ~400 lines of duplication
 
+### Task 3.3 - Worktime Admin Refactoring (2025-11-05)
+- ✅ Created 5 modular files in `src/main/resources/static/js/features/worktime/admin/`
+- ✅ **WorktimeEditor.js** (491 lines)
+  - Editor UI management and positioning
+  - Show/hide editors with click-outside and escape key handling
+  - Entry information display with dynamic data fetching
+  - Visual feedback (loading, success, error indicators)
+  - Uses TimeOffService for time-off type display
+  - Uses StatusService for entry status display
+  - Integration with WorktimeValidator and WorktimeDataService
+- ✅ **WorktimeValidator.js** (133 lines)
+  - Validates worktime input values
+  - Regular hours validation (1-24 hours)
+  - Special day work time format (SN:5, CO:6, CM:4, W:8, CE:6)
+  - ZS format validation (short days, missing hours)
+  - Time-off type validation using TimeOffService
+  - Partial hour warning for special day work
+- ✅ **WorktimeDataService.js** (105 lines)
+  - AJAX operations using core/api.js (CSRF-protected)
+  - Submit worktime updates with view state preservation
+  - Fetch entry data from server
+  - Get current view period from form selectors
+  - Handles success/error scenarios
+- ✅ **WorktimeFinalization.js** (178 lines)
+  - Finalization workflow for marking entries as ADMIN_FINAL
+  - Confirmation dialogs (all users or specific user)
+  - Progress modal during finalization
+  - Uses API wrapper for CSRF-protected requests
+  - Helper functions for date/month formatting
+- ✅ **index.js** (62 lines)
+  - Entry point for worktime admin
+  - Initializes all modules with dependency injection
+  - Exposes methods globally for inline HTML event handlers (backward compatibility)
+  - Auto-initializes on DOM ready
+- 💡 **Impact**: Replaced worktime-admin.js (1,090 lines), eliminated ~200 lines of duplication (removed duplicated time-off, status, and formatting helpers)
+- 🔧 **Architecture**: Clean separation of concerns - UI, validation, data operations, finalization
+- 🎯 **Reuse**: Leverages TimeOffService, StatusService, API wrapper, and utils from Phase 1 & 2
+
 ---
 
 ## Current Focus 🎯
 
 **PHASE 3: REFACTORING ALL LEGACY JAVASCRIPT** 🚀
 
-**Current Status**: 2 of 42 legacy files refactored (5% complete)
+**Current Status**: 3 of 42 legacy files refactored (7% complete)
 
 **Refactoring Workflow**:
 1. ✅ **Phase 1**: Foundation (6 modules) - COMPLETE
 2. ✅ **Phase 2**: Components (4 modules) - COMPLETE
-3. 🚀 **Phase 3**: Refactor ALL 42 legacy JS files - IN PROGRESS (2/42 done)
+3. 🚀 **Phase 3**: Refactor ALL 42 legacy JS files - IN PROGRESS (3/42 done)
 4. ⏳ **Phase 4**: Update HTML templates - PENDING (depends on Phase 3)
 5. ⏳ **Phase 5**: Final cleanup & documentation - PENDING (depends on Phase 4)
 
 **Phase 3 Progress**:
 - ✅ Task 3.1: `register-user.js` → 5 modules (RegisterForm, RegisterSummary, RegisterSearch, AjaxHandler, index)
 - ✅ Task 3.2: `register-admin.js` → 4 modules (AdminRegisterState, AdminRegisterView, BonusCalculator, index)
-- ⏳ Task 3.3: `worktime-admin.js` - NEXT
-- ⏳ 37 more legacy files to refactor...
+- ✅ Task 3.3: `worktime-admin.js` → 5 modules (WorktimeEditor, WorktimeValidator, WorktimeDataService, WorktimeFinalization, index)
+- ⏳ Task 3.4: `check-register.js` - NEXT
+- ⏳ 38 more legacy files to refactor...
 
 **Summary (Phases 1+2+3 so far)**:
-- **19 modules created** (6 foundation + 4 components + 9 register)
-- **8,557 lines of new code**
-- **~3,230 lines duplication eliminated**
-- **40 legacy files remaining** to refactor before Phase 4
+- **24 modules created** (6 foundation + 4 components + 14 features)
+- **9,526 lines of new code**
+- **~3,430 lines duplication eliminated**
+- **39 legacy files remaining** to refactor before Phase 4
 
 **Next Steps**:
-- Continue refactoring legacy JS files (Task 3.3 onwards)
-- Target next: `worktime-admin.js` or `check-register.js`
+- Continue refactoring legacy JS files (Task 3.4 onwards)
+- Target next: `check-register.js` or session modules
 - After ALL legacy JS is refactored → Phase 4 (update HTML templates)
 - After templates updated → Phase 5 (cleanup & documentation)
 
