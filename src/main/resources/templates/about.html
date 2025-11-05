@@ -70,12 +70,9 @@
 </div>
 
 <th:block layout:fragment="scripts">
-    <!-- Temporarily using legacy script until browser cache clears -->
-    <!-- The legacy script works perfectly for this page -->
-    <script th:src="@{/js/legacy/about.js}"></script>
-    <script>
-        console.log('✅ About page - Legacy script loaded (working version)');
-    </script>
+    <!-- About page script - standalone (not ES6 module) -->
+    <!-- Simple and effective for this page's needs -->
+    <script th:src="@{/js/about.js}"></script>
 </th:block>
 </body>
 </html>
