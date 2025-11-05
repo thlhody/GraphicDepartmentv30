@@ -189,28 +189,38 @@
   - **Remaining**: 2 files (holiday-request-modal.js 699 lines, holiday-export-utils.js 641 lines) - complex, use different patterns
   - **Status**: ✅ PARTIAL (7/9 files, 2025-11-05)
 
-### Pending Tasks (33 Legacy Files)
+- [x] **Task 3.8**: Refactor check-values.js (539 lines) ✅ COMPLETE
+  - Created 2 files in `features/check-values/`
+  - Modules: CheckValuesHandler (539 lines), index (34 lines)
+  - Features: Check values management for work units and check register calculation parameters
+  - Already used modern ES6 class, async/await, Bootstrap 5 - converted to proper ES6 module
+  - Handles batch save/reset, form validation, modified state tracking
+  - **Status**: ✅ COMPLETE (2025-11-05)
+
+### Pending Tasks (31 Legacy Files)
 - [ ] **Task 3.6.1**: Complete Time Management - Holiday modules (2 remaining files)
   - `holiday-request-modal.js` (699 lines) - modal for holiday request forms
   - `holiday-export-utils.js` (641 lines) - export utilities (requires html2canvas, jsPDF)
 - [ ] **Task 3.7**: Refactor Utility Management modules (7 files in `legacy/um/`)
   - `actions-utility.js`, `backup-utility.js`, `diagnostics-utility.js`, etc.
-- [ ] **Task 3.8**: Refactor Bonus modules
+  - **Note**: jQuery-heavy admin-only utilities, lower priority
+- [ ] **Task 3.9**: Refactor Bonus modules
   - `admin-bonus.js`, `check-bonus.js`, `check-bonus-fragment.js`
-- [ ] **Task 3.9**: Refactor Dashboard and Statistics
+- [ ] **Task 3.10**: Refactor Dashboard and Statistics
   - `dashboard.js`, `statistics.js`, `team-stats.js`
-- [ ] **Task 3.10**: Refactor remaining standalone files
-  - `check-values.js`, `login.js`, `status.js`, `viewer.js`, etc.
+- [ ] **Task 3.11**: Refactor remaining standalone files
+  - `login.js`, `status.js`, `viewer.js`, etc.
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 33% (14/42 files complete - note: 3 session files merged, 7 TM files converted)
-- **Completed**: 14 files → 31 modules
+- **Progress**: 36% (15/42 files complete - note: 3 session files merged, 7 TM files converted)
+- **Completed**: 15 files → 33 modules
   - register-user.js, register-admin.js, worktime-admin.js, check-register.js
   - session.js, session-enhanced.js, session-time-management-integration.js (merged)
   - 7 time management modules: utilities, status-display, time-input, work-time-display, inline-editing, timeoff-management, period-navigation
-- **Remaining**: 28 files to refactor (2 TM holiday modules + 26 others)
-- **New code created**: ~10,486 lines (31 focused modules)
+  - check-values.js
+- **Remaining**: 27 files to refactor (2 TM holiday modules + 25 others)
+- **New code created**: ~11,059 lines (33 focused modules)
 - **Lines saved so far**: ~1,770 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
@@ -230,7 +240,7 @@
 | 11 | `admin-bonus.js` | Bonus | ⏳ PENDING | `features/bonus/admin/` |
 | 12 | `check-bonus.js` | Bonus | ⏳ PENDING | `features/bonus/check/` |
 | 13 | `check-bonus-fragment.js` | Bonus | ⏳ PENDING | Merge with check-bonus |
-| 14 | `check-values.js` | Check | ⏳ PENDING | `features/check/` |
+| 14 | `check-values.js` | Check | ✅ COMPLETE | `features/check-values/` (2 modules) |
 | 15 | `login.js` | Auth | ⏳ PENDING | `features/auth/` |
 | 16 | `status.js` | Status | ⏳ PENDING | Integrate with StatusService |
 | 17 | `viewer.js` | Viewer | ⏳ PENDING | `features/viewer/` |
