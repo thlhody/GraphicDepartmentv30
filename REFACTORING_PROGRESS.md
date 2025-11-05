@@ -231,7 +231,27 @@
   - Lines saved: ~40 lines (removed duplicated CSRF handling, form creation)
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-### Pending Tasks (25 Legacy Files)
+- [x] **Task 3.11**: Refactor Standalone User Pages (821 lines from 3 files) ✅ COMPLETE
+  - Created 3 directories: `features/status/`, `features/login/`, `features/viewer/`
+  - **Status Module** (2 files):
+    - StatusManager.js (302 lines) - User status page with auto-refresh (60s), date formatting, online count
+    - index.js (46 lines) - Entry point
+  - **Login Module** (2 files):
+    - LoginManager.js (429 lines) - Optimized login with performance monitoring, remember me, keyboard shortcuts
+    - index.js (53 lines) - Entry point with utility methods
+  - **Log Viewer Module** (2 files):
+    - LogViewerManager.js (346 lines) - Log viewer with search, filter, auto-scroll, text wrap, export (jQuery-based)
+    - index.js (45 lines) - Entry point
+  - Features:
+    - StatusManager: AJAX refresh every 60s, date/time formatting (Day :: DD/MM/YYYY :: HH:MM), online user counting
+    - LoginManager: Password toggle, form validation with shake animation, remember me (localStorage), keyboard shortcuts (Enter/Escape), optimized loading overlay, performance monitoring, login type detection
+    - LogViewerManager: User selection, log loading with AJAX, search/filter logs, log level detection (ERROR/WARN/INFO), auto-scroll, text wrap, export to file, version badges
+  - Uses Phase 1 infrastructure: Clean ES6 classes, proper async/await
+  - jQuery preserved: LogViewerManager uses jQuery for DOM (heavily integrated)
+  - Lines saved: ~60 lines (removed duplicated utility functions)
+  - **Status**: ✅ COMPLETE (2025-11-05)
+
+### Pending Tasks (22 Legacy Files)
 - [ ] **Task 3.6.1**: Complete Time Management - Holiday modules (2 remaining files)
   - `holiday-request-modal.js` (699 lines) - modal for holiday request forms
   - `holiday-export-utils.js` (641 lines) - export utilities (requires html2canvas, jsPDF)
@@ -247,8 +267,8 @@
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 50% (21/42 files complete - note: 3 session files merged, 7 TM files converted)
-- **Completed**: 21 files → 42 modules
+- **Progress**: 57% (24/42 files complete - note: 3 session files merged, 7 TM files converted)
+- **Completed**: 24 files → 48 modules
   - register-user.js, register-admin.js, worktime-admin.js, check-register.js
   - session.js, session-enhanced.js, session-time-management-integration.js (merged)
   - 7 time management modules: utilities, status-display, time-input, work-time-display, inline-editing, timeoff-management, period-navigation
@@ -256,9 +276,10 @@
   - dashboard.js
   - admin-bonus.js, check-bonus.js, check-bonus-fragment.js
   - statistics.js, team-stats.js
-- **Remaining**: 21 files to refactor (2 TM holiday modules + 19 others)
-- **New code created**: ~14,237 lines (42 focused modules)
-- **Lines saved so far**: ~1,960 lines of duplication
+  - status.js, login.js, viewer.js
+- **Remaining**: 18 files to refactor (2 TM holiday modules + 16 others)
+- **New code created**: ~15,458 lines (48 focused modules)
+- **Lines saved so far**: ~2,020 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
 
@@ -278,9 +299,9 @@
 | 12 | `check-bonus.js` | Bonus | ✅ COMPLETE | `features/bonus/` (CheckBonusDashboard + index) |
 | 13 | `check-bonus-fragment.js` | Bonus | ✅ COMPLETE | `features/bonus/` (CheckBonusFragment + index) |
 | 14 | `check-values.js` | Check | ✅ COMPLETE | `features/check-values/` (2 modules) |
-| 15 | `login.js` | Auth | ⏳ PENDING | `features/auth/` |
-| 16 | `status.js` | Status | ⏳ PENDING | Integrate with StatusService |
-| 17 | `viewer.js` | Viewer | ⏳ PENDING | `features/viewer/` |
+| 15 | `login.js` | Auth | ✅ COMPLETE | `features/login/` (LoginManager + index) |
+| 16 | `status.js` | Status | ✅ COMPLETE | `features/status/` (StatusManager + index) |
+| 17 | `viewer.js` | Viewer | ✅ COMPLETE | `features/viewer/` (LogViewerManager + index) |
 | 18 | `register-search.js` | Search | ⏳ PENDING | Already in SearchModal? |
 | 19 | `resolution.js` | Utilities | ⏳ PENDING | `features/utilities/` |
 | 20 | `about.js` | Utilities | ⏳ PENDING | Keep as simple script |
@@ -685,7 +706,7 @@
 
 **PHASE 3: REFACTORING ALL LEGACY JAVASCRIPT** 🚀
 
-**Current Status**: 21 of 42 legacy files refactored (50% complete - HALFWAY THERE! 🎉)
+**Current Status**: 24 of 42 legacy files refactored (57% complete - OVER HALFWAY! 🎉)
 
 **Refactoring Workflow**:
 1. ✅ **Phase 1**: Foundation (6 modules) - COMPLETE
@@ -704,19 +725,20 @@
 - ✅ Task 3.8: `check-values.js` → 2 modules (CheckValuesHandler, index)
 - ✅ Task 3.9: Dashboard & Bonus → 6 modules (DashboardAutoRefresh, AdminBonusManager, CheckBonusDashboard, CheckBonusFragment, 2x index)
 - ✅ Task 3.10: Statistics → 3 modules (StatisticsCharts, TeamStatsManager, index)
-- ⏳ Task 3.11: Remaining standalone files - NEXT
-- ⏳ 21 more legacy files to refactor...
+- ✅ Task 3.11: Standalone Pages → 6 modules (StatusManager, LoginManager, LogViewerManager, 3x index)
+- ⏳ Task 3.12: More standalone files - NEXT
+- ⏳ 18 more legacy files to refactor...
 
 **Summary (Phases 1+2+3 so far)**:
-- **42 modules created** (6 foundation + 4 components + 32 features)
-- **14,237 lines of new code**
-- **~3,890 lines duplication eliminated**
-- **21 legacy files remaining** to refactor before Phase 4
+- **48 modules created** (6 foundation + 4 components + 38 features)
+- **15,458 lines of new code**
+- **~3,950 lines duplication eliminated**
+- **18 legacy files remaining** to refactor before Phase 4
 
 **Next Steps**:
-- Continue refactoring legacy JS files (Task 3.11 onwards)
-- Target next: Standalone files (login.js, viewer.js, status.js, etc.)
-- Then: Consider utility management modules or complete TM holiday modules
+- Continue refactoring legacy JS files (Task 3.12 onwards)
+- Target next: More standalone files (resolution.js, about.js, register-search.js, etc.)
+- Then: Time management core modules or utility management modules
 - After ALL legacy JS is refactored → Phase 4 (update HTML templates)
 - After templates updated → Phase 5 (cleanup & documentation)
 
