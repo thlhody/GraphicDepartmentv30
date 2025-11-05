@@ -165,8 +165,15 @@
   - Lines saved: ~150 lines of duplication (removed duplicated constants and validation)
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-### Pending Tasks (38 Legacy Files)
-- [ ] **Task 3.5**: Refactor `session.js` / `session-enhanced.js` - Session management
+- [x] **Task 3.5**: Refactor session modules (1,019 lines total: session.js 5, session-enhanced.js 490, session-time-management-integration.js 524) ✅ COMPLETE
+  - Merged 3 files into 4 modular files in `features/session/`
+  - Modules: SessionUI (255), SessionEndTime (283), SessionTimeManagement (427), index (71)
+  - Features: Live clock, tooltips, end time calculator, time management embedding, keyboard shortcuts
+  - Uses Phase 1 & 2 infrastructure: API wrapper, formatMinutesToHours from utils
+  - Lines saved: ~120 lines (removed duplicated formatMinutes, cleaner structure)
+  - **Status**: ✅ COMPLETE (2025-11-05)
+
+### Pending Tasks (35 Legacy Files)
 - [ ] **Task 3.6**: Refactor Time Management modules (10 files in `legacy/tm/`)
   - `time-management-core.js`, `inline-editing-module.js`, `timeoff-management-module.js`, etc.
 - [ ] **Task 3.7**: Refactor Utility Management modules (7 files in `legacy/um/`)
@@ -180,11 +187,13 @@
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 10% (4/42 files complete)
-- **Completed**: 4 files (register-user.js, register-admin.js, worktime-admin.js, check-register.js) → 19 modules
-- **Remaining**: 38 files to refactor
-- **New code created**: ~5,269 lines (19 focused modules)
-- **Lines saved so far**: ~1,350 lines of duplication
+- **Progress**: 17% (7/42 files complete - note: 3 session files merged into 1 task)
+- **Completed**: 7 files → 23 modules
+  - register-user.js, register-admin.js, worktime-admin.js, check-register.js
+  - session.js, session-enhanced.js, session-time-management-integration.js (merged)
+- **Remaining**: 35 files to refactor
+- **New code created**: ~6,305 lines (23 focused modules)
+- **Lines saved so far**: ~1,470 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
 
@@ -194,9 +203,9 @@
 | 2 | `register-admin.js` | Register | ✅ COMPLETE | `features/register/admin/` (4 modules) |
 | 3 | `worktime-admin.js` | Worktime | ✅ COMPLETE | `features/worktime/admin/` (5 modules) |
 | 4 | `check-register.js` | Check Register | ✅ COMPLETE | `features/check-register/` (5 modules) |
-| 5 | `session.js` | Session | ⏳ PENDING | `features/session/` |
-| 6 | `session-enhanced.js` | Session | ⏳ PENDING | Merge with `session.js` |
-| 7 | `session-time-management-integration.js` | Session | ⏳ PENDING | Integrate into session |
+| 5 | `session.js` | Session | ✅ COMPLETE | `features/session/` (4 modules, merged with 6 & 7) |
+| 6 | `session-enhanced.js` | Session | ✅ COMPLETE | Merged into `features/session/` |
+| 7 | `session-time-management-integration.js` | Session | ✅ COMPLETE | Merged into `features/session/` |
 | 8 | `dashboard.js` | Dashboard | ⏳ PENDING | `features/dashboard/` |
 | 9 | `statistics.js` | Statistics | ⏳ PENDING | `features/statistics/` |
 | 10 | `team-stats.js` | Statistics | ⏳ PENDING | `features/statistics/team/` |
@@ -567,18 +576,56 @@
 - 🔧 **Architecture**: Clean separation - form, summary, search, team badges
 - 🎯 **Reuse**: Leverages FormHandler, ValidationService, CONSTANTS (CHECK_TYPE_VALUES) from Phase 1 & 2
 
+### Task 3.5 - Session Modules Refactoring (2025-11-05)
+- ✅ Merged 3 files (1,019 lines total) into 4 modular files in `src/main/resources/static/js/features/session/`
+- ✅ **SessionUI.js** (255 lines)
+  - Bootstrap tooltips initialization
+  - Live clock with minute-change animation
+  - Toast notifications from URL params and flash messages
+  - Floating card for unresolved entries with auto-dismiss
+  - Scroll to resolution functionality
+  - Highlight animations
+  - CSS injection for effects
+  - Resume modal display
+- ✅ **SessionEndTime.js** (283 lines)
+  - End time scheduler with calculations
+  - Fetch recommended end time from server
+  - Calculate work time based on end time inputs using API wrapper
+  - Generate calculation preview (total, breaks, lunch, net, overtime)
+  - Automatic page refresh at scheduled end time
+  - Real-time calculation updates on input changes
+- ✅ **SessionTimeManagement.js** (427 lines)
+  - Load time management content via AJAX (fragment endpoint)
+  - Toggle visibility of time management section
+  - Period navigation (month/year selection)
+  - Keyboard shortcuts (Alt+Arrows for navigation)
+  - Embedded navigation handlers override
+  - Export button handler
+  - Scroll navigation (to TM section, to unresolved)
+  - Initialize embedded TM modules
+  - Debug functions for state inspection
+- ✅ **index.js** (71 lines)
+  - Entry point for session page
+  - Initializes all three modules
+  - Resume modal initialization
+  - Makes instances globally available for debugging
+  - Exports formatMinutes helper (backward compatibility)
+- 💡 **Impact**: Replaced 3 files (session.js, session-enhanced.js, session-time-management-integration.js - 1,019 lines), eliminated ~120 lines of duplication (removed formatMinutes duplicate, cleaner structure)
+- 🔧 **Architecture**: Clean separation - UI, end time calculations, time management embedding
+- 🎯 **Reuse**: Leverages API wrapper, formatMinutesToHours from utils
+
 ---
 
 ## Current Focus 🎯
 
 **PHASE 3: REFACTORING ALL LEGACY JAVASCRIPT** 🚀
 
-**Current Status**: 4 of 42 legacy files refactored (10% complete)
+**Current Status**: 7 of 42 legacy files refactored (17% complete)
 
 **Refactoring Workflow**:
 1. ✅ **Phase 1**: Foundation (6 modules) - COMPLETE
 2. ✅ **Phase 2**: Components (4 modules) - COMPLETE
-3. 🚀 **Phase 3**: Refactor ALL 42 legacy JS files - IN PROGRESS (4/42 done)
+3. 🚀 **Phase 3**: Refactor ALL 42 legacy JS files - IN PROGRESS (7/42 done)
 4. ⏳ **Phase 4**: Update HTML templates - PENDING (depends on Phase 3)
 5. ⏳ **Phase 5**: Final cleanup & documentation - PENDING (depends on Phase 4)
 
@@ -587,18 +634,19 @@
 - ✅ Task 3.2: `register-admin.js` → 4 modules (AdminRegisterState, AdminRegisterView, BonusCalculator, index)
 - ✅ Task 3.3: `worktime-admin.js` → 5 modules (WorktimeEditor, WorktimeValidator, WorktimeDataService, WorktimeFinalization, index)
 - ✅ Task 3.4: `check-register.js` → 5 modules (CheckRegisterForm, CheckRegisterSummary, CheckRegisterSearch, StatusBadgeHandler, index)
-- ⏳ Task 3.5: Session modules - NEXT
-- ⏳ 37 more legacy files to refactor...
+- ✅ Task 3.5: Session modules (3 files merged) → 4 modules (SessionUI, SessionEndTime, SessionTimeManagement, index)
+- ⏳ Task 3.6: Time Management modules - NEXT
+- ⏳ 35 more legacy files to refactor...
 
 **Summary (Phases 1+2+3 so far)**:
-- **29 modules created** (6 foundation + 4 components + 19 features)
-- **10,695 lines of new code**
-- **~3,580 lines duplication eliminated**
-- **38 legacy files remaining** to refactor before Phase 4
+- **33 modules created** (6 foundation + 4 components + 23 features)
+- **11,731 lines of new code**
+- **~3,700 lines duplication eliminated**
+- **35 legacy files remaining** to refactor before Phase 4
 
 **Next Steps**:
-- Continue refactoring legacy JS files (Task 3.5 onwards)
-- Target next: Session modules (session.js, session-enhanced.js)
+- Continue refactoring legacy JS files (Task 3.6 onwards)
+- Target next: Time Management modules (10 files in legacy/tm/)
 - After ALL legacy JS is refactored → Phase 4 (update HTML templates)
 - After templates updated → Phase 5 (cleanup & documentation)
 
