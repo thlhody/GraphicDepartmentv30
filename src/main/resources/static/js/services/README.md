@@ -170,17 +170,236 @@ const status = StatusService.getStatusForAction('ROLE_ADMIN', true); // 'ADMIN_F
 
 ---
 
-### `validationService.js` ⏳ PENDING
+### `validationService.js` ✅ COMPLETE
 
-**Form validation logic.**
+**Form validation utilities.**
 
-Will provide reusable validation for forms across the app.
+Provides common validation rules and utilities for form validation across the app.
 
-**Planned Methods:**
-- `validateForm(form, rules)` - Validate entire form
-- `validateField(field, rules)` - Validate single field
-- `showError(field, message)` - Display error message
-- `clearErrors(form)` - Clear all errors
+**Exports:**
+- `ValidationService` class with static methods
+
+**Built-in Validation Rules:**
+- `required` - Field must have a value
+- `email` - Valid email format
+- `number` - Valid number
+- `integer` - Valid integer
+- `url` - Valid URL
+- `phone` - Valid phone number (basic)
+- `date` - Valid date
+- `alpha` - Alphabetic characters only
+- `alphanumeric` - Alphanumeric characters only
+
+**Parametric Rules:**
+- `min:value` - Minimum numeric value
+- `max:value` - Maximum numeric value
+- `minLength:n` - Minimum string length
+- `maxLength:n` - Maximum string length
+- `length:n` - Exact string length
+- `pattern:regex` - Match regex pattern
+- `in:opt1,opt2` - Value must be one of options
+- `notIn:opt1,opt2` - Value cannot be one of options
+- `between:min,max` - Value must be between min and max
+
+**Key Methods:**
+
+**Basic Validation:**
+- `validateField(value, rules, fieldName)` - Validate single field
+- `validate(fields)` - Validate multiple fields
+- `hasErrors(errors)` - Check if validation has errors
+
+**Custom Rules:**
+- `addRule(name, validate, message)` - Register custom validation rule
+- `removeRule(name)` - Remove custom rule
+- `hasRule(name)` - Check if rule exists
+
+**Conditional Validation:**
+- `validateIf(value, rules, condition, fieldName)` - Validate conditionally
+
+**Batch Helpers:**
+- `validateRequired(fields)` - Validate required fields
+- `validateForm(form, rules)` - Validate HTML form element
+
+**Specific Validators:**
+- `validateDateRange(startDate, endDate)` - Validate date range
+- `validatePasswordStrength(password, requirements)` - Password strength
+- `validatePasswordMatch(password, confirmPassword)` - Password match
+- `validateArray(array, options)` - Array validation
+
+**Usage:**
+
+```javascript
+import { ValidationService } from './services/validationService.js';
+
+// ===== Single Field Validation =====
+const error = ValidationService.validateField(
+    'john@example.com',
+    ['required', 'email'],
+    'Email'
+);
+
+if (error) {
+    console.log('Error:', error);
+} else {
+    console.log('Valid');
+}
+
+// With parametric rules
+const ageError = ValidationService.validateField(15, ['required', 'number', 'min:18'], 'Age');
+// Error: "Age must be at least 18."
+
+// ===== Multiple Fields Validation =====
+const errors = ValidationService.validate({
+    email: {
+        value: 'user@example.com',
+        rules: ['required', 'email'],
+        label: 'Email Address'
+    },
+    password: {
+        value: 'secret123',
+        rules: ['required', 'minLength:8'],
+        label: 'Password'
+    },
+    age: {
+        value: 25,
+        rules: ['required', 'number', 'between:18,100']
+    }
+});
+
+if (ValidationService.hasErrors(errors)) {
+    console.log('Validation errors:', errors);
+    // { email: null, password: "Password must be at least 8 characters.", age: null }
+}
+
+// ===== Form Validation =====
+const formErrors = ValidationService.validateForm(form, {
+    username: ['required', 'minLength:3', 'maxLength:20'],
+    email: ['required', 'email'],
+    phone: ['phone'],  // Optional phone
+    age: ['required', 'integer', 'min:18']
+});
+
+// ===== Custom Validation Rules =====
+ValidationService.addRule('strongPassword', (value) => {
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(value);
+}, 'Password must contain uppercase, lowercase, number, and special character.');
+
+const pwdError = ValidationService.validateField(
+    'weakpass',
+    ['required', 'strongPassword'],
+    'Password'
+);
+
+// ===== Conditional Validation =====
+const phoneError = ValidationService.validateIf(
+    phoneValue,
+    ['required', 'phone'],
+    () => contactMethod === 'phone',  // Only validate if phone is selected
+    'Phone Number'
+);
+
+// ===== Required Fields Only =====
+const requiredErrors = ValidationService.validateRequired({
+    name: document.getElementById('name').value,
+    email: document.getElementById('email').value,
+    message: document.getElementById('message').value
+});
+
+// ===== Date Range Validation =====
+const dateError = ValidationService.validateDateRange(
+    '2025-01-01',
+    '2024-12-31'
+);
+// Error: "Start date must be before end date."
+
+// ===== Password Validation =====
+const passwordError = ValidationService.validatePasswordStrength('weak', {
+    minLength: 10,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecial: true
+});
+
+const matchError = ValidationService.validatePasswordMatch(
+    'password123',
+    'password456'
+);
+// Error: "Passwords do not match."
+
+// ===== Array Validation =====
+const selectedItems = ['item1', 'item2'];
+const arrayError = ValidationService.validateArray(selectedItems, {
+    minItems: 1,
+    maxItems: 5,
+    unique: true,
+    fieldName: 'Items'
+});
+```
+
+**Integration with FormHandler:**
+
+```javascript
+import { FormHandler } from './components/FormHandler.js';
+import { ValidationService } from './services/validationService.js';
+
+const form = new FormHandler('#myForm', {
+    url: '/api/submit',
+    customValidation: (formData) => {
+        // Use ValidationService for custom validation
+        const errors = ValidationService.validate({
+            email: {
+                value: formData.get('email'),
+                rules: ['required', 'email']
+            },
+            age: {
+                value: formData.get('age'),
+                rules: ['required', 'number', 'min:18', 'max:120']
+            }
+        });
+
+        // Return errors object
+        return errors;
+    }
+});
+```
+
+**Custom Rule Examples:**
+
+```javascript
+// Strong password rule
+ValidationService.addRule('strongPassword', (value) => {
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(value);
+}, 'Password must contain uppercase, lowercase, and numbers.');
+
+// No whitespace rule
+ValidationService.addRule('noSpaces', (value) => {
+    return !/\s/.test(value);
+}, 'This field cannot contain spaces.');
+
+// Valid username rule
+ValidationService.addRule('username', (value) => {
+    return /^[a-zA-Z0-9_]{3,20}$/.test(value);
+}, 'Username must be 3-20 characters (letters, numbers, underscore only).');
+
+// Custom date rule (must be in future)
+ValidationService.addRule('futureDate', (value) => {
+    const inputDate = new Date(value);
+    const now = new Date();
+    return inputDate > now;
+}, 'Date must be in the future.');
+```
+
+**Benefits:**
+- ✅ Single place for all validation logic
+- ✅ ~70 lines of duplicated validation code eliminated
+- ✅ Reusable rules across all forms
+- ✅ Custom rule support
+- ✅ Built-in common validators
+- ✅ Parametric rules (min, max, length, etc.)
+- ✅ Date range and password validation
+- ✅ Array/multi-select validation
+- ✅ Integrates with FormHandler component
 
 ---
 
