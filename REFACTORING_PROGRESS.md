@@ -127,42 +127,180 @@
 
 ---
 
-## Phase 3: Register Feature (Week 5-6) 🚀 IN PROGRESS
+## Phase 3: Refactor ALL Legacy JavaScript (Week 5-8) 🚀 IN PROGRESS
 
-### Critical Tasks
+**Strategy**: Refactor all 42 legacy JS files into modern ES6 modules BEFORE touching HTML templates.
 
-- [x] **Task 3.1**: Split `register-user.js` into modules ✅ COMPLETE
-  - Files: Created 5 modular files in `src/main/resources/static/js/features/register/`
-  - Modules:
-    - `RegisterForm.js` (690 lines) - Form handling, validation, Select2 integration
-    - `RegisterSummary.js` (255 lines) - Statistics calculation and display
-    - `RegisterSearch.js` (420 lines) - Unified search with local/full modes
-    - `AjaxHandler.js` (310 lines) - AJAX submissions and table reload
-    - `index.js` (105 lines) - Entry point and initialization
+**Legacy Files Remaining**: 40 files (2 complete: register-user.js, register-admin.js)
+
+### Completed Tasks
+
+- [x] **Task 3.1**: Refactor `register-user.js` (1,949 lines) ✅ COMPLETE
+  - Created 5 modular files in `features/register/`
+  - Modules: RegisterForm (690), RegisterSummary (255), RegisterSearch (420), AjaxHandler (310), index (105)
   - Features: Extends FormHandler, uses ValidationService, imports from core/constants
   - Lines saved: ~600 lines of duplication
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-- [x] **Task 3.2**: Split `register-admin.js` into modules ✅ COMPLETE
-  - Files: Created 4 modular files in `src/main/resources/static/js/features/register/admin/`
-  - Modules:
-    - `AdminRegisterState.js` (365 lines) - State management, data extraction, validation
-    - `AdminRegisterView.js` (535 lines) - UI layer, inline CG editing, save workflow
-    - `BonusCalculator.js` (400 lines) - Bonus calculation and results display
-    - `index.js` (55 lines) - Entry point and initialization
-  - Features: Centralized state, separation of concerns, API integration via core/api.js
+- [x] **Task 3.2**: Refactor `register-admin.js` (1,407 lines) ✅ COMPLETE
+  - Created 4 modular files in `features/register/admin/`
+  - Modules: AdminRegisterState (365), AdminRegisterView (535), BonusCalculator (400), index (55)
+  - Features: State management, UI layer separation, API integration via core/api.js
   - Lines saved: ~400 lines of duplication
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-- [ ] **Task 3.3**: Update templates to use new modules
-- [ ] **Task 3.4**: Remove duplication, use shared services
+### Pending Tasks (40 Legacy Files)
 
-### Phase 3 Metrics (Tasks 3.1 & 3.2) ✅ PARTIAL COMPLETE
-- **Target**: Split 2 monolithic files into 9 focused modules ✅
-- **Progress**: 50% (2/4 tasks complete)
-- **New code**: ~3,135 lines of clean, modular code
-- **Old code**: ~3,356 lines (register-user.js: 1,949 + register-admin.js: 1,407)
-- **Lines saved**: ~1,000 lines of duplication ✅
+- [ ] **Task 3.3**: Refactor `worktime-admin.js` - Admin worktime management
+- [ ] **Task 3.4**: Refactor `check-register.js` - Team check register
+- [ ] **Task 3.5**: Refactor `session.js` / `session-enhanced.js` - Session management
+- [ ] **Task 3.6**: Refactor Time Management modules (10 files in `legacy/tm/`)
+  - `time-management-core.js`, `inline-editing-module.js`, `timeoff-management-module.js`, etc.
+- [ ] **Task 3.7**: Refactor Utility Management modules (7 files in `legacy/um/`)
+  - `actions-utility.js`, `backup-utility.js`, `diagnostics-utility.js`, etc.
+- [ ] **Task 3.8**: Refactor Bonus modules
+  - `admin-bonus.js`, `check-bonus.js`, `check-bonus-fragment.js`
+- [ ] **Task 3.9**: Refactor Dashboard and Statistics
+  - `dashboard.js`, `statistics.js`, `team-stats.js`
+- [ ] **Task 3.10**: Refactor remaining standalone files
+  - `check-values.js`, `login.js`, `status.js`, `viewer.js`, etc.
+
+### Phase 3 Metrics
+- **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
+- **Progress**: 5% (2/42 files complete)
+- **Completed**: 2 files (register-user.js, register-admin.js) → 9 modules
+- **Remaining**: 40 files to refactor
+- **New code created**: ~3,135 lines (9 focused modules)
+- **Lines saved so far**: ~1,000 lines of duplication
+
+### All Legacy Files - Detailed Tracking
+
+| # | File | Category | Status | Target Location |
+|---|------|----------|--------|-----------------|
+| 1 | `register-user.js` | Register | ✅ COMPLETE | `features/register/` (5 modules) |
+| 2 | `register-admin.js` | Register | ✅ COMPLETE | `features/register/admin/` (4 modules) |
+| 3 | `worktime-admin.js` | Worktime | ⏳ PENDING | `features/worktime/admin/` |
+| 4 | `check-register.js` | Check Register | ⏳ PENDING | `features/check-register/` |
+| 5 | `session.js` | Session | ⏳ PENDING | `features/session/` |
+| 6 | `session-enhanced.js` | Session | ⏳ PENDING | Merge with `session.js` |
+| 7 | `session-time-management-integration.js` | Session | ⏳ PENDING | Integrate into session |
+| 8 | `dashboard.js` | Dashboard | ⏳ PENDING | `features/dashboard/` |
+| 9 | `statistics.js` | Statistics | ⏳ PENDING | `features/statistics/` |
+| 10 | `team-stats.js` | Statistics | ⏳ PENDING | `features/statistics/team/` |
+| 11 | `admin-bonus.js` | Bonus | ⏳ PENDING | `features/bonus/admin/` |
+| 12 | `check-bonus.js` | Bonus | ⏳ PENDING | `features/bonus/check/` |
+| 13 | `check-bonus-fragment.js` | Bonus | ⏳ PENDING | Merge with check-bonus |
+| 14 | `check-values.js` | Check | ⏳ PENDING | `features/check/` |
+| 15 | `login.js` | Auth | ⏳ PENDING | `features/auth/` |
+| 16 | `status.js` | Status | ⏳ PENDING | Integrate with StatusService |
+| 17 | `viewer.js` | Viewer | ⏳ PENDING | `features/viewer/` |
+| 18 | `register-search.js` | Search | ⏳ PENDING | Already in SearchModal? |
+| 19 | `resolution.js` | Utilities | ⏳ PENDING | `features/utilities/` |
+| 20 | `about.js` | Utilities | ⏳ PENDING | Keep as simple script |
+| 21 | `utility-core.js` | Utilities | ⏳ PENDING | Merge into core/utils.js |
+| 22 | `standalone-time-management.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
+| 23 | `time-management-core.js` | Time Mgmt | ⏳ PENDING | `features/time-management/core/` |
+| 24 | `tm/inline-editing-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
+| 25 | `tm/timeoff-management-module.js` | Time Mgmt | ⏳ PENDING | Use TimeOffService |
+| 26 | `tm/period-navigation-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
+| 27 | `tm/time-input-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
+| 28 | `tm/work-time-display-module.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
+| 29 | `tm/status-display-module.js` | Time Mgmt | ⏳ PENDING | Use StatusService |
+| 30 | `tm/holiday-request-modal.js` | Time Mgmt | ⏳ PENDING | Use Modal component |
+| 31 | `tm/holiday-export-utils.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
+| 32 | `tm/utilities-module.js` | Time Mgmt | ⏳ PENDING | Merge into core/utils.js |
+| 33 | `um/actions-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
+| 34 | `um/backup-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
+| 35 | `um/diagnostics-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
+| 36 | `um/health-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
+| 37 | `um/merge-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
+| 38 | `um/monitor-utility.js` | Utilities | ⏳ PENDING | `features/utilities/admin/` |
+| 39 | `um/session-utility.js` | Utilities | ⏳ PENDING | Integrate with session |
+| 40 | `constants.js` | Deprecated | ⏳ PENDING | Already replaced by core/constants.js |
+| 41 | `default.js` | Deprecated | ⏳ PENDING | Already replaced by components |
+| 42 | `toast-alerts.js` | Deprecated | ⏳ PENDING | Already replaced by ToastNotification |
+
+**Notes:**
+- Files 40-42 are already replaced by Phase 1/2 work, just need to verify no usage
+- Some files can be merged or integrated into existing modules
+- Time Management (tm/) modules: 10 files to refactor
+- Utility Management (um/) modules: 7 files to refactor
+
+---
+
+## Phase 4: Update HTML Templates (Week 9) ⏳ PENDING
+
+**Goal**: Update all Thymeleaf templates to import new ES6 modules instead of legacy JS files.
+
+### Tasks
+
+- [ ] **Task 4.1**: Update register templates
+  - `templates/user/register.html` → `/js/features/register/index.js`
+  - `templates/admin/register.html` → `/js/features/register/admin/index.js`
+  - Add `type="module"` attribute to script tags
+
+- [ ] **Task 4.2**: Update worktime templates
+  - `templates/admin/worktime-admin.html`
+  - Replace legacy references with new module paths
+
+- [ ] **Task 4.3**: Update session templates
+  - `templates/user/session.html`
+  - Replace legacy references with new module paths
+
+- [ ] **Task 4.4**: Update remaining templates
+  - Dashboard, statistics, check-register, bonus, etc.
+  - Verify all templates use new ES6 modules
+
+- [ ] **Task 4.5**: Test all pages
+  - Test user workflows (register, session, etc.)
+  - Test admin workflows (worktime, bonus, etc.)
+  - Test team workflows (check-register)
+  - Verify all functionality works with new modules
+
+### Phase 4 Metrics
+- **Target**: Update all HTML templates to use ES6 modules
+- **Progress**: 0% (not started)
+- **Dependencies**: Phase 3 must be 100% complete
+
+---
+
+## Phase 5: Final Cleanup & Documentation (Week 10) ⏳ PENDING
+
+**Goal**: Clean up legacy code, create comprehensive documentation, final testing.
+
+### Tasks
+
+- [ ] **Task 5.1**: Create feature documentation
+  - `features/register/README.md` - Document all register modules
+  - `features/worktime/README.md` - Document worktime modules
+  - `features/session/README.md` - Document session modules
+  - Document each module: purpose, exports, dependencies, usage examples
+
+- [ ] **Task 5.2**: Archive legacy files
+  - Move all legacy JS files to `legacy/archive/` directory
+  - Or add clear deprecation comments
+  - Update any build scripts that reference legacy files
+
+- [ ] **Task 5.3**: Final end-to-end testing
+  - User workflows: Register, Session, Settings
+  - Admin workflows: Worktime, Register approval, Bonus calculation
+  - Team workflows: Check register, Team statistics
+  - Cross-browser testing (Chrome, Firefox, Edge)
+
+- [ ] **Task 5.4**: Performance verification
+  - Bundle size comparison (before/after)
+  - Page load time verification
+  - Module loading performance
+
+- [ ] **Task 5.5**: Documentation updates
+  - Update main `CLAUDE.md` with new architecture
+  - Update `JAVASCRIPT_REFACTORING_PLAN.md` with completion notes
+  - Create migration guide for future development
+
+### Phase 5 Metrics
+- **Target**: Complete cleanup, documentation, and verification
+- **Progress**: 0% (not started)
+- **Dependencies**: Phase 4 must be 100% complete
 
 ---
 
@@ -344,37 +482,34 @@
 
 ## Current Focus 🎯
 
-**Phase 3 Tasks 3.1 & 3.2 COMPLETE! 🚀**
+**PHASE 3: REFACTORING ALL LEGACY JAVASCRIPT** 🚀
 
-Register feature successfully modularized:
-- ✅ Task 3.1: User Register - 5 modules (RegisterForm, RegisterSummary, RegisterSearch, AjaxHandler, index)
-- ✅ Task 3.2: Admin Register - 4 modules (AdminRegisterState, AdminRegisterView, BonusCalculator, index)
+**Current Status**: 2 of 42 legacy files refactored (5% complete)
 
-**Phase 1 Summary** (COMPLETE):
-- 6 foundational modules created
-- 2,936 lines of clean, modular code
-- ~1,430 lines duplication eliminated (11.7% of legacy)
+**Refactoring Workflow**:
+1. ✅ **Phase 1**: Foundation (6 modules) - COMPLETE
+2. ✅ **Phase 2**: Components (4 modules) - COMPLETE
+3. 🚀 **Phase 3**: Refactor ALL 42 legacy JS files - IN PROGRESS (2/42 done)
+4. ⏳ **Phase 4**: Update HTML templates - PENDING (depends on Phase 3)
+5. ⏳ **Phase 5**: Final cleanup & documentation - PENDING (depends on Phase 4)
 
-**Phase 2 Summary** (COMPLETE):
-- 4 component/service files created
-- 2,486 lines of new code
-- ~400 lines duplication eliminated
-- All documented with comprehensive README files
-- Bootstrap 5 compatible
-- ES6 modules with static methods
+**Phase 3 Progress**:
+- ✅ Task 3.1: `register-user.js` → 5 modules (RegisterForm, RegisterSummary, RegisterSearch, AjaxHandler, index)
+- ✅ Task 3.2: `register-admin.js` → 4 modules (AdminRegisterState, AdminRegisterView, BonusCalculator, index)
+- ⏳ Task 3.3: `worktime-admin.js` - NEXT
+- ⏳ 37 more legacy files to refactor...
 
-**Phase 3 Summary** (Tasks 3.1 & 3.2 COMPLETE):
-- 9 register feature modules created
-- 3,135 lines of clean, modular code
-- Replaced 3,356 lines of monolithic code
-- ~1,000 lines duplication eliminated
-- Clean separation of concerns, state management, API integration
-
-**Combined Total (Phases 1+2+3)**:
+**Summary (Phases 1+2+3 so far)**:
 - **19 modules created** (6 foundation + 4 components + 9 register)
 - **8,557 lines of new code**
-- **~3,230 lines duplication eliminated** (26.4% of legacy codebase)
-- **Ready for**: Task 3.3 - Update templates & Task 3.4 - Final cleanup
+- **~3,230 lines duplication eliminated**
+- **40 legacy files remaining** to refactor before Phase 4
+
+**Next Steps**:
+- Continue refactoring legacy JS files (Task 3.3 onwards)
+- Target next: `worktime-admin.js` or `check-register.js`
+- After ALL legacy JS is refactored → Phase 4 (update HTML templates)
+- After templates updated → Phase 5 (cleanup & documentation)
 
 ### What We've Accomplished
 
@@ -466,7 +601,7 @@ javascript-refactoring (main branch)
   - All documented with comprehensive README files
 - 🎯 **READY FOR**: Phase 3 - Register Feature
 
-### 2025-11-05 - Phase 3 Tasks 3.1 & 3.2 COMPLETE! 🚀
+### 2025-11-05 - Phase 3 Started: Refactoring ALL 42 Legacy JS Files 🚀
 - ✅ **Task 3.1 - User Register Refactored (5 modules)**:
   1. ✅ RegisterForm.js (690 lines) - Extends FormHandler, Select2 integration
   2. ✅ RegisterSummary.js (255 lines) - Statistics with MutationObserver
@@ -478,14 +613,18 @@ javascript-refactoring (main branch)
   2. ✅ AdminRegisterView.js (535 lines) - UI layer and workflows
   3. ✅ BonusCalculator.js (400 lines) - Bonus calculation
   4. ✅ index.js (55 lines) - Entry point
-- 💡 **TOTAL IMPACT**:
+- 💡 **PHASE 3 IMPACT SO FAR (2/42 files)**:
   - New modular code: ~3,135 lines (9 focused modules)
   - Replaced: register-user.js (1,949 lines) + register-admin.js (1,407 lines)
   - Duplication eliminated: ~1,000 lines
   - Architecture: Clean separation of concerns, state management, API integration
   - Uses Phase 1 & 2 infrastructure: FormHandler, ValidationService, API, ToastNotification
-- 🎯 **NEXT**: Task 3.3 - Update templates to use new modules
-- 🎯 **THEN**: Task 3.4 - Remove duplication, final cleanup
+- 📋 **REFACTORING STRATEGY CLARIFIED**:
+  - **Phase 3**: Refactor ALL 42 legacy JS files (2 done, 40 remaining)
+  - **Phase 4**: Update HTML templates AFTER all JS is refactored
+  - **Phase 5**: Final cleanup, documentation, testing
+- 🎯 **NEXT**: Continue Phase 3 - refactor remaining 40 legacy files
+  - Target next: `worktime-admin.js`, `check-register.js`, session modules, etc.
 
 ---
 
