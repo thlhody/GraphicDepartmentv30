@@ -283,21 +283,54 @@
   - Lines saved: ~50 lines (removed duplicated CSRF handling, validation)
   - **Status**: ✅ COMPLETE (2025-11-05)
 
-### Pending Tasks (13 Legacy Files)
-- [ ] **Task 3.7**: Refactor Utility Management modules (7 files in `legacy/um/`)
-  - `actions-utility.js`, `backup-utility.js`, `diagnostics-utility.js`, etc.
+- [x] **Task 3.13**: Refactor Time Management Core modules (583 lines from 2 files) ✅ COMPLETE
+  - Enhanced existing `features/time-management/index.js` with coordinator functionality
+  - Created 1 new file: `features/time-management/StandaloneInitializer.js`
+  - **Time Management Core** (enhanced index.js):
+    - Merged all coordinator functionality from time-management-core.js (520 lines)
+    - Server message handling: Success/error alerts → toasts, holiday modal trigger integration
+    - Global error handling: JavaScript errors + unhandled promise rejections
+    - Time input validation: Event listeners for real-time validation
+    - Performance monitoring: Initialization time tracking, load performance metrics
+    - Keyboard shortcuts: Display available shortcuts in console
+    - Debug utilities: enableDebugMode(), getDebugInfo(), logDebugInfo()
+    - Public API: getSystemStatus(), reinitialize(), getModule(), isModuleLoaded()
+    - Utility function: toggleTempStopsDetails() for work day detail rows
+  - **Standalone Initializer** (66 lines):
+    - Entry point for standalone time management page
+    - Imports and initializes main time management system
+    - Sets up period navigation for full page reloads (non-AJAX)
+    - Auto-initialization on DOM ready
+  - Features integrated into index.js:
+    - State management with initialization tracking
+    - Module initialization in dependency order (6 modules)
+    - Server message processing with toast integration
+    - Holiday modal auto-trigger from server data
+    - User data extraction for holiday modal
+    - Global error handlers for errors and promise rejections
+    - Performance logging with millisecond precision
+    - Debug mode with localStorage persistence
+    - Backward compatibility layer (window.TimeManagementCore, legacy global functions)
+  - Uses Phase 1 & 2 infrastructure: All time management modules already refactored
+  - Lines saved: ~100 lines (consolidated initialization, removed duplication)
+  - **Status**: ✅ COMPLETE (2025-11-05)
+
+### Pending Tasks (11 Legacy Files)
+- [ ] **Task 3.14**: Refactor `utility-core.js` (625 lines)
+  - Merge jQuery-free utilities into `core/utils.js`
+  - **Note**: Most functionality may already be in core/utils.js
+- [ ] **Task 3.15**: Refactor Utility Management modules (7 files in `legacy/um/`)
+  - `actions-utility.js`, `backup-utility.js`, `diagnostics-utility.js`, `health-utility.js`, `merge-utility.js`, `monitor-utility.js`, `session-utility.js`
   - **Note**: jQuery-heavy admin-only utilities, lower priority
-- [ ] **Task 3.9**: Refactor Bonus modules
-  - `admin-bonus.js`, `check-bonus.js`, `check-bonus-fragment.js`
-- [ ] **Task 3.10**: Refactor Dashboard and Statistics
-  - `dashboard.js`, `statistics.js`, `team-stats.js`
-- [ ] **Task 3.11**: Refactor remaining standalone files
-  - `login.js`, `status.js`, `viewer.js`, etc.
+- [ ] **Task 3.16**: Verify and remove deprecated files (3 files)
+  - `constants.js` (already replaced by `core/constants.js`)
+  - `default.js` (already replaced by `components/ToastNotification.js`)
+  - `toast-alerts.js` (already replaced by `components/ToastNotification.js`)
 
 ### Phase 3 Metrics
 - **Target**: Refactor all 42 legacy JS files into modern ES6 modules ✅
-- **Progress**: 69% (29/42 files complete - note: 3 session files merged, 9 TM files converted)
-- **Completed**: 29 files → 56 modules
+- **Progress**: 74% (31/42 files complete - note: 3 session files merged, 9 TM files + 2 TM core files converted)
+- **Completed**: 31 files → 58 modules
   - register-user.js, register-admin.js, worktime-admin.js, check-register.js
   - session.js, session-enhanced.js, session-time-management-integration.js (merged)
   - 9 time management modules: utilities, status-display, time-input, work-time-display, inline-editing, timeoff-management, period-navigation, holiday-request-modal, holiday-export-utils
@@ -307,9 +340,10 @@
   - statistics.js, team-stats.js
   - status.js, login.js, viewer.js
   - resolution.js, about.js, register-search.js
-- **Remaining**: 13 files to refactor
-- **New code created**: ~17,884 lines (56 focused modules)
-- **Lines saved so far**: ~2,170 lines of duplication
+  - standalone-time-management.js, time-management-core.js (merged into index.js + StandaloneInitializer)
+- **Remaining**: 11 files to refactor
+- **New code created**: ~18,550 lines (58 focused modules)
+- **Lines saved so far**: ~2,270 lines of duplication
 
 ### All Legacy Files - Detailed Tracking
 
@@ -336,8 +370,8 @@
 | 19 | `resolution.js` | Utilities | ✅ COMPLETE | `features/resolution/` (ResolutionManager + index) |
 | 20 | `about.js` | Utilities | ✅ COMPLETE | `features/about/` (AboutManager + index) |
 | 21 | `utility-core.js` | Utilities | ⏳ PENDING | Merge into core/utils.js |
-| 22 | `standalone-time-management.js` | Time Mgmt | ⏳ PENDING | `features/time-management/` |
-| 23 | `time-management-core.js` | Time Mgmt | ⏳ PENDING | `features/time-management/core/` |
+| 22 | `standalone-time-management.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/StandaloneInitializer.js` |
+| 23 | `time-management-core.js` | Time Mgmt | ✅ COMPLETE | Merged into `features/time-management/index.js` |
 | 24 | `tm/inline-editing-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/InlineEditing.js` |
 | 25 | `tm/timeoff-management-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/TimeOffManagement.js` |
 | 26 | `tm/period-navigation-module.js` | Time Mgmt | ✅ COMPLETE | `features/time-management/PeriodNavigation.js` |
@@ -736,12 +770,12 @@
 
 **PHASE 3: REFACTORING ALL LEGACY JAVASCRIPT** 🚀
 
-**Current Status**: 29 of 42 legacy files refactored (69% complete - APPROACHING THREE-QUARTERS! 🎉)
+**Current Status**: 31 of 42 legacy files refactored (74% complete - THREE-QUARTERS DONE! 🎉)
 
 **Refactoring Workflow**:
 1. ✅ **Phase 1**: Foundation (6 modules) - COMPLETE
 2. ✅ **Phase 2**: Components (4 modules) - COMPLETE
-3. 🚀 **Phase 3**: Refactor ALL 42 legacy JS files - IN PROGRESS (27/42 done)
+3. 🚀 **Phase 3**: Refactor ALL 42 legacy JS files - IN PROGRESS (31/42 done - 74%!)
 4. ⏳ **Phase 4**: Update HTML templates - PENDING (depends on Phase 3)
 5. ⏳ **Phase 5**: Final cleanup & documentation - PENDING (depends on Phase 4)
 
@@ -758,19 +792,20 @@
 - ✅ Task 3.10: Statistics → 3 modules (StatisticsCharts, TeamStatsManager, index)
 - ✅ Task 3.11: Standalone Pages → 6 modules (StatusManager, LoginManager, LogViewerManager, 3x index)
 - ✅ Task 3.12: Standalone Utility Pages → 6 modules (ResolutionManager, AboutManager, RegisterSearchManager, 3x index)
-- ⏳ 13 more legacy files to refactor...
+- ✅ Task 3.13: Time Management Core → Enhanced index.js + StandaloneInitializer.js
+- ⏳ 11 more legacy files to refactor...
 
 **Summary (Phases 1+2+3 so far)**:
-- **56 modules created** (6 foundation + 4 components + 46 features)
-- **~17,884 lines of new code**
-- **~4,100 lines duplication eliminated**
-- **13 legacy files remaining** to refactor before Phase 4
+- **58 modules created** (6 foundation + 4 components + 48 features)
+- **~18,550 lines of new code**
+- **~2,270 lines duplication eliminated**
+- **11 legacy files remaining** to refactor before Phase 4
 
 **Next Steps**:
-- Continue refactoring legacy JS files (Task 3.13 onwards)
-- Target next: Time management core modules (standalone-time-management.js, time-management-core.js)
-- Or: Utility management modules (7 files in legacy/um/)
-- Clean up deprecated files (constants.js, default.js, toast-alerts.js - already replaced)
+- Continue refactoring legacy JS files (Task 3.14 onwards)
+- Target next: `utility-core.js` (625 lines) - merge into core/utils.js
+- Then: Utility management modules (7 files in legacy/um/)
+- Finally: Clean up deprecated files (constants.js, default.js, toast-alerts.js - already replaced)
 - After ALL legacy JS is refactored → Phase 4 (update HTML templates)
 - After templates updated → Phase 5 (cleanup & documentation)
 
@@ -784,12 +819,13 @@
 - Utility library (no jQuery, 45+ functions)
 
 **Benefits**:
-- Eliminated 11.7% of code duplication
+- Eliminated 18.6% of code duplication (~2,270 lines of ~12,223 total)
 - Established clean architecture patterns
 - Created reusable, testable modules
-- Removed jQuery dependencies
+- Removed jQuery dependencies (where possible)
 - Full JSDoc documentation
 - ES6 module system in place
+- 74% of legacy code refactored
 
 ---
 
