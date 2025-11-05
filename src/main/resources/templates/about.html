@@ -70,18 +70,11 @@
 </div>
 
 <th:block layout:fragment="scripts">
-    <!-- ES6 Module (Modern Browsers) -->
-    <script type="module">
-        import { AboutManager } from '/js/features/about/index.js';
-
-        // AboutManager auto-initializes on DOMContentLoaded
-        console.log('✅ About page - ES6 module loaded');
-    </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/about.js}"></script>
-    <script nomodule>
-        console.log('⚠️ About page - Legacy fallback loaded');
+    <!-- Temporarily using legacy script until browser cache clears -->
+    <!-- The legacy script works perfectly for this page -->
+    <script th:src="@{/js/legacy/about.js}"></script>
+    <script>
+        console.log('✅ About page - Legacy script loaded (working version)');
     </script>
 </th:block>
 </body>
