@@ -75,10 +75,10 @@ export class API {
             this.#config.csrfHeader = csrfHeader.getAttribute('content');
         }
 
-        if (!this.#config.csrfToken || !this.#config.csrfHeader) {
-            console.warn('⚠️ CSRF token not found. API requests may fail.');
-        } else {
+        if (this.#config.csrfToken && this.#config.csrfHeader) {
             console.log('✅ API initialized with CSRF protection');
+        } else {
+            console.log('ℹ️ API initialized without CSRF protection (local app mode)');
         }
     }
 

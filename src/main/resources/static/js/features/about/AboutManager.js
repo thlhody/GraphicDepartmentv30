@@ -8,7 +8,7 @@
  * @module features/about/AboutManager
  */
 
-import { getCSRFToken, getCSRFHeader } from '../../core/api.js';
+import { API } from '../../core/api.js';
 
 /**
  * AboutManager class
@@ -155,21 +155,11 @@ export class AboutManager {
             button.disabled = true;
             button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
 
-            // Make API request
-            const response = await fetch('/about/trigger-mockup', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    [getCSRFHeader()]: getCSRFToken()
-                },
-                body: `type=${encodeURIComponent(type)}`
-            });
+            // Make API request using API class (handles CSRF automatically)
+            const formData = new FormData();
+            formData.append('type', type);
 
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = await API.postForm('/about/trigger-mockup', formData);
 
             // Show success feedback
             if (data.success) {
