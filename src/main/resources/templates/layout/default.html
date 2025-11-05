@@ -5,7 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="refresh" content="600">
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
     <title layout:title-pattern="$CONTENT_TITLE - CT3">CT3</title>
+
     <!-- Stylesheets -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -14,22 +17,59 @@
           rel="stylesheet"/>
 
     <!-- Default CSS -->
-    <link th:href="@{/css/default.css?v=031120251812}" rel="stylesheet">
+    <link th:href="@{/css/default.css}" rel="stylesheet">
     <!-- Toast Alerts CSS -->
-    <link th:href="@{/css/toast-alerts.css?v=031120251812}" rel="stylesheet">
+    <link th:href="@{/css/toast-alerts.css}" rel="stylesheet">
 
-    <!-- Scripts -->
+    <!-- External Scripts -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Constants -->
-    <script th:src="@{/js/legacy/constants.js?v=031120251812}"></script>
-    <!-- Default JS -->
-    <script th:src="@{/js/legacy/default.js?v=031120251812}" defer></script>
-    <!-- Toast Alerts JS -->
-    <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}" defer></script>
+    <!-- Import Map for ES6 Modules -->
+    <script type="importmap">
+    {
+      "imports": {
+        "@/core/": "/js/core/",
+        "@/components/": "/js/components/",
+        "@/services/": "/js/services/",
+        "@/features/": "/js/features/"
+      }
+    }
+    </script>
+
+    <!-- Core ES6 Modules (Modern Browsers) -->
+    <script type="module">
+        // Import core systems
+        import { ToastNotification } from '/js/components/ToastNotification.js';
+        import { API } from '/js/core/api.js';
+        import * as Constants from '/js/core/constants.js';
+
+        // Make available globally for backward compatibility and page scripts
+        window.ToastNotification = ToastNotification;
+        window.API = API;
+        window.Constants = Constants;
+
+        // Legacy compatibility - map new ToastNotification to old showToast
+        window.showToast = function(title, message, type) {
+            ToastNotification.show(title, message, type);
+        };
+
+        // Initialize core systems on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            API.init();
+            console.log('✅ Core ES6 modules initialized');
+
+            // Process any server-side alerts
+            ToastNotification.processServerAlerts();
+        });
+    </script>
+
+    <!-- Legacy Fallback (IE11 and older browsers) -->
+    <script nomodule th:src="@{/js/legacy/constants.js}"></script>
+    <script nomodule th:src="@{/js/legacy/default.js}" defer></script>
+    <script nomodule th:src="@{/js/legacy/toast-alerts.js}" defer></script>
 </head>
 <body>
 <!-- Navigation -->
@@ -83,6 +123,7 @@
         </div>
     </div>
 </nav>
+
 <!-- Status Indicator -->
 <div sec:authorize="isAuthenticated()" class="fade-in">
     <div th:insert="~{status/network-status :: statusIndicator}"></div>
@@ -90,7 +131,6 @@
 
 <!-- Toast Alert System -->
 <div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
-
 
 <!-- Main Content -->
 <main role="main" class="fade-in">
@@ -131,10 +171,51 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts"><!-- Additional scripts will be inserted here --></th:block>
-<script>
-    // Sync logs functionality
+
+<!-- Sync Logs Functionality (ES6 Module) -->
+<script type="module">
+    import { API } from '/js/core/api.js';
+    import { ToastNotification } from '/js/components/ToastNotification.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const syncBtn = document.getElementById('syncLogsBtn');
+
+        if (syncBtn) {
+            syncBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+
+                // Disable button and show loading state
+                syncBtn.style.pointerEvents = 'none';
+                const originalHTML = syncBtn.innerHTML;
+                syncBtn.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Syncing...';
+
+                try {
+                    const data = await API.post('/logs/sync');
+
+                    if (data.success) {
+                        ToastNotification.success('Success', data.message || 'Logs synced successfully to network');
+                    } else if (data.networkUnavailable) {
+                        ToastNotification.warning('Network Unavailable', data.message || 'Network is currently unavailable. Logs will be synced automatically when connection is restored.');
+                    } else {
+                        ToastNotification.error('Error', data.message || 'Failed to sync logs');
+                    }
+                } catch (error) {
+                    ToastNotification.error('Error', 'Failed to sync logs: ' + error.message);
+                } finally {
+                    // Re-enable button and restore original content
+                    syncBtn.style.pointerEvents = '';
+                    syncBtn.innerHTML = originalHTML;
+                }
+            });
+        }
+    });
+</script>
+
+<!-- Legacy Fallback for Sync Logs (IE11) -->
+<script nomodule>
     $(document).ready(function() {
-        $('#syncLogsBtn').click(function() {
+        $('#syncLogsBtn').click(function(e) {
+            e.preventDefault();
             const btn = $(this);
             btn.prop('disabled', true)
                 .html('<i class="bi bi-arrow-repeat spin me-1"></i>Syncing...');
@@ -147,7 +228,6 @@
                     if (data.success) {
                         window.showToast('Success', data.message || 'Logs synced successfully to network', 'success');
                     } else {
-                        // Check if it's a network unavailability issue
                         if (data.networkUnavailable) {
                             window.showToast('Network Unavailable', data.message || 'Network is currently unavailable. Logs will be synced automatically when connection is restored.', 'warning');
                         } else {
@@ -166,6 +246,7 @@
         });
     });
 </script>
+
 <style>
     .spin {
         animation: spinner 1s linear infinite;

@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Login - CT3</title>
-    <link rel="stylesheet" th:href="@{/css/login.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/login.css}">
     <style>
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
@@ -198,13 +198,33 @@
 
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <!-- Set networkAvailable as a global variable that the JS file can access -->
+    <!-- Pass server-side data to client -->
     <script th:inline="javascript">
-        window.networkAvailable = /*[[${networkAvailable}]]*/ false;
-        // Add login-page class to body if not already added by the template
-        document.body.classList.add('login-page');
+        window.loginConfig = {
+            networkAvailable: /*[[${networkAvailable}]]*/ false,
+            offlineModeAvailable: /*[[${offlineModeAvailable}]]*/ false
+        };
     </script>
-    <script th:src="@{/js/legacy/login.js?v=031120251812}"></script>
+
+    <!-- ES6 Module (Modern Browsers) -->
+    <script type="module">
+        import { LoginManager } from '/js/features/login/index.js';
+
+        // Add login-page class to body
+        document.body.classList.add('login-page');
+
+        // LoginManager auto-initializes on DOMContentLoaded
+        console.log('✅ Login page - ES6 module loaded');
+    </script>
+
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/login.js}"></script>
+    <script nomodule>
+        // Ensure legacy compatibility
+        window.networkAvailable = window.loginConfig.networkAvailable;
+        document.body.classList.add('login-page');
+        console.log('⚠️ Login page - Legacy fallback loaded');
+    </script>
 </th:block>
 </body>
 </html>

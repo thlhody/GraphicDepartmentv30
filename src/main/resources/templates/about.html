@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>About - CT3</title>
-    <link rel="stylesheet" th:href="@{/css/about.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/about.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -70,8 +70,19 @@
 </div>
 
 <th:block layout:fragment="scripts">
-    <!-- Load about.js with a version parameter to prevent caching -->
-    <script th:src="@{/js/legacy/about.js?v=031120251812}"></script>
+    <!-- ES6 Module (Modern Browsers) -->
+    <script type="module">
+        import { AboutManager } from '/js/features/about/index.js';
+
+        // AboutManager auto-initializes on DOMContentLoaded
+        console.log('✅ About page - ES6 module loaded');
+    </script>
+
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/about.js}"></script>
+    <script nomodule>
+        console.log('⚠️ About page - Legacy fallback loaded');
+    </script>
 </th:block>
 </body>
 </html>
