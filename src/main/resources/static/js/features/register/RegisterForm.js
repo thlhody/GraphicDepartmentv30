@@ -32,6 +32,7 @@ export class RegisterForm extends FormHandler {
             formElement || '#registerForm',  // First param: selector or element
             {  // Second param: config object
                 submitUrl: '/user/register/entry',
+                useAjax: false,  // Disable FormHandler AJAX - let AjaxHandler handle it
                 validationRules: {
                     date: ['required', 'date'],
                     orderId: ['required'],

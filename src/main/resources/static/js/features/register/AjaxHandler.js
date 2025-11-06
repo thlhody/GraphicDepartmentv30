@@ -81,10 +81,9 @@ export class AjaxHandler {
             if (form.matches('form[action*="/user/register/delete"]')) {
                 e.preventDefault();
 
-                // Confirm deletion
-                if (confirm('Are you sure you want to delete this entry?')) {
-                    this.submitFormViaAjax(form);
-                }
+                // Note: Confirmation is handled by HTML onclick="return confirm(...)"
+                // No need to confirm again here
+                this.submitFormViaAjax(form);
             }
         });
     }
@@ -98,6 +97,13 @@ export class AjaxHandler {
         const formData = new FormData(form);
         const action = form.getAttribute('action');
         const method = form.getAttribute('method') || 'POST';
+
+        // Debug: Log all FormData entries
+        console.log('📋 FormData being submitted to:', action);
+        console.log('📋 FormData contents:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`  ${key}: ${value}`);
+        }
 
         this.showLoading();
 
