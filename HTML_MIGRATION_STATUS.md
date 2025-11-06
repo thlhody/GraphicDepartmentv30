@@ -187,12 +187,12 @@ For each page migration, follow this checklist:
 - [ ] Check for server-side data passing
 
 ### **Migration Steps:**
-- [ ] Update CSS link (remove `?v=` version parameter)
+- [ ] **Keep CSS version parameters** (don't remove them!)
 - [ ] Remove legacy script tag
-- [ ] Add ES6 module script block
+- [ ] Add ES6 module script block **with cache-busting**
 - [ ] Add nomodule fallback (for IE11)
 - [ ] Update any inline scripts if needed
-- [ ] Add console.log for debugging
+- [ ] Add console.log for debugging (in .then() callback)
 
 ### **Post-Migration:**
 - [ ] Test page loads without errors
@@ -268,13 +268,16 @@ For each page migration, follow this checklist:
 
 ## 🔧 Technical Details
 
-### **ES6 Module Pattern (Standard):**
+### **ES6 Module Pattern (Standard with Cache-Busting):**
 ```html
 <th:block layout:fragment="scripts">
-    <!-- ES6 Module (Modern Browsers) -->
+    <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
-        import '/js/features/[feature]/index.js';
-        console.log('✅ [Page Name] - ES6 module loaded');
+        // Cache busting for development - forces browser to reload modules
+        const cacheBuster = new Date().getTime();
+        import(`/js/features/[feature]/index.js?v=${cacheBuster}`)
+            .then(() => console.log('✅ [Page Name] - ES6 module loaded'))
+            .catch(err => console.error('❌ Error loading module:', err));
     </script>
 
     <!-- Legacy Fallback (IE11) -->
@@ -284,6 +287,13 @@ For each page migration, follow this checklist:
     </script>
 </th:block>
 ```
+
+**Cache-Busting Explanation:**
+- Uses `Date.now()` to generate unique timestamp on each page load
+- Example: `/js/features/session/index.js?v=1731234567890`
+- Browser treats it as a new URL → forces module reload
+- **No more manual cache clearing needed during development!**
+- Production: Replace `Date.now()` with fixed version from `application.properties`
 
 ### **Standalone Script Pattern (Simple pages):**
 ```html
@@ -317,10 +327,12 @@ For each page migration, follow this checklist:
 ## 📝 Notes & Considerations
 
 ### **Browser Cache Issues:**
-- After migration, users may need hard refresh (`Ctrl+Shift+R`)
-- ES6 modules can be cached aggressively
-- Consider adding cache-busting strategy
-- Server-side cache headers recommended
+- ✅ **SOLVED**: Implemented timestamp-based cache-busting (2025-11-06)
+- All ES6 module imports include `?v=${Date.now()}` parameter
+- Browser automatically loads fresh modules on every page refresh
+- No manual cache clearing needed during development
+- For production: Replace `Date.now()` with app version number
+- **12 pages updated** with cache-busting: all Phase 4.1 & 4.2 pages
 
 ### **CSRF Tokens:**
 - Most pages don't need CSRF (local app mode)
@@ -360,8 +372,44 @@ For each page migration, follow this checklist:
 ✅ Legacy fallback for IE11
 ✅ CSRF handling (optional)
 ✅ Clean console logging
-✅ No version parameters
+✅ CSS version parameters kept (for cache control)
+✅ JS cache-busting implemented (timestamp-based)
 ✅ Backward compatibility
+
+---
+
+## 🐛 Recent Bug Fixes & Improvements
+
+### **2025-11-06 - Session Page Fixes:**
+
+**Issue 1: Missing `formatMinutesToHours` function**
+- ❌ Error: `The requested module '../../core/utils.js' does not provide an export named 'formatMinutesToHours'`
+- ✅ Fix: Added `formatMinutesToHours(minutes)` function to `core/utils.js`
+- Converts minutes to "Xh Ym" format (e.g., "150 minutes" → "2h 30m")
+- Used by SessionEndTime, WorktimeEditor, TimeManagementUtilities
+
+**Issue 2: Wrong API method call**
+- ❌ Error: `TypeError: API.postJSON is not a function`
+- ✅ Fix: Changed `API.postJSON()` → `API.post()` in SessionEndTime.js
+- End time calculator now works correctly
+- "Use Recommended Time" button functional
+
+**Issue 3: Resume modal appearing incorrectly**
+- ❌ Problem: Modal showed on every session page load (even during active session)
+- ✅ Fix: Added URL parameter check in session/index.js
+- Modal now only appears when `showResumeConfirmation=true`
+- Only triggers when user explicitly clicks "Resume Work" button
+
+**Issue 4: Browser cache preventing updates**
+- ❌ Problem: Developers had to manually clear cache after every JS change
+- ✅ Fix: Implemented timestamp-based cache-busting for all ES6 modules
+- 12 pages updated with `?v=${Date.now()}` parameter
+- Changes now visible immediately after browser refresh
+
+### **2025-11-06 - CSS Versioning Restored:**
+- Decision: Keep CSS version parameters (removed in error earlier)
+- CSS needs versioning for proper cache invalidation
+- Only ES6 module imports use cache-busting (not CSS)
 
 ---
 
@@ -403,6 +451,10 @@ For each page migration, follow this checklist:
 
 ---
 
-**Last Updated:** 2025-11-06 10:30 UTC
+**Last Updated:** 2025-11-06 12:00 UTC
 **Status:** Phase 4.1 Complete, Phase 4.2 62.5% Complete (5/8 files) 🎉
+**Recent Updates:**
+- ✅ Cache-busting implemented (all 12 migrated pages)
+- ✅ Session page bugs fixed (4 issues resolved)
+- ✅ CSS versioning policy clarified
 **Next Milestone:** Complete check-register pages, then finish Phase 4.2
