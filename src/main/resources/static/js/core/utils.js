@@ -53,6 +53,16 @@ export function $$(selector, context = document) {
 }
 
 /**
+ * Convert hyphenated string to camelCase
+ * @param {string} str - Hyphenated string (e.g., 'search-modal')
+ * @returns {string} CamelCase string (e.g., 'searchModal')
+ * @private
+ */
+function hyphenToCamelCase(str) {
+    return str.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
+}
+
+/**
  * Create element with attributes and content
  * @param {string} tag - HTML tag name
  * @param {Object} attrs - Attributes object
@@ -73,7 +83,9 @@ export function createElement(tag, attrs = {}, content = null) {
         } else if (key === 'style' && typeof value === 'object') {
             Object.assign(element.style, value);
         } else if (key.startsWith('data-')) {
-            element.dataset[key.replace('data-', '')] = value;
+            // Convert data-search-modal → searchModal for dataset
+            const dataKey = hyphenToCamelCase(key.replace('data-', ''));
+            element.dataset[dataKey] = value;
         } else {
             element.setAttribute(key, value);
         }
