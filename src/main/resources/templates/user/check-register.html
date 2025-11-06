@@ -126,13 +126,34 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
+    <!-- Server data for JavaScript -->
     <script th:inline="javascript">
         // Pass check type values from server to JavaScript
         const SERVER_CHECK_TYPE_VALUES = /*[[${checkTypeValues}]]*/ null;
         const IS_TEAM_VIEW = false;
     </script>
-    <script>
+
+    <!-- ES6 Module (Modern Browsers) with cache busting -->
+    <script type="module">
+        const cacheBuster = new Date().getTime();
+        import(`/js/features/check-register/index.js?v=${cacheBuster}`)
+            .then(() => {
+                console.log('✅ Check Register (User View) - ES6 module loaded');
+                // Calculate stats after module initializes
+                setTimeout(() => {
+                    if (window.checkRegisterSummaryHandler) {
+                        window.checkRegisterSummaryHandler.calculateStats();
+                    }
+                }, 500);
+            })
+            .catch(err => console.error('❌ Error loading check-register module:', err));
+    </script>
+
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
+    <script nomodule th:src="@{/js/legacy/check-register.js?v=031120251812}"></script>
+    <script nomodule>
+        console.log('⚠️ Check Register - Legacy fallback loaded');
         // Force recalculation of stats for the metrics to update properly
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
@@ -142,7 +163,6 @@
             }, 500);
         });
     </script>
-    <script th:src="@{/js/legacy/check-register.js?v=031120251812}"></script>
 </th:block>
 </body>
 </html>

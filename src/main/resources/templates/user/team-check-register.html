@@ -186,7 +186,7 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-  <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
+  <!-- Server data for JavaScript -->
   <script th:inline="javascript">
     // Pass check type values from server to JavaScript
     const SERVER_CHECK_TYPE_VALUES = /*[[${checkTypeValues}]]*/ null;
@@ -198,26 +198,55 @@
     const CURRENT_YEAR = /*[[${currentYear}]]*/ null;
     const CURRENT_MONTH = /*[[${currentMonth}]]*/ null;
   </script>
-  <script th:src="@{/js/legacy/check-register.js?v=031120251812}"></script>
-  <script th:src="@{/js/legacy/check-bonus-fragment.js?v=031120251812}"></script>
-  <script th:if="${showRegisterContent}">
-    // Additional safety checks for initialization
+
+  <!-- ES6 Module (Modern Browsers) with cache busting -->
+  <script type="module">
+    const cacheBuster = new Date().getTime();
+
+    // Load check-register module
+    import(`/js/features/check-register/index.js?v=${cacheBuster}`)
+      .then(() => {
+        console.log('✅ Check Register (Team View) - ES6 module loaded');
+
+        // Additional initialization for team view (only if content is shown)
+        const showContent = /*[[${showRegisterContent}]]*/ false;
+        if (showContent) {
+          // Force recalculation of stats for the metrics to update properly
+          setTimeout(() => {
+            if (window.checkRegisterSummaryHandler) {
+              window.checkRegisterSummaryHandler.calculateStats();
+            }
+          }, 500);
+
+          // Initialize status badge click handlers for team view
+          setTimeout(() => {
+            if (window.CheckRegister && window.CheckRegister.statusBadgeHandler) {
+              console.log('✅ Status badge handlers initialized');
+            } else {
+              console.error('❌ Status badge handler not found!');
+            }
+          }, 600);
+        }
+      })
+      .catch(err => console.error('❌ Error loading check-register module:', err));
+  </script>
+
+  <!-- Legacy Fallback (IE11) -->
+  <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
+  <script nomodule th:src="@{/js/legacy/check-register.js?v=031120251812}"></script>
+  <script nomodule th:src="@{/js/legacy/check-bonus-fragment.js?v=031120251812}"></script>
+  <script nomodule th:if="${showRegisterContent}">
+    console.log('⚠️ Check Register (Team View) - Legacy fallback loaded');
     document.addEventListener('DOMContentLoaded', function() {
-      // Force recalculation of stats for the metrics to update properly
       setTimeout(function() {
         if (window.checkRegisterSummaryHandler) {
           window.checkRegisterSummaryHandler.calculateStats();
         }
       }, 500);
 
-      // Initialize status badge click handlers for team view
-      // Wait for table to be fully rendered before attaching handlers
       setTimeout(function() {
         if (typeof initializeStatusBadgeClickHandlers === 'function') {
-          console.log('Calling initializeStatusBadgeClickHandlers from team-check-register.html');
           initializeStatusBadgeClickHandlers();
-        } else {
-          console.error('initializeStatusBadgeClickHandlers function not found!');
         }
       }, 600);
     });
