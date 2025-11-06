@@ -177,12 +177,39 @@ export class TimeOffManagement {
                     // Reset form
                     form.reset();
 
+                    // IMPORTANT: Open holiday request modal after successful submission
+                    // This replicates the backend's openHolidayModal flag behavior
+                    console.log('📋 Opening holiday request modal after time-off addition...');
+
+                    // Check if we're embedded in session page
+                    const isSessionPage = window.SessionTimeManagementInstance &&
+                                         typeof window.SessionTimeManagementInstance.loadContent === 'function';
+
+                    // Extract user data for modal
+                    const userData = this.extractUserDataForModal();
+
+                    // Open the modal with the submitted data
+                    setTimeout(() => {
+                        if (typeof window.openHolidayRequestModal === 'function') {
+                            console.log('✅ Opening modal with data:', {
+                                startDate: formData.startDate,
+                                endDate: formData.endDate,
+                                timeOffType: formData.timeOffType,
+                                userData
+                            });
+                            window.openHolidayRequestModal(
+                                formData.startDate,
+                                formData.endDate,
+                                userData,
+                                formData.timeOffType
+                            );
+                        } else {
+                            console.error('❌ Holiday modal function not available!');
+                        }
+                    }, 500);
+
                     // Reload the page or fragment to show updated data
                     setTimeout(() => {
-                        // Check if we're embedded in session page
-                        const isSessionPage = window.SessionTimeManagementInstance &&
-                                             typeof window.SessionTimeManagementInstance.loadContent === 'function';
-
                         if (isSessionPage) {
                             console.log('📋 Reloading embedded time management fragment...');
                             // Reload just the fragment (stays on session page)
@@ -192,7 +219,7 @@ export class TimeOffManagement {
                             // Standalone page - reload entire page
                             window.location.reload();
                         }
-                    }, 1500);
+                    }, 2000); // Give time for modal to open first
 
                 } else {
                     throw new Error('Failed to submit time off request');
@@ -275,6 +302,44 @@ export class TimeOffManagement {
                 duration: 2000
             });
         }
+    }
+
+    /**
+     * Extract current user data for holiday modal
+     * @returns {Object} User data object with name
+     */
+    static extractUserDataForModal() {
+        const userData = {};
+
+        // Method 1: Try to get name from user badge (most reliable)
+        const userBadgeSpan = document.querySelector('.badge .bi-person + span');
+        if (userBadgeSpan && userBadgeSpan.textContent.trim()) {
+            userData.name = userBadgeSpan.textContent.trim();
+            console.log('👤 Found username from badge:', userData.name);
+        }
+
+        // Method 2: Try page title or header if badge method failed
+        if (!userData.name) {
+            const pageHeaders = document.querySelectorAll('h1, h2, h3, .header-title');
+            pageHeaders.forEach(header => {
+                const text = header.textContent;
+                if (text.includes('Time Management') && text.includes('-')) {
+                    const parts = text.split('-');
+                    if (parts.length > 1) {
+                        userData.name = parts[1].trim();
+                        console.log('👤 Found username from header:', userData.name);
+                    }
+                }
+            });
+        }
+
+        // Fallback name for safety
+        if (!userData.name) {
+            userData.name = 'User';
+            console.log('👤 Using fallback username');
+        }
+
+        return userData;
     }
 
     // ========================================================================
