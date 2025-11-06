@@ -189,12 +189,21 @@ function initializeActionToggles() {
 function waitForFormAndInitialize() {
     const form = document.getElementById('registerForm');
 
-    if (form) {
-        console.log('✓ Form found, initializing...');
-        initializeRegister();
-        initializeActionToggles();
+    if (form && form.tagName === 'FORM') {
+        console.log('✓ Form element ready (tagName: FORM)');
+        // Add small delay to ensure page is fully rendered
+        console.log('⏳ Waiting 100ms for page to stabilize...');
+        setTimeout(() => {
+            console.log('✓ Starting initialization...');
+            initializeRegister();
+            initializeActionToggles();
+        }, 100);
     } else {
-        console.log('⏳ Form not ready yet, retrying in 50ms...');
+        if (form) {
+            console.log(`⏳ Form element exists but tagName is '${form.tagName}', not 'FORM'. Retrying in 50ms...`);
+        } else {
+            console.log('⏳ Form element not found yet, retrying in 50ms...');
+        }
         setTimeout(waitForFormAndInitialize, 50);
     }
 }
