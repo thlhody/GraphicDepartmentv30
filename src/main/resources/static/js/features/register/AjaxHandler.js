@@ -29,7 +29,7 @@ export class AjaxHandler {
     constructor(registerForm, registerSummary) {
         this.registerForm = registerForm;
         this.registerSummary = registerSummary;
-        this.toast = new ToastNotification();
+        // ToastNotification uses static methods - no instantiation needed
 
         this.setupFormSubmissions();
         this.setupDeleteButtons();
@@ -123,7 +123,7 @@ export class AjaxHandler {
 
         } catch (error) {
             console.error('AJAX submission error:', error);
-            this.toast.error('Submission Failed', error.message || 'An error occurred while submitting the form.');
+            ToastNotification.error('Submission Failed', error.message || 'An error occurred while submitting the form.');
         } finally {
             this.hideLoading();
         }
@@ -146,7 +146,7 @@ export class AjaxHandler {
 
         if (successAlert) {
             const message = successAlert.textContent.trim();
-            this.toast.success('Success', message);
+            ToastNotification.success('Success', message);
 
             // Reset form if this was a create/edit (not delete)
             if (!form.getAttribute('action').includes('delete')) {
@@ -158,10 +158,10 @@ export class AjaxHandler {
 
         } else if (errorAlert) {
             const message = errorAlert.textContent.trim();
-            this.toast.error('Error', message);
+            ToastNotification.error('Error', message);
         } else {
             // No specific alert found, show generic success
-            this.toast.success('Success', 'Operation completed successfully.');
+            ToastNotification.success('Success', 'Operation completed successfully.');
 
             // Reset form if this was a create/edit
             if (!form.getAttribute('action').includes('delete')) {
@@ -182,7 +182,7 @@ export class AjaxHandler {
         const url = new URL(redirectUrl);
         const errorMessage = url.searchParams.get('error') || 'An error occurred';
 
-        this.toast.error('Validation Error', decodeURIComponent(errorMessage));
+        ToastNotification.error('Validation Error', decodeURIComponent(errorMessage));
     }
 
     /**
@@ -220,7 +220,7 @@ export class AjaxHandler {
             }
         } catch (error) {
             console.error('Error reloading entries:', error);
-            this.toast.warning('Reload Notice', 'Please refresh the page to see updated entries.');
+            ToastNotification.warning('Reload Notice', 'Please refresh the page to see updated entries.');
         }
     }
 

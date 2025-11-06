@@ -58,7 +58,8 @@ function initializeRegister(formElement) {
 
         // Setup Select2 global keyboard handling
         console.log('7️⃣ Setting up Select2 keyboard handling...');
-        setupSelect2KeyboardHandling();
+        // TEMPORARILY DISABLED - causing infinite errors
+        // setupSelect2KeyboardHandling();
 
         // Make instances globally available
         window.registerForm = registerForm;
