@@ -22,43 +22,64 @@ import { AjaxHandler } from './AjaxHandler.js';
 function initializeRegister() {
     console.log('Initializing User Register Feature...');
 
-    // Initialize modules in dependency order
-    const registerForm = new RegisterForm();
-    const registerSummary = new RegisterSummary();
-    const registerSearch = new RegisterSearch(registerForm);
+    try {
+        // Initialize modules in dependency order
+        console.log('1️⃣ Creating RegisterForm...');
+        const registerForm = new RegisterForm();
+        console.log('✓ RegisterForm created');
 
-    // Setup tab navigation for RegisterForm
-    registerForm.setupTabNavigation();
+        console.log('2️⃣ Creating RegisterSummary...');
+        const registerSummary = new RegisterSummary();
+        console.log('✓ RegisterSummary created');
 
-    // Setup initial edit/copy button handlers
-    setupEditCopyHandlers(registerForm);
+        console.log('3️⃣ Creating RegisterSearch...');
+        const registerSearch = new RegisterSearch(registerForm);
+        console.log('✓ RegisterSearch created');
 
-    // Initialize AJAX handler IMMEDIATELY (no delay) to ensure validation runs
-    const ajaxHandler = new AjaxHandler(registerForm, registerSummary);
+        // Setup tab navigation for RegisterForm
+        console.log('4️⃣ Setting up tab navigation...');
+        registerForm.setupTabNavigation();
 
-    // Fix any existing validation states after a small delay
-    setTimeout(() => {
-        ajaxHandler.fixFormValidationStates();
-    }, 300);
+        // Setup initial edit/copy button handlers
+        console.log('5️⃣ Setting up edit/copy handlers...');
+        setupEditCopyHandlers(registerForm);
 
-    // Setup Select2 global keyboard handling
-    setupSelect2KeyboardHandling();
+        // Initialize AJAX handler IMMEDIATELY (no delay) to ensure validation runs
+        console.log('6️⃣ Creating AjaxHandler...');
+        const ajaxHandler = new AjaxHandler(registerForm, registerSummary);
+        console.log('✓ AjaxHandler created');
 
-    // Make instances globally available
-    window.registerForm = registerForm;
-    window.registerSummary = registerSummary;
-    window.registerSearch = registerSearch;
-    window.ajaxHandler = ajaxHandler;
+        // Fix any existing validation states after a small delay
+        setTimeout(() => {
+            ajaxHandler.fixFormValidationStates();
+        }, 300);
 
-    // Force initial statistics calculation
-    setTimeout(() => {
-        if (registerSummary) {
-            registerSummary.calculateStats();
-        }
-    }, 500);
+        // Setup Select2 global keyboard handling
+        console.log('7️⃣ Setting up Select2 keyboard handling...');
+        setupSelect2KeyboardHandling();
 
-    console.log('User Register Feature initialized successfully');
-    console.log('✓ Form validation is active');
+        // Make instances globally available
+        window.registerForm = registerForm;
+        window.registerSummary = registerSummary;
+        window.registerSearch = registerSearch;
+        window.ajaxHandler = ajaxHandler;
+
+        // Force initial statistics calculation
+        setTimeout(() => {
+            console.log('8️⃣ Calculating initial statistics...');
+            if (registerSummary) {
+                registerSummary.calculateStats();
+            }
+        }, 500);
+
+        console.log('✅ User Register Feature initialized successfully');
+        console.log('✓ Form validation is active');
+    } catch (error) {
+        console.error('💥 FATAL ERROR during initialization:', error);
+        console.error('💥 Error message:', error.message);
+        console.error('💥 Error stack:', error.stack);
+        alert('Failed to initialize register page. Check console for details.');
+    }
 }
 
 /**
