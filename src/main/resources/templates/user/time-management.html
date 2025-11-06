@@ -3,9 +3,9 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=031120251812}">
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=031120251812}">
-    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css}">
+    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -54,24 +54,6 @@
 
 <!-- Page Scripts -->
 <th:block layout:fragment="scripts">
-    <!-- Toast alerts -->
-    <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
-
-    <!-- Core utilities first (same as session.html) -->
-    <script th:src="@{/js/legacy/tm/utilities-module.js?v=031120251812}"></script>
-    <script th:src="@{/js/legacy/tm/time-input-module.js?v=031120251812}"></script>
-
-    <!-- Feature modules (same as session.html) -->
-    <script th:src="@{/js/legacy/tm/status-display-module.js?v=031120251812}"></script>
-    <script th:src="@{/js/legacy/tm/work-time-display-module.js?v=031120251812}"></script>
-    <script th:src="@{/js/legacy/tm/inline-editing-module.js?v=031120251812}"></script>
-    <script th:src="@{/js/legacy/tm/timeoff-management-module.js?v=031120251812}"></script>
-    <script th:src="@{/js/legacy/tm/period-navigation-module.js?v=031120251812}"></script>
-
-    <!-- Holiday request functionality -->
-    <script th:src="@{/js/legacy/tm/holiday-export-utils.js?v=031120251812}"></script>
-    <script th:src="@{/js/legacy/tm/holiday-request-modal.js?v=031120251812}"></script>
-
     <!-- Server data for JavaScript -->
     <script type="application/json" id="timeOffResultData">
         {
@@ -83,11 +65,28 @@
         }
     </script>
 
-    <!-- Time Management Core coordinator -->
-    <script th:src="@{/js/legacy/time-management-core.js?v=031120251812}"></script>
+    <!-- ES6 Module (Modern Browsers) -->
+    <script type="module">
+        import '/js/features/time-management/index.js';
+        console.log('✅ Time Management (Standalone) - ES6 module loaded');
+    </script>
 
-    <!-- Standalone initialization script -->
-    <script th:src="@{/js/legacy/standalone-time-management.js?v=031120251812}" defer></script>
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/toast-alerts.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/utilities-module.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/time-input-module.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/status-display-module.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/work-time-display-module.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/inline-editing-module.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/timeoff-management-module.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/period-navigation-module.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/holiday-export-utils.js}"></script>
+    <script nomodule th:src="@{/js/legacy/tm/holiday-request-modal.js}"></script>
+    <script nomodule th:src="@{/js/legacy/time-management-core.js}"></script>
+    <script nomodule th:src="@{/js/legacy/standalone-time-management.js}" defer></script>
+    <script nomodule>
+        console.log('⚠️ Time Management (Standalone) - Legacy fallback loaded');
+    </script>
 </th:block>
 </body>
 </html>
