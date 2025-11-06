@@ -185,11 +185,19 @@ function initializeActionToggles() {
     });
 }
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize when DOM is ready OR immediately if already loaded
+if (document.readyState === 'loading') {
+    console.log('⏳ DOM still loading, waiting for DOMContentLoaded...');
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('✓ DOMContentLoaded fired, initializing...');
+        initializeRegister();
+        initializeActionToggles();
+    });
+} else {
+    console.log('✓ DOM already loaded, initializing immediately...');
     initializeRegister();
     initializeActionToggles();
-});
+}
 
 // Export for testing or external access
 export { initializeRegister };
