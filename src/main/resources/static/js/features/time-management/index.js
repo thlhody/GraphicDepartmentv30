@@ -369,6 +369,30 @@ function initializeHolidayModal() {
         window.closeHolidayModal = () => state.holidayModal.close();
         window.exportHolidayToImage = (format) => state.holidayModal.exportToImage(format);
 
+        // Add openHolidayRequestFromForm for inline onclick compatibility
+        window.openHolidayRequestFromForm = () => {
+            console.log('📋 Opening holiday request modal from form...');
+
+            // Extract user data from current page
+            const userData = extractCurrentUserData();
+
+            // Get dates from form inputs
+            const startDateField = document.querySelector('input[name="startDate"]');
+            const endDateField = document.querySelector('input[name="endDate"]');
+
+            const startDate = startDateField ? startDateField.value : '';
+            const endDate = endDateField ? endDateField.value : '';
+
+            // Get selected time off type from dropdown
+            const timeOffTypeSelect = document.getElementById('timeOffType');
+            const selectedType = timeOffTypeSelect ? timeOffTypeSelect.value : null;
+
+            console.log('📊 Form data:', { startDate, endDate, userData, selectedType });
+
+            // Open the modal
+            window.openHolidayRequestModal(startDate, endDate, userData, selectedType);
+        };
+
         console.log('✅ Holiday Request Modal initialized');
     }
 }

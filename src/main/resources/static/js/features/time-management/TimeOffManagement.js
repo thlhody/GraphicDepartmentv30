@@ -115,7 +115,8 @@ export class TimeOffManagement {
      * Set up form submission with validation
      */
     static setupFormSubmission(form, startDateInput, endDateInput, singleDayCheckbox) {
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent default form submission to avoid page redirect
             console.log('🚀 Form submit event triggered!');
 
             const formData = {
@@ -131,17 +132,56 @@ export class TimeOffManagement {
             const validationError = this.validateTimeOffForm(formData);
             if (validationError) {
                 console.error('❌ Validation failed:', validationError);
-                e.preventDefault();
                 this.showValidationError(validationError);
                 return;
             }
 
-            console.log('✅ Form validation passed, submitting...');
+            console.log('✅ Form validation passed, submitting via AJAX...');
 
             TimeManagementUtilities.showLoadingOverlay();
-
-            // Show immediate feedback
             this.showProcessingMessage();
+
+            try {
+                // Submit via AJAX to prevent page redirect
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        startDate: formData.startDate,
+                        endDate: formData.endDate,
+                        timeOffType: formData.timeOffType,
+                        singleDay: formData.singleDay
+                    })
+                });
+
+                if (response.ok) {
+                    console.log('✅ Time off request submitted successfully');
+
+                    // Show success message
+                    if (window.ToastNotification) {
+                        window.ToastNotification.show('Success', 'Time off request submitted successfully', 'success');
+                    }
+
+                    // Reset form
+                    form.reset();
+
+                    // Reload the page to show updated data (stays on current page!)
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+
+                } else {
+                    throw new Error('Failed to submit time off request');
+                }
+
+            } catch (error) {
+                console.error('❌ Error submitting time off:', error);
+                this.showValidationError('Failed to submit request. Please try again.');
+            } finally {
+                TimeManagementUtilities.hideLoadingOverlay();
+            }
         });
     }
 
