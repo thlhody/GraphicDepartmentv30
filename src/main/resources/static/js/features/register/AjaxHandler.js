@@ -105,10 +105,24 @@ export class AjaxHandler {
             console.log(`  ${key}: ${value}`);
         }
 
+        // Convert FormData to URLSearchParams for application/x-www-form-urlencoded
+        // Spring Boot @RequestParam expects this format, not multipart/form-data
+        const urlEncodedData = new URLSearchParams();
+        for (let [key, value] of formData.entries()) {
+            urlEncodedData.append(key, value);
+        }
+
         this.showLoading();
 
         try {
-            const response = await API.postForm(action, formData);
+            // Use fetch directly with URLSearchParams
+            const response = await fetch(action, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: urlEncodedData
+            });
 
             if (response.redirected) {
                 // Handle redirect
