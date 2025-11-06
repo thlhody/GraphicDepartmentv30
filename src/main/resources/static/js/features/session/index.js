@@ -52,12 +52,26 @@ function init() {
 
 /**
  * Initialize resume modal (simple standalone functionality)
+ * Only shows if server indicated via URL parameter
  */
 function initResumeModal() {
-    // Show resume confirmation modal if it exists
-    const modalElement = document.getElementById('resumeConfirmationModal');
-    if (modalElement) {
-        SessionUI.showResumeModal();
+    // Check if server wants to show resume modal
+    const sessionDataElement = document.getElementById('sessionPageData');
+    if (!sessionDataElement) return;
+
+    try {
+        const sessionData = JSON.parse(sessionDataElement.textContent);
+
+        // Only show modal if showResumeConfirmation is explicitly true
+        if (sessionData.urlParams && sessionData.urlParams.showResumeConfirmation === 'true') {
+            const modalElement = document.getElementById('resumeConfirmationModal');
+            if (modalElement) {
+                console.log('📋 Showing resume confirmation modal (user clicked resume button)');
+                SessionUI.showResumeModal();
+            }
+        }
+    } catch (error) {
+        console.error('Error checking resume modal state:', error);
     }
 }
 

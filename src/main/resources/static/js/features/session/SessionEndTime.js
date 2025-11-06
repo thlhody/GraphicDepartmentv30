@@ -165,7 +165,7 @@ export class SessionEndTime {
 
         try {
             // Call endpoint to calculate end time
-            const data = await API.postJSON('/user/session/calculate-end-time', {
+            const data = await API.post('/user/session/calculate-end-time', {
                 endHour: endHour,
                 endMinute: endMinute
             });
