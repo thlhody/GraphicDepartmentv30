@@ -105,38 +105,44 @@ export class AjaxHandler {
             console.log(`  ${key}: ${value}`);
         }
 
-        // Convert FormData to URLSearchParams for application/x-www-form-urlencoded
-        // Spring Boot @RequestParam expects this format, not multipart/form-data
-        const urlEncodedData = new URLSearchParams();
-        for (let [key, value] of formData.entries()) {
-            urlEncodedData.append(key, value);
-        }
-
         this.showLoading();
 
         try {
-            // Use fetch directly with URLSearchParams
+            // Send FormData directly as multipart/form-data (like legacy code)
             const response = await fetch(action, {
-                method: 'POST',
+                method: method,
+                body: formData,
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: urlEncodedData
+                    'X-Requested-With': 'XMLHttpRequest'  // Signal this is AJAX
+                }
             });
 
             if (response.redirected) {
-                // Handle redirect
-                const redirectUrl = response.url;
+                // Handle redirect (like legacy code)
+                console.log('✓ Redirected to:', response.url);
 
-                if (redirectUrl.includes('error=')) {
-                    // Error redirect
-                    this.handleErrorRedirect(redirectUrl);
+                const redirectUrl = new URL(response.url);
+                const params = new URLSearchParams(redirectUrl.search);
+
+                // Update URL without page reload (prevents navigation)
+                const year = params.get('year');
+                const month = params.get('month');
+                if (year && month) {
+                    const newUrl = `/user/register?year=${year}&month=${month}`;
+                    window.history.pushState({ path: newUrl }, '', newUrl);
+                }
+
+                // Check for error in redirect
+                if (redirectUrl.search.includes('error=')) {
+                    this.handleErrorRedirect(response.url);
                 } else {
-                    // Success redirect
-                    await this.handleSuccessfulSubmission(form, await response.text());
+                    // Success redirect - get response HTML
+                    const html = await response.text();
+                    await this.handleSuccessfulSubmission(form, html);
                 }
             } else {
-                // Direct response
+                // Direct response (non-redirect)
+                console.log('✓ Non-redirect response:', response.status);
                 const responseHtml = await response.text();
                 await this.handleSuccessfulSubmission(form, responseHtml);
             }
