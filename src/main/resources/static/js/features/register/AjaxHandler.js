@@ -212,7 +212,9 @@ export class AjaxHandler {
     async reloadEntries() {
         try {
             const currentUrl = window.location.pathname + window.location.search;
-            const response = await API.get(currentUrl);
+
+            // Use fetch directly to get raw response
+            const response = await fetch(currentUrl);
 
             if (response.ok) {
                 const html = await response.text();
@@ -235,11 +237,15 @@ export class AjaxHandler {
                         this.registerSummary.calculateStats();
                     }
 
-                    console.log('Entries reloaded successfully');
+                    console.log('✅ Entries reloaded successfully');
+                } else {
+                    console.warn('⚠️ Could not find table body in response');
                 }
+            } else {
+                console.error('❌ Failed to reload entries:', response.status, response.statusText);
             }
         } catch (error) {
-            console.error('Error reloading entries:', error);
+            console.error('❌ Error reloading entries:', error);
             ToastNotification.warning('Reload Notice', 'Please refresh the page to see updated entries.');
         }
     }
