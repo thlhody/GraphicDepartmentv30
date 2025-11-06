@@ -389,12 +389,26 @@
 
         <!-- Page Scripts -->
         <th:block layout:fragment="scripts">
-            <!-- ES6 Module (Modern Browsers) -->
+            <!-- ES6 Module (Modern Browsers) with enhanced debugging -->
             <script type="module">
+                console.log('🚀 Starting ES6 module load...');
                 const cacheBuster = new Date().getTime();
-            import(`/js/features/register/index.js?v=${cacheBuster}`)
-                .then(() => console.log('✅ User Register - ES6 module loaded'))
-                .catch(err => console.error('❌ Error loading module:', err));
+                const modulePath = `/js/features/register/index.js?v=${cacheBuster}`;
+                console.log('📦 Module path:', modulePath);
+
+                import(modulePath)
+                    .then(() => {
+                        console.log('✅ User Register - ES6 module loaded successfully');
+                        console.log('✅ window.registerForm:', typeof window.registerForm);
+                        console.log('✅ window.registerSummary:', typeof window.registerSummary);
+                        console.log('✅ window.registerSearch:', typeof window.registerSearch);
+                        console.log('✅ window.ajaxHandler:', typeof window.ajaxHandler);
+                    })
+                    .catch(err => {
+                        console.error('❌ FATAL ERROR loading module:', err);
+                        console.error('❌ Error stack:', err.stack);
+                        alert('Failed to load register module. Check console for details.');
+                    });
             </script>
 
             <!-- Legacy Fallback (IE11) -->
