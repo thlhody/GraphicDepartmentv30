@@ -185,18 +185,27 @@ function initializeActionToggles() {
     });
 }
 
+// Wait for form to exist before initializing
+function waitForFormAndInitialize() {
+    const form = document.getElementById('registerForm');
+
+    if (form) {
+        console.log('✓ Form found, initializing...');
+        initializeRegister();
+        initializeActionToggles();
+    } else {
+        console.log('⏳ Form not ready yet, retrying in 50ms...');
+        setTimeout(waitForFormAndInitialize, 50);
+    }
+}
+
 // Initialize when DOM is ready OR immediately if already loaded
 if (document.readyState === 'loading') {
     console.log('⏳ DOM still loading, waiting for DOMContentLoaded...');
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log('✓ DOMContentLoaded fired, initializing...');
-        initializeRegister();
-        initializeActionToggles();
-    });
+    document.addEventListener('DOMContentLoaded', waitForFormAndInitialize);
 } else {
-    console.log('✓ DOM already loaded, initializing immediately...');
-    initializeRegister();
-    initializeActionToggles();
+    console.log('✓ DOM already loaded, checking for form...');
+    waitForFormAndInitialize();
 }
 
 // Export for testing or external access
