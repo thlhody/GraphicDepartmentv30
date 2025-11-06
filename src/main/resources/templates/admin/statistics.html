@@ -151,7 +151,10 @@
     </div>
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
+        <!-- Chart.js library -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+        <!-- Server data for JavaScript -->
         <script th:inline="javascript">
             // Initialize global variables with data
             window.clientData = /*[[${statistics.clientDistribution}]]*/ null;
@@ -160,7 +163,20 @@
             window.monthlyEntriesData = /*[[${monthlyEntries}]]*/ null;
             window.dailyEntriesData = /*[[${dailyEntries}]]*/ null;
         </script>
-        <script th:src="@{/js/legacy/statistics.js?v=031120251812}"></script>
+
+        <!-- ES6 Module (Modern Browsers) with cache busting -->
+        <script type="module">
+            const cacheBuster = new Date().getTime();
+            import(`/js/features/statistics/index.js?v=${cacheBuster}`)
+                .then(() => console.log('✅ Admin Statistics - ES6 module loaded'))
+                .catch(err => console.error('❌ Error loading admin statistics module:', err));
+        </script>
+
+        <!-- Legacy Fallback (IE11) -->
+        <script nomodule th:src="@{/js/legacy/statistics.js?v=031120251812}"></script>
+        <script nomodule>
+            console.log('⚠️ Admin Statistics - Legacy fallback loaded');
+        </script>
     </th:block>
 </div>
 </body>

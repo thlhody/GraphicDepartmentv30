@@ -262,6 +262,7 @@
     </div>
 </div>
 <th:block layout:fragment="scripts">
+    <!-- Server data for JavaScript -->
     <script th:inline="javascript">
         // Pass server-side variables to JavaScript
         window.serverData = {
@@ -276,8 +277,20 @@
             averageGraphicComplexity: /*[[${averageGraphicComplexity}]]*/ 0
         };
     </script>
-    <!-- Include your external JS file -->
-    <script th:src="@{/js/legacy/register-admin.js?v=031120251812}"></script>
+
+    <!-- ES6 Module (Modern Browsers) with cache busting -->
+    <script type="module">
+        const cacheBuster = new Date().getTime();
+        import(`/js/features/register/admin/index.js?v=${cacheBuster}`)
+            .then(() => console.log('✅ Admin Register - ES6 module loaded'))
+            .catch(err => console.error('❌ Error loading admin register module:', err));
+    </script>
+
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/register-admin.js?v=031120251812}"></script>
+    <script nomodule>
+        console.log('⚠️ Admin Register - Legacy fallback loaded');
+    </script>
 </th:block>
 </body>
 </html>

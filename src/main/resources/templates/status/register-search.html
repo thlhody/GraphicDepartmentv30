@@ -323,7 +323,19 @@
 </div>
 
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/legacy/register-search.js?v=031120251812}"></script>
+    <!-- ES6 Module (Modern Browsers) with cache busting -->
+    <script type="module">
+        const cacheBuster = new Date().getTime();
+        import(`/js/features/register-search/index.js?v=${cacheBuster}`)
+            .then(() => console.log('✅ Register Search - ES6 module loaded'))
+            .catch(err => console.error('❌ Error loading register search module:', err));
+    </script>
+
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/register-search.js?v=031120251812}"></script>
+    <script nomodule>
+        console.log('⚠️ Register Search - Legacy fallback loaded');
+    </script>
 </th:block>
 </body>
 </html>

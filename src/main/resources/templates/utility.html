@@ -128,12 +128,21 @@
     </div>
 </div>
 
-<!-- Enhanced Utility JavaScript with Full Functionality -->
+<!-- Enhanced Utility JavaScript with Hybrid Approach -->
 <th:block layout:fragment="scripts">
-    <!-- Core utility scripts -->
+    <!-- ES6 Coordinator (Modern Browsers) - Hybrid Approach -->
+    <!-- Note: Legacy jQuery modules still loaded for compatibility -->
+    <script type="module">
+        const cacheBuster = new Date().getTime();
+        import(`/js/features/utilities/admin/index.js?v=${cacheBuster}`)
+            .then(() => console.log('✅ Admin Utilities - ES6 coordinator loaded (hybrid mode)'))
+            .catch(err => console.error('❌ Error loading utilities coordinator:', err));
+    </script>
+
+    <!-- Core utility scripts (Legacy - jQuery based) -->
     <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
 
-    <!-- Individual utility modules -->
+    <!-- Individual utility modules (Legacy - jQuery based) -->
     <script th:src="@{/js/legacy/um/backup-utility.js?v=031120251812}"></script>
     <script th:src="@{/js/legacy/um/monitor-utility.js?v=031120251812}"></script>
     <script th:src="@{/js/legacy/um/session-utility.js?v=031120251812}"></script>
@@ -142,7 +151,7 @@
     <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=031120251812}"></script>
     <script th:src="@{/js/legacy/um/actions-utility.js?v=031120251812}"></script>
 
-    <!-- Main utility coordinator -->
+    <!-- Main utility coordinator (Legacy - jQuery based) -->
     <script th:src="@{/js/legacy/utility-core.js?v=031120251812}"></script>
 
     <!-- Initialization script -->

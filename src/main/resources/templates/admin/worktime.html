@@ -348,7 +348,19 @@
 
     <!-- Page Scripts -->
     <th:block layout:fragment="scripts">
-        <script th:src="@{/js/legacy/worktime-admin.js?v=031120251812}"></script>
+        <!-- ES6 Module (Modern Browsers) with cache busting -->
+        <script type="module">
+            const cacheBuster = new Date().getTime();
+            import(`/js/features/worktime/admin/index.js?v=${cacheBuster}`)
+                .then(() => console.log('✅ Admin Worktime - ES6 module loaded'))
+                .catch(err => console.error('❌ Error loading admin worktime module:', err));
+        </script>
+
+        <!-- Legacy Fallback (IE11) -->
+        <script nomodule th:src="@{/js/legacy/worktime-admin.js?v=031120251812}"></script>
+        <script nomodule>
+            console.log('⚠️ Admin Worktime - Legacy fallback loaded');
+        </script>
     </th:block>
 </div>
 </body>
