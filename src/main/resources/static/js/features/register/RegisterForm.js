@@ -122,22 +122,45 @@ export class RegisterForm extends FormHandler {
         select2Container.attr('tabindex', '0');
         console.log('✓ Select2 container made focusable');
 
+        // TEMPORARILY DISABLED - these modifications are preventing dropdown from opening
+        // TODO: Re-enable after fixing the blocking issues
+
         // Remove conflicting event handlers
-        $(document).off('mouseenter mouseleave', '.select2-results__option');
+        // $(document).off('mouseenter mouseleave', '.select2-results__option');
 
         // Override Select2 hover highlighting to prevent auto-selection
-        console.log('⚙️ Disabling Select2 auto-highlight...');
-        this.disableSelect2AutoHighlight();
+        // console.log('⚙️ Disabling Select2 auto-highlight...');
+        // this.disableSelect2AutoHighlight();
 
         // Setup Select2-specific events
-        console.log('⚙️ Setting up Select2 events...');
-        this.setupSelect2Events();
+        console.log('⚙️ Setting up Select2 events (basic only)...');
+        this.setupSelect2EventsBasic();
 
         // Setup tab navigation
-        console.log('⚙️ Setting up tab navigation...');
-        this.setupTabNavigation();
+        // console.log('⚙️ Setting up tab navigation...');
+        // this.setupTabNavigation();
 
-        console.log('✅ RegisterForm initialization complete');
+        console.log('✅ RegisterForm initialization complete (Select2 in basic mode)');
+    }
+
+    /**
+     * Setup basic Select2 events (without custom modifications)
+     * @private
+     */
+    setupSelect2EventsBasic() {
+        const $printPrepSelect = $(this.printPrepSelect);
+
+        // Open event - focus search field
+        $printPrepSelect.on('select2:open', () => {
+            setTimeout(() => {
+                document.querySelector('.select2-search__field')?.focus();
+            }, 10);
+        });
+
+        // Listen for selection changes to recalculate complexity
+        $printPrepSelect.on('change', () => {
+            this.updateComplexityField();
+        });
     }
 
     /**
@@ -613,6 +636,30 @@ export class RegisterForm extends FormHandler {
     }
 
     /**
+     * Convert date from DD/MM/YYYY to YYYY-MM-DD
+     * @param {string} dateStr - Date in DD/MM/YYYY format
+     * @returns {string} Date in YYYY-MM-DD format
+     * @private
+     */
+    convertDateFormat(dateStr) {
+        if (!dateStr) return '';
+
+        // Check if already in YYYY-MM-DD format
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            return dateStr;
+        }
+
+        // Convert DD/MM/YYYY to YYYY-MM-DD
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+            const [day, month, year] = parts;
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+
+        return dateStr;
+    }
+
+    /**
      * Populate form from edit button data
      * @param {HTMLButtonElement} button - Edit button with data attributes
      * @public
@@ -624,7 +671,7 @@ export class RegisterForm extends FormHandler {
 
         // Populate basic fields using correct IDs
         const dateInput = document.getElementById('dateInput');
-        if (dateInput) dateInput.value = data.date || '';
+        if (dateInput) dateInput.value = this.convertDateFormat(data.date) || '';
 
         const orderIdInput = document.getElementById('orderIdInput');
         if (orderIdInput) orderIdInput.value = data.orderId || '';
