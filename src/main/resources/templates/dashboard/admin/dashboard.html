@@ -81,8 +81,11 @@
 <th:block layout:fragment="scripts">
     <!-- ES6 Module (Modern Browsers) -->
     <script type="module">
-        import '/js/features/dashboard/index.js';
-        console.log('✅ Admin Dashboard - ES6 module loaded');
+        const cacheBuster = new Date().getTime();
+            import(`/js/features/dashboard/index.js?v=${cacheBuster}`)
+        
+                .then(() => console.log('✅ Admin Dashboard - ES6 module loaded'))
+                .catch(err => console.error('❌ Error loading module:', err));
     </script>
 
     <!-- Legacy Fallback (IE11) -->

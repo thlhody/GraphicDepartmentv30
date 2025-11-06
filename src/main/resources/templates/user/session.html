@@ -423,10 +423,13 @@
     </script>
 
     <th:block layout:fragment="scripts">
-        <!-- ES6 Module (Modern Browsers) -->
+        <!-- ES6 Module (Modern Browsers) with cache busting -->
         <script type="module">
-            import '/js/features/session/index.js';
-            console.log('✅ User Session - ES6 module loaded');
+            // Cache busting for development - forces browser to reload modules
+            const cacheBuster = new Date().getTime();
+            import(`/js/features/session/index.js?v=${cacheBuster}`)
+                .then(() => console.log('✅ User Session - ES6 module loaded'))
+                .catch(err => console.error('❌ Error loading session module:', err));
         </script>
 
         <!-- Legacy Fallback (IE11) -->
