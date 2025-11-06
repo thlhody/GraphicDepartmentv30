@@ -27,20 +27,23 @@ export class RegisterForm extends FormHandler {
      * @param {HTMLFormElement} formElement - Optional pre-validated form element
      */
     constructor(formElement = null) {
-        super({
-            formSelector: formElement || '#registerForm',
-            submitUrl: '/user/register/entry',
-            validationRules: {
-                date: ['required', 'date'],
-                orderId: ['required'],
-                productionId: ['required'],
-                actionTypeSelect: ['required'],
-                articleNumbers: ['required', 'number'],
-                colorsInput: ['required']
-            },
-            onSuccess: (response) => this.handleSuccess(response),
-            onError: (error) => this.handleError(error)
-        });
+        // Call FormHandler with correct parameters: (formSelector, config)
+        super(
+            formElement || '#registerForm',  // First param: selector or element
+            {  // Second param: config object
+                submitUrl: '/user/register/entry',
+                validationRules: {
+                    date: ['required', 'date'],
+                    orderId: ['required'],
+                    productionId: ['required'],
+                    actionTypeSelect: ['required'],
+                    articleNumbers: ['required', 'number'],
+                    colorsInput: ['required']
+                },
+                onSuccess: (response) => this.handleSuccess(response),
+                onError: (error) => this.handleError(error)
+            }
+        );
 
         this.initializeFormElements();
         this.initializeForm();
