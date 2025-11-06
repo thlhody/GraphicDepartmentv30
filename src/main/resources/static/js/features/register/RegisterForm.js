@@ -70,7 +70,16 @@ export class RegisterForm extends FormHandler {
      * @private
      */
     initializeForm() {
-        if (!this.form || !this.printPrepSelect) return;
+        console.log('📝 InitializeForm called');
+        console.log('  Form exists:', !!this.form);
+        console.log('  PrintPrepSelect exists:', !!this.printPrepSelect);
+
+        if (!this.form || !this.printPrepSelect) {
+            console.error('❌ Cannot initialize Select2 - form or printPrepSelect missing');
+            return;
+        }
+
+        console.log('✓ Initializing Select2...');
 
         // Make the original select element tabbable
         $(this.printPrepSelect).attr('tabindex', '0');
@@ -106,21 +115,29 @@ export class RegisterForm extends FormHandler {
             }
         });
 
+        console.log('✓ Select2 initialized');
+
         // Make Select2 container focusable
         const select2Container = $(this.printPrepSelect).next('.select2-container');
         select2Container.attr('tabindex', '0');
+        console.log('✓ Select2 container made focusable');
 
         // Remove conflicting event handlers
         $(document).off('mouseenter mouseleave', '.select2-results__option');
 
         // Override Select2 hover highlighting to prevent auto-selection
+        console.log('⚙️ Disabling Select2 auto-highlight...');
         this.disableSelect2AutoHighlight();
 
         // Setup Select2-specific events
+        console.log('⚙️ Setting up Select2 events...');
         this.setupSelect2Events();
 
         // Setup tab navigation
+        console.log('⚙️ Setting up tab navigation...');
         this.setupTabNavigation();
+
+        console.log('✅ RegisterForm initialization complete');
     }
 
     /**
