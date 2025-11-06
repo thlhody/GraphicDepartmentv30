@@ -33,18 +33,13 @@ function initializeRegister() {
     // Setup initial edit/copy button handlers
     setupEditCopyHandlers(registerForm);
 
-    // Initialize AJAX handler (after a small delay to ensure form is ready)
+    // Initialize AJAX handler IMMEDIATELY (no delay) to ensure validation runs
+    const ajaxHandler = new AjaxHandler(registerForm, registerSummary);
+
+    // Fix any existing validation states after a small delay
     setTimeout(() => {
-        const ajaxHandler = new AjaxHandler(registerForm, registerSummary);
-
-        // Fix any existing validation states
-        setTimeout(() => {
-            ajaxHandler.fixFormValidationStates();
-        }, 500);
-
-        // Make ajaxHandler globally available for debugging
-        window.ajaxHandler = ajaxHandler;
-    }, 500);
+        ajaxHandler.fixFormValidationStates();
+    }, 300);
 
     // Setup Select2 global keyboard handling
     setupSelect2KeyboardHandling();
@@ -53,15 +48,17 @@ function initializeRegister() {
     window.registerForm = registerForm;
     window.registerSummary = registerSummary;
     window.registerSearch = registerSearch;
+    window.ajaxHandler = ajaxHandler;
 
     // Force initial statistics calculation
     setTimeout(() => {
         if (registerSummary) {
             registerSummary.calculateStats();
         }
-    }, 800);
+    }, 500);
 
     console.log('User Register Feature initialized successfully');
+    console.log('✓ Form validation is active');
 }
 
 /**

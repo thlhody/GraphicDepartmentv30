@@ -422,14 +422,17 @@ export class RegisterForm extends FormHandler {
      * @public
      */
     validateForm() {
+        console.log('🔍 Starting form validation...');
         this.clearValidationState();
 
         let isValid = true;
+        const errors = [];
 
         // Validate date
         const dateInput = document.getElementById('dateInput');
         if (!dateInput?.value) {
             this.addValidationError(dateInput, 'Date is required');
+            errors.push('date');
             isValid = false;
         }
 
@@ -437,6 +440,7 @@ export class RegisterForm extends FormHandler {
         const orderIdInput = document.getElementById('orderIdInput');
         if (!orderIdInput?.value || !orderIdInput.value.trim()) {
             this.addValidationError(orderIdInput, 'Order ID is required');
+            errors.push('orderId');
             isValid = false;
         }
 
@@ -444,6 +448,7 @@ export class RegisterForm extends FormHandler {
         const omsIdInput = document.getElementById('omsIdInput');
         if (!omsIdInput?.value || !omsIdInput.value.trim()) {
             this.addValidationError(omsIdInput, 'OMS ID is required');
+            errors.push('omsId');
             isValid = false;
         }
 
@@ -451,12 +456,14 @@ export class RegisterForm extends FormHandler {
         const clientNameInput = document.getElementById('clientNameInput');
         if (!clientNameInput?.value || !clientNameInput.value.trim()) {
             this.addValidationError(clientNameInput, 'Client name is required');
+            errors.push('clientName');
             isValid = false;
         }
 
         // Validate action type
         if (!this.actionTypeSelect?.value) {
             this.addValidationError(this.actionTypeSelect, 'Action type is required');
+            errors.push('actionType');
             isValid = false;
         }
 
@@ -464,23 +471,29 @@ export class RegisterForm extends FormHandler {
         const selectedPrintTypes = $(this.printPrepSelect).val();
         if (!selectedPrintTypes || selectedPrintTypes.length === 0) {
             this.addValidationError(this.printPrepSelect, 'Print prep type is required');
+            errors.push('printPrepTypes');
             isValid = false;
         }
 
         // Validate article numbers
         if (!this.articleNumbersInput?.value || parseInt(this.articleNumbersInput.value) <= 0) {
             this.addValidationError(this.articleNumbersInput, 'Article numbers must be greater than 0');
+            errors.push('articleNumbers');
             isValid = false;
         }
 
         // Validate colors
         if (!this.colorsInput?.value || !this.colorsInput.value.trim()) {
             this.addValidationError(this.colorsInput, 'Colors profile is required');
+            errors.push('colors');
             isValid = false;
         }
 
         if (!isValid) {
+            console.log('❌ Validation failed. Missing fields:', errors);
             this.scrollToForm();
+        } else {
+            console.log('✓ All fields valid');
         }
 
         return isValid;
@@ -493,8 +506,12 @@ export class RegisterForm extends FormHandler {
      * @private
      */
     addValidationError(element, message) {
-        if (!element) return;
+        if (!element) {
+            console.warn('addValidationError called with null element for message:', message);
+            return;
+        }
 
+        console.log('  → Adding error to', element.id || element.name, ':', message);
         element.classList.add('is-invalid');
 
         // Create or update feedback element
@@ -502,6 +519,7 @@ export class RegisterForm extends FormHandler {
         if (!feedback || !feedback.classList.contains('invalid-feedback')) {
             feedback = document.createElement('div');
             feedback.className = 'invalid-feedback';
+            feedback.style.display = 'block'; // Ensure feedback is visible
             element.parentNode.insertBefore(feedback, element.nextSibling);
         }
 

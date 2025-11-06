@@ -41,17 +41,28 @@ export class AjaxHandler {
      */
     setupFormSubmissions() {
         const form = document.getElementById('registerForm');
-        if (!form) return;
+        if (!form) {
+            console.error('❌ AjaxHandler: registerForm not found');
+            return;
+        }
+
+        console.log('✓ AjaxHandler: Form submission handler attached');
 
         // Override the form's submit handler
         form.addEventListener('submit', (e) => {
             e.preventDefault();
+            console.log('Form submit intercepted - validating...');
 
             // Validate form
-            if (!this.registerForm.validateForm()) {
+            const isValid = this.registerForm.validateForm();
+            console.log('Validation result:', isValid);
+
+            if (!isValid) {
+                console.log('❌ Validation failed - submission blocked');
                 return;
             }
 
+            console.log('✓ Validation passed - submitting via AJAX');
             // Submit via AJAX
             this.submitFormViaAjax(form);
         });
