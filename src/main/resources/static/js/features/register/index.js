@@ -30,6 +30,9 @@ function initializeRegister() {
     // Setup tab navigation for RegisterForm
     registerForm.setupTabNavigation();
 
+    // Setup initial edit/copy button handlers
+    setupEditCopyHandlers(registerForm);
+
     // Initialize AJAX handler (after a small delay to ensure form is ready)
     setTimeout(() => {
         const ajaxHandler = new AjaxHandler(registerForm, registerSummary);
@@ -51,7 +54,39 @@ function initializeRegister() {
     window.registerSummary = registerSummary;
     window.registerSearch = registerSearch;
 
+    // Force initial statistics calculation
+    setTimeout(() => {
+        if (registerSummary) {
+            registerSummary.calculateStats();
+        }
+    }, 800);
+
     console.log('User Register Feature initialized successfully');
+}
+
+/**
+ * Setup initial edit and copy button handlers
+ * @param {RegisterForm} registerForm - RegisterForm instance
+ * @private
+ */
+function setupEditCopyHandlers(registerForm) {
+    // Edit buttons
+    document.querySelectorAll('.edit-entry').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerForm.populateForm(button);
+        });
+    });
+
+    // Copy buttons
+    document.querySelectorAll('.copy-entry').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerForm.copyEntry(button);
+        });
+    });
+
+    console.log('Edit/Copy handlers attached to initial buttons');
 }
 
 /**

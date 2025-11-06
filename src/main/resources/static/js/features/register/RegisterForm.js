@@ -56,7 +56,7 @@ export class RegisterForm extends FormHandler {
         this.printPrepSelect = document.getElementById('printPrepTypeSelect');
         this.complexityInput = document.getElementById('complexityInput');
         this.colorsInput = document.getElementById('colorsInput');
-        this.articleNumbersInput = document.getElementById('articleNumbers');
+        this.articleNumbersInput = document.getElementById('articlesInput');
         this.editingIdInput = document.getElementById('editingId');
         this.isEditInput = document.getElementById('isEdit');
     }
@@ -308,7 +308,7 @@ export class RegisterForm extends FormHandler {
      */
     initializeDefaultValues() {
         // Set default date to today if empty
-        const dateInput = document.getElementById('date');
+        const dateInput = document.getElementById('dateInput');
         if (dateInput && !dateInput.value) {
             const today = new Date();
             const year = today.getFullYear();
@@ -343,31 +343,53 @@ export class RegisterForm extends FormHandler {
      * @public
      */
     calculateComplexity(actionType, printPrepTypes) {
-        // Special case: CHECKING uses article count
-        if (actionType === 'CHECKING') {
-            const articleCount = parseInt(this.articleNumbersInput?.value || '0');
-            return this.calculateCheckingComplexity(articleCount);
-        }
-
-        // Get base complexity for action type
-        let baseComplexity = ACTION_TYPE_VALUES.get(actionType) || 0;
+        // No action type selected
+        if (!actionType) return 0;
 
         // IMPOSTARE always returns 0
         if (actionType === 'IMPOSTARE') {
             return 0;
         }
 
-        // Add complexity from print prep types
-        if (Array.isArray(printPrepTypes) && printPrepTypes.length > 0) {
-            printPrepTypes.forEach(prepType => {
-                const prepComplexity = COMPLEXITY_PRINT_PREPS.get(prepType) ||
-                                       NEUTRAL_PRINT_PREPS.get(prepType) ||
-                                       0;
-                baseComplexity += prepComplexity;
-            });
+        // REORDIN always returns 1.0
+        if (actionType === 'REORDIN') {
+            return 1.0;
         }
 
-        return baseComplexity;
+        // Special case: CHECKING uses article count
+        if (actionType === 'CHECKING') {
+            // Check if LAYOUT is in print prep types
+            if (Array.isArray(printPrepTypes) && printPrepTypes.includes('LAYOUT')) {
+                const articleCount = parseInt(this.articleNumbersInput?.value || '0');
+                return this.calculateCheckingComplexity(articleCount);
+            }
+            return 3.0;
+        }
+
+        // For ORDIN and CAMPION, check print prep types
+        if (actionType === 'ORDIN' || actionType === 'CAMPION' || actionType === 'PROBA STAMPA') {
+            const baseValue = ACTION_TYPE_VALUES.get(actionType) || 0;
+
+            // If no print prep types, return base value
+            if (!printPrepTypes || !Array.isArray(printPrepTypes) || printPrepTypes.length === 0) {
+                return baseValue;
+            }
+
+            // Check if any print prep type adds complexity
+            const hasComplexityType = printPrepTypes.some(type =>
+                COMPLEXITY_PRINT_PREPS.has(type)
+            );
+
+            // If complex prep type found, return 3.0
+            if (hasComplexityType) {
+                return 3.0;
+            }
+
+            return baseValue;
+        }
+
+        // For all other action types, return the base value
+        return ACTION_TYPE_VALUES.get(actionType) || 0;
     }
 
     /**
@@ -405,29 +427,43 @@ export class RegisterForm extends FormHandler {
         let isValid = true;
 
         // Validate date
-        const dateInput = document.getElementById('date');
+        const dateInput = document.getElementById('dateInput');
         if (!dateInput?.value) {
             this.addValidationError(dateInput, 'Date is required');
             isValid = false;
         }
 
         // Validate order ID
-        const orderIdInput = document.getElementById('orderId');
-        if (!orderIdInput?.value) {
+        const orderIdInput = document.getElementById('orderIdInput');
+        if (!orderIdInput?.value || !orderIdInput.value.trim()) {
             this.addValidationError(orderIdInput, 'Order ID is required');
             isValid = false;
         }
 
-        // Validate production ID
-        const productionIdInput = document.getElementById('productionId');
-        if (!productionIdInput?.value) {
-            this.addValidationError(productionIdInput, 'Production ID is required');
+        // Validate OMS ID
+        const omsIdInput = document.getElementById('omsIdInput');
+        if (!omsIdInput?.value || !omsIdInput.value.trim()) {
+            this.addValidationError(omsIdInput, 'OMS ID is required');
+            isValid = false;
+        }
+
+        // Validate client name
+        const clientNameInput = document.getElementById('clientNameInput');
+        if (!clientNameInput?.value || !clientNameInput.value.trim()) {
+            this.addValidationError(clientNameInput, 'Client name is required');
             isValid = false;
         }
 
         // Validate action type
         if (!this.actionTypeSelect?.value) {
             this.addValidationError(this.actionTypeSelect, 'Action type is required');
+            isValid = false;
+        }
+
+        // Validate print prep types (Select2)
+        const selectedPrintTypes = $(this.printPrepSelect).val();
+        if (!selectedPrintTypes || selectedPrintTypes.length === 0) {
+            this.addValidationError(this.printPrepSelect, 'Print prep type is required');
             isValid = false;
         }
 
@@ -438,7 +474,7 @@ export class RegisterForm extends FormHandler {
         }
 
         // Validate colors
-        if (!this.colorsInput?.value) {
+        if (!this.colorsInput?.value || !this.colorsInput.value.trim()) {
             this.addValidationError(this.colorsInput, 'Colors profile is required');
             isValid = false;
         }
@@ -529,6 +565,12 @@ export class RegisterForm extends FormHandler {
 
         // Recalculate complexity
         this.updateComplexityField();
+
+        // Reset submit button text
+        const submitButton = this.form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+        }
     }
 
     /**
@@ -541,12 +583,21 @@ export class RegisterForm extends FormHandler {
 
         const data = button.dataset;
 
-        // Populate basic fields
-        document.getElementById('date').value = data.date || '';
-        document.getElementById('orderId').value = data.orderId || '';
-        document.getElementById('productionId').value = data.productionId || '';
-        document.getElementById('omsId').value = data.omsId || '';
-        document.getElementById('clientName').value = data.clientName || '';
+        // Populate basic fields using correct IDs
+        const dateInput = document.getElementById('dateInput');
+        if (dateInput) dateInput.value = data.date || '';
+
+        const orderIdInput = document.getElementById('orderIdInput');
+        if (orderIdInput) orderIdInput.value = data.orderId || '';
+
+        const productionIdInput = document.getElementById('productionIdInput');
+        if (productionIdInput) productionIdInput.value = data.productionId || '';
+
+        const omsIdInput = document.getElementById('omsIdInput');
+        if (omsIdInput) omsIdInput.value = data.omsId || '';
+
+        const clientNameInput = document.getElementById('clientNameInput');
+        if (clientNameInput) clientNameInput.value = data.clientName || '';
 
         // Populate selects
         if (this.actionTypeSelect && data.actionType) {
@@ -560,16 +611,23 @@ export class RegisterForm extends FormHandler {
         }
 
         // Populate numeric fields
-        this.articleNumbersInput.value = data.articleNumbers || '';
-        this.complexityInput.value = data.graphicComplexity || '';
-        this.colorsInput.value = data.colors || '';
+        if (this.articleNumbersInput) this.articleNumbersInput.value = data.articleNumbers || '';
+        if (this.complexityInput) this.complexityInput.value = data.graphicComplexity || '';
+        if (this.colorsInput) this.colorsInput.value = data.colorsProfile || data.colors || '';
 
         // Populate text areas
-        document.getElementById('observations').value = data.observations || '';
+        const observationsInput = document.getElementById('observationsInput');
+        if (observationsInput) observationsInput.value = data.observations || '';
 
         // Set edit mode
-        if (this.editingIdInput) this.editingIdInput.value = data.id || '';
+        if (this.editingIdInput) this.editingIdInput.value = data.entryId || data.id || '';
         if (this.isEditInput) this.isEditInput.value = 'true';
+
+        // Update submit button text
+        const submitButton = this.form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.innerHTML = '<i class="bi bi-pencil me-1"></i>Update Entry';
+        }
 
         // Scroll to form
         this.scrollToForm();
@@ -586,6 +644,25 @@ export class RegisterForm extends FormHandler {
         // Clear ID fields for new entry
         if (this.editingIdInput) this.editingIdInput.value = '';
         if (this.isEditInput) this.isEditInput.value = 'false';
+
+        // Set date to today
+        const dateInput = document.getElementById('dateInput');
+        if (dateInput) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}`;
+        }
+
+        // Update submit button text to "Add Entry"
+        const submitButton = this.form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Entry';
+        }
+
+        // Recalculate complexity
+        this.updateComplexityField();
     }
 
     /**

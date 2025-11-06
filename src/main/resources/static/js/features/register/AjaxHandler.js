@@ -218,18 +218,20 @@ export class AjaxHandler {
      * @private
      */
     reattachEventHandlers() {
-        // Edit buttons
-        const editButtons = document.querySelectorAll('.edit-btn');
+        // Edit buttons - use correct class name from HTML
+        const editButtons = document.querySelectorAll('.edit-entry');
         editButtons.forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
                 this.registerForm.populateForm(button);
             });
         });
 
-        // Copy buttons
-        const copyButtons = document.querySelectorAll('.copy-btn');
+        // Copy buttons - use correct class name from HTML
+        const copyButtons = document.querySelectorAll('.copy-entry');
         copyButtons.forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
                 this.registerForm.copyEntry(button);
             });
         });
