@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Check Values Configuration</title>
-    <link rel="stylesheet" th:href="@{/css/check-values.css?v=031120251812}">
-    <link rel="stylesheet" th:href="@{/css/toast-alerts.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/check-values.css}">
+    <link rel="stylesheet" th:href="@{/css/toast-alerts.css}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -370,8 +370,18 @@
 
 <!-- Page-specific scripts -->
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/legacy/toast-alerts.js?v=031120251812}"></script>
-    <script th:src="@{/js/legacy/check-values.js?v=031120251812}"></script>
+    <!-- ES6 Module (Modern Browsers) -->
+    <script type="module">
+        import '/js/features/check-values/index.js';
+        console.log('✅ Check Values - ES6 module loaded');
+    </script>
+
+    <!-- Legacy Fallback (IE11) -->
+    <script nomodule th:src="@{/js/legacy/toast-alerts.js}"></script>
+    <script nomodule th:src="@{/js/legacy/check-values.js}"></script>
+    <script nomodule>
+        console.log('⚠️ Check Values - Legacy fallback loaded');
+    </script>
 </th:block>
 </body>
 </html>
