@@ -237,6 +237,20 @@ export function getRelativeTime(date) {
     return formatDate(d);
 }
 
+/**
+ * Format minutes to hours and minutes (e.g., "2h 30m")
+ * @param {number} minutes - Total minutes
+ * @returns {string} Formatted string
+ */
+export function formatMinutesToHours(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (mins === 0) {
+        return `${hours}h`;
+    }
+    return `${hours}h ${mins}m`;
+}
+
 // =============================================================================
 // STRING UTILITIES
 // =============================================================================
@@ -552,7 +566,7 @@ export default {
     // DOM
     $, $$, createElement, on, remove, hasClass,
     // Date/Time
-    formatDate, formatDateEU, formatTime, formatDateTime, parseDate, getRelativeTime,
+    formatDate, formatDateEU, formatTime, formatDateTime, parseDate, getRelativeTime, formatMinutesToHours,
     // String
     capitalize, titleCase, truncate, escapeHtml, stripHtml, randomString,
     // Number
