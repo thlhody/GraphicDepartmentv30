@@ -177,9 +177,21 @@ export class TimeOffManagement {
                     // Reset form
                     form.reset();
 
-                    // Reload the page to show updated data (stays on current page!)
+                    // Reload the page or fragment to show updated data
                     setTimeout(() => {
-                        window.location.reload();
+                        // Check if we're embedded in session page
+                        const isSessionPage = window.SessionTimeManagementInstance &&
+                                             typeof window.SessionTimeManagementInstance.loadContent === 'function';
+
+                        if (isSessionPage) {
+                            console.log('📋 Reloading embedded time management fragment...');
+                            // Reload just the fragment (stays on session page)
+                            window.SessionTimeManagementInstance.loadContent();
+                        } else {
+                            console.log('📋 Reloading full page...');
+                            // Standalone page - reload entire page
+                            window.location.reload();
+                        }
                     }, 1500);
 
                 } else {

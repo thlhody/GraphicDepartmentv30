@@ -232,25 +232,43 @@ export class SessionTimeManagement {
 
             // Add openHolidayRequestFromForm for inline onclick compatibility
             window.openHolidayRequestFromForm = () => {
-                console.log('📋 Opening holiday request modal from form (session page)...');
+                try {
+                    console.log('📋 Opening holiday request modal from form (session page)...');
 
-                // Extract user data
-                const userData = this.extractCurrentUserData();
+                    // Extract user data
+                    const userData = this.extractCurrentUserData();
 
-                // Get dates from form inputs
-                const startDateField = document.querySelector('input[name="startDate"]');
-                const endDateField = document.querySelector('input[name="endDate"]');
-                const startDate = startDateField ? startDateField.value : '';
-                const endDate = endDateField ? endDateField.value : '';
+                    // Get dates from form inputs
+                    const startDateField = document.querySelector('input[name="startDate"]');
+                    const endDateField = document.querySelector('input[name="endDate"]');
+                    const startDate = startDateField ? startDateField.value : '';
+                    const endDate = endDateField ? endDateField.value : '';
 
-                // Get selected time off type
-                const timeOffTypeSelect = document.getElementById('timeOffType');
-                const selectedType = timeOffTypeSelect ? timeOffTypeSelect.value : null;
+                    // Get selected time off type
+                    const timeOffTypeSelect = document.getElementById('timeOffType');
+                    const selectedType = timeOffTypeSelect ? timeOffTypeSelect.value : null;
 
-                console.log('📊 Form data:', { startDate, endDate, userData, selectedType });
+                    console.log('📊 Form data:', { startDate, endDate, userData, selectedType });
 
-                // Open the modal
-                window.openHolidayRequestModal(startDate, endDate, userData, selectedType);
+                    // Check if modal opener is available
+                    if (typeof window.openHolidayRequestModal !== 'function') {
+                        console.error('❌ Holiday request modal function not available!');
+                        if (window.showToast) {
+                            window.showToast('Error', 'Holiday request modal is not initialized. Please refresh the page.', 'error');
+                        }
+                        return false;
+                    }
+
+                    // Open the modal
+                    window.openHolidayRequestModal(startDate, endDate, userData, selectedType);
+                    return false; // Prevent any default action
+                } catch (error) {
+                    console.error('❌ Error opening holiday request modal:', error);
+                    if (window.showToast) {
+                        window.showToast('Error', 'Error opening holiday request modal. Please try again.', 'error');
+                    }
+                    return false; // Prevent any default action
+                }
             };
 
             console.log('✅ Holiday Request Modal initialized (embedded)');

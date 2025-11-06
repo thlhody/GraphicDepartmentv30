@@ -413,27 +413,33 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                 existingEntry.getTotalOvertimeMinutes() != null ? existingEntry.getTotalOvertimeMinutes() : 0,
                 existingEntry.getTimeOffType()));
 
-        // CRITICAL: Only apply special day calculation if we have valid work times
-        if (existingEntry.getDayStartTime() == null || existingEntry.getDayEndTime() == null) {
-            LoggerUtil.warn(this.getClass(), String.format("Cannot convert to %s day - missing start or end time", timeOffType));
-            return null;
-        }
-
         // STEP 1: Set time off type FIRST
         existingEntry.setTimeOffType(timeOffType);
 
-        // STEP 2: Apply special day calculation
-        // This should preserve start/end times and convert work to overtime
-        WorktimeEntityBuilder.applySpecialDayTimeIntervalCalculation(existingEntry);
+        // STEP 2: Apply special day calculation ONLY if entry has work times
+        // For tombstone entries (no work time), just setting timeOffType is enough
+        if (existingEntry.getDayStartTime() != null && existingEntry.getDayEndTime() != null) {
+            LoggerUtil.info(this.getClass(), String.format("Converting work time to %s overtime for %s on %s", timeOffType, username, date));
 
-        // STEP 3: Verify times are still present after calculation
-        if (existingEntry.getDayStartTime() == null || existingEntry.getDayEndTime() == null) {
-            LoggerUtil.error(this.getClass(), String.format(
-                    "BUG: Special day calculation cleared start/end times for %s entry on %s!", timeOffType, date));
-            return null;
+            // Apply special day calculation - converts work to overtime
+            WorktimeEntityBuilder.applySpecialDayTimeIntervalCalculation(existingEntry);
+
+            // Verify times are still present after calculation
+            if (existingEntry.getDayStartTime() == null || existingEntry.getDayEndTime() == null) {
+                LoggerUtil.error(this.getClass(), String.format(
+                        "BUG: Special day calculation cleared start/end times for %s entry on %s!", timeOffType, date));
+                return null;
+            }
+        } else {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Adding %s to tombstone entry (no work time) for %s on %s", timeOffType, username, date));
+            // Tombstone entry - just ensure work fields are zeroed
+            existingEntry.setTotalWorkedMinutes(0);
+            existingEntry.setTotalOvertimeMinutes(0);
+            existingEntry.setLunchBreakDeducted(false);
         }
 
-        // STEP 4: Assign status
+        // STEP 3: Assign status
         StatusAssignmentResult statusResult = StatusAssignmentEngine.assignStatus(
                 existingEntry, currentUserRole, getOperationType());
 
@@ -444,14 +450,21 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
         }
 
         // Log final state
-        LoggerUtil.info(this.getClass(), String.format(
-                "Successfully converted work day to %s day for %s on %s: start=%s, end=%s, regular=%d → overtime=%d (Status: %s → %s)",
-                timeOffType, username, date,
-                existingEntry.getDayStartTime() != null ? existingEntry.getDayStartTime().toLocalTime() : "null",
-                existingEntry.getDayEndTime() != null ? existingEntry.getDayEndTime().toLocalTime() : "null",
-                0, // Special days have 0 regular work
-                existingEntry.getTotalOvertimeMinutes() != null ? existingEntry.getTotalOvertimeMinutes() : 0,
-                statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+        if (existingEntry.getDayStartTime() != null && existingEntry.getDayEndTime() != null) {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully converted work day to %s day for %s on %s: start=%s, end=%s, regular=%d → overtime=%d (Status: %s → %s)",
+                    timeOffType, username, date,
+                    existingEntry.getDayStartTime().toLocalTime(),
+                    existingEntry.getDayEndTime().toLocalTime(),
+                    0, // Special days have 0 regular work
+                    existingEntry.getTotalOvertimeMinutes() != null ? existingEntry.getTotalOvertimeMinutes() : 0,
+                    statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+        } else {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Successfully added %s to tombstone entry for %s on %s (Status: %s → %s)",
+                    timeOffType, username, date,
+                    statusResult.getOriginalStatus(), statusResult.getNewStatus()));
+        }
 
         return existingEntry;
     }
