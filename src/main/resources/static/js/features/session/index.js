@@ -12,6 +12,11 @@ import { SessionEndTime } from './SessionEndTime.js';
 import { SessionTimeManagement } from './SessionTimeManagement.js';
 import { formatMinutesToHours } from '../../core/utils.js';
 
+// Import time-management modules for embedded fragment support
+import { TimeOffManagement } from '../time-management/TimeOffManagement.js';
+import { HolidayRequestModal } from '../time-management/HolidayRequestModal.js';
+import { InlineEditing } from '../time-management/InlineEditing.js';
+
 /**
  * Initialize session page
  */
@@ -39,6 +44,11 @@ function init() {
 
     // Make formatMinutes helper available globally (used by legacy code)
     window.formatMinutes = formatMinutesToHours;
+
+    // Expose time-management modules globally for fragment reinitialization
+    window.TimeOffManagementModule = TimeOffManagement;
+    window.HolidayRequestModalModule = HolidayRequestModal;
+    window.InlineEditingModule = InlineEditing;
 
     // Expose debug functions
     window.timeManagementDebug = {

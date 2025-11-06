@@ -142,12 +142,22 @@ export class TimeOffManagement {
             this.showProcessingMessage();
 
             try {
+                // Get CSRF token for Spring Security
+                const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+                const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+
+                // Prepare headers with CSRF token
+                const headers = {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                };
+                if (csrfToken && csrfHeader) {
+                    headers[csrfHeader] = csrfToken;
+                }
+
                 // Submit via AJAX to prevent page redirect
                 const response = await fetch(form.action, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: headers,
                     body: new URLSearchParams({
                         startDate: formData.startDate,
                         endDate: formData.endDate,

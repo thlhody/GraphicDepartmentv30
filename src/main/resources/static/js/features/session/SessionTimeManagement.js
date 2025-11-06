@@ -188,6 +188,9 @@ export class SessionTimeManagement {
                 this.setupEmbeddedInlineEditing();
             }
 
+            // Initialize Holiday Request Modal if present
+            this.initializeHolidayModal();
+
             if (window.setupSignatureHandler) {
                 window.setupSignatureHandler();
             }
@@ -206,6 +209,75 @@ export class SessionTimeManagement {
         } catch (error) {
             console.error('❌ Error initializing embedded time management:', error);
         }
+    }
+
+    /**
+     * Initialize holiday request modal for embedded context
+     */
+    initializeHolidayModal() {
+        const holidayModalElement = document.getElementById('holidayModal');
+        if (holidayModalElement && window.HolidayRequestModalModule) {
+            console.log('📋 Initializing Holiday Request Modal (embedded)...');
+
+            const holidayModal = new window.HolidayRequestModalModule();
+            holidayModal.init();
+
+            // Make available globally
+            window.holidayRequestModal = holidayModal;
+            window.openHolidayRequestModal = (startDate, endDate, userData, timeOffType) => {
+                return holidayModal.open(startDate, endDate, userData, timeOffType);
+            };
+            window.closeHolidayModal = () => holidayModal.close();
+            window.exportHolidayToImage = (format) => holidayModal.exportToImage(format);
+
+            // Add openHolidayRequestFromForm for inline onclick compatibility
+            window.openHolidayRequestFromForm = () => {
+                console.log('📋 Opening holiday request modal from form (session page)...');
+
+                // Extract user data
+                const userData = this.extractCurrentUserData();
+
+                // Get dates from form inputs
+                const startDateField = document.querySelector('input[name="startDate"]');
+                const endDateField = document.querySelector('input[name="endDate"]');
+                const startDate = startDateField ? startDateField.value : '';
+                const endDate = endDateField ? endDateField.value : '';
+
+                // Get selected time off type
+                const timeOffTypeSelect = document.getElementById('timeOffType');
+                const selectedType = timeOffTypeSelect ? timeOffTypeSelect.value : null;
+
+                console.log('📊 Form data:', { startDate, endDate, userData, selectedType });
+
+                // Open the modal
+                window.openHolidayRequestModal(startDate, endDate, userData, selectedType);
+            };
+
+            console.log('✅ Holiday Request Modal initialized (embedded)');
+        }
+    }
+
+    /**
+     * Extract current user data for holiday modal
+     * @returns {Object} User data object
+     */
+    extractCurrentUserData() {
+        const userData = {};
+
+        // Try to get name from user badge
+        const userBadgeSpan = document.querySelector('.badge .bi-person + span');
+        if (userBadgeSpan && userBadgeSpan.textContent.trim()) {
+            userData.name = userBadgeSpan.textContent.trim();
+            console.log('👤 Found username from badge:', userData.name);
+        }
+
+        // Fallback name
+        if (!userData.name) {
+            userData.name = 'User';
+            console.log('👤 Using fallback username');
+        }
+
+        return userData;
     }
 
     /**

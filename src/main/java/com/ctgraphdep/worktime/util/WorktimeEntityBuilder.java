@@ -306,25 +306,26 @@ public class WorktimeEntityBuilder {
         long totalSeconds = elapsed.getSeconds();
         int totalElapsedMinutes = (int) Math.round(totalSeconds / 60.0);
 
-        // Handle SN entries (holiday work) specially
-        if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(entry.getTimeOffType())) {
-            recalculateSNWorkTime(entry, totalElapsedMinutes);
+        // FIXED: Handle ALL special day entries (SN, CO, CM, W) specially - not just SN!
+        if (hasSpecialDayTimeOffType(entry)) {
+            recalculateSpecialDayWorkTime(entry, totalElapsedMinutes);
         } else {
             // MODIFIED: Pass user schedule to regular work calculation
             recalculateRegularWorkTime(entry, totalElapsedMinutes, userScheduleHours);
         }
     }
 
-    // Calculate work time for SN (holiday) entries
-    private static void recalculateSNWorkTime(WorkTimeTable entry, int totalElapsedMinutes) {
+    // Calculate work time for special day entries (SN, CO, CM, W)
+    // FIXED: Renamed from recalculateSNWorkTime to handle ALL special days
+    private static void recalculateSpecialDayWorkTime(WorkTimeTable entry, int totalElapsedMinutes) {
         // Account for temporary stops
         int tempStopMinutes = entry.getTotalTemporaryStopMinutes() != null ?
                 entry.getTotalTemporaryStopMinutes() : WorkCode.DEFAULT_ZERO;
         int netWorkMinutes = Math.max(WorkCode.DEFAULT_ZERO, totalElapsedMinutes - tempStopMinutes);
 
-        // SN business rules:
-        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);  // No regular work on holidays
-        entry.setLunchBreakDeducted(false);  // No lunch break on holidays
+        // Special day business rules: All work becomes overtime, full hours only
+        entry.setTotalWorkedMinutes(WorkCode.DEFAULT_ZERO);  // No regular work on special days
+        entry.setLunchBreakDeducted(false);  // No lunch break on special days
 
         // Convert to full hours only (discard partial hours)
         int fullHours = netWorkMinutes / 60;  // Floor division discards partial hours
@@ -332,8 +333,8 @@ public class WorktimeEntityBuilder {
         entry.setTotalOvertimeMinutes(overtimeMinutes);
 
         LoggerUtil.debug(WorktimeEntityBuilder.class, String.format(
-                "Holiday work calculation: elapsed=%d, tempStops=%d, netWork=%d → %d full hours (%d overtime minutes)",
-                totalElapsedMinutes, tempStopMinutes, netWorkMinutes, fullHours, overtimeMinutes));
+                "Special day (%s) work calculation: elapsed=%d, tempStops=%d, netWork=%d → %d full hours (%d overtime minutes)",
+                entry.getTimeOffType(), totalElapsedMinutes, tempStopMinutes, netWorkMinutes, fullHours, overtimeMinutes));
     }
 
     // Calculate work time for regular entries using proven CalculateWorkHoursUtil
