@@ -103,8 +103,7 @@ export class SearchModal {
     #createModal() {
         // Create modal container
         this.modal = createElement('div', {
-            class: `search-modal ${this.config.customClass}`,
-            'data-search-modal': 'true'
+            class: `search-modal ${this.config.customClass}`
         });
 
         // Create modal dialog
