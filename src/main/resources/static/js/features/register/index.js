@@ -18,14 +18,16 @@ import { AjaxHandler } from './AjaxHandler.js';
 
 /**
  * Initialize user register feature
+ * @param {HTMLFormElement} formElement - Pre-validated form element
  */
-function initializeRegister() {
+function initializeRegister(formElement) {
     console.log('Initializing User Register Feature...');
+    console.log('Using pre-validated form element:', formElement);
 
     try {
         // Initialize modules in dependency order
-        console.log('1️⃣ Creating RegisterForm...');
-        const registerForm = new RegisterForm();
+        console.log('1️⃣ Creating RegisterForm with pre-validated form element...');
+        const registerForm = new RegisterForm(formElement);
         console.log('✓ RegisterForm created');
 
         console.log('2️⃣ Creating RegisterSummary...');
@@ -191,11 +193,12 @@ function waitForFormAndInitialize() {
 
     if (form && form.tagName === 'FORM') {
         console.log('✓ Form element ready (tagName: FORM)');
+        console.log('✓ Form ID:', form.id, 'Tag:', form.tagName);
         // Add small delay to ensure page is fully rendered
         console.log('⏳ Waiting 100ms for page to stabilize...');
         setTimeout(() => {
-            console.log('✓ Starting initialization...');
-            initializeRegister();
+            console.log('✓ Starting initialization with validated form element...');
+            initializeRegister(form);  // Pass the actual form element
             initializeActionToggles();
         }, 100);
     } else {

@@ -24,10 +24,11 @@ export class RegisterForm extends FormHandler {
 
     /**
      * Create a RegisterForm instance
+     * @param {HTMLFormElement} formElement - Optional pre-validated form element
      */
-    constructor() {
+    constructor(formElement = null) {
         super({
-            formSelector: '#registerForm',
+            formSelector: formElement || '#registerForm',
             submitUrl: '/user/register/entry',
             validationRules: {
                 date: ['required', 'date'],
