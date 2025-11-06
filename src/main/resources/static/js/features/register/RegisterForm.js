@@ -605,10 +605,15 @@ export class RegisterForm extends FormHandler {
 
     /**
      * Reset form to initial state
+     * CRITICAL: Resets form action to CREATE endpoint
      * @public
      */
     resetForm() {
         if (!this.form) return;
+
+        // CRITICAL: Reset form action to CREATE endpoint
+        this.form.action = '/user/register/entry';
+        this.form.method = 'post';
 
         // Reset form fields
         this.form.reset();
@@ -662,13 +667,24 @@ export class RegisterForm extends FormHandler {
 
     /**
      * Populate form from edit button data
+     * CRITICAL: Changes form action to UPDATE endpoint with entryId
      * @param {HTMLButtonElement} button - Edit button with data attributes
      * @public
      */
     populateForm(button) {
         if (!button) return;
 
+        // Reset form first
+        this.resetForm();
+
         const data = button.dataset;
+        const entryId = data.entryId;
+
+        // CRITICAL: Change form action to UPDATE endpoint
+        this.form.action = `/user/register/entry/${entryId}`;
+        this.form.method = 'post';
+
+        console.log(`📝 Edit mode: form action set to ${this.form.action}`);
 
         // Populate basic fields using correct IDs
         const dateInput = document.getElementById('dateInput');
@@ -691,9 +707,11 @@ export class RegisterForm extends FormHandler {
             this.actionTypeSelect.value = data.actionType;
         }
 
-        // Populate Select2 multi-select
+        // Populate Select2 multi-select (remove duplicates)
         if (data.printPrepTypes) {
-            const printPreps = data.printPrepTypes.split(',').map(s => s.trim());
+            const printPreps = [...new Set(
+                data.printPrepTypes.split(',').map(s => s.trim()).filter(s => s)
+            )];
             $(this.printPrepSelect).val(printPreps).trigger('change');
         }
 
@@ -710,10 +728,10 @@ export class RegisterForm extends FormHandler {
         if (this.editingIdInput) this.editingIdInput.value = data.entryId || data.id || '';
         if (this.isEditInput) this.isEditInput.value = 'true';
 
-        // Update submit button text
+        // Update submit button text (match legacy)
         const submitButton = this.form.querySelector('button[type="submit"]');
         if (submitButton) {
-            submitButton.innerHTML = '<i class="bi bi-pencil me-1"></i>Update Entry';
+            submitButton.innerHTML = '<i class="bi bi-check-circle me-1"></i>Update';
         }
 
         // Scroll to form
@@ -722,11 +740,16 @@ export class RegisterForm extends FormHandler {
 
     /**
      * Copy entry data to form for duplication
+     * CRITICAL: Resets form action back to CREATE endpoint
      * @param {HTMLButtonElement} button - Copy button with data attributes
      * @public
      */
     copyEntry(button) {
         this.populateForm(button);
+
+        // CRITICAL: Reset form action to CREATE endpoint
+        this.form.action = '/user/register/entry';
+        this.form.method = 'post';
 
         // Clear ID fields for new entry
         if (this.editingIdInput) this.editingIdInput.value = '';
@@ -750,6 +773,8 @@ export class RegisterForm extends FormHandler {
 
         // Recalculate complexity
         this.updateComplexityField();
+
+        console.log(`📋 Copy mode: form action reset to ${this.form.action}`);
     }
 
     /**
