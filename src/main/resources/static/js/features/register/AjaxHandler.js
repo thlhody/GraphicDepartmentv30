@@ -13,8 +13,13 @@
  * @module features/register/AjaxHandler
  */
 
-import { API } from '../../core/api.js';
-import { ToastNotification } from '../../components/ToastNotification.js';
+// Use dynamic imports with cache busting
+const cacheBuster = new Date().getTime();
+const APIModule = await import(`../../core/api.js?v=${cacheBuster}`);
+const ToastNotificationModule = await import(`../../components/ToastNotification.js?v=${cacheBuster}`);
+
+const { API } = APIModule;
+const { ToastNotification } = ToastNotificationModule;
 
 /**
  * AjaxHandler - AJAX form submission and deletion handler

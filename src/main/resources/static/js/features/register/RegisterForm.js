@@ -12,7 +12,10 @@
  * @module features/register/RegisterForm
  */
 
-import { ACTION_TYPE_VALUES, COMPLEXITY_PRINT_PREPS, NEUTRAL_PRINT_PREPS } from '../../core/constants.js';
+// Use dynamic imports with cache busting
+const cacheBuster = new Date().getTime();
+const constantsModule = await import(`../../core/constants.js?v=${cacheBuster}`);
+const { ACTION_TYPE_VALUES, COMPLEXITY_PRINT_PREPS, NEUTRAL_PRINT_PREPS } = constantsModule;
 
 /**
  * RegisterForm - User registration form handler

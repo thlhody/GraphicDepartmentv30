@@ -12,8 +12,13 @@
  * @module features/register/RegisterSearch
  */
 
-import { SearchModal } from '../../components/SearchModal.js';
-import { API } from '../../core/api.js';
+// Use dynamic imports with cache busting
+const cacheBuster = new Date().getTime();
+const SearchModalModule = await import(`../../components/SearchModal.js?v=${cacheBuster}`);
+const APIModule = await import(`../../core/api.js?v=${cacheBuster}`);
+
+const { SearchModal } = SearchModalModule;
+const { API } = APIModule;
 
 /**
  * RegisterSearch - Search handler for registration entries
