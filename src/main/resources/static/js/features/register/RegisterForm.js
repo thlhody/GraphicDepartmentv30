@@ -12,39 +12,29 @@
  * @module features/register/RegisterForm
  */
 
-import { FormHandler } from '../../components/FormHandler.js';
-import { ValidationService } from '../../services/validationService.js';
 import { ACTION_TYPE_VALUES, COMPLEXITY_PRINT_PREPS, NEUTRAL_PRINT_PREPS } from '../../core/constants.js';
 
 /**
  * RegisterForm - User registration form handler
- * @extends FormHandler
+ * DOES NOT extend FormHandler to avoid submit listener conflicts
  */
-export class RegisterForm extends FormHandler {
+export class RegisterForm {
 
     /**
      * Create a RegisterForm instance
      * @param {HTMLFormElement} formElement - Optional pre-validated form element
      */
     constructor(formElement = null) {
-        // Call FormHandler with correct parameters: (formSelector, config)
-        super(
-            formElement || '#registerForm',  // First param: selector or element
-            {  // Second param: config object
-                submitUrl: '/user/register/entry',
-                useAjax: false,  // Disable FormHandler AJAX - let AjaxHandler handle it
-                validationRules: {
-                    date: ['required', 'date'],
-                    orderId: ['required'],
-                    productionId: ['required'],
-                    actionTypeSelect: ['required'],
-                    articleNumbers: ['required', 'number'],
-                    colorsInput: ['required']
-                },
-                onSuccess: (response) => this.handleSuccess(response),
-                onError: (error) => this.handleError(error)
-            }
-        );
+        // Get form element (no super() call - standalone class)
+        this.form = formElement || document.getElementById('registerForm');
+
+        if (!this.form) {
+            throw new Error('RegisterForm: Form element not found');
+        }
+
+        if (this.form.tagName !== 'FORM') {
+            throw new Error('RegisterForm: Element must be a <form> tag');
+        }
 
         this.initializeFormElements();
         this.initializeForm();
@@ -777,23 +767,4 @@ export class RegisterForm extends FormHandler {
         console.log(`📋 Copy mode: form action reset to ${this.form.action}`);
     }
 
-    /**
-     * Handle successful form submission
-     * @param {Object} response - Server response
-     * @private
-     */
-    handleSuccess(response) {
-        this.resetForm();
-        // Success will be handled by AjaxHandler
-    }
-
-    /**
-     * Handle form submission error
-     * @param {Error} error - Error object
-     * @private
-     */
-    handleError(error) {
-        console.error('Form submission error:', error);
-        // Error will be handled by AjaxHandler
-    }
 }
