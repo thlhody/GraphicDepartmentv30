@@ -209,18 +209,10 @@ export class TimeOffManagement {
                         }
                     }, 500);
 
-                    // Reload the page or fragment to show updated data (NO full page reload!)
-                    setTimeout(async () => {
-                        if (isSessionPage) {
-                            console.log('📋 Reloading embedded time management fragment...');
-                            // Reload just the fragment (stays on session page)
-                            window.SessionTimeManagementInstance.loadContent();
-                        } else {
-                            console.log('📋 Refreshing time management table data...');
-                            // Standalone page - fetch and replace fragment content WITHOUT page reload
-                            await this.refreshFragmentContent(result.requestYear, result.requestMonth);
-                        }
-                    }, 2000); // Give time for modal to open first
+                    // NOTE: We DON'T reload the fragment automatically (like register page)
+                    // The data is already saved server-side. User can manually refresh if needed.
+                    // This keeps the modal open and prevents scroll issues.
+                    console.log('✅ Time-off added successfully. Modal will remain open for export.');
 
                 } else {
                     // Server returned error
