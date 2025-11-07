@@ -224,24 +224,31 @@ public class RegisterDataService {
                 for (int month = (year == currentYear ? currentMonth : 12); month >= 1; month--) {
                     Map<String, Object> params = FilePathResolver.createYearMonthParams(year, month);
 
+                    boolean networkSuccess = false;
+
                     // Try network path first if available
                     if (pathConfig.isNetworkAvailable()) {
                         try {
                             FilePath networkPath = pathResolver.getNetworkPath(username, userId, FilePathResolver.FileType.REGISTER, params);
                             Optional<List<RegisterEntry>> networkEntries = fileReaderService.readNetworkFile(networkPath, new TypeReference<>() {}, true);
-                            networkEntries.ifPresent(allEntries::addAll);
+                            if (networkEntries.isPresent()) {
+                                allEntries.addAll(networkEntries.get());
+                                networkSuccess = true;
+                            }
                         } catch (Exception e) {
                             LoggerUtil.warn(this.getClass(), String.format("Error reading network register for %s (%d/%d): %s", username, year, month, e.getMessage()));
                         }
                     }
 
-                    // Fallback to local path
-                    try {
-                        FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.REGISTER, params);
-                        Optional<List<RegisterEntry>> localEntries = fileReaderService.readLocalFile(localPath, new TypeReference<>() {}, true);
-                        localEntries.ifPresent(allEntries::addAll);
-                    } catch (Exception e) {
-                        LoggerUtil.warn(this.getClass(), String.format("Error reading local register for %s (%d/%d): %s", username, year, month, e.getMessage()));
+                    // Fallback to local path ONLY if network failed or unavailable
+                    if (!networkSuccess) {
+                        try {
+                            FilePath localPath = pathResolver.getLocalPath(username, userId, FilePathResolver.FileType.REGISTER, params);
+                            Optional<List<RegisterEntry>> localEntries = fileReaderService.readLocalFile(localPath, new TypeReference<>() {}, true);
+                            localEntries.ifPresent(allEntries::addAll);
+                        } catch (Exception e) {
+                            LoggerUtil.warn(this.getClass(), String.format("Error reading local register for %s (%d/%d): %s", username, year, month, e.getMessage()));
+                        }
                     }
                 }
             }
