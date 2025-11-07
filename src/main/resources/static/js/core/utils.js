@@ -102,7 +102,7 @@ export function createElement(tag, attrs = {}, content = null) {
                 }
             });
         } else if (typeof content === 'string') {
-            element.textContent = content;
+            element.innerHTML = content;  // Use innerHTML to render HTML tags
         } else if (content instanceof Element) {
             element.appendChild(content);
         }
