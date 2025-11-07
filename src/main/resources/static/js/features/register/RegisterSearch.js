@@ -104,6 +104,38 @@ export class RegisterSearch {
             renderResult: (entry) => this.renderSearchResult(entry),
             renderHeader: () => this.createResultsHeader()
         });
+
+        // Add full search toggle button
+        this.createFullSearchToggle();
+    }
+
+    /**
+     * Create full search toggle button
+     * @private
+     */
+    createFullSearchToggle() {
+        const toggleButton = document.createElement('button');
+        toggleButton.className = 'btn btn-sm btn-outline-secondary';
+        toggleButton.innerHTML = `
+            <i class="bi bi-globe"></i>
+            <span class="full-search-label">Full Search: OFF</span>
+        `;
+
+        toggleButton.addEventListener('click', () => {
+            this.toggleSearchMode();
+            const label = toggleButton.querySelector('.full-search-label');
+            if (this.isFullSearchMode) {
+                label.textContent = 'Full Search: ON';
+                toggleButton.classList.remove('btn-outline-secondary');
+                toggleButton.classList.add('btn-outline-success');
+            } else {
+                label.textContent = 'Full Search: OFF';
+                toggleButton.classList.remove('btn-outline-success');
+                toggleButton.classList.add('btn-outline-secondary');
+            }
+        });
+
+        this.searchModal.addActionButton(toggleButton);
     }
 
     /**

@@ -150,6 +150,12 @@ export class SearchModal {
         // Create body
         const body = createElement('div', { class: 'search-modal-body' });
 
+        // Create action buttons container (optional)
+        this.actionsContainer = createElement('div', {
+            class: 'search-modal-actions',
+            style: { display: 'none' }
+        });
+
         // Create results container
         this.resultsContainer = createElement('div', { class: 'search-results-container' });
 
@@ -174,6 +180,7 @@ export class SearchModal {
         `);
 
         // Assemble body
+        body.appendChild(this.actionsContainer);
         body.appendChild(this.loadingIndicator);
         body.appendChild(this.resultsContainer);
         body.appendChild(this.emptyState);
@@ -295,6 +302,15 @@ export class SearchModal {
                 overflow-y: auto;
                 padding: 1rem;
                 min-height: 200px;
+            }
+
+            .search-modal-actions {
+                display: flex;
+                gap: 0.5rem;
+                padding: 0.5rem;
+                border-bottom: 1px solid #dee2e6;
+                background-color: #f8f9fa;
+                margin: -1rem -1rem 1rem -1rem;
             }
 
             .search-results-container {
@@ -493,6 +509,27 @@ export class SearchModal {
         } else {
             this.open();
         }
+    }
+
+    /**
+     * Add action button to modal
+     * @param {HTMLElement|string} button - Button element or HTML string
+     */
+    addActionButton(button) {
+        if (typeof button === 'string') {
+            this.actionsContainer.insertAdjacentHTML('beforeend', button);
+        } else if (button instanceof HTMLElement) {
+            this.actionsContainer.appendChild(button);
+        }
+        this.actionsContainer.style.display = 'flex';
+    }
+
+    /**
+     * Clear all action buttons
+     */
+    clearActionButtons() {
+        this.actionsContainer.innerHTML = '';
+        this.actionsContainer.style.display = 'none';
     }
 
     // =========================================================================
