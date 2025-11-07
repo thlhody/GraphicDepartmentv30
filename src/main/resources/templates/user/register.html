@@ -4,7 +4,7 @@
 <head>
     <title>User Work Registry</title>
     <!-- Register User CSS -->
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=031120251812}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=071120252214}">
 </head>
 <body>
 <!-- Register Page Content -->
@@ -62,13 +62,12 @@
                                     <span class="badge bg-order">ORDIN: <span id="count-ordin">0</span></span>
                                     <span class="badge bg-reorder">REORDIN: <span id="count-reordin">0</span></span>
                                     <span class="badge bg-sample">CAMPION: <span id="count-campion">0</span></span>
-                                    <span class="badge bg-strikeoff">PROBA STAMPA: <span id="count-proba-stampa">0</span></span>
+                                    <span class="badge bg-strikeoff">PROBE: <span id="count-probe">0</span></span>
                                     <span class="badge bg-designs">DESIGN: <span id="count-design">0</span></span>
-                                    <span class="badge bg-other">ALTELE: <span id="count-others">0</span></span>
+                                    <span class="badge bg-checking">CHECKING: <span id="count-checking">0</span></span>
+                                    <span class="badge bg-spized">SPIZED ORDIN: <span id="count-spized-ordin">0</span> CAMPION: <span id="count-spized-campion">0</span> PROBA: <span id="count-spized-proba">0</span></span>
                                     <span class="badge bg-layout">IMPOSTARE: <span id="count-impostare">0</span></span>
-                                    <span class="badge bg-spized">ORDIN SPIZED: <span id="count-ordin-spized">0</span></span>
-                                    <span class="badge bg-spized">CAMPION SPIZED: <span id="count-campion-spized">0</span></span>
-                                    <span class="badge bg-spized">PROBA S SPIZED: <span id="count-proba-s-spized">0</span></span>
+                                    <span class="badge bg-other">OTHER: <span id="count-others">0</span></span>
                                 </div>
                             </div>
 
@@ -302,7 +301,11 @@
                                          entry.actionType == 'REORDIN' ? 'bg-reorder' :
                                          entry.actionType == 'CAMPION' ? 'bg-sample' :
                                          entry.actionType == 'PROBA STAMPA' ? 'bg-strikeoff' :
+                                         entry.actionType == 'PROBA CULOARE' ? 'bg-strikeoff' :
+                                         entry.actionType == 'CARTELA CULORI' ? 'bg-strikeoff' :
                                          entry.actionType == 'DESIGN' ? 'bg-designs' :
+                                         entry.actionType == 'DESIGN 3D' ? 'bg-designs' :
+                                         entry.actionType == 'CHECKING' ? 'bg-checking' :
                                          entry.actionType == 'IMPOSTARE' ? 'bg-layout' :
                                          entry.actionType == 'ORDIN SPIZED' ? 'bg-spized' :
                                          entry.actionType == 'CAMPION SPIZED' ? 'bg-spized' :

@@ -4,7 +4,7 @@ Repository: thlhody/GraphicDepartmentv30
 My Local IDE: D:\WorkT\Projects Java\GraphDepG
 
 CLONE FROM THIS BRANCH (last working branch):
-claude/[previous-session-branch-name]
+origin/javascript-refactoring
 
 INSTRUCTIONS:
 1. Clone/copy ALL code from the branch above
@@ -18,8 +18,6 @@ CURRENT WORK CONTEXT:
 
 WORKFLOW:
 origin/javascript-refactoring
-↓ (clone)
-claude/refactor-js-register-011CUtPxKjNNiquNuWaVjqLh
 ↓ (clone - NEW SESSION)
 claude/[new-session-id-here] ← YOU WORK HERE
 ↓ (merge later by me)

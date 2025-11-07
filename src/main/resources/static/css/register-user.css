@@ -92,12 +92,13 @@
     color: #212529;
 }
 .bg-designs { background-color: #dc3545; }
-.bg-other { background-color: #6f42c1; }
-.bg-layout { background-color: #17a2b8; }
+.bg-checking { background-color: #004085; }
 .bg-spized {
-    background-color: #fd7e14;
-    color: black;
+    background-color: #fd7e14 !important;
+    color: #000 !important;
 }
+.bg-layout { background-color: #17a2b8; }
+.bg-other { background-color: #6f42c1; }
 
 /* Admin Sync Badges */
 .badge.bg-success { background-color: #198754 !important; }

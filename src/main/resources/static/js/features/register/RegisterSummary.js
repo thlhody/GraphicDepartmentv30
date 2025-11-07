@@ -27,13 +27,14 @@ export class RegisterSummary {
             ordin: 0,
             reordin: 0,
             campion: 0,
-            probaStampa: 0,
+            probe: 0,
             design: 0,
-            others: 0,
+            checking: 0,
+            spizedOrdin: 0,
+            spizedCampion: 0,
+            spizedProba: 0,
             impostare: 0,
-            ordinSpized: 0,
-            campionSpized: 0,
-            probaSSpized: 0
+            others: 0
         };
 
         // Initialize metrics
@@ -172,25 +173,31 @@ export class RegisterSummary {
                 this.actionCounts.campion++;
                 break;
             case 'PROBA STAMPA':
-                this.actionCounts.probaStampa++;
+            case 'PROBA CULOARE':
+            case 'CARTELA CULORI':
+                this.actionCounts.probe++;
                 break;
             case 'DESIGN':
             case 'DESIGN 3D':
-            case 'PATTERN PREP':
                 this.actionCounts.design++;
+                break;
+            case 'CHECKING':
+                this.actionCounts.checking++;
+                break;
+            case 'ORDIN SPIZED':
+                this.actionCounts.spizedOrdin++;
+                break;
+            case 'CAMPION SPIZED':
+                this.actionCounts.spizedCampion++;
+                break;
+            case 'PROBA S SPIZED':
+                this.actionCounts.spizedProba++;
                 break;
             case 'IMPOSTARE':
                 this.actionCounts.impostare++;
                 break;
-            case 'ORDIN SPIZED':
-                this.actionCounts.ordinSpized++;
-                break;
-            case 'CAMPION SPIZED':
-                this.actionCounts.campionSpized++;
-                break;
-            case 'PROBA S SPIZED':
-                this.actionCounts.probaSSpized++;
-                break;
+            case 'PATTERN PREP':
+            case 'OTHER':
             default:
                 this.actionCounts.others++;
                 break;
@@ -221,13 +228,14 @@ export class RegisterSummary {
         this.updateElement('#count-ordin', this.actionCounts.ordin);
         this.updateElement('#count-reordin', this.actionCounts.reordin);
         this.updateElement('#count-campion', this.actionCounts.campion);
-        this.updateElement('#count-proba-stampa', this.actionCounts.probaStampa);
+        this.updateElement('#count-probe', this.actionCounts.probe);
         this.updateElement('#count-design', this.actionCounts.design);
-        this.updateElement('#count-others', this.actionCounts.others);
+        this.updateElement('#count-checking', this.actionCounts.checking);
+        this.updateElement('#count-spized-ordin', this.actionCounts.spizedOrdin);
+        this.updateElement('#count-spized-campion', this.actionCounts.spizedCampion);
+        this.updateElement('#count-spized-proba', this.actionCounts.spizedProba);
         this.updateElement('#count-impostare', this.actionCounts.impostare);
-        this.updateElement('#count-ordin-spized', this.actionCounts.ordinSpized);
-        this.updateElement('#count-campion-spized', this.actionCounts.campionSpized);
-        this.updateElement('#count-proba-s-spized', this.actionCounts.probaSSpized);
+        this.updateElement('#count-others', this.actionCounts.others);
 
         // Update metrics
         this.updateElement('#total-entries', this.metrics.totalEntries);
