@@ -7,7 +7,7 @@
  * @module features/bonus/CheckBonusDashboard
  */
 
-import { getCSRFToken, getCSRFHeader } from '../../core/api.js';
+import { API } from '../../core/api.js';
 
 /**
  * CheckBonusDashboard class
@@ -125,7 +125,7 @@ export class CheckBonusDashboard {
                 {
                     method: 'GET',
                     headers: {
-                        [getCSRFHeader()]: getCSRFToken()
+                        [API.getCSRFHeader()]: API.getCSRFToken()
                     }
                 }
             );
@@ -363,7 +363,7 @@ export class CheckBonusDashboard {
                 {
                     method: 'GET',
                     headers: {
-                        [getCSRFHeader()]: getCSRFToken()
+                        [API.getCSRFHeader()]: API.getCSRFToken()
                     }
                 }
             );
@@ -422,7 +422,7 @@ export class CheckBonusDashboard {
                 {
                     method: 'GET',
                     headers: {
-                        [getCSRFHeader()]: getCSRFToken()
+                        [API.getCSRFHeader()]: API.getCSRFToken()
                     }
                 }
             );

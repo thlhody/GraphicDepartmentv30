@@ -8,7 +8,7 @@
  * @module features/statistics/TeamStatsManager
  */
 
-import { getCSRFToken, getCSRFHeader } from '../../core/api.js';
+import { API } from '../../core/api.js';
 
 /**
  * TeamStatsManager class
@@ -152,9 +152,9 @@ export class TeamStatsManager {
             });
         }
 
-        // Add CSRF token
-        const token = getCSRFToken();
-        const header = getCSRFHeader();
+        // Add CSRF token (if available - local app mode doesn't use CSRF)
+        const token = API.getCSRFToken();
+        const header = API.getCSRFHeader();
         if (token && header) {
             this.appendInput(form, header, token);
         }

@@ -8,7 +8,7 @@
  * @module features/resolution/ResolutionManager
  */
 
-import { getCSRFToken, getCSRFHeader } from '../../core/api.js';
+import { API } from '../../core/api.js';
 
 /**
  * ResolutionManager class
@@ -101,7 +101,7 @@ export class ResolutionManager {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    [getCSRFHeader()]: getCSRFToken()
+                    [API.getCSRFHeader()]: API.getCSRFToken()
                 },
                 body: JSON.stringify({
                     entryDate: entryDate,
@@ -203,7 +203,7 @@ export class ResolutionManager {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    [getCSRFHeader()]: getCSRFToken()
+                    [API.getCSRFHeader()]: API.getCSRFToken()
                 },
                 body: new URLSearchParams(data)
             });

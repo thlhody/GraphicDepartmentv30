@@ -7,7 +7,7 @@
  * @module features/bonus/CheckBonusFragment
  */
 
-import { getCSRFToken, getCSRFHeader } from '../../core/api.js';
+import { API } from '../../core/api.js';
 
 /**
  * CheckBonusFragment class
@@ -193,7 +193,7 @@ export class CheckBonusFragment {
                 {
                     method: 'GET',
                     headers: {
-                        [getCSRFHeader()]: getCSRFToken()
+                        [API.getCSRFHeader()]: API.getCSRFToken()
                     }
                 }
             );
@@ -276,7 +276,7 @@ export class CheckBonusFragment {
             const response = await fetch('/team/check-register/calculate-bonus', {
                 method: 'POST',
                 headers: {
-                    [getCSRFHeader()]: getCSRFToken(),
+                    [API.getCSRFHeader()]: API.getCSRFToken(),
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -337,7 +337,7 @@ export class CheckBonusFragment {
             const response = await fetch('/team/check-register/save-bonus', {
                 method: 'POST',
                 headers: {
-                    [getCSRFHeader()]: getCSRFToken(),
+                    [API.getCSRFHeader()]: API.getCSRFToken(),
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(bonusData)
