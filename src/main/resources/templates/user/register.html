@@ -91,19 +91,21 @@
 
         <!-- Search Modal -->
         <div id="searchModal" class="search-modal">
-            <div class="search-modal-content">
-                <div class="search-input-container">
-                    <label for="searchInput" class="visually-hidden">Search entries</label>
-                    <input type="text" id="searchInput" class="form-control"
-                           placeholder="Search entries..."
-                           aria-describedby="searchHelp">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="if(window.registerSearch) window.registerSearch.close()">
-                        <i class="bi bi-x"></i> Close
-                    </button>
-                    <!-- The toggle button will be added via JavaScript -->
-                </div>
-                <div class="search-results">
-                    <div id="searchResultsContainer"></div>
+            <div class="search-modal-dialog">
+                <div class="search-modal-content">
+                    <div class="search-input-container">
+                        <label for="searchInput" class="visually-hidden">Search entries</label>
+                        <input type="text" id="searchInput" class="form-control"
+                               placeholder="Search entries..."
+                               aria-describedby="searchHelp">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="if(window.registerSearch) window.registerSearch.close()">
+                            <i class="bi bi-x"></i> Close
+                        </button>
+                        <!-- The toggle button will be added via JavaScript -->
+                    </div>
+                    <div class="search-results">
+                        <div id="searchResultsContainer"></div>
+                    </div>
                 </div>
             </div>
         </div>
