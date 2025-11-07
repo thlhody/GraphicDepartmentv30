@@ -404,8 +404,9 @@ export class RegisterForm {
             return 3.0;
         }
 
-        // For ORDIN and CAMPION, check print prep types
-        if (actionType === 'ORDIN' || actionType === 'CAMPION' || actionType === 'PROBA STAMPA') {
+        // For ORDIN, CAMPION, and PROBA STAMPA, check print prep types
+        if (actionType === 'ORDIN' || actionType === 'CAMPION' || actionType === 'PROBA STAMPA' ||
+            actionType === 'ORDIN SPIZED' || actionType === 'CAMPION SPIZED' || actionType === 'PROBA S SPIZED') {
             const baseValue = ACTION_TYPE_VALUES.get(actionType) || 0;
 
             // If no print prep types, return base value
@@ -418,7 +419,12 @@ export class RegisterForm {
                 COMPLEXITY_PRINT_PREPS.has(type)
             );
 
-            // If complex prep type found, return 3.0
+            // For PROBA STAMPA variants, keep base value even with complexity print preps
+            if (actionType === 'PROBA STAMPA' || actionType === 'PROBA S SPIZED') {
+                return baseValue;  // Returns 2.5 for PROBA STAMPA, 2.0 for PROBA S SPIZED
+            }
+
+            // For ORDIN and CAMPION (regular and SPIZED), return 3.0 with complexity print preps
             if (hasComplexityType) {
                 return 3.0;
             }
