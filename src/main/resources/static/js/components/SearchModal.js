@@ -237,8 +237,8 @@ export class SearchModal {
             .search-modal-dialog {
                 background: white;
                 border-radius: 8px;
-                width: 90%;
-                max-width: 600px;
+                width: 95%;
+                max-width: 1200px;
                 max-height: 80vh;
                 display: flex;
                 flex-direction: column;

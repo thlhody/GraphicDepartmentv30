@@ -234,8 +234,25 @@ export class RegisterSearch {
             const response = await API.get('/user/register/full-search', { query });
 
             if (response.ok) {
-                const html = await response.text();
-                return this.parseSearchResults(html);
+                const json = await response.json();
+                console.log('Full search received JSON:', json);
+
+                // Backend returns array of RegisterSearchResultDTO objects
+                // Map them to the format expected by renderSearchResult
+                return json.map(dto => ({
+                    id: dto.entryId || '',
+                    date: dto.date || '',
+                    orderId: dto.orderId || '',
+                    productionId: dto.productionId || '',
+                    omsId: dto.omsId || '',
+                    clientName: dto.clientName || '',
+                    actionType: dto.actionType || '',
+                    printPrepTypes: dto.printPrepTypes || '',
+                    observations: dto.observations || '',
+                    articleNumbers: dto.articleNumbers || '',
+                    graphicComplexity: dto.graphicComplexity || '',
+                    colors: dto.colors || ''
+                }));
             } else {
                 console.error('Full search failed:', response.statusText);
                 return [];
