@@ -236,17 +236,22 @@ export class RegisterSearch {
      */
     async performFullSearch(query) {
         try {
+            console.log('🔍 Full search starting for query:', query);
             const response = await API.get('/user/register/full-search', { query });
+
+            console.log('📡 Response received:', response.ok ? 'OK' : 'FAILED');
 
             if (response.ok) {
                 const json = await response.json();
-                console.log('Full search received JSON:', json);
+                console.log('📦 Full search received JSON:', json);
+                console.log('📦 JSON is array?', Array.isArray(json));
+                console.log('📦 JSON length:', json.length);
 
                 // Backend returns array of RegisterSearchResultDTO objects
                 // DTO structure: date (LocalDate), orderId, productionId, omsId, clientName,
                 //                actionType, printPrepTypes (List<String>), colorsProfile,
                 //                articleNumbers (Integer), graphicComplexity (Double), observations
-                return json.map(dto => ({
+                const mapped = json.map(dto => ({
                     id: dto.orderId || '',  // Use orderId as id since there's no entryId
                     date: dto.date ? new Date(dto.date).toLocaleDateString() : '',  // Format date
                     orderId: dto.orderId || '',
@@ -260,12 +265,16 @@ export class RegisterSearch {
                     graphicComplexity: dto.graphicComplexity != null ? String(dto.graphicComplexity) : '',
                     colors: dto.colorsProfile || ''  // Map colorsProfile to colors
                 }));
+
+                console.log('✅ Mapped results:', mapped);
+                console.log('✅ Returning', mapped.length, 'results');
+                return mapped;
             } else {
-                console.error('Full search failed:', response.statusText);
+                console.error('❌ Full search failed:', response.statusText);
                 return [];
             }
         } catch (error) {
-            console.error('Full search error:', error);
+            console.error('❌ Full search error:', error);
             return [];
         }
     }
