@@ -368,9 +368,9 @@ export class RegisterForm {
      * @private
      */
     calculateCheckingComplexity(articleCount) {
-        if (articleCount >= 1 && articleCount <= 5) return 3.0;
         if (articleCount >= 6 && articleCount <= 10) return 3.5;
-        return 4.0; // 11+
+        if (articleCount >= 11) return 4.0;
+        return 3.0; // Default: 0-5 articles (including invalid/empty)
     }
 
     /**
