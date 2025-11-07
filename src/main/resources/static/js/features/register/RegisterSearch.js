@@ -237,44 +237,45 @@ export class RegisterSearch {
     async performFullSearch(query) {
         try {
             console.log('🔍 Full search starting for query:', query);
-            const response = await API.get('/user/register/full-search', { query });
 
-            console.log('📡 Response received:', response.ok ? 'OK' : 'FAILED');
+            // API.get() returns parsed data directly, not Response object!
+            const json = await API.get('/user/register/full-search', { query });
 
-            if (response.ok) {
-                const json = await response.json();
-                console.log('📦 Full search received JSON:', json);
-                console.log('📦 JSON is array?', Array.isArray(json));
-                console.log('📦 JSON length:', json.length);
+            console.log('📦 Full search received JSON:', json);
+            console.log('📦 JSON is array?', Array.isArray(json));
+            console.log('📦 JSON length:', json ? json.length : 'null/undefined');
 
-                // Backend returns array of RegisterSearchResultDTO objects
-                // DTO structure: date (LocalDate), orderId, productionId, omsId, clientName,
-                //                actionType, printPrepTypes (List<String>), colorsProfile,
-                //                articleNumbers (Integer), graphicComplexity (Double), observations
-                const mapped = json.map(dto => ({
-                    id: dto.orderId || '',  // Use orderId as id since there's no entryId
-                    date: dto.date ? new Date(dto.date).toLocaleDateString() : '',  // Format date
-                    orderId: dto.orderId || '',
-                    productionId: dto.productionId || '',
-                    omsId: dto.omsId || '',
-                    clientName: dto.clientName || '',
-                    actionType: dto.actionType || '',
-                    printPrepTypes: Array.isArray(dto.printPrepTypes) ? dto.printPrepTypes.join(', ') : (dto.printPrepTypes || ''),  // Join array
-                    observations: dto.observations || '',
-                    articleNumbers: dto.articleNumbers != null ? String(dto.articleNumbers) : '',
-                    graphicComplexity: dto.graphicComplexity != null ? String(dto.graphicComplexity) : '',
-                    colors: dto.colorsProfile || ''  // Map colorsProfile to colors
-                }));
-
-                console.log('✅ Mapped results:', mapped);
-                console.log('✅ Returning', mapped.length, 'results');
-                return mapped;
-            } else {
-                console.error('❌ Full search failed:', response.statusText);
+            if (!json || !Array.isArray(json)) {
+                console.error('❌ Invalid response format:', json);
                 return [];
             }
+
+            // Backend returns array of RegisterSearchResultDTO objects
+            // DTO structure: date (LocalDate), orderId, productionId, omsId, clientName,
+            //                actionType, printPrepTypes (List<String>), colorsProfile,
+            //                articleNumbers (Integer), graphicComplexity (Double), observations
+            const mapped = json.map(dto => ({
+                id: dto.orderId || '',  // Use orderId as id since there's no entryId
+                date: dto.date ? new Date(dto.date).toLocaleDateString() : '',  // Format date
+                orderId: dto.orderId || '',
+                productionId: dto.productionId || '',
+                omsId: dto.omsId || '',
+                clientName: dto.clientName || '',
+                actionType: dto.actionType || '',
+                printPrepTypes: Array.isArray(dto.printPrepTypes) ? dto.printPrepTypes.join(', ') : (dto.printPrepTypes || ''),  // Join array
+                observations: dto.observations || '',
+                articleNumbers: dto.articleNumbers != null ? String(dto.articleNumbers) : '',
+                graphicComplexity: dto.graphicComplexity != null ? String(dto.graphicComplexity) : '',
+                colors: dto.colorsProfile || ''  // Map colorsProfile to colors
+            }));
+
+            console.log('✅ Mapped results:', mapped);
+            console.log('✅ Returning', mapped.length, 'results');
+            return mapped;
         } catch (error) {
             console.error('❌ Full search error:', error);
+            console.error('❌ Error type:', error.constructor.name);
+            console.error('❌ Error message:', error.message);
             return [];
         }
     }
