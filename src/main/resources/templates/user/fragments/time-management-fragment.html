@@ -305,9 +305,9 @@
                                              data-date=${record.workDate},
                                              data-has-overtime=${record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0},
                                              data-deletable=${record.timeOffType != null && record.timeOffType != 'SN' && !#strings.startsWith(record.timeOffType, 'ZS-')},
-                                             data-locked=${record.timeOffType == 'SN' || (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-'))}"
-                                        th:title="${record.timeOffType == 'SN' ? 'National holidays are set by admin and cannot be removed' : (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-') ? 'Short Day is automatically managed. Complete your work day to remove it.' : '')}"
-                                        th:style="${record.timeOffType == 'SN' || (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-')) ? 'cursor: not-allowed; opacity: 0.7;' : ''}">
+                                             data-locked=${record.timeOffType == 'SN' || (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-'))},
+                                             style=${record.timeOffType == 'SN' || (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-')) ? 'cursor: not-allowed; opacity: 0.7;' : ''}"
+                                        th:title="${record.timeOffType == 'SN' ? 'National holidays are set by admin and cannot be removed' : (record.timeOffType != null && #strings.startsWith(record.timeOffType, 'ZS-') ? 'Short Day is automatically managed. Complete your work day to remove it.' : '')}">
 
                                         <div class="cell-value">
                                             <!-- SN with overtime work -->
