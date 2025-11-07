@@ -20,7 +20,7 @@ function init() {
     try {
         // Detect page type by checking for specific elements
         const hasCharts = document.querySelector('canvas[id*="Chart"]') !== null;
-        const hasTeamSelect = document.querySelector('.select2-users') !== null;
+        const hasTeamSelect = document.querySelector('.team-member-checkbox') !== null;
 
         // Initialize User Statistics Charts
         if (hasCharts) {
@@ -36,10 +36,8 @@ function init() {
             const teamStatsManager = new TeamStatsManager();
             teamStatsManager.initialize();
 
-            // Expose methods globally for backward compatibility (inline HTML handlers)
+            // Expose globally for debugging/console access
             window.teamStatsManager = teamStatsManager;
-            window.initializeMembers = () => teamStatsManager.initializeMembers();
-            window.updateStats = () => teamStatsManager.updateStats();
         }
 
         console.log('✅ Statistics System initialized successfully');

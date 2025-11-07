@@ -2,8 +2,8 @@
  * TeamStatsManager.js
  *
  * Manages team statistics interface for team leaders.
- * Handles user selection (Select2), form submission for initializing
- * and updating team member statistics.
+ * Handles user selection via checkboxes, search filtering, and form submission
+ * for initializing and updating team member statistics.
  *
  * @module features/statistics/TeamStatsManager
  */
@@ -12,10 +12,20 @@ import { API } from '../../core/api.js';
 
 /**
  * TeamStatsManager class
- * Manages team statistics operations
+ * Manages team statistics operations with checkbox-based user selection
  */
 export class TeamStatsManager {
     constructor() {
+        // DOM elements
+        this.checkboxes = null;
+        this.searchInput = null;
+        this.selectAllBtn = null;
+        this.deselectAllBtn = null;
+        this.initializeBtn = null;
+        this.updateBtn = null;
+        this.selectedCount = null;
+        this.checkboxContainer = null;
+
         console.log('TeamStatsManager initialized');
     }
 
@@ -29,48 +39,131 @@ export class TeamStatsManager {
     initialize() {
         console.log('🚀 Initializing Team Stats Manager...');
 
-        this.initializeSelect2();
+        // Get DOM elements
+        this.checkboxes = document.querySelectorAll('.team-member-checkbox');
+        this.searchInput = document.getElementById('userSearchInput');
+        this.selectAllBtn = document.getElementById('selectAllBtn');
+        this.deselectAllBtn = document.getElementById('deselectAllBtn');
+        this.initializeBtn = document.getElementById('initializeBtn');
+        this.updateBtn = document.getElementById('updateBtn');
+        this.selectedCount = document.getElementById('selectedCount');
+        this.checkboxContainer = document.getElementById('teamMemberCheckboxes');
+
+        // Setup event listeners
+        this.setupEventListeners();
+
+        // Initialize selected count
+        this.updateSelectedCount();
 
         console.log('✅ Team Stats Manager initialized successfully');
     }
 
     /**
-     * Initialize Select2 for user selection
+     * Setup all event listeners
      */
-    initializeSelect2() {
-        // Check if jQuery and Select2 are available
-        if (typeof $ === 'undefined') {
-            console.error('jQuery not loaded - cannot initialize Select2');
-            return;
-        }
-
-        if (typeof $.fn.select2 === 'undefined') {
-            console.error('Select2 not loaded');
-            return;
-        }
-
-        // Initialize Select2 on user selection dropdown
-        const $select = $('.select2-users');
-
-        if ($select.length === 0) {
-            console.warn('Select2 users element not found');
-            return;
-        }
-
-        $select.select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Select team members',
-            allowClear: true
+    setupEventListeners() {
+        // Checkbox change events
+        this.checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => this.updateSelectedCount());
         });
 
-        // Debug logging on selection change
-        $select.on('change', () => {
-            const selectedUsers = $select.val();
-            console.log('Selected users:', selectedUsers);
-        });
+        // Search input
+        if (this.searchInput) {
+            this.searchInput.addEventListener('input', (e) => this.filterUsers(e.target.value));
+        }
 
-        console.log('✓ Select2 initialized for user selection');
+        // Bulk selection buttons
+        if (this.selectAllBtn) {
+            this.selectAllBtn.addEventListener('click', () => this.selectAll());
+        }
+
+        if (this.deselectAllBtn) {
+            this.deselectAllBtn.addEventListener('click', () => this.deselectAll());
+        }
+
+        // Action buttons
+        if (this.initializeBtn) {
+            this.initializeBtn.addEventListener('click', () => this.initializeMembers());
+        }
+
+        if (this.updateBtn) {
+            this.updateBtn.addEventListener('click', () => this.updateStats());
+        }
+
+        console.log('✓ Event listeners attached');
+    }
+
+    // ========================================================================
+    // SELECTION MANAGEMENT
+    // ========================================================================
+
+    /**
+     * Get all selected user IDs
+     * @returns {Array<string>} Array of selected user IDs
+     */
+    getSelectedUsers() {
+        const selected = [];
+        this.checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                selected.push(checkbox.value);
+            }
+        });
+        return selected;
+    }
+
+    /**
+     * Update the selected count badge
+     */
+    updateSelectedCount() {
+        const count = this.getSelectedUsers().length;
+        if (this.selectedCount) {
+            this.selectedCount.textContent = `${count} selected`;
+        }
+    }
+
+    /**
+     * Select all visible checkboxes
+     */
+    selectAll() {
+        this.checkboxes.forEach(checkbox => {
+            const item = checkbox.closest('.user-checkbox-item');
+            if (item && !item.classList.contains('hidden')) {
+                checkbox.checked = true;
+            }
+        });
+        this.updateSelectedCount();
+    }
+
+    /**
+     * Deselect all checkboxes
+     */
+    deselectAll() {
+        this.checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        this.updateSelectedCount();
+    }
+
+    /**
+     * Filter users based on search input
+     * @param {string} searchTerm - Search term to filter by
+     */
+    filterUsers(searchTerm) {
+        const term = searchTerm.toLowerCase().trim();
+
+        this.checkboxes.forEach(checkbox => {
+            const item = checkbox.closest('.user-checkbox-item');
+            if (!item) return;
+
+            const userName = item.getAttribute('data-user-name') || '';
+            const matches = userName.toLowerCase().includes(term);
+
+            if (matches) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
     }
 
     // ========================================================================
@@ -84,17 +177,10 @@ export class TeamStatsManager {
     initializeMembers() {
         console.log('Initializing team members...');
 
-        // Check if jQuery is available
-        if (typeof $ === 'undefined') {
-            console.error('jQuery not loaded');
-            alert('Unable to initialize: jQuery not loaded');
-            return;
-        }
-
-        const selectedUsers = $('.select2-users').val();
+        const selectedUsers = this.getSelectedUsers();
 
         // Validate that users are selected
-        if (!selectedUsers || selectedUsers.length === 0) {
+        if (selectedUsers.length === 0) {
             alert('Please select at least one team member before initializing.');
             return;
         }
