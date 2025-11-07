@@ -11,10 +11,18 @@
  * @module features/register
  */
 
-import { RegisterForm } from './RegisterForm.js';
-import { RegisterSummary } from './RegisterSummary.js';
-import { RegisterSearch } from './RegisterSearch.js';
-import { AjaxHandler } from './AjaxHandler.js';
+// Use dynamic imports with cache busting to ensure latest code is always loaded
+const cacheBuster = new Date().getTime();
+
+const RegisterFormModule = await import(`./RegisterForm.js?v=${cacheBuster}`);
+const RegisterSummaryModule = await import(`./RegisterSummary.js?v=${cacheBuster}`);
+const RegisterSearchModule = await import(`./RegisterSearch.js?v=${cacheBuster}`);
+const AjaxHandlerModule = await import(`./AjaxHandler.js?v=${cacheBuster}`);
+
+const { RegisterForm } = RegisterFormModule;
+const { RegisterSummary } = RegisterSummaryModule;
+const { RegisterSearch } = RegisterSearchModule;
+const { AjaxHandler } = AjaxHandlerModule;
 
 /**
  * Initialize user register feature
