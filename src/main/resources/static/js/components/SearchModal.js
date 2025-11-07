@@ -526,14 +526,14 @@ export class SearchModal {
      * @private
      */
     #renderResultItem(result, index, query) {
-        let html;
+        let renderedContent;
 
         // Use custom render function if provided
         if (this.config.renderResult) {
-            html = this.config.renderResult(result, index, query);
+            renderedContent = this.config.renderResult(result, index, query);
         } else {
             // Default render
-            html = `<div class="result-content">${JSON.stringify(result)}</div>`;
+            renderedContent = `<div class="result-content">${JSON.stringify(result)}</div>`;
         }
 
         // Create result element
@@ -542,7 +542,14 @@ export class SearchModal {
             'data-index': index
         });
 
-        element.innerHTML = html;
+        // Check if rendered content is a DOM element or HTML string
+        if (renderedContent instanceof HTMLElement) {
+            // If it's already a DOM element, append it directly
+            element.appendChild(renderedContent);
+        } else {
+            // If it's an HTML string, set as innerHTML
+            element.innerHTML = renderedContent;
+        }
 
         // Add click handler
         element.addEventListener('click', () => {
