@@ -308,6 +308,117 @@ public class UserTimeManagementController extends BaseController {
         }
     }
 
+    /**
+     * AJAX endpoint for time off requests - returns JSON instead of redirect
+     * Prevents page reload and modal disappearance
+     */
+    @PostMapping("/time-off/add-ajax")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> addTimeOffRequestAjax(@AuthenticationPrincipal UserDetails userDetails,
+                                                                     @RequestParam String startDate,
+                                                                     @RequestParam(required = false) String endDate,
+                                                                     @RequestParam String timeOffType,
+                                                                     @RequestParam(required = false, defaultValue = "false") Boolean singleDay) {
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "=== AJAX TIME OFF REQUEST === User: %s, StartDate: %s, EndDate: %s, Type: %s, SingleDay: %s",
+                userDetails.getUsername(), startDate, endDate, timeOffType, singleDay));
+
+        try {
+            // Get current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                LoggerUtil.error(this.getClass(), "User not found during AJAX time off request");
+                return createErrorResponse("Authentication required", HttpStatus.UNAUTHORIZED);
+            }
+
+            LoggerUtil.info(this.getClass(), String.format("User found: %s (ID: %d)", currentUser.getUsername(), currentUser.getUserId()));
+
+            // PART 1: Light validation (weekends, basic rules only)
+            LoggerUtil.info(this.getClass(), "=== PART 1: Light validation (weekends, date ranges) ===");
+            ValidationResult validationResult = getTimeValidationService().validateTimeOffRequestLight(startDate, endDate, timeOffType, singleDay);
+
+            LoggerUtil.info(this.getClass(), String.format("Light validation result: valid=%s, error=%s",
+                    validationResult.isValid(), validationResult.getErrorMessage()));
+
+            if (validationResult.isInvalid()) {
+                LoggerUtil.warn(this.getClass(), "Light validation failed: " + validationResult.getErrorMessage());
+                return createErrorResponse(validationResult.getErrorMessage(), HttpStatus.BAD_REQUEST);
+            }
+
+            LoggerUtil.info(this.getClass(), "Light validation passed, parsing dates for command...");
+
+            // Parse validated dates (we know they're valid now)
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = singleDay ? start : LocalDate.parse(endDate);
+
+            List<LocalDate> dates = start.datesUntil(end.plusDays(1))
+                    .filter(date -> date.getDayOfWeek().getValue() < 6) // Skip weekends
+                    .toList();
+
+            LoggerUtil.info(this.getClass(), String.format("Parsed %d weekday dates for command processing", dates.size()));
+
+            // PART 1.5: Validate time-off operation rules
+            LoggerUtil.info(this.getClass(), "=== PART 1.5: Time-off operation rules validation ===");
+
+            // Check if this time-off type can be added over existing worktime
+            if (timeOffRules.requiresClearWorktime(timeOffType.toUpperCase())) {
+                // This type cannot be added over worktime - check if any dates have worktime
+                LoggerUtil.info(this.getClass(), String.format("Type %s cannot be added over worktime - checking for conflicts", timeOffType));
+
+                List<WorkTimeTable> existingEntries = worktimeOperationService.loadUserWorktime(
+                        currentUser.getUsername(), start.getYear(), start.getMonthValue());
+
+                // Check if any of the target dates have worktime
+                boolean hasConflict = dates.stream().anyMatch(date ->
+                        existingEntries.stream()
+                                .filter(entry -> entry.getUserId().equals(currentUser.getUserId()))
+                                .filter(entry -> entry.getWorkDate().equals(date))
+                                .anyMatch(entry -> entry.getDayStartTime() != null || entry.getDayEndTime() != null)
+                );
+
+                if (hasConflict) {
+                    String reason = timeOffRules.getCannotAddOverWorktimeReason(timeOffType.toUpperCase());
+                    LoggerUtil.warn(this.getClass(), String.format("Time-off addition blocked: %s", reason));
+                    return createErrorResponse(reason, HttpStatus.BAD_REQUEST);
+                }
+            }
+
+            // PART 2: Execute command (which will do file-based conflict resolution)
+            LoggerUtil.info(this.getClass(), "=== PART 2: Command execution with file-based conflict resolution ===");
+            OperationResult result = worktimeOperationService.addUserTimeOff(currentUser.getUsername(), currentUser.getUserId(), dates, timeOffType.toUpperCase());
+            LoggerUtil.info(this.getClass(), String.format("Command result: success=%s, message=%s", result.isSuccess(), result.getMessage()));
+
+            // Process result and return JSON response
+            Map<String, Object> response = new HashMap<>();
+
+            if (result.isSuccess()) {
+                String message = result.getMessage();
+                if (result.getSideEffects() != null && result.getSideEffects().getOldHolidayBalance() != null) {
+                    message += String.format(" Holiday balance: %d → %d", result.getSideEffects().getOldHolidayBalance(), result.getSideEffects().getNewHolidayBalance());
+                }
+
+                response.put("success", true);
+                response.put("message", message);
+                response.put("holidayStartDate", startDate);
+                response.put("holidayEndDate", endDate);
+                response.put("holidayTimeOffType", timeOffType.toUpperCase());
+                response.put("requestYear", start.getYear());
+                response.put("requestMonth", start.getMonthValue());
+
+                LoggerUtil.info(this.getClass(), String.format("AJAX time off request processed successfully: %s", result.getMessage()));
+                return ResponseEntity.ok(response);
+            } else {
+                LoggerUtil.warn(this.getClass(), String.format("AJAX time off request failed: %s", result.getMessage()));
+                return createErrorResponse(result.getMessage(), HttpStatus.BAD_REQUEST);
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Exception in addTimeOffRequestAjax: " + e.getMessage(), e);
+            return createErrorResponse("Failed to process time off request: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
 
     /**
      * Get time management content fragment for embedded display

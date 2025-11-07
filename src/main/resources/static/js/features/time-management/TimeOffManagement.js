@@ -154,8 +154,8 @@ export class TimeOffManagement {
                     headers[csrfHeader] = csrfToken;
                 }
 
-                // Submit via AJAX to prevent page redirect
-                const response = await fetch(form.action, {
+                // Submit via AJAX to NEW endpoint that returns JSON (no redirect!)
+                const response = await fetch('/user/time-management/time-off/add-ajax', {
                     method: 'POST',
                     headers: headers,
                     body: new URLSearchParams({
@@ -166,19 +166,20 @@ export class TimeOffManagement {
                     })
                 });
 
-                if (response.ok) {
-                    console.log('✅ Time off request submitted successfully');
+                const result = await response.json();
 
-                    // Show success message
+                if (result.success) {
+                    console.log('✅ Time off request submitted successfully:', result);
+
+                    // Show success message from server
                     if (window.ToastNotification) {
-                        window.ToastNotification.show('Success', 'Time off request submitted successfully', 'success');
+                        window.ToastNotification.success('Success', result.message);
                     }
 
                     // Reset form
                     form.reset();
 
                     // IMPORTANT: Open holiday request modal after successful submission
-                    // This replicates the backend's openHolidayModal flag behavior
                     console.log('📋 Opening holiday request modal after time-off addition...');
 
                     // Check if we're embedded in session page
@@ -188,41 +189,42 @@ export class TimeOffManagement {
                     // Extract user data for modal
                     const userData = this.extractUserDataForModal();
 
-                    // Open the modal with the submitted data
+                    // Open the modal with the submitted data (from server response)
                     setTimeout(() => {
                         if (typeof window.openHolidayRequestModal === 'function') {
                             console.log('✅ Opening modal with data:', {
-                                startDate: formData.startDate,
-                                endDate: formData.endDate,
-                                timeOffType: formData.timeOffType,
+                                startDate: result.holidayStartDate,
+                                endDate: result.holidayEndDate,
+                                timeOffType: result.holidayTimeOffType,
                                 userData
                             });
                             window.openHolidayRequestModal(
-                                formData.startDate,
-                                formData.endDate,
+                                result.holidayStartDate,
+                                result.holidayEndDate,
                                 userData,
-                                formData.timeOffType
+                                result.holidayTimeOffType
                             );
                         } else {
                             console.error('❌ Holiday modal function not available!');
                         }
                     }, 500);
 
-                    // Reload the page or fragment to show updated data
-                    setTimeout(() => {
+                    // Reload the page or fragment to show updated data (NO full page reload!)
+                    setTimeout(async () => {
                         if (isSessionPage) {
                             console.log('📋 Reloading embedded time management fragment...');
                             // Reload just the fragment (stays on session page)
                             window.SessionTimeManagementInstance.loadContent();
                         } else {
-                            console.log('📋 Reloading full page...');
-                            // Standalone page - reload entire page
-                            window.location.reload();
+                            console.log('📋 Refreshing time management table data...');
+                            // Standalone page - fetch and replace fragment content WITHOUT page reload
+                            await this.refreshFragmentContent(result.requestYear, result.requestMonth);
                         }
                     }, 2000); // Give time for modal to open first
 
                 } else {
-                    throw new Error('Failed to submit time off request');
+                    // Server returned error
+                    throw new Error(result.message || result.error || 'Failed to submit time off request');
                 }
 
             } catch (error) {
@@ -851,5 +853,46 @@ export class TimeOffManagement {
                 type: cell.getAttribute('data-timeoff-type')
             }))
         };
+    }
+
+    /**
+     * Refresh fragment content without full page reload (for standalone time-management page)
+     * Fetches the fragment HTML and replaces the content, keeping modal open
+     */
+    static async refreshFragmentContent(year, month) {
+        try {
+            console.log(`📥 Fetching updated fragment content for ${year}/${month}...`);
+
+            // Fetch the fragment HTML from server
+            const response = await fetch(`/user/time-management/fragment?year=${year}&month=${month}`);
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch fragment: ${response.status}`);
+            }
+
+            const html = await response.text();
+            console.log('✅ Fragment HTML fetched successfully');
+
+            // Find the content container and replace its innerHTML
+            const contentContainer = document.getElementById('timeManagementContent');
+            if (contentContainer) {
+                contentContainer.innerHTML = html;
+                console.log('✅ Fragment content replaced');
+
+                // Re-initialize all modules on the new content
+                if (window.TimeManagementCore) {
+                    console.log('🔄 Re-initializing time management modules...');
+                    window.TimeManagementCore.initialize();
+                }
+            } else {
+                console.error('❌ Content container not found!');
+            }
+
+        } catch (error) {
+            console.error('❌ Error refreshing fragment content:', error);
+            if (window.ToastNotification) {
+                window.ToastNotification.error('Refresh Failed', 'Could not refresh table data. Please reload the page.');
+            }
+        }
     }
 }
