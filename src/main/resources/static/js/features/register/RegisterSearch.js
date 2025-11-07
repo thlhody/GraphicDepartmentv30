@@ -238,20 +238,22 @@ export class RegisterSearch {
                 console.log('Full search received JSON:', json);
 
                 // Backend returns array of RegisterSearchResultDTO objects
-                // Map them to the format expected by renderSearchResult
+                // DTO structure: date (LocalDate), orderId, productionId, omsId, clientName,
+                //                actionType, printPrepTypes (List<String>), colorsProfile,
+                //                articleNumbers (Integer), graphicComplexity (Double), observations
                 return json.map(dto => ({
-                    id: dto.entryId || '',
-                    date: dto.date || '',
+                    id: dto.orderId || '',  // Use orderId as id since there's no entryId
+                    date: dto.date ? new Date(dto.date).toLocaleDateString() : '',  // Format date
                     orderId: dto.orderId || '',
                     productionId: dto.productionId || '',
                     omsId: dto.omsId || '',
                     clientName: dto.clientName || '',
                     actionType: dto.actionType || '',
-                    printPrepTypes: dto.printPrepTypes || '',
+                    printPrepTypes: Array.isArray(dto.printPrepTypes) ? dto.printPrepTypes.join(', ') : (dto.printPrepTypes || ''),  // Join array
                     observations: dto.observations || '',
-                    articleNumbers: dto.articleNumbers || '',
-                    graphicComplexity: dto.graphicComplexity || '',
-                    colors: dto.colors || ''
+                    articleNumbers: dto.articleNumbers != null ? String(dto.articleNumbers) : '',
+                    graphicComplexity: dto.graphicComplexity != null ? String(dto.graphicComplexity) : '',
+                    colors: dto.colorsProfile || ''  // Map colorsProfile to colors
                 }));
             } else {
                 console.error('Full search failed:', response.statusText);
