@@ -287,7 +287,7 @@
 
                         <tbody>
                         <tr th:each="entry, entryStat : ${entries}">
-                            <td class="text-center" th:text="${entryStat.count}"></td>
+                            <td class="text-center" th:text="${#lists.size(entries) - entryStat.index}"></td>
                             <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
                             <td th:text="${entry.orderId}"></td>
                             <td th:text="${entry.productionId}"></td>

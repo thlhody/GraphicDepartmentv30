@@ -101,7 +101,8 @@ export class RegisterSearch {
             debounceDelay: 250,
             onSearch: (query) => this.performSearch(query),
             onResultClick: (result) => this.handleResultClick(result),
-            renderResult: (entry) => this.renderSearchResult(entry)
+            renderResult: (entry) => this.renderSearchResult(entry),
+            renderHeader: () => this.createResultsHeader()
         });
     }
 
@@ -253,54 +254,56 @@ export class RegisterSearch {
     }
 
     /**
-     * Render a search result row
+     * Create results header for grid layout
+     * @returns {HTMLElement} Header element
+     * @private
+     */
+    createResultsHeader() {
+        const header = document.createElement('div');
+        header.className = 'search-result-header';
+        header.innerHTML = `
+            <div>Date</div>
+            <div>Order ID</div>
+            <div>Prod ID</div>
+            <div>OMS ID</div>
+            <div>Client</div>
+            <div>Action</div>
+            <div>Print Types</div>
+            <div>Mod</div>
+        `;
+        return header;
+    }
+
+    /**
+     * Render a search result row in grid layout
      * @param {Object} entry - Entry data
      * @returns {HTMLElement} Result row element
      * @private
      */
     renderSearchResult(entry) {
         const row = document.createElement('div');
-        row.className = 'search-result-row p-2 border-bottom';
-        row.style.cursor = 'pointer';
+        row.className = 'search-result-row';
 
         const badgeClass = this.getActionTypeBadgeClass(entry.actionType);
 
         row.innerHTML = `
-            <div class="d-flex justify-content-between align-items-start">
-                <div class="flex-grow-1">
-                    <div class="mb-1">
-                        <strong>${entry.orderId}</strong>
-                        <span class="text-muted ms-2">${entry.date}</span>
-                        <span class="badge ${badgeClass} ms-2">${entry.actionType}</span>
-                    </div>
-                    <div class="text-muted small">
-                        ${entry.clientName || 'No client'}
-                        ${entry.productionId ? `• Prod: ${entry.productionId}` : ''}
-                        ${entry.omsId ? `• OMS: ${entry.omsId}` : ''}
-                    </div>
-                    <div class="text-muted small">
-                        Articles: ${entry.articleNumbers} • Complexity: ${entry.graphicComplexity}
-                        ${entry.printPrepTypes ? `• ${entry.printPrepTypes}` : ''}
-                    </div>
-                </div>
-                <button class="btn btn-sm btn-outline-primary copy-btn" data-id="${entry.id}">
-                    <i class="bi bi-files"></i> Copy
-                </button>
-            </div>
+            <div>${entry.date}</div>
+            <div>${entry.orderId}</div>
+            <div>${entry.productionId || ''}</div>
+            <div>${entry.omsId}</div>
+            <div>${entry.clientName}</div>
+            <div><span class="badge ${badgeClass}">${entry.actionType || ''}</span></div>
+            <div>${entry.printPrepTypes || ''}</div>
+            <div><button class="btn btn-sm btn-outline-secondary copy-search-entry" data-entry-id="${entry.id}">Copy</button></div>
         `;
 
-        // Attach data to element
+        // Attach data to element for copy functionality
         row.dataset.entry = JSON.stringify(entry);
 
         // Click handler for copy button
-        const copyBtn = row.querySelector('.copy-btn');
+        const copyBtn = row.querySelector('.copy-search-entry');
         copyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.copyEntryToForm(entry);
-        });
-
-        // Click handler for row
-        row.addEventListener('click', () => {
             this.copyEntryToForm(entry);
         });
 

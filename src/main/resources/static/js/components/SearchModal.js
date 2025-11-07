@@ -62,6 +62,7 @@ export class SearchModal {
         onSearch: null,                // Search function: async (query) => results[]
         onResultClick: null,           // Result click handler: (result, index) => {}
         renderResult: null,            // Render function: (result, index, query) => HTML string
+        renderHeader: null,            // Header render function: () => HTMLElement (optional)
         onOpen: null,                  // Open callback: () => {}
         onClose: null,                 // Close callback: () => {}
         customClass: ''                // Additional CSS class for modal
@@ -331,6 +332,41 @@ export class SearchModal {
                 font-weight: 600;
             }
 
+            /* Grid layout styles for search results */
+            .search-result-header,
+            .search-result-row {
+                display: grid;
+                grid-template-columns: 100px 110px 100px 80px 1fr 120px 100px 80px;
+                gap: 0.5rem;
+                padding: 0.5rem;
+                align-items: center;
+                font-size: 0.875rem;
+            }
+
+            .search-result-header {
+                font-weight: 600;
+                background-color: #f8f9fa;
+                border-bottom: 2px solid #dee2e6;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+
+            .search-result-row {
+                border-bottom: 1px solid #dee2e6;
+                transition: background-color 0.2s;
+            }
+
+            .search-result-row:hover {
+                background-color: #f8f9fa;
+            }
+
+            .search-result-row > div {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
             @keyframes fadeIn {
                 from { opacity: 0; }
                 to { opacity: 1; }
@@ -513,6 +549,14 @@ export class SearchModal {
         }
 
         this.emptyState.style.display = 'none';
+
+        // Add header if renderHeader function is provided
+        if (this.config.renderHeader && typeof this.config.renderHeader === 'function') {
+            const header = this.config.renderHeader();
+            if (header instanceof HTMLElement) {
+                this.resultsContainer.appendChild(header);
+            }
+        }
 
         // Render results
         results.forEach((result, index) => {
