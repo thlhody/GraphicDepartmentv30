@@ -4,22 +4,23 @@
 <head>
     <title>User Settings</title>
     <link rel="stylesheet" th:href="@{/css/settings-user.css?v=031120251812}">
-    <link rel="stylesheet" th:href="@{/css/alerts.css?v=031120251812}">
 </head>
 <body>
 <div layout:fragment="content">
     <div class="container py-4">
-        <!-- Status Messages -->
-        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show mb-4" role="alert">
-            <i class="bi bi-check-circle me-2"></i>
-            <span th:text="${successMessage}"></span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-            <i class="bi bi-exclamation-circle me-2"></i>
-            <span th:text="${errorMessage}"></span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <!-- Hidden alert messages for toast system -->
+        <div th:if="${successMessage}"
+             class="d-none"
+             data-alert-type="success"
+             data-alert-title="Success"
+             th:attr="data-alert-message=${successMessage}"></div>
+
+        <div th:if="${errorMessage}"
+             class="d-none"
+             data-alert-type="error"
+             data-alert-title="Error"
+             th:attr="data-alert-message=${errorMessage}"></div>
+
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">

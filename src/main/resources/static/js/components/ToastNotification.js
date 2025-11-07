@@ -430,33 +430,67 @@ export class ToastNotification {
      * Process server-side alerts from page
      * Converts static alerts to toasts
      * Call this after page load if using Thymeleaf model attributes
+     *
+     * UPDATED: Now uses data attributes that survive Thymeleaf processing
+     * Expects elements with: data-alert-type and data-alert-message attributes
      */
     static processServerAlerts() {
-        // Convert success messages
-        const successElements = document.querySelectorAll('[th\\:text*="successMessage"]');
-        successElements.forEach(el => {
-            if (el.textContent.trim()) {
-                this.success('Success', el.textContent.trim());
+        // NEW: Process data-attribute based alerts (modern approach)
+        const dataAlerts = document.querySelectorAll('[data-alert-message]');
+        dataAlerts.forEach(el => {
+            const message = el.getAttribute('data-alert-message');
+            const type = el.getAttribute('data-alert-type') || 'info';
+            const title = el.getAttribute('data-alert-title') || this.#capitalize(type);
+
+            if (message && message.trim()) {
+                // Show toast based on type
+                switch (type.toLowerCase()) {
+                    case 'success':
+                        this.success(title, message);
+                        break;
+                    case 'error':
+                    case 'danger':
+                        this.error(title, message);
+                        break;
+                    case 'warning':
+                        this.warning(title, message);
+                        break;
+                    case 'info':
+                        this.info(title, message);
+                        break;
+                    default:
+                        this.info(title, message);
+                }
+
+                // Hide the source element (if it's a visible alert)
                 this.#hideParentAlert(el);
             }
         });
 
-        // Convert error messages
-        const errorElements = document.querySelectorAll('[th\\:text*="errorMessage"]');
-        errorElements.forEach(el => {
-            if (el.textContent.trim()) {
-                this.error('Error', el.textContent.trim());
-                this.#hideParentAlert(el);
-            }
-        });
+        // LEGACY: Support old Bootstrap alert divs (for backward compatibility)
+        // Look for .alert divs with text content
+        const legacyAlerts = document.querySelectorAll('.alert:not([data-alert-message])');
+        legacyAlerts.forEach(el => {
+            const text = el.textContent.trim();
+            if (!text) return;
 
-        // Convert period errors
-        const periodElements = document.querySelectorAll('[th\\:text*="periodError"]');
-        periodElements.forEach(el => {
-            if (el.textContent.trim()) {
-                this.error('Period Error', el.textContent.trim());
-                this.#hideParentAlert(el);
+            // Determine type from Bootstrap classes
+            let type = 'info';
+            let title = 'Notice';
+            if (el.classList.contains('alert-success')) {
+                type = 'success';
+                title = 'Success';
+            } else if (el.classList.contains('alert-danger')) {
+                type = 'error';
+                title = 'Error';
+            } else if (el.classList.contains('alert-warning')) {
+                type = 'warning';
+                title = 'Warning';
             }
+
+            // Show toast and hide alert
+            this[type](title, text);
+            el.style.display = 'none';
         });
 
         // Check URL parameters for errors
@@ -509,6 +543,15 @@ export class ToastNotification {
         };
 
         return errorMessages[errorParam] || 'An unexpected error occurred.';
+    }
+
+    /**
+     * Capitalize first letter of string
+     * @private
+     */
+    static #capitalize(str) {
+        if (!str) return '';
+        return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
     }
 }
 
