@@ -41,28 +41,48 @@
 
     <!-- Core ES6 Modules (Modern Browsers) -->
     <script type="module">
-        // Import core systems
-        import { ToastNotification } from '/js/components/ToastNotification.js';
-        import { API } from '/js/core/api.js';
-        import * as Constants from '/js/core/constants.js';
+        // Cache buster for all imports
+        const cacheBuster = new Date().getTime();
 
-        // Make available globally for backward compatibility and page scripts
-        window.ToastNotification = ToastNotification;
-        window.API = API;
-        window.Constants = Constants;
+        // Import core systems with cache busting
+        Promise.all([
+            import(`/js/components/ToastNotification.js?v=${cacheBuster}`),
+            import(`/js/core/api.js?v=${cacheBuster}`),
+            import(`/js/core/constants.js?v=${cacheBuster}`)
+        ]).then(([ToastModule, APIModule, ConstantsModule]) => {
+            // Extract exports
+            const ToastNotification = ToastModule.ToastNotification;
+            const API = APIModule.API;
+            const Constants = ConstantsModule;
 
-        // Legacy compatibility - map new ToastNotification to old showToast
-        window.showToast = function(title, message, type) {
-            ToastNotification.show(title, message, type);
-        };
+            // Make available globally for backward compatibility and page scripts
+            window.ToastNotification = ToastNotification;
+            window.API = API;
+            window.Constants = Constants;
 
-        // Initialize core systems on DOM ready
-        document.addEventListener('DOMContentLoaded', () => {
-            API.init();
-            console.log('✅ Core ES6 modules initialized');
+            // Legacy compatibility - map new ToastNotification to old showToast
+            window.showToast = function(title, message, type) {
+                ToastNotification.show(title, message, type);
+            };
 
-            // Process any server-side alerts
-            ToastNotification.processServerAlerts();
+            // Initialize core systems on DOM ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    API.init();
+                    console.log('✅ Core ES6 modules initialized');
+
+                    // Process any server-side alerts
+                    ToastNotification.processServerAlerts();
+                });
+            } else {
+                API.init();
+                console.log('✅ Core ES6 modules initialized');
+
+                // Process any server-side alerts
+                ToastNotification.processServerAlerts();
+            }
+        }).catch(err => {
+            console.error('❌ Error loading core modules:', err);
         });
     </script>
 
@@ -174,40 +194,50 @@
 
 <!-- Sync Logs Functionality (ES6 Module) -->
 <script type="module">
-    import { API } from '/js/core/api.js';
-    import { ToastNotification } from '/js/components/ToastNotification.js';
+    // Cache buster
+    const cacheBuster = new Date().getTime();
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const syncBtn = document.getElementById('syncLogsBtn');
+    Promise.all([
+        import(`/js/core/api.js?v=${cacheBuster}`),
+        import(`/js/components/ToastNotification.js?v=${cacheBuster}`)
+    ]).then(([APIModule, ToastModule]) => {
+        const API = APIModule.API;
+        const ToastNotification = ToastModule.ToastNotification;
 
-        if (syncBtn) {
-            syncBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
+        document.addEventListener('DOMContentLoaded', () => {
+            const syncBtn = document.getElementById('syncLogsBtn');
 
-                // Disable button and show loading state
-                syncBtn.style.pointerEvents = 'none';
-                const originalHTML = syncBtn.innerHTML;
-                syncBtn.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Syncing...';
+            if (syncBtn) {
+                syncBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
 
-                try {
-                    const data = await API.post('/logs/sync');
+                    // Disable button and show loading state
+                    syncBtn.style.pointerEvents = 'none';
+                    const originalHTML = syncBtn.innerHTML;
+                    syncBtn.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Syncing...';
 
-                    if (data.success) {
-                        ToastNotification.success('Success', data.message || 'Logs synced successfully to network');
-                    } else if (data.networkUnavailable) {
-                        ToastNotification.warning('Network Unavailable', data.message || 'Network is currently unavailable. Logs will be synced automatically when connection is restored.');
-                    } else {
-                        ToastNotification.error('Error', data.message || 'Failed to sync logs');
+                    try {
+                        const data = await API.post('/logs/sync');
+
+                        if (data.success) {
+                            ToastNotification.success('Success', data.message || 'Logs synced successfully to network');
+                        } else if (data.networkUnavailable) {
+                            ToastNotification.warning('Network Unavailable', data.message || 'Network is currently unavailable. Logs will be synced automatically when connection is restored.');
+                        } else {
+                            ToastNotification.error('Error', data.message || 'Failed to sync logs');
+                        }
+                    } catch (error) {
+                        ToastNotification.error('Error', 'Failed to sync logs: ' + error.message);
+                    } finally {
+                        // Re-enable button and restore original content
+                        syncBtn.style.pointerEvents = '';
+                        syncBtn.innerHTML = originalHTML;
                     }
-                } catch (error) {
-                    ToastNotification.error('Error', 'Failed to sync logs: ' + error.message);
-                } finally {
-                    // Re-enable button and restore original content
-                    syncBtn.style.pointerEvents = '';
-                    syncBtn.innerHTML = originalHTML;
-                }
-            });
-        }
+                });
+            }
+        });
+    }).catch(err => {
+        console.error('❌ Error loading sync logs modules:', err);
     });
 </script>
 
