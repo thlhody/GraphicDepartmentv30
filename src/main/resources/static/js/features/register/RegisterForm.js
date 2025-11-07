@@ -419,9 +419,10 @@ export class RegisterForm {
                 COMPLEXITY_PRINT_PREPS.has(type)
             );
 
-            // For PROBA STAMPA variants, keep base value even with complexity print preps
-            if (actionType === 'PROBA STAMPA' || actionType === 'PROBA S SPIZED') {
-                return baseValue;  // Returns 2.5 for PROBA STAMPA, 2.0 for PROBA S SPIZED
+            // For PROBA STAMPA and SPIZED variants, keep base value even with complexity print preps
+            if (actionType === 'PROBA STAMPA' || actionType === 'PROBA S SPIZED' ||
+                actionType === 'ORDIN SPIZED' || actionType === 'CAMPION SPIZED') {
+                return baseValue;  // Returns 2.5 for PROBA STAMPA, 2.0 for all SPIZED variants
             }
 
             // For ORDIN and CAMPION (regular and SPIZED), return 3.0 with complexity print preps
