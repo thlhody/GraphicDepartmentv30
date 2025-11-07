@@ -24,7 +24,7 @@
     <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
-          <list size="83">
+          <list size="84">
             <item index="0" class="java.lang.String" itemvalue="sec:authentication" />
             <item index="1" class="java.lang.String" itemvalue="th:text" />
             <item index="2" class="java.lang.String" itemvalue="layout:decorate" />
@@ -108,6 +108,7 @@
             <item index="80" class="java.lang.String" itemvalue="th:data-entry-date" />
             <item index="81" class="java.lang.String" itemvalue="th:data-status-role" />
             <item index="82" class="java.lang.String" itemvalue="th:data-status-action" />
+            <item index="83" class="java.lang.String" itemvalue="th:data-user-name" />
           </list>
         </value>
       </option>
