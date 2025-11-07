@@ -394,14 +394,10 @@ export class RegisterForm {
             return 1.0;
         }
 
-        // Special case: CHECKING uses article count
+        // Special case: CHECKING uses article count regardless of print prep types
         if (actionType === 'CHECKING') {
-            // Check if LAYOUT is in print prep types
-            if (Array.isArray(printPrepTypes) && printPrepTypes.includes('LAYOUT')) {
-                const articleCount = parseInt(this.articleNumbersInput?.value || '0');
-                return this.calculateCheckingComplexity(articleCount);
-            }
-            return 3.0;
+            const articleCount = parseInt(this.articleNumbersInput?.value || '0');
+            return this.calculateCheckingComplexity(articleCount);
         }
 
         // For ORDIN, CAMPION, and PROBA STAMPA, check print prep types
