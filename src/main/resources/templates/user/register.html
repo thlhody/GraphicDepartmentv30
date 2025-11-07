@@ -285,10 +285,9 @@
                             <th style="width: 60px;">Mod</th>
                         </tr>
 
-                        </thead>
                         <tbody>
-                        <tr th:each="entry : ${entries}">
-                            <td class="text-center" th:text="${entry.entryId}"></td>
+                        <tr th:each="entry, entryStat : ${entries}">
+                            <td class="text-center" th:text="${entryStat.count}"></td>
                             <td th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
                             <td th:text="${entry.orderId}"></td>
                             <td th:text="${entry.productionId}"></td>
