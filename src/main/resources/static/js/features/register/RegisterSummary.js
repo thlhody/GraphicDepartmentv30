@@ -141,11 +141,11 @@ export class RegisterSummary {
             this.metrics.totalEntries = entries.length;
             this.metrics.totalNoImpostare = nonImpostareCount;
             this.metrics.avgArticles = nonImpostareCount > 0
-                ? (totalArticles / nonImpostareCount).toFixed(1)
-                : '0.0';
+                ? (totalArticles / nonImpostareCount).toFixed(2)
+                : '0.00';
             this.metrics.avgComplexity = nonImpostareCount > 0
-                ? (totalComplexity / nonImpostareCount).toFixed(1)
-                : '0.0';
+                ? (totalComplexity / nonImpostareCount).toFixed(2)
+                : '0.00';
 
             // Update UI
             this.updateUI();
