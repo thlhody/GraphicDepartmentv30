@@ -16,15 +16,28 @@ import { CHECK_TYPE_VALUES, ARTICLE_BASED_TYPES, FILE_BASED_TYPES } from '../../
  * Extends FormHandler for specialized check register functionality
  */
 export class CheckRegisterForm extends FormHandler {
-    constructor(options = {}) {
+    constructor(formElement = null) {
+        // Get form element
+        const form = formElement || document.getElementById('checkRegisterForm');
+
+        if (!form) {
+            throw new Error('CheckRegisterForm: Form element not found');
+        }
+
+        if (form.tagName !== 'FORM') {
+            throw new Error('CheckRegisterForm: Element must be a <form> tag');
+        }
+
         // Determine URL based on team view context
         const isTeamView = typeof IS_TEAM_VIEW !== 'undefined' && IS_TEAM_VIEW;
         const url = isTeamView ? '/team/check-register/entry' : '/user/check-register/entry';
 
-        super({
-            formId: 'checkRegisterForm',
-            submitUrl: url,
-            ...options
+        // Pass form element as first parameter, config as second
+        super(form, {
+            url: url,
+            method: 'POST',
+            useAjax: true,
+            validateOnSubmit: true
         });
 
         this.isTeamView = isTeamView;

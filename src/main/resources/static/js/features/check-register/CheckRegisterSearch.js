@@ -12,7 +12,12 @@
  * Handles search modal and local search functionality
  */
 export class CheckRegisterSearch {
-    constructor() {
+    /**
+     * Create a CheckRegisterSearch instance
+     * @param {CheckRegisterForm} checkRegisterForm - Reference to CheckRegisterForm instance
+     */
+    constructor(checkRegisterForm = null) {
+        this.checkRegisterForm = checkRegisterForm;
         this.searchModal = document.getElementById('searchModal');
         this.searchInput = document.getElementById('searchInput');
         this.resultsContainer = document.getElementById('searchResultsContainer');
