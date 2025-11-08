@@ -32,15 +32,38 @@ export class AdminRegisterState {
         this.entries = serverData.entries || [];
         this.filteredEntries = [...this.entries];
 
-        // Bonus calculation data
-        this.bonusCalculationData = {
-            totalEntries: serverData.totalEntries || 0,
-            averageArticleNumbers: serverData.averageArticleNumbers || 0,
-            averageGraphicComplexity: serverData.averageGraphicComplexity || 0,
-            workedDays: serverData.workedDays || 0
-        };
+        // Bonus calculation data - use server values or calculate from entries
+        const hasServerCalculations = serverData.totalEntries && serverData.totalEntries > 0;
+
+        if (hasServerCalculations) {
+            // Use server-provided calculations
+            this.bonusCalculationData = {
+                totalEntries: serverData.totalEntries || 0,
+                averageArticleNumbers: serverData.averageArticleNumbers || 0,
+                averageGraphicComplexity: serverData.averageGraphicComplexity || 0,
+                workedDays: serverData.workedDays || 0
+            };
+        } else if (this.entries.length > 0) {
+            // Calculate from entries if server didn't provide or provided zeros
+            const calculated = this.calculateSummaryFromEntries(this.entries);
+            this.bonusCalculationData = {
+                totalEntries: calculated.totalEntries,
+                averageArticleNumbers: parseFloat(calculated.averageArticleNumbers),
+                averageGraphicComplexity: parseFloat(calculated.averageGraphicComplexity),
+                workedDays: serverData.workedDays || 0
+            };
+        } else {
+            // No entries, use zeros
+            this.bonusCalculationData = {
+                totalEntries: 0,
+                averageArticleNumbers: 0,
+                averageGraphicComplexity: 0,
+                workedDays: 0
+            };
+        }
 
         console.log('AdminRegisterState initialized:', this.getContext());
+        console.log('Bonus calculation data:', this.bonusCalculationData);
     }
 
     /**
