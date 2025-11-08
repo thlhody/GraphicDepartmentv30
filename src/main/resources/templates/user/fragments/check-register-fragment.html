@@ -88,7 +88,7 @@
                            placeholder="Error Description">
                 </div>
 
-                <!-- Form Buttons -->
+                <!-- Form Action Buttons -->
                 <div class="col-auto" style="width: 360px;">
                     <label class="form-label">&nbsp;</label>
                     <div class="d-flex gap-2">
@@ -96,7 +96,8 @@
                                 style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
                             <i class="bi bi-plus-circle me-1"></i>Add Entry
                         </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetForm()"
+                        <button type="button" class="btn btn-outline-secondary btn-sm"
+                                onclick="if(window.resetForm) window.resetForm()"
                                 style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
                             <i class="bi bi-x-circle me-1"></i>Clear
                         </button>
