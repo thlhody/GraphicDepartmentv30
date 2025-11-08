@@ -225,6 +225,13 @@
         }
       })
       .catch(err => console.error('❌ Error loading check-register module:', err));
+
+    // Load bonus module for team view
+    import(`/js/features/bonus/index.js?v=${cacheBuster}`)
+      .then(() => {
+        console.log('✅ Bonus (Team View) - ES6 module loaded');
+      })
+      .catch(err => console.error('❌ Error loading bonus module:', err));
   </script>
 
   <!-- Legacy Fallback (IE11) -->

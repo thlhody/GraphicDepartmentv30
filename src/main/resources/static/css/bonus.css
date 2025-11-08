@@ -36,6 +36,17 @@
     padding: 1rem 1.25rem;
 }
 
+/* Gradient primary header for bonus configuration */
+.card-header.bg-gradient-primary {
+    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+    border: none;
+    color: #ffffff;
+}
+
+.card-header.bg-gradient-primary .card-title {
+    color: #ffffff;
+}
+
 .card-title {
     font-size: 1.1rem;
     font-weight: 600;
@@ -493,4 +504,94 @@ th:first-child .th-content {
 
 .table-responsive::-webkit-scrollbar-thumb:hover {
     background: #a0aec0;
+}
+
+/* ========================================
+   Bonus Fragment Specific Styles
+   ======================================== */
+
+/* Bonus Sum Display/Edit */
+.bonus-sum-container {
+    display: flex;
+    align-items: center;
+}
+
+.bonus-sum-display {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    color: #ffffff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.bonus-sum-display:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.bonus-sum-input {
+    max-width: 150px;
+}
+
+/* Hours Options Grid */
+.hours-options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.hours-option-card {
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1rem;
+    transition: all 0.2s ease;
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+
+.hours-option-card:hover {
+    border-color: #0d6efd;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+}
+
+.hours-option-card input[type="radio"]:checked + label .option-header {
+    color: #0d6efd;
+}
+
+.hours-option-card input[type="radio"]:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.hours-option-card .form-check-input {
+    margin-top: 0.25rem;
+}
+
+.option-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.option-header i {
+    font-size: 1.2rem;
+}
+
+.manual-hours-input {
+    margin-top: 0.5rem;
+}
+
+/* Bonus Configuration Card */
+.bonus-config-card {
+    margin-bottom: 1.5rem;
+}
+
+/* Action Buttons */
+.btn-action {
+    width: 100%;
+    font-weight: 600;
+    padding: 0.75rem;
 }
