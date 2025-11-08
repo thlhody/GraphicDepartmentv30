@@ -92,25 +92,21 @@
                 <div class="col-auto" style="width: 360px;">
                     <label class="form-label">&nbsp;</label>
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary btn-sm"
-                                style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                        <button type="submit" class="btn btn-primary btn-sm btn-form-action">
                             <i class="bi bi-plus-circle me-1"></i>Add Entry
                         </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm"
-                                onclick="if(window.resetForm) window.resetForm()"
-                                style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                        <button type="button" class="btn btn-outline-secondary btn-sm btn-form-action"
+                                onclick="if(window.resetForm) window.resetForm()">
                             <i class="bi bi-x-circle me-1"></i>Clear
                         </button>
                         <a th:if="${!isTeamView}"
                            th:href="${urlPrefix + '/export'}+'?year='+${currentYear}+'&month='+${currentMonth}"
-                           class="btn btn-outline-success btn-sm"
-                           style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                           class="btn btn-outline-success btn-sm btn-form-action">
                             <i class="bi bi-file-excel me-1"></i>Export
                         </a>
                         <a th:if="${isTeamView && selectedUser != null}"
                            th:href="@{/team/check-register/export(year=${currentYear},month=${currentMonth},username=${selectedUser.username},userId=${selectedUser.userId})}"
-                           class="btn btn-outline-success btn-sm"
-                           style="width: 115px; height: 31px; padding: 0.25rem 0.5rem;">
+                           class="btn btn-outline-success btn-sm btn-form-action">
                             <i class="bi bi-file-excel me-1"></i>Export
                         </a>
                     </div>

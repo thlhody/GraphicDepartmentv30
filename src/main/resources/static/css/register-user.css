@@ -34,6 +34,18 @@
     font-size: 0.875rem;
 }
 
+/* Form Action Buttons - Shared across register pages */
+.btn-form-action {
+    width: 115px;
+    height: 31px;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Table Styles */
 .table {
     width: 100%;
