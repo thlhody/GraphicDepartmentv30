@@ -468,9 +468,14 @@ export class ToastNotification {
         });
 
         // LEGACY: Support old Bootstrap alert divs (for backward compatibility)
-        // Look for .alert divs with text content
+        // Look for .alert divs with text content (EXCLUDING those inside modals)
         const legacyAlerts = document.querySelectorAll('.alert:not([data-alert-message])');
         legacyAlerts.forEach(el => {
+            // Skip alerts inside modals - they're intentional UI elements, not server messages
+            if (el.closest('.modal')) {
+                return;
+            }
+
             const text = el.textContent.trim();
             if (!text) return;
 
