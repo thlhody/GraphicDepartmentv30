@@ -8,6 +8,7 @@ import com.ctgraphdep.worktime.accessor.WorktimeDataAccessor;
 import com.ctgraphdep.worktime.model.OperationResult;
 import com.ctgraphdep.merge.status.StatusAssignmentEngine;
 import com.ctgraphdep.merge.status.StatusAssignmentResult;
+import com.ctgraphdep.worktime.rules.TimeOffOperationRules;
 import com.ctgraphdep.worktime.util.WorktimeEntityBuilder;
 import lombok.Getter;
 
@@ -24,7 +25,7 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
     private final Integer userId;
     private final List<LocalDate> dates;
     private final String timeOffType;
-    private final com.ctgraphdep.worktime.rules.TimeOffOperationRules timeOffRules;
+    private final TimeOffOperationRules timeOffRules;
 
     private AddTimeOffCommand(WorktimeOperationContext context, String username, Integer userId,
                               List<LocalDate> dates, String timeOffType,

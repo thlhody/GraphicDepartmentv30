@@ -85,6 +85,30 @@ export class HolidayRequestModal {
         if (modal) {
             modal.classList.remove('active');
             document.body.style.overflow = '';
+
+            // Refresh the time management fragment to show updated data (NO PAGE RELOAD!)
+            console.log('🔄 Refreshing time management fragment after modal close...');
+
+            // Check if we're on the session page (embedded time management)
+            if (window.SessionTimeManagementInstance && typeof window.SessionTimeManagementInstance.loadContent === 'function') {
+                // Session page - reload the embedded fragment via AJAX
+                console.log('📄 Session page detected - using SessionTimeManagementInstance');
+                setTimeout(() => {
+                    window.SessionTimeManagementInstance.loadContent();
+                }, 300);
+            } else if (window.TimeManagementAjaxHandler && typeof window.TimeManagementAjaxHandler.reloadCurrentPeriod === 'function') {
+                // Standalone time-management page - reload via AJAX (NO PAGE RELOAD!)
+                console.log('📄 Standalone page detected - using TimeManagementAjaxHandler');
+                setTimeout(() => {
+                    window.TimeManagementAjaxHandler.reloadCurrentPeriod();
+                }, 300);
+            } else {
+                // Fallback - reload page (shouldn't happen with new AJAX handler)
+                console.warn('⚠️ No AJAX handler found - falling back to page reload');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 300);
+            }
         }
     }
 

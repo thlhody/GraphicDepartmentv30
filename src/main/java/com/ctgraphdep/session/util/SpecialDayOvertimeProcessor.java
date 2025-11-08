@@ -26,7 +26,7 @@ public class SpecialDayOvertimeProcessor {
 
         // Apply logic based on day type
         return switch (dayType) {
-            case NATIONAL_HOLIDAY, TIME_OFF, MEDICAL_LEAVE, WEEKEND -> applySpecialDayLogic(entry, sessionWorkedMinutes, dayType);
+            case NATIONAL_HOLIDAY, TIME_OFF, MEDICAL_LEAVE, SPECIAL_EVENT, WEEKEND -> applySpecialDayLogic(entry, sessionWorkedMinutes, dayType);
             case REGULAR_DAY -> applyRegularDayLogic(entry, sessionWorkedMinutes);
         };
     }
@@ -70,11 +70,6 @@ public class SpecialDayOvertimeProcessor {
 
         // For regular days, keep the session calculation as-is
         entry.setTotalWorkedMinutes(sessionWorkedMinutes);
-
-        // Don't modify overtime here - let normal calculation handle it
-        // entry.setTotalOvertimeMinutes() is handled elsewhere for regular days
-
-        // Don't set timeOffType for regular days (should remain null)
 
         return entry;
     }

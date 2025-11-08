@@ -3,18 +3,23 @@
  *
  * Handles initialization for the standalone time management page.
  * This is a separate entry point from the session-embedded version.
+ * NOW WITH AJAX - NO PAGE RELOADS!
  *
  * @module features/time-management/StandaloneInitializer
  */
 
 import * as TimeManagement from './index.js';
+import { TimeManagementAjaxHandler } from './AjaxHandler.js';
+
+// Store AJAX handler instance
+let ajaxHandler = null;
 
 /**
  * Initialize time management modules for standalone context
  */
 function initializeStandaloneTimeManagement() {
     console.log('🚀 Initializing Standalone Time Management...');
-    console.log('🔧 Using standalone context (full page, not embedded)');
+    console.log('🔧 Using standalone context with AJAX (NO PAGE RELOADS!)');
 
     try {
         // Initialize the main time management system
@@ -22,10 +27,10 @@ function initializeStandaloneTimeManagement() {
         // but we call it explicitly for standalone context
         TimeManagement.init();
 
-        // Set up period navigation to work with full page reloads
-        setupStandalonePeriodNavigation();
+        // Set up AJAX period navigation (NO PAGE RELOADS!)
+        setupStandaloneAjaxNavigation();
 
-        console.log('✅ Standalone Time Management initialized');
+        console.log('✅ Standalone Time Management initialized with AJAX');
 
     } catch (error) {
         console.error('❌ Error initializing standalone time management:', error);
@@ -33,15 +38,18 @@ function initializeStandaloneTimeManagement() {
 }
 
 /**
- * Set up period navigation for standalone context (full page reloads)
+ * Set up period navigation for standalone context (AJAX - NO PAGE RELOADS!)
  */
-function setupStandalonePeriodNavigation() {
-    // Period navigation will work with default form submissions and page reloads
-    // No special AJAX handling needed - the forms will submit normally
-    console.log('📅 Period navigation set up for standalone mode (full page reloads)');
+function setupStandaloneAjaxNavigation() {
+    console.log('📅 Setting up AJAX period navigation (NO PAGE RELOADS!)');
 
-    // Note: The PeriodNavigation module already handles keyboard shortcuts
-    // (Ctrl+Left/Right arrows) which work in standalone mode
+    // Create AJAX handler instance
+    ajaxHandler = new TimeManagementAjaxHandler();
+
+    // Make it globally accessible for debugging and other modules
+    window.TimeManagementAjaxHandler = ajaxHandler;
+
+    console.log('✅ AJAX navigation enabled');
 }
 
 // ============================================================================

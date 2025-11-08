@@ -623,6 +623,28 @@ ENHANCED CARD HEADER STYLES
     box-shadow: 0 2px 4px rgba(253, 126, 20, 0.3);
 }
 
+/* CE work display (Event Leave with overtime) - Pink background */
+.ce-work-display {
+    background-color: #e83e8c !important;
+    color: #fff !important;
+    border: 1px solid #d6336c;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+    min-width: 35px;
+    text-align: center;
+    cursor: help;
+    transition: all 0.15s ease;
+}
+
+.ce-work-display:hover {
+    background-color: #d6336c !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(232, 62, 140, 0.3);
+}
+
 /* W work display (Weekend with overtime) - Gray background */
 .w-work-display {
     background-color: #6c757d !important;
@@ -871,6 +893,7 @@ ENHANCED CARD HEADER STYLES
 /* Enhanced tooltips for all special day work displays */
 .co-work-display[title]:hover::after,
 .cm-work-display[title]:hover::after,
+.ce-work-display[title]:hover::after,
 .w-work-display[title]:hover::after {
     content: attr(title);
     position: absolute;
@@ -894,6 +917,7 @@ ENHANCED CARD HEADER STYLES
 /* Focus styles for all special day displays */
 .co-work-display:focus,
 .cm-work-display:focus,
+.ce-work-display:focus,
 .w-work-display:focus,
 .weekend:focus {
     outline: 2px solid #0d6efd;
@@ -1684,6 +1708,7 @@ ENHANCED CARD HEADER STYLES
     /* Mobile adjustments for new special day displays */
     .co-work-display,
     .cm-work-display,
+    .ce-work-display,
     .w-work-display,
     .weekend {
         padding: 0.125rem 0.375rem;
@@ -1760,9 +1785,11 @@ ENHANCED CARD HEADER STYLES
     /* Print styles for new special day displays */
     .co-work-display,
     .cm-work-display,
+    .ce-work-display,
     .w-work-display,
     .co-overtime,
     .cm-overtime,
+    .ce-overtime,
     .w-overtime,
     .weekend {
         background-color: #f8f9fa !important;

@@ -184,6 +184,8 @@ export class SessionTimeManagement {
             }
 
             if (window.InlineEditingModule && typeof window.InlineEditingModule.initialize === 'function') {
+                // Reset state and reinitialize for new content
+                window.InlineEditingModule.state.isInitialized = false;
                 window.InlineEditingModule.initialize();
                 this.setupEmbeddedInlineEditing();
             }
@@ -229,6 +231,7 @@ export class SessionTimeManagement {
             };
             window.closeHolidayModal = () => holidayModal.close();
             window.exportHolidayToImage = (format) => holidayModal.exportToImage(format);
+            window.exportToImage = (format) => holidayModal.exportToImage(format);  // Alias for HTML onclick
 
             // Add openHolidayRequestFromForm for inline onclick compatibility
             window.openHolidayRequestFromForm = () => {

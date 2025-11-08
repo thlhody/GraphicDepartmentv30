@@ -96,7 +96,7 @@
                         </h6>
                     </div>
                     <div class="card-body">
-                        <form id="timeoffForm" th:action="@{/user/time-management/time-off/add}" method="post">
+                        <form id="timeoffForm" th:action="@{/user/time-management/time-off/add-ajax}" method="post">
                             <div class="row g-2">
 
                                 <!-- Single Day Request checkbox -->
@@ -352,8 +352,14 @@
                                                   th:title="'Short Day (missing hours deducted from overtime)'"
                                                   th:text="${record.timeOffType}">ZS-5</span>
 
-                                            <!-- CE - Event Leave (Marriage/Birth/Death) -->
-                                            <span th:if="${record.timeOffType == 'CE'}"
+                                            <!-- CE with overtime work -->
+                                            <span th:if="${record.timeOffType == 'CE' && record.totalOvertimeMinutes != null && record.totalOvertimeMinutes > 0}"
+                                                  class="ce-work-display small fw-bold"
+                                                  th:title="'Event Leave with ' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes) : '0h'} + ' overtime work'"
+                                                  th:text="'CE' + ${record.totalOvertimeMinutes != null ? T(com.ctgraphdep.utils.CalculateWorkHoursUtil).minutesToHH(record.totalOvertimeMinutes).replace('h', '') : '0'}">CE4</span>
+
+                                            <!-- CE - Event Leave (Marriage/Birth/Death) - no work -->
+                                            <span th:if="${record.timeOffType == 'CE' && (record.totalOvertimeMinutes == null || record.totalOvertimeMinutes == 0)}"
                                                   class="ce-display small fw-bold"
                                                   title="Event Leave (Marriage/Birth/Death) - Field 2 required"
                                                   th:text="${record.timeOffType}">CE</span>
@@ -637,6 +643,7 @@
                                     <span class="cn-display me-2">CN</span> Unpaid Leave •
                                     <span class="zs-display me-2">ZS-6</span> Short Day (missing 6h) •
                                     <span class="ce-display me-2">CE</span> Event Leave •
+                                    <span class="ce-work-display me-2">CE4</span> Event+Work •
                                     <span class="d-display me-2">D</span> Delegation
                                 </small>
                                 <br>

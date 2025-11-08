@@ -41,7 +41,7 @@ public final class TimeOffTypeRegistry {
         WorkCode.TIME_OFF_CODE,            // CO - Vacation
         WorkCode.MEDICAL_LEAVE_CODE,       // CM - Medical Leave
         WorkCode.WEEKEND_CODE,             // W - Weekend
-        WorkCode.SPECIAL_EVENT_CODE        // CE - Special Event (marriage/birth/death)
+        WorkCode.SPECIAL_EVENT_CODE        // CE - Special Event (all work = holiday overtime)
     };
 
     // ========================================================================
@@ -57,7 +57,7 @@ public final class TimeOffTypeRegistry {
      * 2. That's it! All validation patterns update automatically.
      */
     private static final String[] PLAIN_TIME_OFF_ONLY = {
-        WorkCode.DELEGATION_CODE,          // D - Delegation/Business Trip
+        WorkCode.DELEGATION_CODE,          // D - Delegation/Business Trip (regular work day, no deduction)
         WorkCode.UNPAID_LEAVE_CODE,        // CN - Unpaid Leave
         WorkCode.RECOVERY_LEAVE_CODE       // CR - Recovery Leave (paid from overtime)
     };

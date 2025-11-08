@@ -10,6 +10,7 @@ public enum DayType {
     NATIONAL_HOLIDAY,   // National Holiday (SN) - all work time becomes overtime, rounded down to full hours
     TIME_OFF,           // Time Off (CO) - all work time becomes overtime, rounded down to full hours
     MEDICAL_LEAVE,      // Medical Leave (CM) - all work time becomes overtime, rounded down to full hours
+    SPECIAL_EVENT,      // Special Event (CE) - all work time becomes overtime, rounded down to full hours
     WEEKEND;            // Weekend (W) - all work time becomes overtime, rounded down to full hours
 
     // Check if this day type requires special overtime logic
@@ -23,6 +24,7 @@ public enum DayType {
             case NATIONAL_HOLIDAY -> WorkCode.NATIONAL_HOLIDAY_CODE;
             case TIME_OFF ->  WorkCode.TIME_OFF_CODE;
             case MEDICAL_LEAVE -> WorkCode.MEDICAL_LEAVE_CODE;
+            case SPECIAL_EVENT -> WorkCode.SPECIAL_EVENT_CODE;
             case WEEKEND -> WorkCode.WEEKEND_CODE;
             case REGULAR_DAY -> null;
         };
@@ -38,6 +40,7 @@ public enum DayType {
             case WorkCode.NATIONAL_HOLIDAY_CODE -> NATIONAL_HOLIDAY;
             case WorkCode.TIME_OFF_CODE -> TIME_OFF;
             case WorkCode.MEDICAL_LEAVE_CODE -> MEDICAL_LEAVE;
+            case WorkCode.SPECIAL_EVENT_CODE -> SPECIAL_EVENT;
             case WorkCode.WEEKEND_CODE -> WEEKEND;
             default -> REGULAR_DAY;
         };
@@ -50,6 +53,7 @@ public enum DayType {
             case NATIONAL_HOLIDAY -> WorkCode.NATIONAL_HOLIDAY_CODE_LONG;
             case TIME_OFF -> WorkCode.TIME_OFF_CODE_LONG;
             case MEDICAL_LEAVE -> WorkCode.MEDICAL_LEAVE_CODE_LONG;
+            case SPECIAL_EVENT -> WorkCode.SPECIAL_EVENT_CODE_LONG;
             case WEEKEND -> WorkCode.WEEKEND_CODE_LONG;
         };
     }

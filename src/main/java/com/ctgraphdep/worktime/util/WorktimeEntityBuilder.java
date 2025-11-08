@@ -38,7 +38,7 @@ public class WorktimeEntityBuilder {
         return entry;
     }
 
-    // Create a time off entry (CO/CM/SN)
+    // Create a time off entry (CO/CM/SN/CE)
     public static WorkTimeTable createTimeOffEntry(Integer userId, LocalDate date, String timeOffType) {
         WorkTimeTable entry = createNewEntry(userId, date);
         entry.setTimeOffType(timeOffType.toUpperCase());

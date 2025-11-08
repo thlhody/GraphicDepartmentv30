@@ -685,19 +685,34 @@ export class InlineEditing {
         }
 
         setTimeout(() => {
-            const yearSelect = document.getElementById('yearSelect');
-            const monthSelect = document.getElementById('monthSelect');
+            console.log('🔄 Refreshing data via AJAX (NO PAGE RELOAD)...');
 
-            const currentYear = yearSelect ? yearSelect.value : new Date().getFullYear();
-            const currentMonth = monthSelect ? monthSelect.value : (new Date().getMonth() + 1);
+            // Check if we're on session page (embedded) or standalone page
+            if (window.SessionTimeManagementInstance && typeof window.SessionTimeManagementInstance.loadContent === 'function') {
+                // Session page - reload the embedded fragment via AJAX
+                console.log('📄 Session page detected - using SessionTimeManagementInstance');
+                window.SessionTimeManagementInstance.loadContent();
+            } else if (window.TimeManagementAjaxHandler && typeof window.TimeManagementAjaxHandler.reloadCurrentPeriod === 'function') {
+                // Standalone time-management page - reload via AJAX (NO PAGE RELOAD!)
+                console.log('📄 Standalone page detected - using TimeManagementAjaxHandler');
+                window.TimeManagementAjaxHandler.reloadCurrentPeriod();
+            } else {
+                // Fallback - reload page (old behavior, shouldn't happen with new AJAX handler)
+                console.warn('⚠️ No AJAX handler found - falling back to page reload');
+                const yearSelect = document.getElementById('yearSelect');
+                const monthSelect = document.getElementById('monthSelect');
 
-            // Store scroll position in session storage
-            sessionStorage.setItem('timeManagementScrollPosition', window.scrollY.toString());
+                const currentYear = yearSelect ? yearSelect.value : new Date().getFullYear();
+                const currentMonth = monthSelect ? monthSelect.value : (new Date().getMonth() + 1);
 
-            const refreshUrl = `/user/time-management?year=${currentYear}&month=${currentMonth}`;
+                // Store scroll position in session storage
+                sessionStorage.setItem('timeManagementScrollPosition', window.scrollY.toString());
 
-            console.log('🔄 Refresh with stored scroll position:', window.scrollY);
-            window.location.href = refreshUrl;
+                const refreshUrl = `/user/time-management?year=${currentYear}&month=${currentMonth}`;
+
+                console.log('🔄 Refresh with stored scroll position:', window.scrollY);
+                window.location.href = refreshUrl;
+            }
         }, 1500);
     }
 

@@ -16,6 +16,7 @@ import { TimeOffManagement } from './TimeOffManagement.js';
 import { PeriodNavigation } from './PeriodNavigation.js';
 import { HolidayRequestModal } from './HolidayRequestModal.js';
 import { HolidayExportService } from './HolidayExportService.js';
+import { TimeManagementAjaxHandler } from './AjaxHandler.js';
 
 // ============================================================================
 // STATE MANAGEMENT
@@ -368,6 +369,7 @@ function initializeHolidayModal() {
         };
         window.closeHolidayModal = () => state.holidayModal.close();
         window.exportHolidayToImage = (format) => state.holidayModal.exportToImage(format);
+        window.exportToImage = (format) => state.holidayModal.exportToImage(format);  // Alias for HTML onclick
 
         // Add openHolidayRequestFromForm for inline onclick compatibility
         window.openHolidayRequestFromForm = () => {
@@ -623,6 +625,7 @@ export {
     PeriodNavigation,
     HolidayRequestModal,
     HolidayExportService,
+    TimeManagementAjaxHandler,
 
     // Main entry point
     init,
