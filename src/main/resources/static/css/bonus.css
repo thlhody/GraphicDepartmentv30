@@ -84,10 +84,9 @@
    Button Styling
    ======================================== */
 
-/* Scope button styles to bonus-specific sections only, don't override form action buttons */
+/* Scope button styles to bonus-specific sections only, don't override form action buttons or month selection */
 .bonus-config-card .btn,
-.bonus-results-table .btn,
-.card-body .btn:not(.btn-form-action) {
+.bonus-results-table .btn {
     font-weight: 500;
     border-radius: 8px;
     padding: 0.5rem 1rem;
@@ -107,17 +106,15 @@
     background-color: transparent !important;
 }
 
-/* Scope hover/active effects to bonus sections only, exclude form action buttons */
+/* Scope hover/active effects to bonus sections only */
 .bonus-config-card .btn:hover,
-.bonus-results-table .btn:hover,
-.card-body .btn:not(.btn-form-action):hover {
+.bonus-results-table .btn:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .bonus-config-card .btn:active,
-.bonus-results-table .btn:active,
-.card-body .btn:not(.btn-form-action):active {
+.bonus-results-table .btn:active {
     transform: translateY(0);
 }
 
