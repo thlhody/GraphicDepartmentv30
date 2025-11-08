@@ -42,6 +42,7 @@ export class AdminRegisterView {
         this.yearSelect = document.getElementById('yearSelect');
         this.monthSelect = document.getElementById('monthSelect');
         this.loadButton = document.getElementById('loadData');
+        this.clearButton = document.getElementById('clearTable');
         this.saveButton = document.getElementById('saveChanges');
         this.exportButton = document.getElementById('exportButton');
         this.confirmButton = document.getElementById('confirmChanges');
@@ -150,6 +151,11 @@ export class AdminRegisterView {
      * @private
      */
     initializeEventListeners() {
+        // Clear button
+        if (this.clearButton) {
+            this.clearButton.addEventListener('click', () => this.handleClear());
+        }
+
         // Save button
         if (this.saveButton) {
             this.saveButton.addEventListener('click', () => this.handleSaveChanges());
@@ -568,6 +574,16 @@ export class AdminRegisterView {
 
         } catch (error) {
             this.handleSaveError(error);
+        }
+    }
+
+    /**
+     * Handle clear button - reset form and reload without parameters
+     * @private
+     */
+    handleClear() {
+        if (confirm('Clear the table and reset selection?')) {
+            window.location.href = '/admin/register';
         }
     }
 

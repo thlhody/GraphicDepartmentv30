@@ -67,13 +67,13 @@
 
                         <!-- Second line: Buttons -->
                         <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-primary">Load</button>
+                            <button type="button" id="loadData" class="btn btn-primary">Load</button>
                             <button id="clearTable" class="btn btn-secondary">Clear</button>
                             <button id="confirmChanges" class="btn btn-warning" title="Resolve conflicts - approve admin version">
                                 <i class="bi bi-check-circle me-1"></i>Resolve
                             </button>
                             <button id="saveChanges" class="btn btn-success">Save</button>
-                            <button id="exportExcel" class="btn btn-info">
+                            <button id="exportButton" class="btn btn-info">
                                 <i class="bi bi-file-earmark-excel me-2"></i>Export
                             </button>
                         </div>
@@ -91,8 +91,8 @@
                         <div class="row g-2">
                             <!-- First row of 6 fields -->
                             <div class="col-2">
-                                <label for="bonusSum" class="form-label">Bonus Sum</label>
-                                <input type="number" class="form-control field-editable" id="bonusSum"
+                                <label for="sumValue" class="form-label">Bonus Sum</label>
+                                <input type="number" class="form-control field-editable" id="sumValue"
                                        th:value="${bonusConfig.sumValue}">
                             </div>
                             <div class="col-2">
@@ -149,7 +149,7 @@
                             </div>
                             <div class="col-2">
                                 <label class="form-label">&nbsp;</label>
-                                <button class="btn btn-primary w-100" id="calculateBonusBtn">Bonus</button>
+                                <button class="btn btn-primary w-100" id="calculateBonus">Bonus</button>
                             </div>
                         </div>
                     </div>
@@ -200,7 +200,7 @@
                 <table id="registerTable" class="table table-hover table-striped mb-0">
                     <thead class="bg-light">
                     <tr>
-                        <th><input type="checkbox" id="selectAll" aria-label="Select all entries"></th>
+                        <th><input type="checkbox" id="selectAllEntries" aria-label="Select all entries"></th>
                         <th>Date</th>
                         <th>Order ID</th>
                         <th>Production ID</th>
