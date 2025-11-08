@@ -387,7 +387,7 @@ export class AdminRegisterState {
     /**
      * Calculate summary from entries
      * @param {Array} entries - Array of entries
-     * @returns {Object} Summary data
+     * @returns {Object} Summary data (does NOT include workedDays)
      * @public
      */
     calculateSummaryFromEntries(entries) {
@@ -404,8 +404,8 @@ export class AdminRegisterState {
         return {
             totalEntries,
             averageArticleNumbers: avgArticles.toFixed(1),
-            averageGraphicComplexity: avgComplexity.toFixed(1),
-            workedDays: this.bonusCalculationData.workedDays
+            averageGraphicComplexity: avgComplexity.toFixed(1)
+            // Note: workedDays is NOT calculated from entries - it comes from server/API
         };
     }
 
