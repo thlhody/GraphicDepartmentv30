@@ -184,15 +184,24 @@
 <th:block layout:fragment="scripts">
   <!-- Server data for JavaScript -->
   <script th:inline="javascript">
-    // Pass check type values from server to JavaScript
-    const SERVER_CHECK_TYPE_VALUES = /*[[${checkTypeValues}]]*/ null;
+    // Pass check type values from server to JavaScript (global window scope)
+    window.SERVER_CHECK_TYPE_VALUES = /*[[${checkTypeValues}]]*/ null;
     // Set team view flag for JavaScript
-    const IS_TEAM_VIEW = true;
+    window.IS_TEAM_VIEW = true;
     // Pass selected user context from server to JavaScript
-    const SELECTED_USER = /*[[${selectedUser?.username}]]*/ null;
-    const SELECTED_USER_ID = /*[[${selectedUser?.userId}]]*/ null;
-    const CURRENT_YEAR = /*[[${currentYear}]]*/ null;
-    const CURRENT_MONTH = /*[[${currentMonth}]]*/ null;
+    window.SELECTED_USER = /*[[${selectedUser?.username}]]*/ null;
+    window.SELECTED_USER_ID = /*[[${selectedUser?.userId}]]*/ null;
+    window.CURRENT_YEAR = /*[[${currentYear}]]*/ null;
+    window.CURRENT_MONTH = /*[[${currentMonth}]]*/ null;
+
+    // Debug log to verify values are set
+    console.log('📊 Team View Context:', {
+      selectedUser: window.SELECTED_USER,
+      selectedUserId: window.SELECTED_USER_ID,
+      year: window.CURRENT_YEAR,
+      month: window.CURRENT_MONTH,
+      isTeamView: window.IS_TEAM_VIEW
+    });
   </script>
 
   <!-- ES6 Module (Modern Browsers) with cache busting -->
