@@ -208,7 +208,7 @@ export class CheckRegisterForm extends FormHandler {
             approvalStatus: { required: true }
         };
 
-        const data = this.getData();
+        const data = this.getFormDataAsObject();
         const result = ValidationService.validateForm(data, rules);
 
         if (!result.isValid) {
