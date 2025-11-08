@@ -199,19 +199,19 @@ export class CheckRegisterForm extends FormHandler {
 
         // Additional check register specific validation
         const rules = {
-            date: { required: true },
-            omsId: { required: true },
-            designerName: { required: true },
-            checkType: { required: true },
-            articleNumbers: { required: true, number: true, min: 0 },
-            filesNumbers: { required: true, number: true, min: 0 },
-            approvalStatus: { required: true }
+            date: ['required'],
+            omsId: ['required'],
+            designerName: ['required'],
+            checkType: ['required'],
+            articleNumbers: ['required', 'number', 'min:0'],
+            filesNumbers: ['required', 'number', 'min:0'],
+            approvalStatus: ['required']
         };
 
-        const result = ValidationService.validateForm(this.form, rules);
+        const errors = ValidationService.validateForm(this.form, rules);
 
-        if (!result.isValid) {
-            this.showErrors(result.errors);
+        if (Object.keys(errors).length > 0) {
+            this.showErrors(errors);
             return false;
         }
 
