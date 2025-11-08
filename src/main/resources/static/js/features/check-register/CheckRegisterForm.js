@@ -9,7 +9,7 @@
 
 import { FormHandler } from '../../components/FormHandler.js';
 import { ValidationService } from '../../services/validationService.js';
-import { CONSTANTS } from '../../core/constants.js';
+import { CHECK_TYPE_VALUES, ARTICLE_BASED_TYPES, FILE_BASED_TYPES } from '../../core/constants.js';
 
 /**
  * CheckRegisterForm class
@@ -28,6 +28,18 @@ export class CheckRegisterForm extends FormHandler {
         });
 
         this.isTeamView = isTeamView;
+
+        // Initialize check type values (create mutable copy from constants)
+        this.checkTypeValues = new Map(CHECK_TYPE_VALUES);
+
+        // Merge server-provided values if available
+        if (typeof SERVER_CHECK_TYPE_VALUES !== 'undefined' && SERVER_CHECK_TYPE_VALUES !== null) {
+            console.log('Merging server-provided check type values');
+            for (const [key, value] of Object.entries(SERVER_CHECK_TYPE_VALUES)) {
+                this.checkTypeValues.set(key, value);
+            }
+        }
+
         this.initializeFormElements();
         this.setupCheckRegisterListeners();
         this.initializeDefaultValues();
@@ -118,29 +130,23 @@ export class CheckRegisterForm extends FormHandler {
     calculateOrderValue(checkType, articleNumbers, filesNumbers) {
         if (!checkType) return 0;
 
-        // Get check type values from constants
-        const checkTypeValues = CONSTANTS.CHECK_TYPE_VALUES;
-        if (!checkTypeValues.has(checkType)) return 0;
+        // Check if we have a value for this check type
+        if (!this.checkTypeValues.has(checkType)) {
+            console.warn(`No value found for check type: ${checkType}`);
+            return 0;
+        }
 
-        const typeValue = checkTypeValues.get(checkType);
+        const typeValue = this.checkTypeValues.get(checkType);
         let orderValue = 0;
-
-        // Get article-based and file-based types from constants
-        const articleBasedTypes = CONSTANTS.ARTICLE_BASED_CHECK_TYPES || [
-            'LAYOUT', 'KIPSTA LAYOUT', 'LAYOUT CHANGES', 'GPT'
-        ];
-        const fileBasedTypes = CONSTANTS.FILE_BASED_CHECK_TYPES || [
-            'PRODUCTION', 'REORDER', 'SAMPLE', 'OMS PRODUCTION', 'KIPSTA PRODUCTION', 'GPT'
-        ];
 
         // Calculate based on type
         if (checkType === 'GPT') {
             // GPT uses both articles and files
             orderValue = (articleNumbers * typeValue) + (filesNumbers * typeValue);
-        } else if (articleBasedTypes.includes(checkType)) {
+        } else if (ARTICLE_BASED_TYPES.includes(checkType)) {
             // Types that use article numbers
             orderValue = articleNumbers * typeValue;
-        } else if (fileBasedTypes.includes(checkType)) {
+        } else if (FILE_BASED_TYPES.includes(checkType)) {
             // Types that use file numbers
             orderValue = filesNumbers * typeValue;
         }
