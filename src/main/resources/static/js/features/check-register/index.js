@@ -1,19 +1,31 @@
 /**
- * Check Register - Entry Point
+ * index.js
+ * Entry point for check register feature
  *
- * Initializes all modules for check register functionality.
- * Works for both user and team views.
+ * Initializes:
+ * - CheckRegisterForm: Form handling and validation
+ * - CheckRegisterSummary: Statistics calculation and display
+ * - CheckRegisterSearch: Search functionality
+ * - StatusBadgeHandler: Status badge interactions (team view)
  *
  * @module features/check-register
  */
 
-import { CheckRegisterForm } from './CheckRegisterForm.js';
-import { CheckRegisterSummary } from './CheckRegisterSummary.js';
-import { CheckRegisterSearch } from './CheckRegisterSearch.js';
-import { StatusBadgeHandler } from './StatusBadgeHandler.js';
+// Use dynamic imports with cache busting to ensure latest code is always loaded
+const cacheBuster = new Date().getTime();
+
+const CheckRegisterFormModule = await import(`./CheckRegisterForm.js?v=${cacheBuster}`);
+const CheckRegisterSummaryModule = await import(`./CheckRegisterSummary.js?v=${cacheBuster}`);
+const CheckRegisterSearchModule = await import(`./CheckRegisterSearch.js?v=${cacheBuster}`);
+const StatusBadgeHandlerModule = await import(`./StatusBadgeHandler.js?v=${cacheBuster}`);
+
+const { CheckRegisterForm } = CheckRegisterFormModule;
+const { CheckRegisterSummary } = CheckRegisterSummaryModule;
+const { CheckRegisterSearch } = CheckRegisterSearchModule;
+const { StatusBadgeHandler } = StatusBadgeHandlerModule;
 
 /**
- * Initialize check register interface
+ * Initialize check register feature
  * @param {HTMLFormElement} formElement - Pre-validated form element
  */
 function initializeCheckRegister(formElement) {
@@ -21,12 +33,11 @@ function initializeCheckRegister(formElement) {
     console.log('Using pre-validated form element:', formElement);
 
     try {
-        // Initialize form handler with pre-validated form element
+        // Initialize modules in dependency order
         console.log('1️⃣ Creating CheckRegisterForm with pre-validated form element...');
         const checkRegisterForm = new CheckRegisterForm(formElement);
         console.log('✓ CheckRegisterForm created');
 
-        // Initialize summary handler
         console.log('2️⃣ Creating CheckRegisterSummary...');
         const checkRegisterSummary = new CheckRegisterSummary();
         console.log('✓ CheckRegisterSummary created');
@@ -61,6 +72,10 @@ function initializeCheckRegister(formElement) {
             }
         }
 
+        // Setup initial edit/copy button handlers
+        console.log('5️⃣ Setting up edit/copy handlers...');
+        setupEditCopyHandlers(checkRegisterForm);
+
         // Make instances globally available for debugging and backward compatibility
         window.CheckRegister = {
             form: checkRegisterForm,
@@ -73,6 +88,7 @@ function initializeCheckRegister(formElement) {
         window.checkRegisterHandler = checkRegisterForm;
         window.checkRegisterSummaryHandler = checkRegisterSummary;
         window.searchHandler = checkRegisterSearch;
+        window.checkRegisterForm = checkRegisterForm;
 
         // Function to reset the form (for external use)
         window.resetForm = function() {
@@ -83,7 +99,7 @@ function initializeCheckRegister(formElement) {
 
         // Force initial statistics calculation
         setTimeout(() => {
-            console.log('5️⃣ Calculating initial statistics...');
+            console.log('6️⃣ Calculating initial statistics...');
             if (checkRegisterSummary) {
                 checkRegisterSummary.calculateStats();
             }
@@ -96,6 +112,31 @@ function initializeCheckRegister(formElement) {
         console.error('💥 Error stack:', error.stack);
         alert('Failed to initialize check register page. Check console for details.');
     }
+}
+
+/**
+ * Setup initial edit and copy button handlers
+ * @param {CheckRegisterForm} checkRegisterForm - CheckRegisterForm instance
+ * @private
+ */
+function setupEditCopyHandlers(checkRegisterForm) {
+    // Edit buttons
+    document.querySelectorAll('.edit-entry').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            checkRegisterForm.populateFormForEdit(button);
+        });
+    });
+
+    // Copy buttons
+    document.querySelectorAll('.copy-entry').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            checkRegisterForm.copyEntry(button);
+        });
+    });
+
+    console.log('Edit/Copy handlers attached to initial buttons');
 }
 
 /**
@@ -132,5 +173,5 @@ if (document.readyState === 'loading') {
     waitForFormAndInitialize();
 }
 
-// Export for manual initialization if needed
+// Export for testing or external access
 export { initializeCheckRegister };

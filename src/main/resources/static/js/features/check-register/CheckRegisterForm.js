@@ -96,21 +96,8 @@ export class CheckRegisterForm extends FormHandler {
             });
         }
 
-        // Copy button handlers
-        document.querySelectorAll('.copy-entry').forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.copyEntry(button);
-            });
-        });
-
-        // Edit button handlers
-        document.querySelectorAll('.edit-entry').forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.populateFormForEdit(button);
-            });
-        });
+        // Note: Edit/Copy button handlers are attached in index.js
+        // This matches the register pattern where index.js handles all button event delegation
     }
 
     /**
