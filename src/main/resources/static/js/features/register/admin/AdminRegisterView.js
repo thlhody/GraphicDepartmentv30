@@ -61,6 +61,10 @@ export class AdminRegisterView {
         this.initializeEventListeners();
         this.initializeEditableCG();
         this.initializeFormValidation();
+
+        // Populate summary fields immediately from server data
+        this.updateSummaryDisplay();
+
         this.loadRegisterSummary();
 
         console.log('AdminRegisterView initialized');
