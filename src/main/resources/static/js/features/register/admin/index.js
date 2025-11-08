@@ -43,10 +43,17 @@ function initializeAdminRegister() {
     console.log('Current context:', state.getContext());
 }
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize based on DOM state
+// If DOM is still loading, wait for DOMContentLoaded
+// If DOM is already loaded (module loaded late), initialize immediately
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeAdminRegister();
+    });
+} else {
+    // DOM already loaded, initialize immediately
     initializeAdminRegister();
-});
+}
 
 // Export for testing or external access
 export { initializeAdminRegister };
