@@ -130,6 +130,7 @@ public class WorkTimeEntryDTO {
         return WorkCode.NATIONAL_HOLIDAY_CODE.equals(this.timeOffType) ||
                 WorkCode.TIME_OFF_CODE.equals(this.timeOffType) ||
                 WorkCode.MEDICAL_LEAVE_CODE.equals(this.timeOffType) ||
+                WorkCode.SPECIAL_EVENT_CODE.equals(this.timeOffType) ||
                 WorkCode.WEEKEND_CODE.equals(this.timeOffType);
     }
 }

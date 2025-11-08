@@ -113,6 +113,7 @@ public class WorkTimeEntryDTOFactory {
                 case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-warning text-dark";
                 case WorkCode.TIME_OFF_CODE -> "bg-info text-white";
                 case WorkCode.MEDICAL_LEAVE_CODE -> "bg-orange text-white";
+                case WorkCode.SPECIAL_EVENT_CODE -> "bg-primary text-white";
                 case WorkCode.WEEKEND_CODE -> "bg-secondary text-white";
                 default -> "bg-primary text-white";
             };
@@ -134,6 +135,7 @@ public class WorkTimeEntryDTOFactory {
                 case WorkCode.NATIONAL_HOLIDAY_CODE -> "bg-success";
                 case WorkCode.TIME_OFF_CODE -> "bg-info";
                 case WorkCode.MEDICAL_LEAVE_CODE -> "bg-warning";
+                case WorkCode.SPECIAL_EVENT_CODE -> "bg-primary";
                 case WorkCode.WEEKEND_CODE -> "bg-secondary";
                 default -> "bg-secondary";
             };
@@ -225,6 +227,7 @@ public class WorkTimeEntryDTOFactory {
         return WorkCode.NATIONAL_HOLIDAY_CODE.equals(timeOffType) ||
                 WorkCode.TIME_OFF_CODE.equals(timeOffType) ||
                 WorkCode.MEDICAL_LEAVE_CODE.equals(timeOffType) ||
+                WorkCode.SPECIAL_EVENT_CODE.equals(timeOffType) ||
                 WorkCode.WEEKEND_CODE.equals(timeOffType);
     }
 }

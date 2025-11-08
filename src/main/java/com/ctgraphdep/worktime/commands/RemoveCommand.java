@@ -438,6 +438,11 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
         if (entry.getDayStartTime() != null && entry.getDayEndTime() != null) {
             WorktimeEntityBuilder.recalculateWorkTime(entry, userSchedule);
             LoggerUtil.info(this.getClass(), "Recalculated work time using regular day logic");
+
+            // IMPORTANT: Check if ZS should be created after removing special day time-off
+            // When CE/CO/CM is removed, work converts from overtime to regular time
+            // If the day is still incomplete, we need to create ZS
+            checkAndCreateShortDayStatus(entry, userSchedule, originalTimeOffType);
         }
 
         // Assign edit status for modified entry
@@ -458,6 +463,61 @@ public class RemoveCommand extends WorktimeOperationCommand<WorkTimeTable> {
         invalidateCaches();
 
         return OperationResult.success(message, getOperationType(), entry);
+    }
+
+    /**
+     * Check and create ZS (Short Day) status after CE/CO/CM removal.
+     * When special day time-off is removed, work converts from overtime to regular time.
+     * If the day is incomplete (worked < schedule), ZS should be auto-created.
+     *
+     * @param entry The worktime entry after time-off removal
+     * @param userSchedule User's schedule in hours
+     * @param originalTimeOffType The time-off type that was just removed
+     */
+    private void checkAndCreateShortDayStatus(WorkTimeTable entry, Integer userSchedule, String originalTimeOffType) {
+        // Only create ZS after removing special day types (CE/CO/CM) that had work converted to overtime
+        boolean wasSpecialDayWithWork = WorkCode.SPECIAL_EVENT_CODE.equals(originalTimeOffType) ||
+                                        WorkCode.TIME_OFF_CODE.equals(originalTimeOffType) ||
+                                        WorkCode.MEDICAL_LEAVE_CODE.equals(originalTimeOffType) ||
+                                        WorkCode.WEEKEND_CODE.equals(originalTimeOffType);
+
+        if (!wasSpecialDayWithWork) {
+            LoggerUtil.debug(this.getClass(), String.format(
+                    "Not creating ZS - original type '%s' was not a special day type", originalTimeOffType));
+            return;
+        }
+
+        if (userSchedule == null) {
+            userSchedule = 8; // Default schedule
+        }
+
+        // Check if day is complete
+        int totalWorkedMinutes = entry.getTotalWorkedMinutes() != null ? entry.getTotalWorkedMinutes() : 0;
+
+        // Calculate adjusted minutes (with lunch deduction if applicable)
+        int adjustedWorkedMinutes = com.ctgraphdep.utils.CalculateWorkHoursUtil.calculateAdjustedMinutes(
+                totalWorkedMinutes, userSchedule);
+
+        int scheduleMinutes = userSchedule * 60;
+        boolean isDayComplete = adjustedWorkedMinutes >= scheduleMinutes;
+
+        if (isDayComplete) {
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Day is complete after %s removal (worked: %d min, schedule: %d min). No ZS needed.",
+                    originalTimeOffType, adjustedWorkedMinutes, scheduleMinutes));
+            return;
+        }
+
+        // Day is incomplete - create ZS
+        int missingMinutes = scheduleMinutes - adjustedWorkedMinutes;
+        int missingHours = (int) Math.ceil(missingMinutes / 60.0);
+        String zsType = "ZS-" + missingHours;
+
+        entry.setTimeOffType(zsType);
+
+        LoggerUtil.info(this.getClass(), String.format(
+                "Auto-created %s after %s removal for %s on %s (worked: %d min, schedule: %d min, missing: %d hours)",
+                zsType, originalTimeOffType, username, date, adjustedWorkedMinutes, scheduleMinutes, missingHours));
     }
 
     // Invalidate caches

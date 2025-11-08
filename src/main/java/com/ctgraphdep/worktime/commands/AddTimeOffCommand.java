@@ -208,11 +208,14 @@ public class AddTimeOffCommand extends WorktimeOperationCommand<List<WorkTimeTab
                 }
 
                 // STEP 2: Check for TIME OFF conflicts only
+                // IMPORTANT: ZS (Short Day) can be replaced by CO/CM/CE - it's auto-managed and should not block
                 boolean hasTimeOffConflict = existingEntries.stream()
                         .anyMatch(entry -> entry.getUserId().equals(userId) &&
                                 entry.getWorkDate().equals(date) &&
                                 entry.getTimeOffType() != null &&
                                 !entry.getTimeOffType().trim().isEmpty() &&
+                                !entry.getTimeOffType().startsWith(WorkCode.SHORT_DAY_CODE + "-") && // ZS can be replaced
+                                !entry.getTimeOffType().equals(WorkCode.SHORT_DAY_CODE) && // Also plain "ZS"
                                 !entry.getTimeOffType().equals(timeOffType)); // NEW: Allow overwriting same type
 
                 if (hasTimeOffConflict) {
