@@ -33,10 +33,12 @@ export class CheckRegisterForm extends FormHandler {
         const url = isTeamView ? '/team/check-register/entry' : '/user/check-register/entry';
 
         // Pass form element as first parameter, config as second
+        // Use traditional form submission (not AJAX) like RegisterForm
+        // Controller returns redirect, not JSON
         super(form, {
             url: url,
             method: 'POST',
-            useAjax: true,
+            useAjax: false,
             validateOnSubmit: true
         });
 
