@@ -137,8 +137,14 @@ export class CheckValuesHandler {
 
         // Update last updated date
         const lastUpdatedElement = document.querySelector(`.last-updated-date[data-username="${username}"]`);
-        if (lastUpdatedElement && data.latestEntry) {
-            lastUpdatedElement.textContent = formatDate(data.latestEntry);
+        if (lastUpdatedElement) {
+            if (data.latestEntry) {
+                lastUpdatedElement.textContent = formatDate(data.latestEntry);
+            } else if (checkValuesEntry.createdAt) {
+                lastUpdatedElement.textContent = formatDate(checkValuesEntry.createdAt);
+            } else {
+                lastUpdatedElement.textContent = 'Never (using defaults)';
+            }
         }
 
         // Set values in the form
@@ -209,14 +215,14 @@ export class CheckValuesHandler {
 
     async saveUserValues() {
         if (!this.selectedUsername || !this.selectedUserId) {
-            this.confirmModal.hide();
+            this.hideModalSafely();
             return;
         }
 
         // Get the original entry
         const originalEntry = this.originalValues[this.selectedUsername];
         if (!originalEntry) {
-            this.confirmModal.hide();
+            this.hideModalSafely();
             this.showError(`No original values found for ${this.selectedUsername}`);
             return;
         }
@@ -292,10 +298,27 @@ export class CheckValuesHandler {
             console.error('Error saving check values:', error);
             this.showError(`Failed to save check values for ${this.selectedUsername}: ${error.message}`);
         } finally {
-            this.confirmModal.hide();
+            this.hideModalSafely();
             this.selectedUsername = null;
             this.selectedUserId = null;
         }
+    }
+
+    /**
+     * Safely hide modal by removing focus first to avoid ARIA accessibility warnings
+     */
+    hideModalSafely() {
+        // Remove focus from any focused element inside the modal
+        const modalElement = document.getElementById('confirmModal');
+        if (modalElement) {
+            const focusedElement = modalElement.querySelector(':focus');
+            if (focusedElement) {
+                focusedElement.blur();
+            }
+        }
+
+        // Hide the modal
+        this.confirmModal.hide();
     }
 
     async saveAllChanges() {
