@@ -84,55 +84,84 @@
    Button Styling
    ======================================== */
 
-.btn {
+/* Scope button styles to bonus-specific sections only, don't override form action buttons */
+.bonus-config-card .btn,
+.bonus-results-table .btn,
+.card-body .btn:not(.btn-form-action) {
     font-weight: 500;
     border-radius: 8px;
     padding: 0.5rem 1rem;
     transition: all 0.2s ease-in-out;
-    border: none;
 }
 
-.btn:hover {
+/* Ensure form action buttons always maintain their styles */
+.btn-form-action {
+    border-radius: 0.25rem !important; /* Bootstrap default squared corners */
+}
+
+/* Ensure outline buttons keep their borders */
+.btn-outline-secondary.btn-form-action,
+.btn-outline-success.btn-form-action,
+.btn-outline-primary.btn-form-action {
+    border: 1px solid currentColor !important;
+    background-color: transparent !important;
+}
+
+/* Scope hover/active effects to bonus sections only, exclude form action buttons */
+.bonus-config-card .btn:hover,
+.bonus-results-table .btn:hover,
+.card-body .btn:not(.btn-form-action):hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-.btn:active {
+.bonus-config-card .btn:active,
+.bonus-results-table .btn:active,
+.card-body .btn:not(.btn-form-action):active {
     transform: translateY(0);
 }
 
-.btn-primary {
+/* Bonus-specific button colors - scoped to avoid conflicts */
+.bonus-config-card .btn-primary,
+.bonus-results-table .btn-primary {
     background-color: #0d6efd;
 }
 
-.btn-primary:hover {
+.bonus-config-card .btn-primary:hover,
+.bonus-results-table .btn-primary:hover {
     background-color: #0b5ed7;
 }
 
-.btn-success {
+.bonus-config-card .btn-success,
+.bonus-results-table .btn-success {
     background-color: #198754;
 }
 
-.btn-success:hover {
+.bonus-config-card .btn-success:hover,
+.bonus-results-table .btn-success:hover {
     background-color: #157347;
 }
 
-.btn-info {
+.bonus-config-card .btn-info,
+.bonus-results-table .btn-info {
     background-color: #0dcaf0;
     color: #000;
 }
 
-.btn-info:hover {
+.bonus-config-card .btn-info:hover,
+.bonus-results-table .btn-info:hover {
     background-color: #31d2f2;
 }
 
-.btn-outline-primary {
+.bonus-config-card .btn-outline-primary,
+.bonus-results-table .btn-outline-primary {
     color: #0d6efd;
     border: 1px solid #0d6efd;
     background-color: transparent;
 }
 
-.btn-outline-primary:hover {
+.bonus-config-card .btn-outline-primary:hover,
+.bonus-results-table .btn-outline-primary:hover {
     background-color: #0d6efd;
     color: #fff;
 }
