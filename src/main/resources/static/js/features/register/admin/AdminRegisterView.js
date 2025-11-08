@@ -397,12 +397,77 @@ export class AdminRegisterView {
      * @public
      */
     updateSummaryDisplay() {
-        const data = this.state.bonusCalculationData;
+        // Calculate directly from table DOM (like legacy code does)
+        const tableData = this.calculateSummaryFromTable();
 
-        this.updateFieldValue('totalEntries', data.totalEntries);
-        this.updateFieldValue('averageArticles', data.averageArticleNumbers);
-        this.updateFieldValue('averageComplexity', data.averageGraphicComplexity);
-        this.updateFieldValue('workedDays', data.workedDays);
+        // Update state
+        this.state.bonusCalculationData = {
+            ...this.state.bonusCalculationData,
+            totalEntries: tableData.totalEntries,
+            averageArticleNumbers: tableData.avgArticles,
+            averageGraphicComplexity: tableData.avgComplexity
+        };
+
+        // Update display
+        this.updateFieldValue('totalEntries', tableData.totalEntries);
+        this.updateFieldValue('averageArticles', tableData.avgArticles);
+        this.updateFieldValue('averageComplexity', tableData.avgComplexity);
+        this.updateFieldValue('workedDays', this.state.bonusCalculationData.workedDays);
+
+        console.log('Summary updated from table:', tableData);
+    }
+
+    /**
+     * Calculate summary metrics from table DOM (like legacy code)
+     * @returns {Object} Summary data
+     * @private
+     */
+    calculateSummaryFromTable() {
+        const rows = document.querySelectorAll('#registerTable tbody tr');
+
+        let totalEntries = 0;
+        let totalArticles = 0;
+        let totalComplexity = 0;
+        let nonImpostareCount = 0;
+
+        rows.forEach(row => {
+            const cells = row.cells;
+            // Skip empty rows or rows without enough cells
+            if (!cells || cells.length < 11) return;
+
+            // Get action type (column 6)
+            const actionType = cells[6]?.textContent?.trim() || '';
+
+            // Skip IMPOSTARE entries
+            if (actionType === 'IMPOSTARE') return;
+
+            // Count total entries (excluding IMPOSTARE)
+            totalEntries++;
+            nonImpostareCount++;
+
+            // Get article numbers (column 9)
+            const articles = parseInt(cells[9]?.textContent?.trim() || '0');
+            totalArticles += articles;
+
+            // Get graphic complexity (column 10)
+            const complexity = parseFloat(cells[10]?.textContent?.trim() || '0');
+            totalComplexity += complexity;
+        });
+
+        // Calculate averages
+        const avgArticles = nonImpostareCount > 0
+            ? (totalArticles / nonImpostareCount).toFixed(1)
+            : '0.0';
+
+        const avgComplexity = nonImpostareCount > 0
+            ? (totalComplexity / nonImpostareCount).toFixed(1)
+            : '0.0';
+
+        return {
+            totalEntries: totalEntries,
+            avgArticles: parseFloat(avgArticles),
+            avgComplexity: parseFloat(avgComplexity)
+        };
     }
 
     /**
