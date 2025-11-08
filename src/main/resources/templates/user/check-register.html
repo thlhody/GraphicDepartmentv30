@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Check Register</title>
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=071120252214}">
-    <link rel="stylesheet" th:href="@{/css/check-register.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=081120251622}">
+    <link rel="stylesheet" th:href="@{/css/check-register.css?v=081120251622}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -132,7 +132,7 @@
     <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/check-register/index.js?v=${cacheBuster}`)
+        import(`/js/features/check-register/index.js?v=081120251622${cacheBuster}`)
             .then(() => {
                 console.log('✅ Check Register (User View) - ES6 module loaded');
                 // Calculate stats after module initializes
@@ -146,8 +146,8 @@
     </script>
 
     <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=071120252214}"></script>
-    <script nomodule th:src="@{/js/legacy/check-register.js?v=071120252214}"></script>
+    <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=081120251622}"></script>
+    <script nomodule th:src="@{/js/legacy/check-register.js?v=081120251622}"></script>
     <script nomodule>
         console.log('⚠️ Check Register - Legacy fallback loaded');
         // Force recalculation of stats for the metrics to update properly

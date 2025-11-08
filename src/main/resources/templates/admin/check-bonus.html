@@ -6,7 +6,7 @@
       lang="en">
 <head>
     <title>Team Check Bonus Management</title>
-    <link rel="stylesheet" th:href="@{/css/bonus.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/bonus.css?v=081120251622}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -155,14 +155,14 @@
     <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/bonus/index.js?v=${cacheBuster}`)
+        import(`/js/features/bonus/index.js?v=081120251622${cacheBuster}`)
             .then(() => console.log('✅ Admin Check Bonus - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading admin check bonus module:', err));
     </script>
 
     <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=071120252214}"></script>
-    <script nomodule th:src="@{/js/legacy/check-bonus.js?v=071120252214}"></script>
+    <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=081120251622}"></script>
+    <script nomodule th:src="@{/js/legacy/check-bonus.js?v=081120251622}"></script>
     <script nomodule>
         console.log('⚠️ Admin Check Bonus - Legacy fallback loaded');
     </script>

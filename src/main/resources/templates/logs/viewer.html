@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Log Viewer</title>
-    <link rel="stylesheet" th:href="@{/css/viewer.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/viewer.css?v=081120251622}">
 
 </head>
 <body>
@@ -106,7 +106,7 @@
     <!-- ES6 Module (Modern Browsers) -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-            import(`/js/features/viewer/index.js?v=${cacheBuster}`)
+            import(`/js/features/viewer/index.js?v=081120251622${cacheBuster}`)
         
                 .then(() => console.log('✅ Log Viewer - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));

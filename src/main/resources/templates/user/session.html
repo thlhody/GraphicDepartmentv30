@@ -3,11 +3,11 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Session Management</title>
-    <link rel="stylesheet" th:href="@{/css/session.css?v=071120252214}">
-    <link rel="stylesheet" th:href="@{/css/resolution.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/session.css?v=081120251622}">
+    <link rel="stylesheet" th:href="@{/css/resolution.css?v=081120251622}">
     <!-- Add time management CSS for embedded section -->
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=071120252331}">
-    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=081120251622}">
+    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=081120251622}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -426,7 +426,7 @@
         <script type="module">
             // Cache busting for development - forces browser to reload modules
             const cacheBuster = new Date().getTime();
-            import(`/js/features/session/index.js?v=${cacheBuster}`)
+            import(`/js/features/session/index.js?v=081120251622${cacheBuster}`)
                 .then(() => console.log('✅ User Session - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading session module:', err));
         </script>

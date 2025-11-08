@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Admin Register Management</title>
-    <link rel="stylesheet" th:href="@{/css/register-admin.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/register-admin.css?v=081120251622}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -276,13 +276,13 @@
     <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/register/admin/index.js?v=${cacheBuster}`)
+        import(`/js/features/register/admin/index.js?v=081120251622${cacheBuster}`)
             .then(() => console.log('✅ Admin Register - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading admin register module:', err));
     </script>
 
     <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/register-admin.js?v=071120252214}"></script>
+    <script nomodule th:src="@{/js/legacy/register-admin.js?v=081120251622}"></script>
     <script nomodule>
         console.log('⚠️ Admin Register - Legacy fallback loaded');
     </script>

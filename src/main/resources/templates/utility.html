@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Utilities</title>
-    <link rel="stylesheet" th:href="@{/css/utility.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/utility.css?v=081120251622}">
 </head>
 
 <body>
@@ -130,25 +130,25 @@
     <!-- Note: Legacy jQuery modules still loaded for compatibility -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/utilities/admin/index.js?v=${cacheBuster}`)
+        import(`/js/features/utilities/admin/index.js?v=081120251622${cacheBuster}`)
             .then(() => console.log('✅ Admin Utilities - ES6 coordinator loaded (hybrid mode)'))
             .catch(err => console.error('❌ Error loading utilities coordinator:', err));
     </script>
 
     <!-- Core utility scripts (Legacy - jQuery based) -->
-    <script th:src="@{/js/legacy/toast-alerts.js?v=071120252214}"></script>
+    <script th:src="@{/js/legacy/toast-alerts.js?v=081120251622}"></script>
 
     <!-- Individual utility modules (Legacy - jQuery based) -->
-    <script th:src="@{/js/legacy/um/backup-utility.js?v=071120252214}"></script>
-    <script th:src="@{/js/legacy/um/monitor-utility.js?v=071120252214}"></script>
-    <script th:src="@{/js/legacy/um/session-utility.js?v=071120252214}"></script>
-    <script th:src="@{/js/legacy/um/merge-utility.js?v=071120252214}"></script>
-    <script th:src="@{/js/legacy/um/health-utility.js?v=071120252214}"></script>
-    <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=071120252214}"></script>
-    <script th:src="@{/js/legacy/um/actions-utility.js?v=071120252214}"></script>
+    <script th:src="@{/js/legacy/um/backup-utility.js?v=081120251622}"></script>
+    <script th:src="@{/js/legacy/um/monitor-utility.js?v=081120251622}"></script>
+    <script th:src="@{/js/legacy/um/session-utility.js?v=081120251622}"></script>
+    <script th:src="@{/js/legacy/um/merge-utility.js?v=081120251622}"></script>
+    <script th:src="@{/js/legacy/um/health-utility.js?v=081120251622}"></script>
+    <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=081120251622}"></script>
+    <script th:src="@{/js/legacy/um/actions-utility.js?v=081120251622}"></script>
 
     <!-- Main utility coordinator (Legacy - jQuery based) -->
-    <script th:src="@{/js/legacy/utility-core.js?v=071120252214}"></script>
+    <script th:src="@{/js/legacy/utility-core.js?v=081120251622}"></script>
 
     <!-- Initialization script -->
     <script th:inline="javascript">

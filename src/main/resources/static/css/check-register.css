@@ -1,8 +1,9 @@
 /* Check Register specific styles */
 
 /* Badge colors for different check types */
+/* Override register-user.css .bg-layout with higher specificity */
 .badge.bg-layout {
-    background-color: #007bff;
+    background-color: #007bff !important;
 }
 
 .badge.bg-kipsta-layout {

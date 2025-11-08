@@ -4,7 +4,7 @@
 <head>
     <title>User Work Registry</title>
     <!-- Register User CSS -->
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=071120252214}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=081120251622}">
 </head>
 <body>
 <!-- Register Page Content -->
@@ -398,7 +398,7 @@
             <script type="module">
                 console.log('🚀 Starting ES6 module load...');
                 const cacheBuster = new Date().getTime();
-                const modulePath = `/js/features/register/index.js?v=${cacheBuster}`;
+                const modulePath = `/js/features/register/index.js?v=081120251622${cacheBuster}`;
                 console.log('📦 Module path:', modulePath);
 
                 import(modulePath)
