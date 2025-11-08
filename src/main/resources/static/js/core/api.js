@@ -132,15 +132,33 @@ export class API {
      * @returns {Promise<any>} Response data
      */
     static async postForm(url, data, options = {}) {
-        const formData = data instanceof FormData
-            ? data
-            : this.#objectToFormData(data);
+        // If already FormData, use it (for file uploads - multipart/form-data)
+        if (data instanceof FormData) {
+            return this.#request(url, {
+                method: 'POST',
+                body: data,
+                headers: {
+                    // Don't set Content-Type for FormData (browser sets it with boundary)
+                    ...options.headers
+                },
+                ...options
+            });
+        }
+
+        // Otherwise, use URLSearchParams for standard form encoding (application/x-www-form-urlencoded)
+        // This is what Spring Boot @RequestParam expects
+        const formBody = new URLSearchParams();
+        for (const [key, value] of Object.entries(data)) {
+            if (value !== null && value !== undefined) {
+                formBody.append(key, value);
+            }
+        }
 
         return this.#request(url, {
             method: 'POST',
-            body: formData,
+            body: formBody,
             headers: {
-                // Don't set Content-Type for FormData (browser sets it with boundary)
+                'Content-Type': 'application/x-www-form-urlencoded',
                 ...options.headers
             },
             ...options

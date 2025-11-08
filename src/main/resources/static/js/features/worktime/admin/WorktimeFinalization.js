@@ -91,8 +91,16 @@ export class WorktimeFinalization {
             return;
         }
 
-        // Hide confirmation modal
-        const confirmModal = bootstrap.Modal.getInstance(document.getElementById('finalizeConfirmationModal'));
+        // Hide confirmation modal safely (prevent ARIA warnings)
+        const confirmModalElement = document.getElementById('finalizeConfirmationModal');
+        const confirmModal = bootstrap.Modal.getInstance(confirmModalElement);
+
+        // Blur any focused elements within the modal before hiding
+        const focusedElement = confirmModalElement.querySelector(':focus');
+        if (focusedElement) {
+            focusedElement.blur();
+        }
+
         confirmModal.hide();
 
         // Show progress modal
@@ -115,21 +123,37 @@ export class WorktimeFinalization {
             // Submit finalization request using API wrapper
             await API.postForm('/admin/worktime/finalize', formData);
 
-            // Hide progress modal
-            progressModal.hide();
+            // Hide progress modal safely
+            this.hideModalSafely(progressModal, document.getElementById('finalizationProgressModal'));
 
             console.log('Finalization successful, redirecting...');
             // Reload to show updated status and success message
             window.location.reload();
 
         } catch (error) {
-            // Hide progress modal
-            progressModal.hide();
+            // Hide progress modal safely
+            this.hideModalSafely(progressModal, document.getElementById('finalizationProgressModal'));
 
             console.error('Finalization error:', error);
             alert('Finalization failed: ' + (error.message || 'Network error'));
         } finally {
             this.currentFinalizationData = null;
+        }
+    }
+
+    /**
+     * Hide modal safely without ARIA warnings
+     * @private
+     */
+    hideModalSafely(modalInstance, modalElement) {
+        if (modalElement) {
+            const focusedElement = modalElement.querySelector(':focus');
+            if (focusedElement) {
+                focusedElement.blur();
+            }
+        }
+        if (modalInstance) {
+            modalInstance.hide();
         }
     }
 
