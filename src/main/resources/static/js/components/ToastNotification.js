@@ -313,12 +313,9 @@ export class ToastNotification {
         toast.setAttribute('aria-live', 'assertive');
         toast.setAttribute('aria-atomic', 'true');
 
-        const bgClass = this.#getBgClassForType(type);
-        const textClass = this.#getTextClassForType(type);
-
         toast.innerHTML = `
             <div class="d-flex">
-                <div class="toast-body ${bgClass} ${textClass}">
+                <div class="toast-body">
                     <div class="d-flex align-items-start">
                         <i class="bi ${settings.icon} me-2 fs-5"></i>
                         <div class="flex-grow-1">

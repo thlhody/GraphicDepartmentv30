@@ -1,4 +1,9 @@
 /* Toast Alert System CSS */
+/* Updated for Bootstrap 5 Toast + ToastNotification ES6 Component */
+
+/* ========================================================================
+   LEGACY TOAST SYSTEM (Deprecated - kept for backward compatibility)
+   ======================================================================== */
 
 /* Toast container */
 .toast-alert-container {
@@ -20,6 +25,19 @@
     overflow: hidden;
     background-color: #fff;
     border-radius: 0.375rem;
+}
+
+/* ========================================================================
+   BOOTSTRAP TOAST STYLING (ES6 ToastNotification Component)
+   ======================================================================== */
+
+/* Base toast styling - rounded corners and shadow */
+.toast {
+    border-radius: 0.5rem !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 300px;
+    max-width: 400px;
+    margin-bottom: 0.75rem;
 }
 
 /* Active toast (visible) */
@@ -145,8 +163,75 @@
     transform: translateY(-20px);
 }
 
+/* Success toast - full green background */
+.toast.toast-success .d-flex {
+    background-color: #198754;
+    border-radius: 0.5rem;
+}
+
+.toast.toast-success .toast-body {
+    background-color: transparent !important;
+}
+
+/* Error toast - full red background */
+.toast.toast-error .d-flex {
+    background-color: #dc3545;
+    border-radius: 0.5rem;
+}
+
+.toast.toast-error .toast-body {
+    background-color: transparent !important;
+}
+
+/* Warning toast - full yellow background with dark text */
+.toast.toast-warning .d-flex {
+    background-color: #ffc107;
+    border-radius: 0.5rem;
+}
+
+.toast.toast-warning .toast-body {
+    background-color: transparent !important;
+}
+
+/* Dark close button for warning (yellow background) */
+.toast.toast-warning .btn-close {
+    filter: invert(1) grayscale(100%) brightness(0);
+}
+
+/* Info toast - full blue background */
+.toast.toast-info .d-flex {
+    background-color: #0dcaf0;
+    border-radius: 0.5rem;
+}
+
+.toast.toast-info .toast-body {
+    background-color: transparent !important;
+}
+
+/* Make sure toast body text is white (except warning) */
+.toast.toast-success .toast-body,
+.toast.toast-error .toast-body,
+.toast.toast-info .toast-body {
+    color: #fff !important;
+}
+
+.toast.toast-warning .toast-body {
+    color: #000 !important;
+}
+
+/* Close button styling - white by default */
+.toast .btn-close {
+    background-color: transparent;
+    opacity: 0.8;
+}
+
+.toast .btn-close:hover {
+    opacity: 1;
+}
+
 /* Responsive adjustments */
 @media (max-width: 576px) {
+    /* Legacy system */
     .toast-alert-container {
         right: 0;
         left: 0;
@@ -157,5 +242,11 @@
     .toast-alert {
         margin-left: 0.5rem;
         margin-right: 0.5rem;
+    }
+
+    /* Bootstrap toast system */
+    .toast {
+        min-width: 280px;
+        max-width: 100%;
     }
 }
