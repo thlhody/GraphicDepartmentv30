@@ -140,7 +140,9 @@
                             <div class="col-2">
                                 <label for="workedDays" class="form-label">Worked D</label>
                                 <input type="number" class="form-control field-editable" id="workedDays"
-                                       title="Admin can edit worked days if needed">
+                                       th:value="${workedDays}"
+                                       title="Admin can edit worked days if needed"
+                                       min="0">
                             </div>
                             <div class="col-2">
                                 <label for="miscValue" class="form-label">Misc</label>
