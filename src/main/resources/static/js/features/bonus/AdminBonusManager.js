@@ -46,7 +46,6 @@ export class AdminBonusManager {
 
         this.setDefaultPeriod();
         this.setupEventListeners();
-        this.loadBonusData();
 
         console.log('✅ Admin Bonus Manager initialized');
     }

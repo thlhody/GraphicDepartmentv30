@@ -44,9 +44,6 @@ export class CheckBonusDashboard {
         this.setupEventListeners();
         this.setupSortableColumns();
 
-        // Auto-load data on page load
-        this.handleLoadData();
-
         console.log('✅ Check Bonus Dashboard initialized');
     }
 
