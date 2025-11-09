@@ -12,11 +12,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PreviousMonthsBonuses {
     @JsonProperty("month1")
-    private Double month1;
+    private BonusEntry month1;
 
     @JsonProperty("month2")
-    private Double month2;
+    private BonusEntry month2;
 
     @JsonProperty("month3")
-    private Double month3;
+    private BonusEntry month3;
 }
