@@ -154,8 +154,11 @@
     <div th:insert="~{status/network-status :: statusIndicator}"></div>
 </div>
 
-<!-- Toast Alert System -->
-<div th:replace="~{alerts/toast-alerts :: toast-alerts}"></div>
+<!-- Toast Alert System - ES6 ToastNotification Component -->
+<div id="toast-notification-container"
+     class="toast-container position-fixed top-0 end-0 p-3"
+     style="z-index: 9999;">
+</div>
 
 <!-- Main Content -->
 <main role="main" class="fade-in">

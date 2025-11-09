@@ -135,13 +135,9 @@
             .catch(err => console.error('❌ Error loading utilities coordinator:', err));
     </script>
 
-    <!-- Core utility scripts (Legacy - jQuery based) -->
-    <script th:src="@{/js/legacy/toast-alerts.js?v=081120251622}"></script>
-
     <!-- Individual utility modules (Legacy - jQuery based) -->
     <script th:src="@{/js/legacy/um/backup-utility.js?v=081120251622}"></script>
     <script th:src="@{/js/legacy/um/monitor-utility.js?v=081120251622}"></script>
-    <script th:src="@{/js/legacy/um/session-utility.js?v=081120251622}"></script>
     <script th:src="@{/js/legacy/um/merge-utility.js?v=081120251622}"></script>
     <script th:src="@{/js/legacy/um/health-utility.js?v=081120251622}"></script>
     <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=081120251622}"></script>
@@ -157,7 +153,6 @@
             console.log('📦 Loaded utilities:', {
                 backup: typeof window.BackupUtility !== 'undefined' ? '✅' : '❌',
                 monitor: typeof window.MonitorUtility !== 'undefined' ? '✅' : '❌',
-                session: typeof window.SessionUtility !== 'undefined' ? '✅' : '❌',
                 merge: typeof window.MergeUtility !== 'undefined' ? '✅' : '❌',
                 health: typeof window.HealthUtility !== 'undefined' ? '✅' : '❌',
                 diagnostics: typeof window.DiagnosticsUtility !== 'undefined' ? '✅' : '❌',
