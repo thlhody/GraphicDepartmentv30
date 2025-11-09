@@ -566,11 +566,21 @@ export class ToastNotification {
         });
 
         // LEGACY: Support old Bootstrap alert divs (for backward compatibility)
-        // Look for .alert divs with text content (EXCLUDING those inside modals)
+        // Look for .alert divs with text content (EXCLUDING those inside modals and hidden elements)
         const legacyAlerts = document.querySelectorAll('.alert:not([data-alert-message])');
         legacyAlerts.forEach(el => {
             // Skip alerts inside modals - they're intentional UI elements, not server messages
             if (el.closest('.modal')) {
+                return;
+            }
+
+            // Skip hidden alerts - they're dynamic UI elements, not server messages
+            if (el.style.display === 'none' || window.getComputedStyle(el).display === 'none') {
+                return;
+            }
+
+            // Skip alerts inside utility fragments - they're template elements
+            if (el.closest('.utilities-grid') || el.closest('.utility-card')) {
                 return;
             }
 
