@@ -383,6 +383,10 @@ export class AdminRegisterView {
             if (response.ok) {
                 const workedDays = await response.json();
                 this.state.bonusCalculationData.workedDays = workedDays;
+
+                // Set workedDays field value only once (admin can edit it after)
+                this.updateFieldValue('workedDays', workedDays);
+
                 this.updateSummaryDisplay();
             }
 
@@ -407,11 +411,11 @@ export class AdminRegisterView {
             averageGraphicComplexity: tableData.avgComplexity
         };
 
-        // Update display
+        // Update display (excluding workedDays - admin can edit that field)
         this.updateFieldValue('totalEntries', tableData.totalEntries);
         this.updateFieldValue('averageArticles', tableData.avgArticles);
         this.updateFieldValue('averageComplexity', tableData.avgComplexity);
-        this.updateFieldValue('workedDays', this.state.bonusCalculationData.workedDays);
+        // Note: workedDays is NOT updated here - it's editable by admin
 
         console.log('Summary updated from table:', tableData);
     }
