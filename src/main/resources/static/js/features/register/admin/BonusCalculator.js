@@ -204,6 +204,8 @@ export class BonusCalculator {
             return;
         }
 
+        console.log('Displaying bonus results:', result);
+
         // Build results HTML
         const html = `
             <div class="card mt-4">
@@ -229,58 +231,58 @@ export class BonusCalculator {
                                 <tr>
                                     <td><strong>Entries</strong></td>
                                     <td>${this.formatNumber(result.entries)}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month1Entries || '-')}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month2Entries || '-')}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month3Entries || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month1?.entries || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month2?.entries || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month3?.entries || '-')}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Article Numbers</strong></td>
                                     <td>${this.formatNumber(result.articleNumbers)}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month1Articles || '-')}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month2Articles || '-')}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month3Articles || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month1?.articleNumbers || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month2?.articleNumbers || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month3?.articleNumbers || '-')}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Graphic Complexity</strong></td>
                                     <td>${this.formatNumber(result.graphicComplexity, 1)}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month1Complexity || '-', 1)}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month2Complexity || '-', 1)}</td>
-                                    <td>${this.formatNumber(result.previousMonths?.month3Complexity || '-', 1)}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month1?.graphicComplexity || '-', 1)}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month2?.graphicComplexity || '-', 1)}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month3?.graphicComplexity || '-', 1)}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Miscellaneous</strong></td>
                                     <td>${this.formatNumber(result.misc, 1)}</td>
-                                    <td>-</td>
-                                    <td>-</td>
-                                    <td>-</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month1?.misc || '-', 1)}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month2?.misc || '-', 1)}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month3?.misc || '-', 1)}</td>
                                 </tr>
                                 <tr class="table-info">
                                     <td><strong>Worked Days</strong></td>
                                     <td>${this.formatNumber(result.workedDays)}</td>
-                                    <td>-</td>
-                                    <td>-</td>
-                                    <td>-</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month1?.workedDays || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month2?.workedDays || '-')}</td>
+                                    <td>${this.formatNumber(result.previousMonthsDetails?.month3?.workedDays || '-')}</td>
                                 </tr>
                                 <tr class="table-info">
                                     <td><strong>Worked Percentage</strong></td>
                                     <td>${this.formatPercentage(result.workedPercentage)}</td>
-                                    <td>-</td>
-                                    <td>-</td>
-                                    <td>-</td>
+                                    <td>${this.formatPercentage(result.previousMonthsDetails?.month1?.workedPercentage || '-')}</td>
+                                    <td>${this.formatPercentage(result.previousMonthsDetails?.month2?.workedPercentage || '-')}</td>
+                                    <td>${this.formatPercentage(result.previousMonthsDetails?.month3?.workedPercentage || '-')}</td>
                                 </tr>
                                 <tr class="table-warning">
                                     <td><strong>Bonus Percentage</strong></td>
                                     <td><strong>${this.formatPercentage(result.bonusPercentage)}</strong></td>
-                                    <td>-</td>
-                                    <td>-</td>
-                                    <td>-</td>
+                                    <td>${this.formatPercentage(result.previousMonthsDetails?.month1?.bonusPercentage || '-')}</td>
+                                    <td>${this.formatPercentage(result.previousMonthsDetails?.month2?.bonusPercentage || '-')}</td>
+                                    <td>${this.formatPercentage(result.previousMonthsDetails?.month3?.bonusPercentage || '-')}</td>
                                 </tr>
                                 <tr class="table-success">
                                     <td><strong>Bonus Amount (RON)</strong></td>
                                     <td><strong>${this.formatCurrency(result.bonusAmount)}</strong></td>
-                                    <td>${this.formatCurrency(result.previousMonths?.month1Bonus || '-')}</td>
-                                    <td>${this.formatCurrency(result.previousMonths?.month2Bonus || '-')}</td>
-                                    <td>${this.formatCurrency(result.previousMonths?.month3Bonus || '-')}</td>
+                                    <td>${this.formatCurrency(result.previousMonths?.month1 || '-')}</td>
+                                    <td>${this.formatCurrency(result.previousMonths?.month2 || '-')}</td>
+                                    <td>${this.formatCurrency(result.previousMonths?.month3 || '-')}</td>
                                 </tr>
                             </tbody>
                         </table>
