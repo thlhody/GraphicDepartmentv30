@@ -28,7 +28,6 @@ export class AdminRegisterView {
      */
     constructor(state) {
         this.state = state;
-        this.toast = new ToastNotification();
 
         this.initializeElements();
     }
@@ -679,7 +678,7 @@ export class AdminRegisterView {
      * @public
      */
     showError(message) {
-        this.toast.error('Error', message);
+        ToastNotification.error('Error', message);
     }
 
     /**
@@ -688,7 +687,7 @@ export class AdminRegisterView {
      * @public
      */
     showWarning(message) {
-        this.toast.warning('Warning', message);
+        ToastNotification.warning('Warning', message);
     }
 
     /**
@@ -697,6 +696,6 @@ export class AdminRegisterView {
      * @public
      */
     showSuccess(message) {
-        this.toast.success('Success', message);
+        ToastNotification.success('Success', message);
     }
 }
