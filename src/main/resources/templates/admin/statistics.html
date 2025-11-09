@@ -110,17 +110,6 @@
                     <div class="card-body">
                         <h5 class="card-title">Client Distribution</h5>
                         <canvas id="clientChart"></canvas>
-                        <!-- Added list for client distribution -->
-                        <div class="mt-3">
-                            <ul class="list-group list-group-flush">
-                                <li class="list-group-item d-flex justify-content-between align-items-center"
-                                    th:each="label,idx : ${statistics.clientDistribution.labels}">
-                                    <span th:text="${label}"></span>
-                                    <span class="badge bg-primary rounded-pill"
-                                          th:text="${statistics.clientDistribution.data[idx.index]}"></span>
-                                </li>
-                            </ul>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -131,17 +120,6 @@
                     <div class="card-body">
                         <h5 class="card-title">Action Types</h5>
                         <canvas id="actionTypeChart"></canvas>
-                        <!-- Added list for action types -->
-                        <div class="mt-3">
-                            <ul class="list-group list-group-flush">
-                                <li class="list-group-item d-flex justify-content-between align-items-center"
-                                    th:each="label,idx : ${statistics.actionTypeDistribution.labels}">
-                                    <span th:text="${label}"></span>
-                                    <span class="badge bg-primary rounded-pill"
-                                          th:text="${statistics.actionTypeDistribution.data[idx.index]}"></span>
-                                </li>
-                            </ul>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -152,17 +130,6 @@
                     <div class="card-body">
                         <h5 class="card-title">Print Prep Types</h5>
                         <canvas id="printPrepTypeChart"></canvas>
-                        <!-- Added list for print prep types -->
-                        <div class="mt-3">
-                            <ul class="list-group list-group-flush">
-                                <li class="list-group-item d-flex justify-content-between align-items-center"
-                                    th:each="label,idx : ${statistics.printPrepTypeDistribution.labels}">
-                                    <span th:text="${label}"></span>
-                                    <span class="badge bg-primary rounded-pill"
-                                          th:text="${statistics.printPrepTypeDistribution.data[idx.index]}"></span>
-                                </li>
-                            </ul>
-                        </div>
                     </div>
                 </div>
             </div>
