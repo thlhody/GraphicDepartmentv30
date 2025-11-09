@@ -308,7 +308,7 @@ async function exportUserToExcel() {
         setTimeout(() => {
             if (exportUserExcelBtn) {
                 exportUserExcelBtn.disabled = false;
-                exportUserExcelBtn.innerHTML = '<i class="bi bi-file-earmark-person me-2"></i>Export User Excel';
+                exportUserExcelBtn.innerHTML = '<i class="bi bi-file-earmark-person me-2"></i>Export User';
             }
         }, 2000);
     }
@@ -341,7 +341,7 @@ async function exportToExcel() {
         setTimeout(() => {
             if (exportExcelBtn) {
                 exportExcelBtn.disabled = false;
-                exportExcelBtn.innerHTML = '<i class="bi bi-file-earmark-excel me-2"></i>Export Admin Excel';
+                exportExcelBtn.innerHTML = '<i class="bi bi-file-earmark-excel me-2"></i>Export Admin';
             }
         }, 2000);
     }
