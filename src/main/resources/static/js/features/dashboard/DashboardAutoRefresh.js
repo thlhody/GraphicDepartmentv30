@@ -19,6 +19,8 @@ export class DashboardAutoRefresh {
         this.checkInterval = 5000; // Check every 5 seconds
         this.maxChecks = 24; // Stop after 2 minutes
         this.checkCount = 0;
+        this.currentToastId = null; // Track current toast ID for dismissal
+        this.hasShownInitialNotification = false; // Track if we've shown notification on first load
 
         console.log('Enhanced Dashboard Auto-Refresh System initialized');
     }
@@ -55,7 +57,12 @@ export class DashboardAutoRefresh {
         this.checkCount = 0;
 
         console.log('Monitoring cache refresh status...');
-        this.showRefreshIndicator();
+
+        // Only show notification on first load (after login)
+        if (!this.hasShownInitialNotification) {
+            this.showRefreshIndicator();
+            this.hasShownInitialNotification = true;
+        }
 
         this.refreshInterval = setInterval(() => {
             this.checkCacheStatus();
@@ -198,99 +205,89 @@ export class DashboardAutoRefresh {
     // ========================================================================
 
     /**
-     * Show refresh indicator
+     * Show refresh indicator using ToastNotification
      */
     showRefreshIndicator() {
-        const indicator = this.getOrCreateIndicator();
-        indicator.innerHTML = `
-            <div class="alert alert-info alert-dismissible fade show" role="alert">
-                <i class="bi bi-arrow-clockwise spinning me-2"></i>
-                <strong>Updating...</strong> Loading fresh user data in background.
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-        indicator.style.display = 'block';
+        // Check if ToastNotification is available
+        if (!window.ToastNotification) {
+            console.warn('ToastNotification not available yet, skipping indicator');
+            return;
+        }
+
+        // Hide any existing toast first
+        if (this.currentToastId) {
+            window.ToastNotification.hide(this.currentToastId);
+        }
+
+        // Show new persistent toast
+        this.currentToastId = window.ToastNotification.info(
+            'Loading Dashboard',
+            'Fetching latest user data...',
+            {
+                persistent: true,
+                icon: 'bi-arrow-clockwise'
+            }
+        );
     }
 
     /**
      * Hide refresh indicator
      */
     hideRefreshIndicator() {
-        const indicator = document.getElementById('refresh-indicator');
-        if (indicator) {
-            indicator.style.display = 'none';
+        if (this.currentToastId && window.ToastNotification) {
+            window.ToastNotification.hide(this.currentToastId);
+            this.currentToastId = null;
         }
     }
 
     /**
-     * Show success message
+     * Show success message using ToastNotification
      */
     showSuccessMessage() {
-        const indicator = this.getOrCreateIndicator();
-        indicator.innerHTML = `
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle me-2"></i>
-                <strong>Updated!</strong> Dashboard metrics refreshed with latest data.
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
+        // Dismiss the updating toast
+        this.hideRefreshIndicator();
 
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-            this.hideRefreshIndicator();
-        }, 5000);
+        // Show success toast (auto-dismisses after 5 seconds by default)
+        if (window.ToastNotification) {
+            window.ToastNotification.success(
+                'Dashboard Ready',
+                'All metrics loaded successfully'
+            );
+        }
     }
 
     /**
-     * Show timeout message
+     * Show timeout message using ToastNotification
      */
     showTimeoutMessage() {
-        const indicator = this.getOrCreateIndicator();
-        indicator.innerHTML = `
-            <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                <strong>Timeout</strong> Refresh is taking longer than expected.
-                <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="window.dashboardRefresh?.startMonitoring()">
-                    Try Again
-                </button>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
+        // Dismiss the updating toast
+        this.hideRefreshIndicator();
+
+        // Show warning toast
+        if (window.ToastNotification) {
+            window.ToastNotification.warning(
+                'Still Loading',
+                'Dashboard refresh is taking longer than expected',
+                { duration: 8000 }
+            );
+        }
     }
 
     /**
-     * Show error message
+     * Show error message using ToastNotification
      */
     showErrorMessage() {
-        const indicator = this.getOrCreateIndicator();
-        indicator.innerHTML = `
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-circle me-2"></i>
-                <strong>Error</strong> Unable to check refresh status.
-                <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="location.reload()">
-                    Reload Page
-                </button>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-    }
+        // Dismiss the updating toast
+        this.hideRefreshIndicator();
 
-    /**
-     * Get or create refresh indicator element
-     */
-    getOrCreateIndicator() {
-        let indicator = document.getElementById('refresh-indicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'refresh-indicator';
-            indicator.style.position = 'fixed';
-            indicator.style.top = '20px';
-            indicator.style.right = '20px';
-            indicator.style.zIndex = '9999';
-            indicator.style.maxWidth = '400px';
-            document.body.appendChild(indicator);
+        // Show error toast
+        if (window.ToastNotification) {
+            window.ToastNotification.error(
+                'Load Failed',
+                'Unable to fetch dashboard data. Please refresh the page.',
+                { duration: 8000 }
+            );
         }
-        return indicator;
     }
 
     // ========================================================================
