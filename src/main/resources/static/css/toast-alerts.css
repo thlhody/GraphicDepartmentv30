@@ -208,6 +208,34 @@
     background-color: transparent !important;
 }
 
+/* Unresolved session toast - orange with special styling */
+.toast.toast-unresolved {
+    min-width: 400px;
+    max-width: 500px;
+}
+
+.toast.toast-unresolved .d-flex {
+    background-color: #ff9800 !important;
+    border-radius: 0.5rem;
+}
+
+.toast.toast-unresolved .toast-body {
+    background-color: transparent !important;
+    color: #fff !important;
+}
+
+.toast.toast-unresolved .btn-light {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: none;
+    color: #ff9800;
+    font-weight: 500;
+}
+
+.toast.toast-unresolved .btn-light:hover {
+    background-color: #fff;
+    color: #ff9800;
+}
+
 /* Make sure toast body text is white (except warning) */
 .toast.toast-success .toast-body,
 .toast.toast-error .toast-body,

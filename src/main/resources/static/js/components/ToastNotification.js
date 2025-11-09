@@ -149,6 +149,83 @@ export class ToastNotification {
         return this.show(title, message, 'info', options);
     }
 
+    /**
+     * Show special unresolved session toast with action buttons
+     * Replaces the orange floating card for better consistency
+     * @param {number} count - Number of unresolved sessions
+     * @param {Function} onResolve - Callback when "Resolve Now" is clicked
+     * @returns {string} Toast ID
+     */
+    static showUnresolvedSessions(count, onResolve) {
+        // Initialize if needed
+        if (!this.#initialized) {
+            this.#init();
+        }
+
+        // Generate unique ID
+        const toastId = `toast-unresolved-${Date.now()}`;
+
+        // Create custom toast element for unresolved sessions
+        const toast = document.createElement('div');
+        toast.id = toastId;
+        toast.className = 'toast align-items-center border-0 toast-unresolved';
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+
+        toast.innerHTML = `
+            <div class="d-flex" style="background-color: #ff9800; border-radius: 0.5rem;">
+                <div class="toast-body text-white">
+                    <div class="d-flex align-items-start mb-2">
+                        <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                        <div class="flex-grow-1">
+                            <strong class="d-block mb-1">Action Required</strong>
+                            <div>You have <strong>${count}</strong> unresolved work session(s) that need your attention.</div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-light" onclick="window.scrollToUnresolved()">
+                            <i class="bi bi-arrow-down me-1"></i>Resolve Now
+                        </button>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+
+        // Add to container
+        this.#container.appendChild(toast);
+
+        // Store reference (persistent toast)
+        this.#toasts.set(toastId, {
+            element: toast,
+            type: 'unresolved',
+            persistent: true,
+            timeoutId: null,
+            createdAt: Date.now()
+        });
+
+        // Initialize Bootstrap toast (persistent, no auto-hide)
+        const bsToast = new bootstrap.Toast(toast, {
+            autohide: false
+        });
+
+        // Show toast
+        bsToast.show();
+
+        // Cleanup on hide
+        toast.addEventListener('hidden.bs.toast', () => {
+            this.#removeToast(toastId);
+        });
+
+        // Store dismissal preference
+        toast.addEventListener('hidden.bs.toast', () => {
+            sessionStorage.setItem('unresolvedToastDismissed', 'true');
+        });
+
+        return toastId;
+    }
+
     // =========================================================================
     // CORE FUNCTIONALITY
     // =========================================================================
@@ -432,8 +509,24 @@ export class ToastNotification {
      * Expects elements with: data-alert-type and data-alert-message attributes
      */
     static processServerAlerts() {
-        // Detect if we're on the session page (has resolution UI elements)
-        const isSessionPage = document.querySelector('.resolution-form, #unresolvedCard, .unresolved-floating-card') !== null;
+        // Check if user already dismissed unresolved toast in this session
+        const unresolvedToastDismissed = sessionStorage.getItem('unresolvedToastDismissed') === 'true';
+
+        // Check if unresolved card exists in HTML (from Thymeleaf)
+        const unresolvedCard = document.getElementById('unresolvedCard');
+        if (unresolvedCard && !unresolvedToastDismissed) {
+            // Extract count from card
+            const countElement = unresolvedCard.querySelector('strong');
+            const count = countElement ? parseInt(countElement.textContent) : 1;
+
+            // Show special unresolved toast instead of the card
+            this.showUnresolvedSessions(count);
+
+            // Hide/remove the HTML card
+            unresolvedCard.style.display = 'none';
+
+            console.log(`🔔 Showing special unresolved session toast (${count} sessions)`);
+        }
 
         // NEW: Process data-attribute based alerts (modern approach)
         const dataAlerts = document.querySelectorAll('[data-alert-message]');
@@ -443,10 +536,9 @@ export class ToastNotification {
             const title = el.getAttribute('data-alert-title') || this.#capitalize(type);
 
             if (message && message.trim()) {
-                // SPECIAL HANDLING: Session page unresolved warnings
-                // The orange floating card is the proper UI for this, don't show duplicate toast
-                if (isSessionPage && message.toLowerCase().includes('unresolved')) {
-                    console.log('⏭️ Session page: Unresolved warning handled by orange card (no toast)');
+                // SPECIAL HANDLING: Skip "unresolved" warning messages - handled by special toast above
+                if (message.toLowerCase().includes('unresolved')) {
+                    console.log('⏭️ Skipping unresolved warning message - special toast already shown');
                     this.#hideParentAlert(el);
                     return;
                 }

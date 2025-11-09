@@ -119,58 +119,9 @@ export class SessionUI {
      * Initialize floating card for unresolved entries
      */
     initFloatingCard() {
-        const card = document.getElementById('unresolvedCard');
-        if (!card) return;
-
-        // Check if card was previously dismissed
-        const wasDismissed = sessionStorage.getItem('unresolvedCardDismissed');
-        if (wasDismissed === 'true') {
-            card.remove();
-            return;
-        }
-
-        // Auto-dismiss after 15 seconds (when progress bar completes)
-        setTimeout(() => {
-            if (card && card.parentNode) {
-                this.dismissCard();
-            }
-        }, 15000);
-
-        // Add hover events to pause/resume progress bar
-        const progressBar = card.querySelector('.progress-bar');
-        if (progressBar) {
-            card.addEventListener('mouseenter', () => {
-                progressBar.style.animationPlayState = 'paused';
-            });
-
-            card.addEventListener('mouseleave', () => {
-                progressBar.style.animationPlayState = 'running';
-            });
-        }
-
-        // Make dismiss function available globally
-        window.dismissCard = () => this.dismissCard();
-    }
-
-    /**
-     * Dismiss the floating card with animation
-     */
-    dismissCard() {
-        const card = document.getElementById('unresolvedCard');
-        if (card) {
-            // Add slide-out animation to the left
-            card.style.animation = 'slideOutLeft 0.5s ease-in forwards';
-
-            // Remove from DOM after animation
-            setTimeout(() => {
-                card.remove();
-            }, 500);
-
-            // Store dismissal in session storage
-            sessionStorage.setItem('unresolvedCardDismissed', 'true');
-
-            // Note: No toast notification on dismissal - the card sliding away is visual feedback enough
-        }
+        // NOTE: Orange floating card now handled by ToastNotification.showUnresolvedSessions()
+        // This function is kept for backward compatibility but does nothing
+        // The card is converted to a special toast for consistency
     }
 
     /**
@@ -179,6 +130,22 @@ export class SessionUI {
     setupScrollFunctions() {
         // Make scroll functions available globally
         window.scrollToResolution = () => this.scrollToResolution();
+        window.scrollToUnresolved = () => this.scrollToUnresolved();
+    }
+
+    /**
+     * Scroll to the unresolved tab
+     */
+    scrollToUnresolved() {
+        const unresolvedTab = document.getElementById('unresolvedTab');
+        if (unresolvedTab) {
+            unresolvedTab.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        } else {
+            console.warn('Unresolved tab not found');
+        }
     }
 
     /**
