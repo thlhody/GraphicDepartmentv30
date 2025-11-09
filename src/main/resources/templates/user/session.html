@@ -9,36 +9,12 @@
     <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=081120251622}">
 </head>
 <body>
-<div layout:fragment="content">
+<div layout:fragment="content"
+     th:attr="data-unresolved-count=${hasUnresolvedEntries != null && hasUnresolvedEntries ? unresolvedEntries.size() : 0}">
 
     <!-- TAB 1: SESSION MANAGEMENT (Always Visible) -->
     <div class="session-tab">
         <div class="container py-4">
-
-            <!-- Unresolved Entries Persistent Notification -->
-            <!-- Hidden by default - ToastNotification.js will show the toast version instead -->
-            <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}"
-                 class="unresolved-floating-card" id="unresolvedCard" style="display: none;">
-                <div class="floating-card-content">
-                    <div class="card-header-row">
-                        <div class="card-icon">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                        </div>
-                        <h6 class="card-title">Action Required</h6>
-                    </div>
-                    <p class="card-message">You have <strong th:text="${unresolvedEntries.size()}">1</strong> unresolved work session(s) that need your attention.</p>
-                    <div class="card-actions">
-                        <button class="btn-resolve" onclick="scrollToUnresolved()">
-                            <i class="bi bi-arrow-down"></i>
-                            Resolve Now
-                        </button>
-                        <button class="btn-dismiss" onclick="dismissCard()">
-                            <i class="bi bi-x"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="progress-bar"></div>
-            </div>
 
             <!-- Header Section with Badge -->
             <div class="page-header d-flex justify-content-between align-items-center mb-4">

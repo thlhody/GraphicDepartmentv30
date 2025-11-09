@@ -512,20 +512,18 @@ export class ToastNotification {
         // Check if user already dismissed unresolved toast in this session
         const unresolvedToastDismissed = sessionStorage.getItem('unresolvedToastDismissed') === 'true';
 
-        // Check if unresolved card exists in HTML (from Thymeleaf)
-        const unresolvedCard = document.getElementById('unresolvedCard');
-        if (unresolvedCard && !unresolvedToastDismissed) {
-            // Extract count from card
-            const countElement = unresolvedCard.querySelector('strong');
-            const count = countElement ? parseInt(countElement.textContent) : 1;
+        // Check for unresolved sessions count from data attribute (from Thymeleaf)
+        const contentDiv = document.querySelector('[data-unresolved-count]');
+        if (contentDiv && !unresolvedToastDismissed) {
+            const count = parseInt(contentDiv.getAttribute('data-unresolved-count')) || 0;
 
-            // Show special unresolved toast instead of the card
-            this.showUnresolvedSessions(count);
+            // Only show toast if there are unresolved sessions
+            if (count > 0) {
+                // Show special unresolved toast
+                this.showUnresolvedSessions(count);
 
-            // Hide/remove the HTML card
-            unresolvedCard.style.display = 'none';
-
-            console.log(`🔔 Showing special unresolved session toast (${count} sessions)`);
+                console.log(`🔔 Showing special unresolved session toast (${count} sessions)`);
+            }
         }
 
         // NEW: Process data-attribute based alerts (modern approach)
