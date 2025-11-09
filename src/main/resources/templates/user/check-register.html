@@ -144,21 +144,6 @@
             })
             .catch(err => console.error('❌ Error loading check-register module:', err));
     </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=081120251622}"></script>
-    <script nomodule th:src="@{/js/legacy/check-register.js?v=081120251622}"></script>
-    <script nomodule>
-        console.log('⚠️ Check Register - Legacy fallback loaded');
-        // Force recalculation of stats for the metrics to update properly
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                if (window.checkRegisterSummaryHandler) {
-                    window.checkRegisterSummaryHandler.calculateStats();
-                }
-            }, 500);
-        });
-    </script>
 </th:block>
 </body>
 </html>

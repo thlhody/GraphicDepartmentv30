@@ -283,12 +283,6 @@
             .then(() => console.log('✅ Admin Register - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading admin register module:', err));
     </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/register-admin.js?v=081120251622}"></script>
-    <script nomodule>
-        console.log('⚠️ Admin Register - Legacy fallback loaded');
-    </script>
 </th:block>
 </body>
 </html>

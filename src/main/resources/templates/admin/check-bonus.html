@@ -1,9 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.w3.org/1999/xhtml"
-      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
-      layout:decorate="~{layout/default}"
-      lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Team Check Bonus Management</title>
     <link rel="stylesheet" th:href="@{/css/bonus.css?v=081120251622}">
@@ -161,13 +158,6 @@
         import(`/js/features/bonus/index.js?v=081120251622${cacheBuster}`)
             .then(() => console.log('✅ Admin Check Bonus - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading admin check bonus module:', err));
-    </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=081120251622}"></script>
-    <script nomodule th:src="@{/js/legacy/check-bonus.js?v=081120251622}"></script>
-    <script nomodule>
-        console.log('⚠️ Admin Check Bonus - Legacy fallback loaded');
     </script>
 </th:block>
 </body>

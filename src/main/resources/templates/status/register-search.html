@@ -325,12 +325,6 @@
             .then(() => console.log('✅ Register Search - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading register search module:', err));
     </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/register-search.js?v=081120251622}"></script>
-    <script nomodule>
-        console.log('⚠️ Register Search - Legacy fallback loaded');
-    </script>
 </th:block>
 </body>
 </html>

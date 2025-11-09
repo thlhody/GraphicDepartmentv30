@@ -85,11 +85,16 @@
             console.error('❌ Error loading core modules:', err);
         });
     </script>
-
-    <!-- Legacy Fallback (IE11 and older browsers) -->
-    <script nomodule th:src="@{/js/legacy/constants.js}"></script>
-    <script nomodule th:src="@{/js/legacy/default.js}" defer></script>
-    <script nomodule th:src="@{/js/legacy/toast-alerts.js}" defer></script>
+    <!-- Browser compatibility check -->
+    <script>
+        // Detect IE11 and older browsers
+        if (!window.Promise || !window.fetch || typeof Symbol === 'undefined') {
+            document.body.innerHTML = '<div style="text-align:center; padding:50px;">' +
+            '<h1>Unsupported Browser</h1>' +
+            '<p>Please use a modern browser: Chrome, Firefox, Edge, or Opera.</p>' +
+            '</div>';
+        }
+    </script>
 </head>
 <body>
 <!-- Navigation -->

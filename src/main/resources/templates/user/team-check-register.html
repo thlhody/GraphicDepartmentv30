@@ -242,27 +242,6 @@
       })
       .catch(err => console.error('❌ Error loading bonus module:', err));
   </script>
-
-  <!-- Legacy Fallback (IE11) -->
-  <script nomodule th:src="@{/js/legacy/toast-alerts.js?v=081120251622}"></script>
-  <script nomodule th:src="@{/js/legacy/check-register.js?v=081120251622}"></script>
-  <script nomodule th:src="@{/js/legacy/check-bonus-fragment.js?v=081120251622}"></script>
-  <script nomodule th:if="${showRegisterContent}">
-    console.log('⚠️ Check Register (Team View) - Legacy fallback loaded');
-    document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() {
-        if (window.checkRegisterSummaryHandler) {
-          window.checkRegisterSummaryHandler.calculateStats();
-        }
-      }, 500);
-
-      setTimeout(function() {
-        if (typeof initializeStatusBadgeClickHandlers === 'function') {
-          initializeStatusBadgeClickHandlers();
-        }
-      }, 600);
-    });
-  </script>
 </th:block>
 </body>
 </html>

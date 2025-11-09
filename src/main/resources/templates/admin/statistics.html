@@ -169,12 +169,6 @@
                 .then(() => console.log('✅ Admin Statistics - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading admin statistics module:', err));
         </script>
-
-        <!-- Legacy Fallback (IE11) -->
-        <script nomodule th:src="@{/js/legacy/statistics.js?v=081120251622}"></script>
-        <script nomodule>
-            console.log('⚠️ Admin Statistics - Legacy fallback loaded');
-        </script>
     </th:block>
 </div>
 </body>

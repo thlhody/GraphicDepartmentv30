@@ -68,23 +68,6 @@
                 .then(() => console.log('✅ Time Management (Standalone) - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));
     </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/toast-alerts.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/utilities-module.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/time-input-module.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/status-display-module.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/work-time-display-module.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/inline-editing-module.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/timeoff-management-module.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/period-navigation-module.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/holiday-export-utils.js}"></script>
-    <script nomodule th:src="@{/js/legacy/tm/holiday-request-modal.js}"></script>
-    <script nomodule th:src="@{/js/legacy/time-management-core.js}"></script>
-    <script nomodule th:src="@{/js/legacy/standalone-time-management.js}" defer></script>
-    <script nomodule>
-        console.log('⚠️ Time Management (Standalone) - Legacy fallback loaded');
-    </script>
 </th:block>
 </body>
 </html>

@@ -66,7 +66,7 @@
                 <!-- Search and Bulk Actions -->
                 <div class="d-flex gap-2 mb-3">
                     <div class="flex-grow-1">
-                        <input type="text" id="userSearchInput" class="form-control" placeholder="🔍 Search team members...">
+                        <label for="userSearchInput"></label><input type="text" id="userSearchInput" class="form-control" placeholder="🔍 Search team members...">
                     </div>
                     <button type="button" class="btn btn-outline-secondary" id="selectAllBtn">
                         <i class="bi bi-check-square me-1"></i>Select All
@@ -79,11 +79,13 @@
                 <!-- User Checkboxes Grid -->
                 <div id="teamMemberCheckboxes" class="user-checkbox-grid mb-3">
                     <div th:each="user : ${availableUsers}" class="user-checkbox-item" th:data-user-name="${user.name}">
-                        <input type="checkbox"
-                               class="form-check-input team-member-checkbox"
-                               th:id="'user_' + ${user.userId}"
-                               th:value="${user.userId}"
-                               name="selectedUsers">
+                        <label>
+                            <input type="checkbox"
+                                   class="form-check-input team-member-checkbox"
+                                   th:id="'user_' + ${user.userId}"
+                                   th:value="${user.userId}"
+                                   name="selectedUsers">
+                        </label>
                         <label class="form-check-label" th:for="'user_' + ${user.userId}" th:text="${user.name}">
                             User Name
                         </label>

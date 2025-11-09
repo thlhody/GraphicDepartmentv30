@@ -412,12 +412,6 @@
                         alert('Failed to load register module. Check console for details.');
                     });
             </script>
-
-            <!-- Legacy Fallback (IE11) -->
-            <script nomodule th:src="@{/js/legacy/register-user.js}"></script>
-            <script nomodule>
-                console.log('⚠️ User Register - Legacy fallback loaded');
-            </script>
         </th:block>
     </div>
 </div>

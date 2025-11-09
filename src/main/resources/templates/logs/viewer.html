@@ -111,12 +111,6 @@
                 .then(() => console.log('✅ Log Viewer - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));
     </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/viewer.js}"></script>
-    <script nomodule>
-        console.log('⚠️ Log Viewer - Legacy fallback loaded');
-    </script>
 </th:block>
 </body>
 </html>

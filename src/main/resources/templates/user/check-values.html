@@ -374,13 +374,6 @@
                 .then(() => console.log('✅ Check Values - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));
     </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/toast-alerts.js}"></script>
-    <script nomodule th:src="@{/js/legacy/check-values.js}"></script>
-    <script nomodule>
-        console.log('⚠️ Check Values - Legacy fallback loaded');
-    </script>
 </th:block>
 </body>
 </html>

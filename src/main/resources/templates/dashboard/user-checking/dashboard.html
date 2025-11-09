@@ -83,15 +83,8 @@
     <script type="module">
         const cacheBuster = new Date().getTime();
             import(`/js/features/dashboard/index.js?v=081120251622${cacheBuster}`)
-        
                 .then(() => console.log('✅ User-Checking Dashboard - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));
-    </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/dashboard.js}"></script>
-    <script nomodule>
-        console.log('⚠️ User-Checking Dashboard - Legacy fallback loaded');
     </script>
 </th:block>
 </body>

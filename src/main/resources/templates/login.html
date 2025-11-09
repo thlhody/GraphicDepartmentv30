@@ -216,15 +216,6 @@
         // LoginManager auto-initializes on DOMContentLoaded
         console.log('✅ Login page - ES6 module loaded');
     </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/login.js}"></script>
-    <script nomodule>
-        // Ensure legacy compatibility
-        window.networkAvailable = window.loginConfig.networkAvailable;
-        document.body.classList.add('login-page');
-        console.log('⚠️ Login page - Legacy fallback loaded');
-    </script>
 </th:block>
 </body>
 </html>
