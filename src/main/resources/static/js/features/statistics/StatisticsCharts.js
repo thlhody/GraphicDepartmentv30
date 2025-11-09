@@ -27,7 +27,8 @@ export class StatisticsCharts {
             chartsContainer: document.getElementById('chartsContainer'),
             distributionContainer: document.getElementById('distributionContainer'),
             yearSelect: document.getElementById('yearSelect'),
-            monthSelect: document.getElementById('monthSelect')
+            monthSelect: document.getElementById('monthSelect'),
+            statisticsType: document.getElementById('statisticsType')
         };
 
         console.log('StatisticsCharts initialized');
@@ -79,6 +80,7 @@ export class StatisticsCharts {
     async loadStatisticsData() {
         const year = this.elements.yearSelect?.value;
         const month = this.elements.monthSelect?.value;
+        const type = this.elements.statisticsType?.value || 'monthly';
 
         if (!year || !month) {
             this.showToast('Please select year and month', 'warning');
@@ -89,9 +91,9 @@ export class StatisticsCharts {
         this.setLoadingState(true);
 
         try {
-            console.log(`📊 Loading statistics for ${year}/${month}...`);
+            console.log(`📊 Loading ${type} statistics for ${year}/${month}...`);
 
-            const response = await fetch(`/admin/statistics/data?year=${year}&month=${month}`, {
+            const response = await fetch(`/admin/statistics/data?year=${year}&month=${month}&type=${type}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
@@ -110,6 +112,7 @@ export class StatisticsCharts {
             window.printPrepTypeData = data.statistics.printPrepTypeDistribution;
             window.monthlyEntriesData = data.monthlyEntries;
             window.dailyEntriesData = data.dailyEntries;
+            window.statisticsType = type;
 
             // Destroy existing charts before creating new ones
             this.destroyAllCharts();
@@ -117,7 +120,8 @@ export class StatisticsCharts {
             // Render all charts with new data
             this.renderAllCharts();
 
-            this.showToast(`Statistics loaded successfully for ${window.monthNames[month - 1]} ${year}`, 'success');
+            const typeLabel = type === 'monthly' ? 'Monthly' : 'Yearly';
+            this.showToast(`${typeLabel} statistics loaded successfully for ${window.monthNames[month - 1]} ${year}`, 'success');
 
             console.log('✅ Statistics data loaded and charts rendered');
 
@@ -134,15 +138,19 @@ export class StatisticsCharts {
      * Render all charts with current window data
      */
     renderAllCharts() {
-        // Show charts containers
+        const type = window.statisticsType || 'monthly';
+
+        // Show/hide charts containers based on type
         if (this.elements.chartsContainer) {
-            this.elements.chartsContainer.style.display = '';
+            // Show charts container only for yearly statistics (contains monthly entries chart)
+            this.elements.chartsContainer.style.display = type === 'yearly' ? '' : 'none';
         }
         if (this.elements.distributionContainer) {
+            // Always show distribution charts
             this.elements.distributionContainer.style.display = '';
         }
 
-        // Create pie charts
+        // Create pie charts (always shown)
         if (window.clientData) {
             this.createPieChart('clientChart', window.clientData, 'Client Distribution');
         }
@@ -155,13 +163,13 @@ export class StatisticsCharts {
             this.createPieChart('printPrepTypeChart', window.printPrepTypeData, 'Print Prep Types');
         }
 
-        // Create line chart for monthly entries
-        if (window.monthlyEntriesData) {
+        // Create line chart for monthly entries (only for yearly statistics)
+        if (type === 'yearly' && window.monthlyEntriesData) {
             this.createMonthlyEntriesChart('monthlyEntriesChart', window.monthlyEntriesData, 'Monthly Entries Distribution');
         }
 
-        // Create bar chart for daily entries
-        if (window.dailyEntriesData) {
+        // Create bar chart for daily entries (only for yearly statistics)
+        if (type === 'yearly' && window.dailyEntriesData) {
             this.createDailyEntriesChart('dailyEntriesChart', window.dailyEntriesData, 'Daily Entries Distribution');
         }
 

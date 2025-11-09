@@ -31,6 +31,15 @@
             </div>
             <div class="card-body">
                 <div class="row g-3 align-items-end">
+                    <div class="col-auto" style="min-width: 180px;">
+                        <label for="statisticsType" class="form-label fw-semibold">
+                            <i class="bi bi-speedometer2 me-1"></i>Statistics Type
+                        </label>
+                        <select id="statisticsType" class="form-select">
+                            <option value="monthly" selected>Monthly (Fast - ~1,700 entries)</option>
+                            <option value="yearly">Yearly (Slow - ~20,400 entries)</option>
+                        </select>
+                    </div>
                     <div class="col-auto" style="min-width: 150px;">
                         <label for="yearSelect" class="form-label fw-semibold">Year</label>
                         <select id="yearSelect" class="form-select">

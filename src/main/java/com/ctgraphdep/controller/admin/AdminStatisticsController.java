@@ -49,30 +49,42 @@ public class AdminStatisticsController extends BaseController {
 
     /**
      * AJAX endpoint to load statistics data asynchronously
+     * @param type "monthly" (fast - only selected month) or "yearly" (slow - all 12 months)
      */
     @GetMapping("/data")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getStatisticsData(
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month) {
+            @RequestParam(required = false) Integer month,
+            @RequestParam(defaultValue = "monthly") String type) {
 
         try {
             // Use determineYear and determineMonth from BaseController
             int selectedYear = determineYear(year);
             int selectedMonth = determineMonth(month);
 
-            // Calculate statistics - this is the heavy operation
+            // Calculate statistics for selected month (17 users * ~100 entries = ~1,700 entries)
             RegisterStatisticsDTO statistics = statisticsService.calculateStatistics(selectedYear, selectedMonth);
-            Map<String, Map<String, Integer>> monthlyEntries = statisticsService.getMonthlyEntriesForYear(selectedYear);
-            Map<Integer, Integer> dailyEntries = statisticsService.getDailyEntriesForMonth(selectedYear, selectedMonth);
 
             // Build response
             Map<String, Object> response = new HashMap<>();
             response.put("statistics", statistics);
-            response.put("monthlyEntries", monthlyEntries);
-            response.put("dailyEntries", dailyEntries);
             response.put("year", selectedYear);
             response.put("month", selectedMonth);
+            response.put("type", type);
+
+            // Conditionally load yearly data only if requested
+            if ("yearly".equalsIgnoreCase(type)) {
+                // This is the expensive operation: 17 users * 12 months * ~100 entries = ~20,400 entries
+                Map<String, Map<String, Integer>> monthlyEntries = statisticsService.getMonthlyEntriesForYear(selectedYear);
+                Map<Integer, Integer> dailyEntries = statisticsService.getDailyEntriesForMonth(selectedYear, selectedMonth);
+                response.put("monthlyEntries", monthlyEntries);
+                response.put("dailyEntries", dailyEntries);
+            } else {
+                // For monthly statistics, return empty data for yearly charts
+                response.put("monthlyEntries", null);
+                response.put("dailyEntries", null);
+            }
 
             return ResponseEntity.ok(response);
 
