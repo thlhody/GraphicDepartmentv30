@@ -99,6 +99,12 @@ export class BonusCalculator {
             const workedDaysInput = document.getElementById('workedDays');
             const workedDays = workedDaysInput ? parseInt(workedDaysInput.value) || 0 : 0;
 
+            console.log('WorkedDays from field:', {
+                fieldValue: workedDaysInput?.value,
+                parsedValue: workedDays,
+                stateValue: this.state.bonusCalculationData.workedDays
+            });
+
             // Prepare payload
             const payload = {
                 userId: this.state.currentUser.userId,

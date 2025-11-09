@@ -146,8 +146,12 @@ public class AdminRegisterService {
                 return ServiceResult.validationError("Bonus configuration is not valid", "invalid_bonus_config");
             }
 
-            // Calculate bonus
-            ServiceResult<BonusCalculationResultDTO> calculationResult = calculateBonus(entries, userId, year, month, config);
+            // Extract workedDays from request (admin can edit this value)
+            Integer workedDays = convertToInteger(request.get("workedDays"));
+            LoggerUtil.info(this.getClass(), String.format("Using workedDays from request (admin-editable): %d", workedDays));
+
+            // Calculate bonus with admin's workedDays value
+            ServiceResult<BonusCalculationResultDTO> calculationResult = calculateBonus(entries, userId, year, month, config, workedDays);
             if (calculationResult.isFailure()) {
                 return calculationResult;
             }
@@ -578,9 +582,20 @@ public class AdminRegisterService {
     // ========================================================================
 
     /**
-     * Calculate bonus with validation and error handling
+     * Calculate bonus with validation and error handling (fetches workedDays from service)
      */
     public ServiceResult<BonusCalculationResultDTO> calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config) {
+        // Fetch worked days from worktime service
+        int workedDays = worktimeOperationService.getWorkedDays(userId, year, month);
+
+        // Delegate to overloaded method
+        return calculateBonus(entries, userId, year, month, config, workedDays);
+    }
+
+    /**
+     * Calculate bonus with validation and error handling (uses provided workedDays - admin editable)
+     */
+    public ServiceResult<BonusCalculationResultDTO> calculateBonus(List<RegisterEntry> entries, Integer userId, Integer year, Integer month, BonusConfiguration config, Integer workedDays) {
         try {
             // Validate parameters
             ValidationServiceResult validation = ValidationServiceResult.create()
@@ -588,7 +603,8 @@ public class AdminRegisterService {
                     .requireNotNull(userId, "User ID", "missing_user_id")
                     .requireNotNull(year, "Year", "missing_year")
                     .requireNotNull(month, "Month", "missing_month")
-                    .requireNotNull(config, "Bonus configuration", "missing_bonus_config");
+                    .requireNotNull(config, "Bonus configuration", "missing_bonus_config")
+                    .requireNotNull(workedDays, "Worked days", "missing_worked_days");
 
             if (validation.hasErrors()) {
                 return ServiceResult.validationError(validation.getFirstError(), validation.getFirstErrorCode());
@@ -597,8 +613,7 @@ public class AdminRegisterService {
             // Filter valid entries for bonus calculation
             List<RegisterEntry> validEntries = filterValidEntriesForBonus(entries);
 
-            // Get worked days from worktime service
-            int workedDays = worktimeOperationService.getWorkedDays(userId, year, month);
+            // Use provided worked days (admin can edit this value)
 
             // Calculate sums
             int numberOfEntries = validEntries.size();
