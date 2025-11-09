@@ -432,6 +432,10 @@ export class ToastNotification {
      * Expects elements with: data-alert-type and data-alert-message attributes
      */
     static processServerAlerts() {
+        // Check if unresolved floating card is visible (session page)
+        const unresolvedCard = document.getElementById('unresolvedCard');
+        const hasUnresolvedCard = unresolvedCard && unresolvedCard.offsetParent !== null;
+
         // NEW: Process data-attribute based alerts (modern approach)
         const dataAlerts = document.querySelectorAll('[data-alert-message]');
         dataAlerts.forEach(el => {
@@ -440,6 +444,13 @@ export class ToastNotification {
             const title = el.getAttribute('data-alert-title') || this.#capitalize(type);
 
             if (message && message.trim()) {
+                // Skip unresolved session warnings if the orange card is visible
+                if (hasUnresolvedCard && message.toLowerCase().includes('unresolved')) {
+                    console.log('⏭️ Skipping unresolved warning toast - orange card is visible');
+                    this.#hideParentAlert(el);
+                    return;
+                }
+
                 // Show toast based on type
                 switch (type.toLowerCase()) {
                     case 'success':

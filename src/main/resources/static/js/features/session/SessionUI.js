@@ -169,12 +169,7 @@ export class SessionUI {
             // Store dismissal in session storage
             sessionStorage.setItem('unresolvedCardDismissed', 'true');
 
-            // Show toast notification
-            if (window.showToast) {
-                window.showToast('Dismissed', 'Reminder dismissed. You can still resolve entries below.', 'info', {
-                    duration: 3000
-                });
-            }
+            // Note: No toast notification on dismissal - the card sliding away is visual feedback enough
         }
     }
 
