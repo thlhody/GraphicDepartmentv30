@@ -205,12 +205,10 @@ export class BonusCalculator {
     displayBonusResults(result) {
         console.log('Displaying bonus results:', result);
 
-        // Use the existing bonus results table structure (compact layout)
-        const bonusTable = document.getElementById('bonusResults');
-        const bonusTableBody = document.getElementById('bonusResultsBody');
-
-        if (!bonusTable || !bonusTableBody) {
-            console.error('Bonus results table not found');
+        // Get bonus results container
+        const bonusContainer = document.getElementById('bonusResults');
+        if (!bonusContainer) {
+            console.error('Bonus results container not found');
             return;
         }
 
@@ -224,60 +222,101 @@ export class BonusCalculator {
             return `${monthName}/${yearShort}`;
         };
 
-        // Update table headers with dynamic month names
-        const thead = bonusTable.querySelector('thead tr');
-        if (thead) {
-            thead.innerHTML = `
-                <th>Name</th>
-                <th>Entries</th>
-                <th>Art Nr.</th>
-                <th>CG</th>
-                <th>Misc</th>
-                <th>Worked D</th>
-                <th>Worked%</th>
-                <th>Bonus%</th>
-                <th>Bonus$</th>
-                <th>${formatMonth(1)}</th>
-                <th>${formatMonth(2)}</th>
-                <th>${formatMonth(3)}</th>
-            `;
-        }
-
-        // Build compact table row (matches legacy layout)
-        const rowClass = result.workedDays <= 0 ? 'table-warning' : '';
-        bonusTableBody.innerHTML = `
-            <tr class="${rowClass}">
-                <td>${this.state.currentUser?.name || ''}</td>
-                <td>${result.entries || 0}</td>
-                <td>${this.formatNumber(result.articleNumbers, 2)}</td>
-                <td>${this.formatNumber(result.graphicComplexity, 2)}</td>
-                <td>${this.formatNumber(result.misc, 2)}</td>
-                <td>${result.workedDays || 0}</td>
-                <td>${this.formatNumber(result.workedPercentage, 2)}</td>
-                <td>${this.formatNumber(result.bonusPercentage, 2)}</td>
-                <td><strong>${this.formatNumber(result.bonusAmount, 2)}</strong></td>
-                <td>${this.formatNumber(result.previousMonths?.month1 || 0, 2)}</td>
-                <td>${this.formatNumber(result.previousMonths?.month2 || 0, 2)}</td>
-                <td>${this.formatNumber(result.previousMonths?.month3 || 0, 2)}</td>
-            </tr>
+        // Build detailed vertical metrics table
+        const tableHTML = `
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calculator me-2"></i>
+                    Bonus Calculation Results
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 25%;">Metric</th>
+                                <th style="width: 18.75%;">Current</th>
+                                <th style="width: 18.75%;">${formatMonth(1)}</th>
+                                <th style="width: 18.75%;">${formatMonth(2)}</th>
+                                <th style="width: 18.75%;">${formatMonth(3)}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Entries</strong></td>
+                                <td>${this.formatNumber(result.entries)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month1?.entries || '-')}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month2?.entries || '-')}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month3?.entries || '-')}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Article Numbers</strong></td>
+                                <td>${this.formatNumber(result.articleNumbers, 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month1?.articleNumbers || '-', 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month2?.articleNumbers || '-', 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month3?.articleNumbers || '-', 2)}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Graphic Complexity</strong></td>
+                                <td>${this.formatNumber(result.graphicComplexity, 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month1?.graphicComplexity || '-', 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month2?.graphicComplexity || '-', 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month3?.graphicComplexity || '-', 2)}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Miscellaneous</strong></td>
+                                <td>${this.formatNumber(result.misc, 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month1?.misc || '-', 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month2?.misc || '-', 2)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month3?.misc || '-', 2)}</td>
+                            </tr>
+                            <tr class="table-info">
+                                <td><strong>Worked Days</strong></td>
+                                <td>${this.formatNumber(result.workedDays)}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month1?.workedDays || '-')}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month2?.workedDays || '-')}</td>
+                                <td>${this.formatNumber(result.previousMonthsDetails?.month3?.workedDays || '-')}</td>
+                            </tr>
+                            <tr class="table-info">
+                                <td><strong>Worked %</strong></td>
+                                <td>${this.formatNumber(result.workedPercentage, 2)}%</td>
+                                <td>${result.previousMonthsDetails?.month1 ? this.formatNumber(result.previousMonthsDetails.month1.workedPercentage, 2) + '%' : '-'}</td>
+                                <td>${result.previousMonthsDetails?.month2 ? this.formatNumber(result.previousMonthsDetails.month2.workedPercentage, 2) + '%' : '-'}</td>
+                                <td>${result.previousMonthsDetails?.month3 ? this.formatNumber(result.previousMonthsDetails.month3.workedPercentage, 2) + '%' : '-'}</td>
+                            </tr>
+                            <tr class="table-warning">
+                                <td><strong>Bonus %</strong></td>
+                                <td><strong>${this.formatNumber(result.bonusPercentage, 2)}%</strong></td>
+                                <td>${result.previousMonthsDetails?.month1 ? this.formatNumber(result.previousMonthsDetails.month1.bonusPercentage, 2) + '%' : '-'}</td>
+                                <td>${result.previousMonthsDetails?.month2 ? this.formatNumber(result.previousMonthsDetails.month2.bonusPercentage, 2) + '%' : '-'}</td>
+                                <td>${result.previousMonthsDetails?.month3 ? this.formatNumber(result.previousMonthsDetails.month3.bonusPercentage, 2) + '%' : '-'}</td>
+                            </tr>
+                            <tr class="table-success">
+                                <td><strong>Bonus Amount</strong></td>
+                                <td><strong>${this.formatNumber(result.bonusAmount, 2)} RON</strong></td>
+                                <td><strong>${this.formatNumber(result.previousMonths?.month1 || 0, 2)} RON</strong></td>
+                                <td><strong>${this.formatNumber(result.previousMonths?.month2 || 0, 2)} RON</strong></td>
+                                <td><strong>${this.formatNumber(result.previousMonths?.month3 || 0, 2)} RON</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                ${result.workedDays <= 0 ? `
+                <div class="alert alert-warning mt-2 mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <small>No worked days recorded - showing raw totals with zero bonus amounts</small>
+                </div>
+                ` : ''}
+            </div>
         `;
 
-        // Add warning if worked days is 0
-        if (result.workedDays <= 0) {
-            bonusTableBody.innerHTML += `
-                <tr>
-                    <td colspan="12" class="text-center text-warning">
-                        <small><i>* No worked days recorded - showing raw totals with zero bonus amounts</i></small>
-                    </td>
-                </tr>
-            `;
-        }
-
-        // Show the bonus results table (compact display)
-        bonusTable.style.display = 'block';
+        // Replace existing content with new detailed table
+        bonusContainer.innerHTML = tableHTML;
+        bonusContainer.style.display = 'block';
 
         // Scroll to results
-        bonusTable.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        bonusContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
         this.view.showSuccess('Bonus calculated successfully!');
     }
