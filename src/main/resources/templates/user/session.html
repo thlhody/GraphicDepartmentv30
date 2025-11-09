@@ -300,27 +300,16 @@
                                             <input type="hidden" name="entryDate" th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
 
                                             <div class="row g-2">
-                                                <div class="col-6">
-                                                    <label class="form-label small">End Hour</label>
-                                                    <label>
-                                                        <select name="endHour" class="form-select hour-select" required>
-                                                            <option value="">Hour</option>
-                                                            <option th:each="hour : ${#numbers.sequence(7, 23)}"
-                                                                    th:value="${hour}"
-                                                                    th:text="${hour}">Hour</option>
-                                                        </select>
-                                                    </label>
-                                                </div>
-                                                <div class="col-6">
-                                                    <label class="form-label small">End Minute</label>
-                                                    <label>
-                                                        <select name="endMinute" class="form-select minute-select" required>
-                                                            <option value="">Minute</option>
-                                                            <option th:each="minute : ${#numbers.sequence(0, 59, 5)}"
-                                                                    th:value="${minute}"
-                                                                    th:text="${#strings.toString(minute).length() == 1 ? '0' + minute : minute}">Minute</option>
-                                                        </select>
-                                                    </label>
+                                                <div class="col-12">
+                                                    <label class="form-label small">End Time</label>
+                                                    <input type="time"
+                                                           name="endTime"
+                                                           class="form-control end-time-input"
+                                                           min="07:00"
+                                                           max="23:59"
+                                                           step="300"
+                                                           required>
+                                                    <small class="text-muted">Select when you ended work (5-minute intervals)</small>
                                                 </div>
                                             </div>
 

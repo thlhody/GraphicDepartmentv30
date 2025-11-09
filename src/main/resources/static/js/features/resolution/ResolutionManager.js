@@ -48,18 +48,11 @@ export class ResolutionManager {
         this.calculationForms = document.querySelectorAll('.resolution-form');
 
         this.calculationForms.forEach((form) => {
-            const hourSelect = form.querySelector('select[name="endHour"]');
-            const minuteSelect = form.querySelector('select[name="endMinute"]');
+            const timeInput = form.querySelector('input[name="endTime"]');
 
-            // Calculate time when hour or minute changes
-            if (hourSelect) {
-                hourSelect.addEventListener('change', () => {
-                    this.calculateWorkTime(form);
-                });
-            }
-
-            if (minuteSelect) {
-                minuteSelect.addEventListener('change', () => {
+            // Calculate time when time input changes
+            if (timeInput) {
+                timeInput.addEventListener('change', () => {
                     this.calculateWorkTime(form);
                 });
             }
@@ -83,13 +76,26 @@ export class ResolutionManager {
      * @param {HTMLFormElement} form - Calculation form element
      */
     async calculateWorkTime(form) {
-        const hourSelect = form.querySelector('select[name="endHour"]');
-        const minuteSelect = form.querySelector('select[name="endMinute"]');
+        const timeInput = form.querySelector('input[name="endTime"]');
         const entryDate = form.querySelector('input[name="entryDate"]').value;
         const resultDiv = form.querySelector('.calculation-result');
 
-        if (!hourSelect || !minuteSelect || !resultDiv) {
+        if (!timeInput || !resultDiv) {
             console.error('Required form elements not found');
+            return;
+        }
+
+        // Validate time input has a value
+        if (!timeInput.value) {
+            resultDiv.innerHTML = '<div class="text-muted small">Select end time to see calculation</div>';
+            return;
+        }
+
+        // Parse time input (format: "HH:MM")
+        const [endHour, endMinute] = timeInput.value.split(':').map(Number);
+
+        if (isNaN(endHour) || isNaN(endMinute)) {
+            resultDiv.innerHTML = '<div class="text-danger small">Invalid time format</div>';
             return;
         }
 
@@ -105,8 +111,8 @@ export class ResolutionManager {
                 },
                 body: JSON.stringify({
                     entryDate: entryDate,
-                    endHour: parseInt(hourSelect.value),
-                    endMinute: parseInt(minuteSelect.value)
+                    endHour: endHour,
+                    endMinute: endMinute
                 })
             });
 
@@ -196,6 +202,16 @@ export class ResolutionManager {
 
             // Get form data
             const formData = new FormData(form);
+
+            // Convert time input to hour/minute for backend
+            const timeInput = form.querySelector('input[name="endTime"]');
+            if (timeInput && timeInput.value) {
+                const [endHour, endMinute] = timeInput.value.split(':').map(Number);
+                formData.set('endHour', endHour);
+                formData.set('endMinute', endMinute);
+                formData.delete('endTime'); // Remove time field, backend expects hour/minute
+            }
+
             const data = Object.fromEntries(formData.entries());
 
             // Submit resolution
