@@ -20,6 +20,16 @@ export class StatisticsCharts {
             '#9966FF', '#FF9F40', '#7CBA3D', '#6B8E23'
         ];
 
+        // Cache DOM elements
+        this.elements = {
+            loadDataBtn: document.getElementById('loadDataBtn'),
+            loadingIndicator: document.getElementById('loadingIndicator'),
+            chartsContainer: document.getElementById('chartsContainer'),
+            distributionContainer: document.getElementById('distributionContainer'),
+            yearSelect: document.getElementById('yearSelect'),
+            monthSelect: document.getElementById('monthSelect')
+        };
+
         console.log('StatisticsCharts initialized');
     }
 
@@ -28,7 +38,7 @@ export class StatisticsCharts {
     // ========================================================================
 
     /**
-     * Initialize all charts with data from window globals
+     * Initialize all charts with data from window globals or setup event listeners for manual load
      */
     initializeCharts() {
         console.log('🚀 Initializing statistics charts...');
@@ -40,33 +50,179 @@ export class StatisticsCharts {
                 return;
             }
 
-            // Create pie charts
-            if (window.clientData) {
-                this.createPieChart('clientChart', window.clientData, 'Client Distribution');
+            // Setup event listener for Load Data button
+            if (this.elements.loadDataBtn) {
+                this.elements.loadDataBtn.addEventListener('click', () => this.loadStatisticsData());
+                console.log('✓ Load Data button event listener attached');
             }
 
-            if (window.actionTypeData) {
-                this.createPieChart('actionTypeChart', window.actionTypeData, 'Action Types');
+            // If data exists in window globals, render charts (for backward compatibility)
+            if (window.clientData || window.actionTypeData || window.printPrepTypeData ||
+                window.monthlyEntriesData || window.dailyEntriesData) {
+                this.renderAllCharts();
             }
 
-            if (window.printPrepTypeData) {
-                this.createPieChart('printPrepTypeChart', window.printPrepTypeData, 'Print Prep Types');
-            }
-
-            // Create line chart for monthly entries
-            if (window.monthlyEntriesData) {
-                this.createMonthlyEntriesChart('monthlyEntriesChart', window.monthlyEntriesData, 'Monthly Entries Distribution');
-            }
-
-            // Create bar chart for daily entries
-            if (window.dailyEntriesData) {
-                this.createDailyEntriesChart('dailyEntriesChart', window.dailyEntriesData, 'Daily Entries Distribution');
-            }
-
-            console.log('✅ All statistics charts initialized successfully');
+            console.log('✅ Statistics charts system initialized successfully');
 
         } catch (error) {
             console.error('❌ Error initializing statistics charts:', error);
+        }
+    }
+
+    // ========================================================================
+    // AJAX DATA LOADING
+    // ========================================================================
+
+    /**
+     * Load statistics data via AJAX
+     */
+    async loadStatisticsData() {
+        const year = this.elements.yearSelect?.value;
+        const month = this.elements.monthSelect?.value;
+
+        if (!year || !month) {
+            this.showToast('Please select year and month', 'warning');
+            return;
+        }
+
+        // Show loading state
+        this.setLoadingState(true);
+
+        try {
+            console.log(`📊 Loading statistics for ${year}/${month}...`);
+
+            const response = await fetch(`/admin/statistics/data?year=${year}&month=${month}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Update window globals with fetched data
+            window.clientData = data.statistics.clientDistribution;
+            window.actionTypeData = data.statistics.actionTypeDistribution;
+            window.printPrepTypeData = data.statistics.printPrepTypeDistribution;
+            window.monthlyEntriesData = data.monthlyEntries;
+            window.dailyEntriesData = data.dailyEntries;
+
+            // Destroy existing charts before creating new ones
+            this.destroyAllCharts();
+
+            // Render all charts with new data
+            this.renderAllCharts();
+
+            this.showToast(`Statistics loaded successfully for ${window.monthNames[month - 1]} ${year}`, 'success');
+
+            console.log('✅ Statistics data loaded and charts rendered');
+
+        } catch (error) {
+            console.error('❌ Error loading statistics data:', error);
+            this.showToast(error.message || 'Failed to load statistics data', 'error');
+        } finally {
+            // Hide loading state
+            this.setLoadingState(false);
+        }
+    }
+
+    /**
+     * Render all charts with current window data
+     */
+    renderAllCharts() {
+        // Show charts containers
+        if (this.elements.chartsContainer) {
+            this.elements.chartsContainer.style.display = '';
+        }
+        if (this.elements.distributionContainer) {
+            this.elements.distributionContainer.style.display = '';
+        }
+
+        // Create pie charts
+        if (window.clientData) {
+            this.createPieChart('clientChart', window.clientData, 'Client Distribution');
+        }
+
+        if (window.actionTypeData) {
+            this.createPieChart('actionTypeChart', window.actionTypeData, 'Action Types');
+        }
+
+        if (window.printPrepTypeData) {
+            this.createPieChart('printPrepTypeChart', window.printPrepTypeData, 'Print Prep Types');
+        }
+
+        // Create line chart for monthly entries
+        if (window.monthlyEntriesData) {
+            this.createMonthlyEntriesChart('monthlyEntriesChart', window.monthlyEntriesData, 'Monthly Entries Distribution');
+        }
+
+        // Create bar chart for daily entries
+        if (window.dailyEntriesData) {
+            this.createDailyEntriesChart('dailyEntriesChart', window.dailyEntriesData, 'Daily Entries Distribution');
+        }
+
+        console.log('✅ All charts rendered successfully');
+    }
+
+    /**
+     * Set loading state UI
+     */
+    setLoadingState(loading) {
+        if (loading) {
+            // Disable button and show spinner
+            if (this.elements.loadDataBtn) {
+                this.elements.loadDataBtn.disabled = true;
+                this.elements.loadDataBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+            }
+
+            // Show loading indicator
+            if (this.elements.loadingIndicator) {
+                this.elements.loadingIndicator.style.display = '';
+            }
+
+            // Hide charts
+            if (this.elements.chartsContainer) {
+                this.elements.chartsContainer.style.display = 'none';
+            }
+            if (this.elements.distributionContainer) {
+                this.elements.distributionContainer.style.display = 'none';
+            }
+        } else {
+            // Reset button
+            if (this.elements.loadDataBtn) {
+                this.elements.loadDataBtn.disabled = false;
+                this.elements.loadDataBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Load Data';
+            }
+
+            // Hide loading indicator
+            if (this.elements.loadingIndicator) {
+                this.elements.loadingIndicator.style.display = 'none';
+            }
+        }
+    }
+
+    /**
+     * Show toast notification
+     */
+    showToast(message, type) {
+        // Use existing toast system if available
+        if (typeof window.showToast === 'function') {
+            const titleMap = {
+                'success': 'Success',
+                'error': 'Error',
+                'danger': 'Error',
+                'warning': 'Warning',
+                'info': 'Info'
+            };
+            const title = titleMap[type] || 'Notification';
+            window.showToast(title, message, type === 'danger' ? 'error' : type);
+        } else {
+            // Fallback to console
+            console.log(`[${type.toUpperCase()}] ${message}`);
         }
     }
 
