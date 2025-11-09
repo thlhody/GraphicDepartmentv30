@@ -29,13 +29,18 @@
             </a>
         </div>
 
-        <!-- Period Selection -->
+        <!-- Period Selection & Actions Card -->
         <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calendar-range me-2"></i>Period Selection and Export
+                </h5>
+            </div>
             <div class="card-body">
-                <div class="row g-3">
+                <div class="row g-3 justify-content-center align-items-end">
                     <!-- Year Selection -->
-                    <div class="col-md-2">
-                        <label for="yearSelect" class="form-label">Year</label>
+                    <div class="col-auto" style="min-width: 150px;">
+                        <label for="yearSelect" class="form-label fw-semibold">Year</label>
                         <select id="yearSelect" class="form-select">
                             <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
                                     th:value="${y}"
@@ -47,8 +52,8 @@
                     </div>
 
                     <!-- Month Selection -->
-                    <div class="col-md-2">
-                        <label for="monthSelect" class="form-label">Month</label>
+                    <div class="col-auto" style="min-width: 150px;">
+                        <label for="monthSelect" class="form-label fw-semibold">Month</label>
                         <select id="monthSelect" class="form-select">
                             <option th:each="m : ${#numbers.sequence(1, 12)}"
                                     th:value="${m}"
@@ -60,34 +65,32 @@
                     </div>
 
                     <!-- Load Data Button -->
-                    <div class="col-md-2">
-                        <label class="form-label">&nbsp;</label>
+                    <div class="col-auto" style="min-width: 150px;">
                         <button id="loadData" class="btn btn-primary w-100">
                             <i class="bi bi-sync me-2"></i>Load Data
                         </button>
                     </div>
 
                     <!-- Export Admin Excel Button (Admin only) -->
-                    <div class="col-md-2" sec:authorize="hasRole('ROLE_ADMIN')">
-                        <label class="form-label">&nbsp;</label>
+                    <div class="col-auto" style="min-width: 150px;" sec:authorize="hasRole('ROLE_ADMIN')">
                         <button id="exportExcel" class="btn btn-success w-100">
                             <i class="bi bi-file-earmark-excel me-2"></i>Export Admin
                         </button>
                     </div>
 
                     <!-- Export User Excel Button -->
-                    <div class="col-md-2">
-                        <label class="form-label">&nbsp;</label>
-                        <button id="exportUserExcel" class="btn btn-success w-100">
+                    <div class="col-auto" style="min-width: 150px;">
+                        <button id="exportUserExcel" class="btn btn-info w-100">
                             <i class="bi bi-file-earmark-person me-2"></i>Export User
                         </button>
                     </div>
+                </div>
 
-                    <!-- Back to Check Register Button (Team Leader only) -->
-                    <div class="col-md-2" sec:authorize="hasRole('ROLE_TL_CHECKING')">
-                        <label class="form-label">&nbsp;</label>
-                        <a th:href="@{/team/check-register}" class="btn btn-outline-primary w-100">
-                            <i class="bi bi-clipboard-check me-2"></i>Back to Register
+                <!-- Back to Check Register Button (Team Leader only) - Separate Row -->
+                <div class="row mt-3" sec:authorize="hasRole('ROLE_TL_CHECKING')">
+                    <div class="col-12 text-center">
+                        <a th:href="@{/team/check-register}" class="btn btn-outline-primary">
+                            <i class="bi bi-clipboard-check me-2"></i>Back to Check Register
                         </a>
                     </div>
                 </div>

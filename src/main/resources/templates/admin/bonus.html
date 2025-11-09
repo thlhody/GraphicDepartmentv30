@@ -29,13 +29,13 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-light">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-calendar-range me-2"></i>Period Selection
+                    <i class="bi bi-calendar-range me-2"></i>Period Selection and Export
                 </h5>
             </div>
             <div class="card-body">
-                <div class="row g-3 align-items-end">
+                <div class="row g-3 justify-content-center align-items-end">
                     <!-- Year Selection -->
-                    <div class="col-md-2">
+                    <div class="col-auto" style="min-width: 150px;">
                         <label for="yearSelect" class="form-label fw-semibold">Year</label>
                         <select id="yearSelect" class="form-select">
                             <option th:each="y : ${#numbers.sequence(2020, #dates.year(#dates.createNow()))}"
@@ -48,7 +48,7 @@
                     </div>
 
                     <!-- Month Selection -->
-                    <div class="col-md-2">
+                    <div class="col-auto" style="min-width: 150px;">
                         <label for="monthSelect" class="form-label fw-semibold">Month</label>
                         <select id="monthSelect" class="form-select">
                             <option th:each="month : ${months}"
@@ -61,24 +61,21 @@
                     </div>
 
                     <!-- Load Data Button -->
-                    <div class="col-md-2">
+                    <div class="col-auto" style="min-width: 150px;">
                         <button id="loadData" class="btn btn-primary w-100">
                             <i class="bi bi-arrow-clockwise me-2"></i>Load Data
                         </button>
                     </div>
 
-                    <!-- Spacer -->
-                    <div class="col-md-2"></div>
-
                     <!-- Export Admin Excel Button -->
-                    <div class="col-md-2">
+                    <div class="col-auto" style="min-width: 150px;">
                         <button id="exportExcel" class="btn btn-success w-100">
                             <i class="bi bi-file-earmark-excel me-2"></i>Export Admin
                         </button>
                     </div>
 
                     <!-- Export User Excel Button -->
-                    <div class="col-md-2">
+                    <div class="col-auto" style="min-width: 150px;">
                         <button id="exportUserExcel" class="btn btn-info w-100">
                             <i class="bi bi-file-earmark-person me-2"></i>Export User
                         </button>
