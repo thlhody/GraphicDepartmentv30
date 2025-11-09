@@ -578,7 +578,6 @@ function getUtilityLoadStatus() {
     const utilities = {
         'Backup Management': typeof window.BackupUtility !== 'undefined',
         'Cache Monitoring': typeof window.MonitorUtility !== 'undefined',
-        'Session Diagnostics': typeof window.SessionUtility !== 'undefined',
         'System Health': typeof window.HealthUtility !== 'undefined',
         'Diagnostics': typeof window.DiagnosticsUtility !== 'undefined',
         'Quick Actions': typeof window.ActionsUtility !== 'undefined',
