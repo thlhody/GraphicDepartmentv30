@@ -16,8 +16,9 @@
         <div class="container py-4">
 
             <!-- Unresolved Entries Persistent Notification -->
+            <!-- Hidden by default - ToastNotification.js will show the toast version instead -->
             <div th:if="${hasUnresolvedEntries != null && hasUnresolvedEntries && (param.action == null || param.action.length == 0)}"
-                 class="unresolved-floating-card" id="unresolvedCard">
+                 class="unresolved-floating-card" id="unresolvedCard" style="display: none;">
                 <div class="floating-card-content">
                     <div class="card-header-row">
                         <div class="card-icon">
