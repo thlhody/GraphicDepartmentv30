@@ -10,6 +10,7 @@
 import { SessionUI } from './SessionUI.js';
 import { SessionEndTime } from './SessionEndTime.js';
 import { SessionTimeManagement } from './SessionTimeManagement.js';
+import { ResolutionManager } from '../resolution/ResolutionManager.js';
 import { formatMinutesToHours } from '../../core/utils.js';
 
 // Import time-management modules for embedded fragment support
@@ -29,6 +30,10 @@ function init() {
     // Initialize end time scheduler and calculator
     const sessionEndTime = new SessionEndTime();
 
+    // Initialize resolution manager for unresolved sessions
+    const resolutionManager = new ResolutionManager();
+    resolutionManager.initialize();
+
     // Initialize time management integration
     const sessionTimeManagement = new SessionTimeManagement();
 
@@ -36,6 +41,7 @@ function init() {
     window.Session = {
         ui: sessionUI,
         endTime: sessionEndTime,
+        resolution: resolutionManager,
         timeManagement: sessionTimeManagement
     };
 

@@ -303,7 +303,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small">End Hour</label>
                                                     <label>
-                                                        <select name="endHour" class="form-select hour-select" onchange="calculateWorkTime(this.closest('form'))" required>
+                                                        <select name="endHour" class="form-select hour-select" required>
                                                             <option value="">Hour</option>
                                                             <option th:each="hour : ${#numbers.sequence(7, 23)}"
                                                                     th:value="${hour}"
@@ -314,7 +314,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small">End Minute</label>
                                                     <label>
-                                                        <select name="endMinute" class="form-select minute-select" onchange="calculateWorkTime(this.closest('form'))" required>
+                                                        <select name="endMinute" class="form-select minute-select" required>
                                                             <option value="">Minute</option>
                                                             <option th:each="minute : ${#numbers.sequence(0, 59, 5)}"
                                                                     th:value="${minute}"

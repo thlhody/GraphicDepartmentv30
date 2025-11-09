@@ -42,10 +42,10 @@ export class ResolutionManager {
     // ========================================================================
 
     /**
-     * Setup event listeners for calculation forms
+     * Setup event listeners for resolution forms
      */
     setupFormListeners() {
-        this.calculationForms = document.querySelectorAll('.calculation-form');
+        this.calculationForms = document.querySelectorAll('.resolution-form');
 
         this.calculationForms.forEach((form) => {
             const hourSelect = form.querySelector('select[name="endHour"]');
@@ -218,17 +218,16 @@ export class ResolutionManager {
                 const result = await response.json();
 
                 if (result.success) {
-                    this.showToastSafe('Success', 'Session resolved successfully', 'success');
+                    // NOTE: Don't show toast here - server flash message will handle it
+                    // (this was causing duplicate toasts)
 
-                    // Redirect after short delay
-                    setTimeout(() => {
-                        window.location.href = result.redirectUrl || '/user/session';
-                    }, 1500);
+                    // Redirect immediately (server flash message will show on reload)
+                    window.location.href = result.redirectUrl || '/user/session';
                 } else {
                     throw new Error(result.message || 'Resolution failed');
                 }
             } else {
-                // Direct redirect
+                // Direct redirect (server flash message will show on reload)
                 window.location.href = '/user/session';
             }
 

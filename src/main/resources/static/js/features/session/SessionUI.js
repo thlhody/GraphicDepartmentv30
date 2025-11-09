@@ -106,18 +106,9 @@ export class SessionUI {
                 }
             }
 
-            // Handle flash messages
-            if (sessionData.flashMessages) {
-                if (sessionData.flashMessages.success) {
-                    window.showToast('Success', sessionData.flashMessages.success, 'success');
-                }
-                if (sessionData.flashMessages.error) {
-                    window.showToast('Error', sessionData.flashMessages.error, 'error');
-                }
-                if (sessionData.flashMessages.warning) {
-                    window.showToast('Warning', sessionData.flashMessages.warning, 'warning');
-                }
-            }
+            // NOTE: Flash messages are already processed by ToastNotification.processServerAlerts()
+            // in layout/default.html, so we don't need to process them again here
+            // (this was causing duplicate toasts)
 
         } catch (error) {
             console.error('Error parsing session page data:', error);
