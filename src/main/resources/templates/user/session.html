@@ -299,19 +299,18 @@
                                         <form th:action="@{/user/session/resolve-worktime}" method="post" class="resolution-form">
                                             <input type="hidden" name="entryDate" th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
 
-                                            <div class="row g-2">
-                                                <div class="col-12">
-                                                    <label class="form-label small">End Time</label>
-                                                    <input type="time"
-                                                           name="endTime"
-                                                           class="form-control end-time-input"
-                                                           min="07:00"
-                                                           max="23:59"
-                                                           step="300"
-                                                           required>
-                                                    <small class="text-muted">Select when you ended work (5-minute intervals)</small>
-                                                </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <label class="form-label mb-0 small text-nowrap">Select End Time</label>
+                                                <input type="time"
+                                                       name="endTime"
+                                                       class="form-control form-control-sm end-time-input"
+                                                       min="07:00"
+                                                       max="23:59"
+                                                       step="300"
+                                                       style="max-width: 150px;"
+                                                       required>
                                             </div>
+                                            <small class="text-muted d-block mt-1">5-minute intervals</small>
 
                                             <div class="calculation-result mt-2" style="display: block;">
                                                 <div class="calculation-panel">
