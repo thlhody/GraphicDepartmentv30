@@ -6,17 +6,21 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * Detailed previous months bonus data for comparison.
+ * Contains full BonusEntry objects for display on register manager page.
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PreviousMonthsBonuses {
+public class PreviousMonthsDetails {
     @JsonProperty("month1")
-    private Double month1;
+    private BonusEntry month1;
 
     @JsonProperty("month2")
-    private Double month2;
+    private BonusEntry month2;
 
     @JsonProperty("month3")
-    private Double month3;
+    private BonusEntry month3;
 }

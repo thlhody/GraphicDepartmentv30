@@ -605,8 +605,9 @@ public class AdminRegisterService {
             double sumArticleNumbers = validEntries.stream().mapToDouble(RegisterEntry::getArticleNumbers).sum();
             double sumComplexity = validEntries.stream().mapToDouble(RegisterEntry::getGraphicComplexity).sum();
 
-            // Load previous months' data
+            // Load previous months' data (both simple amounts and full details)
             PreviousMonthsBonuses previousMonths = loadPreviousMonthsBonuses(userId, year, month);
+            PreviousMonthsDetails previousMonthsDetails = loadPreviousMonthsDetails(userId, year, month);
 
             // Calculate bonus
             BonusCalculationResultDTO result = bonusCalculator.calculateBonus(numberOfEntries, workedDays, sumArticleNumbers, sumComplexity, config);
@@ -622,6 +623,7 @@ public class AdminRegisterService {
                     .bonusPercentage(result.getBonusPercentage())
                     .bonusAmount(result.getBonusAmount())
                     .previousMonths(previousMonths)
+                    .previousMonthsDetails(previousMonthsDetails)
                     .build();
 
             LoggerUtil.info(this.getClass(), String.format("Successfully calculated bonus for user %d: entries=%d, amount=%.2f", userId, numberOfEntries, finalResult.getBonusAmount()));
@@ -876,7 +878,43 @@ public class AdminRegisterService {
             Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElse(userId); // Fallback to userId if employeeId not found
 
             YearMonth currentMonth = YearMonth.of(year, month);
-            LoggerUtil.info(this.getClass(), String.format("Loading previous months bonuses for employee %d, current month: %s", employeeId, currentMonth));
+            LoggerUtil.info(this.getClass(), String.format("Loading previous months bonuses (amounts) for employee %d, current month: %s", employeeId, currentMonth));
+
+            // Calculate previous months
+            YearMonth month1 = currentMonth.minusMonths(1);
+            YearMonth month2 = currentMonth.minusMonths(2);
+            YearMonth month3 = currentMonth.minusMonths(3);
+
+            Double bonus1 = loadMonthBonusAmount(employeeId, month1);
+            Double bonus2 = loadMonthBonusAmount(employeeId, month2);
+            Double bonus3 = loadMonthBonusAmount(employeeId, month3);
+
+            LoggerUtil.info(this.getClass(), String.format("Previous months bonus amounts for employee %d: %.2f, %.2f, %.2f",
+                employeeId, bonus1, bonus2, bonus3));
+
+            return PreviousMonthsBonuses.builder()
+                    .month1(bonus1)
+                    .month2(bonus2)
+                    .month3(bonus3)
+                    .build();
+
+        } catch (Exception e) {
+            LoggerUtil.warn(this.getClass(), String.format("Error loading previous bonus amounts for user %d, returning zeros: %s", userId, e.getMessage()));
+            return PreviousMonthsBonuses.builder()
+                    .month1(0.0)
+                    .month2(0.0)
+                    .month3(0.0)
+                    .build();
+        }
+    }
+
+    private PreviousMonthsDetails loadPreviousMonthsDetails(Integer userId, Integer year, Integer month) {
+        try {
+            // Get employee ID first
+            Integer employeeId = userService.getUserById(userId).map(User::getEmployeeId).orElse(userId); // Fallback to userId if employeeId not found
+
+            YearMonth currentMonth = YearMonth.of(year, month);
+            LoggerUtil.info(this.getClass(), String.format("Loading previous months bonus details for employee %d, current month: %s", employeeId, currentMonth));
 
             // Calculate previous months
             YearMonth month1 = currentMonth.minusMonths(1);
@@ -887,25 +925,41 @@ public class AdminRegisterService {
             BonusEntry bonus2 = loadMonthBonusEntry(employeeId, month2);
             BonusEntry bonus3 = loadMonthBonusEntry(employeeId, month3);
 
-            LoggerUtil.info(this.getClass(), String.format("Previous months bonuses for employee %d: %s, %s, %s",
+            LoggerUtil.info(this.getClass(), String.format("Previous months bonus details for employee %d: %s, %s, %s",
                 employeeId,
-                bonus1 != null ? bonus1.getBonusAmount() : "null",
-                bonus2 != null ? bonus2.getBonusAmount() : "null",
-                bonus3 != null ? bonus3.getBonusAmount() : "null"));
+                bonus1 != null ? "found" : "null",
+                bonus2 != null ? "found" : "null",
+                bonus3 != null ? "found" : "null"));
 
-            return PreviousMonthsBonuses.builder()
+            return PreviousMonthsDetails.builder()
                     .month1(bonus1)
                     .month2(bonus2)
                     .month3(bonus3)
                     .build();
 
         } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), String.format("Error loading previous bonuses for user %d, returning nulls: %s", userId, e.getMessage()));
-            return PreviousMonthsBonuses.builder()
+            LoggerUtil.warn(this.getClass(), String.format("Error loading previous bonus details for user %d, returning nulls: %s", userId, e.getMessage()));
+            return PreviousMonthsDetails.builder()
                     .month1(null)
                     .month2(null)
                     .month3(null)
                     .build();
+        }
+    }
+
+    private Double loadMonthBonusAmount(Integer employeeId, YearMonth month) {
+        try {
+            List<BonusEntry> entries = registerDataService.readAdminBonus(month.getYear(), month.getMonthValue());
+
+            return entries.stream()
+                    .filter(entry -> entry.getEmployeeId().equals(employeeId))
+                    .map(BonusEntry::getBonusAmount)
+                    .findFirst()
+                    .orElse(0.0);
+
+        } catch (Exception e) {
+            LoggerUtil.info(this.getClass(), String.format("No bonus amount found for employee %d in %s: %s", employeeId, month, e.getMessage()));
+            return 0.0;
         }
     }
 

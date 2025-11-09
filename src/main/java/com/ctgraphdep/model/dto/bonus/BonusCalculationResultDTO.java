@@ -1,6 +1,7 @@
 package com.ctgraphdep.model.dto.bonus;
 
 import com.ctgraphdep.model.PreviousMonthsBonuses;
+import com.ctgraphdep.model.PreviousMonthsDetails;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -20,4 +21,5 @@ public class BonusCalculationResultDTO {
     private final double bonusPercentage;
     private final double bonusAmount;
     private final PreviousMonthsBonuses previousMonths;
+    private final PreviousMonthsDetails previousMonthsDetails;
 }
