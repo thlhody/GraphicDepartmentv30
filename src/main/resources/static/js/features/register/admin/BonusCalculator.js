@@ -107,15 +107,11 @@ export class BonusCalculator {
 
             console.log('Calculating bonus:', payload);
 
-            // Call backend
-            const response = await API.post('/admin/register/calculate-bonus', payload);
+            // Call backend - API.post() returns parsed data directly, throws on error
+            const result = await API.post('/admin/register/calculate-bonus', payload);
 
-            if (response.ok) {
-                const result = await response.json();
-                this.displayBonusResults(result);
-            } else {
-                throw new Error('Bonus calculation failed');
-            }
+            // Display results
+            this.displayBonusResults(result);
 
         } catch (error) {
             console.error('Bonus calculation error:', error);
