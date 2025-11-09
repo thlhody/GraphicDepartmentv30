@@ -432,9 +432,8 @@ export class ToastNotification {
      * Expects elements with: data-alert-type and data-alert-message attributes
      */
     static processServerAlerts() {
-        // Check if unresolved floating card is visible (session page)
-        const unresolvedCard = document.getElementById('unresolvedCard');
-        const hasUnresolvedCard = unresolvedCard && unresolvedCard.offsetParent !== null;
+        // Detect if we're on the session page (has resolution UI elements)
+        const isSessionPage = document.querySelector('.resolution-form, #unresolvedCard, .unresolved-floating-card') !== null;
 
         // NEW: Process data-attribute based alerts (modern approach)
         const dataAlerts = document.querySelectorAll('[data-alert-message]');
@@ -444,9 +443,10 @@ export class ToastNotification {
             const title = el.getAttribute('data-alert-title') || this.#capitalize(type);
 
             if (message && message.trim()) {
-                // Skip unresolved session warnings if the orange card is visible
-                if (hasUnresolvedCard && message.toLowerCase().includes('unresolved')) {
-                    console.log('⏭️ Skipping unresolved warning toast - orange card is visible');
+                // SPECIAL HANDLING: Session page unresolved warnings
+                // The orange floating card is the proper UI for this, don't show duplicate toast
+                if (isSessionPage && message.toLowerCase().includes('unresolved')) {
+                    console.log('⏭️ Session page: Unresolved warning handled by orange card (no toast)');
                     this.#hideParentAlert(el);
                     return;
                 }
