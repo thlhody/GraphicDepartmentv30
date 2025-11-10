@@ -585,7 +585,16 @@ export class ToastNotification {
             }
 
             const text = el.textContent.trim();
-            if (!text) return;
+
+            // Skip if no text or only label text (like "Warning:" or "Info:")
+            if (!text || text === 'Warning:' || text === 'Info:' || text === 'Success:' || text === 'Error:') {
+                return;
+            }
+
+            // Skip if text is too short (likely just icons or labels)
+            if (text.length < 5) {
+                return;
+            }
 
             // Determine type from Bootstrap classes
             let type = 'info';
