@@ -104,12 +104,28 @@
             updateClock(); // Initial call
         }
 
-        // Initialize clock on page load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initDashboardClock);
-        } else {
-            initDashboardClock();
-        }
+        (function initDashboardClock() {
+            const updateClock = function() {
+                const clockElement = document.getElementById('dashboard-live-clock');
+                if (clockElement) {
+                    const now = new Date();
+
+                    // Format as dd/MM/YYYY - HH:mm
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const year = now.getFullYear();
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(now.getMinutes()).padStart(2, '0');
+
+                    const formattedTime = `${day}/${month}/${year} - ${hours}:${minutes}`;
+                    clockElement.textContent = formattedTime;
+                }
+            };
+
+            // Update every second
+            setInterval(updateClock, 1000);
+            updateClock(); // Initial call
+        })();
     </script>
 
     <!-- ES6 Module (Modern Browsers) -->
