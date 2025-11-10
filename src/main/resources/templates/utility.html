@@ -52,19 +52,19 @@
 
         <!-- Quick Actions Bar -->
         <div class="quick-actions-bar mb-4">
-            <button id="emergency-reset-btn" class="btn-emergency" title="Emergency Cache Reset">
+            <button id="emergency-reset-top-btn" class="btn-emergency" title="Emergency Cache Reset">
                 <i class="bi bi-exclamation-triangle"></i>
                 <span>Emergency Reset</span>
             </button>
-            <button id="manual-session-reset-btn" class="btn-warning" title="Manual Session Reset">
+            <button id="session-reset-top-btn" class="btn-warning" title="Manual Session Reset">
                 <i class="bi bi-arrow-clockwise"></i>
                 <span>Session Reset</span>
             </button>
-            <button id="refresh-all-btn" class="btn-primary" title="Refresh All Data">
+            <button id="refresh-all-top-btn" class="btn-primary" title="Refresh All Data">
                 <i class="bi bi-arrow-repeat"></i>
                 <span>Refresh All</span>
             </button>
-            <button id="system-summary-btn" class="btn-info" title="System Summary">
+            <button id="system-summary-top-btn" class="btn-info" title="System Summary">
                 <i class="bi bi-clipboard-data"></i>
                 <span>System Summary</span>
             </button>
@@ -208,53 +208,53 @@
         });
 
         // Quick Actions Setup
+        // NOTE: Top-level quick action buttons (with -top-btn suffix) call coordinator functions
+        // Fragment buttons are handled by their respective ES6 modules
         function setupQuickActions() {
             console.log('🚀 Setting up quick actions...');
 
-            // Emergency Reset
-            $('#emergency-reset-btn').click(function() {
-                if (confirm('⚠️ EMERGENCY RESET ⚠️\n\nThis will completely reset all cached data and session state.\nThis action should only be used if you are experiencing severe issues.\n\nAre you absolutely sure you want to continue?')) {
-                    if (typeof window.performEmergencyReset === 'function') {
-                        window.performEmergencyReset();
-                    } else if (typeof window.ActionsUtility !== 'undefined') {
-                        window.ActionsUtility.emergencyReset();
-                    }
+            // Emergency Reset (top bar button - calls coordinator function)
+            $('#emergency-reset-top-btn').click(function() {
+                if (typeof window.performEmergencyReset === 'function') {
+                    window.performEmergencyReset();
+                } else {
+                    console.warn('performEmergencyReset function not available');
                 }
             });
 
-            // Manual Session Reset
-            $('#manual-session-reset-btn').click(function() {
-                if (confirm('Reset your current session?\n\nThis will:\n• Clear session data\n• Reset monitoring state\n• Refresh user context\n\nContinue?')) {
-                    if (typeof window.performSessionReset === 'function') {
-                        window.performSessionReset();
-                    } else if (typeof window.SessionUtility !== 'undefined') {
-                        window.SessionUtility.performReset();
-                    }
+            // Manual Session Reset (top bar button - calls coordinator function)
+            $('#session-reset-top-btn').click(function() {
+                if (typeof window.performSessionReset === 'function') {
+                    window.performSessionReset();
+                } else {
+                    console.warn('performSessionReset function not available');
                 }
             });
 
-            // Refresh All
-            $('#refresh-all-btn').click(function() {
+            // Refresh All (top bar button - calls coordinator function)
+            $('#refresh-all-top-btn').click(function() {
                 if (typeof window.refreshAllUtilities === 'function') {
                     window.refreshAllUtilities();
-                } else if (typeof window.ActionsUtility !== 'undefined') {
-                    window.ActionsUtility.refreshAll();
+                } else {
+                    console.warn('refreshAllUtilities function not available');
                 }
             });
 
-            // System Summary
-            $('#system-summary-btn').click(function() {
+            // System Summary (top bar button - calls coordinator function)
+            $('#system-summary-top-btn').click(function() {
                 if (typeof window.showSystemSummary === 'function') {
                     window.showSystemSummary();
-                } else if (typeof window.DiagnosticsUtility !== 'undefined') {
-                    window.DiagnosticsUtility.getSystemSummary();
+                } else {
+                    console.warn('showSystemSummary function not available');
                 }
             });
 
-            // Close Summary
+            // Close Summary (generic UI action)
             $('#close-summary').click(function() {
                 $('#system-status-summary').fadeOut();
             });
+
+            console.log('✅ Quick actions setup complete (calls coordinator functions)');
         }
 
         // Auto-refresh setup for all utilities
