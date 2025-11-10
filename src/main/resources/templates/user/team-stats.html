@@ -273,15 +273,9 @@
     <script type="module">
         const cacheBuster = new Date().getTime();
             import(`/js/features/statistics/index.js?v=081120251622${cacheBuster}`)
-        
+
                 .then(() => console.log('✅ Team Statistics - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));
-    </script>
-
-    <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/team-stats.js}"></script>
-    <script nomodule>
-        console.log('⚠️ Team Statistics - Legacy fallback loaded');
     </script>
 </th:block>
 </body>
