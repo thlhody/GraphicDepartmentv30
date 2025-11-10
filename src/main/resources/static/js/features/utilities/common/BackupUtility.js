@@ -222,7 +222,8 @@ export class BackupUtility {
         this.updateBackupInfo('Create Backup', 'In Progress', this.getCurrentTime());
 
         try {
-            const data = await API.post('/utility/backups/create', {
+            // Backend expects form parameters, not JSON
+            const data = await API.postForm('/utility/backups/create', {
                 fileType,
                 year,
                 month
@@ -266,7 +267,8 @@ export class BackupUtility {
         this.updateBackupInfo('Restore Latest', 'In Progress', this.getCurrentTime());
 
         try {
-            const data = await API.post('/utility/backups/restore-latest', {
+            // Backend expects form parameters, not JSON
+            const data = await API.postForm('/utility/backups/restore-latest', {
                 fileType,
                 year,
                 month
@@ -339,7 +341,8 @@ export class BackupUtility {
         this.updateBackupInfo('Memory Backup', 'In Progress', this.getCurrentTime());
 
         try {
-            const data = await API.post('/utility/backups/memory-backup', {
+            // Backend expects form parameters, not JSON
+            const data = await API.postForm('/utility/backups/memory-backup', {
                 fileType,
                 year,
                 month
@@ -378,11 +381,9 @@ export class BackupUtility {
         this.updateBackupInfo('Cleanup', 'In Progress', this.getCurrentTime());
 
         try {
-            const data = await API.delete('/utility/backups/cleanup', {
-                fileType,
-                year,
-                month
-            });
+            // Backend expects query parameters for DELETE
+            const params = new URLSearchParams({ fileType, year, month });
+            const data = await API.delete(`/utility/backups/cleanup?${params}`);
 
             if (data.success) {
                 this.updateBackupInfo('Cleanup', 'Success', this.getCurrentTime());
