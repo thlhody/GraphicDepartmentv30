@@ -80,6 +80,19 @@ export class SessionUtility {
         this.elements.operationTime = document.getElementById('session-operation-time');
         this.elements.resetStatus = document.getElementById('session-reset-status');
         this.elements.contextHealth = document.getElementById('session-context-health');
+
+        // Debug: Log which elements were found
+        const foundElements = Object.entries(this.elements)
+            .filter(([key, value]) => value !== null)
+            .map(([key]) => key);
+        const missingElements = Object.entries(this.elements)
+            .filter(([key, value]) => value === null)
+            .map(([key]) => key);
+
+        if (missingElements.length > 0) {
+            console.warn('⚠️ SessionUtility: Missing DOM elements:', missingElements);
+        }
+        console.log('✅ SessionUtility: Found elements:', foundElements);
     }
 
     /**
@@ -150,7 +163,7 @@ export class SessionUtility {
      * Refresh overview (auto-called on load)
      */
     async refreshOverview() {
-        console.log('🔄 Refreshing session overview...');
+        console.log('🔄 SessionUtility: Refreshing session overview...');
 
         try {
             // Load both reset status and context status in parallel
@@ -158,8 +171,9 @@ export class SessionUtility {
                 this.loadResetStatusSilent(),
                 this.loadContextStatusSilent()
             ]);
+            console.log('✅ SessionUtility: Overview refresh complete');
         } catch (error) {
-            console.error('Error refreshing session overview:', error);
+            console.error('❌ SessionUtility: Error refreshing overview:', error);
         }
     }
 
@@ -257,12 +271,24 @@ export class SessionUtility {
      */
     async loadResetStatusSilent() {
         try {
+            console.log('🔄 Loading reset status...');
             const data = await API.get('/utility/session/reset-status');
+            console.log('✅ Reset status data:', data);
             if (data.success) {
                 this.updateStatusDisplay(data.resetStatus);
+            } else {
+                console.warn('⚠️ Reset status failed:', data.message);
+                if (this.elements.resetStatus) {
+                    this.elements.resetStatus.textContent = 'Error';
+                    this.elements.resetStatus.classList.add('text-danger');
+                }
             }
         } catch (error) {
-            console.error('Error loading reset status silently:', error);
+            console.error('❌ Error loading reset status:', error);
+            if (this.elements.resetStatus) {
+                this.elements.resetStatus.textContent = 'Error';
+                this.elements.resetStatus.classList.add('text-danger');
+            }
         }
     }
 
@@ -305,12 +331,24 @@ export class SessionUtility {
      */
     async loadContextStatusSilent() {
         try {
+            console.log('🔄 Loading context status...');
             const data = await API.get('/utility/session/context-status');
+            console.log('✅ Context status data:', data);
             if (data.success) {
                 this.updateContextHealthDisplay(data.isHealthy);
+            } else {
+                console.warn('⚠️ Context status failed:', data.message);
+                if (this.elements.contextHealth) {
+                    this.elements.contextHealth.textContent = 'Error';
+                    this.elements.contextHealth.classList.add('text-danger');
+                }
             }
         } catch (error) {
-            console.error('Error loading context status silently:', error);
+            console.error('❌ Error loading context status:', error);
+            if (this.elements.contextHealth) {
+                this.elements.contextHealth.textContent = 'Error';
+                this.elements.contextHealth.classList.add('text-danger');
+            }
         }
     }
 
