@@ -46,7 +46,7 @@ build/
 
 ### Logs ###
 *.log
-claude_code_template.md
+docs/completed/claude_code_template.md
 
 ### Installer ###
 /installer/dist/bin/
