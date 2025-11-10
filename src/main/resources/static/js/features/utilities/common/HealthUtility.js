@@ -622,6 +622,13 @@ export class HealthUtility {
     async refreshStatus() {
         await this.loadHealthOverview();
     }
+
+    /**
+     * Refresh overview (alias for coordinator compatibility)
+     */
+    async refreshOverview() {
+        await this.refreshStatus();
+    }
 }
 
 // Auto-initialize on DOM ready and expose globally for legacy compatibility

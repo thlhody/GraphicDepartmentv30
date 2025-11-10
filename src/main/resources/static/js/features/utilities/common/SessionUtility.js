@@ -659,6 +659,13 @@ export class SessionUtility {
     refresh() {
         this.refreshOverview();
     }
+
+    /**
+     * Refresh status (for coordinator compatibility)
+     */
+    async refreshStatus() {
+        await this.refreshOverview();
+    }
 }
 
 // ========================================================================
