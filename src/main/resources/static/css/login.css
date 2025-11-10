@@ -1,3 +1,5 @@
+@import url('variables.css');
+
 /* Base Layout */
 .login-container {
     min-height: calc(100vh - var(--navbar-height, 56px) - 100px);
