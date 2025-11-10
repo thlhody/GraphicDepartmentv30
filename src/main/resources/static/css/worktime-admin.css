@@ -3,6 +3,8 @@
 /*                      Only Fix Badge Centering - Keep Table Intact           */
 /* ============================================================================ */
 
+@import url('variables.css');
+
 /* ============================================================================ */
 /* 1. TABLE LAYOUT & STRUCTURE - KEEP ORIGINAL */
 /* ============================================================================ */
@@ -142,24 +144,24 @@
 
 /* Specific Badge Colors - LOGICAL COLOR SCHEME */
 .holiday {
-    background-color: #28a745; /* Green for SN (Free Holiday Day) */
-    color: white;
+    background-color: var(--color-timeoff-holiday);
+    color: var(--color-white);
 }
 
 .vacation {
-    background-color: #007bff; /* Blue for CO (Free Sky/Vacation) */
-    color: white;
+    background-color: var(--color-timeoff-vacation);
+    color: var(--color-white);
 }
 
 .medical {
-    background-color: #ffc107; /* Yellow for CM (Medical) */
-    color: #000; /* Black text for better contrast on yellow */
+    background-color: var(--color-timeoff-medical);
+    color: var(--color-black);
 }
 
 /* NEW: Red for SN with work hours (Holiday + Work) */
 .holiday-with-work {
-    background-color: #dc3545; /* Red for SN:4 (Working on Holiday) */
-    color: white;
+    background-color: var(--color-timeoff-holiday-work);
+    color: var(--color-white);
 }
 
 /* ============================================================================ */
@@ -169,183 +171,178 @@
 /* SN Work Display - FIXED SIZING */
 .sn-work-display {
     display: inline-block;
-    background-color: #dc3545; /* Red for working on holiday */
-    color: white;
-    padding: 2px 4px; /* Tighter padding to fit in cell */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.75em; /* Smaller font to fit more characters */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    background-color: var(--color-timeoff-holiday-work);
+    color: var(--color-white);
+    padding: var(--badge-work-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-work-font-size);
+    box-shadow: var(--shadow-badge);
     line-height: 1.1;
-    min-width: 24px; /* Smaller min-width */
-    max-width: 40px; /* Maximum to fit in 45px column */
+    min-width: var(--badge-work-min-width);
+    max-width: var(--badge-work-max-width);
     text-align: center;
     overflow: hidden;
-/*    text-overflow: ellipsis;*/
 }
 
 /* CO Work Display - FIXED SIZING */
 .co-work-display {
     display: inline-block;
-    background-color: #0dcaf0;
-    color: #000;
-    padding: 2px 4px; /* Consistent with SN */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.75em; /* Consistent sizing */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    background-color: var(--color-timeoff-vacation-work);
+    color: var(--color-black);
+    padding: var(--badge-work-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-work-font-size);
+    box-shadow: var(--shadow-badge);
     line-height: 1.1;
-    min-width: 24px;
-    max-width: 40px;
+    min-width: var(--badge-work-min-width);
+    max-width: var(--badge-work-max-width);
     text-align: center;
     overflow: hidden;
-/*    text-overflow: ellipsis;*/
     border: 1px solid #3dd5f3;
     cursor: help;
-    transition: all 0.15s ease;
+    transition: var(--transition-fast);
 }
 
 /* CM Work Display - FIXED SIZING */
 .cm-work-display {
     display: inline-block;
-    background-color: #fd7e14;
-    color: #fff;
-    padding: 2px 4px; /* Consistent */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.75em;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    background-color: var(--color-timeoff-medical-work);
+    color: var(--color-white);
+    padding: var(--badge-work-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-work-font-size);
+    box-shadow: var(--shadow-badge);
     line-height: 1.1;
-    min-width: 24px;
-    max-width: 40px;
+    min-width: var(--badge-work-min-width);
+    max-width: var(--badge-work-max-width);
     text-align: center;
     overflow: hidden;
-/*    text-overflow: ellipsis;*/
     border: 1px solid #fd8e3a;
     cursor: help;
-    transition: all 0.15s ease;
+    transition: var(--transition-fast);
 }
 
 /* W Work Display - FIXED SIZING */
 .w-work-display {
     display: inline-block;
-    background-color: #6c757d !important;
-    color: #000000 !important;
-    padding: 2px 4px; /* Consistent */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.75em;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    background-color: var(--color-timeoff-weekend-work) !important;
+    color: var(--color-black) !important;
+    padding: var(--badge-work-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-work-font-size);
+    box-shadow: var(--shadow-badge);
     line-height: 1.1;
-    min-width: 24px;
-    max-width: 40px;
+    min-width: var(--badge-work-min-width);
+    max-width: var(--badge-work-max-width);
     text-align: center;
     overflow: hidden;
-/*    text-overflow: ellipsis;*/
     border: 1px solid #7c838a;
     cursor: help;
-    transition: all 0.15s ease;
+    transition: var(--transition-fast);
 }
 
 /* CE Work Display - Special Event with work (marriage/birth/death) */
 .ce-work-display {
     display: inline-block;
-    background-color: #d63384 !important;
-    color: white !important;
-    padding: 2px 4px; /* Consistent */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.75em;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    background-color: var(--color-timeoff-event-work) !important;
+    color: var(--color-white) !important;
+    padding: var(--badge-work-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-work-font-size);
+    box-shadow: var(--shadow-badge);
     line-height: 1.1;
-    min-width: 24px;
-    max-width: 40px;
+    min-width: var(--badge-work-min-width);
+    max-width: var(--badge-work-max-width);
     text-align: center;
     overflow: hidden;
-/*    text-overflow: ellipsis;*/
     border: 1px solid #b82868;
     cursor: help;
-    transition: all 0.15s ease;
+    transition: var(--transition-fast);
 }
 
 /* CR Display - Recovery Leave (paid from overtime) - FIXED: Match REGULAR badges */
 .cr-display {
     display: inline-block;
-    background-color: #198754; /* Green - positive, paid leave */
-    color: white;
-    padding: 3px 8px; /* ✅ Match regular badges (.vacation, .holiday) */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.9em; /* ✅ Match regular badges */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-    line-height: 1.2; /* ✅ Match regular badges */
-    min-width: 28px; /* ✅ Match regular badges */
+    background-color: var(--color-timeoff-recovery);
+    color: var(--color-white);
+    padding: var(--badge-timeoff-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-timeoff-font-size);
+    box-shadow: var(--shadow-badge);
+    line-height: 1.2;
+    min-width: var(--badge-timeoff-min-width);
     text-align: center;
 }
 
 /* CN Display - Unpaid Leave - FIXED: Match REGULAR badges */
 .cn-display {
     display: inline-block;
-    background-color: #6c757d; /* Gray - neutral, unpaid */
-    color: white;
-    padding: 3px 8px; /* ✅ Match regular badges */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.9em; /* ✅ Match regular badges */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-    line-height: 1.2; /* ✅ Match regular badges */
-    min-width: 28px; /* ✅ Match regular badges */
+    background-color: var(--color-timeoff-unpaid);
+    color: var(--color-white);
+    padding: var(--badge-timeoff-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-timeoff-font-size);
+    box-shadow: var(--shadow-badge);
+    line-height: 1.2;
+    min-width: var(--badge-timeoff-min-width);
     text-align: center;
 }
 
 /* D Display - Delegation (normal work day with special form) - Match REGULAR badges */
 .d-display {
     display: inline-block;
-    background-color: #0d6efd; /* Blue - official, delegation */
-    color: white;
-    padding: 3px 8px; /* ✅ Match regular badges */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.9em; /* ✅ Match regular badges */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-    line-height: 1.2; /* ✅ Match regular badges */
-    min-width: 28px; /* ✅ Match regular badges */
+    background-color: var(--color-timeoff-delegation);
+    color: var(--color-white);
+    padding: var(--badge-timeoff-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-timeoff-font-size);
+    box-shadow: var(--shadow-badge);
+    line-height: 1.2;
+    min-width: var(--badge-timeoff-min-width);
     text-align: center;
 }
 
 /* CE Display - Event Leave (marriage/birth/death) - Match REGULAR badges */
 .ce-display {
     display: inline-block;
-    background-color: #d63384; /* Pink/Magenta - special event */
-    color: white;
-    padding: 3px 8px; /* ✅ Match regular badges */
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.9em; /* ✅ Match regular badges */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-    line-height: 1.2; /* ✅ Match regular badges */
-    min-width: 28px; /* ✅ Match regular badges */
+    background-color: var(--color-timeoff-event);
+    color: var(--color-white);
+    padding: var(--badge-timeoff-padding);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--badge-timeoff-font-size);
+    box-shadow: var(--shadow-badge);
+    line-height: 1.2;
+    min-width: var(--badge-timeoff-min-width);
     text-align: center;
 }
 
 /* ZS Display - Short Day (worked < schedule, filled from overtime) */
 .zs-display {
     display: inline-block;
-    background-color: #ffc107 !important; /* Yellow/Amber - warning, needs attention */
-    color: #000 !important;
+    background-color: var(--color-timeoff-short-day) !important;
+    color: var(--color-black) !important;
     padding: 2px 4px;
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 0.65em; /* Slightly smaller to fit "ZS 6h/8h" */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+    font-size: 0.65em;
+    box-shadow: var(--shadow-badge);
     line-height: 1.1;
-    min-width: 32px; /* Wider to fit format */
+    min-width: 32px;
     max-width: 50px;
     text-align: center;
     overflow: hidden;
-    border: 1px solid #ffca2c;
+    border: 1px solid var(--color-warning-dark);
     cursor: help;
-    transition: all 0.15s ease;
+    transition: var(--transition-fast);
 }
 
 /* ============================================================================ */

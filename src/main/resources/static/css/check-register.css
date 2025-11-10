@@ -1,55 +1,46 @@
 /* Check Register specific styles */
 
+@import url('variables.css');
+
 /* Badge colors for different check types */
-/* Override register-user.css .bg-layout with higher specificity */
-.badge.bg-layout {
-    background-color: #007bff !important;
-}
+/* Note: Common badge styles are in default.css */
 
 .badge.bg-kipsta-layout {
-    background-color: #6610f2;
+    background-color: #6610f2 !important;
 }
 
 .badge.bg-layout-changes {
-    background-color: #17a2b8;
+    background-color: var(--color-badge-layout) !important;
 }
 
 .badge.bg-gpt {
-    background-color: #20c997;
+    background-color: #20c997 !important;
 }
 
 .badge.bg-production {
-    background-color: #6c757d;
-}
-
-.badge.bg-reorder {
-    background-color: #343a40;
-}
-
-.badge.bg-sample {
-    background-color: #28a745;
+    background-color: var(--color-secondary) !important;
 }
 
 .badge.bg-oms-production {
-    background-color: #dc3545;
+    background-color: var(--color-danger) !important;
 }
 
 .badge.bg-kipsta-production {
-    background-color: #fd7e14;
+    background-color: var(--color-badge-spized) !important;
 }
 
 /* Badge colors for approval status */
 .badge.bg-approved {
-    background-color: #28a745;
+    background-color: var(--color-badge-sample) !important;
 }
 
 .badge.bg-partially-approved {
-    background-color: #ffc107;
-    color: #212529;
+    background-color: var(--color-warning) !important;
+    color: var(--color-dark) !important;
 }
 
 .badge.bg-correction {
-    background-color: #dc3545;
+    background-color: var(--color-danger) !important;
 }
 
 /* Metrics cards styling */
@@ -193,26 +184,15 @@ tr.entry-edited {
     transform: none;
 }
 
-/* Status badges */
-.badge.bg-info {
-    background-color: #17a2b8 !important;
-}
-
-.badge.bg-primary {
-    background-color: #007bff !important;
-}
-
-.badge.bg-secondary {
-    background-color: #6c757d !important;
-}
+/* Note: Status badges (.bg-info, .bg-primary, .bg-secondary) are in default.css */
 
 /* Mark all checked button styling */
 .btn-success {
-    background-color: #28a745;
-    border-color: #28a745;
+    background-color: var(--color-badge-sample);
+    border-color: var(--color-badge-sample);
 }
 
 .btn-success:hover {
-    background-color: #218838;
-    border-color: #1e7e34;
+    background-color: var(--color-success-dark);
+    border-color: var(--color-success-dark);
 }

@@ -1,0 +1,313 @@
+/* ============================================================================
+   CSS Variables - Design Tokens for CTTT Application
+   ============================================================================ */
+
+:root {
+    /* ========================================
+       Color Palette
+       ======================================== */
+
+    /* Primary Colors */
+    --color-primary: #0d6efd;
+    --color-primary-dark: #0b5ed7;
+    --color-primary-light: #e3f2fd;
+
+    /* Success */
+    --color-success: #198754;
+    --color-success-dark: #157347;
+    --color-success-light: #d1e7dd;
+    --color-success-bg: #d1f4e0;
+
+    /* Danger */
+    --color-danger: #dc3545;
+    --color-danger-dark: #bb2d3b;
+    --color-danger-light: #f8d7da;
+
+    /* Warning */
+    --color-warning: #ffc107;
+    --color-warning-dark: #ffca2c;
+    --color-warning-light: #fff3cd;
+
+    /* Info */
+    --color-info: #0dcaf0;
+    --color-info-dark: #31d2f2;
+    --color-info-light: #cff4fc;
+
+    /* Secondary / Gray Scale */
+    --color-secondary: #6c757d;
+    --color-secondary-dark: #5a6268;
+    --color-secondary-light: #e2e3e5;
+
+    /* Neutral Colors */
+    --color-dark: #212529;
+    --color-light: #f8f9fa;
+    --color-white: #ffffff;
+    --color-black: #000000;
+
+    /* Border Colors */
+    --color-border: #dee2e6;
+    --color-border-light: #e9ecef;
+    --color-border-dark: #adb5bd;
+
+    /* Text Colors */
+    --color-text-primary: #212529;
+    --color-text-secondary: #6c757d;
+    --color-text-muted: #495057;
+    --color-text-light: #adb5bd;
+
+    /* Background Colors */
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f8f9fa;
+    --color-bg-tertiary: #e9ecef;
+    --color-bg-dark: #2c3e50;
+
+    /* ========================================
+       Action Type Badge Colors
+       ======================================== */
+
+    --color-badge-order: #007bff;
+    --color-badge-reorder: #6c757d;
+    --color-badge-sample: #28a745;
+    --color-badge-strikeoff: #ffc107;
+    --color-badge-designs: #dc3545;
+    --color-badge-checking: #004085;
+    --color-badge-spized: #fd7e14;
+    --color-badge-layout: #17a2b8;
+    --color-badge-other: #6f42c1;
+
+    /* ========================================
+       Time Off Type Colors
+       ======================================== */
+
+    /* Regular time off badges */
+    --color-timeoff-holiday: #28a745;        /* SN - Holiday */
+    --color-timeoff-vacation: #007bff;       /* CO - Vacation */
+    --color-timeoff-medical: #ffc107;        /* CM - Medical */
+    --color-timeoff-recovery: #198754;       /* CR - Recovery Leave */
+    --color-timeoff-unpaid: #6c757d;         /* CN - Unpaid Leave */
+    --color-timeoff-delegation: #0d6efd;     /* D - Delegation */
+    --color-timeoff-event: #d63384;          /* CE - Event Leave */
+
+    /* Work display colors (with overtime) */
+    --color-timeoff-holiday-work: #dc3545;   /* SN with work */
+    --color-timeoff-vacation-work: #0dcaf0;  /* CO with work */
+    --color-timeoff-medical-work: #fd7e14;   /* CM with work */
+    --color-timeoff-weekend-work: #6c757d;   /* W - Weekend work */
+    --color-timeoff-event-work: #d63384;     /* CE with work */
+    --color-timeoff-short-day: #ffc107;      /* ZS - Short day */
+
+    /* ========================================
+       Gradients
+       ======================================== */
+
+    --gradient-primary: linear-gradient(135deg, #2c3e50, #3498db);
+    --gradient-primary-hover: linear-gradient(135deg, #34495e, #2980b9);
+    --gradient-blue: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+
+    /* ========================================
+       Spacing
+       ======================================== */
+
+    --spacing-xs: 0.25rem;      /* 4px */
+    --spacing-sm: 0.5rem;       /* 8px */
+    --spacing-md: 0.75rem;      /* 12px */
+    --spacing-lg: 1rem;         /* 16px */
+    --spacing-xl: 1.5rem;       /* 24px */
+    --spacing-2xl: 2rem;        /* 32px */
+    --spacing-3xl: 3rem;        /* 48px */
+
+    /* ========================================
+       Border Radius
+       ======================================== */
+
+    --radius-sm: 0.25rem;       /* 4px */
+    --radius-md: 0.375rem;      /* 6px */
+    --radius-lg: 0.5rem;        /* 8px */
+    --radius-xl: 0.75rem;       /* 12px */
+    --radius-pill: 50%;
+    --radius-circle: 9999px;
+
+    /* ========================================
+       Shadows
+       ======================================== */
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+    --shadow-xl: 0 12px 28px rgba(0, 0, 0, 0.25);
+
+    /* Component-specific shadows */
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --shadow-toast: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --shadow-badge: 0 1px 3px rgba(0, 0, 0, 0.15);
+
+    /* ========================================
+       Typography
+       ======================================== */
+
+    --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-family-mono: 'Courier New', Monaco, monospace;
+
+    --font-size-xs: 0.75rem;    /* 12px */
+    --font-size-sm: 0.875rem;   /* 14px */
+    --font-size-base: 1rem;     /* 16px */
+    --font-size-lg: 1.125rem;   /* 18px */
+    --font-size-xl: 1.25rem;    /* 20px */
+    --font-size-2xl: 1.5rem;    /* 24px */
+    --font-size-3xl: 1.75rem;   /* 28px */
+
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    --line-height-tight: 1.1;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
+
+    /* ========================================
+       Z-Index Scale
+       ======================================== */
+
+    --z-dropdown: 1000;
+    --z-sticky: 1020;
+    --z-fixed: 1030;
+    --z-modal-backdrop: 1040;
+    --z-modal: 1050;
+    --z-popover: 1060;
+    --z-tooltip: 1070;
+    --z-toast: 1080;
+    --z-editor: 10000;
+
+    /* ========================================
+       Layout Dimensions
+       ======================================== */
+
+    --navbar-height: 56px;
+    --header-height: 60px;
+    --sidebar-width: 250px;
+
+    /* ========================================
+       Transitions & Animations
+       ======================================== */
+
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+
+    --transition-transform: transform 0.2s ease;
+    --transition-color: color 0.2s ease;
+    --transition-bg: background-color 0.2s ease;
+    --transition-all: all 0.2s ease;
+
+    /* ========================================
+       Opacity Values
+       ======================================== */
+
+    --opacity-disabled: 0.5;
+    --opacity-hover: 0.9;
+    --opacity-muted: 0.7;
+
+    /* ========================================
+       Form Elements
+       ======================================== */
+
+    --input-height: 38px;
+    --input-height-sm: calc(1.5em + 0.5rem + 2px);
+    --input-border-color: #ced4da;
+    --input-focus-border: var(--color-primary);
+    --input-focus-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+
+    /* ========================================
+       Badge Dimensions
+       ======================================== */
+
+    --badge-padding: 0.35em 0.65em;
+    --badge-font-size: 0.875em;
+    --badge-radius: var(--radius-sm);
+
+    /* Time off badge dimensions */
+    --badge-timeoff-padding: 3px 8px;
+    --badge-timeoff-font-size: 0.9em;
+    --badge-timeoff-min-width: 28px;
+
+    /* Work display badge dimensions (compact) */
+    --badge-work-padding: 2px 4px;
+    --badge-work-font-size: 0.75em;
+    --badge-work-min-width: 24px;
+    --badge-work-max-width: 40px;
+
+    /* ========================================
+       Table Dimensions
+       ======================================== */
+
+    --table-cell-padding: 0.75rem;
+    --table-cell-padding-sm: 0.4rem;
+    --table-border-color: var(--color-border);
+}
+
+/* ============================================================================
+   Shared Animations
+   ============================================================================ */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes successFlash {
+    0% {
+        background-color: var(--color-success);
+    }
+    100% {
+        background-color: var(--color-success-light);
+    }
+}
+
+@keyframes errorFlash {
+    0% {
+        background-color: var(--color-danger);
+    }
+    100% {
+        background-color: var(--color-danger-light);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes countChange {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}

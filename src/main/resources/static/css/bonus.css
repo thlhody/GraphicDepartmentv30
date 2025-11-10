@@ -2,21 +2,23 @@
    Admin Bonus Management - Modern Styles
    ======================================== */
 
+@import url('variables.css');
+
 /* ========================================
    Layout & Page Structure
    ======================================== */
 
 /* Page Header */
 .page-header {
-    border-bottom: 2px solid #e9ecef;
-    padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--color-border-light);
+    padding-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
 }
 
 .header-title {
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: #2c3e50;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-bg-dark);
     margin: 0;
 }
 
@@ -26,35 +28,35 @@
 
 .card {
     border: none;
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
     overflow: hidden;
 }
 
 .card-header {
-    border-bottom: 1px solid #e9ecef;
-    background-color: #f8f9fa;
-    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-border-light);
+    background-color: var(--color-bg-secondary);
+    padding: var(--spacing-lg) 1.25rem;
 }
 
 /* Gradient primary header for bonus configuration */
 .card-header.bg-gradient-primary {
-    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+    background: var(--gradient-blue);
     border: none;
-    color: #ffffff;
+    color: var(--color-white);
 }
 
 .card-header.bg-gradient-primary .card-title {
-    color: #ffffff;
+    color: var(--color-white);
 }
 
 .card-title {
     font-size: 1.1rem;
-    font-weight: 600;
-    color: #495057;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
 }
 
 .card-body {
-    background-color: #fff;
+    background-color: var(--color-white);
 }
 
 /* ========================================
@@ -62,22 +64,22 @@
    ======================================== */
 
 .form-label {
-    font-weight: 500;
-    color: #495057;
-    margin-bottom: 0.5rem;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-sm);
 }
 
 .form-select,
 .form-control {
-    border-radius: 8px;
-    border: 1px solid #ced4da;
-    transition: all 0.2s ease;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--input-border-color);
+    transition: var(--transition-all);
 }
 
 .form-select:focus,
 .form-control:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    border-color: var(--color-primary);
+    box-shadow: var(--input-focus-shadow);
 }
 
 /* ========================================
@@ -168,13 +170,9 @@
    ======================================== */
 
 .badge {
-    font-weight: 500;
-    padding: 0.35rem 0.75rem;
-    border-radius: 6px;
-}
-
-.badge.bg-secondary {
-    background-color: #6c757d !important;
+    font-weight: var(--font-weight-medium);
+    padding: var(--badge-padding);
+    border-radius: var(--radius-md);
 }
 
 /* ========================================
@@ -197,19 +195,19 @@
 #bonusTable thead.sticky-header {
     position: sticky;
     top: 0;
-    z-index: 10;
-    background-color: #f8f9fa;
+    z-index: var(--z-sticky);
+    background-color: var(--color-bg-secondary);
 }
 
 #bonusTable thead th {
-    background-color: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
-    font-weight: 600;
-    color: #495057;
+    background-color: var(--color-bg-secondary);
+    border-bottom: 2px solid var(--color-border);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
     padding: 0.85rem 0.75rem;
     vertical-align: middle;
     white-space: nowrap;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-sm);
 }
 
 #bonusTable tbody td {
@@ -376,17 +374,6 @@ th:first-child .th-content {
 /* ========================================
    Animations
    ======================================== */
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
 
 .card {
     animation: fadeIn 0.3s ease;

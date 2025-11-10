@@ -1,3 +1,5 @@
+@import url('variables.css');
+
 /* Reset and Base Styles */
 * {
     box-sizing: border-box;
@@ -6,24 +8,24 @@
 .th {
     text-align: center;
     vertical-align: middle;
-    padding: 8px;
+    padding: var(--spacing-sm);
     white-space: nowrap;
 }
 
 /* Form Validation Styles */
 .invalid-feedback {
     display: block;
-    margin-top: 0.25rem;
-    font-size: 0.875rem;
-    color: #dc3545;
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-danger);
 }
 
 .is-invalid {
-    border-color: #dc3545;
+    border-color: var(--color-danger);
 }
 
 .is-invalid:focus {
-    border-color: #dc3545;
+    border-color: var(--color-danger);
     box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
 }
 
@@ -84,40 +86,7 @@
     background: white !important;
 }
 
-/* Badge Styles */
-.badge {
-    display: inline-block;
-    padding: 0.35em 0.65em;
-    font-size: 0.875em;
-    font-weight: 700;
-    text-align: center;
-    border-radius: 0.25rem;
-    color: #fff;
-}
-
-/* Action Type Badges */
-.bg-order { background-color: #007bff; }
-.bg-reorder { background-color: #6c757d; }
-.bg-sample { background-color: #28a745; }
-.bg-strikeoff {
-    background-color: #ffc107;
-    color: #212529;
-}
-.bg-designs { background-color: #dc3545; }
-.bg-checking { background-color: #004085; }
-.bg-spized {
-    background-color: #fd7e14 !important;
-    color: #000 !important;
-}
-.bg-layout { background-color: #17a2b8; }
-.bg-other { background-color: #6f42c1; }
-
-/* Admin Sync Badges */
-.badge.bg-success { background-color: #198754 !important; }
-.badge.bg-warning {
-    background-color: #ffc107 !important;
-    color: #000 !important;
-}
+/* Note: Badge styles are now defined in default.css */
 
 
 /* Action Icons Container - Replaces action-container */
@@ -141,8 +110,8 @@
     font-size: 0.8rem;
     width: 22px;
     height: 22px;
-    border-radius: 3px;
-    color: #495057;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
 }
 
 /* Hover States for Icons */
@@ -151,15 +120,15 @@
 }
 
 .edit-entry:hover {
-    color: #0d6efd;
+    color: var(--color-primary);
 }
 
 .copy-entry:hover {
-    color: #6c757d;
+    color: var(--color-secondary);
 }
 
 .delete-entry:hover {
-    color: #dc3545;
+    color: var(--color-danger);
 }
 
 /* Remove old action button styles */
@@ -172,7 +141,7 @@
 /* Table mod column to ensure proper sizing */
 .table td.mod-column {
     width: 50px;
-    padding: 0.25rem !important;
+    padding: var(--spacing-xs) !important;
     vertical-align: middle;
     position: relative;
 }
@@ -182,21 +151,6 @@
     margin: 0;
     padding: 0;
     display: inline;
-}
-
-/* Action Container and Buttons */
-.action-icons {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px; /* Makes icons closer together */
-}
-
-.table td.mod-column {
-    width: 50px;
-    padding: 0.25rem !important;
-    vertical-align: middle;
-    position: relative;
 }
 
 /* Select2 Optimized Styles */
