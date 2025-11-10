@@ -56,7 +56,7 @@ What happened:
 user scrolls down to the Request Time Off (Time Off Request Form), select single day, select time off type Recovery Leave (CR), select date Oct 28 presses Add Time Off 
 modal appear with all data filled inlcuding 1. Concediu de odihna function selectHolidayType(type) - selects odihna and the users needs to scroll to the number three unpaid leave <span class="checkbox-label">3. Concediu fără plată / Învoire</span>
 and selects manual <span class="recovery-label">cu recuperare</span> 
-this error appears :time-management-core.js?v=031120251812:97 ⚠️ TimeInputModule not found - time inputs may not work properly
+this error appears :time-management-core.js?v=101120251023:97 ⚠️ TimeInputModule not found - time inputs may not work properly
 worktime table displays CR correct / start time 7:00 correct / end time 15:30 correct / raw time 8hours 30minutes / lunch field - / actual time - / adminSync UE(User edited) 
 
 What should of happen:

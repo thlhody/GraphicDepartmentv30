@@ -32,7 +32,7 @@ All functional pages have been migrated to ES6 modules with legacy fallback!
 | `admin/statistics.html` | `/js/features/statistics/index.js` + Chart.js CDN | `statistics.js` | ✅ DONE |
 
 **Notes:**
-- All admin pages use cache-busting: `?v=081120251622${cacheBuster}`
+- All admin pages use cache-busting: `?v=101120251023${cacheBuster}`
 - Admin register includes bonus configuration inline data
 - Statistics page requires Chart.js library from CDN
 
@@ -230,13 +230,13 @@ Thymeleaf fragments included in other pages. Scripts loaded by parent pages.
     <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/[feature]/index.js?v=081120251622${cacheBuster}`)
+        import(`/js/features/[feature]/index.js?v=101120251023${cacheBuster}`)
             .then(() => console.log('✅ [Page Name] - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading module:', err));
     </script>
 
     <!-- Legacy Fallback (IE11) -->
-    <script nomodule th:src="@{/js/legacy/[file].js?v=081120251622}"></script>
+    <script nomodule th:src="@{/js/legacy/[file].js?v=101120251023}"></script>
     <script nomodule>
         console.log('⚠️ [Page Name] - Legacy fallback loaded');
     </script>
@@ -245,9 +245,9 @@ Thymeleaf fragments included in other pages. Scripts loaded by parent pages.
 
 **Cache-Busting Explanation:**
 - Combines fixed version (`081120251622`) + dynamic timestamp
-- Fixed version from build: `?v=081120251622`
+- Fixed version from build: `?v=101120251023`
 - Dynamic cache buster: `${cacheBuster}` = `Date.now()`
-- Result: `/js/features/session/index.js?v=081120251622173095678909`
+- Result: `/js/features/session/index.js?v=101120251023`
 - Forces browser to reload modules during development
 - **Production:** Replace `Date.now()` with fixed version only
 
@@ -271,7 +271,7 @@ Used in pages that need server-side data in JavaScript:
     <!-- Then load module -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/[feature]/index.js?v=081120251622${cacheBuster}`)
+        import(`/js/features/[feature]/index.js?v=101120251023${cacheBuster}`)
             .then(() => console.log('✅ Module loaded'))
             .catch(err => console.error('❌ Error:', err));
     </script>
@@ -295,12 +295,12 @@ Only used in `user/team-check-register.html`:
 <script type="module">
     const cacheBuster = new Date().getTime();
     // Load check-register module
-    import(`/js/features/check-register/index.js?v=081120251622${cacheBuster}`)
+    import(`/js/features/check-register/index.js?v=101120251023${cacheBuster}`)
         .then(() => console.log('✅ Check Register loaded'))
         .catch(err => console.error('❌ Error:', err));
 
     // Load bonus module
-    import(`/js/features/bonus/index.js?v=081120251622${cacheBuster}`)
+    import(`/js/features/bonus/index.js?v=101120251023${cacheBuster}`)
         .then(() => console.log('✅ Bonus loaded'))
         .catch(err => console.error('❌ Error:', err));
 </script>
@@ -505,7 +505,7 @@ import { showToast } from '@/components/ToastNotification.js';
    - Changes visible immediately after refresh
 
 ### **2025-11-06 - CSS Versioning:**
-- Kept CSS version parameters: `?v=081120251622`
+- Kept CSS version parameters: `?v=101120251023`
 - Only ES6 module imports use dynamic cache-busting
 
 ---

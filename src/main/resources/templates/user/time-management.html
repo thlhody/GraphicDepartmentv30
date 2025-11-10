@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=081120251622}">
-    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=081120251622}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=101120251023}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -63,7 +63,7 @@
     <!-- ES6 Module (Modern Browsers) -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-            import(`/js/features/time-management/index.js?v=081120251622${cacheBuster}`)
+            import(`/js/features/time-management/index.js?v=101120251023${cacheBuster}`)
         
                 .then(() => console.log('✅ Time Management (Standalone) - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));

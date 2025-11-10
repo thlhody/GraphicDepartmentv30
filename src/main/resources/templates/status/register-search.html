@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Register Search</title>
-    <link rel="stylesheet" th:href="@{/css/register-search.css?v=081120251622}">
+    <link rel="stylesheet" th:href="@{/css/register-search.css?v=101120251023}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -321,7 +321,7 @@
     <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/register-search/index.js?v=081120251622${cacheBuster}`)
+        import(`/js/features/register-search/index.js?v=101120251023${cacheBuster}`)
             .then(() => console.log('✅ Register Search - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading register search module:', err));
     </script>
