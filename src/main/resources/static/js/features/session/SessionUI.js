@@ -14,7 +14,7 @@
 export class SessionUI {
     constructor() {
         this.initTooltips();
-        this.initLiveClock();
+        // this.initLiveClock(); // Clock handled by inline script in session.html for reliability
         this.initToastNotifications();
         this.initFloatingCard();
         this.checkFormSubmission();

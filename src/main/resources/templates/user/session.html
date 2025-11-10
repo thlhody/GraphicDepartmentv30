@@ -416,7 +416,7 @@
         <script type="module">
             // Cache busting for development - forces browser to reload modules
             const cacheBuster = new Date().getTime();
-            import(`/js/features/session/index.js?v=101120251023${cacheBuster}`)
+            import(`/js/features/session/index.js?v=101120251600${cacheBuster}`)
                 .then(() => console.log('✅ User Session - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading session module:', err));
         </script>
