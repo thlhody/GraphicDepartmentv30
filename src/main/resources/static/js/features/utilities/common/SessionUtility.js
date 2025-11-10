@@ -21,6 +21,7 @@ export class SessionUtility {
             manualResetBtn: null,
             resetStatusBtn: null,
             contextStatusBtn: null,
+            refreshBtn: null,
             clearBtn: null,
 
             // Display elements
@@ -66,6 +67,7 @@ export class SessionUtility {
         this.elements.manualResetBtn = document.getElementById('manual-session-reset-btn');
         this.elements.resetStatusBtn = document.getElementById('session-reset-status-btn');
         this.elements.contextStatusBtn = document.getElementById('session-context-status-btn');
+        this.elements.refreshBtn = document.getElementById('session-refresh-btn');
         this.elements.clearBtn = document.getElementById('clear-session-results');
 
         // Display elements
@@ -105,6 +107,15 @@ export class SessionUtility {
             this.elements.contextStatusBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.getUserContextStatus();
+            });
+        }
+
+        // Refresh button
+        if (this.elements.refreshBtn) {
+            this.elements.refreshBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.refreshOverview();
+                ToastNotification.info('Info', 'Refreshing session overview...');
             });
         }
 

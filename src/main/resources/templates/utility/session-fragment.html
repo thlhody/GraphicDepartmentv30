@@ -24,21 +24,25 @@
 
     <div class="collapse utility-controls" id="session-controls">
         <div class="controls-grid">
-            <!-- Session Status -->
+            <!-- Session Status Overview -->
             <div class="control-group">
-                <label class="control-label">Session Status</label>
+                <label class="control-label">Session Status Overview</label>
                 <div class="stats-display" id="session-stats">
                     <div class="stat-item">
-                        <span class="stat-label">Current User</span>
-                        <span class="stat-value" id="current-username">Loading...</span>
+                        <span class="stat-label">Last Operation</span>
+                        <span class="stat-value" id="last-session-operation">None</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">Session Health</span>
-                        <span class="stat-value" id="session-health">Checking...</span>
+                        <span class="stat-label">Operation Time</span>
+                        <span class="stat-value" id="session-operation-time">--:--</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">Cache Status</span>
-                        <span class="stat-value" id="cache-health">Checking...</span>
+                        <span class="stat-label">Reset Status</span>
+                        <span class="stat-value" id="session-reset-status">Loading...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Context Health</span>
+                        <span class="stat-value" id="session-context-health">Checking...</span>
                     </div>
                 </div>
             </div>
@@ -47,13 +51,13 @@
             <div class="control-group">
                 <label class="control-label">Session Operations</label>
                 <div class="action-buttons">
-                    <button id="check-session-btn" class="btn-action info">
-                        <i class="bi bi-search"></i>
-                        <span>Check Status</span>
-                    </button>
-                    <button id="manual-reset-btn" class="btn-action warning">
+                    <button id="manual-session-reset-btn" class="btn-action warning">
                         <i class="bi bi-arrow-clockwise"></i>
                         <span>Manual Reset</span>
+                    </button>
+                    <button id="session-reset-status-btn" class="btn-action secondary">
+                        <i class="bi bi-clock-history"></i>
+                        <span>Reset Status</span>
                     </button>
                 </div>
             </div>
@@ -62,13 +66,13 @@
             <div class="control-group">
                 <label class="control-label">Context Information</label>
                 <div class="action-buttons">
-                    <button id="context-status-btn" class="btn-action secondary">
+                    <button id="session-context-status-btn" class="btn-action info">
                         <i class="bi bi-info-circle"></i>
                         <span>Context Status</span>
                     </button>
-                    <button id="reset-status-btn" class="btn-action secondary">
-                        <i class="bi bi-clock-history"></i>
-                        <span>Reset History</span>
+                    <button id="session-refresh-btn" class="btn-action secondary">
+                        <i class="bi bi-arrow-repeat"></i>
+                        <span>Refresh Overview</span>
                     </button>
                 </div>
             </div>
