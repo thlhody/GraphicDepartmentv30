@@ -36,8 +36,8 @@
                 <div class="stat-card">
                     <i class="bi bi-clock"></i>
                     <div class="stat-info">
-                        <span class="stat-label">Last Updated</span>
-                        <span class="stat-value" th:text="${#temporals.format(currentTime, 'HH:mm:ss')}">--:--:--</span>
+                        <span class="stat-label">Current Time</span>
+                        <span class="stat-value" id="utility-live-clock">--:--:--</span>
                     </div>
                 </div>
                 <div class="stat-card" id="system-health-indicator">
@@ -198,6 +198,7 @@
 
             // Initialize auto-refresh for all utilities
             initializeAutoRefresh();
+            initializeLiveClock();
 
             // Show welcome message
             setTimeout(function() {
@@ -206,6 +207,30 @@
                 }
             }, 1500);
         });
+
+        // Live Clock Update - Format: dd/MM/YYYY - HH:mm
+        function initializeLiveClock() {
+            const updateClock = function() {
+                const clockElement = document.getElementById('utility-live-clock');
+                if (clockElement) {
+                    const now = new Date();
+
+                    // Format as dd/MM/YYYY - HH:mm
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const year = now.getFullYear();
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(now.getMinutes()).padStart(2, '0');
+
+                    const formattedTime = `${day}/${month}/${year} - ${hours}:${minutes}`;
+                    clockElement.textContent = formattedTime;
+                }
+            };
+
+            // Update every second
+            setInterval(updateClock, 1000);
+            updateClock(); // Initial call
+        }
 
         // Quick Actions Setup
         // NOTE: Top-level quick action buttons (with -top-btn suffix) call coordinator functions

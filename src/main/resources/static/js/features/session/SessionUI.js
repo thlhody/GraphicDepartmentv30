@@ -40,7 +40,15 @@ export class SessionUI {
             const timeDisplay = document.getElementById('live-clock');
             if (timeDisplay) {
                 const now = new Date();
-                const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                // Format as dd/MM/YYYY - HH:mm
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+
+                const formattedTime = `${day}/${month}/${year} - ${hours}:${minutes}`;
                 timeDisplay.textContent = formattedTime;
 
                 // Add subtle fade animation on minute change
