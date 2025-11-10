@@ -277,7 +277,7 @@
                                             <input type="hidden" name="entryDate" th:value="${#temporals.format(entry.workDate, 'yyyy-MM-dd')}">
 
                                             <div class="d-flex align-items-center gap-2">
-                                                <label class="form-label mb-0 small text-nowrap">Select End Time</label>
+                                                <label class="form-label mb-0 small text-nowrap">Select End Time
                                                 <input type="time"
                                                        name="endTime"
                                                        class="form-control form-control-sm end-time-input"
@@ -285,7 +285,7 @@
                                                        max="23:59"
                                                        step="60"
                                                        style="max-width: 150px;"
-                                                       required>
+                                                       required></label>
                                             </div>
                                             <small class="text-muted d-block mt-1">Enter any time (HH:MM format)</small>
 
