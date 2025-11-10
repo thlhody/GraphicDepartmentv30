@@ -131,10 +131,14 @@
     <script type="module">
         const cacheBuster = new Date().getTime();
 
-        // Import new ES6 Backup Utility
+        // Import new ES6 Utilities
         import(`/js/features/utilities/common/BackupUtility.js?v=081120251622${cacheBuster}`)
             .then(() => console.log('✅ Backup utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading backup utility:', err));
+
+        import(`/js/features/utilities/common/MonitorUtility.js?v=081120251622${cacheBuster}`)
+            .then(() => console.log('✅ Monitor utility loaded (ES6)'))
+            .catch(err => console.error('❌ Error loading monitor utility:', err));
 
         // Import coordinator
         import(`/js/features/utilities/common/index.js?v=081120251622${cacheBuster}`)
@@ -143,8 +147,7 @@
     </script>
 
     <!-- Individual utility modules (Legacy - jQuery based) -->
-    <!-- MIGRATED TO ES6: backup-utility.js -->
-    <script th:src="@{/js/legacy/um/monitor-utility.js?v=081120251622}"></script>
+    <!-- MIGRATED TO ES6: backup-utility.js, monitor-utility.js -->
     <script th:src="@{/js/legacy/um/merge-utility.js?v=081120251622}"></script>
     <script th:src="@{/js/legacy/um/health-utility.js?v=081120251622}"></script>
     <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=081120251622}"></script>
