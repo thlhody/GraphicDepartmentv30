@@ -124,14 +124,14 @@
     </div>
 </div>
 
-<!-- Enhanced Utility JavaScript with Hybrid Approach -->
+<!-- Modern ES6 Utility Modules - Fully Migrated -->
 <th:block layout:fragment="scripts">
-    <!-- ES6 Coordinator (Modern Browsers) - Hybrid Approach -->
-    <!-- Note: Legacy jQuery modules still loaded for compatibility -->
+    <!-- ES6 Utilities (Modern Browsers) - Full ES6 Implementation -->
+    <!-- All utilities and coordinator migrated from jQuery to ES6 modules -->
     <script type="module">
         const cacheBuster = new Date().getTime();
 
-        // Import new ES6 Utilities
+        // Import ES6 Utility Modules
         import(`/js/features/utilities/common/BackupUtility.js?v=081120251622${cacheBuster}`)
             .then(() => console.log('✅ Backup utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading backup utility:', err));
@@ -166,14 +166,13 @@
             .catch(err => console.error('❌ Error loading utilities coordinator:', err));
     </script>
 
-    <!-- Individual utility modules (Legacy - jQuery based) -->
+    <!-- Legacy modules - NO LONGER NEEDED -->
     <!-- MIGRATED TO ES6: ALL utilities (backup, monitor, health, diagnostics, actions, merge, session) -->
+    <!-- All functionality now provided by ES6 UtilityCoordinator (loaded via index.js above) -->
     <!-- <script th:src="@{/js/legacy/um/merge-utility.js?v=081120251622}"></script> -->
     <!-- <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=081120251622}"></script> -->
     <!-- <script th:src="@{/js/legacy/um/actions-utility.js?v=081120251622}"></script> -->
-
-    <!-- Main utility coordinator (Legacy - jQuery based) -->
-    <script th:src="@{/js/legacy/utility-core.js?v=081120251622}"></script>
+    <!-- <script th:src="@{/js/legacy/utility-core.js?v=081120251622}"></script> -->
 
     <!-- Initialization script -->
     <script th:inline="javascript">
