@@ -1,168 +1,19 @@
 /* Toast Alert System CSS */
-/* Updated for Bootstrap 5 Toast + ToastNotification ES6 Component */
+/* Bootstrap 5 Toast Styles for ToastNotification ES6 Component */
 
 @import url('variables.css');
 
 /* ========================================================================
-   LEGACY TOAST SYSTEM (Deprecated - kept for backward compatibility)
-   ======================================================================== */
-
-/* Toast container */
-.toast-alert-container {
-    position: fixed;
-    top: var(--spacing-lg);
-    right: var(--spacing-lg);
-    z-index: var(--z-toast);
-    max-width: 350px;
-}
-
-/* Base toast alert styling */
-.toast-alert {
-    margin-bottom: 0.75rem;
-    border: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    opacity: 0;
-    transform: translateY(-20px);
-    transition: opacity 0.3s ease, transform 0.3s ease;
-    overflow: hidden;
-    background-color: #fff;
-    border-radius: 0.375rem;
-}
-
-/* ========================================================================
-   BOOTSTRAP TOAST STYLING (ES6 ToastNotification Component)
+   BOOTSTRAP 5 TOAST STYLING
    ======================================================================== */
 
 /* Base toast styling - rounded corners and shadow */
 .toast {
-    border-radius: 0.5rem !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-toast);
     min-width: 300px;
     max-width: 400px;
-    margin-bottom: 0.75rem;
-}
-
-/* Active toast (visible) */
-.toast-alert.showing {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* Body styles */
-.toast-alert .toast-alert-body {
-    padding: 0.75rem 1rem;
-}
-
-/* Header styles */
-.toast-alert .toast-alert-header {
-    padding: 0.75rem 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-/* Toast types with left border and icons */
-.toast-alert.toast-success {
-    border-left: 4px solid var(--color-success);
-}
-
-.toast-alert.toast-error {
-    border-left: 4px solid var(--color-danger);
-}
-
-.toast-alert.toast-warning {
-    border-left: 4px solid var(--color-warning);
-}
-
-.toast-alert.toast-info {
-    border-left: 4px solid var(--color-info);
-}
-
-/* Progress bar for auto-dismiss */
-.toast-alert-progress {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    height: 3px;
-    width: 0;
-    transition: width linear;
-}
-
-.toast-alert.toast-success .toast-alert-progress {
-    background-color: #198754;
-}
-
-.toast-alert.toast-error .toast-alert-progress {
-    background-color: #dc3545;
-}
-
-.toast-alert.toast-warning .toast-alert-progress {
-    background-color: #ffc107;
-}
-
-.toast-alert.toast-info .toast-alert-progress {
-    background-color: #0dcaf0;
-}
-
-/* Icon styles */
-.toast-alert-icon {
-    margin-right: 0.75rem;
-    font-size: 1.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.toast-alert.toast-success .toast-alert-icon {
-    color: #198754;
-}
-
-.toast-alert.toast-error .toast-alert-icon {
-    color: #dc3545;
-}
-
-.toast-alert.toast-warning .toast-alert-icon {
-    color: #ffc107;
-}
-
-.toast-alert.toast-info .toast-alert-icon {
-    color: #0dcaf0;
-}
-
-/* Title styles */
-.toast-alert-title {
-    font-weight: 600;
-    margin-bottom: 0;
-    flex-grow: 1;
-}
-
-/* Message styles */
-.toast-alert-message {
-    margin-bottom: 0;
-    font-size: 0.875rem;
-}
-
-/* Close button */
-.toast-alert-close {
-    background: transparent;
-    border: none;
-    font-size: 1.25rem;
-    line-height: 1;
-    padding: 0;
-    margin-left: 0.5rem;
-    cursor: pointer;
-    color: #6c757d;
-}
-
-.toast-alert-close:hover {
-    color: #212529;
-}
-
-/* Animation for toast exit */
-.toast-alert.hiding {
-    opacity: 0;
-    transform: translateY(-20px);
+    margin-bottom: var(--spacing-md);
 }
 
 /* Success toast - full green background */
@@ -173,6 +24,7 @@
 
 .toast.toast-success .toast-body {
     background-color: transparent !important;
+    color: var(--color-white) !important;
 }
 
 /* Error toast - full red background */
@@ -183,6 +35,7 @@
 
 .toast.toast-error .toast-body {
     background-color: transparent !important;
+    color: var(--color-white) !important;
 }
 
 /* Warning toast - full yellow background with dark text */
@@ -193,6 +46,7 @@
 
 .toast.toast-warning .toast-body {
     background-color: transparent !important;
+    color: var(--color-black) !important;
 }
 
 /* Dark close button for warning (yellow background) */
@@ -202,12 +56,13 @@
 
 /* Info toast - full blue background */
 .toast.toast-info .d-flex {
-    background-color: #0dcaf0;
-    border-radius: 0.5rem;
+    background-color: var(--color-info);
+    border-radius: var(--radius-lg);
 }
 
 .toast.toast-info .toast-body {
     background-color: transparent !important;
+    color: var(--color-white) !important;
 }
 
 /* Unresolved session toast - orange with special styling */
@@ -218,35 +73,24 @@
 
 .toast.toast-unresolved .d-flex {
     background-color: #ff9800 !important;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-lg);
 }
 
 .toast.toast-unresolved .toast-body {
     background-color: transparent !important;
-    color: #fff !important;
+    color: var(--color-white) !important;
 }
 
 .toast.toast-unresolved .btn-light {
     background-color: rgba(255, 255, 255, 0.9);
     border: none;
     color: #ff9800;
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
 }
 
 .toast.toast-unresolved .btn-light:hover {
-    background-color: #fff;
+    background-color: var(--color-white);
     color: #ff9800;
-}
-
-/* Make sure toast body text is white (except warning) */
-.toast.toast-success .toast-body,
-.toast.toast-error .toast-body,
-.toast.toast-info .toast-body {
-    color: #fff !important;
-}
-
-.toast.toast-warning .toast-body {
-    color: #000 !important;
 }
 
 /* Close button styling - white by default */
@@ -259,22 +103,11 @@
     opacity: 1;
 }
 
-/* Responsive adjustments */
+/* ========================================================================
+   RESPONSIVE ADJUSTMENTS
+   ======================================================================== */
+
 @media (max-width: 576px) {
-    /* Legacy system */
-    .toast-alert-container {
-        right: 0;
-        left: 0;
-        max-width: none;
-        padding: 0.5rem;
-    }
-
-    .toast-alert {
-        margin-left: 0.5rem;
-        margin-right: 0.5rem;
-    }
-
-    /* Bootstrap toast system */
     .toast {
         min-width: 280px;
         max-width: 100%;
