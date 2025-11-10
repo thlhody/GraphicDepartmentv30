@@ -130,8 +130,8 @@
     <!-- Note: Legacy jQuery modules still loaded for compatibility -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/utilities/admin/index.js?v=081120251622${cacheBuster}`)
-            .then(() => console.log('✅ Admin Utilities - ES6 coordinator loaded (hybrid mode)'))
+        import(`/js/features/utilities/common/index.js?v=081120251622${cacheBuster}`)
+            .then(() => console.log('✅ Utilities - ES6 coordinator loaded (hybrid mode)'))
             .catch(err => console.error('❌ Error loading utilities coordinator:', err));
     </script>
 
