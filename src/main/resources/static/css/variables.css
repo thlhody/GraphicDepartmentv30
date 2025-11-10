@@ -104,6 +104,10 @@
     --gradient-primary-hover: linear-gradient(135deg, #34495e, #2980b9);
     --gradient-blue: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
 
+    /* Legacy aliases (for backward compatibility) */
+    --primary-gradient: var(--gradient-primary);
+    --hover-gradient: var(--gradient-primary-hover);
+
     /* ========================================
        Spacing
        ======================================== */
