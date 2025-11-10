@@ -144,6 +144,10 @@
             .then(() => console.log('✅ Health utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading health utility:', err));
 
+        import(`/js/features/utilities/common/DiagnosticsUtility.js?v=081120251622${cacheBuster}`)
+            .then(() => console.log('✅ Diagnostics utility loaded (ES6)'))
+            .catch(err => console.error('❌ Error loading diagnostics utility:', err));
+
         // Import coordinator
         import(`/js/features/utilities/common/index.js?v=081120251622${cacheBuster}`)
             .then(() => console.log('✅ Utilities - ES6 coordinator loaded (hybrid mode)'))
@@ -151,9 +155,9 @@
     </script>
 
     <!-- Individual utility modules (Legacy - jQuery based) -->
-    <!-- MIGRATED TO ES6: backup-utility.js, monitor-utility.js, health-utility.js -->
+    <!-- MIGRATED TO ES6: backup-utility.js, monitor-utility.js, health-utility.js, diagnostics-utility.js -->
     <script th:src="@{/js/legacy/um/merge-utility.js?v=081120251622}"></script>
-    <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=081120251622}"></script>
+    <!-- <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=081120251622}"></script> -->
     <script th:src="@{/js/legacy/um/actions-utility.js?v=081120251622}"></script>
 
     <!-- Main utility coordinator (Legacy - jQuery based) -->
