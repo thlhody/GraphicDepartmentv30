@@ -206,6 +206,9 @@ export class SessionTimeManagement {
             // Set up embedded navigation
             this.setupEmbeddedNavigation();
 
+            // Set up unresolved row click detection
+            this.setupUnresolvedRowClickHandler();
+
             console.log('✅ Embedded time management modules initialized');
 
         } catch (error) {
@@ -477,6 +480,7 @@ export class SessionTimeManagement {
         window.scrollToTimeManagement = () => this.scrollToTimeManagement();
         window.scrollToUnresolved = () => this.scrollToUnresolved();
         window.hideUnresolvedTab = () => this.hideUnresolvedTab();
+        window.showUnresolvedTab = () => this.showUnresolvedTab();
     }
 
     /**
@@ -549,6 +553,75 @@ export class SessionTimeManagement {
                 });
             }
         }
+    }
+
+    /**
+     * Show unresolved tab (reopens it if previously hidden)
+     */
+    showUnresolvedTab() {
+        const unresolvedTab = document.getElementById('unresolvedTab');
+        if (unresolvedTab) {
+            unresolvedTab.style.display = 'block';
+
+            // Scroll to it after showing
+            this.scrollToUnresolved();
+        }
+    }
+
+    /**
+     * Set up click handlers for unresolved session rows
+     * When user clicks on a row with USER_IN_PROCESS status, show the unresolved tab
+     */
+    setupUnresolvedRowClickHandler() {
+        console.log('🔧 Setting up unresolved row click handler...');
+
+        const tmContent = document.getElementById('timeManagementContent');
+        if (!tmContent) {
+            console.warn('⚠️ Time management content not found');
+            return;
+        }
+
+        // Get all rows in the time management table
+        const rows = tmContent.querySelectorAll('tbody tr[data-date]');
+
+        rows.forEach(row => {
+            const statusAction = row.getAttribute('data-status-action');
+
+            // Check if this row has USER_IN_PROCESS status (unresolved)
+            if (statusAction && statusAction.includes('IN_PROCESS')) {
+                // Add a visual indicator that this row is clickable
+                row.style.cursor = 'pointer';
+                row.title = 'Click to view unresolved session details';
+
+                // Add click handler
+                row.addEventListener('click', (e) => {
+                    // Don't trigger if clicking on an input, button, or link
+                    if (e.target.tagName === 'INPUT' ||
+                        e.target.tagName === 'BUTTON' ||
+                        e.target.tagName === 'A' ||
+                        e.target.closest('button') ||
+                        e.target.closest('a')) {
+                        return;
+                    }
+
+                    console.log('🔍 Clicked on unresolved row, showing resolution tab...');
+                    this.showUnresolvedTab();
+                });
+
+                // Add hover effect
+                row.addEventListener('mouseenter', () => {
+                    if (!row.classList.contains('table-active')) {
+                        row.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+                    }
+                });
+
+                row.addEventListener('mouseleave', () => {
+                    row.style.backgroundColor = '';
+                });
+            }
+        });
+
+        console.log(`✅ Unresolved row click handler attached to ${rows.length} rows`);
     }
 
     /**
