@@ -588,7 +588,8 @@ export class SessionTimeManagement {
 
     /**
      * Set up click handlers for unresolved session rows
-     * When user clicks on a row with USER_IN_PROCESS status, show the unresolved tab
+     * When user clicks on a row with USER_IN_PROCESS status (from previous dates, not current day),
+     * show the unresolved tab
      */
     setupUnresolvedRowClickHandler() {
         console.log('🔧 Setting up unresolved row click handler...');
@@ -599,14 +600,28 @@ export class SessionTimeManagement {
             return;
         }
 
+        // Get current date (today) to exclude it from click detection
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to midnight for date comparison
+        const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+        console.log('📅 Current date (excluded from unresolved detection):', todayString);
+
         // Get all rows in the time management table
         const rows = tmContent.querySelectorAll('tbody tr[data-date]');
+        let unresolvedCount = 0;
 
         rows.forEach(row => {
             const statusAction = row.getAttribute('data-status-action');
+            const rowDate = row.getAttribute('data-date');
 
-            // Check if this row has USER_IN_PROCESS status (unresolved)
-            if (statusAction && statusAction.includes('IN_PROCESS')) {
+            // Check if this row has USER_IN_PROCESS status AND is NOT the current date
+            // Current date with IN_PROCESS is normal (active session), only previous dates need resolution
+            if (statusAction && statusAction.includes('IN_PROCESS') && rowDate && rowDate !== todayString) {
+                unresolvedCount++;
+
+                console.log(`📍 Found unresolved session: ${rowDate} (needs resolution)`);
+
                 // Add a visual indicator that this row is clickable
                 row.style.cursor = 'pointer';
                 row.title = 'Click to view unresolved session details';
@@ -623,7 +638,6 @@ export class SessionTimeManagement {
                         return;
                     }
 
-                    const rowDate = row.getAttribute('data-date');
                     console.log('🔍 Clicked on unresolved row for date:', rowDate);
                     console.log('📍 Calling showUnresolvedTab()...');
                     this.showUnresolvedTab();
@@ -642,7 +656,7 @@ export class SessionTimeManagement {
             }
         });
 
-        console.log(`✅ Unresolved row click handler attached to ${rows.length} rows`);
+        console.log(`✅ Unresolved row click handler attached to ${unresolvedCount} non-current-day unresolved sessions`);
     }
 
     /**
