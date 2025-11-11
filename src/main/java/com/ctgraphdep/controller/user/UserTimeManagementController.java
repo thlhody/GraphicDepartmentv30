@@ -242,11 +242,14 @@ public class UserTimeManagementController extends BaseController {
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = singleDay ? start : LocalDate.parse(endDate);
 
+            // D (Delegation) is allowed on weekends, all other types skip weekends
+            boolean isDelegation = "D".equalsIgnoreCase(timeOffType);
             List<LocalDate> dates = start.datesUntil(end.plusDays(1))
-                    .filter(date -> date.getDayOfWeek().getValue() < 6) // Skip weekends
+                    .filter(date -> isDelegation || date.getDayOfWeek().getValue() < 6) // Skip weekends except for D
                     .toList();
 
-            LoggerUtil.info(this.getClass(), String.format("Parsed %d weekday dates for command processing", dates.size()));
+            LoggerUtil.info(this.getClass(), String.format("Parsed %d dates for command processing (type: %s, weekends: %s)",
+                    dates.size(), timeOffType, isDelegation ? "included" : "excluded"));
 
             // PART 1.5: Validate time-off operation rules
             LoggerUtil.info(this.getClass(), "=== PART 1.5: Time-off operation rules validation ===");
@@ -352,11 +355,14 @@ public class UserTimeManagementController extends BaseController {
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = singleDay ? start : LocalDate.parse(endDate);
 
+            // D (Delegation) is allowed on weekends, all other types skip weekends
+            boolean isDelegation = "D".equalsIgnoreCase(timeOffType);
             List<LocalDate> dates = start.datesUntil(end.plusDays(1))
-                    .filter(date -> date.getDayOfWeek().getValue() < 6) // Skip weekends
+                    .filter(date -> isDelegation || date.getDayOfWeek().getValue() < 6) // Skip weekends except for D
                     .toList();
 
-            LoggerUtil.info(this.getClass(), String.format("Parsed %d weekday dates for command processing", dates.size()));
+            LoggerUtil.info(this.getClass(), String.format("Parsed %d dates for command processing (type: %s, weekends: %s)",
+                    dates.size(), timeOffType, isDelegation ? "included" : "excluded"));
 
             // PART 1.5: Validate time-off operation rules
             LoggerUtil.info(this.getClass(), "=== PART 1.5: Time-off operation rules validation ===");

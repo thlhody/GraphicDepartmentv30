@@ -265,6 +265,31 @@ export class TimeOffManagement {
             return 'Please select a valid time off type';
         }
 
+        // Validate weekend restriction (only D - Delegation is allowed on weekends)
+        const isDelegation = formData.timeOffType === 'D';
+        if (!isDelegation) {
+            const startDate = new Date(formData.startDate);
+            const startDay = startDate.getDay(); // 0 = Sunday, 6 = Saturday
+
+            if (startDay === 0 || startDay === 6) {
+                return 'Cannot request time off on weekends except for Delegation (D)';
+            }
+
+            // For multi-day requests, check if any date in range is a weekend
+            if (!formData.singleDay) {
+                const endDate = new Date(formData.endDate);
+                let current = new Date(startDate);
+
+                while (current <= endDate) {
+                    const dayOfWeek = current.getDay();
+                    if (dayOfWeek === 0 || dayOfWeek === 6) {
+                        return 'Cannot request time off on weekends except for Delegation (D). Please adjust your date range or select Delegation type.';
+                    }
+                    current.setDate(current.getDate() + 1);
+                }
+            }
+        }
+
         return null;
     }
 
