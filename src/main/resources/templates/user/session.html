@@ -420,6 +420,15 @@
                 .then(() => console.log('✅ User Session - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading session module:', err));
         </script>
+
+        <!-- Time Management Module for embedded time management tab -->
+        <script type="module">
+            // Load time-management functions for the embedded time management section
+            const cacheBuster = new Date().getTime();
+            import(`/js/features/time-management/index.js?v=101120251023${cacheBuster}`)
+                .then(() => console.log('✅ Time Management - ES6 module loaded (for embedded section)'))
+                .catch(err => console.error('❌ Error loading time-management module:', err));
+        </script>
     </th:block>
 </div>
 </body>
