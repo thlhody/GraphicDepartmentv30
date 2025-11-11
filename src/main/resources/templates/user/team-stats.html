@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Team Statistics</title>
-    <link rel="stylesheet" th:href="@{/css/team-stats.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/team-stats.css?v=11112025_724}">
 </head>
 <body>
 
@@ -272,7 +272,7 @@
     <!-- ES6 Module (Modern Browsers) -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-            import(`/js/features/statistics/index.js?v=101120251023${cacheBuster}`)
+            import(`/js/features/statistics/index.js?v=11112025_724`)
 
                 .then(() => console.log('✅ Team Statistics - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));

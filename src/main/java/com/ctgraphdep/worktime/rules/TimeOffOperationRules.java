@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * ├──────┼─────────────────────────┼──────────────┼─────────────────────────────┤
  * │ CO   │ ✅ Yes → holiday OT     │ ✅ Yes       │ Converts work to holiday OT │
  * │ CE   │ ✅ Yes → holiday OT     │ ✅ Yes       │ Converts work to holiday OT │
- * │ W    │ ✅ Yes → holiday OT     │ ✅ Yes       │ **Tombstone (full reset)**  │
+ * │ W    │ ✅ Yes → holiday OT     │ ❌ No        │ **Permanent weekend marker**│
  * │ CM   │ ✅ Yes → holiday OT     │ ✅ Yes       │ Converts work to holiday OT │
  * │ SN   │ ❌ No (only modify hrs) │ ❌ No        │ Admin-controlled, fixed     │
  * │ D    │ ❌ No (clear first)     │ ✅ Yes       │ Normal removal              │
@@ -25,9 +25,10 @@ import org.springframework.stereotype.Component;
  * └──────┴─────────────────────────┴──────────────┴─────────────────────────────┘
  * W (Weekend) Special Behavior:
  * - Can be added over work (work becomes holiday overtime)
- * - Removing W = Complete tombstone (full entry reset, all data cleared)
- * - **CANNOT be changed to other types** (must remove W first, then add new type)
- * - This is enforced in AddTimeOffCommand via "Weekend Lock" validation
+ * - W is a PERMANENT MARKER for weekend days (cannot be removed by users)
+ * - Users can modify start/end times on weekends but the W marker remains
+ * - **CANNOT be changed to other types** (weekend days always have W marker)
+ * - This is enforced in both backend (TimeOffOperationRules) and frontend (TimeOffManagement)
  * ZS (Short Day) Special Behavior:
  * - Automatically created when user ends day without reaching schedule (e.g., "ZS-3" = 3 hours short)
  * - Automatically removed when:
@@ -108,8 +109,9 @@ public class TimeOffOperationRules {
      * Cannot be removed:
      * - SN (National Holiday): Fixed by admin, users cannot remove
      * - ZS (Short Day): Auto-managed by system, removed automatically when day completes
+     * - W (Weekend): Permanent marker for weekends, users can only modify start/end times
      * Can be removed:
-     * - CO, CE, W, CM: Reverses holiday overtime conversion
+     * - CO, CE, CM: Reverses holiday overtime conversion
      * - D, CR, CN: Normal removal (CR has special logic to refill overtime)
      * @param timeOffType Time-off type code
      * @return true if user can remove this type, false if locked/auto-managed
@@ -124,8 +126,10 @@ public class TimeOffOperationRules {
             return false;
         }
 
-        // SN is admin-controlled and cannot be removed by users
-        return !WorkCode.NATIONAL_HOLIDAY_CODE.equalsIgnoreCase(timeOffType.trim());
+        // SN is admin-controlled and W is a permanent weekend marker
+        String upperType = timeOffType.trim().toUpperCase();
+        return !WorkCode.NATIONAL_HOLIDAY_CODE.equals(upperType) &&
+               !WorkCode.WEEKEND_CODE.equals(upperType);
     }
 
     /**
@@ -204,8 +208,14 @@ public class TimeOffOperationRules {
             return "Short Day (ZS) is automatically managed. To remove it, complete your work day by resuming the session or adjusting start/end times to reach your schedule.";
         }
 
-        if (WorkCode.NATIONAL_HOLIDAY_CODE.equalsIgnoreCase(timeOffType.trim())) {
+        String upperType = timeOffType.trim().toUpperCase();
+
+        if (WorkCode.NATIONAL_HOLIDAY_CODE.equals(upperType)) {
             return "National holidays (SN) are set by admin and cannot be removed by users.";
+        }
+
+        if (WorkCode.WEEKEND_CODE.equals(upperType)) {
+            return "Weekend (W) is a permanent marker for weekend days. You can modify start/end times, but cannot remove the weekend marker itself.";
         }
 
         return "This time-off type cannot be removed.";

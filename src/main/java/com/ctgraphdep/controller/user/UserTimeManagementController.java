@@ -242,11 +242,14 @@ public class UserTimeManagementController extends BaseController {
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = singleDay ? start : LocalDate.parse(endDate);
 
+            // D (Delegation) is allowed on weekends, all other types skip weekends
+            boolean isDelegation = "D".equalsIgnoreCase(timeOffType);
             List<LocalDate> dates = start.datesUntil(end.plusDays(1))
-                    .filter(date -> date.getDayOfWeek().getValue() < 6) // Skip weekends
+                    .filter(date -> isDelegation || date.getDayOfWeek().getValue() < 6) // Skip weekends except for D
                     .toList();
 
-            LoggerUtil.info(this.getClass(), String.format("Parsed %d weekday dates for command processing", dates.size()));
+            LoggerUtil.info(this.getClass(), String.format("Parsed %d dates for command processing (type: %s, weekends: %s)",
+                    dates.size(), timeOffType, isDelegation ? "included" : "excluded"));
 
             // PART 1.5: Validate time-off operation rules
             LoggerUtil.info(this.getClass(), "=== PART 1.5: Time-off operation rules validation ===");
@@ -287,11 +290,14 @@ public class UserTimeManagementController extends BaseController {
                     message += String.format(" Holiday balance: %d → %d", result.getSideEffects().getOldHolidayBalance(), result.getSideEffects().getNewHolidayBalance());
                 }
                 redirectAttributes.addFlashAttribute("successMessage", message);
-                // NEW: Add flag to open holiday modal
-                redirectAttributes.addFlashAttribute("openHolidayModal", true);
-                redirectAttributes.addFlashAttribute("holidayStartDate", startDate);
-                redirectAttributes.addFlashAttribute("holidayEndDate", endDate);
-                redirectAttributes.addFlashAttribute("holidayTimeOffType", timeOffType.toUpperCase());
+
+                // Open holiday modal only for non-D types (Delegation doesn't need holiday request)
+                if (!"D".equalsIgnoreCase(timeOffType)) {
+                    redirectAttributes.addFlashAttribute("openHolidayModal", true);
+                    redirectAttributes.addFlashAttribute("holidayStartDate", startDate);
+                    redirectAttributes.addFlashAttribute("holidayEndDate", endDate);
+                    redirectAttributes.addFlashAttribute("holidayTimeOffType", timeOffType.toUpperCase());
+                }
 
                 LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully: %s", result.getMessage()));
             } else {
@@ -352,11 +358,14 @@ public class UserTimeManagementController extends BaseController {
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = singleDay ? start : LocalDate.parse(endDate);
 
+            // D (Delegation) is allowed on weekends, all other types skip weekends
+            boolean isDelegation = "D".equalsIgnoreCase(timeOffType);
             List<LocalDate> dates = start.datesUntil(end.plusDays(1))
-                    .filter(date -> date.getDayOfWeek().getValue() < 6) // Skip weekends
+                    .filter(date -> isDelegation || date.getDayOfWeek().getValue() < 6) // Skip weekends except for D
                     .toList();
 
-            LoggerUtil.info(this.getClass(), String.format("Parsed %d weekday dates for command processing", dates.size()));
+            LoggerUtil.info(this.getClass(), String.format("Parsed %d dates for command processing (type: %s, weekends: %s)",
+                    dates.size(), timeOffType, isDelegation ? "included" : "excluded"));
 
             // PART 1.5: Validate time-off operation rules
             LoggerUtil.info(this.getClass(), "=== PART 1.5: Time-off operation rules validation ===");
@@ -400,11 +409,15 @@ public class UserTimeManagementController extends BaseController {
 
                 response.put("success", true);
                 response.put("message", message);
-                response.put("holidayStartDate", startDate);
-                response.put("holidayEndDate", endDate);
-                response.put("holidayTimeOffType", timeOffType.toUpperCase());
                 response.put("requestYear", start.getYear());
                 response.put("requestMonth", start.getMonthValue());
+
+                // Only include holiday modal data for non-D types (Delegation doesn't need holiday request)
+                if (!"D".equalsIgnoreCase(timeOffType)) {
+                    response.put("holidayStartDate", startDate);
+                    response.put("holidayEndDate", endDate);
+                    response.put("holidayTimeOffType", timeOffType.toUpperCase());
+                }
 
                 LoggerUtil.info(this.getClass(), String.format("AJAX time off request processed successfully: %s", result.getMessage()));
                 return ResponseEntity.ok(response);

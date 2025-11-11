@@ -3,9 +3,9 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
   <title>Team Check Register</title>
-  <link rel="stylesheet" th:href="@{/css/register-user.css?v=101120251023}">
-  <link rel="stylesheet" th:href="@{/css/check-register.css?v=101120251023}">
-  <link rel="stylesheet" th:href="@{/css/bonus.css?v=101120251023}">
+  <link rel="stylesheet" th:href="@{/css/register-user.css?v=11112025_724}">
+  <link rel="stylesheet" th:href="@{/css/check-register.css?v=11112025_724}">
+  <link rel="stylesheet" th:href="@{/css/bonus.css?v=11112025_724}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -209,7 +209,7 @@
     const cacheBuster = new Date().getTime();
 
     // Load check-register module
-    import(`/js/features/check-register/index.js?v=101120251023${cacheBuster}`)
+    import(`/js/features/check-register/index.js?v=11112025_724`)
       .then(() => {
         console.log('✅ Check Register (Team View) - ES6 module loaded');
 
@@ -236,7 +236,7 @@
       .catch(err => console.error('❌ Error loading check-register module:', err));
 
     // Load bonus module for team view
-    import(`/js/features/bonus/index.js?v=101120251023${cacheBuster}`)
+    import(`/js/features/bonus/index.js?v=11112025_724`)
       .then(() => {
         console.log('✅ Bonus (Team View) - ES6 module loaded');
       })

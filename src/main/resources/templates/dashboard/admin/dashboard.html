@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title th:text="${dashboard.pageTitle}">Admin Dashboard</title>
-    <link rel="stylesheet" th:href="@{/css/dashboard.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/dashboard.css?v=11112025_724}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -108,7 +108,7 @@
     <!-- ES6 Module (Modern Browsers) -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-            import(`/js/features/dashboard/index.js?v=101120251023${cacheBuster}`)
+            import(`/js/features/dashboard/index.js?v=11112025_724`)
                 .then(() => console.log('✅ Admin Dashboard - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading module:', err));
     </script>

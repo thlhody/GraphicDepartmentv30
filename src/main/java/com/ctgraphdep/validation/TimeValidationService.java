@@ -117,22 +117,26 @@ public class TimeValidationService {
                     return ValidationResult.invalid(String.format("Date %s: %s", current, basicDateResult.getErrorMessage()));
                 }
 
-                // Handle weekends
-                if (current.getDayOfWeek().getValue() >= 6) {
+                // Handle weekends (D - Delegation is allowed on weekends, all others are not)
+                boolean isWeekend = current.getDayOfWeek().getValue() >= 6;
+                boolean isDelegation = "D".equalsIgnoreCase(timeOffType);
+
+                if (isWeekend && !isDelegation) {
+                    // Weekend + non-D type: reject
                     rejectedWeekends.add(current);
-                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Rejecting weekend %s", current));
+                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Rejecting weekend %s for type %s", current, timeOffType));
 
                     // For single day requests, weekend is an error
                     if (isSingleDay) {
-                        LoggerUtil.warn(this.getClass(), String.format("Single day request on weekend %s", current));
-                        return ValidationResult.invalid(String.format("Cannot request time off on weekends. Date: %s (%s)",
+                        LoggerUtil.warn(this.getClass(), String.format("Single day request on weekend %s (type: %s)", current, timeOffType));
+                        return ValidationResult.invalid(String.format("Cannot request time off on weekends except for Delegation (D). Date: %s (%s)",
                                 current, current.getDayOfWeek().toString()));
                     }
                     // For multi-day requests, just skip weekends
                 } else {
-                    // Weekday - add to potential dates for further processing
+                    // Weekday OR (weekend + D type) - add to potential dates for further processing
                     potentialDates.add(current);
-                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Weekend/basic validation passed for %s", current));
+                    LoggerUtil.debug(this.getClass(), String.format("Step 4: Weekend/basic validation passed for %s (type: %s, weekend: %s)", current, timeOffType, isWeekend));
                 }
                 current = current.plusDays(1);
             }

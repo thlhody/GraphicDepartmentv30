@@ -595,7 +595,7 @@
 - [ ] **Status:** ___
 - [ ] Changes to JS files reflect immediately after browser refresh
 - [ ] No need to manually clear cache between code changes
-- [ ] Timestamp appears in module URLs (check Network tab: `?v=101120251023...`)
+- [ ] Timestamp appears in module URLs (check Network tab: `?v=11112025_724...`)
 **Issues/Notes:**
 ```
 

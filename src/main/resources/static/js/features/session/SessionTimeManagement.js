@@ -206,6 +206,9 @@ export class SessionTimeManagement {
             // Set up embedded navigation
             this.setupEmbeddedNavigation();
 
+            // Set up unresolved row click detection
+            this.setupUnresolvedRowClickHandler();
+
             console.log('✅ Embedded time management modules initialized');
 
         } catch (error) {
@@ -477,6 +480,7 @@ export class SessionTimeManagement {
         window.scrollToTimeManagement = () => this.scrollToTimeManagement();
         window.scrollToUnresolved = () => this.scrollToUnresolved();
         window.hideUnresolvedTab = () => this.hideUnresolvedTab();
+        window.showUnresolvedTab = () => this.showUnresolvedTab();
     }
 
     /**
@@ -549,6 +553,110 @@ export class SessionTimeManagement {
                 });
             }
         }
+    }
+
+    /**
+     * Show unresolved tab (reopens it if previously hidden)
+     */
+    showUnresolvedTab() {
+        const unresolvedTab = document.getElementById('unresolvedTab');
+        if (unresolvedTab) {
+            console.log('🔓 Showing unresolved tab...');
+
+            // Remove any Bootstrap hiding classes
+            unresolvedTab.classList.remove('d-none');
+
+            // Set display style to empty (removes inline style) or block
+            unresolvedTab.style.display = '';
+            if (window.getComputedStyle(unresolvedTab).display === 'none') {
+                unresolvedTab.style.display = 'block';
+            }
+
+            console.log('✅ Unresolved tab should now be visible');
+
+            // Scroll to it after showing (with a small delay to ensure rendering)
+            setTimeout(() => {
+                this.scrollToUnresolved();
+            }, 100);
+        } else {
+            console.warn('⚠️ Unresolved tab element not found in DOM');
+            if (window.showToast) {
+                window.showToast('Info', 'No unresolved sessions found', 'info');
+            }
+        }
+    }
+
+    /**
+     * Set up click handlers for unresolved session rows
+     * When user clicks on a row with USER_IN_PROCESS status (from previous dates, not current day),
+     * show the unresolved tab
+     */
+    setupUnresolvedRowClickHandler() {
+        console.log('🔧 Setting up unresolved row click handler...');
+
+        const tmContent = document.getElementById('timeManagementContent');
+        if (!tmContent) {
+            console.warn('⚠️ Time management content not found');
+            return;
+        }
+
+        // Get current date (today) to exclude it from click detection
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to midnight for date comparison
+        const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+        console.log('📅 Current date (excluded from unresolved detection):', todayString);
+
+        // Get all rows in the time management table
+        const rows = tmContent.querySelectorAll('tbody tr[data-date]');
+        let unresolvedCount = 0;
+
+        rows.forEach(row => {
+            const statusAction = row.getAttribute('data-status-action');
+            const rowDate = row.getAttribute('data-date');
+
+            // Check if this row has Active status AND is NOT the current date
+            // Current date with Active status is normal (active session), only previous dates need resolution
+            if (statusAction && statusAction === 'Active' && rowDate && rowDate !== todayString) {
+                unresolvedCount++;
+
+                console.log(`📍 Found unresolved session: ${rowDate} (needs resolution)`);
+
+                // Add a visual indicator that this row is clickable
+                row.style.cursor = 'pointer';
+                row.title = 'Click to view unresolved session details';
+
+                // Add click handler
+                row.addEventListener('click', (e) => {
+                    // Don't trigger if clicking on an input, button, or link
+                    if (e.target.tagName === 'INPUT' ||
+                        e.target.tagName === 'BUTTON' ||
+                        e.target.tagName === 'A' ||
+                        e.target.closest('button') ||
+                        e.target.closest('a')) {
+                        console.log('⏭️ Ignoring click on interactive element:', e.target.tagName);
+                        return;
+                    }
+
+                    console.log('🔍 Clicked on unresolved row for date:', rowDate);
+                    console.log('📍 Calling showUnresolvedTab()...');
+                    this.showUnresolvedTab();
+                });
+
+                // Add hover effect
+                row.addEventListener('mouseenter', () => {
+                    if (!row.classList.contains('table-active')) {
+                        row.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+                    }
+                });
+
+                row.addEventListener('mouseleave', () => {
+                    row.style.backgroundColor = '';
+                });
+            }
+        });
+
+        console.log(`✅ Unresolved row click handler attached to ${unresolvedCount} non-current-day unresolved sessions`);
     }
 
     /**

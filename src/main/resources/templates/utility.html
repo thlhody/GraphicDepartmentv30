@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>User Utilities</title>
-    <link rel="stylesheet" th:href="@{/css/utility.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/utility.css?v=11112025_724}">
 </head>
 
 <body>
@@ -132,36 +132,36 @@
         const cacheBuster = new Date().getTime();
 
         // Import ES6 Utility Modules
-        import(`/js/features/utilities/common/BackupUtility.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/BackupUtility.js?v=11112025_724`)
             .then(() => console.log('✅ Backup utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading backup utility:', err));
 
-        import(`/js/features/utilities/common/MonitorUtility.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/MonitorUtility.js?v=11112025_724`)
             .then(() => console.log('✅ Monitor utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading monitor utility:', err));
 
-        import(`/js/features/utilities/common/HealthUtility.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/HealthUtility.js?v=11112025_724`)
             .then(() => console.log('✅ Health utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading health utility:', err));
 
-        import(`/js/features/utilities/common/DiagnosticsUtility.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/DiagnosticsUtility.js?v=11112025_724`)
             .then(() => console.log('✅ Diagnostics utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading diagnostics utility:', err));
 
-        import(`/js/features/utilities/common/ActionsUtility.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/ActionsUtility.js?v=11112025_724`)
             .then(() => console.log('✅ Actions utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading actions utility:', err));
 
-        import(`/js/features/utilities/common/MergeUtility.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/MergeUtility.js?v=11112025_724`)
             .then(() => console.log('✅ Merge utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading merge utility:', err));
 
-        import(`/js/features/utilities/common/SessionUtility.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/SessionUtility.js?v=11112025_724`)
             .then(() => console.log('✅ Session utility loaded (ES6)'))
             .catch(err => console.error('❌ Error loading session utility:', err));
 
         // Import coordinator
-        import(`/js/features/utilities/common/index.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/utilities/common/index.js?v=11112025_724`)
             .then(() => console.log('✅ Utilities - ES6 coordinator loaded (hybrid mode)'))
             .catch(err => console.error('❌ Error loading utilities coordinator:', err));
     </script>
@@ -169,10 +169,10 @@
     <!-- Legacy modules - NO LONGER NEEDED -->
     <!-- MIGRATED TO ES6: ALL utilities (backup, monitor, health, diagnostics, actions, merge, session) -->
     <!-- All functionality now provided by ES6 UtilityCoordinator (loaded via index.js above) -->
-    <!-- <script th:src="@{/js/legacy/um/merge-utility.js?v=101120251023}"></script> -->
-    <!-- <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=101120251023}"></script> -->
-    <!-- <script th:src="@{/js/legacy/um/actions-utility.js?v=101120251023}"></script> -->
-    <!-- <script th:src="@{/js/legacy/utility-core.js?v=101120251023}"></script> -->
+    <!-- <script th:src="@{/js/legacy/um/merge-utility.js?v=11112025_724}"></script> -->
+    <!-- <script th:src="@{/js/legacy/um/diagnostics-utility.js?v=11112025_724}"></script> -->
+    <!-- <script th:src="@{/js/legacy/um/actions-utility.js?v=11112025_724}"></script> -->
+    <!-- <script th:src="@{/js/legacy/utility-core.js?v=11112025_724}"></script> -->
 
     <!-- Initialization script -->
     <script th:inline="javascript">

@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Admin Bonus Management</title>
-    <link rel="stylesheet" th:href="@{/css/bonus.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/bonus.css?v=11112025_724}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -186,7 +186,7 @@
     <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/bonus/index.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/bonus/index.js?v=11112025_724`)
             .then(() => console.log('✅ Admin Bonus - ES6 module loaded'))
             .catch(err => console.error('❌ Error loading admin bonus module:', err));
     </script>

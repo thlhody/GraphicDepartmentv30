@@ -3,10 +3,10 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Session Management</title>
-    <link rel="stylesheet" th:href="@{/css/session.css?v=101120251023}">
-    <link rel="stylesheet" th:href="@{/css/resolution.css?v=101120251023}">
-    <link rel="stylesheet" th:href="@{/css/time-management.css?v=101120251023}">
-    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/session.css?v=11112025_724}">
+    <link rel="stylesheet" th:href="@{/css/resolution.css?v=11112025_724}">
+    <link rel="stylesheet" th:href="@{/css/time-management.css?v=11112025_724}">
+    <link rel="stylesheet" th:href="@{/css/holiday-request-modal.css?v=11112025_724}">
 </head>
 <body>
 <div layout:fragment="content"
@@ -416,9 +416,18 @@
         <script type="module">
             // Cache busting for development - forces browser to reload modules
             const cacheBuster = new Date().getTime();
-            import(`/js/features/session/index.js?v=101120251600${cacheBuster}`)
+            import(`/js/features/session/index.js?v=11112025_724`)
                 .then(() => console.log('✅ User Session - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading session module:', err));
+        </script>
+
+        <!-- Time Management Module for embedded time management tab -->
+        <script type="module">
+            // Load time-management functions for the embedded time management section
+            const cacheBuster = new Date().getTime();
+            import(`/js/features/time-management/index.js?v=11112025_724`)
+                .then(() => console.log('✅ Time Management - ES6 module loaded (for embedded section)'))
+                .catch(err => console.error('❌ Error loading time-management module:', err));
         </script>
     </th:block>
 </div>
