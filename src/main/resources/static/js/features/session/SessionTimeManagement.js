@@ -561,10 +561,28 @@ export class SessionTimeManagement {
     showUnresolvedTab() {
         const unresolvedTab = document.getElementById('unresolvedTab');
         if (unresolvedTab) {
-            unresolvedTab.style.display = 'block';
+            console.log('🔓 Showing unresolved tab...');
 
-            // Scroll to it after showing
-            this.scrollToUnresolved();
+            // Remove any Bootstrap hiding classes
+            unresolvedTab.classList.remove('d-none');
+
+            // Set display style to empty (removes inline style) or block
+            unresolvedTab.style.display = '';
+            if (window.getComputedStyle(unresolvedTab).display === 'none') {
+                unresolvedTab.style.display = 'block';
+            }
+
+            console.log('✅ Unresolved tab should now be visible');
+
+            // Scroll to it after showing (with a small delay to ensure rendering)
+            setTimeout(() => {
+                this.scrollToUnresolved();
+            }, 100);
+        } else {
+            console.warn('⚠️ Unresolved tab element not found in DOM');
+            if (window.showToast) {
+                window.showToast('Info', 'No unresolved sessions found', 'info');
+            }
         }
     }
 
@@ -601,10 +619,13 @@ export class SessionTimeManagement {
                         e.target.tagName === 'A' ||
                         e.target.closest('button') ||
                         e.target.closest('a')) {
+                        console.log('⏭️ Ignoring click on interactive element:', e.target.tagName);
                         return;
                     }
 
-                    console.log('🔍 Clicked on unresolved row, showing resolution tab...');
+                    const rowDate = row.getAttribute('data-date');
+                    console.log('🔍 Clicked on unresolved row for date:', rowDate);
+                    console.log('📍 Calling showUnresolvedTab()...');
                     this.showUnresolvedTab();
                 });
 
