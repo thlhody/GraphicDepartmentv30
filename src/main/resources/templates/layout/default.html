@@ -17,9 +17,9 @@
           rel="stylesheet"/>
 
     <!-- Default CSS -->
-    <link th:href="@{/css/default.css?v=101120251023}" rel="stylesheet">
+    <link th:href="@{/css/default.css?v=11112025_724}" rel="stylesheet">
     <!-- Toast Alerts CSS -->
-    <link th:href="@{/css/toast-alerts.css?v=101120251023}" rel="stylesheet">
+    <link th:href="@{/css/toast-alerts.css?v=11112025_724}" rel="stylesheet">
 
     <!-- External Scripts -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -46,9 +46,9 @@
 
         // Import core systems with cache busting
         Promise.all([
-            import(`/js/components/ToastNotification.js?v=101120251023${cacheBuster}`),
-            import(`/js/core/api.js?v=101120251023${cacheBuster}`),
-            import(`/js/core/constants.js?v=101120251023${cacheBuster}`)
+            import(`/js/components/ToastNotification.js?v=11112025_724`),
+            import(`/js/core/api.js?v=11112025_724`),
+            import(`/js/core/constants.js?v=11112025_724`)
         ]).then(([ToastModule, APIModule, ConstantsModule]) => {
             // Extract exports
             const ToastNotification = ToastModule.ToastNotification;
@@ -206,8 +206,8 @@
     const cacheBuster = new Date().getTime();
 
     Promise.all([
-        import(`/js/core/api.js?v=101120251023${cacheBuster}`),
-        import(`/js/components/ToastNotification.js?v=101120251023${cacheBuster}`)
+        import(`/js/core/api.js?v=11112025_724`),
+        import(`/js/components/ToastNotification.js?v=11112025_724`)
     ]).then(([APIModule, ToastModule]) => {
         const API = APIModule.API;
         const ToastNotification = ToastModule.ToastNotification;

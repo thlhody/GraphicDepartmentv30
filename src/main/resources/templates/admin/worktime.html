@@ -3,7 +3,7 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Work Time Management</title>
-    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/worktime-admin.css?v=11112025_724}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -347,7 +347,7 @@
         <!-- ES6 Module (Modern Browsers) with cache busting -->
         <script type="module">
             const cacheBuster = new Date().getTime();
-            import(`/js/features/worktime/admin/index.js?v=101120251023${cacheBuster}`)
+            import(`/js/features/worktime/admin/index.js?v=11112025_724`)
                 .then(() => console.log('✅ Admin Worktime - ES6 module loaded'))
                 .catch(err => console.error('❌ Error loading admin worktime module:', err));
         </script>

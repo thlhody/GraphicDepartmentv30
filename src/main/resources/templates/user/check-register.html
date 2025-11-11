@@ -3,8 +3,8 @@
       layout:decorate="~{layout/default}" lang="en">
 <head>
     <title>Check Register</title>
-    <link rel="stylesheet" th:href="@{/css/register-user.css?v=101120251023}">
-    <link rel="stylesheet" th:href="@{/css/check-register.css?v=101120251023}">
+    <link rel="stylesheet" th:href="@{/css/register-user.css?v=11112025_724}">
+    <link rel="stylesheet" th:href="@{/css/check-register.css?v=11112025_724}">
 </head>
 <body>
 <div layout:fragment="content">
@@ -132,7 +132,7 @@
     <!-- ES6 Module (Modern Browsers) with cache busting -->
     <script type="module">
         const cacheBuster = new Date().getTime();
-        import(`/js/features/check-register/index.js?v=101120251023${cacheBuster}`)
+        import(`/js/features/check-register/index.js?v=11112025_724`)
             .then(() => {
                 console.log('✅ Check Register (User View) - ES6 module loaded');
                 // Calculate stats after module initializes

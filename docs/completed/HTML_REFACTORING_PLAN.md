@@ -26,15 +26,15 @@ This plan outlines the comprehensive refactoring of HTML templates to use the ne
 **In `layout/default.html`:**
 ```html
 <!-- Legacy Scripts (loaded globally) -->
-<script th:src="@{/js/legacy/constants.js?v=101120251023}"></script>
-<script th:src="@{/js/legacy/default.js?v=101120251023}" defer></script>
-<script th:src="@{/js/legacy/toast-alerts.js?v=101120251023}" defer></script>
+<script th:src="@{/js/legacy/constants.js?v=11112025_724}"></script>
+<script th:src="@{/js/legacy/default.js?v=11112025_724}" defer></script>
+<script th:src="@{/js/legacy/toast-alerts.js?v=11112025_724}" defer></script>
 ```
 
 **In individual pages:**
 ```html
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/legacy/login.js?v=101120251023}"></script>
+    <script th:src="@{/js/legacy/login.js?v=11112025_724}"></script>
 </th:block>
 ```
 
@@ -43,7 +43,7 @@ This plan outlines the comprehensive refactoring of HTML templates to use the ne
 1. ❌ **Global script pollution** - Scripts load via `window` global
 2. ❌ **No dependency management** - Scripts must load in specific order
 3. ❌ **Duplication** - Constants/utilities duplicated across files
-4. ❌ **Cache busting** - Manual version parameters (`?v=101120251023`)
+4. ❌ **Cache busting** - Manual version parameters (`?v=11112025_724`)
 5. ❌ **No tree-shaking** - Loads all code even if unused
 
 ---
@@ -185,9 +185,9 @@ This plan outlines the comprehensive refactoring of HTML templates to use the ne
 ```html
 <head>
     <!-- Legacy Scripts -->
-    <script th:src="@{/js/legacy/constants.js?v=101120251023}"></script>
-    <script th:src="@{/js/legacy/default.js?v=101120251023}" defer></script>
-    <script th:src="@{/js/legacy/toast-alerts.js?v=101120251023}" defer></script>
+    <script th:src="@{/js/legacy/constants.js?v=11112025_724}"></script>
+    <script th:src="@{/js/legacy/default.js?v=11112025_724}" defer></script>
+    <script th:src="@{/js/legacy/toast-alerts.js?v=11112025_724}" defer></script>
 </head>
 ```
 
@@ -295,7 +295,7 @@ This plan outlines the comprehensive refactoring of HTML templates to use the ne
         window.networkAvailable = /*[[${networkAvailable}]]*/ false;
         document.body.classList.add('login-page');
     </script>
-    <script th:src="@{/js/legacy/login.js?v=101120251023}"></script>
+    <script th:src="@{/js/legacy/login.js?v=11112025_724}"></script>
 </th:block>
 ```
 
@@ -331,7 +331,7 @@ This plan outlines the comprehensive refactoring of HTML templates to use the ne
 **Current:**
 ```html
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/legacy/about.js?v=101120251023}"></script>
+    <script th:src="@{/js/legacy/about.js?v=11112025_724}"></script>
 </th:block>
 ```
 
@@ -374,7 +374,7 @@ This plan outlines the comprehensive refactoring of HTML templates to use the ne
 **Current (`dashboard/user/dashboard.html`):**
 ```html
 <th:block layout:fragment="scripts">
-    <script th:src="@{/js/legacy/dashboard.js?v=101120251023}"></script>
+    <script th:src="@{/js/legacy/dashboard.js?v=11112025_724}"></script>
 </th:block>
 ```
 
@@ -847,7 +847,7 @@ Similar pattern for all status pages:
 
 **Current (Manual):**
 ```html
-<script th:src="@{/js/legacy/login.js?v=101120251023}"></script>
+<script th:src="@{/js/legacy/login.js?v=11112025_724}"></script>
 ```
 
 **Problem:**
