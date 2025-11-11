@@ -439,17 +439,22 @@ export class TimeOffManagement {
     }
 
     /**
-     * Check if time off type is removable (all types except SN and ZS)
+     * Check if time off type is removable (all types except SN, ZS, and W)
      * Business Rules:
-     * - Can remove: CO, CE, W, CM, D, CR, CN
-     * - Cannot remove: SN (admin-controlled), ZS-* (auto-managed)
+     * - Can remove: CO, CE, CM, D, CR, CN
+     * - Cannot remove: SN (admin-controlled), ZS-* (auto-managed), W (weekend marker)
+     *
+     * Note: W (Weekend) is a permanent marker for weekend days. Users can modify
+     * start/end times on weekends, but cannot remove the W marker itself.
      */
     static isRemovableTimeOffType(cell) {
         const timeOffType = cell.getAttribute('data-timeoff-type');
         if (!timeOffType) return false;
 
-        // Cannot remove SN (admin-controlled) or ZS (auto-managed)
-        return timeOffType !== 'SN' && !timeOffType.startsWith('ZS-');
+        // Cannot remove SN (admin-controlled), ZS (auto-managed), or W (weekend marker)
+        return timeOffType !== 'SN' &&
+               timeOffType !== 'W' &&
+               !timeOffType.startsWith('ZS-');
     }
 
     /**
