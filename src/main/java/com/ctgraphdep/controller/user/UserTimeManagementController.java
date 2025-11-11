@@ -290,11 +290,14 @@ public class UserTimeManagementController extends BaseController {
                     message += String.format(" Holiday balance: %d → %d", result.getSideEffects().getOldHolidayBalance(), result.getSideEffects().getNewHolidayBalance());
                 }
                 redirectAttributes.addFlashAttribute("successMessage", message);
-                // NEW: Add flag to open holiday modal
-                redirectAttributes.addFlashAttribute("openHolidayModal", true);
-                redirectAttributes.addFlashAttribute("holidayStartDate", startDate);
-                redirectAttributes.addFlashAttribute("holidayEndDate", endDate);
-                redirectAttributes.addFlashAttribute("holidayTimeOffType", timeOffType.toUpperCase());
+
+                // Open holiday modal only for non-D types (Delegation doesn't need holiday request)
+                if (!"D".equalsIgnoreCase(timeOffType)) {
+                    redirectAttributes.addFlashAttribute("openHolidayModal", true);
+                    redirectAttributes.addFlashAttribute("holidayStartDate", startDate);
+                    redirectAttributes.addFlashAttribute("holidayEndDate", endDate);
+                    redirectAttributes.addFlashAttribute("holidayTimeOffType", timeOffType.toUpperCase());
+                }
 
                 LoggerUtil.info(this.getClass(), String.format("Time off request processed successfully: %s", result.getMessage()));
             } else {
@@ -406,11 +409,15 @@ public class UserTimeManagementController extends BaseController {
 
                 response.put("success", true);
                 response.put("message", message);
-                response.put("holidayStartDate", startDate);
-                response.put("holidayEndDate", endDate);
-                response.put("holidayTimeOffType", timeOffType.toUpperCase());
                 response.put("requestYear", start.getYear());
                 response.put("requestMonth", start.getMonthValue());
+
+                // Only include holiday modal data for non-D types (Delegation doesn't need holiday request)
+                if (!"D".equalsIgnoreCase(timeOffType)) {
+                    response.put("holidayStartDate", startDate);
+                    response.put("holidayEndDate", endDate);
+                    response.put("holidayTimeOffType", timeOffType.toUpperCase());
+                }
 
                 LoggerUtil.info(this.getClass(), String.format("AJAX time off request processed successfully: %s", result.getMessage()));
                 return ResponseEntity.ok(response);

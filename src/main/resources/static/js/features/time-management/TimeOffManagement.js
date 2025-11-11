@@ -179,40 +179,45 @@ export class TimeOffManagement {
                     // Reset form
                     form.reset();
 
-                    // IMPORTANT: Open holiday request modal after successful submission
-                    console.log('📋 Opening holiday request modal after time-off addition...');
+                    // Open holiday request modal only if holiday data is present
+                    // (D - Delegation doesn't need holiday request, so server won't send this data)
+                    if (result.holidayStartDate && result.holidayEndDate && result.holidayTimeOffType) {
+                        console.log('📋 Opening holiday request modal after time-off addition...');
 
-                    // Check if we're embedded in session page
-                    const isSessionPage = window.SessionTimeManagementInstance &&
-                                         typeof window.SessionTimeManagementInstance.loadContent === 'function';
+                        // Check if we're embedded in session page
+                        const isSessionPage = window.SessionTimeManagementInstance &&
+                                             typeof window.SessionTimeManagementInstance.loadContent === 'function';
 
-                    // Extract user data for modal
-                    const userData = this.extractUserDataForModal();
+                        // Extract user data for modal
+                        const userData = this.extractUserDataForModal();
 
-                    // Open the modal with the submitted data (from server response)
-                    setTimeout(() => {
-                        if (typeof window.openHolidayRequestModal === 'function') {
-                            console.log('✅ Opening modal with data:', {
-                                startDate: result.holidayStartDate,
-                                endDate: result.holidayEndDate,
-                                timeOffType: result.holidayTimeOffType,
-                                userData
-                            });
-                            window.openHolidayRequestModal(
-                                result.holidayStartDate,
-                                result.holidayEndDate,
-                                userData,
-                                result.holidayTimeOffType
-                            );
-                        } else {
-                            console.error('❌ Holiday modal function not available!');
-                        }
-                    }, 500);
+                        // Open the modal with the submitted data (from server response)
+                        setTimeout(() => {
+                            if (typeof window.openHolidayRequestModal === 'function') {
+                                console.log('✅ Opening modal with data:', {
+                                    startDate: result.holidayStartDate,
+                                    endDate: result.holidayEndDate,
+                                    timeOffType: result.holidayTimeOffType,
+                                    userData
+                                });
+                                window.openHolidayRequestModal(
+                                    result.holidayStartDate,
+                                    result.holidayEndDate,
+                                    userData,
+                                    result.holidayTimeOffType
+                                );
+                            } else {
+                                console.error('❌ Holiday modal function not available!');
+                            }
+                        }, 500);
+                    } else {
+                        console.log('ℹ️ No holiday modal data - skipping modal (likely D type)');
+                    }
 
                     // NOTE: We DON'T reload the fragment automatically (like register page)
                     // The data is already saved server-side. User can manually refresh if needed.
                     // This keeps the modal open and prevents scroll issues.
-                    console.log('✅ Time-off added successfully. Modal will remain open for export.');
+                    console.log('✅ Time-off added successfully.');
 
                 } else {
                     // Server returned error
