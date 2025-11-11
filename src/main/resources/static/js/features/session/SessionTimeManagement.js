@@ -615,9 +615,9 @@ export class SessionTimeManagement {
             const statusAction = row.getAttribute('data-status-action');
             const rowDate = row.getAttribute('data-date');
 
-            // Check if this row has USER_IN_PROCESS status AND is NOT the current date
-            // Current date with IN_PROCESS is normal (active session), only previous dates need resolution
-            if (statusAction && statusAction.includes('IN_PROCESS') && rowDate && rowDate !== todayString) {
+            // Check if this row has Active status AND is NOT the current date
+            // Current date with Active status is normal (active session), only previous dates need resolution
+            if (statusAction && statusAction === 'Active' && rowDate && rowDate !== todayString) {
                 unresolvedCount++;
 
                 console.log(`📍 Found unresolved session: ${rowDate} (needs resolution)`);
