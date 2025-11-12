@@ -12,6 +12,7 @@ import com.ctgraphdep.model.UsersCheckValueEntry;
 import com.ctgraphdep.model.dto.CheckRegisterSearchResultDTO;
 import com.ctgraphdep.register.service.CheckRegisterService;
 import com.ctgraphdep.register.service.CheckValuesService;
+import com.ctgraphdep.register.service.ExcelCheckRegisterProcessingService;
 import com.ctgraphdep.service.*;
 import com.ctgraphdep.service.cache.CheckValuesCacheManager;
 import com.ctgraphdep.service.result.ServiceResult;
@@ -47,22 +48,24 @@ import java.util.stream.Collectors;
 public class CheckRegisterController extends BaseController {
 
     private final CheckRegisterService checkRegisterService;
-
     private final CheckRegisterWithCalculationExporter checkRegisterWithCalculationExporter;
     private final WorkScheduleService workScheduleService;
     private final CheckValuesCacheManager checkValuesCacheManager;
     private final CheckValuesService checkValuesService;
+    private final ExcelCheckRegisterProcessingService excelProcessingService;
 
     public CheckRegisterController(UserService userService, FolderStatus folderStatus, CheckRegisterService checkRegisterService, TimeValidationService timeValidationService,
                                    CheckRegisterWithCalculationExporter checkRegisterWithCalculationExporter,
                                    WorkScheduleService workScheduleService, CheckValuesCacheManager checkValuesCacheManager,
-                                   CheckValuesService checkValuesService) {
+                                   CheckValuesService checkValuesService,
+                                   ExcelCheckRegisterProcessingService excelProcessingService) {
         super(userService, folderStatus, timeValidationService);
         this.checkRegisterService = checkRegisterService;
         this.checkRegisterWithCalculationExporter = checkRegisterWithCalculationExporter;
         this.workScheduleService = workScheduleService;
         this.checkValuesCacheManager = checkValuesCacheManager;
         this.checkValuesService = checkValuesService;
+        this.excelProcessingService = excelProcessingService;
     }
 
     /**
@@ -595,12 +598,9 @@ public class CheckRegisterController extends BaseController {
                 return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
             }
 
-            // Process Excel file using the service
-            com.ctgraphdep.register.service.ExcelCheckRegisterProcessingService excelProcessingService =
-                    getApplicationContext().getBean(com.ctgraphdep.register.service.ExcelCheckRegisterProcessingService.class);
-
+            // Process Excel file using the injected service
             // User uploads always get USER_INPUT status
-            ServiceResult<List<RegisterCheckEntry>> parseResult = excelProcessingService.processExcelFile(
+            ServiceResult<List<RegisterCheckEntry>> parseResult = this.excelProcessingService.processExcelFile(
                     file, username, userId, username, MergingStatusConstants.USER_INPUT);
 
             if (parseResult.isFailure()) {
