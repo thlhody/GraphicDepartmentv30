@@ -281,7 +281,6 @@ public class WorktimeLoginMerge {
      * Update time off tracker ONCE after ALL months have been merged.
      * CRITICAL FIX: This method loads ALL user worktime files for the entire year to ensure
      * we don't lose time-off entries from months that weren't part of the optimized merge scope.
-     *
      * This method ALWAYS syncs holiday balance, even if no new time-off entries exist.
      * This ensures tracker stays in sync with admin-created time off entries AND admin holiday balance changes.
      */
@@ -306,13 +305,13 @@ public class WorktimeLoginMerge {
 
                 if (currentHolidayDays != null) {
                     // Check if balance sync is needed
-                    if (trackerHolidayDays == null || !trackerHolidayDays.equals(currentHolidayDays)) {
+                    if (!trackerHolidayDays.equals(currentHolidayDays)) {
                         tracker.setAvailableHolidayDays(currentHolidayDays);
                         trackerModified = true;
 
                         LoggerUtil.info(this.getClass(), String.format(
                             "Synced holiday balance for %s - %d: tracker %d → %d days (from user file)",
-                            username, year, trackerHolidayDays != null ? trackerHolidayDays : 0, currentHolidayDays));
+                            username, year, trackerHolidayDays, currentHolidayDays));
                     } else {
                         LoggerUtil.debug(this.getClass(), String.format(
                             "Holiday balance already in sync for %s - %d: %d days", username, year, currentHolidayDays));
