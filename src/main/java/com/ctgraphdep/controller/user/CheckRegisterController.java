@@ -621,9 +621,12 @@ public class CheckRegisterController extends BaseController {
 
             if (batchResult.isSuccess()) {
                 int savedCount = batchResult.getData();
-                if (batchResult.hasWarning()) {
-                    redirectAttributes.addFlashAttribute("warningMessage", batchResult.getWarningMessage());
+                if (batchResult.hasWarnings()) {
+                    // Has warnings - some entries may have failed
+                    String warningMsg = String.join("; ", batchResult.getWarnings());
+                    redirectAttributes.addFlashAttribute("warningMessage", warningMsg);
                 } else {
+                    // All entries succeeded
                     redirectAttributes.addFlashAttribute("successMessage",
                             String.format("Successfully imported %d entries from Excel file", savedCount));
                 }
