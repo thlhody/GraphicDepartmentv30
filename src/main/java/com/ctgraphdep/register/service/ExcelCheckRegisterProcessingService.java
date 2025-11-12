@@ -40,8 +40,15 @@ public class ExcelCheckRegisterProcessingService {
             "PRODUCTION", "REORDER", "SAMPLE", "OMS PRODUCTION", "KIPSTA PRODUCTION", "GPT"
     );
 
-    // Date formatter for DD/MM/YYYY format
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    // Date formatters for multiple formats (try day-first, then month-first)
+    private static final List<DateTimeFormatter> DATE_FORMATTERS = Arrays.asList(
+            DateTimeFormatter.ofPattern("dd/MM/yyyy"),  // Day first with /
+            DateTimeFormatter.ofPattern("dd.MM.yyyy"),  // Day first with .
+            DateTimeFormatter.ofPattern("dd-MM-yyyy"),  // Day first with -
+            DateTimeFormatter.ofPattern("MM/dd/yyyy"),  // Month first with /
+            DateTimeFormatter.ofPattern("MM.dd.yyyy"),  // Month first with .
+            DateTimeFormatter.ofPattern("MM-dd-yyyy")   // Month first with -
+    );
 
     public ExcelCheckRegisterProcessingService() {
         LoggerUtil.initialize(this.getClass(), null);
@@ -90,8 +97,17 @@ public class ExcelCheckRegisterProcessingService {
 
             CheckValuesEntry checkValues = userCheckValues.getCheckValuesEntry();
 
-            // Parse Excel file
-            List<RegisterCheckEntry> entries = parseExcelFile(file.getInputStream(), username, controllerUsername, adminSync, checkValues);
+            // Parse Excel file with validation
+            List<String> dateErrors = new ArrayList<>();
+            List<RegisterCheckEntry> entries = parseExcelFile(file.getInputStream(), username, controllerUsername, adminSync, checkValues, dateErrors);
+
+            // If there are date validation errors, return them to user
+            if (!dateErrors.isEmpty()) {
+                String errorMessage = "Date validation failed. Please correct the following dates and upload again:\n" +
+                        String.join("\n", dateErrors);
+                LoggerUtil.warn(this.getClass(), String.format("Date validation failed with %d errors", dateErrors.size()));
+                return ServiceResult.validationError(errorMessage, "date_validation_failed");
+            }
 
             if (entries.isEmpty()) {
                 return ServiceResult.successWithWarning(entries, "No valid entries found in Excel file");
@@ -120,6 +136,7 @@ public class ExcelCheckRegisterProcessingService {
      * @param controllerUsername Controller username
      * @param adminSync Admin sync status
      * @param checkValues Check values for calculation
+     * @param dateErrors List to collect date validation errors
      * @return List of RegisterCheckEntry
      * @throws IOException if file cannot be read
      */
@@ -128,7 +145,8 @@ public class ExcelCheckRegisterProcessingService {
             String designerUsername,
             String controllerUsername,
             String adminSync,
-            CheckValuesEntry checkValues) throws IOException {
+            CheckValuesEntry checkValues,
+            List<String> dateErrors) throws IOException {
 
         List<RegisterCheckEntry> entries = new ArrayList<>();
         int nextEntryId = 1;
@@ -201,7 +219,7 @@ public class ExcelCheckRegisterProcessingService {
                 }
 
                 try {
-                    RegisterCheckEntry entry = parseRow(row, designerUsername, controllerUsername, adminSync, checkValues, nextEntryId);
+                    RegisterCheckEntry entry = parseRow(row, designerUsername, controllerUsername, adminSync, checkValues, nextEntryId, dateErrors);
                     if (entry != null) {
                         entries.add(entry);
                         nextEntryId++;
@@ -231,15 +249,15 @@ public class ExcelCheckRegisterProcessingService {
      * Parse a single Excel row into RegisterCheckEntry
      *
      * Column mapping:
-     * A: Designer (designerName) - can be different from file owner
-     * B: Date (date) - format DD/MM/YYYY
+     * A: Designer (designerName) - defaults to CTTT_Name if empty
+     * B: Date (date) - multiple formats supported (DD/MM/YYYY, MM/DD/YYYY with /, ., -)
      * C: Order ID (omsId)
-     * D: CV No. (productionId)
+     * D: CV No. (productionId) - optional
      * E: Work Type (checkType)
      * F: Nr of articles (articleNumbers)
-     * G: Nr of pieces (filesNumbers)
+     * G: Nr of pieces (filesNumbers) - defaults to 1 if null/empty/0
      * H: Name & Number - SKIP
-     * I: Error Description (errorDescription)
+     * I: Error Description (errorDescription) - optional
      * J: Approval Status (approvalStatus)
      * K: Controller - use logged in user (controllerUsername)
      */
@@ -249,63 +267,65 @@ public class ExcelCheckRegisterProcessingService {
             String controllerUsername,
             String adminSync,
             CheckValuesEntry checkValues,
-            int entryId) {
+            int entryId,
+            List<String> dateErrors) {
 
         try {
-            // Column A: Designer Name (from Excel, might be different from file owner)
+            int excelRowNum = row.getRowNum() + 1; // Excel row number (1-based)
+
+            // Column A: Designer Name (default to CTTT_Name if empty)
             String designerName = getCellValueAsString(row.getCell(0));
             if (designerName == null || designerName.trim().isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "Row " + (row.getRowNum() + 1) + ": Designer name is missing");
-                return null;
+                designerName = "CTTT_Name";
+                LoggerUtil.debug(this.getClass(), "Row " + excelRowNum + ": Using default designer name: CTTT_Name");
             }
 
-            // Column B: Date (DD/MM/YYYY format)
-            LocalDate date = parseDateFromCell(row.getCell(1));
-            if (date == null) {
-                LoggerUtil.warn(this.getClass(), "Row " + (row.getRowNum() + 1) + ": Invalid or missing date");
-                return null;
-            }
+            // Column B: Date (multiple formats supported)
+            String dateStr = getCellValueAsString(row.getCell(1));
+            LocalDate date = parseDateFromCell(row.getCell(1), excelRowNum, dateStr, dateErrors);
+            // Don't return null if date is invalid - collect error and continue
+            // This allows us to collect ALL date errors before stopping
 
             // Column C: Order ID (OMS ID)
             String omsId = getCellValueAsString(row.getCell(2));
             if (omsId == null || omsId.trim().isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "Row " + (row.getRowNum() + 1) + ": OMS ID is missing");
+                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": OMS ID is missing");
                 return null;
             }
 
-            // Column D: CV No. (Production ID)
+            // Column D: CV No. (Production ID) - optional, can be null/empty
             String productionId = getCellValueAsString(row.getCell(3));
 
             // Column E: Work Type (Check Type)
             String checkType = getCellValueAsString(row.getCell(4));
             if (checkType == null || checkType.trim().isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "Row " + (row.getRowNum() + 1) + ": Check type is missing");
+                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": Check type is missing");
                 return null;
             }
 
             // Column F: Nr of articles (must be number)
             Integer articleNumbers = getCellValueAsInteger(row.getCell(5));
             if (articleNumbers == null || articleNumbers < 0) {
-                LoggerUtil.warn(this.getClass(), "Row " + (row.getRowNum() + 1) + ": Invalid article numbers");
+                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": Invalid article numbers");
                 return null;
             }
 
-            // Column G: Nr of pieces (must be number)
+            // Column G: Nr of pieces (defaults to 1 if null/empty/0)
             Integer filesNumbers = getCellValueAsInteger(row.getCell(6));
-            if (filesNumbers == null || filesNumbers < 0) {
-                LoggerUtil.warn(this.getClass(), "Row " + (row.getRowNum() + 1) + ": Invalid file numbers");
-                return null;
+            if (filesNumbers == null || filesNumbers <= 0) {
+                filesNumbers = 1;
+                LoggerUtil.debug(this.getClass(), "Row " + excelRowNum + ": Nr of pieces is null/empty/0, defaulting to 1");
             }
 
             // Column H: Name & Number - SKIP
 
-            // Column I: Error Description
+            // Column I: Error Description (optional - can be null/empty)
             String errorDescription = getCellValueAsString(row.getCell(8));
 
             // Column J: Approval Status
             String approvalStatus = getCellValueAsString(row.getCell(9));
             if (approvalStatus == null || approvalStatus.trim().isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "Row " + (row.getRowNum() + 1) + ": Approval status is missing");
+                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": Approval status is missing");
                 return null;
             }
 
@@ -381,31 +401,54 @@ public class ExcelCheckRegisterProcessingService {
 
     /**
      * Parse date from Excel cell
-     * Supports both DD/MM/YYYY string format and Excel date format
+     * Supports multiple date formats and Excel native date format
+     * Collects validation errors instead of failing immediately
+     *
+     * @param cell Excel cell containing date
+     * @param rowNum Excel row number (1-based) for error reporting
+     * @param dateStr Raw date string value for error reporting
+     * @param dateErrors List to collect validation errors
+     * @return Parsed LocalDate or null if parsing failed (error added to dateErrors)
      */
-    private LocalDate parseDateFromCell(Cell cell) {
+    private LocalDate parseDateFromCell(Cell cell, int rowNum, String dateStr, List<String> dateErrors) {
         if (cell == null) {
+            dateErrors.add(String.format("Row %d: Date is missing", rowNum));
             return null;
         }
 
         try {
-            // Try to get as date if cell is formatted as date
+            // Try to get as date if cell is formatted as native Excel date
             if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
                 return cell.getLocalDateTimeCellValue().toLocalDate();
             }
 
-            // Try to parse as string in DD/MM/YYYY format
-            String dateStr = getCellValueAsString(cell);
+            // Try to parse as string with multiple formatters
             if (dateStr != null && !dateStr.trim().isEmpty()) {
-                return LocalDate.parse(dateStr.trim(), DATE_FORMATTER);
-            }
-        } catch (DateTimeParseException e) {
-            LoggerUtil.warn(this.getClass(), "Failed to parse date: " + getCellValueAsString(cell));
-        } catch (Exception e) {
-            LoggerUtil.warn(this.getClass(), "Error reading date cell: " + e.getMessage());
-        }
+                String trimmedDate = dateStr.trim();
 
-        return null;
+                // Try each date formatter
+                for (DateTimeFormatter formatter : DATE_FORMATTERS) {
+                    try {
+                        return LocalDate.parse(trimmedDate, formatter);
+                    } catch (DateTimeParseException e) {
+                        // Continue to next formatter
+                    }
+                }
+
+                // If all formatters failed, add detailed error
+                dateErrors.add(String.format("Row %d: Invalid date format '%s' - Expected formats: DD/MM/YYYY, MM/DD/YYYY, DD.MM.YYYY, MM.DD.YYYY, DD-MM-YYYY, or MM-DD-YYYY",
+                        rowNum, trimmedDate));
+                LoggerUtil.warn(this.getClass(), String.format("Failed to parse date at row %d: '%s'", rowNum, trimmedDate));
+                return null;
+            } else {
+                dateErrors.add(String.format("Row %d: Date is empty", rowNum));
+                return null;
+            }
+        } catch (Exception e) {
+            dateErrors.add(String.format("Row %d: Error reading date cell - %s", rowNum, e.getMessage()));
+            LoggerUtil.warn(this.getClass(), String.format("Error reading date cell at row %d: %s", rowNum, e.getMessage()));
+            return null;
+        }
     }
 
     /**
