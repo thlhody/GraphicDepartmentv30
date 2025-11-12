@@ -8,6 +8,11 @@
 </head>
 <body>
 <div layout:fragment="content">
+    <!-- Flash Messages (for Toast Notifications) -->
+    <div th:if="${successMessage}" th:attr="data-alert-message=${successMessage},data-alert-type='success'"></div>
+    <div th:if="${errorMessage}" th:attr="data-alert-message=${errorMessage},data-alert-type='error'"></div>
+    <div th:if="${warningMessage}" th:attr="data-alert-message=${warningMessage},data-alert-type='warning'"></div>
+
     <div class="container py-4">
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
