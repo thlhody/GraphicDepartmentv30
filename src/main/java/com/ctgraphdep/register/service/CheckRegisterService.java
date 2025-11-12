@@ -659,19 +659,15 @@ public class CheckRegisterService {
                     }
 
                     // Write all entries for this month in ONE operation
-                    boolean writeSuccess = checkRegisterDataService.writeUserCheckRegisterLocalWithSyncAndBackup(
+                    checkRegisterDataService.writeUserCheckRegisterWithSyncAndBackup(
                             username, userId, newEntries, year, month);
 
-                    if (writeSuccess) {
-                        // Invalidate cache for this month so it reloads with new entries
-                        registerCheckCacheService.invalidateMonth(username, userId, year, month);
+                    // Clear cache for this month so it reloads with new entries
+                    registerCheckCacheService.clearMonth(username, year, month);
 
-                        LoggerUtil.info(this.getClass(), String.format(
-                                "Successfully batch saved %d entries for %s in %d/%d",
-                                monthEntries.size(), username, month, year));
-                    } else {
-                        errors.add(String.format("Failed to write entries for month %d/%d", month, year));
-                    }
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Successfully batch saved %d entries for %s in %d/%d",
+                            monthEntries.size(), username, month, year));
 
                 } catch (Exception e) {
                     LoggerUtil.error(this.getClass(), String.format(
