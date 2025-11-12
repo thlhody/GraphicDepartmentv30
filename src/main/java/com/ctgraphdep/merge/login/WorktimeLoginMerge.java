@@ -59,6 +59,10 @@ public class WorktimeLoginMerge {
             LocalDate now = LocalDate.now();
             int currentYear = now.getYear();
 
+            // CRITICAL: Sync tracker's availableHolidayDays with user's paidHolidayDays BEFORE any merging
+            // This ensures tracker is up-to-date with admin changes to user file (source of truth)
+            syncTrackerHolidayBalanceWithUser(username, currentYear);
+
             // OPTIMIZATION 1: Reduced scope to 2 months
             List<YearMonth> monthsToMerge = getOptimizedMonthsForMerge(currentYear, now);
 
@@ -416,6 +420,85 @@ public class WorktimeLoginMerge {
         tracker.setAvailableHolidayDays(0); // Will be updated by other processes
         tracker.setUsedHolidayDays(0);
         return tracker;
+    }
+
+    // ========================================================================
+    // TRACKER HOLIDAY BALANCE SYNC (CRITICAL FIX)
+    // ========================================================================
+
+    /**
+     * Sync TimeOffTracker.availableHolidayDays with User.paidHolidayDays BEFORE any merge operations.
+     * This ensures the tracker reflects admin changes to the user's holiday balance.
+     *
+     * Flow:
+     * 1. Admin updates User.paidHolidayDays (source of truth) - NO cache
+     * 2. User logs in next day
+     * 3. THIS METHOD runs FIRST - syncs tracker with user file
+     * 4. Then normal worktime merge proceeds
+     * 5. User operations (CO add/remove) update both user file and tracker via cache
+     *
+     * This prevents stale availableHolidayDays in tracker when:
+     * - Admin updates user's holiday balance directly
+     * - User hasn't logged in recently
+     * - No worktime time-off entries exist to trigger sync
+     *
+     * @param username Username to sync
+     * @param year Current year
+     */
+    private void syncTrackerHolidayBalanceWithUser(String username, int year) {
+        try {
+            LoggerUtil.info(this.getClass(), String.format("PRE-MERGE SYNC: Syncing tracker holiday balance with user file for %s - %d", username, year));
+
+            // Get user ID
+            Integer userId = getUserIdFromUsername(username);
+            if (userId == null) {
+                LoggerUtil.warn(this.getClass(), String.format("Cannot sync tracker: user ID not found for %s", username));
+                return;
+            }
+
+            // Load existing tracker
+            TimeOffTracker tracker = timeOffDataService.readUserLocalTrackerReadOnly(username, userId, username, year);
+
+            if (tracker == null) {
+                // No tracker exists - will be created during normal merge if needed
+                LoggerUtil.debug(this.getClass(), String.format("No tracker exists for %s - %d, will be created if needed", username, year));
+                return;
+            }
+
+            // Get current user's holiday balance from MainDefaultUserContextCache (authoritative source)
+            Integer currentHolidayDays = mainDefaultUserContextCache.getCurrentPaidHolidayDays();
+
+            if (currentHolidayDays == null) {
+                LoggerUtil.warn(this.getClass(), String.format("Cannot get current holiday days from cache for %s", username));
+                return;
+            }
+
+            // Check if sync is needed
+            Integer trackerHolidayDays = tracker.getAvailableHolidayDays();
+
+            if (trackerHolidayDays != null && trackerHolidayDays.equals(currentHolidayDays)) {
+                LoggerUtil.debug(this.getClass(), String.format("PRE-MERGE SYNC: Tracker already in sync for %s - %d: %d days", username, year, currentHolidayDays));
+                return;
+            }
+
+            // Sync needed - update tracker
+            LoggerUtil.info(this.getClass(), String.format("PRE-MERGE SYNC: Updating tracker for %s - %d: %d → %d days (syncing with user file)",
+                username, year, trackerHolidayDays != null ? trackerHolidayDays : 0, currentHolidayDays));
+
+            tracker.setAvailableHolidayDays(currentHolidayDays);
+            tracker.setLastSyncTime(LocalDateTime.now());
+
+            // Save updated tracker
+            timeOffDataService.writeUserLocalTrackerWithSyncAndBackup(username, userId, tracker, year);
+
+            LoggerUtil.info(this.getClass(), String.format("PRE-MERGE SYNC: Successfully synced tracker holiday balance for %s - %d: %d days",
+                username, year, currentHolidayDays));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format("PRE-MERGE SYNC: Error syncing tracker holiday balance for %s - %d: %s",
+                username, year, e.getMessage()), e);
+            // Don't throw - sync failure shouldn't break login merge
+        }
     }
 
     // ========================================================================
