@@ -50,6 +50,60 @@
                     </div>
                 </form>
 
+                <!-- Upload Excel Button -->
+                <div class="d-flex justify-content-center my-3">
+                    <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#uploadExcelModal">
+                        <i class="bi bi-upload me-1"></i>Upload Excel File
+                    </button>
+                </div>
+
+                <!-- Excel Upload Modal -->
+                <div class="modal fade" id="uploadExcelModal" tabindex="-1" aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="uploadExcelModalLabel">Upload Check Register from Excel</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <form th:action="@{/user/check-register/upload-excel}" method="post" enctype="multipart/form-data">
+                                <div class="modal-body">
+                                    <input type="hidden" name="year" th:value="${currentYear}">
+                                    <input type="hidden" name="month" th:value="${currentMonth}">
+
+                                    <div class="mb-3">
+                                        <label for="excelFile" class="form-label">Select Excel File (.xlsx)</label>
+                                        <input type="file" class="form-control" id="excelFile" name="excelFile" accept=".xlsx" required>
+                                        <div class="form-text">Upload your check register entries from Excel</div>
+                                    </div>
+
+                                    <div class="alert alert-info mb-0">
+                                        <h6>Excel Format Requirements:</h6>
+                                        <ul class="mb-0">
+                                            <li><strong>Column A:</strong> Designer Name</li>
+                                            <li><strong>Column B:</strong> Date (DD/MM/YYYY format, e.g., 03/14/2025)</li>
+                                            <li><strong>Column C:</strong> Order ID (OMS ID)</li>
+                                            <li><strong>Column D:</strong> CV No. (Production ID)</li>
+                                            <li><strong>Column E:</strong> Work Type (Check Type)</li>
+                                            <li><strong>Column F:</strong> Nr of articles (must be a number)</li>
+                                            <li><strong>Column G:</strong> Nr of pieces (must be a number)</li>
+                                            <li><strong>Column H:</strong> Name & Number (this column is skipped)</li>
+                                            <li><strong>Column I:</strong> Error Description</li>
+                                            <li><strong>Column J:</strong> Approval Status</li>
+                                        </ul>
+                                        <p class="mt-2 mb-0"><strong>Note:</strong> Order Value will be calculated automatically based on check type and your configured values.</p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-upload me-1"></i>Upload
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Summary Statistics -->
                 <div class="mt-4">
                     <h5 class="mb-3">Monthly Summary</h5>

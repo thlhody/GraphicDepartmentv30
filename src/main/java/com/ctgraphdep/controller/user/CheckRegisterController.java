@@ -562,6 +562,113 @@ public class CheckRegisterController extends BaseController {
         }
     }
 
+    /**
+     * Upload Excel file with check register entries
+     * POST /user/check-register/upload-excel
+     */
+    @PostMapping("/upload-excel")
+    public String uploadExcelFile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam("excelFile") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam Integer year,
+            @RequestParam Integer month,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            // Get current user
+            User currentUser = getUserService().getUserByUsername(userDetails.getUsername()).orElse(null);
+            if (currentUser == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "User not found");
+                return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
+            }
+
+            String username = currentUser.getUsername();
+            Integer userId = currentUser.getUserId();
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Uploading Excel file for user %s, year: %d, month: %d",
+                    username, year, month));
+
+            // Validate file
+            if (file.isEmpty()) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Please select an Excel file to upload");
+                return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
+            }
+
+            // Process Excel file using the service
+            com.ctgraphdep.register.service.ExcelCheckRegisterProcessingService excelProcessingService =
+                    getApplicationContext().getBean(com.ctgraphdep.register.service.ExcelCheckRegisterProcessingService.class);
+
+            // User uploads always get USER_INPUT status
+            ServiceResult<List<RegisterCheckEntry>> parseResult = excelProcessingService.processExcelFile(
+                    file, username, userId, username, MergingStatusConstants.USER_INPUT);
+
+            if (parseResult.isFailure()) {
+                redirectAttributes.addFlashAttribute("errorMessage",
+                        "Failed to process Excel file: " + parseResult.getErrorMessage());
+                return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
+            }
+
+            List<RegisterCheckEntry> entries = parseResult.getData();
+
+            if (entries.isEmpty()) {
+                redirectAttributes.addFlashAttribute("warningMessage", "No valid entries found in Excel file");
+                return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
+            }
+
+            // Save entries to user check register
+            int successCount = 0;
+            int errorCount = 0;
+            List<String> errors = new ArrayList<>();
+
+            for (RegisterCheckEntry entry : entries) {
+                try {
+                    ServiceResult<RegisterCheckEntry> saveResult = checkRegisterService.saveUserEntry(
+                            username, userId, entry);
+
+                    if (saveResult.isSuccess()) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                        errors.add(String.format("Row %d: %s", entry.getEntryId(), saveResult.getErrorMessage()));
+                        LoggerUtil.warn(this.getClass(), String.format(
+                                "Failed to save entry %d: %s", entry.getEntryId(), saveResult.getErrorMessage()));
+                    }
+                } catch (Exception e) {
+                    errorCount++;
+                    errors.add(String.format("Row %d: %s", entry.getEntryId(), e.getMessage()));
+                    LoggerUtil.error(this.getClass(), String.format(
+                            "Exception saving entry %d: %s", entry.getEntryId(), e.getMessage()), e);
+                }
+            }
+
+            // Build result message
+            if (successCount > 0 && errorCount == 0) {
+                redirectAttributes.addFlashAttribute("successMessage",
+                        String.format("Successfully imported %d entries from Excel file", successCount));
+            } else if (successCount > 0 && errorCount > 0) {
+                redirectAttributes.addFlashAttribute("warningMessage",
+                        String.format("Imported %d entries, %d entries failed. Errors: %s",
+                                successCount, errorCount, String.join(", ", errors.subList(0, Math.min(3, errors.size())))));
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage",
+                        String.format("Failed to import entries. Errors: %s",
+                                String.join(", ", errors.subList(0, Math.min(3, errors.size())))));
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Excel upload completed for %s: %d successful, %d errors",
+                    username, successCount, errorCount));
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Unexpected error uploading Excel file: " + e.getMessage(), e);
+            redirectAttributes.addFlashAttribute("errorMessage",
+                    "An unexpected error occurred while uploading Excel file: " + e.getMessage());
+        }
+
+        return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
+    }
+
     // ========================================================================
     // HELPER METHODS FOR ERROR HANDLING
     // ========================================================================
