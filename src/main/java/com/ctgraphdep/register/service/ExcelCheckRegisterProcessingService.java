@@ -134,11 +134,21 @@ public class ExcelCheckRegisterProcessingService {
         int nextEntryId = 1;
 
         try (Workbook workbook = new XSSFWorkbook(inputStream)) {
+            // Log all sheets
+            int sheetCount = workbook.getNumberOfSheets();
+            LoggerUtil.info(this.getClass(), String.format("Excel file has %d sheets", sheetCount));
+            for (int i = 0; i < sheetCount; i++) {
+                Sheet s = workbook.getSheetAt(i);
+                LoggerUtil.info(this.getClass(), String.format("  Sheet %d: '%s' has %d rows",
+                        i, s.getSheetName(), s.getLastRowNum() + 1));
+            }
+
             Sheet sheet = workbook.getSheetAt(0); // Get first sheet
 
             int totalRows = sheet.getLastRowNum() + 1;
             LoggerUtil.info(this.getClass(), String.format(
-                    "Excel file has %d total rows (including header)", totalRows));
+                    "Using first sheet '%s' with %d total rows (including header)",
+                    sheet.getSheetName(), totalRows));
 
             // Skip header row (row 0)
             int rowNum = 1;
@@ -153,7 +163,23 @@ public class ExcelCheckRegisterProcessingService {
                 // Skip empty rows
                 if (isEmptyRow(row)) {
                     skippedEmptyRows++;
-                    LoggerUtil.debug(this.getClass(), String.format("Row %d is empty, skipping", row.getRowNum() + 1));
+                    // Log first few empty rows with cell details
+                    if (skippedEmptyRows <= 3) {
+                        StringBuilder cellInfo = new StringBuilder();
+                        for (int cellNum = 0; cellNum < 11; cellNum++) {
+                            Cell cell = row.getCell(cellNum);
+                            if (cell != null) {
+                                cellInfo.append(String.format(" [%d:%s='%s']", cellNum,
+                                        cell.getCellType(), getCellValueAsString(cell)));
+                            } else {
+                                cellInfo.append(String.format(" [%d:null]", cellNum));
+                            }
+                        }
+                        LoggerUtil.info(this.getClass(), String.format("Row %d is empty, cells:%s",
+                                row.getRowNum() + 1, cellInfo.toString()));
+                    } else if (skippedEmptyRows == 4) {
+                        LoggerUtil.debug(this.getClass(), "Skipping detailed logging for remaining empty rows...");
+                    }
                     continue;
                 }
 
