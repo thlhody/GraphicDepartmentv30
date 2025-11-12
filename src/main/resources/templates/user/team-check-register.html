@@ -109,6 +109,69 @@
               <i class="bi bi-check-all me-1"></i>Mark All Entries as Checked
             </button>
           </form>
+
+          <!-- Upload Excel button with modal -->
+          <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#uploadExcelModal">
+            <i class="bi bi-upload me-1"></i>Upload Excel File
+          </button>
+        </div>
+
+        <!-- Excel Upload Modal -->
+        <div class="modal fade" id="uploadExcelModal" tabindex="-1" aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="uploadExcelModalLabel">Upload Excel Check Register</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <form th:action="@{/team/check-register/upload-excel}" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                  <input type="hidden" name="username" th:value="${selectedUser.username}">
+                  <input type="hidden" name="userId" th:value="${selectedUser.userId}">
+                  <input type="hidden" name="year" th:value="${currentYear}">
+                  <input type="hidden" name="month" th:value="${currentMonth}">
+
+                  <div class="mb-3">
+                    <label for="excelFile" class="form-label">Select Excel File (.xlsx)</label>
+                    <input type="file" class="form-control" id="excelFile" name="excelFile" accept=".xlsx" required>
+                    <div class="form-text">Please upload an Excel file with check register entries</div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="adminSync" class="form-label">Entry Status</label>
+                    <select class="form-select" id="adminSync" name="adminSync" required>
+                      <option value="TEAM_EDITED">Team Edited</option>
+                      <option value="TEAM_FINAL">Team Final</option>
+                      <option value="USER_INPUT">User Input</option>
+                    </select>
+                    <div class="form-text">Select the status to apply to uploaded entries</div>
+                  </div>
+
+                  <div class="alert alert-info mb-0">
+                    <h6>Excel Format Requirements:</h6>
+                    <ul class="mb-0">
+                      <li>Column A: Designer Name</li>
+                      <li>Column B: Date (DD/MM/YYYY format)</li>
+                      <li>Column C: Order ID (OMS ID)</li>
+                      <li>Column D: CV No. (Production ID)</li>
+                      <li>Column E: Work Type (Check Type)</li>
+                      <li>Column F: Nr of articles</li>
+                      <li>Column G: Nr of pieces</li>
+                      <li>Column H: Name & Number (skip this column)</li>
+                      <li>Column I: Error Description</li>
+                      <li>Column J: Approval Status</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload me-1"></i>Upload
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
 
         <!-- Check Bonus Section - Team Lead Only -->
