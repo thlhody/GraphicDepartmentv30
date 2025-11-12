@@ -616,49 +616,25 @@ public class CheckRegisterController extends BaseController {
                 return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
             }
 
-            // Save entries to user check register
-            int successCount = 0;
-            int errorCount = 0;
-            List<String> errors = new ArrayList<>();
+            // Batch save all entries at once (avoids file locking issues)
+            ServiceResult<Integer> batchResult = checkRegisterService.batchSaveUserEntries(username, userId, entries);
 
-            for (RegisterCheckEntry entry : entries) {
-                try {
-                    ServiceResult<RegisterCheckEntry> saveResult = checkRegisterService.saveUserEntry(
-                            username, userId, entry);
-
-                    if (saveResult.isSuccess()) {
-                        successCount++;
-                    } else {
-                        errorCount++;
-                        errors.add(String.format("Row %d: %s", entry.getEntryId(), saveResult.getErrorMessage()));
-                        LoggerUtil.warn(this.getClass(), String.format(
-                                "Failed to save entry %d: %s", entry.getEntryId(), saveResult.getErrorMessage()));
-                    }
-                } catch (Exception e) {
-                    errorCount++;
-                    errors.add(String.format("Row %d: %s", entry.getEntryId(), e.getMessage()));
-                    LoggerUtil.error(this.getClass(), String.format(
-                            "Exception saving entry %d: %s", entry.getEntryId(), e.getMessage()), e);
+            if (batchResult.isSuccess()) {
+                int savedCount = batchResult.getData();
+                if (batchResult.hasWarning()) {
+                    redirectAttributes.addFlashAttribute("warningMessage", batchResult.getWarningMessage());
+                } else {
+                    redirectAttributes.addFlashAttribute("successMessage",
+                            String.format("Successfully imported %d entries from Excel file", savedCount));
                 }
-            }
-
-            // Build result message
-            if (successCount > 0 && errorCount == 0) {
-                redirectAttributes.addFlashAttribute("successMessage",
-                        String.format("Successfully imported %d entries from Excel file", successCount));
-            } else if (successCount > 0 && errorCount > 0) {
-                redirectAttributes.addFlashAttribute("warningMessage",
-                        String.format("Imported %d entries, %d entries failed. Errors: %s",
-                                successCount, errorCount, String.join(", ", errors.subList(0, Math.min(3, errors.size())))));
+                LoggerUtil.info(this.getClass(), String.format(
+                        "Excel upload completed for %s: %d entries saved", username, savedCount));
             } else {
                 redirectAttributes.addFlashAttribute("errorMessage",
-                        String.format("Failed to import entries. Errors: %s",
-                                String.join(", ", errors.subList(0, Math.min(3, errors.size())))));
+                        "Failed to import entries: " + batchResult.getErrorMessage());
+                LoggerUtil.error(this.getClass(), String.format(
+                        "Excel upload failed for %s: %s", username, batchResult.getErrorMessage()));
             }
-
-            LoggerUtil.info(this.getClass(), String.format(
-                    "Excel upload completed for %s: %d successful, %d errors",
-                    username, successCount, errorCount));
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), "Unexpected error uploading Excel file: " + e.getMessage(), e);

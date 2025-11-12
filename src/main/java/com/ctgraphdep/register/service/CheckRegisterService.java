@@ -597,6 +597,110 @@ public class CheckRegisterService {
     }
 
     /**
+     * Batch save multiple check entries at once - OPTIMIZED for Excel import
+     * Writes all entries in a single file operation per month to avoid file locking issues
+     */
+    public ServiceResult<Integer> batchSaveUserEntries(String username, Integer userId, List<RegisterCheckEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return ServiceResult.validationError("No entries provided for batch save", "empty_entries");
+        }
+
+        // Business rule validation
+        ServiceResult<Void> businessValidation = validateUserCanCreateEntry(username, userId);
+        if (businessValidation.isFailure()) {
+            return ServiceResult.businessError(businessValidation.getErrorMessage(), businessValidation.getErrorCode());
+        }
+
+        int successCount = 0;
+        List<String> errors = new ArrayList<>();
+
+        try {
+            // Group entries by year/month
+            Map<String, List<RegisterCheckEntry>> entriesByMonth = entries.stream()
+                    .collect(Collectors.groupingBy(entry ->
+                            entry.getDate().getYear() + "-" + entry.getDate().getMonthValue()));
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Batch saving %d entries for %s across %d months",
+                    entries.size(), username, entriesByMonth.size()));
+
+            // Process each month group
+            for (Map.Entry<String, List<RegisterCheckEntry>> monthGroup : entriesByMonth.entrySet()) {
+                List<RegisterCheckEntry> monthEntries = monthGroup.getValue();
+
+                // Get year/month from first entry in group
+                int year = monthEntries.get(0).getDate().getYear();
+                int month = monthEntries.get(0).getDate().getMonthValue();
+
+                try {
+                    // Load existing entries for this month
+                    List<RegisterCheckEntry> existingEntries = registerCheckCacheService.getMonthEntries(username, userId, year, month);
+
+                    // Find the next available entry ID
+                    int nextId = generateNextEntryId(existingEntries);
+
+                    // Prepare new entries with IDs and status
+                    List<RegisterCheckEntry> newEntries = new ArrayList<>(existingEntries);
+
+                    for (RegisterCheckEntry entry : monthEntries) {
+                        // Validate entry
+                        ServiceResult<Void> validation = validateEntryComprehensive(entry);
+                        if (validation.isFailure()) {
+                            errors.add(String.format("Month %d/%d: %s", month, year, validation.getErrorMessage()));
+                            continue;
+                        }
+
+                        // Set ID and status
+                        entry.setEntryId(nextId++);
+                        entry.setAdminSync(MergingStatusConstants.USER_INPUT);
+
+                        newEntries.add(entry);
+                        successCount++;
+                    }
+
+                    // Write all entries for this month in ONE operation
+                    boolean writeSuccess = checkRegisterDataService.writeUserCheckRegisterLocalWithSyncAndBackup(
+                            username, userId, newEntries, year, month);
+
+                    if (writeSuccess) {
+                        // Invalidate cache for this month so it reloads with new entries
+                        registerCheckCacheService.invalidateMonth(username, userId, year, month);
+
+                        LoggerUtil.info(this.getClass(), String.format(
+                                "Successfully batch saved %d entries for %s in %d/%d",
+                                monthEntries.size(), username, month, year));
+                    } else {
+                        errors.add(String.format("Failed to write entries for month %d/%d", month, year));
+                    }
+
+                } catch (Exception e) {
+                    LoggerUtil.error(this.getClass(), String.format(
+                            "Error batch saving entries for %s in %d/%d: %s",
+                            username, month, year, e.getMessage()), e);
+                    errors.add(String.format("Month %d/%d: %s", month, year, e.getMessage()));
+                }
+            }
+
+            if (successCount == entries.size()) {
+                return ServiceResult.success(successCount);
+            } else if (successCount > 0) {
+                return ServiceResult.successWithWarning(successCount,
+                        String.format("Saved %d entries with %d errors: %s",
+                                successCount, errors.size(), String.join(", ", errors.subList(0, Math.min(3, errors.size())))));
+            } else {
+                return ServiceResult.systemError(
+                        "Failed to save any entries: " + String.join(", ", errors.subList(0, Math.min(3, errors.size()))),
+                        "batch_save_failed");
+            }
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), String.format(
+                    "Error in batch save for %s: %s", username, e.getMessage()), e);
+            return ServiceResult.systemError("System error during batch save", "system_error");
+        }
+    }
+
+    /**
      * Delete a user check entry - REFACTORED TO USE TOMBSTONE DELETION
      * User can delete their own entries - marks them with USER_DELETED_{timestamp} status
      * Tombstone deletion ensures deletions persist across merges
