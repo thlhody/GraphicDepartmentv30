@@ -136,16 +136,24 @@ public class ExcelCheckRegisterProcessingService {
         try (Workbook workbook = new XSSFWorkbook(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0); // Get first sheet
 
+            int totalRows = sheet.getLastRowNum() + 1;
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Excel file has %d total rows (including header)", totalRows));
+
             // Skip header row (row 0)
             int rowNum = 1;
+            int skippedEmptyRows = 0;
 
             for (Row row : sheet) {
                 if (row.getRowNum() == 0) {
+                    LoggerUtil.debug(this.getClass(), "Skipping header row");
                     continue; // Skip header row
                 }
 
                 // Skip empty rows
                 if (isEmptyRow(row)) {
+                    skippedEmptyRows++;
+                    LoggerUtil.debug(this.getClass(), String.format("Row %d is empty, skipping", row.getRowNum() + 1));
                     continue;
                 }
 
@@ -167,6 +175,10 @@ public class ExcelCheckRegisterProcessingService {
 
                 rowNum++;
             }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Excel processing complete: %d entries parsed, %d rows skipped as empty",
+                    entries.size(), skippedEmptyRows));
         }
 
         return entries;
