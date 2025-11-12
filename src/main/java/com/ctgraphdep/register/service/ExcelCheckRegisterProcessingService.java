@@ -150,14 +150,16 @@ public class ExcelCheckRegisterProcessingService {
                     "Using first sheet '%s' with %d total rows (including header)",
                     sheet.getSheetName(), totalRows));
 
-            // Skip header row (row 0)
+            // Skip header row (row 0) and empty row (row 1)
+            // Data starts at row 2 (Excel row 3)
             int rowNum = 1;
             int skippedEmptyRows = 0;
 
             for (Row row : sheet) {
-                if (row.getRowNum() == 0) {
-                    LoggerUtil.debug(this.getClass(), "Skipping header row");
-                    continue; // Skip header row
+                // Skip first 2 rows (header at row 0, empty at row 1)
+                if (row.getRowNum() <= 1) {
+                    LoggerUtil.debug(this.getClass(), String.format("Skipping row %d (header/formatting)", row.getRowNum()));
+                    continue;
                 }
 
                 // Skip empty rows
