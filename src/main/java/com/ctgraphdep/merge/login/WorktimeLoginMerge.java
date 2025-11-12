@@ -90,6 +90,13 @@ public class WorktimeLoginMerge {
                     "OPTIMIZED worktime login merge completed for %s: %d months merged, %d total entries, %d tracker updates, %d cleanup operations",
                     username, totalMergedMonths, totalEntriesProcessed, totalTrackerUpdates, totalCleanupOperations));
 
+            // CRITICAL: Update tracker ONCE after all months are processed
+            // This prevents data loss from parallel writes and ensures balance is always synced
+            Integer userId = getUserIdFromUsername(username);
+            if (userId != null) {
+                updateTimeOffTrackerAfterAllMonthsMerged(username, userId, currentYear);
+            }
+
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format("Error during optimized worktime login merge for %s: %s", username, e.getMessage()), e);
             // Don't throw - login should continue even if merge fails
@@ -226,14 +233,11 @@ public class WorktimeLoginMerge {
                 // Save merged result as final local worktime (includes cleaned statuses)
                 worktimeDataService.writeUserLocalWithSyncAndBackup(username, mergedEntries, year, month);
 
-                // Update time off tracker with entries from merged worktime
-                boolean trackerUpdated = updateTimeOffTrackerFromWorktime(username, userId, year, mergedEntries);
-
                 LoggerUtil.debug(this.getClass(), String.format(
-                        "Saved OPTIMIZED merged worktime for %s - %d/%d: %d entries, tracker updated: %s, cleanup: user=%s admin=%s",
-                        username, year, month, mergedEntries.size(), trackerUpdated, userCleanupNeeded, adminCleanupNeeded));
+                        "Saved OPTIMIZED merged worktime for %s - %d/%d: %d entries, cleanup: user=%s admin=%s",
+                        username, year, month, mergedEntries.size(), userCleanupNeeded, adminCleanupNeeded));
 
-                return new MergeResult(true, mergedEntries.size(), trackerUpdated, anyCleanupNeeded);
+                return new MergeResult(true, mergedEntries.size(), false, anyCleanupNeeded);
             } else {
                 LoggerUtil.debug(this.getClass(), String.format("No changes to save for %s - %d/%d", username, year, month));
                 return new MergeResult(false, userEntries.size(), false, false);
@@ -273,12 +277,17 @@ public class WorktimeLoginMerge {
     // TIME OFF TRACKER SYNCHRONIZATION (OPTIMIZED - SINGLE WRITE)
     // ========================================================================
 
-    // Update time off tracker with missing entries from merged worktime.
-    // CRITICAL: This method ALWAYS syncs holiday balance, even if no time-off entries exist.
-    // This ensures tracker stays in sync with admin-created time off entries AND admin holiday balance changes.
-    private boolean updateTimeOffTrackerFromWorktime(String username, Integer userId, int year, List<WorkTimeTable> mergedEntries) {
+    /**
+     * Update time off tracker ONCE after ALL months have been merged.
+     * CRITICAL FIX: This method loads ALL user worktime files for the entire year to ensure
+     * we don't lose time-off entries from months that weren't part of the optimized merge scope.
+     *
+     * This method ALWAYS syncs holiday balance, even if no new time-off entries exist.
+     * This ensures tracker stays in sync with admin-created time off entries AND admin holiday balance changes.
+     */
+    private void updateTimeOffTrackerAfterAllMonthsMerged(String username, Integer userId, int year) {
         try {
-            LoggerUtil.debug(this.getClass(), String.format("Syncing time off tracker for %s - %d", username, year));
+            LoggerUtil.info(this.getClass(), String.format("Syncing time off tracker for %s - %d (after all months merged)", username, year));
 
             // Load existing time off tracker
             TimeOffTracker tracker = timeOffDataService.readUserLocalTrackerReadOnly(username, userId, username, year);
@@ -318,16 +327,36 @@ public class WorktimeLoginMerge {
                 // Continue without failing - balance sync is not critical if requests are updated
             }
 
-            // STEP 2: Extract and add missing time-off requests
-            Map<LocalDate, String> timeOffEntries = extractTimeOffEntries(mergedEntries);
+            // STEP 2: Load ALL user worktime files for the entire year to extract time-off entries
+            Map<LocalDate, String> allTimeOffEntries = new HashMap<>();
 
-            if (!timeOffEntries.isEmpty()) {
-                LoggerUtil.debug(this.getClass(), String.format(
-                    "Found %d time off entries in worktime for %s - %d: %s",
-                    timeOffEntries.size(), username, year, timeOffEntries.keySet()));
+            for (int month = 1; month <= 12; month++) {
+                try {
+                    List<WorkTimeTable> monthEntries = worktimeDataService.readUserLocalReadOnly(username, userId, username, year, month);
+                    if (monthEntries != null && !monthEntries.isEmpty()) {
+                        Map<LocalDate, String> monthTimeOffEntries = extractTimeOffEntries(monthEntries);
+                        allTimeOffEntries.putAll(monthTimeOffEntries);
 
-                // Compare and add missing entries
-                List<TimeOffRequest> newRequests = findMissingTimeOffRequests(timeOffEntries, tracker);
+                        if (!monthTimeOffEntries.isEmpty()) {
+                            LoggerUtil.debug(this.getClass(), String.format(
+                                "Found %d time-off entries in %s - %d/%d",
+                                monthTimeOffEntries.size(), username, year, month));
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip month if read fails - file might not exist yet
+                    LoggerUtil.debug(this.getClass(), String.format(
+                        "Skipping month %d for %s - %d: %s", month, username, year, e.getMessage()));
+                }
+            }
+
+            LoggerUtil.info(this.getClass(), String.format(
+                "Loaded %d total time-off entries from all months for %s - %d",
+                allTimeOffEntries.size(), username, year));
+
+            // STEP 3: Compare and add missing time-off requests
+            if (!allTimeOffEntries.isEmpty()) {
+                List<TimeOffRequest> newRequests = findMissingTimeOffRequests(allTimeOffEntries, tracker);
 
                 if (!newRequests.isEmpty()) {
                     // Add new requests to tracker
@@ -345,33 +374,29 @@ public class WorktimeLoginMerge {
                 }
             } else {
                 LoggerUtil.debug(this.getClass(), String.format(
-                    "No time off entries found in worktime for %s - %d", username, year));
+                    "No time off entries found in any worktime files for %s - %d", username, year));
             }
 
-            // STEP 3: Save tracker if any modifications were made
+            // STEP 4: Save tracker if any modifications were made
             if (trackerModified) {
                 // Update tracker metadata
                 tracker.setLastSyncTime(LocalDateTime.now());
 
-                // Save updated tracker (SINGLE WRITE)
+                // Save updated tracker (SINGLE WRITE per login)
                 timeOffDataService.writeUserLocalTrackerWithSyncAndBackup(username, userId, tracker, year);
 
                 LoggerUtil.info(this.getClass(), String.format(
-                    "Updated and saved time off tracker for %s - %d (balance synced: yes, requests added: %s)",
-                    username, year, !timeOffEntries.isEmpty() ? "yes" : "no"));
-
-                return true;
+                    "Updated and saved time off tracker for %s - %d (balance synced: yes, requests synced from all months)",
+                    username, year));
             } else {
                 LoggerUtil.debug(this.getClass(), String.format(
                     "No modifications needed for tracker %s - %d", username, year));
-                return false;
             }
 
         } catch (Exception e) {
             LoggerUtil.error(this.getClass(), String.format(
                 "Error updating time off tracker for %s - %d: %s", username, year, e.getMessage()), e);
-            // Don't throw - tracker sync failure shouldn't break worktime merge
-            return false;
+            // Don't throw - tracker sync failure shouldn't break login merge
         }
     }
 
