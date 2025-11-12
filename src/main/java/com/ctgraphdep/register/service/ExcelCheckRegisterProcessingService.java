@@ -143,11 +143,26 @@ public class ExcelCheckRegisterProcessingService {
                         i, s.getSheetName(), s.getLastRowNum() + 1));
             }
 
-            Sheet sheet = workbook.getSheetAt(0); // Get first sheet
+            // Try to find the "Registry" sheet, otherwise use first sheet
+            Sheet sheet = null;
+            for (int i = 0; i < sheetCount; i++) {
+                Sheet s = workbook.getSheetAt(i);
+                if ("Registry".equalsIgnoreCase(s.getSheetName())) {
+                    sheet = s;
+                    LoggerUtil.info(this.getClass(), "Found 'Registry' sheet, using it for data");
+                    break;
+                }
+            }
+
+            // Fallback to first sheet if Registry not found
+            if (sheet == null) {
+                sheet = workbook.getSheetAt(0);
+                LoggerUtil.info(this.getClass(), "Registry sheet not found, using first sheet as fallback");
+            }
 
             int totalRows = sheet.getLastRowNum() + 1;
             LoggerUtil.info(this.getClass(), String.format(
-                    "Using first sheet '%s' with %d total rows (including header)",
+                    "Using sheet '%s' with %d total rows (including header)",
                     sheet.getSheetName(), totalRows));
 
             // Skip header row (row 0) and empty row (row 1)
