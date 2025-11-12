@@ -98,15 +98,16 @@ public class ExcelCheckRegisterProcessingService {
             CheckValuesEntry checkValues = userCheckValues.getCheckValuesEntry();
 
             // Parse Excel file with validation
-            List<String> dateErrors = new ArrayList<>();
-            List<RegisterCheckEntry> entries = parseExcelFile(file.getInputStream(), username, controllerUsername, adminSync, checkValues, dateErrors);
+            List<String> validationErrors = new ArrayList<>();
+            List<RegisterCheckEntry> entries = parseExcelFile(file.getInputStream(), username, controllerUsername, adminSync, checkValues, validationErrors);
 
-            // If there are date validation errors, return them to user
-            if (!dateErrors.isEmpty()) {
-                String errorMessage = "Date validation failed. Please correct the following dates and upload again:\n" +
-                        String.join("\n", dateErrors);
-                LoggerUtil.warn(this.getClass(), String.format("Date validation failed with %d errors", dateErrors.size()));
-                return ServiceResult.validationError(errorMessage, "date_validation_failed");
+            // If there are validation errors, return them to user with downloadable error file
+            if (!validationErrors.isEmpty()) {
+                String errorMessage = String.format("Validation failed for %d rows. Please correct the following errors and upload again:\n%s",
+                        validationErrors.size(),
+                        String.join("\n", validationErrors));
+                LoggerUtil.warn(this.getClass(), String.format("Validation failed with %d errors", validationErrors.size()));
+                return ServiceResult.validationError(errorMessage, "validation_failed");
             }
 
             if (entries.isEmpty()) {
@@ -136,7 +137,7 @@ public class ExcelCheckRegisterProcessingService {
      * @param controllerUsername Controller username
      * @param adminSync Admin sync status
      * @param checkValues Check values for calculation
-     * @param dateErrors List to collect date validation errors
+     * @param validationErrors List to collect all validation errors
      * @return List of RegisterCheckEntry
      * @throws IOException if file cannot be read
      */
@@ -146,7 +147,7 @@ public class ExcelCheckRegisterProcessingService {
             String controllerUsername,
             String adminSync,
             CheckValuesEntry checkValues,
-            List<String> dateErrors) throws IOException {
+            List<String> validationErrors) throws IOException {
 
         List<RegisterCheckEntry> entries = new ArrayList<>();
         int nextEntryId = 1;
@@ -219,7 +220,7 @@ public class ExcelCheckRegisterProcessingService {
                 }
 
                 try {
-                    RegisterCheckEntry entry = parseRow(row, designerUsername, controllerUsername, adminSync, checkValues, nextEntryId, dateErrors);
+                    RegisterCheckEntry entry = parseRow(row, designerUsername, controllerUsername, adminSync, checkValues, nextEntryId, validationErrors);
                     if (entry != null) {
                         entries.add(entry);
                         nextEntryId++;
@@ -231,7 +232,8 @@ public class ExcelCheckRegisterProcessingService {
                 } catch (Exception e) {
                     LoggerUtil.warn(this.getClass(), String.format(
                             "Failed to parse row %d: %s", row.getRowNum() + 1, e.getMessage()));
-                    // Continue processing other rows
+                    validationErrors.add(String.format("Row %d: Unexpected error - %s", row.getRowNum() + 1, e.getMessage()));
+                    // Continue processing other rows to collect all errors
                 }
 
                 rowNum++;
@@ -254,7 +256,7 @@ public class ExcelCheckRegisterProcessingService {
      * C: Order ID (omsId)
      * D: CV No. (productionId) - optional
      * E: Work Type (checkType)
-     * F: Nr of articles (articleNumbers)
+     * F: Nr of articles (articleNumbers) - defaults to 1 if null/empty/0
      * G: Nr of pieces (filesNumbers) - defaults to 1 if null/empty/0
      * H: Name & Number - SKIP
      * I: Error Description (errorDescription) - optional
@@ -268,10 +270,11 @@ public class ExcelCheckRegisterProcessingService {
             String adminSync,
             CheckValuesEntry checkValues,
             int entryId,
-            List<String> dateErrors) {
+            List<String> validationErrors) {
 
         try {
             int excelRowNum = row.getRowNum() + 1; // Excel row number (1-based)
+            boolean hasErrors = false;
 
             // Column A: Designer Name (default to CTTT_Name if empty)
             String designerName = getCellValueAsString(row.getCell(0));
@@ -282,15 +285,16 @@ public class ExcelCheckRegisterProcessingService {
 
             // Column B: Date (multiple formats supported)
             String dateStr = getCellValueAsString(row.getCell(1));
-            LocalDate date = parseDateFromCell(row.getCell(1), excelRowNum, dateStr, dateErrors);
-            // Don't return null if date is invalid - collect error and continue
-            // This allows us to collect ALL date errors before stopping
+            LocalDate date = parseDateFromCell(row.getCell(1), excelRowNum, dateStr, validationErrors);
+            if (date == null) {
+                hasErrors = true;
+            }
 
             // Column C: Order ID (OMS ID)
             String omsId = getCellValueAsString(row.getCell(2));
             if (omsId == null || omsId.trim().isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": OMS ID is missing");
-                return null;
+                validationErrors.add(String.format("Row %d: OMS ID is missing", excelRowNum));
+                hasErrors = true;
             }
 
             // Column D: CV No. (Production ID) - optional, can be null/empty
@@ -299,15 +303,15 @@ public class ExcelCheckRegisterProcessingService {
             // Column E: Work Type (Check Type)
             String checkType = getCellValueAsString(row.getCell(4));
             if (checkType == null || checkType.trim().isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": Check type is missing");
-                return null;
+                validationErrors.add(String.format("Row %d: Check type is missing", excelRowNum));
+                hasErrors = true;
             }
 
-            // Column F: Nr of articles (must be number)
+            // Column F: Nr of articles (defaults to 1 if null/empty/0)
             Integer articleNumbers = getCellValueAsInteger(row.getCell(5));
-            if (articleNumbers == null || articleNumbers < 0) {
-                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": Invalid article numbers");
-                return null;
+            if (articleNumbers == null || articleNumbers <= 0) {
+                articleNumbers = 1;
+                LoggerUtil.debug(this.getClass(), "Row " + excelRowNum + ": Nr of articles is null/empty/0, defaulting to 1");
             }
 
             // Column G: Nr of pieces (defaults to 1 if null/empty/0)
@@ -325,25 +329,33 @@ public class ExcelCheckRegisterProcessingService {
             // Column J: Approval Status
             String approvalStatus = getCellValueAsString(row.getCell(9));
             if (approvalStatus == null || approvalStatus.trim().isEmpty()) {
-                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": Approval status is missing");
+                validationErrors.add(String.format("Row %d: Approval status is missing", excelRowNum));
+                hasErrors = true;
+            }
+
+            // If this row has validation errors, skip it (errors already collected)
+            if (hasErrors) {
+                LoggerUtil.warn(this.getClass(), "Row " + excelRowNum + ": Skipping row due to validation errors");
                 return null;
             }
 
             // Calculate orderValue based on check type and check values
+            // Round to 2 decimal places to avoid floating point precision issues (e.g., 0.30000000000000004)
             Double orderValue = calculateOrderValue(checkType, articleNumbers, filesNumbers, checkValues);
+            orderValue = Math.round(orderValue * 100.0) / 100.0;
 
             // Build entry
             return RegisterCheckEntry.builder()
                     .entryId(entryId)
                     .designerName(designerName.trim())
                     .date(date)
-                    .omsId(omsId.trim())
+                    .omsId(omsId != null ? omsId.trim() : null)
                     .productionId(productionId != null ? productionId.trim() : null)
-                    .checkType(checkType.trim())
+                    .checkType(checkType != null ? checkType.trim() : null)
                     .articleNumbers(articleNumbers)
                     .filesNumbers(filesNumbers)
                     .errorDescription(errorDescription != null ? errorDescription.trim() : null)
-                    .approvalStatus(approvalStatus.trim())
+                    .approvalStatus(approvalStatus != null ? approvalStatus.trim() : null)
                     .orderValue(orderValue)
                     .adminSync(adminSync)
                     .build();

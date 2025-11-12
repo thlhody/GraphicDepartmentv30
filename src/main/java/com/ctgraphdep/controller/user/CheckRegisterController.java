@@ -33,7 +33,12 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -575,6 +580,7 @@ public class CheckRegisterController extends BaseController {
             @RequestParam("excelFile") org.springframework.web.multipart.MultipartFile file,
             @RequestParam Integer year,
             @RequestParam Integer month,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes) {
 
         try {
@@ -603,9 +609,24 @@ public class CheckRegisterController extends BaseController {
             ServiceResult<List<RegisterCheckEntry>> parseResult = this.excelProcessingService.processExcelFile(
                     file, username, userId, username, MergingStatusConstants.USER_INPUT);
 
+            // If validation failed, show error message with link to download error details
             if (parseResult.isFailure()) {
-                redirectAttributes.addFlashAttribute("errorMessage",
-                        "Failed to process Excel file: " + parseResult.getErrorMessage());
+                String errorMsg = parseResult.getErrorMessage();
+
+                // For validation errors, provide detailed error display
+                if ("validation_failed".equals(parseResult.getErrorCode())) {
+                    // Store errors in session for download endpoint
+                    request.getSession().setAttribute("excel_validation_errors", errorMsg);
+                    request.getSession().setAttribute("excel_validation_username", username);
+
+                    redirectAttributes.addFlashAttribute("errorMessage",
+                            "Excel validation failed. Please check the errors and correct your file before uploading again.");
+                    redirectAttributes.addFlashAttribute("validationErrors", errorMsg);
+                    redirectAttributes.addFlashAttribute("showDownloadLink", true);
+                } else {
+                    redirectAttributes.addFlashAttribute("errorMessage",
+                            "Failed to process Excel file: " + errorMsg);
+                }
                 return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
             }
 
@@ -646,6 +667,67 @@ public class CheckRegisterController extends BaseController {
         }
 
         return String.format("redirect:/user/check-register?year=%d&month=%d", year, month);
+    }
+
+    /**
+     * Download Excel validation errors as text file
+     * GET /user/check-register/download-errors
+     */
+    @GetMapping("/download-errors")
+    public ResponseEntity<byte[]> downloadValidationErrors(
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+
+        try {
+            HttpSession session = request.getSession(false);
+            if (session == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String errors = (String) session.getAttribute("excel_validation_errors");
+            String username = (String) session.getAttribute("excel_validation_username");
+
+            if (errors == null || username == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Clear session attributes after retrieving
+            session.removeAttribute("excel_validation_errors");
+            session.removeAttribute("excel_validation_username");
+
+            // Generate filename with timestamp
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            String filename = String.format("Excel_Validation_Errors_%s_%s.txt", username, timestamp);
+
+            // Build error file content
+            StringBuilder content = new StringBuilder();
+            content.append("Excel Check Register Validation Errors\n");
+            content.append("=====================================\n");
+            content.append("User: ").append(username).append("\n");
+            content.append("Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n");
+            content.append("\n");
+            content.append(errors);
+            content.append("\n\n");
+            content.append("Please correct these errors in your Excel file and upload again.\n");
+
+            byte[] fileContent = content.toString().getBytes(StandardCharsets.UTF_8);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.TEXT_PLAIN);
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setContentLength(fileContent.length);
+
+            LoggerUtil.info(this.getClass(), String.format(
+                    "Validation errors file downloaded by %s: %s", username, filename));
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(fileContent);
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error generating validation errors file: " + e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // ========================================================================

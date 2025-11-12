@@ -13,6 +13,22 @@
     <div th:if="${errorMessage}" th:attr="data-alert-message=${errorMessage},data-alert-type='error'"></div>
     <div th:if="${warningMessage}" th:attr="data-alert-message=${warningMessage},data-alert-type='warning'"></div>
 
+    <!-- Validation Errors Display with Download Link -->
+    <div th:if="${showDownloadLink}" class="container py-2">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i>Excel Validation Errors</h5>
+            <p th:text="${errorMessage}">Validation failed</p>
+            <hr>
+            <p class="mb-0">
+                <a th:href="@{/user/check-register/download-errors}" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-download me-2"></i>Download Error Details
+                </a>
+                <small class="ms-3 text-muted">Download the error file to see all validation errors with row numbers</small>
+            </p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+
     <div class="container py-4">
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
