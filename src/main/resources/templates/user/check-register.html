@@ -13,23 +13,25 @@
     <div th:if="${errorMessage}" th:attr="data-alert-message=${errorMessage},data-alert-type='error'"></div>
     <div th:if="${warningMessage}" th:attr="data-alert-message=${warningMessage},data-alert-type='warning'"></div>
 
-    <!-- Validation Errors Display with Download Link -->
-    <div th:if="${showDownloadLink}" class="container py-2">
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i>Excel Validation Errors</h5>
-            <p th:text="${errorMessage}">Validation failed</p>
+    <div class="container py-4">
+        <!-- DEBUG: Show download link status -->
+        <!-- th:text="'DEBUG: showDownloadLink=' + ${showDownloadLink}" -->
+
+        <!-- Validation Errors Display with Download Link -->
+        <div th:if="${showDownloadLink != null and showDownloadLink == true}" class="alert alert-danger alert-dismissible fade show mb-4" role="alert" style="border-left: 5px solid #dc3545; background-color: #fee;">
+            <h4 class="alert-heading">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>Excel Validation Errors Found
+            </h4>
+            <p class="mb-3" style="white-space: pre-line;" th:text="${errorMessage}">Validation failed</p>
             <hr>
-            <p class="mb-0">
-                <a th:href="@{/user/check-register/download-errors}" class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-download me-2"></i>Download Error Details
+            <div class="d-grid gap-2">
+                <a th:href="@{/user/check-register/download-errors}" class="btn btn-danger btn-lg">
+                    <i class="bi bi-download me-2"></i>Download Complete Error Report with Row Numbers
                 </a>
-                <small class="ms-3 text-muted">Download the error file to see all validation errors with row numbers</small>
-            </p>
+                <small class="text-muted text-center">The downloaded file will show you exactly which rows have errors</small>
+            </div>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-    </div>
-
-    <div class="container py-4">
         <!-- Header Section -->
         <div class="page-header d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex align-items-center gap-3">

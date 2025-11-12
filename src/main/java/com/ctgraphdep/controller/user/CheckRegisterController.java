@@ -619,10 +619,16 @@ public class CheckRegisterController extends BaseController {
                     request.getSession().setAttribute("excel_validation_errors", errorMsg);
                     request.getSession().setAttribute("excel_validation_username", username);
 
-                    redirectAttributes.addFlashAttribute("errorMessage",
-                            "Excel validation failed. Please check the errors and correct your file before uploading again.");
+                    // Extract first few errors for inline display
+                    String[] errorLines = errorMsg.split("\n");
+                    String summary = errorLines.length > 2 ? errorLines[0] + "\n" + errorLines[1] : errorMsg;
+
+                    redirectAttributes.addFlashAttribute("errorMessage", summary);
                     redirectAttributes.addFlashAttribute("validationErrors", errorMsg);
                     redirectAttributes.addFlashAttribute("showDownloadLink", true);
+
+                    LoggerUtil.info(this.getClass(), String.format(
+                            "Validation failed for %s - errors stored in session, showDownloadLink=true", username));
                 } else {
                     redirectAttributes.addFlashAttribute("errorMessage",
                             "Failed to process Excel file: " + errorMsg);
