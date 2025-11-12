@@ -332,7 +332,7 @@ public class WorktimeLoginMerge {
 
             for (int month = 1; month <= 12; month++) {
                 try {
-                    List<WorkTimeTable> monthEntries = worktimeDataService.readUserLocalReadOnly(username, userId, username, year, month);
+                    List<WorkTimeTable> monthEntries = worktimeDataService.readUserLocalReadOnly(username, year, month, username);
                     if (monthEntries != null && !monthEntries.isEmpty()) {
                         Map<LocalDate, String> monthTimeOffEntries = extractTimeOffEntries(monthEntries);
                         allTimeOffEntries.putAll(monthTimeOffEntries);
