@@ -505,6 +505,65 @@ public class UserSessionController extends BaseController {
         }
     }
 
+    /**
+     * AJAX endpoint for auto-refresh of session status
+     * Returns current session data without page reload
+     */
+    @GetMapping("/ajax-status")
+    @ResponseBody
+    public Map<String, Object> getSessionStatusAjax(@AuthenticationPrincipal UserDetails userDetails) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Get current user
+            User currentUser = getUser(userDetails);
+            if (currentUser == null) {
+                response.put("success", false);
+                response.put("message", "Authentication required");
+                return response;
+            }
+
+            // Get session status using query
+            GetSessionStatusQuery statusQuery = commandFactory.createGetSessionStatusQuery(currentUser.getUsername());
+            String sessionStatus = commandService.executeQuery(statusQuery);
+
+            // Get completed session flag using navigation context
+            NavigationContextQuery navQuery = commandFactory.createNavigationContextQuery(currentUser);
+            NavigationContext navContext = commandService.executeQuery(navQuery);
+
+            // Build response
+            response.put("success", true);
+            response.put("sessionStatus", sessionStatus);
+            response.put("completedSessionToday", navContext.completedSessionToday());
+
+            // If session is active, add duration
+            if ("Online".equals(sessionStatus) || "Temp Stop".equals(sessionStatus)) {
+                GetActiveSessionQuery activeQuery = commandFactory.createGetActiveSessionQuery(currentUser.getUsername());
+                WorkUsersSessionsStates activeSession = commandService.executeQuery(activeQuery);
+
+                if (activeSession != null && activeSession.getSessionStartTime() != null) {
+                    LocalDateTime startTime = activeSession.getSessionStartTime();
+                    LocalDateTime now = LocalDateTime.now();
+                    long minutes = java.time.Duration.between(startTime, now).toMinutes();
+
+                    long hours = minutes / 60;
+                    long mins = minutes % 60;
+                    String duration = String.format("%d hours %d minutes", hours, mins);
+
+                    response.put("sessionDuration", duration);
+                }
+            }
+
+            return response;
+
+        } catch (Exception e) {
+            LoggerUtil.error(this.getClass(), "Error getting session status for AJAX: " + e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return response;
+        }
+    }
+
     // Sanitize user data for display
     private User sanitizeUserData(User user) {
         User sanitized = new User();

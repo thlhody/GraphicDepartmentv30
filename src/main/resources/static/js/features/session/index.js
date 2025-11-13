@@ -10,6 +10,7 @@
 import { SessionUI } from './SessionUI.js';
 import { SessionEndTime } from './SessionEndTime.js';
 import { SessionTimeManagement } from './SessionTimeManagement.js';
+import { SessionAutoRefresh } from './SessionAutoRefresh.js';
 import { ResolutionManager } from '../resolution/ResolutionManager.js';
 import { formatMinutesToHours } from '../../core/utils.js';
 
@@ -37,12 +38,17 @@ function init() {
     // Initialize time management integration
     const sessionTimeManagement = new SessionTimeManagement();
 
+    // Initialize auto-refresh (AJAX-based, no page reload)
+    const sessionAutoRefresh = new SessionAutoRefresh();
+    sessionAutoRefresh.initialize();
+
     // Make instances globally available for debugging
     window.Session = {
         ui: sessionUI,
         endTime: sessionEndTime,
         resolution: resolutionManager,
-        timeManagement: sessionTimeManagement
+        timeManagement: sessionTimeManagement,
+        autoRefresh: sessionAutoRefresh
     };
 
     // Make instance available for error handler
