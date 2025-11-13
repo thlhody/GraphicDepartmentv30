@@ -523,9 +523,8 @@ public class UserSessionController extends BaseController {
                 return response;
             }
 
-            // Get session status using query
-            GetSessionStatusQuery statusQuery = commandFactory.createGetSessionStatusQuery(currentUser.getUsername());
-            String sessionStatus = commandService.executeQuery(statusQuery);
+            // Use SessionService to get current session (same as main page)
+            WorkSessionDTO sessionDTO = sessionService.getCurrentSession(currentUser.getUsername(), currentUser.getUserId());
 
             // Get completed session flag using navigation context
             NavigationContextQuery navQuery = commandFactory.createNavigationContextQuery(currentUser);
@@ -533,25 +532,12 @@ public class UserSessionController extends BaseController {
 
             // Build response
             response.put("success", true);
-            response.put("sessionStatus", sessionStatus);
+            response.put("sessionStatus", sessionDTO.getFormattedStatus());
             response.put("completedSessionToday", navContext.completedSessionToday());
 
-            // If session is active, add duration
-            if ("Online".equals(sessionStatus) || "Temp Stop".equals(sessionStatus)) {
-                GetActiveSessionQuery activeQuery = commandFactory.createGetActiveSessionQuery(currentUser.getUsername());
-                WorkUsersSessionsStates activeSession = commandService.executeQuery(activeQuery);
-
-                if (activeSession != null && activeSession.getSessionStartTime() != null) {
-                    LocalDateTime startTime = activeSession.getSessionStartTime();
-                    LocalDateTime now = LocalDateTime.now();
-                    long minutes = java.time.Duration.between(startTime, now).toMinutes();
-
-                    long hours = minutes / 60;
-                    long mins = minutes % 60;
-                    String duration = String.format("%d hours %d minutes", hours, mins);
-
-                    response.put("sessionDuration", duration);
-                }
+            // Add session duration if available
+            if (sessionDTO.getFormattedRawWorkTime() != null && !sessionDTO.getFormattedRawWorkTime().isEmpty()) {
+                response.put("sessionDuration", sessionDTO.getFormattedRawWorkTime());
             }
 
             return response;
